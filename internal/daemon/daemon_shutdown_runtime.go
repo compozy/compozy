@@ -6,6 +6,17 @@ import (
 )
 
 func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	workersCtx, cancel := context.WithTimeout(ctx, defaultShutdownTimeout/2)
+	defer cancel()
+	d.shutdownBackgroundWorkers(workersCtx, targets, errs)
+	targets.runtimeWorkers.shutdown(workersCtx, errs)
+	d.shutdownRuntimeSessions(ctx, targets, errs)
+}
+
+func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	if targets.worktrees != nil {
+		targets.worktrees.Close()
+	}
 	if targets.backgroundUpdates != nil {
 		appendWrappedError(errs, "daemon: shutdown background updates", targets.backgroundUpdates.Shutdown(ctx))
 	}
@@ -72,12 +83,6 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 		appendWrappedError(errs, "daemon: shutdown session wake bridge", targets.sessionWakeBridge.shutdown(ctx))
 	}
 	shutdownWorkspaceAndTerminals(ctx, targets, errs)
-	d.shutdownSessionTargets(ctx, targets, errs)
-}
-
-func (d *Daemon) shutdownSessionTargets(ctx context.Context, targets *shutdownTargets, errs *[]error) {
-	targets.runtimeWorkers.shutdown(ctx, errs)
-	d.shutdownRuntimeSessions(ctx, targets, errs)
 }
 
 type replyWatchQuiescer interface {

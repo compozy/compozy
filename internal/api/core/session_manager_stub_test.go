@@ -34,6 +34,7 @@ type sessionManagerStub struct {
 	delete              func(context.Context, string) error
 	stop                func(context.Context, string) error
 	archive             func(context.Context, string, string) (*session.Info, error)
+	archiveWithStop     func(context.Context, string, string) (*session.Info, error)
 	unarchive           func(context.Context, string, string) (*session.Info, error)
 	stopWithCause       func(context.Context, string, session.StopCause, string) error
 	resume              func(context.Context, string) (*session.Session, error)
@@ -246,6 +247,17 @@ func (s sessionManagerStub) Archive(
 ) (*session.Info, error) {
 	if s.archive != nil {
 		return s.archive(ctx, workspaceID, sessionID)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) ArchiveWithStop(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if s.archiveWithStop != nil {
+		return s.archiveWithStop(ctx, workspaceID, sessionID)
 	}
 	return nil, session.ErrSessionNotFound
 }

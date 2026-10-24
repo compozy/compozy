@@ -13,18 +13,22 @@ import (
 )
 
 type fakeClaudeKeychain struct {
-	calls atomic.Int32
-	read  func(context.Context, string, string) ([]byte, error)
-	data  string
-	err   error
+	calls       atomic.Int32
+	interactive atomic.Int32
+	read        func(context.Context, string, string, bool) ([]byte, error)
+	data        string
+	err         error
 }
 
 var _ KeychainReader = (*fakeClaudeKeychain)(nil)
 
-func (f *fakeClaudeKeychain) Read(ctx context.Context, service, account string) ([]byte, error) {
+func (f *fakeClaudeKeychain) Read(ctx context.Context, service, account string, interactive bool) ([]byte, error) {
 	f.calls.Add(1)
+	if interactive {
+		f.interactive.Add(1)
+	}
 	if f.read != nil {
-		return f.read(ctx, service, account)
+		return f.read(ctx, service, account, interactive)
 	}
 	return []byte(f.data), f.err
 }
@@ -185,7 +189,70 @@ func TestClaudeCollector(t *testing.T) {
 }
 
 func TestClaudeKeychain(t *testing.T) {
-	t.Run("Should retain denial until another explicit action", func(t *testing.T) {
+	t.Run("Should reread a rejected token before its expiry without prompting", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, false)
+		reader := &fakeClaudeKeychain{data: credential}
+		var requests atomic.Int32
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			if r.Header.Get("Authorization") == "Bearer synthetic-secret" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			requireEqual(t, "Bearer renewed-secret", r.Header.Get("Authorization"))
+			claudeResponse(t, w, `{"five_hour":{"utilization":42}}`)
+		})
+		collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudeKeychain(reader), WithClaudePlatform("darwin"), WithClaudeHTTP(server.URL, nil))
+		_, err := collectClaude(t, collector, target, IntentBackground)
+		requireEqual(t, ErrorCodeAuthMissing, AsUsageError(err, "Claude").Code)
+		reader.data = strings.ReplaceAll(credential, "synthetic-secret", "renewed-secret")
+		snapshot, err := collectClaude(t, collector, target, IntentBackground)
+		requireNoError(t, err)
+		requireEqual(t, StatusOK, snapshot.Status)
+		requireEqual(t, 42.0, *snapshot.Windows[0].UsedPercent)
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(2), requests.Load())
+		requireEqual(t, int32(0), reader.interactive.Load())
+	})
+
+	t.Run("Should collect every profile after startup without prompting", func(t *testing.T) {
+		t.Parallel()
+		first, _, credential := claudeFixture(t, false)
+		second, _, _ := claudeFixture(t, false)
+		second.ProfileID = "second-profile"
+		reader := &fakeClaudeKeychain{data: credential}
+		server := fixtureServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			claudeResponse(t, w, `{"five_hour":{"utilization":42}}`)
+		})
+		collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudeKeychain(reader), WithClaudePlatform("darwin"), WithClaudeHTTP(server.URL, nil))
+		for _, target := range []Target{first, second} {
+			snapshot, err := collectClaude(t, collector, target, IntentBackground)
+			requireNoError(t, err)
+			requireEqual(t, StatusOK, snapshot.Status)
+			requireEqual(t, 42.0, *snapshot.Windows[0].UsedPercent)
+		}
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(0), reader.interactive.Load())
+	})
+	t.Run("Should recover from a noninteractive denial after credentials become accessible", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, false)
+		reader := &fakeClaudeKeychain{data: credential, err: os.ErrPermission}
+		collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now),
+			WithClaudeKeychain(reader), WithClaudePlatform("darwin"))
+		_, err := collector.Identity(t.Context(), target, IntentBackground)
+		requireEqual(t, ErrorCodeKeychainDenied, AsUsageError(err, "Claude").Code)
+		reader.err = nil
+		_, err = collector.Identity(t.Context(), target, IntentBackground)
+		requireNoError(t, err)
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(0), reader.interactive.Load())
+	})
+
+	t.Run("Should retry denied access silently until an explicit action allows prompting", func(t *testing.T) {
 		t.Parallel()
 		target, _, credential := claudeFixture(t, false)
 		reader := &fakeClaudeKeychain{data: credential, err: os.ErrPermission}
@@ -195,11 +262,12 @@ func TestClaudeKeychain(t *testing.T) {
 		requireEqual(t, ErrorCodeKeychainDenied, AsUsageError(err, "Claude").Code)
 		_, err = collector.Identity(t.Context(), target, IntentBackground)
 		requireEqual(t, ErrorCodeKeychainDenied, AsUsageError(err, "Claude").Code)
-		requireEqual(t, int32(1), reader.calls.Load())
+		requireEqual(t, int32(2), reader.calls.Load())
 		reader.err = nil
 		_, err = collector.Identity(t.Context(), target, IntentExplicit)
 		requireNoError(t, err)
-		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(3), reader.calls.Load())
+		requireEqual(t, int32(2), reader.interactive.Load())
 	})
 	t.Run("Should release the collector lock during a prompt and fence revoked consent", func(t *testing.T) {
 		t.Parallel()
@@ -208,7 +276,10 @@ func TestClaudeKeychain(t *testing.T) {
 		other.ProfileID = "other-profile"
 		entered, release := make(chan struct{}), make(chan struct{})
 		defer close(release)
-		reader := &fakeClaudeKeychain{read: func(ctx context.Context, _, _ string) ([]byte, error) {
+		reader := &fakeClaudeKeychain{read: func(ctx context.Context, _, _ string, interactive bool) ([]byte, error) {
+			if !interactive {
+				return nil, os.ErrNotExist
+			}
 			close(entered)
 			select {
 			case <-release:
@@ -228,7 +299,7 @@ func TestClaudeKeychain(t *testing.T) {
 		defer cancel()
 		select {
 		case err := <-background:
-			requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
+			requireEqual(t, ErrorCodeAuthMissing, AsUsageError(err, "Claude").Code)
 		case <-ctx.Done():
 			t.Fatal("another profile blocked behind the Keychain prompt")
 		}
@@ -242,7 +313,7 @@ func TestClaudeKeychain(t *testing.T) {
 			t.Fatal("revoked prompt was not canceled")
 		}
 		_, err := collector.Identity(t.Context(), target, IntentBackground)
-		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
+		requireEqual(t, ErrorCodeAuthMissing, AsUsageError(err, "Claude").Code)
 	})
 
 	t.Run("Should report a missing Keychain login as signed out", func(t *testing.T) {
@@ -255,12 +326,12 @@ func TestClaudeKeychain(t *testing.T) {
 		outcome := AsUsageError(err, "Claude")
 		requireEqual(t, ErrorCodeAuthMissing, outcome.Code)
 		requireEqual(t, StatusSignedOut, outcome.Status())
-		requireEqual(t, "Sign in with Claude to read usage", outcome.Message)
+		requireEqual(t, "Sign in with claude /login to read usage", outcome.Message)
 		requireEqual(t, string(ActionSignIn), outcome.Action)
 		requireEqual(t, int32(1), reader.calls.Load())
 	})
 
-	t.Run("Should clear one profile or all cached logins without background Keychain reads", func(t *testing.T) {
+	t.Run("Should reread cleared profile credentials without prompting", func(t *testing.T) {
 		t.Parallel()
 		first, _, credential := claudeFixture(t, false)
 		second, _, _ := claudeFixture(t, false)
@@ -278,58 +349,74 @@ func TestClaudeKeychain(t *testing.T) {
 			requireNoError(t, err)
 		}
 		c.ClearCredentials(first.ProfileID)
-		if _, err := c.Identity(t.Context(), first, IntentBackground); err == nil {
-			t.Fatal("cleared login reused")
-		}
-		_, err := c.Identity(t.Context(), second, IntentBackground)
+		_, err := c.Identity(t.Context(), first, IntentBackground)
+		requireNoError(t, err)
+		requireEqual(t, int32(3), reader.calls.Load())
+		_, err = c.Identity(t.Context(), second, IntentBackground)
 		requireNoError(t, err)
 		_, err = c.Identity(t.Context(), first, IntentExplicit)
 		requireNoError(t, err)
 		c.ClearCredentials("")
 		for _, target := range []Target{first, second} {
-			if _, err := c.Identity(t.Context(), target, IntentBackground); err == nil {
-				t.Fatal("globally cleared login reused")
-			}
+			_, err := c.Identity(t.Context(), target, IntentBackground)
+			requireNoError(t, err)
 		}
-		requireEqual(t, int32(3), reader.calls.Load())
+		requireEqual(t, int32(6), reader.calls.Load())
+		requireEqual(t, int32(3), reader.interactive.Load())
 	})
 
-	t.Run("Should require consent and explicit intent UT-013 UT-015 UT-016 UT-017", func(t *testing.T) {
-		t.Parallel()
-		for _, tc := range []struct {
-			name, platform string
-			consent        bool
-			intent         Intent
-			denied         bool
-			code           ErrorCode
-			calls          int32
-		}{
-			{"Should require consent", "darwin", false, IntentExplicit, false, ErrorCodeKeychainConsentRequired, 0},
-			{"Should request refresh after restart without reading the Keychain", "darwin", true, IntentBackground, false, ErrorCodeKeychainTokenExpired, 0},
-			{"Should sanitize denied reader", "darwin", true, IntentExplicit, true, ErrorCodeKeychainDenied, 1},
-			{"Should not read on Linux", "linux", true, IntentExplicit, false, ErrorCodeAuthMissing, 0},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				target, _, credential := claudeFixture(t, false)
-				target.Route.KeychainAccess = tc.consent
-				reader := &fakeClaudeKeychain{data: credential}
-				if tc.denied {
-					reader.err = os.ErrPermission
-				}
-				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
-				c.platform = tc.platform
-				_, err := c.Identity(t.Context(), target, tc.intent)
-				requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
-				requireEqual(t, tc.calls, reader.calls.Load())
-				_, err = c.Identity(t.Context(), target, IntentBackground)
-				if err == nil {
-					t.Fatal("unexpected background credential")
-				}
-				requireEqual(t, tc.calls, reader.calls.Load())
-			})
-		}
-	})
+	t.Run(
+		"Should require consent and reserve prompts for explicit intent UT-013 UT-015 UT-016 UT-017",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name, platform string
+				consent        bool
+				intent         Intent
+				denied         bool
+				code           ErrorCode
+				calls          int32
+			}{
+				{"Should require consent", "darwin", false, IntentExplicit, false, ErrorCodeKeychainConsentRequired, 0},
+				{"Should recover after restart without prompting", "darwin", true, IntentBackground, false, "", 1},
+				{"Should sanitize denied reader", "darwin", true, IntentExplicit, true, ErrorCodeKeychainDenied, 1},
+				{"Should not read on Linux", "linux", true, IntentExplicit, false, ErrorCodeAuthMissing, 0},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					target, _, credential := claudeFixture(t, false)
+					target.Route.KeychainAccess = tc.consent
+					reader := &fakeClaudeKeychain{data: credential}
+					if tc.denied {
+						reader.err = os.ErrPermission
+					}
+					c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+					c.platform = tc.platform
+					_, err := c.Identity(t.Context(), target, tc.intent)
+					if tc.code == "" {
+						requireNoError(t, err)
+					} else {
+						requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
+					}
+					requireEqual(t, tc.calls, reader.calls.Load())
+					_, err = c.Identity(t.Context(), target, IntentBackground)
+					if tc.code == "" {
+						requireNoError(t, err)
+					} else {
+						requireEqual(t, tc.code, AsUsageError(err, "Claude").Code)
+					}
+					wantCalls := tc.calls
+					if tc.denied {
+						wantCalls++
+					}
+					requireEqual(t, wantCalls, reader.calls.Load())
+					if tc.intent == IntentBackground {
+						requireEqual(t, int32(0), reader.interactive.Load())
+					}
+				})
+			}
+		},
+	)
 	t.Run("Should reuse only while account evidence holds UT-014 UT-015 UT-079 UT-080", func(t *testing.T) {
 		t.Parallel()
 		for _, change := range []string{"account", "deleted", "malformed", "expiry", "route", "consent", "close", "clear"} {
@@ -371,11 +458,17 @@ func TestClaudeKeychain(t *testing.T) {
 				case "clear":
 					c.ClearCredentials(target.ProfileID)
 				}
+				reader.err = os.ErrNotExist
 				_, err = collectClaude(t, c, target, IntentBackground)
 				if err == nil {
 					t.Fatal("reused invalid token")
 				}
-				requireEqual(t, int32(1), reader.calls.Load())
+				wantReads := int32(2)
+				if change == "consent" || change == "close" {
+					wantReads = 1
+				}
+				requireEqual(t, wantReads, reader.calls.Load())
+				requireEqual(t, int32(1), reader.interactive.Load())
 			})
 		}
 	})
@@ -399,9 +492,12 @@ func TestClaudeKeychain(t *testing.T) {
 		_, err = c.Collect(t.Context(), target, IntentExplicit, identity)
 		requireNoError(t, err)
 		requireNoError(t, c.ValidateIdentity(t.Context(), target, identity))
-		_, err = c.Identity(t.Context(), target, IntentBackground)
-		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
-		requireEqual(t, int32(1), reader.calls.Load())
+		_, err = c.Collect(t.Context(), target, IntentBackground, identity)
+		requireEqual(t, ErrorCodeAuthExpired, AsUsageError(err, "Claude").Code)
+		_, err = collectClaude(t, c, target, IntentBackground)
+		requireNoError(t, err)
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(1), reader.interactive.Load())
 	})
 	t.Run("Should reject an account switch during HTTP UT-073 UT-081", func(t *testing.T) {
 		t.Parallel()
@@ -517,11 +613,13 @@ func TestClaudeIsolation(t *testing.T) {
 		other := target
 		other.ProfileID = "other"
 		_, err = c.Identity(t.Context(), other, IntentBackground)
-		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
+		requireNoError(t, err)
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(1), reader.interactive.Load())
 		requireNoError(t, os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(credential), 0o600))
 		err = c.ValidateIdentity(t.Context(), target, identity)
 		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
-		requireEqual(t, int32(1), reader.calls.Load())
+		requireEqual(t, int32(2), reader.calls.Load())
 	})
 	t.Run("Should avoid ambient files when route home is absent", func(t *testing.T) {
 		t.Parallel()

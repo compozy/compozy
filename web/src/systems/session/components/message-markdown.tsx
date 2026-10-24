@@ -44,6 +44,8 @@ export interface MessageMarkdownProps {
   compact?: StreamMarkdownProps["compact"];
   /** Inline nodes the content places with `composeMarkdownSlots` (transcript chips). */
   slots?: StreamMarkdownSlots;
+  /** Operator-typed prose: authored line breaks and safe external links (`StreamMarkdown`). */
+  authored?: boolean;
 }
 
 // The reveal is presentation only: reduced motion and the client-local
@@ -79,6 +81,7 @@ export const MessageMarkdown = memo(
     reveal = false,
     compact = false,
     slots,
+    authored = false,
   }: MessageMarkdownProps) {
     if (reveal) {
       return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
@@ -88,6 +91,7 @@ export const MessageMarkdown = memo(
         streaming={streaming}
         compact={compact}
         slots={slots}
+        authored={authored}
         components={MESSAGE_MARKDOWN_COMPONENTS}
       >
         {content}
@@ -99,5 +103,6 @@ export const MessageMarkdown = memo(
     prev.streaming === next.streaming &&
     prev.reveal === next.reveal &&
     prev.compact === next.compact &&
-    prev.slots === next.slots
+    prev.slots === next.slots &&
+    prev.authored === next.authored
 );

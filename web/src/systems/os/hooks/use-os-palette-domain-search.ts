@@ -1,5 +1,5 @@
 import { useProfileReadScope } from "@/systems/profiles";
-import type { WorkspaceScopeMode } from "@/systems/workspace";
+import { ALL_DATA_SCOPE, focusedWorkspaceSelector, type DataScope } from "@/systems/workspace";
 
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
 import {
@@ -26,7 +26,8 @@ export interface UseOsPaletteDomainSearchOptions {
   readonly open: boolean;
   readonly query: string;
   readonly workspaceId: string | null;
-  readonly scope: WorkspaceScopeMode;
+  /** `null` while the destination is unsettled: nothing is read. */
+  readonly scope: DataScope | null;
   readonly workspaceNames: ReadonlyMap<string, string>;
   readonly signals: CmdPaletteRankSignals | null;
   /** A pushed view reads one full domain; root search reads every gated domain. */
@@ -41,21 +42,25 @@ export function useOsPaletteDomainSearch({
   open,
   query,
   workspaceId,
-  scope,
+  scope: requestedScope,
   workspaceNames,
   signals,
   targetDomain,
 }: UseOsPaletteDomainSearchOptions): readonly OsPaletteDomainSection[] {
   const { destination: profile } = useProfileReadScope();
+  const settled = open && requestedScope !== null;
+  const scope = requestedScope ?? ALL_DATA_SCOPE;
+  const all = scope.kind === "all";
+  const scopedWorkspace = all ? null : focusedWorkspaceSelector(scope);
   const context: OsPaletteDomainContext = {
     domainLimit:
       targetDomain === undefined ? signals?.weights.entity_section_visible_cap : undefined,
-    open,
+    open: settled,
     profile,
     query,
-    rootEnabled: isPaletteDomainSearchEnabled(open, query, signals?.weights ?? null),
+    rootEnabled: isPaletteDomainSearchEnabled(settled, query, signals?.weights ?? null),
     scope,
-    scopedWorkspace: scope === "workspace" ? workspaceId : null,
+    scopedWorkspace,
     signals,
     targetDomain,
     workspaceId,
@@ -65,10 +70,10 @@ export function useOsPaletteDomainSearch({
   const catalogs = useOsPaletteWorkspaceCatalogs({
     profile,
     workspaceIds,
-    loopsEnabled: paletteDomainEnabled(context, "Loops") && scope === "global",
-    agentsEnabled: paletteDomainEnabled(context, "Agents") && scope === "global",
-    extensionsEnabled: paletteDomainEnabled(context, "Extensions") && scope === "global",
-    worktreesEnabled: open && targetDomain === "Worktrees" && scope === "global",
+    loopsEnabled: paletteDomainEnabled(context, "Loops") && all,
+    agentsEnabled: paletteDomainEnabled(context, "Agents") && all,
+    extensionsEnabled: paletteDomainEnabled(context, "Extensions") && all,
+    worktreesEnabled: settled && targetDomain === "Worktrees" && all,
   });
   const sections = [
     ...useOsPaletteEntitySections(context, catalogs),

@@ -1,13 +1,95 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestHookDispatchLogging(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		level      slog.Level
+		failure    error
+		optional   bool
+		wantRecord bool
+	}{
+		{"Should keep routine dispatch out of info logs", slog.LevelInfo, nil, false, false},
+		{"Should correlate successful dispatch in debug logs", slog.LevelDebug, nil, false, true},
+		{"Should correlate dispatch failures in info logs", slog.LevelInfo, errors.New("unavailable"), false, true},
+		{"Should keep optional failures visible without blocking dispatch", slog.LevelInfo, errors.New("unavailable"), true, true},
+		{"Should keep optional timeouts visible without blocking dispatch", slog.LevelInfo, context.DeadlineExceeded, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			hooks := NewHooks(
+				WithLogger(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: tc.level}))),
+				WithNativeDeclarations([]HookDecl{{
+					Name: "observe-message", Event: HookPromptPostAssemble,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative, Required: !tc.optional,
+				}}),
+				WithExecutorResolver(func(HookDecl) (Executor, error) {
+					return NewTypedNativeExecutor(
+						func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
+							if tc.failure != nil {
+								return PromptPatch{}, tc.failure
+							}
+							return PromptPatch{}, nil
+						},
+					), nil
+				}),
+			)
+			t.Cleanup(hooks.Close)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatalf("Rebuild() error = %v", err)
+			}
+			logs.Reset()
+			_, err := hooks.DispatchPromptPostAssemble(t.Context(), PromptPayload{
+				Event: HookPromptPostAssemble, SessionID: "sess-log", WorkspaceID: "ws-log", TurnID: "turn-log",
+			})
+			if tc.failure != nil && !tc.optional {
+				if !errors.Is(err, tc.failure) {
+					t.Fatalf("DispatchPromptPostAssemble() error = %v, want %v", err, tc.failure)
+				}
+			} else if err != nil {
+				t.Fatalf("DispatchPromptPostAssemble() error = %v, want success", err)
+			}
+			found := false
+			for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
+				if line == "" {
+					continue
+				}
+				var entry map[string]any
+				if err := json.Unmarshal([]byte(line), &entry); err != nil {
+					t.Fatalf("decode hook log: %v", err)
+				}
+				if entry["msg"] != "hook.dispatch.completed" && entry["msg"] != "hook.dispatch.failed" {
+					continue
+				}
+				found = true
+				if entry["session_id"] != "sess-log" || entry["workspace_id"] != "ws-log" ||
+					entry["turn_id"] != "turn-log" {
+					t.Fatalf("hook log lacks correlation: %s", line)
+				}
+				if tc.failure != nil && (entry["level"] != "WARN" || entry["failed_hook"] != "observe-message" ||
+					entry["required"] != !tc.optional) {
+					t.Fatalf("hook failure log = %s, want WARN with the failed hook and required policy", line)
+				}
+			}
+			if found != tc.wantRecord {
+				t.Fatalf("dispatch log present = %t, want %t: %s", found, tc.wantRecord, logs.String())
+			}
+		})
+	}
+}
 
 func TestHookTelemetrySecurityPatchPersistsAllFields(t *testing.T) {
 	t.Parallel()

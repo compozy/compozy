@@ -7,7 +7,12 @@ export const Route = createFileRoute("/_app/loops/$name/editor")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Editor" } },
   }),
-  loader: async ({ context, params }) =>
-    (await import("./-loops-preload")).preloadLoopEditorRoute(context.queryClient, params.name),
+  loaderDeps: ({ search }) => ({ workspace: search.workspace }),
+  loader: async ({ context, deps, params }) =>
+    (await import("./-loops-preload")).preloadLoopEditorRoute(
+      context.queryClient,
+      params.name,
+      deps.workspace
+    ),
   component: createOsRouteSync("loops"),
 });

@@ -43,8 +43,9 @@ The plan also emits `previous_tag`, `git_range`, and `initial_release`.
 `git_range` is
 `<previous_tag>..<release_commit>` and is empty only when no strict semantic-
 version predecessor is reachable on the first-parent release line. In that
-case `initial_release` is true. Beta plans include prerelease tags while
-choosing the predecessor; stable and legacy plans exclude prerelease tags.
+case `initial_release` is true. Every channel includes prerelease tags while
+choosing the predecessor (releasepr v0.0.30+), so a stable release after a beta
+line covers only the changes since the last beta.
 
 The channel policy is closed:
 

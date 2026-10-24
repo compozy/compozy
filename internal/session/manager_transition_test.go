@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -22,6 +23,308 @@ import (
 )
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
+
+func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
+	t.Parallel()
+	for _, stopFails := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should unbind failed rollback and recover the requested model with stop failure %t",
+				stopFails,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+				h.manager.driver = driver
+				active := createSession(t, h)
+				t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+				initial := active.runtimeBindingSnapshot()
+				selection := initial.selection
+				selection.Model, selection.ReasoningEffort = "old-model", ""
+				active.completeRuntimeTransition(initial.process, selection, RuntimeTransitionInitialBind, time.Now())
+				initial.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+					{ID: "model", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "old-model"},
+				}})
+				refusal := &acp.NegotiationError{
+					Code:      acp.NegotiationCodeReasoningEffortUnsupported,
+					Requested: "ultra",
+				}
+				rollbackErr := &acp.NegotiationError{Code: acp.NegotiationCodeModelUnavailable, Requested: "old-model"}
+				driver.configHook = func(process *AgentProcess, config acp.RuntimeConfig) error {
+					if config.Model == "new-model" {
+						caps := process.CapsSnapshot()
+						caps.ConfigOptions[0].CurrentValueID = "new-model"
+						process.setCaps(caps)
+						return refusal
+					}
+					return rollbackErr
+				}
+				stopErr := errors.New("provider process has not exited")
+				if stopFails {
+					h.driver.stopHook = func(*fakeProcess) error { return stopErr }
+					t.Cleanup(func() {
+						h.driver.mu.Lock()
+						defer h.driver.mu.Unlock()
+						h.driver.stopHook = nil
+					})
+				}
+				changed := selection
+				changed.Model, changed.ReasoningEffort = "new-model", "ultra"
+				plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active, changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot := active.runtimeBindingSnapshot()
+				_, err = h.manager.configureOrReplacePromptRuntime(t.Context(), active, driver, &snapshot, plan)
+				if !errors.Is(err, refusal) || !errors.Is(err, rollbackErr) {
+					t.Fatalf("failed rollback = %v, want both provider errors", err)
+				}
+				if active.processHandle() != nil || active.Info().RuntimeStatus != RuntimeStatusUnbound ||
+					active.Info().Model != "old-model" || active.Info().RuntimeFailure == "" {
+					t.Fatal("failed rollback retained an unsafe binding or lost requested intent/diagnostic")
+				}
+				if stopFails {
+					if !errors.Is(err, stopErr) || isProcessDone(initial.process) {
+						t.Fatal("failed process stop was not retained")
+					}
+					if _, err := h.manager.Prompt(
+						t.Context(),
+						active.ID,
+						"must stay blocked",
+					); !errors.Is(
+						err,
+						stopErr,
+					) {
+						t.Fatalf("prompt before verified exit = %v, want stop failure", err)
+					}
+					h.driver.mu.Lock()
+					h.driver.stopHook = nil
+					h.driver.mu.Unlock()
+				}
+				events, err := h.manager.Prompt(t.Context(), active.ID, "use the original requested model")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				h.driver.mu.Lock()
+				starts := slices.Clone(h.driver.startCalls)
+				h.driver.mu.Unlock()
+				if !isProcessDone(initial.process) || active.processHandle() == initial.process ||
+					len(starts) != 2 || starts[1].PreferredModel != "old-model" || active.Info().Model != "old-model" {
+					t.Fatalf("recovery did not replace the unsafe process with the requested model: starts=%#v", starts)
+				}
+			},
+		)
+	}
+	t.Run(
+		"Should preserve Fast intent and accept the next prompt after a failed change rolls back to normal",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+			h.manager.driver = driver
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			snapshot := active.runtimeBindingSnapshot()
+			selection := snapshot.selection
+			selection.ReasoningEffort = "max"
+			selection.Speed = speedpkg.SpeedFast
+			active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+			caps := acp.Caps{
+				ConfigOptions: []acp.SessionConfigOption{
+					{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "max"},
+					{
+						ID:          "fast",
+						Category:    "model_config",
+						Kind:        acp.SessionConfigOptionKindBoolean,
+						CurrentBool: new(false),
+					},
+				},
+				SpeedResolution: &speedpkg.Resolution{
+					Requested: speedpkg.SpeedFast,
+					Status:    speedpkg.ResolutionRejected,
+					Reason:    speedpkg.ReasonProviderRejected,
+				},
+			}
+			snapshot.process.setCaps(caps)
+			refusal := &acp.NegotiationError{Code: acp.NegotiationCodeReasoningEffortUnsupported, Requested: "ultra"}
+			driver.configHook = func(process *AgentProcess, config acp.RuntimeConfig) error {
+				if config.ReasoningEffort == "ultra" {
+					return refusal
+				}
+				observed := acp.CloneCaps(caps)
+				observed.ConfigOptions[1].CurrentBool = new(config.Speed == speedpkg.SpeedFast)
+				observed.SpeedResolution = &speedpkg.Resolution{
+					Requested: config.Speed,
+					Status:    speedpkg.ResolutionApplied,
+				}
+				process.setCaps(observed)
+				return nil
+			}
+			changed := selection
+			changed.ReasoningEffort = "ultra"
+			_, err := h.manager.ensurePromptRuntime(t.Context(), active, &changed, snapshot.process)
+			if !errors.Is(err, refusal) {
+				t.Fatalf("failed change = %v, want provider refusal", err)
+			}
+			configs := driver.configSnapshots()
+			if len(configs) != 2 || configs[1].Speed != speedpkg.SpeedNormal {
+				t.Fatalf("rollback = %#v, want observed normal", configs)
+			}
+			info, meta := active.Info(), active.Meta()
+			if info.Speed != speedpkg.SpeedFast || info.SpeedResolution.Requested != speedpkg.SpeedFast ||
+				info.SpeedResolution.Status != speedpkg.ResolutionRejected || info.EffectiveRuntime().Speed != speedpkg.SpeedNormal ||
+				meta.SpeedResolution.Requested != meta.Speed {
+				t.Fatalf("rollback intent mismatch: info=%#v meta=%#v", info.SpeedResolution, meta.SpeedResolution)
+			}
+			events, err := h.manager.Prompt(t.Context(), active.ID, "retry the preserved request")
+			if err != nil {
+				t.Fatalf("next prompt after rollback = %v", err)
+			}
+			collectEvents(t, events)
+			if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if active.runtimeBindingSnapshot().process != snapshot.process || len(driver.configSnapshots()) != 3 {
+				t.Fatal("retry did not reconfigure the preserved process exactly once")
+			}
+		},
+	)
+	t.Run("Should replace a process after a transport failure wrapped by negotiation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Speed = speedpkg.SpeedFast
+		driver.configErr = &acp.NegotiationError{
+			Code: acp.NegotiationCodeSpeedRejected, Stage: "speed", Requested: "fast", Cause: io.EOF,
+		}
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if err != nil || process == snapshot.process || startsAfter != startsBefore+1 {
+			t.Fatalf("transport recovery = %p, %v, starts %d -> %d", process, err, startsBefore, startsAfter)
+		}
+	})
+	t.Run("Should reapply advertised speed with no confirmed current value", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ReasoningEffort = "high"
+		selection.Speed = speedpkg.SpeedFast
+		active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+			{
+				ID: "fast", Category: "model_config", Kind: acp.SessionConfigOptionKindSelect,
+				Values: []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+			},
+		}})
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
+			t.Fatalf("unconfirmed speed = %p, %v, configs = %#v", process, err, driver.configSnapshots())
+		}
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+		}})
+		process, err = h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
+			t.Fatalf("unsupported speed retried: %p, %v, configs = %#v", process, err, driver.configSnapshots())
+		}
+	})
+	t.Run("Should reapply provider drift while preserving launch-bound controls", func(t *testing.T) {
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Speed = speedpkg.SpeedFast
+		selection.ReasoningEffort = "max"
+		active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+			{
+				ID:             "fast",
+				Category:       "model_config",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "off",
+				Values:         []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+			},
+		}})
+		process, err := h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil {
+			t.Fatal(err)
+		}
+		configs := driver.configSnapshots()
+		if process != snapshot.process || len(configs) != 1 || configs[0].Speed != speedpkg.SpeedFast ||
+			configs[0].ReasoningEffort != "max" {
+			t.Fatalf("runtime configuration = %#v, want same-process reapplication of max and Fast", configs)
+		}
+		snapshot.process.setCaps(acp.Caps{})
+		process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 2 {
+			t.Fatalf("missing selector runtime = %p, %v, want renegotiation of requested effort", process, err)
+		}
+		// Invariant: a permanent refusal gets one attempt per prompt, with no process replacement.
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "max"},
+			{ID: "fast", Category: "model_config", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(false)},
+		}})
+		refusal := &acp.NegotiationError{Code: acp.NegotiationCodeSpeedRejected, Stage: "speed", Requested: "fast"}
+		driver.configErr = refusal
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		for attempt := range 2 {
+			_, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+			if !errors.Is(err, refusal) || len(driver.configSnapshots()) != 3+attempt {
+				t.Fatalf("refused attempt %d = %v, configs = %#v", attempt, err, driver.configSnapshots())
+			}
+		}
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startsAfter != startsBefore || active.runtimeBindingSnapshot().process != snapshot.process ||
+			active.Info().Speed != speedpkg.SpeedFast || active.Info().RuntimeFailure == "" {
+			t.Fatalf(
+				"refusal replaced process, lost intent, or lost diagnostic: starts %d -> %d",
+				startsBefore,
+				startsAfter,
+			)
+		}
+		// Cursor aliases apply these controls in the launch model, not ACP selectors.
+		active.setProviderRouting(
+			compozyconfig.ResolvedAgent{Provider: selection.Provider, RuntimeProvider: cursorRuntimeProvider},
+		)
+		process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 4 {
+			t.Fatalf("launch-bound runtime = %p, %v, want unchanged process without ACP reconfiguration", process, err)
+		}
+		got := active.Info().EffectiveRuntime()
+		if got.Speed != selection.Speed || got.ReasoningEffort != selection.ReasoningEffort {
+			t.Fatalf("launch-bound effective runtime = %#v, want selected launch configuration", got)
+		}
+	})
+}
 
 func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
 	t.Parallel()
@@ -1400,20 +1703,25 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 
 type runtimeConfigRecordingDriver struct {
 	*fakeDriver
-	configMu sync.Mutex
-	configs  []acp.RuntimeConfig
+	configMu   sync.Mutex
+	configs    []acp.RuntimeConfig
+	configErr  error
+	configHook func(*AgentProcess, acp.RuntimeConfig) error
 }
 
 func (d *runtimeConfigRecordingDriver) ConfigureRuntime(
 	_ context.Context,
-	_ *AgentProcess,
+	process *AgentProcess,
 	config acp.RuntimeConfig,
 ) error {
 	d.configMu.Lock()
 	defer d.configMu.Unlock()
 	config.ACPOptions = acp.CloneSessionConfigOptionSelections(config.ACPOptions)
 	d.configs = append(d.configs, config)
-	return nil
+	if d.configHook != nil {
+		return d.configHook(process, config)
+	}
+	return d.configErr
 }
 
 func (d *runtimeConfigRecordingDriver) configSnapshots() []acp.RuntimeConfig {

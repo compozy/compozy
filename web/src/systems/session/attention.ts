@@ -43,23 +43,23 @@ export {
 } from "./components/session-badge-mark";
 export {
   DEFAULT_SESSION_LIST_PREFERENCES,
-  SESSION_LIST_SCOPES,
+  SESSION_BOARD_SORTS,
+  SESSION_LIST_GROUP_BYS,
   SESSION_LIST_SORTS,
+  sessionBoardSort,
   sessionListSortParam,
-  toSessionListScope,
+  toSessionListGroupBy,
   toSessionListSort,
 } from "./lib/session-list-preferences";
 export type {
+  SessionListGroupBy,
   SessionListPreferences,
-  SessionListScope,
   SessionListSort,
 } from "./lib/session-list-preferences";
-export { SESSION_ARCHIVED_COPY, SESSION_SCOPE_COPY } from "./lib/session-toolbar-copy";
+export { SESSION_ARCHIVED_COPY } from "./lib/session-toolbar-copy";
 export {
   SessionArchivedToggle,
-  SessionScopeToggle,
   type SessionArchivedToggleProps,
-  type SessionScopeToggleProps,
 } from "./components/session-list/session-toolbar-toggles";
 export {
   acquireSessionPresence,
@@ -71,8 +71,10 @@ export {
   useSessionListPreferences,
   type SessionListPreferencesModel,
 } from "./hooks/use-session-list-preferences";
-export { useSessionListView, type SessionListViewModel } from "./hooks/use-session-list-view";
 export {
-  useWorkspaceSessionGroups,
-  type WorkspaceSessionGroup,
-} from "./hooks/use-workspace-session-groups";
+  SESSION_LIST_MANUAL_SORT_NOTE,
+  useSessionListView,
+  type SessionListViewModel,
+} from "./hooks/use-session-list-view";
+export { useSessionListGroups, type SessionListGroupsModel } from "./hooks/use-session-list-groups";
+export type { SessionListGroupSpec } from "./lib/session-list-groups";

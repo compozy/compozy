@@ -1333,6 +1333,49 @@ func TestLoadSessionDeriveConfig(t *testing.T) {
 	})
 }
 
+// Invariant: released config files retain their content while restart defaults are added in memory;
+// explicit false and zero overrides survive decoding. Owner: config loader; canonical config suite.
+func TestLoadSessionRestartConfig(t *testing.T) {
+	t.Run("Should preserve old user config and apply explicit restart opt-out", func(t *testing.T) {
+		home := filepath.Join(t.TempDir(), "home")
+		t.Setenv("COMPOZY_HOME", home)
+		homePaths, err := ResolveHomePaths()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		old := "[session.stop]\ncooperative_grace = '7s'\n"
+		writeFile(t, homePaths.ConfigFile, old)
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !cfg.Session.Restart.AutoContinue || cfg.Session.Restart.MaxAttempts != 3 ||
+			cfg.Session.Restart.Window != 5*time.Minute || cfg.Session.Stop.CooperativeGrace != 7*time.Second {
+			t.Fatalf("old config defaults = %#v", cfg.Session)
+		}
+		retained, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil || string(retained) != old {
+			t.Fatalf("old config changed: %q, %v", retained, err)
+		}
+		writeFile(
+			t,
+			homePaths.ConfigFile,
+			old+"\n[session.restart]\nauto_continue = false\nmax_attempts = 2\nwindow = '1m'\n[daemon]\nshutdown_grace = '0s'\n",
+		)
+		cfg, err = Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Session.Restart.AutoContinue || cfg.Session.Restart.MaxAttempts != 2 ||
+			cfg.Session.Restart.Window != time.Minute || cfg.Daemon.ShutdownGrace != 0 {
+			t.Fatalf("explicit restart override = %#v, grace=%s", cfg.Session.Restart, cfg.Daemon.ShutdownGrace)
+		}
+	})
+}
+
 // Invariant: quiet, grace, and idle release are independent nonnegative durations.
 // Owner: config decoder/validator; canonical config suite.
 func TestSessionSupervisionConfigValidateQuietAndGrace(t *testing.T) {

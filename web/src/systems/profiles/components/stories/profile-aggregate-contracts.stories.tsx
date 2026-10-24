@@ -11,6 +11,7 @@ import type {
   SessionPayload,
 } from "@/systems/session";
 import { SessionList } from "@/systems/session/components/session-list/session-list";
+import { sessionListViewFixture } from "@/systems/session/mocks";
 
 import { createdInProfileToast } from "../../lib/profile-copy";
 import { ownerFromRow } from "../../lib/profile-scope";
@@ -47,6 +48,9 @@ function session(
   >
 ): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     ...owner,
     id,
@@ -60,6 +64,8 @@ function session(
     },
     workspace_id: "workspace-compozy",
     workspace_path: "/workspace/compozy",
+    scope: "workspace",
+    effective_workspace_access: "",
     state: "active",
     badge: "running",
     attachable: true,
@@ -91,21 +97,14 @@ const MARKETING_SESSION = session("session-marketing", "Launch campaign", {
 
 function ProfileScopeComposition({ aggregate }: { aggregate: boolean }) {
   const sessions = aggregate ? [DEFAULT_SESSION, MARKETING_SESSION] : [MARKETING_SESSION];
-  const view: SessionListViewModel = {
-    scope: "workspace",
+  const view: SessionListViewModel = sessionListViewFixture({
     sort: "last_activity",
-    archived: false,
-    saving: false,
-    setScope: fn(),
     setSort: fn(),
     setArchived: fn(),
     aggregate,
     scopeLabel: aggregate ? null : "marketing",
     ownerOf: ownerFromRow,
-    workspaceGroups: [],
-    collapsedWorkspaceIds: new Set(),
-    toggleWorkspace: fn(),
-  };
+  });
   const rows = toProfileRows(
     [defaultProfileFixture, marketingProfileFixture, consultingProfileFixture],
     "marketing"
@@ -137,8 +136,9 @@ function ProfileScopeComposition({ aggregate }: { aggregate: boolean }) {
             sessions={sessions}
             disconnected={false}
             collapsedThreadIds={[]}
+            subagentThreadIds={[]}
             view={view}
-            onToggleThread={fn()}
+            onThreadBranchChange={fn()}
             onSelectSession={fn()}
             onNewSession={fn()}
             sessionActions={ACTIONS}

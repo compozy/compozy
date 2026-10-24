@@ -51,7 +51,7 @@ export function Hero() {
             <Eyebrow className="text-muted flex items-center gap-3">
               <span className="text-accent">CompozyOS</span>
               <span className="h-px w-10 bg-line" />
-              <span>An operating system for AI agents · beta</span>
+              <span>An operating system for AI agents</span>
             </Eyebrow>
 
             <h1 className="mt-6 max-w-[18ch] font-display text-site-hero leading-none font-normal tracking-tight text-fg">
@@ -64,7 +64,7 @@ export function Hero() {
 
             <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
               <CtaButton href="/docs/getting-started/installation" variant="primary">
-                Install the beta
+                Install CompozyOS
               </CtaButton>
               <CtaButton href="/docs" variant="ghost">
                 See how CompozyOS works

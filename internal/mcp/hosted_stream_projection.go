@@ -95,6 +95,12 @@ func (s *HostedService) boundedUnversionedProjection(
 	registry tools.Registry,
 	record *hostedBindRecord,
 ) (HostedProjectionResponse, error) {
+	if runtime, ok := registry.(*tools.RuntimeRegistry); ok {
+		response, shared, err := s.sharedStreamProjection(ctx, runtime, record)
+		if shared || err != nil {
+			return response, err
+		}
+	}
 	epoch := s.currentProjectionEpoch()
 	if cached, ok := s.projectionCache.loadUnversioned(
 		record.bindID, epoch, s.now(), s.StreamRefreshInterval(),
@@ -152,6 +158,7 @@ func (s *HostedService) releaseProjectionCaches(bindIDs []string) {
 	for _, bindID := range bindIDs {
 		s.projectionCache.remove(bindID)
 	}
+	s.sharedProjections.clear()
 	s.bindReleases.notify(nil)
 }
 

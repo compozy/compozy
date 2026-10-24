@@ -39,6 +39,7 @@ import {
   sessionPromptRuntimeStoreLogic,
 } from "../../stores/session-prompt-runtime-store";
 import {
+  discardComposerDraftAttachments,
   sessionKeys,
   useClearSessionConversation,
   useSessionTranscriptThreadState,
@@ -48,10 +49,11 @@ import { toast } from "sonner";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
-// The recovery owner and sonner's toast list are app-scoped: nothing one test leaves
-// pending may reach the next.
+// The recovery owner, retained composer attachments, and sonner's toast list are
+// app-scoped: nothing one test leaves pending may reach the next.
 afterEach(() => {
   sessionPromptRecovery.reset();
+  discardComposerDraftAttachments(primarySessionFixture.id);
   toast.dismiss();
 });
 
@@ -2386,6 +2388,69 @@ describe("SessionChatRuntimeProvider", () => {
     expect(body.messageId).toBeUndefined();
   });
 
+  // Invariant: admitted input metadata renders during the POST without replacing
+  // its live assistant output. Owner and canonical suite: runtime provider integration.
+  it.each(["loaded", "pending"])(
+    "renders admitted directives while streaming with %s initial history",
+    async history => {
+      transcriptMessages = [];
+      const initialHistory = createDeferred<Response>();
+      if (history === "pending") transcriptResponsePromise = initialHistory.promise;
+      const answer = createDeferred<Response>();
+      promptResponsePromise = answer.promise;
+      const openPrompt = openSseResponse([
+        'data: {"type":"start","messageId":"turn-directives"}\n\n',
+        'data: {"type":"text-start","id":"answer"}\n\n',
+        'data: {"type":"text-delta","id":"answer","delta":"Still working"}\n\n',
+      ]);
+      const user = userEvent.setup();
+      const view = renderSessionThread();
+      try {
+        await screen.findByTestId("composer-input");
+        const text = "Olá 🧪 /review";
+        await setComposerText(text);
+        await user.click(screen.getByTestId("composer-send-button"));
+        await waitFor(() => expect(lastPromptMessageID).not.toBe(""));
+        transcriptMessages = [
+          {
+            id: lastPromptMessageID,
+            role: "user",
+            content: text,
+            parts: [{ type: "text", text }],
+            metadata: {
+              skill_invocations: [
+                { command_id: "skill:review", token: "/review", start: 7, end: 14 },
+              ],
+            },
+          },
+          {
+            id: "turn-directives",
+            role: "assistant",
+            parts: [{ type: "text", text: "Stale partial" }],
+          },
+        ] as typeof transcriptMessages;
+        transcriptResponsePromise = null;
+        answer.resolve(openPrompt.response);
+        if (history === "pending") {
+          await waitFor(() => expect(countTranscriptFetches(fetchMock)).toBe(2));
+          initialHistory.resolve(jsonResponse(transcriptPayload([])));
+        }
+        expect(await screen.findByTestId("session-skill-directive")).toHaveTextContent("/review");
+        expect(await screen.findByText("Still working")).toBeInTheDocument();
+        expect(screen.queryByText("Stale partial")).not.toBeInTheDocument();
+        expect(screen.getByTestId("composer-stop-button")).toBeInTheDocument();
+      } finally {
+        initialHistory.resolve(jsonResponse(transcriptPayload([])));
+        openPrompt.close([
+          'data: {"type":"text-end","id":"answer"}\n\n',
+          'data: {"type":"finish","finishReason":"stop"}\n\n',
+          "data: [DONE]\n\n",
+        ]);
+        view.unmount();
+      }
+    }
+  );
+
   it("Should dock a live permission while the prompt stream remains open", async () => {
     transcriptMessages = [];
     const openPrompt = openSseResponse([
@@ -2875,7 +2940,13 @@ describe("SessionChatRuntimeProvider", () => {
     const gate = createDeferred<void>();
     rewindResponseGate = gate.promise;
     sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
-    transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+    // A multiline prompt with a list comes back line for line (#967).
+    const draft = "Summarize the launch blockers\nbefore the cutover:\n\n- auth\n- billing";
+    const [authored, assistant] = sessionTranscriptFixture;
+    transcriptMessages = [
+      { ...authored!, parts: [{ type: "text", text: draft, state: "done" }] } as TranscriptMessage,
+      assistant!,
+    ];
 
     const view = renderSessionThread({ queryClient });
 
@@ -2895,12 +2966,13 @@ describe("SessionChatRuntimeProvider", () => {
     );
     // The draft lands from the rewind response, outside any user event: wait inside act until
     // the composer the operator sees renders it, not only until its store holds it.
-    const draft = "Summarize the launch blockers before the 18:30 UTC cutover.";
     await act(async () => {
       gate.resolve();
-      await vi.waitFor(() => expect(screen.getByTestId("composer-input")).toHaveTextContent(draft));
+      await vi.waitFor(() => expect(composerText()).toBe(draft));
     });
-    expect(composerText()).toBe(draft);
+    const editable = screen.getByTestId("composer-input");
+    await vi.waitFor(() => expect(editable).toHaveTextContent("before the cutover:"));
+    expect(editable.querySelectorAll("p")).toHaveLength(5);
     // The editor tears down asynchronously and updates its placeholder and cursor; let it
     // settle inside act so no update lands after the test.
     await act(async () => view.unmount());

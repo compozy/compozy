@@ -354,6 +354,37 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 func TestHostedMCPJSONRouteErrors(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should return actionable Windows requirements on every peer gated route", func(t *testing.T) {
+		t.Parallel()
+		router, _ := newHostedMCPRouteTestHarness(t)
+		for _, route := range []struct{ method, path string }{
+			{http.MethodPost, "/bind"}, {http.MethodGet, "/projection"},
+			{http.MethodGet, "/projection/stream"}, {http.MethodPost, "/tools/call"},
+			{http.MethodPost, "/release"},
+		} {
+			t.Run("Should diagnose peer inspection for "+route.path, func(t *testing.T) {
+				t.Parallel()
+				request := httptest.NewRequestWithContext(t.Context(), route.method,
+					"/api/internal/hosted-mcp"+route.path, strings.NewReader(`{}`))
+				request = request.WithContext(mcppkg.ContextWithPeerInfo(request.Context(), mcppkg.PeerInfo{},
+					fmt.Errorf("%w: private diagnostic", mcppkg.ErrWindowsPeerCredentialsUnsupported)))
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, request)
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if recorder.Code != http.StatusServiceUnavailable ||
+					payload.Code != "windows_peer_credentials_unsupported" ||
+					!strings.Contains(payload.Error, "SIO_AF_UNIX_GETPEERPID") ||
+					!strings.Contains(payload.Error, "update Windows") ||
+					strings.Contains(payload.Error, "private diagnostic") {
+					t.Fatalf("peer inspection response status=%d payload=%#v", recorder.Code, payload)
+				}
+			})
+		}
+	})
+
 	t.Run("Should expose stable caller-correctable errors without backend details", func(t *testing.T) {
 		t.Parallel()
 

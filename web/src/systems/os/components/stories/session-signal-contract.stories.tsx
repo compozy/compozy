@@ -22,9 +22,14 @@ function session(
   pendingInteractions: SessionPayload["pending_interactions"] = []
 ): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id,
     name: "Checkout launch review",
     agent_name: "codex",

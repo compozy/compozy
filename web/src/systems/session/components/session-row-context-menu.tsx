@@ -35,6 +35,8 @@ export interface SessionRowContextMenuProps {
   layout?: SessionRowLayoutMenu;
   /** The row element; it becomes the right-click and Shift+F10 target. */
   render: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
+  /** Content for an empty `render` wrapper (a board card's button and `…`). */
+  children?: React.ReactNode;
 }
 
 /**
@@ -46,6 +48,7 @@ export function SessionRowContextMenu({
   actions,
   layout,
   render,
+  children,
 }: SessionRowContextMenuProps) {
   const items = useSessionRowMenuItems(session, actions);
   const disabled = actions.pendingAction !== null;
@@ -55,20 +58,37 @@ export function SessionRowContextMenu({
         data-testid={`session-row-menu-${session.id}`}
         render={render}
         onKeyDown={openContextMenuFromKeyboard}
+        {...(children === undefined ? {} : { children })}
       />
       <ContextMenuContent className="min-w-56">
-        {items.map(item => (
-          <ContextMenuItem
-            key={item.id}
-            data-testid={`session-row-menu-${item.id}-${session.id}`}
-            disabled={disabled}
-            onClick={item.onSelect}
-            variant={item.destructive ? "destructive" : undefined}
-          >
-            <item.icon aria-hidden="true" className="size-3" />
-            {item.label}
-          </ContextMenuItem>
-        ))}
+        {items.map(item =>
+          item.choices ? (
+            <ContextMenuSub key={item.id}>
+              <ContextMenuSubTrigger disabled={disabled}>
+                <item.icon aria-hidden="true" className="size-3" />
+                {item.label}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {item.choices.map(choice => (
+                  <ContextMenuItem key={choice.id} onClick={choice.onSelect} disabled={disabled}>
+                    {choice.label}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          ) : (
+            <ContextMenuItem
+              key={item.id}
+              data-testid={`session-row-menu-${item.id}-${session.id}`}
+              disabled={disabled || item.disabled}
+              onClick={item.onSelect}
+              variant={item.destructive ? "destructive" : undefined}
+            >
+              <item.icon aria-hidden="true" className="size-3" />
+              {item.label}
+            </ContextMenuItem>
+          )
+        )}
         {layout ? <SessionRowLayoutItems session={session} layout={layout} /> : null}
       </ContextMenuContent>
     </ContextMenu>

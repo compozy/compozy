@@ -61,7 +61,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Explicit task ID")
 	cmd.Flags().StringVar(&identifier, taskIdentifierKey, "", "Human-friendly task identifier")
-	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Task scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Task scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Task title")

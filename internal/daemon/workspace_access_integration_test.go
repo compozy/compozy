@@ -79,13 +79,26 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 
 		assertWorkspaceAccessAuditDelta(t, ctx, db, 2, func() {
 			invalid := request
-			invalid.TargetWorkspaceID = "workspace-name"
+			invalid.Target.WorkspaceID = "workspace-name"
 			decision, authErr := denyPolicy.Authorize(ctx, invalid)
 			if authErr == nil || !strings.Contains(authErr.Error(), "is not canonical") {
 				t.Fatalf("Authorize(error) error = %v, want canonical-id validation", authErr)
 			}
 			if decision.Allowed {
 				t.Fatalf("Authorize(error) decision = %#v, want denied", decision)
+			}
+		})
+
+		assertWorkspaceAccessAuditDelta(t, ctx, db, 3, func() {
+			operator := request
+			operator.Actor = workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorHuman,
+				Operator:    true,
+				WorkspaceID: workspaceAccessIntegrationHome,
+			}
+			decision, authErr := denyPolicy.Authorize(ctx, operator)
+			if authErr != nil || !decision.Allowed || decision.Source != workspaceaccess.SourceOperator {
+				t.Fatalf("Authorize(operator) = %#v, %v, want an audited operator allow", decision, authErr)
 			}
 		})
 
@@ -101,6 +114,9 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			default:
 				t.Fatalf("event type = %q, want workspace access event", summary.Type)
 			}
+			if summary.ActorKind == string(workspaceaccess.ActorHuman) {
+				continue
+			}
 			if summary.WorkspaceID != workspaceAccessIntegrationHome || summary.SessionID != "sess-a" ||
 				summary.AgentName != "coder" || summary.ActorKind != string(workspaceaccess.ActorAgentSession) {
 				t.Fatalf("event summary scope = %#v, want actor-home correlation", summary)
@@ -113,8 +129,8 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 				t.Fatalf("audit payload = %#v, want target, seam, and source", payload)
 			}
 		}
-		if granted != 1 || denied != 2 {
-			t.Fatalf("event counts = granted:%d denied:%d, want 1 and 2", granted, denied)
+		if granted != 2 || denied != 2 {
+			t.Fatalf("event counts = granted:%d denied:%d, want 2 and 2", granted, denied)
 		}
 
 		var logs bytes.Buffer
@@ -191,25 +207,25 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			t.Fatalf("newWorkspaceAccessModeSource() error = %v", err)
 		}
 
-		mode, err := source.SessionPermissionMode(testutil.Context(t), managed.ID)
+		mode, err := source.SessionFacts(testutil.Context(t), managed.ID)
 		if err != nil {
-			t.Fatalf("SessionPermissionMode(live) error = %v", err)
+			t.Fatalf("SessionFacts(live) error = %v", err)
 		}
-		if mode != workspaceaccess.ModeApproveAll {
-			t.Fatalf("SessionPermissionMode(live) = %q, want %q", mode, workspaceaccess.ModeApproveAll)
+		if mode.Mode != workspaceaccess.ModeApproveAll {
+			t.Fatalf("SessionFacts(live) = %q, want %q", mode, workspaceaccess.ModeApproveAll)
 		}
-		if _, err := source.SessionPermissionMode(testutil.Context(t), "missing"); !errors.Is(
+		if _, err := source.SessionFacts(testutil.Context(t), "missing"); !errors.Is(
 			err,
 			session.ErrSessionNotFound,
 		) {
-			t.Fatalf("SessionPermissionMode(missing) error = %v, want ErrSessionNotFound", err)
+			t.Fatalf("SessionFacts(missing) error = %v, want ErrSessionNotFound", err)
 		}
 		if err := manager.Stop(testutil.Context(t), managed.ID); err != nil {
 			t.Fatalf("Manager.Stop() error = %v", err)
 		}
-		if _, err := source.SessionPermissionMode(testutil.Context(t), managed.ID); err == nil ||
+		if _, err := source.SessionFacts(testutil.Context(t), managed.ID); err == nil ||
 			!strings.Contains(err.Error(), "is stopped") {
-			t.Fatalf("SessionPermissionMode(stopped) error = %v, want stopped-session contract", err)
+			t.Fatalf("SessionFacts(stopped) error = %v, want stopped-session contract", err)
 		}
 	})
 
@@ -228,7 +244,7 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			t.Fatalf("newWorkspaceAccessModeSource() error = %v", err)
 		}
 		policy, err := workspaceaccess.New(workspaceaccess.Deps{
-			Modes:   source,
+			Facts:   source,
 			Consent: cache,
 			Audit:   workspaceAccessIntegrationAuditStub{},
 			Log:     slog.Default(),
@@ -339,7 +355,7 @@ func workspaceAccessIntegrationPolicy(
 ) *workspaceaccess.DefaultPolicy {
 	t.Helper()
 	policy, err := workspaceaccess.New(workspaceaccess.Deps{
-		Modes:   workspaceAccessIntegrationModeSource{mode: mode},
+		Facts:   workspaceAccessIntegrationModeSource{mode: mode},
 		Consent: workspaceAccessIntegrationConsentStub{},
 		Audit:   audit,
 		Log:     logger,
@@ -358,8 +374,8 @@ func workspaceAccessIntegrationRequest(target string) workspaceaccess.Request {
 			WorkspaceID: workspaceAccessIntegrationHome,
 			AgentName:   "coder",
 		},
-		TargetWorkspaceID: target,
-		Seam:              workspaceaccess.SeamTool,
+		Target: workspaceaccess.ScopeTarget(target, store.DefaultProfileID),
+		Seam:   workspaceaccess.SeamTool,
 	}
 }
 
@@ -406,11 +422,15 @@ type workspaceAccessIntegrationModeSource struct {
 	mode workspaceaccess.Mode
 }
 
-func (s workspaceAccessIntegrationModeSource) SessionPermissionMode(
+func (s workspaceAccessIntegrationModeSource) SessionFacts(
 	context.Context,
 	string,
-) (workspaceaccess.Mode, error) {
-	return s.mode, nil
+) (workspaceaccess.SessionFacts, error) {
+	return workspaceaccess.SessionFacts{
+		Mode:        s.mode,
+		ProfileID:   store.DefaultProfileID,
+		WorkspaceID: workspaceAccessIntegrationHome,
+	}, nil
 }
 
 type workspaceAccessIntegrationConsentStub struct{}

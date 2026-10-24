@@ -10,21 +10,32 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { formatAbsoluteTime } from "@compozy/ui";
+import { useState } from "react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
+import { workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 import { agentsListOptions } from "@/systems/agent";
-import { sessionFoldersOptions } from "../../lib/session-catalog-options";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import {
+  sessionListCatalogFixture,
+  sessionListViewFixture,
+} from "../../mocks/session-list-view-fixtures";
+import {
+  SessionClearContext,
+  type SessionClearRequest,
+} from "../../contexts/session-clear-context-value";
+import type { SessionThreadSegment } from "../../lib/session-thread-branch";
 import type { SessionPayload } from "../../types";
-import { sessionInspectorFocusStore } from "../../hooks/use-session-inspector-focus";
-import { sessionInspectorStore } from "../../hooks/use-session-inspector-state";
+import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
@@ -55,21 +66,12 @@ const sessions = [
     state: "stopped" as const,
   },
 ];
-const view: SessionListViewModel = {
-  scope: "workspace",
+const view: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
-  archived: false,
-  saving: false,
-  setScope: vi.fn(),
   setSort: vi.fn(),
   setArchived: vi.fn(),
-  workspaceGroups: [],
-  collapsedWorkspaceIds: new Set(),
-  toggleWorkspace: vi.fn(),
-  aggregate: false,
-  scopeLabel: "default",
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
-};
+});
 function catalogProvider(name: string, displayName: string): ProviderSummary {
   return {
     name,
@@ -118,7 +120,11 @@ function renderList(
     revealedSession?: SessionPayload | null;
     currentSessionId?: string;
     collapsedThreadIds?: string[];
+    subagentThreadIds?: string[];
     view?: SessionListViewModel;
+    actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
+    /** The session window's clear request for the session it has open. */
+    clear?: SessionClearRequest;
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -134,36 +140,84 @@ function renderList(
     onArchiveMany: vi.fn(),
     onUnarchiveMany: vi.fn(),
     onDeleteMany: vi.fn(),
+    ...overrides.actions,
   };
+  const onBranch = vi.fn<(sessionId: string, segment: SessionThreadSegment | null) => void>();
   const props = {
     open: true,
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
     currentSessionId: overrides.currentSessionId,
     disconnected: false,
-    collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view: overrides.view ?? view,
-    onToggleThread: vi.fn(),
     onSelectSession: onSelect,
     onNewSession: overrides.onNewSession ?? vi.fn(),
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seedRuntimeCatalog(queryClient);
+  // The rail's branch flags, held the way the sidebar store holds them: opening the
+  // subagent list folds the children, and a fold closes both.
+  function BranchHost(
+    hostProps: Omit<
+      React.ComponentProps<typeof SessionSidebar>,
+      "collapsedThreadIds" | "subagentThreadIds" | "onThreadBranchChange"
+    >
+  ) {
+    const [collapsed, setCollapsed] = useState(overrides.collapsedThreadIds ?? []);
+    const [subagents, setSubagents] = useState(overrides.subagentThreadIds ?? []);
+    return (
+      <SessionSidebar
+        {...hostProps}
+        collapsedThreadIds={collapsed}
+        subagentThreadIds={subagents}
+        onThreadBranchChange={(sessionId, segment) => {
+          onBranch(sessionId, segment);
+          setCollapsed(ids => [
+            ...ids.filter(id => id !== sessionId),
+            ...(segment === "children" ? [] : [sessionId]),
+          ]);
+          setSubagents(ids => [
+            ...ids.filter(id => id !== sessionId),
+            ...(segment === "subagents" ? [sessionId] : []),
+          ]);
+        }}
+      />
+    );
+  }
   const tree = (node: React.ReactNode) => (
-    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+    </QueryClientProvider>
   );
-  const rendered = render(tree(<SessionSidebar {...props} />));
+  const rendered = render(tree(<BranchHost {...props} />));
   return {
     onSelect,
+    onBranch,
     actions,
     queryClient,
     update: (nextSessions: SessionPayload[], nextView = view) =>
-      rendered.rerender(
-        tree(<SessionSidebar {...props} sessions={nextSessions} view={nextView} />)
-      ),
+      rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
   };
 }
+
+// USW W-08: a session running with the agent's `unrestricted` grant carries the warning-tone
+// Unrestricted badge on line 2, named for assistive tech with the grant's plain description.
+describe("SessionList unrestricted grant", () => {
+  it("W-08 shows the Unrestricted badge only on sessions with the grant", () => {
+    renderList({
+      sessions: [
+        { ...sessions[0]!, effective_workspace_access: "unrestricted" },
+        { ...sessions[1]!, effective_workspace_access: "" },
+      ],
+    });
+
+    expect(screen.getByTestId("session-row-unrestricted-running")).toHaveAccessibleName(
+      "Unrestricted: This agent can read and change every project and profile."
+    );
+    expect(screen.queryByTestId("session-row-unrestricted-stopped")).not.toBeInTheDocument();
+  });
+});
 
 describe("SessionList selection", () => {
   // Invariant: hovering a row swaps its compact time for the actions, so the row
@@ -181,7 +235,7 @@ describe("SessionList selection", () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
     renderList({ view: { ...view, sort: "created", setSort } });
-    await user.click(screen.getByRole("button", { name: "Sort sessions" }));
+    await user.click(screen.getByRole("button", { name: "Sort by: Created" }));
     const choices = await screen.findAllByRole("menuitemradio");
     expect(choices.map(choice => choice.textContent)).toEqual([
       "Created",
@@ -262,7 +316,10 @@ describe("SessionList selection", () => {
     expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveTextContent(
       "1 active"
     );
-    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("1 stopped");
+    // A running row in the selection archives too, after the daemon stops it.
+    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent(
+      "Stop and archive2 sessions"
+    );
     expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
       "aria-disabled",
       "true"
@@ -339,31 +396,52 @@ describe("SessionList selection", () => {
     expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
   });
 
-  it("clears selection on scope change and offers no selection in workspace groups", () => {
+  it("clears selection when the list's identity changes", () => {
     const { update } = renderList();
     fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
-    update(sessions, {
-      ...view,
-      scope: "all-workspaces",
-      workspaceGroups: [
-        {
-          workspaceId: "foreign",
-          workspaceName: "Foreign",
-          sessions,
-          total: 3,
-          loading: false,
-          failed: false,
-          retry: vi.fn(),
-        },
-      ],
-    });
-    const row = screen.getByTestId("session-sidebar-session-running");
-    fireEvent.keyDown(row, { key: "a", metaKey: true });
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
+    update(sessions, { ...view, selectionKey: "another-breadth" });
     expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
-    update(sessions);
     expect(screen.getByTestId("session-sidebar-session-running")).not.toHaveAttribute(
       "aria-pressed"
+    );
+  });
+
+  it("offers stop and archive on a running session row in one action", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList();
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    const archive = await screen.findByTestId("session-row-archive-running");
+    expect(archive).toHaveTextContent("Stop and archive session");
+    await user.click(archive);
+    expect(actions.onArchive).toHaveBeenCalledExactlyOnceWith(sessions[0]);
+  });
+
+  // #952: Clear conversation left the window head; the window offers it on its own session's row
+  // only (clearing resets that window's runtime thread), unavailable while nothing can be cleared.
+  it("offers Clear conversation only on the row of the window's own session", async () => {
+    const user = userEvent.setup();
+    const request = vi.fn();
+    renderList({ clear: { sessionId: "running", canClear: true, request } });
+
+    await user.click(screen.getByTestId("session-row-actions-other"));
+    expect(await screen.findByTestId("session-row-delete-other")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-clear-other")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await user.click(await screen.findByTestId("session-row-clear-running"));
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("shows Clear conversation unavailable while the conversation cannot be cleared", async () => {
+    const user = userEvent.setup();
+    renderList({ clear: { sessionId: "running", canClear: false, request: vi.fn() } });
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    expect(await screen.findByTestId("session-row-clear-running")).toHaveAttribute(
+      "aria-disabled",
+      "true"
     );
   });
 });
@@ -451,18 +529,23 @@ describe("SessionList subagents", () => {
     expect(within(thread).getByTestId("session-sidebar-session-plain")).toBeInTheDocument();
     expect(within(thread).getByTestId("session-sidebar-session-viewed-sub")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^session-sidebar-session-/)).toHaveLength(3);
-    // Only the plain child counts toward the thread toggle; the revealed subagent never folds.
-    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAccessibleName(
-      "Toggle 1 child session"
+    // Only the plain child counts toward the branch; the revealed subagent never folds.
+    expect(screen.getByRole("button", { name: "1 child session" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
     );
   });
 
-  it("UT-W18: a parent whose only child is the viewed subagent gets no thread toggle", () => {
+  it("UT-W18: a parent whose only child is the viewed subagent gets no child-session toggle", () => {
     const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
     renderList({ sessions: [row("parent", summary(1, 3))], revealedSession: viewed });
 
     expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
-    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /child session/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAttribute(
+      "data-segment",
+      "subagents"
+    );
   });
 
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
@@ -479,8 +562,39 @@ describe("SessionList subagents", () => {
       "aria-expanded",
       "false"
     );
-    expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
-    expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
+    // A folded list does not mount; the viewed subagent stays outside the fold.
+    expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+  });
+
+  it("Should browse delegated work on a revealed subagent outside its parent fold", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", summary(1, 3));
+    const viewed = row("viewed-sub", {
+      ...summary(1, 1),
+      lineage: lineage("parent", "subagent"),
+    });
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
+    const { onBranch } = renderList({
+      sessions: [parent],
+      revealedSession: viewed,
+      collapsedThreadIds: ["parent"],
+    });
+    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    expect(onBranch).toHaveBeenLastCalledWith("viewed-sub", "subagents");
+    expect(await screen.findByTestId("session-sidebar-subagents-viewed-sub")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+  });
+
+  it("Should not report first-page loading when the branch query is disabled", () => {
+    const queryClient = new QueryClient();
+    const { result } = renderHook(() => useSessionSubagentBranch("", "unscoped", 0), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(result.current.loading).toBe(false);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   const detailResponse = (sessionsById: Record<string, SessionPayload>) =>
@@ -527,7 +641,7 @@ describe("SessionList subagents", () => {
       expect(within(thread).getByTestId("session-sidebar-session-grand-sub")).toBeVisible()
     );
     expect(within(thread).getByTestId("session-sidebar-session-mid-sub")).toBeVisible();
-    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /child session/ })).not.toBeInTheDocument();
   });
 
   // Review round 2: a deleted ancestor no longer hides its descendant for good.
@@ -543,7 +657,7 @@ describe("SessionList subagents", () => {
     );
   });
 
-  it("keeps one cache subscription per chip across list re-renders", () => {
+  it("reads no subagent cache for a folded branch across list re-renders", () => {
     const parent = row("parent", summary(1, 2));
     const { queryClient, update } = renderList({ sessions: [parent] });
     const subscribe = vi.spyOn(queryClient.getQueryCache(), "subscribe");
@@ -561,43 +675,68 @@ describe("SessionList subagents", () => {
     expect(screen.queryByTestId("session-sidebar-session-orphan-sub")).not.toBeInTheDocument();
   });
 
-  it("UT-W17: renders the parent chip and loads a five-row preview on hover", async () => {
-    const user = userEvent.setup();
-    const parent = row("parent", { badge: "running", ...summary(3, 10) });
-    // A further page exists; the five-row preview still reads only the first (review n6).
-    vi.mocked(globalThis.fetch).mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            subagents: Array.from({ length: 10 }, (_, index) =>
-              wireSubagent(index, index < 3 ? "running" : "completed")
-            ),
-            next_cursor: "cursor-page-2",
-          }),
-          { headers: { "Content-Type": "application/json" } }
-        )
+  const subagentPage = (from: number, to: number, nextCursor?: string) =>
+    new Response(
+      JSON.stringify({
+        subagents: Array.from({ length: to - from }, (_, offset) =>
+          wireSubagent(from + offset, from + offset < 3 ? "running" : "completed")
+        ),
+        ...(nextCursor ? { next_cursor: nextCursor } : {}),
+      }),
+      { headers: { "Content-Type": "application/json" } }
     );
-    renderList({ sessions: [parent] });
 
-    const chip = screen.getByRole("button", { name: "3 of 10 subagents running" });
-    expect(chip).toHaveTextContent("3/10");
-    expect(chip).toHaveAttribute("data-state", "running");
+  // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
+  it("UT-W17: opens a bounded subagent branch that reads one page and pages with Show more", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(3, 21) });
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? subagentPage(8, 16, "page-3")
+        : subagentPage(0, 8, "page-2")
+    );
+    const { onBranch } = renderList({ sessions: [parent] });
+
+    const toggle = screen.getByRole("button", { name: "3 of 21 subagents running" });
+    expect(toggle).toHaveTextContent("3/21");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    await user.hover(chip);
 
-    await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
+    await user.click(toggle);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(8)
+    );
     await expectFetchRequest({
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=200`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8`,
     });
-    expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    await user.click(within(branch).getByRole("button", { name: "Show 8 more" }));
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(16)
+    );
+    await expectFetchRequest({
+      callIndex: 1,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8&cursor=page-2`,
+    });
+    expect(within(branch).getByRole("button", { name: "Show 5 more" })).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    // Folding unmounts the list; reopening reads the cache, not the route.
+    await user.click(toggle);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", null);
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument()
+    );
   });
 
-  // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  // M9: an open parent's stream-fed roster feeds the branch; the list route stays cold.
   // Invariant: only this parent's workspace-qualified roster updates its live
-  // preview; removing its last stream observer restores the authoritative list.
+  // branch; removing its last stream observer restores the authoritative list.
   // Owning layer: roster/query integration; canonical suite: this sidebar suite.
-  it("Should keep a live preview scoped and fall back when its stream owner leaves", async () => {
+  it("Should keep a live branch scoped and fall back when its stream owner leaves", async () => {
     const user = userEvent.setup();
     const parent = row("parent", { badge: "running", ...summary(1, 1) });
     vi.mocked(globalThis.fetch).mockResolvedValue(
@@ -620,7 +759,7 @@ describe("SessionList subagents", () => {
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       ),
     });
-    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
     expect(await screen.findByText("Live row")).toBeInTheDocument();
     act(() => {
       queryClient.setQueryData(
@@ -641,50 +780,35 @@ describe("SessionList subagents", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
-    const user = userEvent.setup();
-    const parent = row("parent", { badge: "running", ...summary(1, 1) });
-    const { queryClient } = renderList({ sessions: [parent] });
-    const workspaceId = primarySessionFixture.workspace_id ?? "";
-    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), {
-      rows: [
-        subagentViewFromPayload({ ...wireSubagent(1, "running"), title: "Streamed row" } as never),
-      ],
-      staleIds: new Set<string>(),
-    });
-    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    });
-
-    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
-
-    await waitFor(() => expect(screen.getByText("Streamed row")).toBeInTheDocument());
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
-
-  it("UT-W17: shows the total alone for failures and hides once everything settled cleanly", () => {
+  it("UT-W17: shows the total alone for failures and a quiet count once everything settled", () => {
     renderList({
       sessions: [row("failed-parent", summary(0, 6, 2)), row("clean-parent", summary(0, 4))],
     });
 
-    const chip = screen.getByRole("button", { name: "6 subagents, 2 failed" });
-    expect(chip).toHaveTextContent(/^6$/);
-    expect(chip).toHaveAttribute("data-state", "failed");
-    expect(screen.queryByRole("button", { name: /4 subagents/ })).not.toBeInTheDocument();
+    const failed = screen.getByRole("button", { name: "6 subagents, 2 failed" });
+    expect(failed).toHaveTextContent(/^6$/);
+    expect(failed).toHaveAttribute("data-state", "failed");
+    // Settled subagents stay browsable: the indicator keeps the count, without a glyph.
+    const clean = screen.getByRole("button", { name: "4 subagents" });
+    expect(clean).toHaveTextContent(/^4$/);
+    expect(clean).not.toHaveAttribute("data-state");
   });
 
-  it("UT-W14: an idle parent with live subagents reads delegated, a running one does not", () => {
+  it("UT-W14: a parent the daemon reports waiting on sessions reads delegated, a running one does not", () => {
     renderList({
       sessions: [
-        row("waiting-parent", { badge: "done", ...summary(2, 2) }),
+        row("waiting-parent", { badge: "waiting", waiting_on: "sessions", ...summary(2, 2) }),
         row("working-parent", { badge: "running", ...summary(2, 2) }),
       ],
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    expect(within(waiting).getByRole("img")).toHaveAttribute("data-badge", "delegated");
+    const mark = within(waiting).getByRole("img", { name: "Session badge: waiting" });
+    expect(mark).toHaveAttribute("data-waiting-on", "sessions");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "delegated");
+    expect(waiting.closest("li") ?? waiting.parentElement!).toHaveTextContent(
+      "Waiting on sessions"
+    );
     expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
       "data-state",
       "delegated"
@@ -693,36 +817,81 @@ describe("SessionList subagents", () => {
     expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
   });
 
-  it("reads monitoring, not done, while a finished session still has an active monitor", () => {
+  it("UT-075: reads the daemon's waiting reason, never a client guess from monitors or subagents", () => {
     renderList({
       sessions: [
-        row("watching", { badge: "done", monitor_summary: { active: 1 } }),
+        row("watching", {
+          badge: "waiting",
+          waiting_on: "monitor",
+          monitor_summary: { active: 1 },
+        }),
         row("watching-running", { badge: "running", monitor_summary: { active: 1 } }),
-        row("finished", { badge: "done" }),
+        row("finished", { badge: "done", monitor_summary: { active: 1 }, ...summary(1, 1) }),
       ],
     });
 
     const watching = screen.getByTestId("session-sidebar-session-watching");
-    expect(within(watching).getByRole("img")).toHaveAttribute("data-badge", "monitoring");
+    const mark = within(watching).getByRole("img");
+    expect(mark).toHaveAttribute("data-badge", "waiting");
+    expect(mark).toHaveAttribute("data-waiting-on", "monitor");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "monitoring");
     const running = screen.getByTestId("session-sidebar-session-watching-running");
     expect(within(running).getByRole("img")).toHaveAttribute("data-badge", "running");
     const finished = screen.getByTestId("session-sidebar-session-finished");
     expect(within(finished).getByRole("img")).toHaveAttribute("data-badge", "done");
   });
 
-  it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
+  it("opens a subagent's own session from its branch row", async () => {
     const user = userEvent.setup();
-    const parent = row("chip-parent", summary(1, 1));
-    const { onSelect } = renderList({ sessions: [parent] });
+    const parent = row("branch-parent", summary(1, 1));
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
+    const { onSelect } = renderList({ sessions: [parent], subagentThreadIds: ["branch-parent"] });
 
-    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    await user.click(await screen.findByRole("button", { name: "Open Subagent 0" }));
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith(parent);
-    expect(sessionInspectorStore.getSnapshot().context.bySession["chip-parent"]).toBe(true);
-    expect(sessionInspectorFocusStore.getSnapshot().context.request).toEqual({
-      sessionId: "chip-parent",
-      section: "subagents",
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+      id: "child-0",
+      agent_name: "coder",
+      workspace_id: parent.workspace_id,
     });
+  });
+
+  // Issue #919: with both kinds, the indicators are segments of one control; the selected
+  // segment folds the branch, the chevron reopens the first list, one list shows at a time.
+  it("Should switch between child sessions and subagents through the segmented control", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", summary(1, 2));
+    const child = row("plain", { lineage: lineage("parent") });
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 2));
+    const { onBranch } = renderList({ sessions: [parent, child] });
+
+    const group = screen.getByRole("group", { name: "Child sessions and subagents" });
+    const children = within(group).getByRole("button", { name: "1 child session" });
+    const subagents = within(group).getByRole("button", { name: "1 of 2 subagents running" });
+    const chevron = screen.getByRole("button", { name: "Toggle child sessions and subagents" });
+    expect(children).toHaveAttribute("aria-expanded", "true");
+    expect(subagents).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("session-sidebar-session-plain")).toBeVisible();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    await user.click(subagents);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
+    expect(subagents).toHaveAttribute("aria-expanded", "true");
+    expect(children).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("button", { name: "Open Subagent 1" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument()
+    );
+
+    // Pressing the selected segment folds the branch, like the chevron.
+    await user.click(subagents);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", null);
+    expect(chevron).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(chevron);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "children");
+    expect(children).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByTestId("session-sidebar-session-plain")).toBeVisible();
   });
 
   it("offers no standalone archive on a subagent session row", async () => {
@@ -741,6 +910,28 @@ describe("SessionList subagents", () => {
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("session-row-actions-parent"));
     expect(await screen.findByTestId("session-row-archive-parent")).toBeInTheDocument();
+  });
+});
+
+// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and say so.
+describe("SessionList row copy actions", () => {
+  it("Should copy the session ID from the … menu and the title from the context menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const success = vi.spyOn(toast, "success");
+    renderList();
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await user.click(await screen.findByTestId("session-row-copy-id-running"));
+    expect(writeText).toHaveBeenLastCalledWith("running");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session ID copied"));
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-stopped"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Copy title" }));
+    expect(writeText).toHaveBeenLastCalledWith("Stopped work");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
   });
 });
 
@@ -1035,60 +1226,22 @@ describe("SessionList folders and manual order", () => {
     return { layout, onNewSession };
   }
 
-  it("Should keep folders and moves inside their owning profile in the aggregate", async () => {
-    const groups = [
-      {
-        owner: { id: "default", name: "default", archived: false },
-        workspaceId: "ws",
-        folders: [folderA],
-        canCreateSession: true,
-      },
-      {
-        owner: { id: "other", name: "other", archived: false },
-        workspaceId: "ws",
-        folders: [{ ...folderB, profile_id: "other" }],
-        canCreateSession: false,
-      },
+  // BR-11: folders and manual order live in one (workspace, profile) pair; a list
+  // spanning pairs has no layout, so filed sessions render as plain rows.
+  it("Should render filed sessions as plain rows where no single pair owns the list", () => {
+    const rows = [
+      { ...layoutRows[0]!, profile_id: "default" },
+      { ...layoutRows[1]!, profile_id: "other", profile_name: "other" },
     ];
-    const { queryClient } = renderList({
-      sessions: [
-        { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
-        {
-          ...layoutRows[0]!,
-          id: "foreign",
-          folder_id: "fb",
-          profile_id: "other",
-          profile_name: "other",
-        },
-      ],
-      view: {
-        ...view,
-        aggregate: true,
-        profileFolderGroups: groups,
-        ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
-      },
-    });
-    act(() => {
-      for (const group of groups)
-        queryClient.setQueryData(
-          sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
-          group.folders
-        );
-    });
-    const alpha = await screen.findByTestId("session-sidebar-folder-fa");
-    const beta = await screen.findByTestId("session-sidebar-folder-fb");
-    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
-    expect(within(beta).getByTestId("session-sidebar-session-foreign")).toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-folder-fb-new-session")).toBeDisabled();
-    const source = screen.getByTestId("session-sidebar-session-f1");
-    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
-    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
-    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
-    fireEvent.dragEnd(source);
+    renderList({ sessions: rows, view: { ...view, aggregate: true, scopeLabel: null } });
+    expect(screen.queryByTestId("session-sidebar-folder-fa")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
+    expect(screen.queryByRole("menuitem", { name: "Move to folder" })).not.toBeInTheDocument();
   });
 
-  // Invariants: stale aggregate rows cannot navigate; empty owners expose failed folder reads.
-  // Owner: SessionList composition; canonical suite: SessionList folders and manual order.
+  // Invariant: stale aggregate rows cannot navigate while a page change is in flight.
   it.each([true, false])("Should gate aggregate selection while paging is %s", async paging => {
     const rows = [{ ...layoutRows[0]!, profile_id: "default", profile_name: "default" }];
     const { onSelect } = renderList({
@@ -1096,129 +1249,52 @@ describe("SessionList folders and manual order", () => {
       view: {
         ...view,
         aggregate: true,
-        profileFolderGroups: [
-          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
-        ],
-        catalog: {
-          sessions: rows,
-          facets: undefined,
-          total: undefined,
-          loading: false,
-          placeholder: false,
-          failed: false,
-          next: false,
-          previous: false,
-          paging,
-          nextPage: vi.fn(),
-          previousPage: vi.fn(),
-          retry: vi.fn(),
-        },
+        catalog: sessionListCatalogFixture({ sessions: rows, paging }),
       },
     });
-    await userEvent.setup().click(screen.getByTestId("session-sidebar-session-r1"));
+    const row = screen.getByTestId("session-sidebar-session-r1");
+    await userEvent.setup().click(row);
     expect(onSelect).toHaveBeenCalledTimes(paging ? 0 : 1);
-    const container = screen.getByTestId("session-sidebar-profile-default").parentElement;
-    if (paging) expect(container).toHaveAttribute("aria-busy", "true");
-    else expect(container).not.toHaveAttribute("aria-busy");
+    if (paging) expect(row.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    else expect(row.closest("[aria-busy]")).toBeNull();
   });
 
-  it("Should retry a failed aggregate folder read for an owner with no sessions", async () => {
-    const fetcher = vi
-      .spyOn(globalThis, "fetch")
-      .mockRejectedValue(new Error("folder read failed"));
-    try {
-      renderList({
-        sessions: [],
-        view: {
-          ...view,
-          aggregate: true,
-          profileFolderGroups: [
-            { owner: view.ownerOf(sessions[0]!), workspaceId: "ws", canCreateSession: true },
-          ],
-        },
-      });
-      expect(await screen.findByText("Couldn’t load folders.")).toBeVisible();
-      const calls = fetcher.mock.calls.length;
-      fetcher.mockResolvedValue(
-        new Response(JSON.stringify({ folders: [folderA] }), {
-          headers: { "content-type": "application/json" },
-        })
-      );
-      await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
-      expect(await screen.findByTestId("session-sidebar-folder-fa")).toBeVisible();
-      expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
-      expect(screen.queryByText("Couldn’t load folders.")).not.toBeInTheDocument();
-    } finally {
-      fetcher.mockRestore();
-    }
-  });
-
-  it("Should expose aggregate profile loading and retry while preserving catalog rows", async () => {
-    const retry = vi.fn();
-    const aggregate = { ...view, aggregate: true, scopeLabel: null };
-    const { update } = renderList({ view: { ...aggregate, profileFoldersLoading: true } });
-    expect(screen.getByRole("status")).toHaveTextContent("Loading profiles");
-    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
-    update(sessions, { ...aggregate, profileFoldersError: { retry } });
-    expect(screen.getByText("Couldn’t load profiles.")).toBeVisible();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
-    expect(retry).toHaveBeenCalledOnce();
-    update(sessions, aggregate);
-    expect(screen.queryByText("Couldn’t load profiles.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
-  });
-
-  it("Should retain unmatched profile rows and bulk selection until the profile catalog catches up", async () => {
+  it("Should select mixed-profile rows together in the aggregate", async () => {
     const rows = [
       { ...layoutRows[0]!, profile_id: "default" },
       { ...layoutRows[1]!, profile_id: "new-profile" },
     ];
-    renderList({
-      sessions: rows,
-      view: {
-        ...view,
-        aggregate: true,
-        profileFolderGroups: [
-          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
-        ],
-      },
-    });
-    expect(screen.getByTestId("session-sidebar-session-r1")).toBeVisible();
-    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    renderList({ sessions: rows, view: { ...view, aggregate: true } });
     const user = userEvent.setup();
     await user.click(screen.getByRole("checkbox", { name: "Select Root one" }));
     await user.click(screen.getByTestId("session-sidebar-session-f1"));
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
   });
 
-  it.each([{ folders: [] }, { folders: [folderA] }])(
-    "Should explain aggregate empty search with folder data %j",
-    async ({ folders }) => {
-      const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
-      const { queryClient } = renderList({
-        sessions: rows,
-        view: {
-          ...view,
-          aggregate: true,
-          scopeLabel: null,
-          profileFolderGroups: [
-            { owner: view.ownerOf(rows[0]!), workspaceId: "ws", folders, canCreateSession: true },
-          ],
-        },
-      });
-      act(() =>
-        queryClient.setQueryData(
-          sessionFoldersOptions({ workspaceId: "ws", profile: "default" }).queryKey,
-          folders
-        )
-      );
-      await userEvent
-        .setup()
-        .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
-      expect(screen.getByText(/No matching sessions/)).toBeVisible();
-      expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
-    }
-  );
+  // Invariant: where no single pair owns the list, New folder stays visible but
+  // disabled with the reason, instead of silently missing.
+  it("Should show New folder disabled with its reason in a flat aggregate", async () => {
+    const user = userEvent.setup();
+    const reason = "Folders live inside one project and profile. Group by project to add one.";
+    renderList({
+      sessions: [{ ...layoutRows[0]!, profile_id: "default" }],
+      view: { ...view, aggregate: true, scopeLabel: null, newFolderUnavailable: reason },
+    });
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    const item = await screen.findByTestId("session-sidebar-new-folder");
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("session-sidebar-new-folder-unavailable")).toHaveTextContent(reason);
+  });
+
+  it("Should explain an aggregate empty search", async () => {
+    const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
+    renderList({ sessions: rows, view: { ...view, aggregate: true, scopeLabel: null } });
+    await userEvent
+      .setup()
+      .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
+    expect(screen.getByText(/No matching sessions/)).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
+  });
 
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();
@@ -1422,6 +1498,118 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
+  // Invariant: dropping a top-level row onto another row (its middle while rows
+  // reorder, anywhere otherwise) adopts it as that row's child; a session that
+  // already has a parent never offers the drop.
+  it("Should adopt a top-level session by dropping it onto another row", () => {
+    const onAdopt = vi.fn();
+    const rows = [
+      ...layoutRows.map(session => ({ ...session, lineage: undefined })),
+      {
+        ...layoutRows[0]!,
+        id: "r3",
+        name: "Has parent",
+        lineage: { ...layoutRows[0]!.lineage!, parent_session_id: "elsewhere", kind: "provenance" },
+      },
+    ] as SessionPayload[];
+    renderList({
+      sessions: rows,
+      view: { ...view, sort: "created", layout: fakeLayout() },
+      actions: { onAdopt },
+    });
+    fireEvent.dragStart(rowContainer("r1"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(rowContainer("r2")).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(rowContainer("r2"));
+    expect(onAdopt).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "r1" }),
+      expect.objectContaining({ id: "r2" })
+    );
+    expect(rowContainer("r2")).not.toHaveAttribute("data-drop");
+
+    fireEvent.dragStart(rowContainer("r3"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(rowContainer("r2")).not.toHaveAttribute("data-drop");
+    fireEvent.drop(rowContainer("r2"));
+    expect(onAdopt).toHaveBeenCalledTimes(1);
+  });
+
+  // Owning layer: session list interaction. Nesting is independent of folder layout;
+  // nested user rows remain destinations, and keyboard and drag use the same adopt action.
+  it.each([false, true])("Should nest onto a child with folder layout %s", withLayout => {
+    const onAdopt = vi.fn();
+    const parent = { ...layoutRows[0]!, lineage: undefined };
+    const source = { ...layoutRows[1]!, lineage: undefined };
+    const child = {
+      ...layoutRows[2]!,
+      id: "nest-child",
+      name: "Nested destination",
+      lineage: {
+        ...layoutRows[0]!.lineage!,
+        parent_session_id: parent.id,
+        root_session_id: parent.id,
+        spawn_depth: 1,
+        kind: "provenance",
+      },
+    } as SessionPayload;
+    renderList({
+      sessions: [parent, source, child],
+      view: { ...view, sort: "manual", layout: withLayout ? fakeLayout() : undefined },
+      actions: { onAdopt },
+    });
+    fireEvent.dragStart(rowContainer(source.id));
+    fireEvent.dragOver(rowContainer(child.id));
+    expect(rowContainer(child.id)).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(rowContainer(child.id));
+    expect(onAdopt).toHaveBeenCalledWith(source, child);
+    // An ancestor cannot move beneath its own child.
+    fireEvent.dragStart(rowContainer(parent.id));
+    fireEvent.dragOver(rowContainer(child.id));
+    expect(rowContainer(child.id)).not.toHaveAttribute("data-drop");
+  });
+
+  it("Should nest through the keyboard menu using only eligible parent choices", async () => {
+    const user = userEvent.setup();
+    const onAdopt = vi.fn();
+    const source = { ...layoutRows[0]!, lineage: undefined };
+    const target = { ...layoutRows[1]!, name: "Destination", lineage: undefined };
+    const foreign = { ...target, id: "foreign", name: "Foreign", profile_id: "another-profile" };
+    renderList({ sessions: [source, target, foreign], actions: { onAdopt } });
+    screen.getByTestId(`session-row-actions-${source.id}`).focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard("Nest{ArrowRight}");
+    expect(await screen.findByRole("menuitem", { name: "Destination" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Foreign" })).not.toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(onAdopt).toHaveBeenCalledWith(source, target);
+  });
+
+  it("Should offer Make top-level only on a nested provenance child", async () => {
+    const user = userEvent.setup();
+    const onMakeTopLevel = vi.fn();
+    const parent = { ...layoutRows[0]!, lineage: undefined };
+    const child = {
+      ...layoutRows[2]!,
+      id: "c-prov",
+      name: "Nested child",
+      lineage: {
+        ...layoutRows[0]!.lineage!,
+        parent_session_id: parent.id,
+        root_session_id: parent.id,
+        spawn_depth: 1,
+        kind: "provenance",
+      },
+    } as SessionPayload;
+    renderList({ sessions: [parent, child], actions: { onMakeTopLevel } });
+
+    await user.click(screen.getByTestId("session-row-actions-r1"));
+    expect(screen.queryByTestId("session-row-make-top-level-r1")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-row-actions-c-prov"));
+    await user.click(await screen.findByTestId("session-row-make-top-level-c-prov"));
+    expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "c-prov" }));
+  });
+
   // Invariant: a selection moves into a folder or the root through the bar's
   // Move to folder menu or by dragging a selected row, as one layout write of
   // its thread roots in on-screen order; success ends the selection, a refusal
@@ -1615,57 +1803,6 @@ describe("SessionList folders and manual order", () => {
     await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null));
   });
 
-  it.each([
-    ["one profile", ["f1"], "Alpha"],
-    ["two profiles", ["f1", "foreign"], "Select sessions from one profile to move them."],
-  ])(
-    "Should scope an aggregate selection's moves to its profile (%s)",
-    async (_case, ids, item) => {
-      const groups = [
-        {
-          owner: { id: "default", name: "default", archived: false },
-          workspaceId: "ws",
-          folders: [folderA],
-          canCreateSession: true,
-        },
-        {
-          owner: { id: "other", name: "other", archived: false },
-          workspaceId: "ws",
-          folders: [{ ...folderB, profile_id: "other" }],
-          canCreateSession: false,
-        },
-      ];
-      const { queryClient } = renderList({
-        sessions: [
-          { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
-          { ...layoutRows[0]!, id: "foreign", profile_id: "other", profile_name: "other" },
-        ],
-        view: {
-          ...view,
-          aggregate: true,
-          profileFolderGroups: groups,
-          ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
-        },
-      });
-      act(() => {
-        for (const group of groups)
-          queryClient.setQueryData(
-            sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
-            group.folders
-          );
-      });
-      await screen.findByTestId("session-sidebar-folder-fa");
-      const user = await selectRows(...ids);
-      await openMoveMenu(user);
-      expect(await screen.findByRole("menuitem", { name: item })).toBeInTheDocument();
-      expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
-
-      fireEvent.dragStart(rowContainer("f1"));
-      if (ids.length > 1) expect(rowContainer("f1")).not.toHaveAttribute("data-dragging");
-      else expect(rowContainer("f1")).toHaveAttribute("data-dragging", "true");
-    }
-  );
-
   it("Should reorder folders by dragging one header onto another", () => {
     const { layout } = renderLayout("created");
     fireEvent.dragStart(screen.getByTestId("session-sidebar-folder-fa-header"));
@@ -1676,5 +1813,395 @@ describe("SessionList folders and manual order", () => {
     );
     fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
     expect(layout.reorderFolders).toHaveBeenCalledWith(["fb", "fa"]);
+  });
+});
+
+// Invariants (ADR-004): under All projects one flat query lists every row with its project
+// (W-08); Group by renders facets-driven groups that read and page their own rows, read-only,
+// and a collapsed header still signals needs-you (W-09); one failed group retries in place while
+// a failed flat list states one list-level Retry (W-24); manual order is served only to a group
+// whose own query is one pair (W-12). Session catalog I/O is the mocked boundary.
+describe("SessionList breadth and Group by", () => {
+  const NAMES = new Map([
+    ["ws-alpha", "Alpha"],
+    ["ws-beta", "Beta"],
+  ]);
+  const WORKSPACES = [
+    { id: "ws-alpha", name: "Alpha" },
+    { id: "ws-beta", name: "Beta" },
+  ];
+  const lineage = (parent: string) => ({
+    parent_session_id: parent,
+    root_session_id: parent,
+    spawn_depth: 1,
+    auto_stop_on_parent: false,
+    notify_creator: false,
+    spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+    permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+  });
+  const row = (id: string, workspaceId: string, patch: Partial<SessionPayload> = {}) =>
+    ({
+      ...primarySessionFixture,
+      id,
+      name: `Session ${id}`,
+      archived_at: null,
+      state: "active",
+      badge: "running",
+      workspace_id: workspaceId,
+      profile_id: "default",
+      profile_name: "default",
+      ...patch,
+    }) as SessionPayload;
+  const facet = (all: number, needsYou = 0) => ({
+    terminal_approvals: 0,
+    all,
+    working: 0,
+    needs_you: needsYou,
+    finished: 0,
+    idle: all - needsYou,
+    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+  });
+  const ROWS = [
+    row("a1", "ws-alpha"),
+    row("a2", "ws-alpha", { profile_id: "p-work", profile_name: "work" }),
+    row("b1", "ws-beta"),
+    row("u1", ""),
+  ];
+  const PROFILES = [
+    { id: "default", name: "default", color: "", icon: "", emoji: "", archived_at: null },
+    { id: "p-work", name: "work", color: "", icon: "", emoji: "", archived_at: null },
+  ];
+  const FOLDER = {
+    id: "fold-new",
+    name: "",
+    workspace_id: "ws-alpha",
+    profile_id: "p-work",
+    position: 0,
+    session_count: 0,
+    created_at: "2026-10-22T00:00:00Z",
+    updated_at: "2026-10-22T00:00:00Z",
+  };
+  /** Facets the daemon would count for one read: its scope and lens narrow the rows. */
+  function facetsFor(url: URL) {
+    const selector = url.searchParams.get("workspace_id");
+    const profile = url.searchParams.get("profile");
+    const rows = ROWS.filter(
+      session =>
+        (!selector || session.workspace_id === (selector === "@user" ? "" : selector)) &&
+        (!profile || session.profile_name === profile)
+    );
+    const count = (match: (session: SessionPayload) => boolean) => facet(rows.filter(match).length);
+    return {
+      facets: count(() => true),
+      by_workspace: [...new Set(rows.map(session => session.workspace_id))].map(id => ({
+        workspace_id: id,
+        facets: count(session => session.workspace_id === id),
+      })),
+      by_profile: [...new Set(rows.map(session => session.profile_id))].map(id => ({
+        profile_id: id,
+        facets: count(session => session.profile_id === id),
+      })),
+    };
+  }
+  const badgeOf = (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, NAMES);
+  const projectGroups = () =>
+    projectSessionGroups(
+      {
+        by_workspace: [
+          { workspace_id: "ws-alpha", facets: facet(1) },
+          { workspace_id: "ws-beta", facets: facet(4, 2) },
+          { workspace_id: "", facets: facet(1) },
+        ],
+      },
+      { workspaces: WORKSPACES, lens: { profile: "default" } }
+    );
+  const grouped = (overrides: Partial<SessionListViewModel> = {}) =>
+    sessionListViewFixture({
+      ...view,
+      storedGroupBy: "project",
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      groupFilters: { limit: 100 },
+      badgeOf,
+      groups: projectGroups(),
+      ...overrides,
+    });
+
+  const failing = new Set<string>();
+  let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+  beforeEach(() => {
+    failing.clear();
+    fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL((input as Request).url);
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (url.pathname.endsWith("/session-folders")) {
+        if ((input as Request).method === "POST") {
+          const body = (await (input as Request).json()) as { name: string };
+          return json({ folder: { ...FOLDER, name: body.name } }, 201);
+        }
+        return json({ folders: [] });
+      }
+      if (url.pathname === "/api/profiles") return json(PROFILES);
+      if (url.pathname === "/api/sessions/facets") return json(facetsFor(url));
+      if (url.pathname !== "/api/sessions") return json({ error: "not found" }, 404);
+      const selector = url.searchParams.get("workspace_id");
+      if (selector && failing.has(selector)) return json({ error: "unreachable" }, 503);
+      const profile = url.searchParams.get("profile");
+      const listed = ROWS.filter(
+        session =>
+          (!selector || session.workspace_id === (selector === "@user" ? "" : selector)) &&
+          (!profile || session.profile_name === profile)
+      );
+      return json({ sessions: listed, page: { has_more: false, limit: 100 } });
+    });
+  });
+  afterEach(() => fetcher.mockRestore());
+
+  function catalogReads() {
+    return fetcher.mock.calls
+      .map(([input]) => new URL((input as Request).url))
+      .filter(url => url.pathname === "/api/sessions");
+  }
+
+  it("W-08: Should list All projects flat, naming each row's project before its agent", () => {
+    const child = row("a1-child", "ws-alpha", { lineage: lineage("a1") });
+    const { update } = renderList({
+      sessions: [ROWS[0]!, child, ROWS[3]!],
+      view: { ...view, badgeOf },
+    });
+
+    const alpha = screen.getByTestId("session-row-project-a1");
+    expect(alpha).toHaveTextContent("Alpha");
+    expect(screen.getByTestId("session-row-project-u1")).toHaveTextContent("User");
+    expect(
+      alpha.compareDocumentPosition(screen.getByTestId("session-provider-mark-a1")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // A child in its root's project repeats nothing.
+    expect(screen.queryByTestId("session-row-project-a1-child")).not.toBeInTheDocument();
+    expect(catalogReads()).toEqual([]);
+
+    // A focused project names no project on its rows.
+    update([ROWS[0]!, child, ROWS[3]!], view);
+    expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
+  });
+
+  // #952: Sort and Group by are two explicit controls; Group by exists only where a grouping applies.
+  it("Should offer Group by as its own control only where a grouping applies", async () => {
+    const user = userEvent.setup();
+    const setGroupBy = vi.fn();
+    const flat = renderList({ view: { ...view, groupByOptions: ["none"], setGroupBy } });
+    expect(screen.getByRole("button", { name: /^Sort by/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Group by/ })).not.toBeInTheDocument();
+    flat.update(sessions, { ...view, groupByOptions: ["none", "project"], setGroupBy });
+    await user.click(screen.getByRole("button", { name: "Group by: None" }));
+    expect(await screen.findByTestId("session-sidebar-group-by-none")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.queryByTestId("session-sidebar-group-by-profile")).not.toBeInTheDocument();
+    // The Group by menu holds only groupings; sorts live behind their own icon.
+    expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-sidebar-group-by-project"));
+    expect(setGroupBy).toHaveBeenCalledWith("project");
+  });
+
+  it("W-09: Should group by project from facets, each open group reading its own rows", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    renderList({
+      sessions: [],
+      view: grouped({ collapsedGroupKeys: new Set(["project:ws-beta"]), toggleGroup }),
+    });
+
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-u1")).toBeVisible();
+    const headers = [
+      ...document.querySelectorAll<HTMLElement>(
+        "[data-testid^='session-sidebar-group-'][aria-expanded]:not([aria-haspopup])"
+      ),
+    ];
+    expect(headers.map(header => header.dataset.testid)).toEqual([
+      "session-sidebar-group-project:ws-alpha",
+      "session-sidebar-group-project:ws-beta",
+      "session-sidebar-group-user",
+    ]);
+    const beta = screen.getByTestId("session-sidebar-group-project:ws-beta");
+    expect(beta).toHaveAttribute("aria-expanded", "false");
+    expect(beta).toHaveTextContent("4");
+    expect(within(beta).getByRole("img", { name: "2 need you" })).toBeInTheDocument();
+    // A collapsed group reads nothing; rows inside a project group repeat no project.
+    expect(
+      catalogReads()
+        .map(url => url.searchParams.get("workspace_id"))
+        .sort()
+    ).toEqual(["@user", "ws-alpha"]);
+    expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
+
+    await user.click(beta);
+    expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  it("W-24: Should retry one failed group in place while the other groups render", async () => {
+    failing.add("ws-alpha");
+    renderList({ sessions: [], view: grouped() });
+
+    const retry = await screen.findByTestId("session-sidebar-group-project:ws-alpha-retry");
+    expect(await screen.findByTestId("session-sidebar-session-b1")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-u1")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /Retry/ })).toHaveLength(1);
+
+    failing.delete("ws-alpha");
+    await userEvent.setup().click(retry);
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-group-project:ws-alpha-retry")).toBeNull();
+  });
+
+  it("W-24: Should state one list-level error with one Retry when the flat list fails", async () => {
+    const retry = vi.fn();
+    renderList({
+      sessions: [],
+      view: { ...view, badgeOf, catalog: sessionListCatalogFixture({ failed: true, retry }) },
+    });
+    expect(screen.getByText("Couldn’t load sessions.")).toBeVisible();
+    const buttons = screen.getAllByRole("button", { name: /Retry/ });
+    expect(buttons).toHaveLength(1);
+    await userEvent.setup().click(buttons[0]!);
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["one project", { kind: "project", workspaceId: "ws-alpha" }, ["ws-alpha"]],
+    ["All projects", { kind: "all" }, ["@user", "ws-alpha", "ws-beta"]],
+  ] as const)(
+    "W-12: Should read a profile group in %s in manual order, one project pair at a time",
+    async (_case, scope: DataScope, workspaces) => {
+      const owner = { id: "default", name: "default", archived: false };
+      const groups = profileSessionGroups(
+        { by_profile: [{ profile_id: "default", facets: facet(1) }] },
+        { profiles: [owner], scope }
+      );
+      renderList({
+        sessions: [],
+        view: grouped({
+          sort: "manual",
+          aggregate: true,
+          scopeLabel: null,
+          storedGroupBy: "profile",
+          groupBy: "profile",
+          groups,
+        }),
+      });
+      // A profile group spanning projects splits into one group per project pair.
+      await waitFor(() => expect(catalogReads()).toHaveLength(workspaces.length));
+      const reads = catalogReads();
+      expect(reads.map(url => url.searchParams.get("workspace_id")).sort()).toEqual(workspaces);
+      expect(reads.every(url => url.searchParams.get("sort") === "manual")).toBe(true);
+      expect(reads.every(url => url.searchParams.get("profile") === "default")).toBe(true);
+      expect(screen.queryByTestId("session-sidebar-sort-note")).not.toBeInTheDocument();
+    }
+  );
+
+  // Invariant: under All projects and All profiles, a project group splits into one
+  // subgroup per profile — each one (workspace, profile) pair that owns folders and order.
+  it("Should split a project group under All profiles into profile pairs", async () => {
+    const groups = projectSessionGroups(
+      { by_workspace: [{ workspace_id: "ws-alpha", facets: facet(2) }] },
+      { workspaces: WORKSPACES, lens: { all_profiles: true } }
+    );
+    expect(groups[0]!.pair).toBeNull();
+    renderList({
+      sessions: [],
+      view: grouped({ sort: "manual", aggregate: true, scopeLabel: null, groups }),
+    });
+
+    expect(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha/profile:default")
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("session-sidebar-group-project:ws-alpha/profile:p-work")
+    ).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-a2")).toBeVisible();
+    const reads = catalogReads();
+    expect(reads.map(url => url.searchParams.get("profile")).sort()).toEqual(["default", "work"]);
+    expect(reads.every(url => url.searchParams.get("sort") === "manual")).toBe(true);
+  });
+
+  // Invariant: a group header's + opens New session in the group's project (and
+  // profile, when the group settles one), as a sibling of the collapse toggle.
+  it("Should start a session from a group header + in that group's project and profile", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    const toggleGroup = vi.fn();
+    renderList({ sessions: [], onNewSession, view: grouped({ toggleGroup }) });
+
+    const header = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    expect(within(header).queryByRole("button", { name: /New session/ })).toBeNull();
+    await user.click(screen.getByTestId("session-sidebar-group-project:ws-alpha-new"));
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-new-session")
+    );
+    expect(onNewSession).toHaveBeenCalledWith({ workspaceId: "ws-alpha", profile: "default" });
+    expect(toggleGroup).not.toHaveBeenCalled();
+  });
+
+  it("Should ask which profile a group + New folder belongs to under All profiles", async () => {
+    const user = userEvent.setup();
+    const groups = projectSessionGroups(
+      { by_workspace: [{ workspace_id: "ws-alpha", facets: facet(2) }] },
+      { workspaces: WORKSPACES, lens: { all_profiles: true } }
+    );
+    renderList({ sessions: [], view: grouped({ aggregate: true, scopeLabel: null, groups }) });
+
+    await user.click(await screen.findByTestId("session-sidebar-group-project:ws-alpha-new"));
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-new-folder")
+    );
+    const picker = await screen.findByTestId(
+      "session-sidebar-group-project:ws-alpha-folder-profile"
+    );
+    await user.click(picker);
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-folder-profile-item-work")
+    );
+    await user.type(await screen.findByTestId("session-folder-name"), "Research");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+
+    await waitFor(() => {
+      const create = fetcher.mock.calls
+        .map(([input]) => input as Request)
+        .find(request => request.method === "POST");
+      expect(create).toBeDefined();
+      const url = new URL(create!.url);
+      expect(url.pathname).toBe("/api/workspaces/ws-alpha/session-folders");
+      expect(url.searchParams.get("profile")).toBe("work");
+    });
+  });
+
+  // Invariant: a grouped list keeps one selection across its groups; lifecycle verbs
+  // route by owner, while a folder move needs the selection inside one pair.
+  it("Should select across groups, run bulk verbs, and refuse a cross-pair folder move", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList({ sessions: [], view: grouped() });
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select Session a1" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select Session b1" }));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    await user.click(await screen.findByTestId("session-sidebar-selection-stop"));
+    expect(actions.onStopMany).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "a1" }),
+      expect.objectContaining({ id: "b1" }),
+    ]);
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    await user.click(await screen.findByTestId("session-sidebar-selection-move"));
+    expect(await screen.findByTestId("session-sidebar-selection-move-blocked")).toHaveTextContent(
+      "Select sessions from one project and profile to move them."
+    );
   });
 });

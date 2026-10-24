@@ -16,15 +16,17 @@ SELECT workspace_id, idempotency_key, profile_id, request_fingerprint, source_se
 FROM session_derivations
 WHERE workspace_id = ?1
   AND idempotency_key = ?2
+  AND (workspace_id <> '' OR profile_id = ?3)
 `
 
 type GetSessionDerivationParams struct {
 	WorkspaceID    string `json:"workspace_id"`
 	IdempotencyKey string `json:"idempotency_key"`
+	ProfileID      string `json:"profile_id"`
 }
 
 func (q *Queries) GetSessionDerivation(ctx context.Context, arg GetSessionDerivationParams) (SessionDerivation, error) {
-	row := q.db.QueryRowContext(ctx, getSessionDerivation, arg.WorkspaceID, arg.IdempotencyKey)
+	row := q.db.QueryRowContext(ctx, getSessionDerivation, arg.WorkspaceID, arg.IdempotencyKey, arg.ProfileID)
 	var i SessionDerivation
 	err := row.Scan(
 		&i.WorkspaceID,
@@ -50,7 +52,7 @@ INSERT INTO session_derivations (
   ?5, ?6, ?7, ?8,
   ?9
 )
-ON CONFLICT(workspace_id, idempotency_key) DO NOTHING
+ON CONFLICT DO NOTHING
 `
 
 type InsertSessionDerivationParams struct {

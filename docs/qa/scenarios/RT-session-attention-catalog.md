@@ -69,3 +69,22 @@ Compare sparse and dense pending populations, including a narrow workspace among
 many inactive interaction histories. Owning globaldb tests and before/after SQL
 results are linked in [the responsiveness report](../reports/2026-10-17-responsiveness.md);
 they do not replace outstanding public-surface scenario legs.
+
+QA impact 2026-10-23 (Sessions Kanban backend; integrated re-walk pending): verify board-column
+filters through CLI, HTTP/UDS and `compozy__session_list`. Seed 120 durable sessions with the last
+20 in review; request two pages of 10 and check total 20, with facets still counting the complete
+population. Change the column or child visibility on a cursor and expect rejection. Check
+`--column blocked` exits 2 and the native tool rejects the same selector. Compare root-only counts
+for `children=exclude` with `subagents=exclude`. Put direct children on later pages, archive one,
+add a grandchild and a child in another profile: the parent's rollup includes only direct readable
+non-archived children. An archived readable parent retains its title. Exercise active/durable
+parity with waiting work and cached PRs, and ensure a changed repository origin cannot reuse facts
+from the previous repo key. Package-scoped SQLite and CLI suites cover the backend contracts;
+these checks do not claim the public-surface/UI journey has been re-walked.
+
+Release regression 2026-10-24: after delegated subagents finish and their single
+prioritized wake settles, the root is the only unseen-done item. Keeping a completed
+subagent's ACP session alive must not leave the root in Waiting or hide it from the
+Finished count. The unchanged prioritized-wake case in
+`TestSubagentDaemonIntegration` verifies this against the real daemon/store;
+see the merge-train v0.4.0 report for the scoped result.

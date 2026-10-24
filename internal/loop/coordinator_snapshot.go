@@ -18,7 +18,7 @@ func (r *CoordinatorRunner) resolvePinnedDefinition(
 			ErrValidation,
 		)
 	}
-	snapshot, err := r.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, digest)
+	snapshot, err := r.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.ProfileID, digest)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load digest %q: %w", ErrExecutedDefinitionSnapshot, digest, err)
 	}

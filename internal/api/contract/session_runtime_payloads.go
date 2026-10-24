@@ -18,6 +18,7 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
+	Scope         string                     `json:"scope,omitempty"`
 	AgentName     string                     `json:"agent_name,omitempty"`
 	Name          string                     `json:"name,omitempty"`
 	Workspace     string                     `json:"workspace,omitempty"`
@@ -38,6 +39,12 @@ type CreateSessionRequest struct {
 // RenameSessionRequest changes the durable display name of one user session.
 type RenameSessionRequest struct {
 	Name string `json:"name"`
+}
+
+// SetSessionParentRequest adopts a parentless user session as a provenance
+// child of another user session in the same workspace and profile.
+type SetSessionParentRequest struct {
+	ParentSessionID string `json:"parent_session_id"`
 }
 
 // NewSessionWorktreeRequest materializes one worktree before the session starts.
@@ -70,35 +77,44 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
-	ReplyWatches        []ReplyWatchPayload           `json:"reply_watches,omitempty"`
-	SubagentSummary     *SubagentSummaryPayload       `json:"subagent_summary,omitzero"`
-	MonitorSummary      *SessionMonitorSummaryPayload `json:"monitor_summary,omitzero"`
-	Queue               *SessionQueueSummaryPayload   `json:"queue,omitzero"`
-	Supervision         *session.SupervisionState     `json:"supervision"`
-	BusyInput           *session.BusyInputState       `json:"busy_input,omitzero"`
-	ID                  string                        `json:"id"`
-	ProfileID           string                        `json:"profile_id"`
-	ProfileName         string                        `json:"profile_name"`
-	ProfileColor        string                        `json:"profile_color,omitempty"`
-	ProfileIcon         string                        `json:"profile_icon,omitempty"`
-	ProfileEmoji        string                        `json:"profile_emoji,omitempty"`
-	ProfileArchived     bool                          `json:"profile_archived,omitzero"`
-	Name                string                        `json:"name,omitempty"`
-	AgentName           string                        `json:"agent_name"`
-	Runtime             SessionRuntimePayload         `json:"runtime"`
-	WorkspaceID         string                        `json:"workspace_id,omitempty"`
-	WorkspacePath       string                        `json:"workspace_path,omitempty"`
-	WorktreeID          string                        `json:"worktree_id,omitempty"`
-	Type                session.Type                  `json:"type,omitempty"`
-	State               session.State                 `json:"state"`
-	Badge               session.Badge                 `json:"badge"`
-	Attachable          bool                          `json:"attachable"`
-	AttachedTo          string                        `json:"attached_to,omitempty"`
-	AttachExpiresAt     *time.Time                    `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch     int64                         `json:"transcript_epoch,omitzero"`
-	AttentionChangedAt  *time.Time                    `json:"attention_changed_at,omitempty"`
-	PendingInteractions []PendingInteractionPayload   `json:"pending_interactions"`
-	ArchivedAt          *time.Time                    `json:"archived_at"`
+	Branch                   string                           `json:"branch,omitempty"`
+	PullRequest              *SessionPullRequestPayload       `json:"pull_request"`
+	PullRequestLookup        *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
+	BoardColumn              session.BoardColumn              `json:"board_column"`
+	ParentTitle              string                           `json:"parent_title,omitempty"`
+	WaitingOn                session.WaitingOn                `json:"waiting_on,omitempty"`
+	Children                 *SessionChildrenPayload          `json:"children,omitzero"`
+	EffectiveWorkspaceAccess string                           `json:"effective_workspace_access"`
+	Scope                    string                           `json:"scope"`
+	ReplyWatches             []ReplyWatchPayload              `json:"reply_watches,omitempty"`
+	SubagentSummary          *SubagentSummaryPayload          `json:"subagent_summary,omitzero"`
+	MonitorSummary           *SessionMonitorSummaryPayload    `json:"monitor_summary,omitzero"`
+	Queue                    *SessionQueueSummaryPayload      `json:"queue,omitzero"`
+	Supervision              *session.SupervisionState        `json:"supervision"`
+	BusyInput                *session.BusyInputState          `json:"busy_input,omitzero"`
+	ID                       string                           `json:"id"`
+	ProfileID                string                           `json:"profile_id"`
+	ProfileName              string                           `json:"profile_name"`
+	ProfileColor             string                           `json:"profile_color,omitempty"`
+	ProfileIcon              string                           `json:"profile_icon,omitempty"`
+	ProfileEmoji             string                           `json:"profile_emoji,omitempty"`
+	ProfileArchived          bool                             `json:"profile_archived,omitzero"`
+	Name                     string                           `json:"name,omitempty"`
+	AgentName                string                           `json:"agent_name"`
+	Runtime                  SessionRuntimePayload            `json:"runtime"`
+	WorkspaceID              string                           `json:"workspace_id,omitempty"`
+	WorkspacePath            string                           `json:"workspace_path,omitempty"`
+	WorktreeID               string                           `json:"worktree_id,omitempty"`
+	Type                     session.Type                     `json:"type,omitempty"`
+	State                    session.State                    `json:"state"`
+	Badge                    session.Badge                    `json:"badge"`
+	Attachable               bool                             `json:"attachable"`
+	AttachedTo               string                           `json:"attached_to,omitempty"`
+	AttachExpiresAt          *time.Time                       `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch          int64                            `json:"transcript_epoch,omitzero"`
+	AttentionChangedAt       *time.Time                       `json:"attention_changed_at,omitempty"`
+	PendingInteractions      []PendingInteractionPayload      `json:"pending_interactions"`
+	ArchivedAt               *time.Time                       `json:"archived_at"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	StopCause  string           `json:"stop_cause,omitempty"`
@@ -130,6 +146,8 @@ type SessionRuntimePayload struct {
 	Selected          *PromptRuntimeSelectionPayload    `json:"selected,omitempty"`
 	SelectionRevision int64                             `json:"selection_revision"`
 	Effective         *RuntimeSelectionPayload          `json:"effective,omitempty"`
+	// Requested preserves binding intent when the provider reports a different effective value.
+	Requested *PromptRuntimeSelectionPayload `json:"requested,omitempty"`
 	// LastKnown preserves the recorded runtime identity independently of the current ACP binding.
 	LastKnown    *RuntimeSelectionPayload `json:"last_known,omitempty"`
 	ACPSessionID string                   `json:"acp_session_id,omitempty"`

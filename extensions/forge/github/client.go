@@ -28,8 +28,9 @@ type githubClient struct {
 }
 
 type githubAPIError struct {
-	cause  string
-	status int
+	retryAfter *time.Time
+	cause      string
+	status     int
 }
 
 func (e *githubAPIError) Error() string {
@@ -55,6 +56,12 @@ func (c githubClient) request(
 	token string,
 	requestBody any,
 	responseBody any,
+) error {
+	return c.requestWithHeaders(ctx, method, path, token, requestBody, responseBody, nil)
+}
+
+func (c githubClient) requestWithHeaders(
+	ctx context.Context, method, path, token string, requestBody, responseBody any, headers *http.Header,
 ) (resultErr error) {
 	var body io.Reader
 	if requestBody != nil {
@@ -84,6 +91,9 @@ func (c githubClient) request(
 			resultErr = errors.Join(resultErr, fmt.Errorf("github forge: close response: %w", closeErr))
 		}
 	}()
+	if headers != nil {
+		*headers = response.Header.Clone()
+	}
 	limited := io.LimitReader(response.Body, githubResponseLimit+1)
 	payload, err := io.ReadAll(limited)
 	if err != nil {
@@ -93,7 +103,21 @@ func (c githubClient) request(
 		return errors.New("github forge: response exceeds size limit")
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return classifyGitHubStatus(response.StatusCode)
+		failure := classifyGitHubStatus(response.StatusCode)
+		if apiErr, ok := errors.AsType[*githubAPIError](
+			failure,
+		); ok &&
+			apiErr.cause == extensioncontract.ForgeCauseRateLimited {
+			if reset, parseErr := strconv.ParseInt(
+				response.Header.Get("X-RateLimit-Reset"),
+				10,
+				64,
+			); parseErr == nil &&
+				reset > 0 {
+				apiErr.retryAfter = new(time.Unix(reset, 0).UTC())
+			}
+		}
+		return failure
 	}
 	if responseBody == nil || len(payload) == 0 {
 		return nil

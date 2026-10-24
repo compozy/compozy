@@ -63,6 +63,7 @@ func evaluateDefinitionOfDone(
 		ctx,
 		runtimeCatalog,
 		run.WorkspaceID,
+		run.ProfileID,
 		effective.RuntimeDefaults.Judge,
 		runtimeGate.Criteria,
 	); err != nil {

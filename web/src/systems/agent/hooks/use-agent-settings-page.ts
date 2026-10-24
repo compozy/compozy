@@ -20,7 +20,8 @@ import { useUnsavedGuard } from "./use-unsaved-guard";
 import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
 import type { RuntimeModelOption } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
-import { useActiveWorkspace, useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
+import { useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
+import { useAgentWindowScope } from "./use-agent-window-scope";
 
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -32,8 +33,14 @@ export interface UseAgentSettingsPageOptions {
 export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOptions) {
   const navigate = useNavigate();
   const { destination } = useProfileReadScope();
-  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
-  const agentQuery = useAgent(name, runtimeWorkspaceId);
+  // The window's scope: a bound agent window edits that project's (or User's) agent.
+  const {
+    workspace,
+    projectId: runtimeWorkspaceId,
+    projectName,
+    bindingSearch,
+  } = useAgentWindowScope();
+  const agentQuery = useAgent(name, workspace);
   const updateAgent = useUpdateAgent();
 
   const resourceKey = JSON.stringify([destination, runtimeWorkspaceId, name]);
@@ -92,7 +99,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       void navigate({
         to: "/agents/$name/settings",
         params: { name },
-        search: { section: next },
+        search: { section: next, ...bindingSearch },
         replace: true,
       });
     },
@@ -105,7 +112,8 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     onDiscard: () => store.trigger.discardRequested(),
     onReloadAndRetry: () =>
       store.trigger.reloadRequested({ reload: async () => (await agentQuery.refetch()).data }),
-    onBackToDetail: () => void navigate({ to: "/agents/$name", params: { name } }),
+    onBackToDetail: () =>
+      void navigate({ to: "/agents/$name", params: { name }, search: bindingSearch }),
     onOpenProviderSettings: () => void navigate({ to: "/settings/providers" }),
     phase: editor.phase,
     error,
@@ -116,7 +124,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     modelCatalogRefreshing: catalog.refreshing,
     modelCatalogError: catalog.error,
     onRefreshCatalog: catalog.refresh,
-    workspaceName: activeWorkspace?.name ?? null,
+    workspaceName: projectName,
     deleteFlow,
     unsavedGuardDialog: guard.confirmDialog,
   };

@@ -3,6 +3,7 @@ package httpapi
 import "github.com/gin-gonic/gin"
 
 func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/automation/suggestions", handlers.ListAutomationSuggestions)
 	suggestions := api.Group("/workspaces/:workspace_id/automation/suggestions")
 	suggestions.GET("", handlers.ListAutomationSuggestions)
 	suggestions.POST("/:suggestion_id/accept", handlers.AcceptAutomationSuggestion)
@@ -33,6 +34,9 @@ func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/loop-runs", handlers.ListLoopRuns)
+	api.GET("/loop-requests", handlers.ListLoopRequests)
+	api.GET("/loops", handlers.ListLoops)
 	loops := api.Group("/workspaces/:workspace_id/loops")
 	loops.GET("", handlers.ListLoops)
 	loops.POST("", handlers.CreateLoop)

@@ -1,12 +1,21 @@
-// Suite: session-window sessions rail state (open/closed, width, folder and thread collapse)
+// Suite: session-window sessions rail state (open/closed, width, folder, thread branch, and group collapse)
 // Invariant: rail state is owned per window scope — two session windows never
-// share a toggle or width; a window without its own entry starts from the
-// last-used (shell) state; a persisted entry survives a reload; a width stays
+// share a toggle, a fold (thread, folder, or group-by group), or a width; a
+// window without its own entry starts from the last-used (shell) state; a
+// persisted entry survives a reload; a width stays
 // within bounds and a reset follows the default again; closed windows' entries
 // are pruned only by the workspace/profile snapshot that listed them, so a
 // switch away and back keeps them; every older global blob (including one
 // written before widths existed) upgrades into the shell scope without loss,
 // and a pre-default blob's incidental `open: false` never masks the default.
+// A thread branch shows one list: opening its subagents folds its children,
+// and a stored blob without subagent flags reads as every subagent list closed.
+// The List | Kanban view and the board's "Hide child sessions" filter are
+// window-only (UT-067): they survive a reload but never seed another window.
+// Sort and Group by (#952) are one per-window choice shared by that window's
+// List and Kanban: they survive the view toggle and a reload, two windows stay
+// independent, and a window that never chose follows the daemon's
+// `shell.sessions` value, which the web never writes.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -23,11 +32,21 @@ const PARTITION_B = "ws_b\u0000default";
 /** A reload: fresh store and fresh scope context from the same module graph. */
 async function loadFreshSidebarState() {
   vi.resetModules();
-  const [sidebar, { WindowScopeContext }] = await Promise.all([
+  const [sidebar, view, order, { WindowScopeContext }, query] = await Promise.all([
     import("../use-session-sidebar-state"),
+    import("../use-session-window-view-state"),
+    import("../use-session-window-order"),
     import("@/hooks/use-window-scope"),
+    import("@tanstack/react-query"),
   ]);
-  return { ...sidebar, WindowScopeContext };
+  return {
+    ...sidebar,
+    ...view,
+    ...order,
+    WindowScopeContext,
+    QueryClient: query.QueryClient,
+    QueryClientProvider: query.QueryClientProvider,
+  };
 }
 
 type SidebarModule = Awaited<ReturnType<typeof loadFreshSidebarState>>;
@@ -64,6 +83,37 @@ describe("useSessionSidebarState", () => {
     expect(result.current.collapsedFolderIds).toEqual([]);
   });
 
+  it("Should show one branch list at a time and remember it across a reload", async () => {
+    const first = await loadFreshSidebarState();
+    const result = renderInScope(first, WINDOW_ONE);
+    expect(result.current.subagentThreadIds).toEqual([]);
+
+    act(() => {
+      result.current.setThreadBranch("sess_root", "subagents");
+    });
+    expect(result.current).toMatchObject({
+      collapsedThreadIds: ["sess_root"],
+      subagentThreadIds: ["sess_root"],
+    });
+
+    act(() => {
+      result.current.setThreadBranch("sess_root", "children");
+    });
+    expect(result.current).toMatchObject({ collapsedThreadIds: [], subagentThreadIds: [] });
+    // A closed subagent list is the default, so nothing of it is stored.
+    expect(persistedContext().byScope[WINDOW_ONE].subagentThreads).toEqual({});
+
+    act(() => {
+      result.current.setThreadBranch("sess_other", "subagents");
+      result.current.setThreadBranch("sess_root", null);
+    });
+    const reloaded = await loadFreshSidebarState();
+    expect(renderInScope(reloaded, WINDOW_ONE).current).toMatchObject({
+      collapsedThreadIds: ["sess_root", "sess_other"],
+      subagentThreadIds: ["sess_other"],
+    });
+  });
+
   it("Should keep a closed rail closed across a reload once the operator closed it", async () => {
     const first = await loadFreshSidebarState();
     const result = renderInScope(first, WINDOW_ONE);
@@ -77,7 +127,7 @@ describe("useSessionSidebarState", () => {
     expect(renderInScope(reloaded, WINDOW_ONE).current.open).toBe(false);
   });
 
-  it("Should keep each window's rail, folders, and threads independent", async () => {
+  it("Should keep each window's rail, folders, threads, and groups independent", async () => {
     const sidebar = await loadFreshSidebarState();
     const one = renderInScope(sidebar, WINDOW_ONE);
     const two = renderInScope(sidebar, WINDOW_TWO);
@@ -85,18 +135,21 @@ describe("useSessionSidebarState", () => {
     act(() => {
       one.current.toggle();
       one.current.toggleFolder("sfold-a");
-      one.current.toggleThread("sess_root");
+      one.current.setThreadBranch("sess_root", null);
+      one.current.toggleGroup("project:ws_a");
     });
 
     expect(one.current).toMatchObject({
       open: false,
       collapsedFolderIds: ["sfold-a"],
       collapsedThreadIds: ["sess_root"],
+      collapsedGroupIds: ["project:ws_a"],
     });
     expect(two.current).toMatchObject({
       open: true,
       collapsedFolderIds: [],
       collapsedThreadIds: [],
+      collapsedGroupIds: [],
     });
 
     act(() => {
@@ -109,11 +162,20 @@ describe("useSessionSidebarState", () => {
     expect(renderInScope(reloaded, WINDOW_ONE).current).toMatchObject({
       open: false,
       collapsedFolderIds: ["sfold-a"],
+      collapsedGroupIds: ["project:ws_a"],
     });
     expect(renderInScope(reloaded, WINDOW_TWO).current).toMatchObject({
       open: true,
       collapsedFolderIds: ["sfold-b"],
     });
+
+    // Reopening a group drops its entry instead of storing `false`: only folds persist.
+    const afterReload = renderInScope(reloaded, WINDOW_ONE);
+    act(() => {
+      afterReload.current.toggleGroup("project:ws_a");
+    });
+    expect(afterReload.current.collapsedGroupIds).toEqual([]);
+    expect(persistedContext().byScope[WINDOW_ONE].collapsedGroups).toEqual({});
   });
 
   it("Should open a new window with the last-used rail state, then let it diverge", async () => {
@@ -132,6 +194,113 @@ describe("useSessionSidebarState", () => {
     });
     expect(one.current.open).toBe(true);
     expect(two.current.open).toBe(false);
+  });
+
+  it("UT-067: Should restore a window's Kanban view and child filter after a reload, never seeding a new window", async () => {
+    const before = await loadFreshSidebarState();
+    const renderView = (module: SidebarModule, scopeId: string) =>
+      renderHook(() => module.useSessionWindowViewState(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(module.WindowScopeContext, { value: scopeId }, children),
+      }).result;
+    const one = renderView(before, WINDOW_ONE);
+    expect(one.current).toMatchObject({ view: "list", hideChildren: false });
+    act(() => {
+      one.current.setView("kanban");
+      one.current.setHideChildren(true);
+    });
+    expect(renderView(before, WINDOW_TWO).current).toMatchObject({
+      view: "list",
+      hideChildren: false,
+    });
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() =>
+      expect(renderView(after, WINDOW_ONE).current).toMatchObject({
+        view: "kanban",
+        hideChildren: true,
+      })
+    );
+    expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
+  });
+
+  describe("per-window Sort and Group by", () => {
+    let daemonSessions: { sort?: string; group_by?: string } = {};
+    let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+
+    beforeEach(() => {
+      daemonSessions = {};
+      fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+        const request = input as Request;
+        if (new URL(request.url).pathname !== "/api/settings/shell") {
+          return new Response(null, { status: 404 });
+        }
+        return new Response(JSON.stringify({ config: { sessions: { ...daemonSessions } } }), {
+          headers: { "content-type": "application/json" },
+        });
+      });
+    });
+
+    afterEach(() => {
+      fetcher.mockRestore();
+    });
+
+    /** One window's view toggle and order, as its List and its Kanban read them. */
+    function renderWindow(module: SidebarModule, scopeId: string) {
+      const client = new module.QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return renderHook(
+        () => ({ view: module.useSessionWindowViewState(), order: module.useSessionWindowOrder() }),
+        {
+          wrapper: ({ children }: { children: ReactNode }) =>
+            createElement(
+              module.QueryClientProvider,
+              { client },
+              createElement(module.WindowScopeContext, { value: scopeId }, children)
+            ),
+        }
+      ).result;
+    }
+
+    it("Should keep a window's choice across the List | Kanban toggle and a reload", async () => {
+      const before = await loadFreshSidebarState();
+      const one = renderWindow(before, WINDOW_ONE);
+      act(() => {
+        one.current.order.setSort("name");
+        one.current.order.setGroupBy("project");
+      });
+      act(() => one.current.view.setView("kanban"));
+      expect(one.current.order).toMatchObject({ sort: "name", groupBy: "project" });
+      act(() => one.current.view.setView("list"));
+      expect(one.current.order).toMatchObject({ sort: "name", groupBy: "project" });
+
+      const after = await loadFreshSidebarState();
+      expect(renderWindow(after, WINDOW_ONE).current.order).toMatchObject({
+        sort: "name",
+        groupBy: "project",
+      });
+    });
+
+    it("Should seed a window that never chose from the daemon and keep windows independent", async () => {
+      daemonSessions = { sort: "attention", group_by: "profile" };
+      const sidebar = await loadFreshSidebarState();
+      const one = renderWindow(sidebar, WINDOW_ONE);
+      const two = renderWindow(sidebar, WINDOW_TWO);
+      await waitFor(() =>
+        expect(one.current.order).toMatchObject({ sort: "attention", groupBy: "profile" })
+      );
+
+      act(() => one.current.order.setSort("name"));
+      expect(one.current.order.sort).toBe("name");
+      await waitFor(() => expect(two.current.order.sort).toBe("attention"));
+      // A window opened after another chose still starts from the daemon, not the last choice.
+      const three = renderWindow(sidebar, "win_three");
+      await waitFor(() =>
+        expect(three.current.order).toMatchObject({ sort: "attention", groupBy: "profile" })
+      );
+      expect(
+        fetcher.mock.calls.filter(([input]) => (input as Request).method === "PATCH")
+      ).toHaveLength(0);
+    });
   });
 
   it("Should prune closed windows and keep live windows and the shell", async () => {

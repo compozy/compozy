@@ -128,7 +128,6 @@ func (d *Daemon) newBootTaskRuntimeParts(
 func (d *Daemon) newBootTaskSessionBridge(state *bootState) (*taskSessionBridge, error) {
 	return newTaskSessionBridge(
 		state.sessions,
-		d.homePaths.HomeDir,
 		state.logger,
 		withTaskSessionContextOverlay(state.situationContext),
 		withTaskSessionWorktrees(executionWorktreesForState(state)),
@@ -367,7 +366,7 @@ func recoverBootTaskRuns(
 	if err != nil {
 		return fmt.Errorf("daemon: derive task boot recovery actor: %w", err)
 	}
-	stats, err := recoverTaskRunsOnBoot(ctx, manager, store, state.sessions, actor)
+	stats, err := recoverTaskRunsOnBoot(ctx, manager, store, state.sessions, actor, state.tasks.loopActions)
 	if err != nil {
 		return err
 	}

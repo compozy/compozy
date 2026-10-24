@@ -1106,68 +1106,70 @@ func TestConfigSetProviderUsageUsesDaemonSettingsWhenRunning(t *testing.T) {
 }
 
 func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
-	t.Parallel()
+	t.Run("Should write only the selected shell setting through the daemon", func(t *testing.T) {
+		t.Parallel()
 
-	var captured UpdateSettingsShellRequest
-	client := &stubClient{
-		updateSettingsShellFn: func(
-			_ context.Context,
-			request UpdateSettingsShellRequest,
-		) (SettingsMutationRecord, error) {
-			captured = request
-			return SettingsMutationRecord{
-				Section:          "shell",
-				Scope:            contract.SettingsScopeUser,
-				Lifecycle:        contract.SettingsApplyLifecycleLive,
-				ApplyRecordID:    "cfgapp-shell",
-				Applied:          true,
-				ActiveGeneration: 4,
-				ActiveConfigHash: "sha256:shell",
-				NextAction:       contract.SettingsApplyNextActionNone,
-			}, nil
-		},
-	}
+		var captured UpdateSettingsShellRequest
+		client := &stubClient{
+			updateSettingsShellFn: func(
+				_ context.Context,
+				request UpdateSettingsShellRequest,
+			) (SettingsMutationRecord, error) {
+				captured = request
+				return SettingsMutationRecord{
+					Section:          "shell",
+					Scope:            contract.SettingsScopeUser,
+					Lifecycle:        contract.SettingsApplyLifecycleLive,
+					ApplyRecordID:    "cfgapp-shell",
+					Applied:          true,
+					ActiveGeneration: 4,
+					ActiveConfigHash: "sha256:shell",
+					NextAction:       contract.SettingsApplyNextActionNone,
+				}, nil
+			},
+		}
 
-	deps := newDefaultProfileWorkspaceTestDeps(t, client)
-	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
-	}
-	deps.processAlive = func(pid int) bool { return pid == 42 }
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
 
-	out, _, err := executeRootCommand(
-		t,
-		deps,
-		"config",
-		"set",
-		"shell.sessions.scope",
-		"all-workspaces",
-		"-o",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("config set shell.sessions.scope error = %v", err)
-	}
-	if captured.Config.Sessions.Sort != contract.SettingsShellSessionSortCreated ||
-		captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
-		t.Fatalf("daemon shell payload = %#v, want created/all-workspaces", captured.Config)
-	}
+		out, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			"shell.sessions.scope",
+			"all-workspaces",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("config set shell.sessions.scope error = %v", err)
+		}
+		if captured.Config.Sessions.Sort != "" || captured.Config.Sessions.GroupBy != "" ||
+			captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
+			t.Fatalf("daemon shell payload = %#v, want only scope=all-workspaces", captured.Config)
+		}
 
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
-		t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
-	}
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		if _, err := os.Stat(homePaths.ConfigFile); !os.IsNotExist(err) {
+			t.Fatalf("config set wrote local overlay while daemon-backed path should own persistence: stat err=%v", err)
+		}
 
-	var record configSetRecord
-	if err := json.Unmarshal([]byte(out), &record); err != nil {
-		t.Fatalf("json.Unmarshal(config set shell) error = %v", err)
-	}
-	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
-		record.RestartRequired {
-		t.Fatalf("config set shell record = %#v, want live/applied=true", record)
-	}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set shell) error = %v", err)
+		}
+		if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
+			record.RestartRequired {
+			t.Fatalf("config set shell record = %#v, want live/applied=true", record)
+		}
+	})
 }
 
 func TestConfigSetReloadsReachableDaemonWhenProcessTimestampMetadataLags(t *testing.T) {
@@ -1868,49 +1870,55 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 func TestConfigSetSupportsWorktreeLifecyclePaths(t *testing.T) {
 	t.Parallel()
 
-	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	workspaceRoot := t.TempDir()
-	deps.getwd = func() (string, error) { return workspaceRoot, nil }
-
-	for _, mutation := range []struct {
-		path  string
-		value string
-	}{
-		{path: "worktrees.root", value: filepath.Join(t.TempDir(), "checkouts")},
-		{path: "worktrees.run_branch_namespace", value: "qa/run/"},
-		{path: "worktrees.copy_list", value: `[".env", ".secrets/*"]`},
-		{path: "worktrees.setup_command", value: "bun install"},
-		{path: "worktrees.setup_timeout", value: "45s"},
-		{path: "worktrees.discovery_cache_ttl", value: "5s"},
-	} {
-		if _, _, err := executeRootCommand(
-			t,
-			deps,
-			"config",
-			"set",
-			mutation.path,
-			mutation.value,
-			"--scope",
-			"workspace",
-			"-o",
-			"json",
-		); err != nil {
-			t.Fatalf("config set %s error = %v", mutation.path, err)
+	t.Run("Should persist typed worktree lifecycle values", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
 		}
-	}
+		workspaceRoot := t.TempDir()
+		deps.getwd = func() (string, error) { return workspaceRoot, nil }
 
-	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if loaded.Worktrees.SetupCommand != "bun install" || loaded.Worktrees.SetupTimeout != 45*time.Second ||
-		loaded.Worktrees.DiscoveryCacheTTL != 5*time.Second || len(loaded.Worktrees.CopyList) != 2 {
-		t.Fatalf("Worktrees config = %#v, want typed lifecycle values", loaded.Worktrees)
-	}
+		for _, mutation := range []struct {
+			path  string
+			value string
+		}{
+			{path: "worktrees.root", value: filepath.Join(t.TempDir(), "checkouts")},
+			{path: "worktrees.run_branch_namespace", value: "qa/run/"},
+			{path: "worktrees.copy_list", value: `[".env", ".secrets/*"]`},
+			{path: "worktrees.setup_command", value: "bun install"},
+			{path: "worktrees.setup_timeout", value: "45s"},
+			{path: "worktrees.teardown_command", value: "cleanup"},
+			{path: "worktrees.teardown_timeout", value: "3s"},
+			{path: "worktrees.discovery_cache_ttl", value: "5s"},
+		} {
+			if _, _, err := executeRootCommand(
+				t,
+				deps,
+				"config",
+				"set",
+				mutation.path,
+				mutation.value,
+				"--scope",
+				"workspace",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatalf("config set %s error = %v", mutation.path, err)
+			}
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Worktrees.SetupCommand != "bun install" || loaded.Worktrees.SetupTimeout != 45*time.Second ||
+			loaded.Worktrees.TeardownCommand != "cleanup" || loaded.Worktrees.TeardownTimeout != 3*time.Second ||
+			loaded.Worktrees.DiscoveryCacheTTL != 5*time.Second || len(loaded.Worktrees.CopyList) != 2 {
+			t.Fatalf("Worktrees config = %#v, want typed lifecycle values", loaded.Worktrees)
+		}
+	})
 }
 
 func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {

@@ -34,16 +34,33 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 		}
 	}()
 	for rows.Next() {
-		var workspaceID string
+		var workspaceID, profileID string
 		var count int
-		if err := rows.Scan(&workspaceID, &count); err != nil {
+		if err := rows.Scan(&workspaceID, &profileID, &count); err != nil {
 			return fmt.Errorf("store: scan terminal approval facets: %w", err)
 		}
 		result.Facets.TerminalApprovals += count
+		profileFound := false
+		for i := range result.ByProfile {
+			if result.ByProfile[i].ProfileID == profileID {
+				result.ByProfile[i].Facets.TerminalApprovals += count
+				profileFound = true
+				break
+			}
+		}
+		if !profileFound {
+			result.ByProfile = append(
+				result.ByProfile,
+				store.ProfileSessionCatalogFacets{
+					ProfileID: profileID,
+					Facets:    store.SessionCatalogFacets{TerminalApprovals: count},
+				},
+			)
+		}
 		found := false
 		for index := range result.ByWorkspace {
 			if result.ByWorkspace[index].WorkspaceID == workspaceID {
-				result.ByWorkspace[index].Facets.TerminalApprovals = count
+				result.ByWorkspace[index].Facets.TerminalApprovals += count
 				found = true
 				break
 			}
@@ -64,13 +81,17 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	slices.SortFunc(result.ByWorkspace, func(left, right store.WorkspaceSessionCatalogFacets) int {
 		return strings.Compare(left.WorkspaceID, right.WorkspaceID)
 	})
+	slices.SortFunc(
+		result.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
 	return nil
 }
 
 func sessionTerminalApprovalFacetStatement(where []string) string {
-	eligible := store.AppendWhere("SELECT id, workspace_id FROM sessions", where)
+	eligible := store.AppendWhere("SELECT id, workspace_id, profile_id FROM sessions", where)
 	var statement strings.Builder
-	statement.WriteString(`SELECT eligible.workspace_id, COUNT(1)
+	statement.WriteString(`SELECT eligible.workspace_id, eligible.profile_id, COUNT(1)
  FROM session_pending_interactions AS interactions
  JOIN (`)
 	statement.WriteString(eligible)
@@ -79,6 +100,6 @@ func sessionTerminalApprovalFacetStatement(where []string) string {
  WHERE interactions.kind = 'permission' AND interactions.status = 'pending'
  AND interactions.status IN ('pending', 'orphaned')
  AND instr(COALESCE(json_extract(interactions.payload_json, '$.tool_id'), ''), 'compozy__terminal_') = 1
- GROUP BY eligible.workspace_id ORDER BY eligible.workspace_id`)
+ GROUP BY eligible.workspace_id, eligible.profile_id ORDER BY eligible.workspace_id`)
 	return statement.String()
 }

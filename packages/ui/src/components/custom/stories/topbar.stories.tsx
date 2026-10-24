@@ -44,6 +44,23 @@ export const RootIdentity: Story = {
   ),
 };
 
+/**
+ * T1b · Leading host context — a window that belongs to a project shows it
+ * before the identity; the context shrinks before the title does.
+ */
+export const LeadingContext: Story = {
+  args: {},
+  render: () => (
+    <TopbarSlotProvider>
+      <Topbar
+        leading={<span className="text-body text-muted">checkout-api</span>}
+        glyph={<LayoutDashboard />}
+        title="Dashboard"
+      />
+    </TopbarSlotProvider>
+  ),
+};
+
 function DetailActionsSetup() {
   useTopbarSlot({
     onBack: () => undefined,

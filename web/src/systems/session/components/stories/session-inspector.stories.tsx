@@ -43,6 +43,7 @@ const meta = {
     },
     activity: {
       status: "Working for 49m 20s · Running shell",
+      totalWork: "Total work 2h 14m across 12 turns",
       agents: "2 agents running",
       tools: "38 tools",
       thoughts: "12 thoughts",

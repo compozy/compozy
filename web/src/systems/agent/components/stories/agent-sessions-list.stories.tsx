@@ -19,9 +19,14 @@ const fraudSessions: SessionPayload[] = sessionFixtures.filter(
 );
 
 const fallbackFraudSession: SessionPayload = {
+  board_column: "done",
+  pull_request: null,
+  pull_request_lookup: null,
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   id: storySessionIds.fraud,
   name: "Payout hold triage",
   agent_name: storyAgentNames.fraud,

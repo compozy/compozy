@@ -1,11 +1,14 @@
 package core
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +31,49 @@ func (h *BaseHandlers) ListAutomationSuggestions(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
 		return
 	}
-	suggestions, err := manager.ListSuggestions(c.Request.Context(), readScope, c.Param("workspace_id"), status)
+	var suggestions []automationpkg.Suggestion
+	if c.Param("workspace_id") == "" {
+		breadth, ok := h.aggregateBreadth(c)
+		if !ok {
+			return
+		}
+		reader, ok := manager.(interface {
+			ListSuggestionsAggregate(
+				context.Context,
+				store.ReadScope,
+				automationpkg.SuggestionStatus,
+			) ([]automationpkg.Suggestion, error)
+		})
+		if !ok {
+			h.respondError(c, http.StatusServiceUnavailable, fmt.Errorf("automation suggestion aggregate unavailable"))
+			return
+		}
+		suggestions, err = reader.ListSuggestionsAggregate(c.Request.Context(), readScope, status)
+		if err == nil {
+			allowed, selectionErr := h.aggregateWorkspaceSet(c, breadth)
+			if selectionErr != nil {
+				err = selectionErr
+			} else {
+				selected := suggestions[:0]
+				for _, item := range suggestions {
+					if allowed[item.WorkspaceID] {
+						selected = append(selected, item)
+					}
+				}
+				suggestions = selected
+			}
+		}
+	} else {
+		if _, parseErr := parseWorkspaceBreadth(
+			c,
+			c.Param("workspace_id"),
+			breadthEncoding{Selector: workspaceIDKey},
+		); parseErr != nil {
+			h.respondAggregateBreadthError(c, parseErr)
+			return
+		}
+		suggestions, err = manager.ListSuggestions(c.Request.Context(), readScope, c.Param("workspace_id"), status)
+	}
 	if err != nil {
 		h.respondError(c, StatusForAutomationError(err), err)
 		return

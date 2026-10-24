@@ -9,7 +9,6 @@ import {
 import type { FSEntry } from "../types";
 import {
   isOperatorHomeWorkspace,
-  partitionProjectWorkspaces,
   useCreateWorkspace,
   useDeleteWorkspace,
   useWorkspaces,
@@ -103,11 +102,8 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     }
     catalogSeeded.current = true;
     if (workspaces.length > 0) return;
-    const { projectWorkspaces } = partitionProjectWorkspaces(
-      registeredWorkspaces.data,
-      userHomeDir
-    );
-    for (const workspace of projectWorkspaces) {
+    for (const workspace of registeredWorkspaces.data) {
+      if (isOperatorHomeWorkspace(workspace, userHomeDir)) continue;
       const path = workspace.root_dir.trim();
       if (path.length === 0) {
         continue;
@@ -144,9 +140,8 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     if (workspaceCatalog === undefined || userHomeDir === undefined) {
       return;
     }
-    const { projectWorkspaces } = partitionProjectWorkspaces(workspaceCatalog, userHomeDir);
     const draft = workspaces.find(item => item.path === path);
-    const workspaceId = registeredWorkspaceIdForDraft(draft, projectWorkspaces);
+    const workspaceId = registeredWorkspaceIdForDraft(draft, workspaceCatalog);
     if (workspaceId.length === 0) {
       onboardingDraftStore.trigger.workspaceDraftRemoved({ path });
       return;

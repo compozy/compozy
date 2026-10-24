@@ -319,8 +319,13 @@ type Store interface {
 	CreateLoopRunForStart(ctx context.Context, run Run, policy dsl.ConcurrencyPolicy) (Run, error)
 	GetLoopRun(ctx context.Context, ws WorkspaceID, runID RunID) (Run, error)
 	GetLoopRunByID(ctx context.Context, runID RunID) (Run, error)
-	GetLoopDefinitionSnapshot(ctx context.Context, ws WorkspaceID, digest string) (DefinitionSnapshot, error)
-	FindActiveLoopRun(ctx context.Context, ws WorkspaceID, loopName string) (*Run, error)
+	GetLoopDefinitionSnapshot(
+		ctx context.Context,
+		ws WorkspaceID,
+		profileID string,
+		digest string,
+	) (DefinitionSnapshot, error)
+	FindActiveLoopRun(ctx context.Context, ws WorkspaceID, profileID string, loopName string) (*Run, error)
 	CompareAndSwapLoopRunStatus(
 		ctx context.Context,
 		runID RunID,
@@ -344,8 +349,8 @@ type Store interface {
 		requested bool,
 		actor task.ActorContext,
 	) error
-	UpsertLoopConfig(ctx context.Context, ws WorkspaceID, loopName string, cfg LoopConfig) error
-	GetLoopConfig(ctx context.Context, ws WorkspaceID, loopName string) (*LoopConfig, error)
+	UpsertLoopConfig(ctx context.Context, ws WorkspaceID, profileID string, loopName string, cfg LoopConfig) error
+	GetLoopConfig(ctx context.Context, ws WorkspaceID, profileID string, loopName string) (*LoopConfig, error)
 }
 
 // Service is the task_04 loop aggregate API surface.

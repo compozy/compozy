@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -481,4 +482,74 @@ func TestSubagentReaper(t *testing.T) {
 			t.Fatal(candidate, reap)
 		}
 	})
+}
+
+func TestSpawnReaperLiveInventory(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve only missing parents without listing stopped history", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		parent := rootReaperInfo("stopped-parent", session.StateStopped)
+		child := spawnedReaperInfo("live-child", parent.ID, now.Add(time.Hour), true)
+		manager := &liveInventoryReaperManager{
+			fakeSessionManager: &fakeSessionManager{infos: []*session.Info{parent, child}},
+			live:               []*session.Info{child},
+		}
+		reaper, err := newSpawnReaper(
+			t.Context(), manager, &fakeSpawnLeaseReleaser{}, nil, discardLogger(),
+			func() time.Time { return now }, time.Hour,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := reaper.Sweep(t.Context())
+		if err != nil || report.ParentStopped != 1 || manager.parentsRead != 1 || manager.allReads != 0 {
+			t.Fatalf("report=%#v parents=%d all=%d error=%v", report, manager.parentsRead, manager.allReads, err)
+		}
+	})
+	t.Run("Should propagate parent read failure without treating it as an orphan", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+		failure := errors.New("parent catalog unavailable")
+		manager := &liveInventoryReaperManager{
+			fakeSessionManager: &fakeSessionManager{},
+			live:               []*session.Info{spawnedReaperInfo("child", "parent", now.Add(time.Hour), true)},
+			parentErr:          failure,
+		}
+		reaper, err := newSpawnReaper(
+			t.Context(), manager, &fakeSpawnLeaseReleaser{}, nil, discardLogger(),
+			func() time.Time { return now }, time.Hour,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := reaper.Sweep(t.Context())
+		if !errors.Is(err, failure) || report.Reaped != 0 || len(manager.stopWithCauseCalls) != 0 {
+			t.Fatalf("report=%#v error=%v", report, err)
+		}
+	})
+}
+
+type liveInventoryReaperManager struct {
+	*fakeSessionManager
+	live        []*session.Info
+	parentErr   error
+	parentsRead int
+	allReads    int
+}
+
+func (m *liveInventoryReaperManager) List() []*session.Info { return m.live }
+func (m *liveInventoryReaperManager) ListLive(context.Context) ([]*session.Info, error) {
+	return m.live, nil
+}
+func (m *liveInventoryReaperManager) ListAll(ctx context.Context) ([]*session.Info, error) {
+	m.allReads++
+	return m.fakeSessionManager.ListAll(ctx)
+}
+func (m *liveInventoryReaperManager) Status(ctx context.Context, id string) (*session.Info, error) {
+	m.parentsRead++
+	if m.parentErr != nil {
+		return nil, m.parentErr
+	}
+	return m.fakeSessionManager.Status(ctx, id)
 }

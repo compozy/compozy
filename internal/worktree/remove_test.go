@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,15 +15,213 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/redact"
 )
 
 // Canonical suite: removal fencing, authoritative safety checks, and boot recovery.
 func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should run teardown before removal with the setup environment and redacted output", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = `test "$PWD" = "$COMPOZY_WORKTREE_PATH" && test "$COMPOZY_WORKTREE_ID" = "wt-remove" && test "$COMPOZY_WORKTREE_BRANCH" = "feature/remove" && printf 'cleaned\n' && printf 'token=super-secret-teardown\n' >&2`
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.events.count(EventTeardownOutput) != 2 || f.events.count(EventTeardownFailed) != 0 ||
+			f.mustItem(t).State != StateRemoved {
+			t.Fatal("teardown output or removal missing")
+		}
+		for _, event := range f.events.events {
+			if event.Name == EventTeardownOutput && event.RunID != f.item.RunID {
+				t.Fatal("missing run attribution")
+			}
+			if strings.Contains(string(event.Payload), "super-secret-teardown") {
+				t.Fatal("secret exposed")
+			}
+		}
+	})
+	for _, command := range []string{"printf owner-cleanup", ""} {
+		t.Run("Should use owning profile teardown settings including disabled override "+command, func(t *testing.T) {
+			t.Parallel()
+			f := newRemovalTestFixture(t)
+			f.item.ProfileID = "profile-owner"
+			f.store.mu.Lock()
+			f.store.items[worktreeStoreKey(f.workspace.ID, f.item.ID)] = f.item
+			f.store.mu.Unlock()
+			workspace := f.workspace
+			workspace.Worktrees = config.DefaultWorktreesConfig()
+			workspace.Worktrees.TeardownCommand = command
+			global := config.DefaultWorktreesConfig()
+			global.TeardownCommand = "printf incorrect-global-cleanup"
+			WithConfig(global, t.TempDir())(f.service)
+			f.service.resolver = staticWorkspaceResolver{workspaces: map[string]Workspace{workspace.ID: f.workspace},
+				profileWorkspaces: map[string]map[string]Workspace{"profile-owner": {workspace.ID: workspace}}}
+			f.service.getenv = func(string) string { return "/bin/sh" }
+			if _, err := f.service.Remove(t.Context(), workspace.ID, f.item.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if command != "" {
+				want = 1
+			}
+			if f.events.count(EventTeardownOutput) != want {
+				t.Fatal("wrong profile teardown output")
+			}
+			for _, event := range f.events.events {
+				if strings.Contains(string(event.Payload), "incorrect-global-cleanup") {
+					t.Fatal("used global teardown")
+				}
+			}
+		})
+	}
+
+	t.Run("Should redact multiline registered secrets before publishing bounded streams", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		secret := "teardown-first-line\nteardown-second-line"
+		t.Cleanup(redact.RegisterDynamicSecret(secret))
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = `printf 'teardown-first-line\nteardown-second-line\n'; printf 'teardown-first-line\nteardown-second-line\n' >&2`
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.events.count(EventTeardownOutput) != 2 {
+			t.Fatal("missing output streams")
+		}
+		for _, event := range f.events.events {
+			if strings.Contains(string(event.Payload), "teardown-first-line") ||
+				strings.Contains(string(event.Payload), "teardown-second-line") {
+				t.Fatal("multiline secret exposed")
+			}
+		}
+	})
+
+	// Invariant: bounded captured output survives event chunk limits without splitting Unicode or exposing secrets.
+	// Owner: worktree removal; canonical removal and recovery suite.
+	t.Run("Should publish all captured teardown output within event limits", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		secret := "chunk-first-line\nchunk-second-line"
+		t.Cleanup(redact.RegisterDynamicSecret(secret))
+		prefix := strings.Repeat("é", 2047) + "x"
+		output := prefix + secret + strings.Repeat("é", 2500)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf '%s' '" + output + "'; printf '%s' '" + output + "' >&2"
+		WithConfig(settings, t.TempDir())(f.service)
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		streams := map[string]string{}
+		for _, event := range f.events.events {
+			if event.Name != EventTeardownOutput {
+				continue
+			}
+			var payload ExitEventPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Chunk) > exitHookOutputLimit {
+				t.Fatal("oversized event")
+			}
+			streams[payload.Stream] += payload.Chunk
+		}
+		want := redact.String(output)
+		if streams[string(GitOutputStdout)] != want || streams[string(GitOutputStderr)] != want {
+			t.Fatal("captured output was lost or secret was exposed")
+		}
+	})
+
+	for _, tc := range []struct {
+		name, command, cause string
+		timeout              time.Duration
+	}{
+		{"Should continue removal after teardown failure", "printf failure >&2; exit 7", "exit status 7: failure", time.Second},
+		{"Should continue removal after teardown timeout", "sleep 5", "context deadline exceeded", 30 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRemovalTestFixture(t)
+			settings := config.DefaultWorktreesConfig()
+			settings.TeardownCommand, settings.TeardownTimeout = tc.command, tc.timeout
+			f.service.getenv = func(string) string { return "/bin/sh" }
+			WithConfig(settings, t.TempDir())(f.service)
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			if f.events.count(EventTeardownFailed) != 1 || f.mustItem(t).State != StateRemoved {
+				t.Fatal("failure must be observable and removal must complete")
+			}
+			for _, event := range f.events.events {
+				if event.Name != EventTeardownFailed {
+					continue
+				}
+				var payload ExitEventPayload
+				if err := json.Unmarshal(event.Payload, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if event.RunID != f.item.RunID {
+					t.Fatal("missing failure run attribution")
+				}
+				if !strings.Contains(payload.Message, tc.cause) {
+					t.Fatalf("failure cause = %q, want %q", payload.Message, tc.cause)
+				}
+			}
+		})
+	}
+	t.Run("Should refuse new unpushed commits introduced during teardown", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf cleanup"
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		f.events.onEvent = func(event LifecycleEvent) {
+			if event.Name == EventTeardownOutput {
+				f.uniqueCommits.Store(1)
+			}
+		}
+		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false)
+		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 {
+			t.Fatalf("Remove after teardown = (%#v, %v)", refusalResult, err)
+		}
+		if f.removeCalls.Load() != 0 || f.mustItem(t).State != StateReady {
+			t.Fatal("unsafe checkout removed")
+		}
+	})
+
+	t.Run("Should skip teardown when the removal hook denies", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf should-not-run"
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		WithHooks(removalHookDispatcher{dispatch: func(request HookRequest) (HookVerdict, error) {
+			return HookVerdict{Denied: request.Event == EventPreRemove}, nil
+		}})(f.service)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, true); !errors.Is(err, ErrDeniedByHook) {
+			t.Fatalf("Remove = %v", err)
+		}
+		if f.events.count(EventTeardownOutput) != 0 || f.removeCalls.Load() != 0 {
+			t.Fatal("denied removal ran teardown or Git removal")
+		}
+	})
+
 	t.Run("Should dismiss idempotently and exclude active usage without touching disk", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf must-not-run"
+		WithConfig(settings, t.TempDir())(fixture.service)
 		if err := fixture.store.SetState(
 			t.Context(),
 			fixture.workspace.ID,
@@ -66,7 +265,8 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if fixture.events.count(EventDismissed) != 1 || len(fixture.runner.invocations()) != 0 {
+		if fixture.events.count(EventDismissed) != 1 || fixture.events.count(EventTeardownOutput) != 0 ||
+			len(fixture.runner.invocations()) != 0 {
 			t.Fatal("dismissal repeated effects or invoked Git")
 		}
 		if _, err := os.Stat(fixture.item.Path); err != nil {
@@ -182,6 +382,49 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 		if got := fixture.mustItem(t).State; got != StateDismissed {
 			t.Fatalf("Dismiss(name) state = %q, want dismissed", got)
+		}
+	})
+
+	t.Run("Should finish the removal record when the request ends while Git deletes", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		fixture.onRemove = cancel
+		refusalResult, err := fixture.service.Remove(ctx, fixture.workspace.ID, fixture.item.ID, false)
+		if err != nil || refusalResult != nil {
+			t.Fatalf("Remove(disconnected) = %#v, %v, want completed removal", refusalResult, err)
+		}
+		if got := fixture.mustItem(t).State; got != StateRemoved {
+			t.Fatalf("disconnected removal state = %q, want removed", got)
+		}
+	})
+
+	t.Run("Should answer a Git removal that stops after deleting .git with the orphan inventory", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		if err := os.WriteFile(
+			filepath.Join(fixture.item.GitDir, "HEAD"),
+			[]byte("ref: refs/heads/feature/remove\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write admin HEAD: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(fixture.item.Path, "left.txt"), []byte("left\n"), 0o600); err != nil {
+			t.Fatalf("write leftover: %v", err)
+		}
+		fixture.removeFails.Store(true)
+		fixture.onRemove = func() {
+			if err := os.Remove(filepath.Join(fixture.item.Path, ".git")); err != nil {
+				t.Errorf("delete .git during removal: %v", err)
+			}
+		}
+		refusalResult, err := fixture.service.Remove(t.Context(), fixture.workspace.ID, fixture.item.ID, false)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Code != ErrCheckoutOrphaned.Error() || refusalResult.Risk.LeftoverFiles != 1 {
+			t.Fatalf("Remove(interrupted) = %#v, %v, want orphaned refusal with one leftover", refusalResult, err)
+		}
+		if got := fixture.mustItem(t).State; got != StateReady {
+			t.Fatalf("interrupted removal state = %q, want ready", got)
 		}
 	})
 
@@ -652,6 +895,8 @@ type removalTestFixture struct {
 	removeFails            atomicBool
 	failFirstForcedRemoval atomicBool
 	removeCalls            atomicInt
+	// onRemove runs while Git deletes the checkout, e.g. to drop the request.
+	onRemove func()
 }
 
 type lostStateFenceStore struct {
@@ -736,7 +981,7 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 	workspace := Workspace{ID: "ws-remove", Name: "Remove", Root: canonicalRoot}
 	now := time.Date(2026, 8, 12, 16, 0, 0, 0, time.UTC)
 	item := Worktree{
-		ID: "wt-remove", WorkspaceID: workspace.ID, Name: "remove", Branch: "feature/remove",
+		ID: "wt-remove", RunID: "run-remove", WorkspaceID: workspace.ID, Name: "remove", Branch: "feature/remove",
 		Path: path, GitDir: adminGitDir, State: StateReady, Origin: OriginManual,
 		SetupState: SetupNone, BaseRef: "main", CreatedAt: now, UpdatedAt: now,
 	}
@@ -776,6 +1021,9 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			return gitResponse{}
 		case strings.HasPrefix(command, "--git-dir "+commonDir+" worktree remove "):
 			fixture.removeCalls.Store(fixture.removeCalls.Load() + 1)
+			if fixture.onRemove != nil {
+				fixture.onRemove()
+			}
 			if fixture.removeFails.Load() ||
 				(fixture.failFirstForcedRemoval.Load() && fixture.removeCalls.Load() == 1) {
 				return gitResponse{stderr: []byte("resource busy"), err: errors.New("exit 1")}
@@ -838,14 +1086,18 @@ func (g fixedSessionGuard) HasActiveSession(context.Context, string, string) (bo
 }
 
 type recordingEventSink struct {
-	mu     sync.Mutex
-	events []LifecycleEvent
+	mu      sync.Mutex
+	events  []LifecycleEvent
+	onEvent func(LifecycleEvent)
 }
 
 func (s *recordingEventSink) PublishWorktreeEvent(_ context.Context, event LifecycleEvent) error {
 	s.mu.Lock()
 	s.events = append(s.events, event)
 	s.mu.Unlock()
+	if s.onEvent != nil {
+		s.onEvent(event)
+	}
 	return nil
 }
 

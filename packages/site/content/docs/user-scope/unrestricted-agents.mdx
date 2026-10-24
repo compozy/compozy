@@ -1,0 +1,156 @@
+---
+title: Give an agent access to everything
+description: Grant one agent unrestricted workspace access so its sessions can read and act on every project, the User scope, and every profile — and see exactly what it did.
+---
+
+Agents normally stay inside the project (or User scope) and profile they started in. That is the right
+default, but an always-on assistant that keeps track of all your work needs to see everything you see.
+
+`workspace_access: unrestricted` is the switch for that one agent. Its sessions reach every project,
+the User scope, and every profile, including [All projects](/docs/all-projects) aggregates, without
+asking. Every decision it makes this way is written to the event log.
+
+Expect about ten minutes.
+
+<OperatorNote>
+  Grant this only to agents you trust with all of your work. A prompt-injected granted agent can
+  read and change every project. Tool approvals still apply, so pick its `permissions` mode with
+  care.
+</OperatorNote>
+
+## Before you start
+
+- The daemon is v0.4.0 or later. Older daemons refuse an `AGENT.md` with this field.
+- You can edit files under `~/.compozy/agents/` (or your `COMPOZY_HOME`).
+- At least one project is registered. The examples use `checkout-api`.
+
+## Step 1: Write the agent
+
+Create `~/.compozy/agents/companion/AGENT.md`:
+
+```yaml
+---
+name: companion
+workspace_access: unrestricted
+permissions: approve-reads
+---
+You are my always-on assistant. You keep track of work across every project.
+```
+
+`workspace_access` has one value besides absent: `unrestricted`. `permissions` is independent. Here
+`approve-reads` lets the agent read freely and asks you before risky tools.
+
+You can also set **Access: Unrestricted** in the Web agent editor, which shows the same warning.
+
+## Step 2: Confirm the definition
+
+```bash
+compozy agent info companion
+```
+
+```text
+Agent
+=====
+Name:               companion
+Origin:             global
+Permissions:        approve-reads
+workspace_access:   unrestricted
+```
+
+Output trimmed.
+
+## Step 3: Start a session with it
+
+```bash
+compozy session new --user --agent companion --name companion -o json
+```
+
+```json
+{
+  "id": "sess-1781129a7b1c2569",
+  "scope": "user",
+  "agent_name": "companion",
+  "effective_workspace_access": "unrestricted"
+}
+```
+
+Output trimmed. `effective_workspace_access` is what the session actually holds. It is decided once
+when the session starts and does not change while it runs. In the Web app the session row and window
+carry an **Unrestricted** badge.
+
+## Step 4: Let it cross
+
+Ask it to look at another project:
+
+```bash
+compozy session prompt <session-id> "List the sessions in checkout-api and tell me how many there are."
+```
+
+The agent calls the native session list tool with `workspace: "checkout-api"` and answers without a
+cross-workspace prompt. An ordinary `approve-reads` agent would have asked you first.
+
+## Step 5: See what it did
+
+Every allowed crossing is logged as `workspace.access_granted` with source `agent_grant`:
+
+```bash
+compozy logs --workspace @user --type workspace.access_granted --session <session-id> -o json
+```
+
+`--workspace @user` selects only User events in the selected profile. The event shows who acted
+and on what (trimmed):
+
+```json
+{
+  "type": "workspace.access_granted",
+  "agent_name": "companion",
+  "actor_id": "sess-1781129a7b1c2569",
+  "content": {
+    "source": "agent_grant",
+    "target_kind": "workspace",
+    "target_workspace_id": "ws_e0d0522b30e0ded4",
+    "actor_profile_id": "00000000000000000000000000",
+    "target_profile_id": "00000000000000000000000000",
+    "seam": "tool",
+    "mode": "approve-reads"
+  }
+}
+```
+
+`target_kind` is `workspace`, `user`, or `aggregate`.
+
+## What the grant allows
+
+| Action                                                           | Ordinary agent                   | Unrestricted agent               |
+| ---------------------------------------------------------------- | -------------------------------- | -------------------------------- |
+| Work in its own project or User scope                            | allowed                          | allowed                          |
+| Reach another project, or User from a project                    | permission mode and consent      | allowed, audited                 |
+| Another profile (`profile=`, `all_profiles=true`)                | denied                           | allowed, audited                 |
+| All projects aggregates                                          | `agent_scope_denied`             | allowed, audited                 |
+| Windows and layouts on project desktops and its own User desktop | own project only                 | allowed, audited                 |
+| The All projects desktop, other profiles' desktops               | denied                           | denied                           |
+| Presence, notification receipts and acknowledgements             | denied                           | denied                           |
+| Set or raise `workspace_access`                                  | `workspace_access_operator_only` | `workspace_access_operator_only` |
+| Risky tools                                                      | per `permissions`                | per `permissions`                |
+
+Work a granted agent creates in a profile belongs to that profile. Hooks on `tool.pre_call` still run
+first and can deny or narrow a granted call.
+
+## Rules that keep the grant yours
+
+- **Only you can grant it.** An agent that tries to set or raise the field through
+  `compozy__agent_create`, an agent update tool, or HTTP with agent credentials gets
+  `workspace_access_operator_only`. Marketplace and extension agents cannot ship it; the field is
+  dropped with `workspace_access_untrusted_source`.
+- **It never spreads.** A session that another agent starts (spawn, subagent, `compozy__session_create`,
+  or a task, automation, or Loop the agent authored) gets at most the starting agent's own grant.
+- **Scheduled work remembers who wrote it.** Tasks, automation jobs and triggers, and Loop runs store a
+  grant ceiling when they are saved. An agent editing their prompt, target, agent, schedule, or
+  inputs can only lower it. Records saved before v0.4.0 carry no grant until you save them again.
+- **It is not a sandbox.** Processes inside a session can still reach your files through the
+  provider's own tools. The grant governs CompozyOS surfaces only.
+
+## Remove the grant
+
+Delete the `workspace_access` line (or set **Access** back to the default in the editor). New sessions
+of the agent start without it. Sessions that already hold it keep it until they stop.

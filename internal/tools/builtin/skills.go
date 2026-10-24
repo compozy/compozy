@@ -142,6 +142,18 @@ const skillViewOutputSchema = `{
 			"properties":{
 				"name":{"type":"string"},
 				"source":{"type":"string"},
+				"command_source":{
+					"type":"object",
+					"description":"Exact source identity of the skill command; present when the skill is read by command_id.",
+					"required":["kind","scope"],
+					"properties":{
+						"kind":{"type":"string"},
+						"id":{"type":"string"},
+						"key":{"type":"string"},
+						"scope":{"type":"string"},
+						"origin":{"type":"string"}
+					}
+				},
 				"origin":{"type":"string"},
 				"owner_scope":{"type":"string","enum":["user","workspace","profile","workspace_profile"]},
 				"owner_id":{"type":"string"},

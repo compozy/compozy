@@ -80,7 +80,7 @@ func promptRuntimeFallbackForEvent(session *Session, event acp.AgentEvent) acp.A
 	if session == nil || event.PromptRuntimeSnapshot() != nil {
 		return event
 	}
-	return event.WithPromptRuntime(promptRuntimeFromSelection(session.runtimeBindingSnapshot().selection))
+	return event.WithPromptRuntime(promptRuntimeFromSelection(session.Info().EffectiveRuntime()))
 }
 
 func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.AgentEvent) error {

@@ -4,12 +4,15 @@ import { Link } from "@tanstack/react-router";
 import { KindIcon, ListingRow, Pill, StateGlyph, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { WorkspaceBadge } from "@/systems/workspace";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 
 export interface AgentFleetRowProps {
   row: AgentFleetRowModel;
   newSessionDisabled?: boolean;
   onNewSession: (agentName: string) => void;
+  /** All projects: opens the agent in place, bound to its project, instead of a route link. */
+  onOpen?: (row: AgentFleetRowModel) => void;
 }
 
 function agentFleetMetaSegments(
@@ -23,7 +26,12 @@ function agentFleetMetaSegments(
   return segments;
 }
 
-function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
+function AgentFleetRow({
+  row,
+  newSessionDisabled = false,
+  onNewSession,
+  onOpen,
+}: AgentFleetRowProps) {
   const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
   const metaSegments = agentFleetMetaSegments(agent);
 
@@ -31,12 +39,21 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
     <ListingRow data-agent={agent.name} data-testid={`agent-fleet-row-${agent.name}`}>
       <ListingRow.Link
         render={
-          <Link
-            to="/agents/$name"
-            params={{ name: agent.name }}
-            aria-label={ariaLabel}
-            data-testid={`agent-fleet-row-link-${agent.name}`}
-          />
+          onOpen ? (
+            <button
+              aria-label={ariaLabel}
+              data-testid={`agent-fleet-row-link-${agent.name}`}
+              onClick={() => onOpen(row)}
+              type="button"
+            />
+          ) : (
+            <Link
+              to="/agents/$name"
+              params={{ name: agent.name }}
+              aria-label={ariaLabel}
+              data-testid={`agent-fleet-row-link-${agent.name}`}
+            />
+          )
         }
       >
         <ListingRow.Icon>
@@ -51,15 +68,23 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         <ListingRow.Main>
           <ListingRow.Name>
             <ListingRow.Title>{agent.name}</ListingRow.Title>
-            <Pill size="xs" tone="neutral" data-testid={`agent-fleet-origin-${agent.name}`}>
-              {cardOrigin}
-            </Pill>
+            {row.project ? null : (
+              <Pill size="xs" tone="neutral" data-testid={`agent-fleet-origin-${agent.name}`}>
+                {cardOrigin}
+              </Pill>
+            )}
           </ListingRow.Name>
-          {metaSegments.length > 0 ? (
+          {metaSegments.length > 0 || row.project ? (
             <ListingRow.Meta data-testid={`agent-fleet-meta-${agent.name}`}>
+              {row.project ? (
+                <WorkspaceBadge
+                  data-testid={`agent-fleet-project-${row.key}`}
+                  identity={row.project}
+                />
+              ) : null}
               {metaSegments.map((segment, index) => (
                 <Fragment key={segment.key}>
-                  {index > 0 ? <ListingRow.MetaDot /> : null}
+                  {index > 0 || row.project ? <ListingRow.MetaDot /> : null}
                   <span>{segment.value}</span>
                 </Fragment>
               ))}

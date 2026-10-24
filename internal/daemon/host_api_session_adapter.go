@@ -74,6 +74,17 @@ func (a hostAPISessionManagerAdapter) Archive(
 	return a.archive.Archive(ctx, workspaceID, sessionID)
 }
 
+func (a hostAPISessionManagerAdapter) ArchiveWithStop(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if a.archive == nil {
+		return nil, errors.New("daemon: session manager does not support session archiving")
+	}
+	return a.archive.ArchiveWithStop(ctx, workspaceID, sessionID)
+}
+
 func (a hostAPISessionManagerAdapter) Unarchive(
 	ctx context.Context,
 	workspaceID string,

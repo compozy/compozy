@@ -13,8 +13,8 @@ The desktop app supports macOS on Apple silicon and Intel, and Linux on x64. Bef
 installing either surface, make sure you have:
 
 - **An install method that fits your machine**. For the desktop app, use the package for your
-  architecture from GitHub Releases. For the `compozy` command during the v0.3 beta, use the verified installer,
-  npm's `beta` channel, or the explicit Go beta version. Homebrew returns with v0.3.0 stable.
+  architecture from GitHub Releases. For the `compozy` command, use the verified installer,
+  Homebrew, npm, or an explicit Go release tag.
   The verified binary installer requires `curl`, `tar`, and either `sha256sum` or `shasum`. It uses
   a local `cosign` when available; otherwise it downloads a pinned temporary cosign verifier before
   checking CompozyOS release provenance.
@@ -62,13 +62,13 @@ Continue with [Desktop app](/docs/getting-started/desktop-app).
 
 ### Option 1: verified binary installer
 
-Use the verified installer for a standalone beta install on macOS or Linux:
+Use the verified installer for a standalone install on macOS or Linux:
 
 ```bash
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
-The installer pins the latest published beta (currently <CurrentReleaseTag />), downloads a pinned
+The installer pins the latest published release (currently <CurrentReleaseTag />), downloads a pinned
 temporary cosign verifier when `cosign` is not already on `PATH`, downloads the matching GitHub
 release archive, verifies `checksums.txt` against `checksums.txt.sigstore.json`, verifies the
 archive checksum, installs `compozy`, runs `compozy version`, and opens `compozy install` when an
@@ -89,27 +89,35 @@ Environment variables are equivalent for automation:
 
 If the target directory is not on your `PATH`, the installer prints the exact directory to add.
 
-### Option 2: npm beta channel
+### Option 2: Homebrew
 
-Use npm when you want package-manager-owned updates on the beta channel:
+Use Homebrew on macOS or Linux when you want package-manager-owned updates:
 
 ```bash
-npm install -g @compozy/cli@beta
+brew install compozy/compozy/compozy
 ```
 
-### Option 3: explicit Go beta
+### Option 3: npm
 
-Go's `@latest` still resolves the v0.2 stable line during beta. Pin the current v0.3 prerelease:
+Use npm when you want Node package-manager-owned updates:
+
+```bash
+npm install -g @compozy/cli
+```
+
+### Option 4: explicit Go release
+
+Pin the current release tag:
 
 <InstallCommand method="go" />
 
-### Option 4: Linux packages
+### Option 5: Linux packages
 
 Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
 and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
 against `checksums.txt`, then install it with your distribution package manager.
 
-### Option 5: build from a repository checkout
+### Option 6: build from a repository checkout
 
 Use this when you are already working from the CompozyOS source tree or want a local build artifact you
 control explicitly. This path requires Go 1.27.1 or later.
@@ -156,12 +164,12 @@ Use `compozy config path` to inspect the exact global and workspace config files
 From the project tree, use `compozy config validate --repair-env` when a workspace `.env` needs a
 bounded repair. Pass `--workspace <id|name|path>` only to override the inferred project.
 
-`compozy update` keeps a beta install on newer v0.3 prereleases and never offers the v0.2 stable
-line. Use `compozy update --check` for a status-only check. Managed installs defer to their package
-manager and return the beta-safe command instead of mutating files directly:
-`npm install -g @compozy/cli@beta`, the hosted installer, or the pinned `go install` command for
-the current beta (<CurrentReleaseTag />). Homebrew guidance returns only after the
-formula ships v0.3.0 stable. Windows direct-binary installs remain manual in this first cut.
+`compozy update` installs the latest stable release. An install still on a v0.3.0 beta moves to the
+latest stable release in place, without a reinstall. Use `compozy update --check` for a status-only
+check. Managed installs defer to their package manager and return the command to run instead of
+mutating files directly: `brew upgrade compozy/compozy/compozy`, `npm install -g @compozy/cli`, the
+hosted installer, or the pinned `go install` command for the current release
+(<CurrentReleaseTag />). Windows direct-binary installs remain manual in this first cut.
 `compozy uninstall` removes runtime launch artifacts idempotently and preserves `~/.compozy` unless
 you explicitly pass `--purge --force`.
 

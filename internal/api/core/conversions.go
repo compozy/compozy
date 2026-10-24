@@ -7,12 +7,9 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
-
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-
 	"github.com/compozy/compozy/internal/store"
-
 	"github.com/compozy/compozy/internal/workref"
 )
 
@@ -26,19 +23,26 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 }
 
 func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
-	payload := contract.SessionPayload{}
+	scope := workspaceScopeValue
+	if info != nil && info.WorkspaceID == "" {
+		scope = userScopeValue
+	}
+	payload := contract.SessionPayload{
+		Scope: scope}
 	if info == nil {
 		return payload
 	}
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		Supervision: session.CloneSupervisionState(info.Supervision),
-		BusyInput:   info.BusyInput,
-		ID:          info.ID,
-		ProfileID:   strings.TrimSpace(info.ProfileID),
-		Name:        info.Name,
-		AgentName:   info.AgentName,
+		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
+		Scope:                    scope,
+		Supervision:              session.CloneSupervisionState(info.Supervision),
+		BusyInput:                info.BusyInput,
+		ID:                       info.ID,
+		ProfileID:                strings.TrimSpace(info.ProfileID),
+		Name:                     info.Name,
+		AgentName:                info.AgentName,
 		Runtime: contract.SessionRuntimePayload{
 			Status:            info.RuntimeStatus,
 			Transition:        info.RuntimeTransition,
@@ -55,6 +59,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		Type:                info.Type,
 		State:               info.State,
 		Badge:               session.BadgeForInfo(info),
+		BoardColumn:         session.BoardColumnFor(session.BadgeForInfo(info), ""),
+		WaitingOn:           sessionPayloadWaitingOn(info, session.BadgeForInfo(info)),
 		Attachable:          session.AttachableForInfo(info, now),
 		AttachedTo:          strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),
@@ -74,7 +80,32 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		CreatedAt:           info.CreatedAt,
 		UpdatedAt:           info.UpdatedAt,
 	}
+	populateSessionRuntimePayload(&payload, info)
+	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
+		payload.Activity = activity
+	}
+	payload.Derivation = sessionDerivationPayload(info.Derivation)
+	payload.ParentTitle = info.ParentTitle
+	if info.Children != nil {
+		counts := info.Children
+		payload.Children = &contract.SessionChildrenPayload{
+			Total:    counts.NeedsYou + counts.Working + counts.InReview + counts.Done,
+			NeedsYou: counts.NeedsYou,
+			Working:  counts.Working,
+			InReview: counts.InReview,
+			Done:     counts.Done,
+		}
+	}
+	if info.BoardColumn != "" {
+		payload.BoardColumn = info.BoardColumn
+	}
+	return payload
+}
+
+func populateSessionRuntimePayload(payload *contract.SessionPayload, info *session.Info) {
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
+		requested := info.RequestedRuntime()
+		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
 		payload.Runtime.LastKnown = runtime
 		if runtimeHasEffectiveSelection(info) {
 			payload.Runtime.Effective = runtime
@@ -83,11 +114,6 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
 		payload.Runtime.ACPCaps = caps
 	}
-	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
-		payload.Activity = activity
-	}
-	payload.Derivation = sessionDerivationPayload(info.Derivation)
-	return payload
 }
 
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
@@ -95,6 +121,7 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 	state := session.State(strings.TrimSpace(info.State))
 	attention := info.AttentionSnapshot()
 	converted := &session.Info{
+		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     strings.TrimSpace(info.Name),
@@ -172,12 +199,13 @@ func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelect
 	if info == nil || strings.TrimSpace(info.Provider) == "" {
 		return nil
 	}
+	runtime := info.EffectiveRuntime()
 	return &contract.RuntimeSelectionPayload{
-		Provider:        strings.TrimSpace(info.Provider),
-		Model:           strings.TrimSpace(info.Model),
-		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-		Speed:           info.Speed,
-		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(info.ACPOptions),
+		Provider:        strings.TrimSpace(runtime.Provider),
+		Model:           strings.TrimSpace(runtime.Model),
+		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(runtime.ReasoningEffort)),
+		Speed:           runtime.Speed,
+		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(runtime.ACPOptions),
 		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
 	}
 }
@@ -316,4 +344,11 @@ func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
 		payload = append(payload, SessionPayloadFromInfo(info))
 	}
 	return payload
+}
+
+func sessionPayloadWaitingOn(info *session.Info, badge session.Badge) session.WaitingOn {
+	if badge != session.BadgeWaiting || info == nil || info.Supervision == nil {
+		return ""
+	}
+	return session.WaitingOnFor(info.Supervision.WorkSignals)
 }

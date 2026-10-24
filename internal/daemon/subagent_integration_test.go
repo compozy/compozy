@@ -24,6 +24,8 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -289,6 +291,125 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 	})
 }
 
+func TestSubagentProfileCatalogIntegration(t *testing.T) {
+	t.Run("Should discover and delegate a profile extension agent only in its owning profile", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		profile, err := d.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "design"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(d.homePaths.ProfilesDir, "design", "config.toml")
+		if err := os.WriteFile(configPath, []byte(`[defaults]
+agent = "designer"
+`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		records := d.agentCatalog.Snapshot()
+		records = append(records, resources.Record[compozyconfig.AgentDef]{
+			ID:    "design:designer",
+			Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design-extension"},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: profile.ID},
+			Spec: compozyconfig.AgentDef{
+				Name:     "designer",
+				Provider: acpmock.ProviderName,
+				Prompt:   "Design carefully.",
+			},
+		})
+		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
+		for _, profileID := range []string{profile.ID, store.DefaultProfileID} {
+			parent, err := manager.Create(t.Context(), session.CreateOpts{Workspace: workspace, ProfileID: profileID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if profileID == profile.ID && parent.Info().AgentName != "designer" {
+				t.Fatalf("profile default agent = %q", parent.Info().AgentName)
+			}
+			response, err := manager.SendPrompt(t.Context(), parent.ID, session.SendPromptOpts{Message: "hold parent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				for range response.Events {
+				}
+			}()
+			waitForRuntimeCondition(
+				t,
+				"profile parent active",
+				10*time.Second,
+				func() bool { return parent.IsPrompting() && parent.CurrentTurnID() != "" },
+			)
+			caller := session.SubagentCaller{
+				WorkspaceID: workspace,
+				SessionID:   parent.ID,
+				TurnID:      parent.CurrentTurnID(),
+				ToolCallID:  "profile-child",
+			}
+			capabilities, err := d.SubagentService().Capabilities(t.Context(), caller)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, agent := range capabilities.Agents {
+				if agent.Name == "designer" {
+					found = true
+				}
+			}
+			if found != (profileID == profile.ID) {
+				t.Fatalf("profile %s designer visibility = %v", profileID, found)
+			}
+			scope := toolspkg.Scope{
+				SessionID:   parent.ID,
+				AgentName:   parent.Info().AgentName,
+				WorkspaceID: workspace,
+				ProfileID:   profileID,
+			}
+			for _, call := range []struct {
+				id    toolspkg.ToolID
+				input string
+			}{
+				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q}`, parent.ID)},
+				{toolspkg.ToolIDSessionList, `{}`},
+			} {
+				result, err := d.toolRegistry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: call.id, Input: jsonv1.RawMessage(call.input)},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				name := "default"
+				if profileID == profile.ID {
+					name = "design"
+				}
+				if !strings.Contains(string(result.Structured), `"profile_name":"`+name+`"`) {
+					t.Fatalf("%s profile owner missing: %s", call.id, result.Structured)
+				}
+			}
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Target: session.SubagentTarget{Agent: "designer"}})
+			if profileID != profile.ID {
+				detail, ok := errors.AsType[*session.SubagentError](err)
+				if !ok || detail.Code != "agent_not_found" {
+					t.Fatalf("foreign target error = %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "profile child completed", 15*time.Second, func() bool {
+					current, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
+					return err == nil && current.Status == "completed"
+				})
+			}
+			if err := manager.Stop(t.Context(), parent.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
 func newSubagentDaemonIntegration(t *testing.T, steer ...string) (*Daemon, *session.Manager, string) {
 	t.Helper()
 	return newSubagentDaemonConfigured(t, nil, steer...)
@@ -344,6 +465,15 @@ func newSubagentDaemonWithSetup(
 						Name:  "child",
 						Match: acpmock.TurnMatch{UserText: "child work"},
 						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "child answer"}},
+					},
+					{
+						Name: "restart-continuation",
+						Match: acpmock.TurnMatch{
+							UserTextContains: "The daemon restarted while your previous turn was running.",
+						},
+						Steps: []acpmock.Step{
+							{Kind: acpmock.StepKindAssistant, Text: "Continue the interrupted delegated task."},
+						},
 					},
 					{
 						Name:  "wake",
@@ -436,18 +566,24 @@ func newSubagentDaemonWithSetup(
 	}
 	if len(steer) > 1 && steer[1] == "wake-approval" {
 		fixture.Agents[0].Permissions = "approve-reads"
-		fixture.Agents[0].Turns[2].Steps = append(
-			[]acpmock.Step{
-				{
-					Kind:           acpmock.StepKindPermission,
-					ToolCallID:     "wake-approval",
-					Title:          "Read wake",
-					ToolKind:       "edit",
-					Path:           "wake.txt",
-					ExpectDecision: "allow-once",
+		for i := range fixture.Agents[0].Turns {
+			turn := &fixture.Agents[0].Turns[i]
+			if turn.Name != "wake" {
+				continue
+			}
+			turn.Steps = append(
+				[]acpmock.Step{
+					{
+						Kind:           acpmock.StepKindPermission,
+						ToolCallID:     "wake-approval",
+						Title:          "Read wake",
+						ToolKind:       "edit",
+						Path:           "wake.txt",
+						ExpectDecision: "allow-once",
+					},
 				},
-			},
-			fixture.Agents[0].Turns[2].Steps...)
+				turn.Steps...)
+		}
 	}
 	if len(steer) > 0 {
 		fixture.Agents[0].SteerOutcome = steer[0]
@@ -1078,6 +1214,9 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 		if err := d.bootSubagents(t.Context(), state); err != nil {
 			t.Fatal(err)
 		}
+		if err := recoverBootDelegatedSessions(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
 		service = state.subagents
 		current, err = service.Get(t.Context(), workspace, row.ID)
 		if err != nil || current.Status != "completed" || current.WakeMessageID == nil {
@@ -1377,6 +1516,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 		// the real processes and closes every database before the new daemon boots.
 		manager.SetSubagentService(nil)
 		home, cfg := d.homePaths, d.config
+		requestDaemonIntegrationRestart(t, d)
 		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatal(err)
 		}
@@ -1440,7 +1580,11 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 		{"Should preserve an unobserved completed answer across clean shutdown", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, manager, workspace := newSubagentDaemonIntegration(t)
+			// This suite owns retained wakes awaiting an explicit parent resume.
+			d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+				cfg.Session.Restart.AutoContinue = false
+			}, "")
+
 			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
 			if tc.missed {
 				manager.SetSubagentService(nil)
@@ -1485,6 +1629,7 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 				})
 			}
 			home, cfg := d.homePaths, d.config
+			requestDaemonIntegrationRestart(t, d)
 			if err := d.Shutdown(testutil.Context(t)); err != nil {
 				t.Fatal(err)
 			}
@@ -1497,6 +1642,7 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 				*settled.Result != "child answer" {
 				t.Fatalf("settled = %+v", settled)
 			}
+			requestDaemonIntegrationRestart(t, restarted)
 			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
 				t.Fatal(err)
 			}
@@ -1590,7 +1736,7 @@ func requireSubagentRestartDelivery(t *testing.T, d *Daemon, workspace, id, pare
 }
 
 // IT-012: kill the actual daemon-hosting process mid child turn; ordinary boot
-// repair must settle the child and produce one wake retained until parent resume.
+// repair must resume the child exactly once and deliver its result to the resumed parent.
 // Owner: daemon restart integration, real ACP subprocesses and persisted stores.
 func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 	if handoff := os.Getenv("COMPOZY_SUBAGENT_CRASH_HANDOFF"); handoff != "" {
@@ -1598,6 +1744,7 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		return
 	}
 	t.Run("Should recover a child after killing its daemon process", func(t *testing.T) {
+		driver := acpmock.RequireDriver(t)
 		// Own every helper-created temporary directory, including TestMain's seed.
 		root, err := os.MkdirTemp("/tmp", "sa-crash-")
 		if err != nil {
@@ -1624,7 +1771,9 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 			"-test.run=^TestSubagentCrashRestartDaemonIntegration$",
 			"-test.timeout=2m",
 		)
-		cmd.Env = append(os.Environ(), "TMPDIR="+root, "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff)
+		cmd.Env = append(os.Environ(), "TMPDIR="+root, "HOME="+root,
+			"CODEX_HOME="+filepath.Join(root, ".codex"), "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff,
+			"COMPOZY_TEST_ACPMOCK_DRIVER_BIN="+driver)
 		cmd.Stdout, cmd.Stderr = output, output
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
@@ -1673,29 +1822,45 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		cfg.Automation.Enabled = false
 		cfg.Roles.AutoTitle.Enabled = false
 		cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+		cfg.ProviderUsage.Enabled = false
 		restarted := reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
-		row, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, checkpoint.Row.ID)
+		var row session.Subagent
+		waitForRuntimeCondition(t, "resumed child result delivered", 15*time.Second, func() bool {
+			var err error
+			row, err = restarted.SubagentService().Get(t.Context(), checkpoint.Workspace, checkpoint.Row.ID)
+			return err == nil && row.Status == store.SubagentStatusCompleted &&
+				row.Delivery == store.SubagentDeliveryDelivered && row.WakeMessageID != nil
+		})
 		info, err := restarted.sessions.Status(t.Context(), *row.ChildSessionID)
-		if err != nil || info.State != session.StateStopped || info.StopReason != store.StopAgentCrashed {
+		if err != nil || info.Failure != nil || info.StopReason == store.StopAgentCrashed {
 			t.Fatalf("child recovery = %+v, err = %v", info, err)
 		}
-		if row.Status != store.SubagentStatusFailed || row.Error == nil {
-			t.Fatalf("crashed row = %+v", row)
+		if row.Status != store.SubagentStatusCompleted || row.Error != nil {
+			t.Fatalf("resumed row = %+v", row)
 		}
-		// The existing dead-runtime contract forbids reviving a process-failed
-		// parent. Preserve its mailbox without bypassing that independent gate.
-		if _, err := restarted.sessions.Resume(
-			t.Context(),
-			row.ParentSessionID,
-		); !errors.Is(
-			err,
-			store.ErrSessionNotAttachable,
-		) {
-			t.Fatalf("Resume(dead parent) = %v, want ErrSessionNotAttachable", err)
+		for _, id := range []string{row.ParentSessionID, *row.ChildSessionID} {
+			continued, err := restarted.sessions.Events(t.Context(), id, store.EventQuery{
+				Type: "session.restart_resumed", Limit: 10,
+			})
+			if err != nil || len(continued) != 1 {
+				t.Fatalf("restart continuations for %s = %d, %v", id, len(continued), err)
+			}
 		}
-		again, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, row.ID)
+		if err := restarted.SubagentService().Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		again, err := restarted.SubagentService().Get(t.Context(), checkpoint.Workspace, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !row.SettledAt.Equal(*again.SettledAt) || *row.WakeMessageID != *again.WakeMessageID {
 			t.Fatal("recovery duplicated settlement or wake", again)
+		}
+		inputs, err := restarted.sessions.Events(t.Context(), row.ParentSessionID, store.EventQuery{
+			Type: acp.EventTypeSyntheticReentry, Limit: 10,
+		})
+		if err != nil || len(inputs) != 2 {
+			t.Fatalf("parent synthetic turns = %d, %v; want one continuation and one result", len(inputs), err)
 		}
 	})
 }
@@ -1708,7 +1873,15 @@ type subagentCrashCheckpoint struct {
 
 func runSubagentCrashProcess(t *testing.T, handoff string) {
 	t.Helper()
-	d, manager, workspace := newSubagentDaemonIntegration(t)
+	// This journey owns mock ACP processes only. Persist discovery opt-outs so
+	// profile reloads cannot start installed provider CLIs during the crash walk.
+	d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+		cfg.ProviderUsage.Enabled = false
+		for name, provider := range compozyconfig.BuiltinProviders() {
+			provider.Models.Discovery.Enabled = new(false)
+			cfg.Providers[name] = provider
+		}
+	})
 	_, caller := startSubagentIntegrationParent(t, manager, workspace)
 	row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
 		Caller: caller, Task: "hold parent", Title: "Crash mid child turn",
@@ -1840,7 +2013,21 @@ func TestSubagentCleanRestartDaemonIntegration(t *testing.T) {
 			10*time.Second,
 			func() bool { return child.IsPrompting() && child.CurrentTurnID() != "" },
 		)
+		// Yield the parent for synthetic admission without canceling its delegated child.
+		if _, err := m.CancelPromptWithCause(
+			t.Context(), parent.ID, session.PromptCancelSyntheticAdmission,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(
+			t,
+			"parent idle before restart",
+			10*time.Second,
+			func() bool { return !parent.IsPrompting() },
+		)
+
 		home, cfg := d.homePaths, d.config
+		requestDaemonIntegrationRestart(t, d)
 		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatal(err)
 		}
@@ -1989,68 +2176,102 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 		})
 	}
 	t.Run(
-		"Should let a root child query status and delegate through hosted MCP and publish the catalog stream",
+		"Should inherit native delegation through hosted MCP and publish the catalog stream",
 		func(t *testing.T) {
-			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
-			h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
-				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
-				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
-			}})
-			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
-			defer cancel()
-			parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Root native nesting")
-			stream, err := h.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
-				if event.Event != string(session.CatalogEventNameChanged) {
-					return false
-				}
-				var payload compozycontract.SessionCatalogEventPayload
-				if json.Unmarshal(event.Data, &payload) != nil || payload.SessionID != parent.ID ||
-					payload.Kind != "upserted" {
-					return false
-				}
-				current, e := h.GetSession(ctx, parent.ID)
-				return e == nil && current.SubagentSummary != nil && current.SubagentSummary.Total > 0
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := h.PromptSession(ctx, parent.ID, "delegate nested work"); err != nil {
-				t.Fatal(err)
-			}
-			awaitAttentionCatalogObservation(t, ctx, stream)
-			var children, grandchildren compozycontract.SubagentListPayload
-			waitForRuntimeCondition(t, "root child native delegation", 30*time.Second, func() bool {
-				children = readSubagentsHTTP(t, ctx, h, parent.ID)
-				if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
-					return false
-				}
-				grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
-				return len(grandchildren.Subagents) == 1 &&
-					grandchildren.Subagents[0].Status == store.SubagentStatusCompleted
-			})
-			if children.Subagents[0].Depth != 1 || grandchildren.Subagents[0].Depth != 2 {
-				t.Fatal(children, grandchildren)
-			}
-			page, err := h.SessionTranscript(ctx, *children.Subagents[0].ChildSessionID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			statusObserved := false
-			delegateObserved := false
-			for _, entry := range page.Entries {
-				for _, part := range entry.Message.Parts {
-					if part.ToolCallID == "status-from-child" &&
-						strings.Contains(string(part.Output), "subagent_not_found") {
-						statusObserved = true
+			for _, origin := range []string{"root", "fork", "continue"} {
+				t.Run("Should delegate from "+origin+" origin", func(t *testing.T) {
+					fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+					h := e2etest.StartRuntimeHarness(
+						t,
+						&e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
+							{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+							{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+						}},
+					)
+					ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+					defer cancel()
+					parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Root native nesting")
+					if origin != "root" {
+						var derived compozycontract.SessionDeriveResponse
+						args := []string{
+							"session",
+							origin,
+							parent.ID,
+							"--idempotency-key",
+							"idem_native_" + origin,
+							"-o",
+							"json",
+						}
+						if origin == "continue" {
+							args = append(args, "--agent", "subagent-delegator")
+						}
+						if err := h.CLI.RunJSONInDir(ctx, h.WorkspaceRoot, &derived, args...); err != nil {
+							t.Fatalf("derive native parent (%s): %v", origin, err)
+						}
+						if derived.Session == nil || derived.Derived.Kind != origin ||
+							derived.Derived.SourceSessionID != parent.ID {
+							t.Fatalf("derived native parent = %+v", derived)
+						}
+						parent = *derived.Session
 					}
-					if part.ToolCallID == "delegate-grandchild" &&
-						strings.Contains(string(part.Output), grandchildren.Subagents[0].SubagentID) {
-						delegateObserved = true
+					stream, err := h.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
+						if event.Event != string(session.CatalogEventNameChanged) {
+							return false
+						}
+						var payload compozycontract.SessionCatalogEventPayload
+						if json.Unmarshal(event.Data, &payload) != nil || payload.SessionID != parent.ID ||
+							payload.Kind != "upserted" {
+							return false
+						}
+						current, e := h.GetSession(ctx, parent.ID)
+						return e == nil && current.SubagentSummary != nil && current.SubagentSummary.Total > 0
+					})
+					if err != nil {
+						t.Fatal(err)
 					}
-				}
-			}
-			if !statusObserved || !delegateObserved {
-				t.Fatal("child hosted MCP calls did not reach their native bindings", statusObserved, delegateObserved)
+					if _, err := h.PromptSession(ctx, parent.ID, "delegate nested work"); err != nil {
+						t.Fatal(err)
+					}
+					awaitAttentionCatalogObservation(t, ctx, stream)
+					var children, grandchildren compozycontract.SubagentListPayload
+					waitForRuntimeCondition(t, "root child native delegation", 30*time.Second, func() bool {
+						children = readSubagentsHTTP(t, ctx, h, parent.ID)
+						if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
+							return false
+						}
+						grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
+						return len(grandchildren.Subagents) == 1 &&
+							grandchildren.Subagents[0].Status == store.SubagentStatusCompleted
+					})
+					if children.Subagents[0].Depth != 1 || grandchildren.Subagents[0].Depth != 2 {
+						t.Fatal(children, grandchildren)
+					}
+					page, err := h.SessionTranscript(ctx, *children.Subagents[0].ChildSessionID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					statusObserved := false
+					delegateObserved := false
+					for _, entry := range page.Entries {
+						for _, part := range entry.Message.Parts {
+							if part.ToolCallID == "status-from-child" &&
+								strings.Contains(string(part.Output), "subagent_not_found") {
+								statusObserved = true
+							}
+							if part.ToolCallID == "delegate-grandchild" &&
+								strings.Contains(string(part.Output), grandchildren.Subagents[0].SubagentID) {
+								delegateObserved = true
+							}
+						}
+					}
+					if !statusObserved || !delegateObserved {
+						t.Fatal(
+							"child hosted MCP calls did not reach their native bindings",
+							statusObserved,
+							delegateObserved,
+						)
+					}
+				})
 			}
 		},
 	)

@@ -93,11 +93,11 @@ func (m *Manager) fetchLatestBetaRelease(ctx context.Context) (*Release, error) 
 	)
 	for index := range payloads {
 		payload := &payloads[index]
-		if payload.Draft || !payload.Prerelease {
+		if payload.Draft {
 			continue
 		}
 		candidate, parseErr := parseVersion(payload.TagName)
-		if parseErr != nil || !isBetaVersionForLine(candidate, current) {
+		if parseErr != nil || !isBetaTrackCandidate(payload.Prerelease, candidate, current) {
 			continue
 		}
 		if selectedVersion == nil || candidate.GreaterThan(selectedVersion) {

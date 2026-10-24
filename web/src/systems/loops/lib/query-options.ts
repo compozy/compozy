@@ -1,5 +1,5 @@
 import { listGoalTurns } from "../adapters/goal-turns-api";
-import type { ProfileScopeParams } from "@/systems/profiles";
+import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { listLoopNodes } from "../adapters/loop-nodes-api";
@@ -15,13 +15,23 @@ import {
   getLoopAnnotations,
   getLoopConfig,
   getLoopRun,
+  listLoopRequestsAggregate,
   listLoopRuns,
+  listLoopRunsAggregate,
   listLoops,
+  listLoopsAggregate,
 } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "./loop-formatters";
-import { type LoopNodeInventoryStableFilter, loopsKeys } from "./query-keys";
+import {
+  LOOP_AGGREGATE_KEY,
+  loopAggregateFilterKey,
+  type LoopNodeInventoryStableFilter,
+  loopsKeys,
+} from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
+import type { LoopBreadthTarget } from "@/systems/workspace";
 import type {
+  LoopAggregateBreadth,
   LoopCatalogStableFilter,
   LoopDiffQuery,
   LoopRequestStableFilter,
@@ -51,6 +61,27 @@ export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogSta
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
+  });
+}
+
+/**
+ * The All projects definitions batch. It is bounded and complete (no cursor):
+ * `truncated` and per-project `errors[]` say what is missing, never the rows.
+ */
+export function loopsAggregateOptions(
+  breadth: LoopAggregateBreadth,
+  filters: LoopCatalogStableFilter = {},
+  enabled = true
+) {
+  const normalizedFilters = normalizeLoopCatalogFilter(filters);
+  return queryOptions({
+    queryKey: [
+      ...loopsKeys.catalog(LOOP_AGGREGATE_KEY, normalizedFilters),
+      loopAggregateFilterKey(breadth.workspace_ids),
+    ],
+    queryFn: ({ signal }) => listLoopsAggregate(breadth, normalizedFilters, signal),
+    staleTime: DEFAULT_STALE_TIME,
+    enabled,
   });
 }
 
@@ -131,6 +162,34 @@ export function loopRunsOptions(workspaceId: string, filters: LoopRunsFilter = {
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+/**
+ * A runs list over a breadth: one workspace's roster (the same cache entry as
+ * `loopRunsOptions`), or the All projects aggregate in recency order.
+ */
+export function loopRunsListOptions(
+  target: LoopBreadthTarget,
+  filters: LoopRunsFilter = {},
+  enabled = true
+) {
+  const aggregate = target.kind === "aggregate";
+  const queryKey: readonly unknown[] = aggregate
+    ? [
+        ...loopsKeys.runs(LOOP_AGGREGATE_KEY, filters),
+        loopAggregateFilterKey(target.params.workspace_ids),
+      ]
+    : loopsKeys.runs(target.workspaceId, filters);
+  return queryOptions({
+    queryKey,
+    queryFn: ({ signal }) =>
+      aggregate
+        ? listLoopRunsAggregate(target.params, filters, signal)
+        : listLoopRuns(target.workspaceId, filters, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: (aggregate || Boolean(target.workspaceId)) && enabled,
   });
 }
 
@@ -275,17 +334,31 @@ export function loopRequestsOptions(
   });
 }
 
+/**
+ * Pending requests for the loops badge: one read over the breadth (a workspace
+ * route, or the All projects aggregate) within the profile lens.
+ */
 export function loopRequestAttentionOptions(
-  workspaceId: string,
+  target: LoopBreadthTarget,
+  scope: ProfileScopeParams,
   enabled = true,
   refetchInterval: number | false = LIVE_REFETCH_INTERVAL
 ) {
+  const filters = { state: "pending", limit: 50, ...scope };
+  const aggregate = target.kind === "aggregate";
   return queryOptions({
-    queryKey: loopsKeys.requestAttention(workspaceId),
-    queryFn: ({ signal }) => listLoopRequests(workspaceId, { state: "pending", limit: 50 }, signal),
+    queryKey: [
+      ...loopsKeys.requestAttention(aggregate ? LOOP_AGGREGATE_KEY : target.workspaceId),
+      aggregate ? loopAggregateFilterKey(target.params.workspace_ids) : "",
+      "profile" in scope ? scope.profile : PROFILE_AGGREGATE,
+    ],
+    queryFn: ({ signal }) =>
+      aggregate
+        ? listLoopRequestsAggregate(target.params, filters, signal)
+        : listLoopRequests(target.workspaceId, filters, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval,
-    enabled: Boolean(workspaceId) && enabled,
+    enabled: (aggregate || Boolean(target.workspaceId)) && enabled,
   });
 }
 

@@ -61,11 +61,7 @@ func (s *Service) removalRiskFromStatus(ctx context.Context, item Worktree, stat
 		if risk.UnpushedCommits == 0 {
 			return risk, nil
 		}
-		merged, err := s.removalMergeIsCurrent(ctx, item)
-		if err != nil {
-			return RemovalRisk{}, err
-		}
-		if merged {
+		if s.removalMergeIsCurrent(ctx, item) {
 			risk.UnpushedCommits = 0
 		}
 	}

@@ -338,6 +338,15 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should let a per-call budget outlast the runner timeout", func(t *testing.T) {
+		t.Parallel()
+		runner := &RealGitRunner{executable: "/bin/sh", timeout: 100 * time.Millisecond, environ: os.Environ}
+		stdout, _, err := runner.RunWithTimeout(t.Context(), "", 10*time.Second, "-c", "sleep 0.4; echo finished")
+		if err != nil || strings.TrimSpace(string(stdout)) != "finished" {
+			t.Fatalf("RunWithTimeout() = %q, %v, want the slow command to finish", stdout, err)
+		}
+	})
+
 	t.Run("Should kill and wait for a command that exceeds its timeout", func(t *testing.T) {
 		t.Parallel()
 		runner := &RealGitRunner{executable: "/bin/sh", timeout: 250 * time.Millisecond, environ: os.Environ}

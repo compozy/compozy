@@ -1,3 +1,5 @@
+import { windowBinding } from "./agent-detail-search";
+
 export const AGENT_SETTINGS_SECTIONS = [
   "basics",
   "runtime",
@@ -11,6 +13,8 @@ export type AgentSettingsSection = (typeof AGENT_SETTINGS_SECTIONS)[number];
 /** Optional URL param — default `basics` via `resolveAgentSettingsSearch`. */
 export interface AgentSettingsSearch {
   section?: AgentSettingsSection;
+  /** The window's data binding, kept across in-window navigation. */
+  workspace?: string;
 }
 
 export function validateAgentSettingsSearch(search: Record<string, unknown>): AgentSettingsSearch {
@@ -20,7 +24,7 @@ export function validateAgentSettingsSearch(search: Record<string, unknown>): Ag
     typeof value === "string" && (AGENT_SETTINGS_SECTIONS as readonly string[]).includes(value)
       ? (value as AgentSettingsSection)
       : "basics";
-  return { section };
+  return { section, ...windowBinding(search.workspace) };
 }
 
 export function resolveAgentSettingsSearch(search: AgentSettingsSearch): {

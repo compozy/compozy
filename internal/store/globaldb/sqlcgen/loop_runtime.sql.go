@@ -146,17 +146,28 @@ const getLoopDefinitionSnapshot = `-- name: GetLoopDefinitionSnapshot :one
 SELECT workspace_id, definition_digest, definition_version, definition_json, byte_size,
        created_at, last_used_at
 FROM loop_definition_snapshots
-WHERE workspace_id = ?1 AND definition_digest = ?2
+WHERE profile_id = ?1 AND workspace_id = ?2 AND definition_digest = ?3
 `
 
 type GetLoopDefinitionSnapshotParams struct {
+	ProfileID        string `json:"profile_id"`
 	WorkspaceID      string `json:"workspace_id"`
 	DefinitionDigest string `json:"definition_digest"`
 }
 
-func (q *Queries) GetLoopDefinitionSnapshot(ctx context.Context, arg GetLoopDefinitionSnapshotParams) (LoopDefinitionSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, getLoopDefinitionSnapshot, arg.WorkspaceID, arg.DefinitionDigest)
-	var i LoopDefinitionSnapshot
+type GetLoopDefinitionSnapshotRow struct {
+	WorkspaceID       string `json:"workspace_id"`
+	DefinitionDigest  string `json:"definition_digest"`
+	DefinitionVersion int64  `json:"definition_version"`
+	DefinitionJson    string `json:"definition_json"`
+	ByteSize          int64  `json:"byte_size"`
+	CreatedAt         string `json:"created_at"`
+	LastUsedAt        string `json:"last_used_at"`
+}
+
+func (q *Queries) GetLoopDefinitionSnapshot(ctx context.Context, arg GetLoopDefinitionSnapshotParams) (GetLoopDefinitionSnapshotRow, error) {
+	row := q.db.QueryRowContext(ctx, getLoopDefinitionSnapshot, arg.ProfileID, arg.WorkspaceID, arg.DefinitionDigest)
+	var i GetLoopDefinitionSnapshotRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.DefinitionDigest,
@@ -397,7 +408,7 @@ func (q *Queries) ListAvailableLoopOutputRefs(ctx context.Context, arg ListAvail
 
 const listLoopCatalogAggregates = `-- name: ListLoopCatalogAggregates :many
 WITH requested_names(loop_name) AS (
-  SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?3)
+  SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?4)
 )
 SELECT lr.loop_name, COUNT(*) AS runs,
        SUM(CASE WHEN lr.status = 'done' THEN 1 ELSE 0 END) AS succeeded,
@@ -405,12 +416,14 @@ SELECT lr.loop_name, COUNT(*) AS runs,
 FROM requested_names AS requested
 JOIN loop_runs AS lr INDEXED BY idx_loop_runs_catalog
   ON lr.workspace_id = ?1 AND lr.loop_name = requested.loop_name
-WHERE lr.created_at >= ?2
+WHERE (lr.workspace_id <> '' OR lr.profile_id = ?2)
+ AND lr.created_at >= ?3
 GROUP BY lr.loop_name
 `
 
 type ListLoopCatalogAggregatesParams struct {
 	WorkspaceID    string `json:"workspace_id"`
+	ProfileID      string `json:"profile_id"`
 	AggregateAfter string `json:"aggregate_after"`
 	NamesJson      any    `json:"names_json"`
 }
@@ -423,7 +436,12 @@ type ListLoopCatalogAggregatesRow struct {
 }
 
 func (q *Queries) ListLoopCatalogAggregates(ctx context.Context, arg ListLoopCatalogAggregatesParams) ([]ListLoopCatalogAggregatesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listLoopCatalogAggregates, arg.WorkspaceID, arg.AggregateAfter, arg.NamesJson)
+	rows, err := q.db.QueryContext(ctx, listLoopCatalogAggregates,
+		arg.WorkspaceID,
+		arg.ProfileID,
+		arg.AggregateAfter,
+		arg.NamesJson,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -457,6 +475,7 @@ WITH requested_names(loop_name) AS (
   SELECT (
     SELECT candidate.id FROM loop_runs AS candidate INDEXED BY idx_loop_runs_catalog
     WHERE candidate.workspace_id = ?2
+ AND (candidate.workspace_id <> '' OR candidate.profile_id = ?3)
       AND candidate.loop_name = requested.loop_name
     ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1
   )
@@ -469,6 +488,7 @@ FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id
 type ListLoopCatalogLatestRunsParams struct {
 	NamesJson   any    `json:"names_json"`
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 }
 
 type ListLoopCatalogLatestRunsRow struct {
@@ -481,7 +501,7 @@ type ListLoopCatalogLatestRunsRow struct {
 }
 
 func (q *Queries) ListLoopCatalogLatestRuns(ctx context.Context, arg ListLoopCatalogLatestRunsParams) ([]ListLoopCatalogLatestRunsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listLoopCatalogLatestRuns, arg.NamesJson, arg.WorkspaceID)
+	rows, err := q.db.QueryContext(ctx, listLoopCatalogLatestRuns, arg.NamesJson, arg.WorkspaceID, arg.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -931,13 +951,13 @@ WHERE q.status = 'queued'
   AND q.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
-    WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+    WHERE active.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR active.profile_id = q.profile_id) AND active.loop_name = q.loop_name
       AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
-    WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+    WHERE older.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR older.profile_id = q.profile_id) AND older.loop_name = q.loop_name
       AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
@@ -1045,18 +1065,19 @@ const oldestQueuedLoopRunReadyForPromotion = `-- name: OldestQueuedLoopRunReadyF
 SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.workspace_id = ?1
-  AND q.loop_name = ?2
+ AND (q.workspace_id <> '' OR q.profile_id = ?2)
+  AND q.loop_name = ?3
   AND q.historical = 0
   AND q.status = 'queued'
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
-    WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+    WHERE active.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR active.profile_id = q.profile_id) AND active.loop_name = q.loop_name
       AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
-    WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+    WHERE older.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR older.profile_id = q.profile_id) AND older.loop_name = q.loop_name
       AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
@@ -1066,6 +1087,7 @@ ORDER BY q.created_at ASC, q.id ASC LIMIT 1
 
 type OldestQueuedLoopRunReadyForPromotionParams struct {
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	LoopName    string `json:"loop_name"`
 }
 
@@ -1077,7 +1099,7 @@ type OldestQueuedLoopRunReadyForPromotionRow struct {
 }
 
 func (q *Queries) OldestQueuedLoopRunReadyForPromotion(ctx context.Context, arg OldestQueuedLoopRunReadyForPromotionParams) (OldestQueuedLoopRunReadyForPromotionRow, error) {
-	row := q.db.QueryRowContext(ctx, oldestQueuedLoopRunReadyForPromotion, arg.WorkspaceID, arg.LoopName)
+	row := q.db.QueryRowContext(ctx, oldestQueuedLoopRunReadyForPromotion, arg.WorkspaceID, arg.ProfileID, arg.LoopName)
 	var i OldestQueuedLoopRunReadyForPromotionRow
 	err := row.Scan(
 		&i.ID,
@@ -1290,14 +1312,14 @@ func (q *Queries) UpdateLoopRunBest(ctx context.Context, arg UpdateLoopRunBestPa
 }
 
 const upsertLoopDefinitionSnapshot = `-- name: UpsertLoopDefinitionSnapshot :execrows
-INSERT INTO loop_definition_snapshots (
+INSERT INTO loop_definition_snapshots (profile_id,
   workspace_id, definition_digest, definition_version, definition_json, byte_size,
   created_at, last_used_at
-) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6, ?7
+) VALUES (?1,
+  ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8
 )
-ON CONFLICT(workspace_id, definition_digest) DO UPDATE SET
+ON CONFLICT(workspace_id, profile_id, definition_digest) DO UPDATE SET
   last_used_at = excluded.last_used_at
 WHERE loop_definition_snapshots.definition_version = excluded.definition_version
   AND loop_definition_snapshots.definition_json = excluded.definition_json
@@ -1305,6 +1327,7 @@ WHERE loop_definition_snapshots.definition_version = excluded.definition_version
 `
 
 type UpsertLoopDefinitionSnapshotParams struct {
+	ProfileID         string `json:"profile_id"`
 	WorkspaceID       string `json:"workspace_id"`
 	DefinitionDigest  string `json:"definition_digest"`
 	DefinitionVersion int64  `json:"definition_version"`
@@ -1316,6 +1339,7 @@ type UpsertLoopDefinitionSnapshotParams struct {
 
 func (q *Queries) UpsertLoopDefinitionSnapshot(ctx context.Context, arg UpsertLoopDefinitionSnapshotParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertLoopDefinitionSnapshot,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.DefinitionDigest,
 		arg.DefinitionVersion,

@@ -294,7 +294,12 @@ func TestContinueSession(t *testing.T) {
 			}
 			waitForDeriveConsumption(t, h, child.ID)
 
-			receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), h.workspaceID, "idem_continue_1")
+			receipt, found, err := h.db.SessionDerivationReceipt(
+				testutil.Context(t),
+				h.workspaceID,
+				"idem_continue_1",
+				store.DefaultProfileID,
+			)
 			if err != nil || !found || receipt.ChildSessionID != child.ID ||
 				receipt.Outcome.ReplayBytes != result.ReplayBytes {
 				t.Fatalf("receipt = %+v found=%t err=%v, want the child's outcome", receipt, found, err)
@@ -471,8 +476,7 @@ func TestContinueSession(t *testing.T) {
 			if _, found, err := h.db.SessionDerivationReceipt(
 				testutil.Context(t),
 				h.workspaceID,
-				key,
-			); err != nil ||
+				key, store.DefaultProfileID); err != nil ||
 				found {
 				t.Fatalf("receipt %s found=%t err=%v, want none", key, found, err)
 			}
@@ -1247,8 +1251,7 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 			t.Fatal("failed child left a catalog row")
 		}
 		if _, found, err := h.db.SessionDerivationReceipt(
-			testutil.Context(t), h.workspaceID, "idem_sweep",
-		); err != nil || found {
+			testutil.Context(t), h.workspaceID, "idem_sweep", store.DefaultProfileID); err != nil || found {
 			t.Fatalf("receipt after failed registration found=%t err=%v, want none", found, err)
 		}
 		retry, err := h.manager.ContinueSession(testutil.Context(t), h.continueOpts(source, "idem_sweep"))
@@ -1274,8 +1277,7 @@ func TestDeriveCommitBoundaries(t *testing.T) {
 				t.Fatal("attention fault never fired after the registration")
 			}
 			receipt, found, receiptErr := h.db.SessionDerivationReceipt(
-				testutil.Context(t), h.workspaceID, "idem_post_commit",
-			)
+				testutil.Context(t), h.workspaceID, "idem_post_commit", store.DefaultProfileID)
 			if receiptErr != nil || !found || receipt.ChildDeletedAt != nil {
 				t.Fatalf("receipt found=%t err=%v tombstone=%v, want the committed receipt",
 					found, receiptErr, receipt.ChildDeletedAt)
@@ -1587,7 +1589,12 @@ func TestDeriveReceiptScope(t *testing.T) {
 			t.Fatalf("secondary derive = %+v, want an independent child in %s", second, secondaryID)
 		}
 		for workspaceID, childID := range map[string]string{h.workspaceID: first.Child.ID, secondaryID: second.Child.ID} {
-			receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), workspaceID, "idem_shared")
+			receipt, found, err := h.db.SessionDerivationReceipt(
+				testutil.Context(t),
+				workspaceID,
+				"idem_shared",
+				store.DefaultProfileID,
+			)
 			if err != nil || !found || receipt.ChildSessionID != childID {
 				t.Fatalf("receipt(%s) = %+v found=%t err=%v, want child %s", workspaceID, receipt, found, err, childID)
 			}
@@ -1597,6 +1604,77 @@ func TestDeriveReceiptScope(t *testing.T) {
 
 func TestDeriveLineageReadModel(t *testing.T) {
 	t.Parallel()
+
+	// Derivation provenance must not remove a user session's delegable native tools.
+	for _, kind := range []store.LineageKind{store.LineageKindFork, store.LineageKindContinue} {
+		t.Run("Should retain delegation tools after "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			options := []func(*globaldb.GlobalDB) Option{func(*globaldb.GlobalDB) Option {
+				return WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView, toolspkg.ToolIDToolSearch})
+			}, func(*globaldb.GlobalDB) Option {
+				return WithHostedMCPLauncher(&recordingHostedMCPLauncher{server: compozyconfig.MCPServer{
+					Name: "hosted", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+				}})
+			}}
+			h := newDeriveHarness(t, options...)
+			source := h.newDeriveSource(t)
+			var childID string
+			if kind == store.LineageKindFork {
+				result, err := h.manager.ForkSession(t.Context(), h.forkOpts(source, "delegation-fork"))
+				if err != nil {
+					t.Fatalf("ForkSession() error = %v", err)
+				}
+				childID = result.Child.ID
+			} else {
+				result, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "delegation-continue"))
+				if err != nil {
+					t.Fatalf("ContinueSession() error = %v", err)
+				}
+				childID = result.Child.ID
+			}
+			events, err := h.manager.Prompt(t.Context(), childID, "Delegate the next slice")
+			if err != nil {
+				t.Fatalf("Prompt(child) error = %v", err)
+			}
+			collectEvents(t, events)
+			info, err := h.manager.Status(t.Context(), childID)
+			if err != nil {
+				t.Fatalf("Status(child) error = %v", err)
+			}
+			want := []string{toolspkg.ToolIDSkillView.String(), toolspkg.ToolIDToolSearch.String()}
+			if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("derived delegation budget = %v, want %v", got, want)
+			}
+			_, policy, err := subagentPermissions(info, SubagentRequest{})
+			if err != nil || !testutil.EqualStringSlices(policy.Tools, want) {
+				t.Fatalf("inherited subagent policy = %+v, error = %v", policy, err)
+			}
+			if got := h.childMeta(t, childID).Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("durable delegation budget = %v, want %v", got, want)
+			}
+			if err := h.manager.Stop(t.Context(), childID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			// Older derived sessions have no materialized delegation tools on disk.
+			metaPath := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, childID))
+			meta := readMeta(t, metaPath)
+			meta.Lineage.PermissionPolicy.Tools = nil
+			if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+				t.Fatal(err)
+			}
+			h.restartManager(t, options...)
+			resumed, err := h.manager.Resume(t.Context(), childID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := resumed.Info().Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("resumed legacy delegation budget = %v, want %v", got, want)
+			}
+		})
+	}
 
 	for _, kind := range []store.LineageKind{store.LineageKindFork, store.LineageKindContinue} {
 		t.Run("Should derive "+string(kind)+" after the root ancestor was deleted", func(t *testing.T) {
@@ -1953,8 +2031,7 @@ func TestForkSession(t *testing.T) {
 			t.Fatalf("ForkSession(stale fences) error = %v, want ErrDeriveFenceConflict", err)
 		}
 		if _, found, err := h.db.SessionDerivationReceipt(
-			testutil.Context(t), h.workspaceID, "idem_fork_stale",
-		); err != nil || found {
+			testutil.Context(t), h.workspaceID, "idem_fork_stale", store.DefaultProfileID); err != nil || found {
 			t.Fatalf("receipt after fence conflict found=%t err=%v, want none", found, err)
 		}
 		unknown := h.forkOpts(source, "idem_fork_unknown")
@@ -1967,7 +2044,12 @@ func TestForkSession(t *testing.T) {
 		if _, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_nofence")); err != nil {
 			t.Fatalf("ForkSession(no fences) error = %v", err)
 		}
-		receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), h.workspaceID, "idem_fork_nofence")
+		receipt, found, err := h.db.SessionDerivationReceipt(
+			testutil.Context(t),
+			h.workspaceID,
+			"idem_fork_nofence",
+			store.DefaultProfileID,
+		)
 		if err != nil || !found || receipt.Outcome.SourceMaxSequence != preview.MaxSequence ||
 			receipt.Outcome.SourceGeneration != preview.Generation || receipt.Kind != store.LineageKindFork {
 			t.Fatalf("receipt = %+v found=%t err=%v, want the snapshot fences", receipt, found, err)

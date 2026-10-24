@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionInteractionRecord, SessionInteractionStatus } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export interface FetchSessionInteractionsOptions {
   /** Daemon status filter; the daemon defaults to the actionable set (`pending` + `orphaned`). */
@@ -24,7 +25,7 @@ export async function fetchSessionInteractions(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: options.status === undefined ? {} : { status: options.status },
       },
       signal: options.signal,

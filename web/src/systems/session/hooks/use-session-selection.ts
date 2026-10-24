@@ -68,8 +68,12 @@ export function sessionSelectionCounts(
         session.archived_at === null && (session.state === "active" || session.state === "starting")
     ).length,
     archivable: sessions.filter(
+      session => session.archived_at === null && !isSubagentSession(session)
+    ).length,
+    // Archivable sessions the daemon must stop first.
+    archivableLive: sessions.filter(
       session =>
-        session.archived_at === null && session.state === "stopped" && !isSubagentSession(session)
+        session.archived_at === null && session.state !== "stopped" && !isSubagentSession(session)
     ).length,
     unarchivable: sessions.filter(
       session => session.archived_at !== null && !isSubagentSession(session)

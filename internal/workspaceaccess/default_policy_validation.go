@@ -13,7 +13,9 @@ func normalizeRequest(req Request) Request {
 	req.Actor.SessionID = strings.TrimSpace(req.Actor.SessionID)
 	req.Actor.WorkspaceID = strings.TrimSpace(req.Actor.WorkspaceID)
 	req.Actor.AgentName = strings.TrimSpace(req.Actor.AgentName)
-	req.TargetWorkspaceID = strings.TrimSpace(req.TargetWorkspaceID)
+	req.Target.WorkspaceID = strings.TrimSpace(req.Target.WorkspaceID)
+	req.Target.ProfileID = strings.TrimSpace(req.Target.ProfileID)
+	req.Target.Surface = strings.TrimSpace(req.Target.Surface)
 	return req
 }
 
@@ -24,11 +26,30 @@ func validateRequest(ctx context.Context, req Request) error {
 	if !validActorKind(req.Actor.Kind) {
 		return invalidRequest(fmt.Sprintf("workspace access: unknown actor kind %q", req.Actor.Kind))
 	}
-	if !workspaceIDPattern.MatchString(req.TargetWorkspaceID) {
-		return invalidRequest(fmt.Sprintf(
-			"workspace access: target workspace id %q is not canonical",
-			req.TargetWorkspaceID,
-		))
+	if req.Target.AllProfiles {
+		if !req.ReadOnly || req.Target.ProfileID != "" {
+			return invalidRequest("workspace access: all profiles requires a read without a concrete profile")
+		}
+	} else if req.Target.ProfileID == "" && (req.Actor.Kind != ActorAgentSession || req.Actor.Operator) {
+		// An agent session that names no profile acts in its own; authorize resolves it.
+		return invalidRequest("workspace access: target profile is required")
+	}
+	switch req.Target.Kind {
+	case TargetWorkspace:
+		if !workspaceIDPattern.MatchString(req.Target.WorkspaceID) {
+			return invalidRequest(
+				fmt.Sprintf("workspace access: target workspace id %q is not canonical", req.Target.WorkspaceID),
+			)
+		}
+	case TargetUser, TargetAggregate:
+		if req.Target.WorkspaceID != "" {
+			return invalidRequest("workspace access: non-workspace target cannot carry a workspace id")
+		}
+		if req.Target.Kind == TargetAggregate && req.Target.Surface == "" {
+			return invalidRequest("workspace access: aggregate surface is required")
+		}
+	default:
+		return invalidRequest("workspace access: target kind is required")
 	}
 	if !validSeam(req.Seam) {
 		return invalidRequest(fmt.Sprintf("workspace access: unknown seam %q", req.Seam))

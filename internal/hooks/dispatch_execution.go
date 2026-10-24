@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -31,7 +32,8 @@ func (h *Hooks) executeDispatch[P any, R any](
 
 	dispatchDepth := currentDispatchDepth(ctx) + 1
 	dispatchStarted := time.Now()
-	h.logger.Info(
+	logger := h.dispatchLogger(payload)
+	logger.DebugContext(ctx,
 		"hook.dispatch.started",
 		"event", event.String(),
 		"dispatch_depth", dispatchDepth,
@@ -64,7 +66,16 @@ func (h *Hooks) executeDispatch[P any, R any](
 		h.submitAsyncHooks(ctx, result, asyncHooks, pipe)
 	}
 
-	reportDispatchResult(h, event, dispatchDepth, dispatchStarted, report, dispatchErr, len(syncHooks), len(asyncHooks))
+	h.reportDispatchResult(
+		logger,
+		event,
+		dispatchDepth,
+		dispatchStarted,
+		report,
+		dispatchErr,
+		len(syncHooks),
+		len(asyncHooks),
+	)
 
 	return result, dispatchErr
 }
@@ -82,8 +93,8 @@ func (h *Hooks) matchingDispatchHooks[P any](
 	return syncHooks, asyncHooks, nil
 }
 
-func reportDispatchResult(
-	h *Hooks,
+func (h *Hooks) reportDispatchResult(
+	logger *slog.Logger,
 	event HookEvent,
 	dispatchDepth int,
 	dispatchStarted time.Time,
@@ -97,7 +108,7 @@ func reportDispatchResult(
 
 	switch {
 	case report.Denied:
-		h.logger.Warn(
+		logger.Warn(
 			"hook.dispatch.blocked",
 			"event", event.String(),
 			"dispatch_depth", dispatchDepth,
@@ -105,8 +116,8 @@ func reportDispatchResult(
 			"deny_reason", report.DenyReason,
 			"pipeline_trace", traceStrings(report.Trace),
 		)
-	case dispatchErr != nil:
-		h.logger.Warn(
+	case dispatchErr != nil || report.FailedHook != "":
+		logger.Warn(
 			"hook.dispatch.failed",
 			"event", event.String(),
 			"dispatch_depth", dispatchDepth,
@@ -116,7 +127,7 @@ func reportDispatchResult(
 			"pipeline_trace", traceStrings(report.Trace),
 		)
 	default:
-		h.logger.Info(
+		logger.Debug(
 			"hook.dispatch.completed",
 			"event", event.String(),
 			"dispatch_depth", dispatchDepth,
@@ -126,6 +137,27 @@ func reportDispatchResult(
 			"async_hooks", asyncHookCount,
 		)
 	}
+}
+
+func (h *Hooks) dispatchLogger(payload any) *slog.Logger {
+	session := SessionContextFromPayload(payload)
+	correlation := CorrelationFromPayload(payload)
+	attrs := make([]any, 0, 16)
+	for _, field := range []struct{ key, value string }{
+		{"session_id", session.SessionID},
+		{matcherWorkspaceIDKey, session.WorkspaceID},
+		{matcherTurnIDKey, TurnIDFromPayload(payload)},
+		{matcherTaskIDKey, correlation.TaskID},
+		{matcherRunIDKey, correlation.RunID},
+		{matcherLoopRunIDKey, correlation.LoopRunID},
+		{matcherCoordinatorSessionIDKey, correlation.CoordinatorSessionID},
+		{"actor_id", correlation.ActorID},
+	} {
+		if field.value != "" {
+			attrs = append(attrs, field.key, field.value)
+		}
+	}
+	return h.logger.With(attrs...)
 }
 
 func hookDeniedError(event HookEvent, reason string) error {

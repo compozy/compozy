@@ -15,6 +15,7 @@ import { type LoopStepChildRun, childRunsToggleLabel } from "../../lib/loop-run-
 import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { LoopStatusMark } from "../loop-status-mark";
 import { useLoopRunChildRead } from "../../hooks/use-loop-run-child-read";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 /** Rows read before the list asks; each open row keeps three reads polling. */
 const CHILD_RUNS_VISIBLE_LIMIT = 8;
@@ -77,6 +78,7 @@ interface LoopRunChildRunRowProps {
 
 /** One child run: who it is, where it is, and — a level down — what it started. */
 function LoopRunChildRunRow({ child, inputs, depth }: LoopRunChildRunRowProps) {
+  const bindingSearch = useWindowBindingSearch();
   const read = useLoopChildRun(child.runId);
   const grandchildren = read.summary?.childRuns ?? [];
   return (
@@ -97,6 +99,7 @@ function LoopRunChildRunRow({ child, inputs, depth }: LoopRunChildRunRowProps) {
           data-testid="loop-run-child-run-link"
           params={{ runId: child.runId }}
           title={child.runId}
+          search={bindingSearch}
           to="/loop-runs/$runId"
         >
           {read.summary?.loopName ?? child.runId}

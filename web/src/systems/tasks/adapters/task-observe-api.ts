@@ -16,6 +16,11 @@ import { normalizeOptionalText, TasksApiError } from "./tasks-api-errors";
 
 function normalizeDashboardFilter(filters: TaskDashboardFilter = {}): TaskDashboardFilter {
   return {
+    all_workspaces: filters.all_workspaces || undefined,
+    workspace_ids:
+      filters.all_workspaces && filters.workspace_ids?.length
+        ? [...new Set(filters.workspace_ids)].sort()
+        : undefined,
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
     worktree: normalizeOptionalText(filters.worktree),

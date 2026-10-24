@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { AgentCreateHostProvider } from "@/systems/agent";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
 import {
   codexOkTarget,
@@ -21,33 +20,21 @@ import {
   settingsUpdateRolledBackFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks";
-import type {
-  ActiveWorktreeSelection,
-  WorkspacePayload,
-  WorkspaceScopeMode,
-  WorktreesResponse,
-} from "@/systems/workspace";
-import {
-  discoveredWorktreeFixture,
-  worktreeListingFixture,
-  worktreeMissingFixture,
-  worktreePendingFixture,
-  worktreeReadyDirtyRunningFixture,
-} from "@/systems/workspace/mocks";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
-import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
-import { OsShellContext } from "../../contexts/os-shell-context";
-import { cmdPaletteStoryRegistry } from "../../mocks/cmd-palette-fixtures";
-import type { OsAttentionModel } from "../../hooks/use-os-attention";
-import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
-import { DesktopMenubar } from "../desktop-menubar";
-import type { MenubarUpdateModel } from "../menubar/menubar-update-indicator";
-import { DesktopPager, type DesktopPagerItem } from "../desktop-pager";
 import { OsMenuBar } from "../os-menubar";
 import { OsHydrationStatus } from "../os-hydration-status";
-import { createLiveStoryShell, createStoryShell } from "./_shell-fixture";
 import { DesktopShell } from "./_desktop";
+import {
+  WORKSPACES,
+  MenubarFixture,
+  MENUBAR_NEST_LISTING,
+  READY_WORKTREE,
+  MISSING_WORKTREE,
+  ALL_PROJECTS_CHIP,
+  USER_CHIP,
+} from "./_menubar-fixture";
 
 const meta: Meta<typeof OsMenuBar> = {
   title: "systems/os/components/OsMenuBar",
@@ -58,7 +45,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, Provider usage, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
+          'The desktop menubar: the CompozyOS system menu, the All projects globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, Provider usage, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
       },
     },
   },
@@ -67,173 +54,68 @@ const meta: Meta<typeof OsMenuBar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const WORKSPACES: WorkspacePayload[] = [
-  {
-    id: "workspace-compozy",
-    name: "compozy",
-    root_dir: "/workspace/compozy",
-    add_dirs: [],
-    created_at: "2026-07-20T12:00:00Z",
-    updated_at: "2026-07-20T12:00:00Z",
-  },
-  {
-    id: "workspace-site",
-    name: "site",
-    root_dir: "/workspace/site",
-    add_dirs: [],
-    created_at: "2026-07-20T12:00:00Z",
-    updated_at: "2026-07-20T12:00:00Z",
-  },
-];
-
-const ATTENTION: OsAttentionModel = {
-  badges: { sessions: 1, tasks: 1 },
-  notificationCount: 2,
-  sections: { needsYou: [], finished: [] },
-  sessions: [],
-  attentionSessionsDisconnected: false,
-  sessionsDisconnected: false,
-  tasksDisconnected: false,
-  loopRequestsDisconnected: false,
-  loading: false,
-};
-
-/** Four desktops; Review holds a session that needs you (orange dot while off-screen). */
-const PAGER_DESKTOPS: DesktopPagerItem[] = [
-  { id: "control", name: "Control" },
-  { id: "build", name: "Build" },
-  { id: "review", name: "Review", needsYou: true },
-  { id: "research", name: "Research" },
-];
-
-function MenubarFixture({
-  overlay = null,
-  live = true,
-  scope,
-  chip,
-  onToggleGlobalScope,
-  toggleLocked,
-  worktreeSelection,
-  listing = MENUBAR_WORKTREE_LISTING,
-  update = { state: "hidden" },
-}: {
-  overlay?: DesktopOverlay | null;
-  live?: boolean;
-  scope?: WorkspaceScopeMode;
-  chip?: { name: string; monogram: string };
-  onToggleGlobalScope?: () => void;
-  toggleLocked?: boolean;
-  worktreeSelection?: ActiveWorktreeSelection;
-  listing?: WorktreesResponse;
-  update?: MenubarUpdateModel;
-}) {
-  const [shell] = useState(() => (live ? createLiveStoryShell() : createStoryShell()));
-  const [active, setActive] = useState<DesktopOverlay | null>(overlay);
-  return (
-    <OsShellContext.Provider value={shell}>
-      <CmdPaletteRegistryProvider registry={cmdPaletteStoryRegistry}>
-        <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
-          <DesktopShell
-            wallpaper="carbon"
-            deskHint
-            topbar={
-              <DesktopMenubar
-                workspaces={WORKSPACES}
-                activeWorkspace={WORKSPACES[0]}
-                chip={chip}
-                scope={scope}
-                toggleLocked={toggleLocked}
-                onToggleGlobalScope={onToggleGlobalScope}
-                onSelectWorkspace={fn()}
-                onAddWorkspace={fn()}
-                onRunCommand={fn()}
-                activeOverlay={active}
-                onOverlayOpenChange={(id, open) =>
-                  setActive(current => (open ? id : current === id ? null : current))
-                }
-                attention={ATTENTION}
-                update={update}
-                worktreesByWorkspace={{ [WORKSPACES[0].id]: listing }}
-                userHomeDir="/Users/ada"
-                worktreeSelection={worktreeSelection}
-                onSelectWorktree={fn()}
-                onCreateWorktree={fn()}
-                pager={
-                  <DesktopPager
-                    desktops={PAGER_DESKTOPS}
-                    activeDesktopId="build"
-                    onSelectDesktop={fn()}
-                    onOpenOverview={fn()}
-                  />
-                }
-              />
-            }
-          />
-        </AgentCreateHostProvider>
-      </CmdPaletteRegistryProvider>
-    </OsShellContext.Provider>
-  );
-}
-
-function remapWorkspaceId<T extends { workspace_id?: string }>(entry: T): T {
-  return { ...entry, workspace_id: WORKSPACES[0].id };
-}
-
-const MENUBAR_WORKTREE_LISTING: WorktreesResponse = {
-  ...worktreeListingFixture,
-  worktrees: worktreeListingFixture.worktrees.map(remapWorkspaceId),
-};
-
-/** ≤5 rows so discovered and missing survive the nest truncate. */
-const MENUBAR_NEST_LISTING: WorktreesResponse = {
-  ...worktreeListingFixture,
-  worktrees: [worktreeReadyDirtyRunningFixture, worktreePendingFixture, worktreeMissingFixture].map(
-    remapWorkspaceId
-  ),
-  discovered: [discoveredWorktreeFixture],
-};
-
-const READY_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
-  worktree => worktree.state === "ready"
-)!;
-const MISSING_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
-  worktree => worktree.state === "missing"
-)!;
-
 /** The wired bar at rest, over a live desktop. */
 export const Populated: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture />,
 };
 
-/** Global scope on: the chip reads Global and the menubar toggle is armed. */
-export const GlobalScopeOn: Story = {
-  args: { workspace: { name: "Global", monogram: "~" } },
+/** All projects on: the chip names All projects and the globe is pressed. */
+export const AllProjectsOn: Story = {
+  args: { workspace: { name: DESTINATION_COPY.allProjects } },
   render: () => (
     <MenubarFixture
-      chip={{ name: "Global", monogram: "~" }}
-      onToggleGlobalScope={fn()}
-      scope="global"
-      toggleLocked={false}
+      breadthMode="all"
+      focus={{ kind: "project", workspaceId: WORKSPACES[0].id }}
+      chip={ALL_PROJECTS_CHIP}
+      onToggleAllProjects={fn()}
+    />
+  ),
+};
+
+/** User focused: the chip reads User; the globe is off. */
+export const UserFocused: Story = {
+  args: { workspace: { name: DESTINATION_COPY.user } },
+  render: () => (
+    <MenubarFixture
+      breadthMode="focused"
+      focus={{ kind: "user" }}
+      chip={USER_CHIP}
+      onToggleAllProjects={fn()}
+    />
+  ),
+};
+
+/** Zero projects: the switcher offers All projects and User; the globe is never locked. */
+export const ZeroProjects: Story = {
+  args: { workspace: { name: DESTINATION_COPY.user } },
+  render: () => (
+    <MenubarFixture
+      overlay="workspace-menu"
+      workspaces={[]}
+      breadthMode="focused"
+      focus={{ kind: "user" }}
+      chip={USER_CHIP}
+      onToggleAllProjects={fn()}
     />
   ),
 };
 
 /** The system menu on the mark: identity plus the settings surfaces. */
 export const CompozyMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="compozy-menu" />,
 };
 
 /** Navigation grouped exactly like the dock strip. */
 export const GoMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="go-menu" />,
 };
 
 /** Window commands with a focused tiled window and a visible peer: all enabled. */
 export const WindowMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="window-menu" />,
 };
 
@@ -242,13 +124,13 @@ export const WindowMenuOpen: Story = {
  * rather than hidden — the shape of the menu never changes under you.
  */
 export const WindowMenuUnavailable: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="window-menu" live={false} />,
 };
 
 /** Real help: the shortcut reference, the docs, and a support path. */
 export const HelpMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="help-menu" />,
 };
 
@@ -258,7 +140,7 @@ export const HelpMenuOpen: Story = {
  * Play hovers the git-backed parent so the side submenu is capturable.
  */
 export const WorkspaceMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -268,29 +150,29 @@ export const WorkspaceMenuOpen: Story = {
   render: () => <MenubarFixture overlay="workspace-menu" listing={MENUBAR_NEST_LISTING} />,
 };
 
-/** Global on: the menu lists project folders with no check and no notices. */
-export const WorkspaceMenuOpenWhileGlobal: Story = {
-  args: { workspace: { name: "Global", monogram: "~" } },
+/** All projects on: the switcher checks All projects, then lists User and the projects. */
+export const WorkspaceMenuOpenWhileAllProjects: Story = {
+  args: { workspace: { name: DESTINATION_COPY.allProjects } },
   render: () => (
     <MenubarFixture
       overlay="workspace-menu"
-      chip={{ name: "Global", monogram: "~" }}
-      onToggleGlobalScope={fn()}
-      scope="global"
-      toggleLocked={false}
+      breadthMode="all"
+      focus={{ kind: "project", workspaceId: WORKSPACES[0].id }}
+      chip={ALL_PROJECTS_CHIP}
+      onToggleAllProjects={fn()}
     />
   ),
 };
 
 /** VC-16 — the shell chip names only the workspace at its root scope. */
 export const WorkspaceOnlyChip: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture />,
 };
 
 /** VC-17 — an active worktree is part of the shell's visible scope identity. */
 export const WorkspaceAndWorktreeChip: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => (
     <MenubarFixture
       worktreeSelection={{
@@ -309,7 +191,7 @@ export const WorkspaceAndWorktreeChip: Story = {
  * capturable.
  */
 export const MissingWorktreeFallback: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -336,7 +218,7 @@ export const MissingWorktreeFallback: Story = {
 
 /** Presentation-only — no menu owners, so the bar renders as inert chrome. */
 export const PresentationOnly: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" }, notifications: 0 },
+  args: { workspace: { name: "compozy" }, notifications: 0 },
   render: args => <DesktopShell wallpaper="carbon" deskHint topbar={<OsMenuBar {...args} />} />,
 };
 
@@ -346,7 +228,7 @@ export const PresentationOnly: Story = {
  */
 export const TrafficLightsReserved: Story = {
   args: {
-    workspace: { name: "compozy", monogram: "CO", worktree: "continue-fork" },
+    workspace: { name: "compozy", worktree: "continue-fork" },
     notifications: 3,
     trafficLights: true,
     onCommandClick: fn(),
@@ -361,7 +243,7 @@ export const TrafficLightsReserved: Story = {
  */
 export const DegradedSync: Story = {
   args: {
-    workspace: { name: "compozy", monogram: "CO" },
+    workspace: { name: "compozy" },
     status: <OsHydrationStatus hydration="degraded" />,
     notifications: 2,
     onCommandClick: fn(),
@@ -373,7 +255,7 @@ export const DegradedSync: Story = {
 /** Menubar update indicator (S2): one story per state the daemon can report. */
 function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
   return {
-    args: { workspace: { name: "compozy", monogram: "CO" } },
+    args: { workspace: { name: "compozy" } },
     render: () => (
       <MenubarFixture
         update={{ state: settingsUpdateIndicatorState(snapshot, false), onUpdate: fn() }}
@@ -423,7 +305,7 @@ export const UpdateIndicatorFailed: Story = updateIndicatorStory(settingsUpdateR
 /** Provider usage in the tray (S1/S2): the shell's profile envelope served over MSW. */
 function usageStory(envelope: (now: number) => ProviderUsageEnvelope): Story {
   return {
-    args: { workspace: { name: "compozy", monogram: "CO" } },
+    args: { workspace: { name: "compozy" } },
     parameters: storybookMswParameters({
       "provider-usage": providerUsageHandlers(() => envelope(Date.now())),
     }),

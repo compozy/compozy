@@ -9,6 +9,7 @@ import type {
   TurnHistoryPayload,
 } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export async function fetchSessionRecap(
   workspaceId: string,
@@ -20,7 +21,7 @@ export async function fetchSessionRecap(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: limit === undefined ? undefined : { limit },
       },
       signal,
@@ -40,7 +41,7 @@ export async function fetchSessionUsage(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -60,7 +61,7 @@ export async function fetchSessionEvents(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: params,
       },
       signal,
@@ -80,7 +81,7 @@ export async function fetchSessionHistory(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -98,7 +99,7 @@ export async function fetchSessionUsageTurns(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );

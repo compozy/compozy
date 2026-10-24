@@ -149,6 +149,9 @@ type AgentSpawnRecord = contract.AgentSpawnPayload
 // SpawnPermissionPolicyRecord captures concrete spawn permission atoms.
 type SpawnPermissionPolicyRecord = contract.SpawnPermissionPolicyPayload
 
+// SpawnPermissionRequestRecord captures the requested spawn permission narrowing.
+type SpawnPermissionRequestRecord = contract.SpawnPermissionRequestPayload
+
 // AgentTaskClaimNextRequest captures one agent next-work request.
 type AgentTaskClaimNextRequest = contract.AgentTaskClaimNextRequest
 

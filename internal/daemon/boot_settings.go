@@ -23,10 +23,15 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	if dbSource, ok := state.registry.(settingspkg.ApplyRecordDBSource); ok {
 		applyRecords = settingspkg.NewConfigApplyRecordRepository(dbSource.DB(), time.Now)
 	}
+	scopeRevisions, ok := state.registry.(settingspkg.ShellScopeRevisionStore)
+	if !ok {
+		return errors.New("daemon: shell scope revision store is required")
+	}
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
 		WorkspaceResolver:       state.workspaceResolver,
 		ProfileResolver:         state.profiles,
 		AttentionWorkspaceMutes: state.registry,
+		ShellScopeRevisions:     scopeRevisions,
 		GeneralRuntime:          surface,
 		SkillsRuntime:           state.skillsRegistry,
 		AutomationRuntime:       surface,

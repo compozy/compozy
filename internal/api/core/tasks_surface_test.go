@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -1593,4 +1595,65 @@ func TestBaseHandlersExpandedTaskEndpointErrorPaths(t *testing.T) {
 			resp.Body.String(),
 		)
 	}
+}
+
+func TestTaskAggregateHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve catalog and dashboard envelopes and narrowing", func(t *testing.T) {
+		t.Parallel()
+		var catalog taskpkg.CatalogQuery
+		var dashboard observe.TaskDashboardQuery
+		tasks := &testutil.StubTaskManager{
+			ListTaskCatalogFn: func(_ context.Context, q taskpkg.CatalogQuery, _ taskpkg.ActorContext) (taskpkg.CatalogPage, error) {
+				catalog = q
+				return taskpkg.CatalogPage{Total: 2, Limit: q.Limit}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryTaskDashboardFn: func(_ context.Context, q observe.TaskDashboardQuery) (observe.TaskDashboardView, error) {
+				dashboard = q
+				return observe.TaskDashboardView{Totals: observe.TaskDashboardTotals{TasksTotal: 2}}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			observer,
+			tasks,
+			testutil.StubWorkspaceService{},
+		)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/tasks?all_workspaces=true&workspace_ids=@user&workspace_ids=ws-a",
+			nil,
+		)
+		if response.Code != 200 || !strings.Contains(response.Body.String(), `"page"`) || !catalog.AllWorkspaces ||
+			len(catalog.WorkspaceIDs) != 2 {
+			t.Fatalf("catalog=%+v response=%d %s", catalog, response.Code, response.Body.String())
+		}
+		response = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/observe/tasks/dashboard?all_workspaces=true&workspace_ids=@user",
+			nil,
+		)
+		if response.Code != 200 || !strings.Contains(response.Body.String(), `"tasks_total":2`) ||
+			len(dashboard.WorkspaceIDs) != 1 ||
+			dashboard.WorkspaceIDs[0] != workspaceaccess.UserSelector {
+			t.Fatalf("dashboard=%+v response=%d %s", dashboard, response.Code, response.Body.String())
+		}
+		response = performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/observe/tasks/dashboard?all_workspaces=true&scope=global",
+			nil,
+		)
+		if response.Code != 400 || !strings.Contains(response.Body.String(), "workspace_breadth_invalid") {
+			t.Fatalf("conflict=%d %s", response.Code, response.Body.String())
+		}
+	})
 }

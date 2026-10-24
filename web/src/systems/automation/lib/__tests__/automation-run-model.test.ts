@@ -1,12 +1,13 @@
 // Suite: Automation detail models
 // Invariant: the run list, Last ran and Inspect render only what the daemon recorded — an open
 // link needs the id it points at, a duration needs both timestamps, a scheduled reservation is
-// not a run that started, and the sample event overlays every exact-match path.
+// not a run that started, the sample event overlays every exact-match path, and a run names the
+// project it was attributed to (User for `""`, Unknown project when unattributable — never User).
 // Boundary IN: persisted runs, jobs and triggers. Boundary OUT: rendering (automation-detail-panel).
 import { describe, expect, it } from "vitest";
 
 import { automationLastRanAt } from "../automation-detail";
-import { buildAutomationRunView } from "../automation-run-model";
+import { automationRunProject, buildAutomationRunView } from "../automation-run-model";
 import {
   buildAutomationDiagnostics,
   buildTriggerEnvelopeSample,
@@ -73,6 +74,34 @@ describe("buildAutomationRunView", () => {
     expect(view.drawerLines[0]?.text).toBe(
       "Handed to software-delivery. The Loop owns the rest of the run."
     );
+  });
+});
+
+describe("automationRunProject", () => {
+  const names = new Map([["ws_a", "checkout-api"]]);
+
+  it("Should name the recorded project, User for runs without one, and never coerce unknown", () => {
+    expect(
+      automationRunProject({ attribution: "recorded", workspace_id: "ws_a" }, names)
+    ).toMatchObject({ kind: "project", name: "checkout-api" });
+    expect(automationRunProject({ attribution: "derived", workspace_id: "" }, names)).toMatchObject(
+      { kind: "user", name: "User" }
+    );
+    expect(
+      automationRunProject({ attribution: "unknown", workspace_id: undefined }, names)
+    ).toEqual({ kind: "unknown", name: "Unknown project" });
+    expect(automationRunProject({ attribution: "unknown", workspace_id: "" }, names).kind).toBe(
+      "unknown"
+    );
+  });
+
+  it("Should carry the attributed project onto the run row only when asked", () => {
+    const run = makeDetailRun({ attribution: "unknown", workspace_id: undefined });
+    expect(buildAutomationRunView(run, morningDigestJob).project).toBeUndefined();
+    expect(
+      buildAutomationRunView(run, morningDigestJob, item => automationRunProject(item, names))
+        .project?.kind
+    ).toBe("unknown");
   });
 });
 

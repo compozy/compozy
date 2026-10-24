@@ -255,6 +255,7 @@ export type AgentPayload = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
   workspace_id?: string;
 };
 
@@ -403,7 +404,9 @@ export type AgentSoulValidateRequest = {
 export type AgentSpawnPayload = {
   lineage: SessionLineagePayload;
   permissions: SpawnPermissionPolicyPayload;
+  prompt?: SpawnPromptPayload | null;
   session: SessionPayload;
+  worktree?: SpawnWorktreePayload | null;
 };
 
 export type AgentSpawnRequest = {
@@ -411,17 +414,22 @@ export type AgentSpawnRequest = {
   agent_name: string;
   auto_stop_on_parent: boolean;
   idempotency_key?: string;
+  inherit_permissions?: boolean;
   model?: string;
   name?: string;
+  new_worktree?: SpawnNewWorktreeRequest | null;
   notify_creator?: boolean | null;
-  permissions: SpawnPermissionPolicyPayload;
+  permissions: SpawnPermissionRequestPayload;
+  prompt?: string;
   prompt_overlay?: string;
   provider?: string;
   reasoning_effort?: string;
   spawn_role: string;
   speed?: "normal" | "fast";
+  toolsets?: Array<string>;
   ttl_seconds: number;
   workspace?: string;
+  worktree?: string;
 };
 
 export type AgentSpawnResponse = {
@@ -1173,6 +1181,7 @@ export type ContractWindowManagerErrorPayload = {
   code:
     | "window_manager_workspace_not_found"
     | "window_manager_revision_conflict"
+    | "window_binding_invalid"
     | "window_manager_invalid_command"
     | "window_manager_invalid_topology"
     | "window_manager_desktop_not_found"
@@ -1309,6 +1318,7 @@ export type CreateAgentPayload = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
 };
 
 export type CreateAgentRequest = {
@@ -1335,7 +1345,7 @@ export type CreateJobRequest = {
   prompt: string;
   retry?: RetryConfig | null;
   schedule: ScheduleSpec;
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   target_kind?: string;
   task?: JobTaskConfig | null;
   workspace_id?: string;
@@ -1365,6 +1375,7 @@ export type CreateSessionRequest = {
   name?: string;
   new_worktree?: NewSessionWorktreeRequest | null;
   parent_session_id?: string;
+  scope?: string;
   workspace?: string;
   workspace_path?: string;
   worktree?: string;
@@ -1394,7 +1405,7 @@ export type CreateTaskChildRequest = {
   metadata?: unknown;
   owner?: Ownership | null;
   priority?: "low" | "medium" | "high" | "urgent";
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   title: string;
   wake_creator?: boolean | null;
   workspace?: string;
@@ -1411,7 +1422,7 @@ export type CreateTaskRequest = {
   metadata?: unknown;
   owner?: Ownership | null;
   priority?: "low" | "medium" | "high" | "urgent";
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   title: string;
   wake_creator?: boolean | null;
   workspace?: string;
@@ -1430,7 +1441,7 @@ export type CreateTriggerRequest = {
   name: string;
   prompt: string;
   retry?: RetryConfig | null;
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   target_kind?: string;
   webhook_id?: string;
   webhook_secret_value?: string;
@@ -1450,6 +1461,12 @@ export type CreateWorktreeRequest = {
   existing_branch?: string;
   name?: string;
   path?: string;
+};
+
+export type CursorPagePayload = {
+  has_more: boolean;
+  limit: number;
+  next_cursor?: string;
 };
 
 export type DaemonIdentityPayload = {
@@ -1596,6 +1613,7 @@ export type DuplicateAgentOverrides = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
 };
 
 export type DuplicateAgentRequest = {
@@ -3320,10 +3338,33 @@ export type LoopBudget = {
   wall_clock_sec: number;
 };
 
+export type LoopCatalogAggregateEntryPayload = {
+  aggregate_30d: LoopCatalogAggregatePayload;
+  catalog: LoopCatalogResourceSpec;
+  contract: LoopContract;
+  description?: string;
+  inputs?: {
+    [key: string]: LoopInput;
+  };
+  last_run?: LoopCatalogLastRunPayload | null;
+  name: string;
+  source: LoopCatalogSourcePayload;
+  start?: Array<LoopStartBinding>;
+  success_rate_30d: number;
+  version: number;
+  workspace_id?: string;
+};
+
 export type LoopCatalogAggregatePayload = {
   failed: number;
   runs: number;
   succeeded: number;
+};
+
+export type LoopCatalogBatchResponse = {
+  entries: Array<LoopCatalogAggregateEntryPayload>;
+  errors: Array<LoopCatalogWorkspaceError>;
+  truncated: boolean;
 };
 
 export type LoopCatalogEntryPayload = {
@@ -3340,6 +3381,7 @@ export type LoopCatalogEntryPayload = {
   start?: Array<LoopStartBinding>;
   success_rate_30d: number;
   version: number;
+  workspace_id?: string;
 };
 
 export type LoopCatalogFacetsPayload = {
@@ -3378,6 +3420,17 @@ export type LoopCatalogResourceSpec = {
   category?: string;
   keywords?: Array<string>;
   use_when?: string;
+};
+
+export type LoopCatalogSourcePayload = {
+  kind: "marketplace" | "user" | "additional" | "workspace";
+  layer: string;
+};
+
+export type LoopCatalogWorkspaceError = {
+  code: string;
+  message: string;
+  workspace_id?: string;
 };
 
 export type LoopConfig = {
@@ -3808,6 +3861,7 @@ export type LoopNodeInventoryItem = {
   state: "waiting" | "quarantined" | "attention" | "retrying";
   state_at: string;
   wait?: LoopNodeWaitPayload | null;
+  workspace_id?: string;
 };
 
 export type LoopNodeInventoryResponse = {
@@ -3905,11 +3959,13 @@ export type LoopRequestPayload = {
   loop_run_id: string;
   node_id: string;
   opened_at: string;
+  profile_id: string;
   prompt: string;
   proposed_preview?: unknown;
   resolved_at?: string | null;
   respond_schema?: unknown;
   state: string;
+  workspace_id?: string;
 };
 
 export type LoopRequestProvenance = {
@@ -4631,6 +4687,7 @@ export type OverviewAttentionItemPayload = {
   session_id?: string;
   task_id?: string;
   title: string;
+  workspace_id: string;
 };
 
 export type OverviewAttentionPayload = {
@@ -5307,6 +5364,7 @@ export type Redaction = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -5709,6 +5767,7 @@ export type RunOutcome = {
 
 export type RunPayload = {
   attempt: number;
+  attribution: string;
   delivery_error?: string;
   delivery_error_at?: string | null;
   ended_at?: string | null;
@@ -5731,6 +5790,7 @@ export type RunPayload = {
   task_id?: string;
   task_run_id?: string;
   trigger_id?: string;
+  workspace_id?: string | null;
 };
 
 export type RunResponse = {
@@ -5828,6 +5888,7 @@ export type RunWorktreeExitActionRequest = {
 };
 
 export type RunsResponse = {
+  page?: CursorPagePayload | null;
   runs: Array<RunPayload>;
 };
 
@@ -6106,8 +6167,16 @@ export type SessionAttentionSummaryPayload = {
   needs_you: number;
 };
 
+export type SessionBoardCountsPayload = {
+  done: number;
+  in_review: number;
+  needs_you: number;
+  working: number;
+};
+
 export type SessionCatalogFacetsPayload = {
   all: number;
+  board: SessionBoardCountsPayload;
   finished: number;
   idle: number;
   needs_you: number;
@@ -6116,6 +6185,7 @@ export type SessionCatalogFacetsPayload = {
 };
 
 export type SessionCatalogFacetsResponse = {
+  by_profile: Array<SessionProfileFacetsPayload>;
   by_workspace: Array<SessionWorkspaceFacetsPayload>;
   facets: SessionCatalogFacetsPayload;
 };
@@ -6130,6 +6200,14 @@ export type SessionCatalogPagePayload = {
 export type SessionCatalogResponse = {
   page: SessionCatalogPagePayload;
   sessions: Array<SessionPayload>;
+};
+
+export type SessionChildrenPayload = {
+  done: number;
+  in_review: number;
+  needs_you: number;
+  total: number;
+  working: number;
 };
 
 export type SessionCommandPayload = {
@@ -6627,10 +6705,26 @@ export type SessionPayload = {
   attention?: string;
   attention_changed_at?: string | null;
   available_commands: Array<ACPAvailableCommandPayload>;
-  badge: string;
+  badge:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
+  board_column: "needs_you" | "working" | "in_review" | "done";
+  branch?: string;
   busy_input?: BusyInputState | null;
+  children?: SessionChildrenPayload | null;
   created_at: string;
   derivation?: SessionDerivationPayload | null;
+  effective_workspace_access: string;
   escalated?: boolean | null;
   failure?: SessionFailurePayload | null;
   folder_id?: string;
@@ -6639,6 +6733,7 @@ export type SessionPayload = {
   lineage?: SessionLineagePayload | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
+  parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   profile_archived?: boolean;
   profile_color?: string;
@@ -6646,9 +6741,12 @@ export type SessionPayload = {
   profile_icon?: string;
   profile_id: string;
   profile_name: string;
+  pull_request: SessionPullRequestPayload | null;
+  pull_request_lookup: SessionPullRequestLookupPayload | null;
   queue?: SessionQueueSummaryPayload | null;
   reply_watches?: Array<ReplyWatchPayload>;
   runtime: SessionRuntimePayload;
+  scope: string;
   state: "starting" | "active" | "stopping" | "stopped";
   stop_cause?: string;
   stop_detail?: string;
@@ -6670,6 +6768,7 @@ export type SessionPayload = {
   type?: "user" | "system" | "coordinator" | "spawned";
   updated_at: string;
   verified?: boolean | null;
+  waiting_on?: "sessions" | "monitor";
   workspace_id?: string;
   workspace_path?: string;
   worktree_id?: string;
@@ -6682,6 +6781,11 @@ export type SessionPresenceRequest = {
 
 export type SessionPresenceResponse = {
   lease_id: string;
+};
+
+export type SessionProfileFacetsPayload = {
+  facets: SessionCatalogFacetsPayload;
+  profile_id: string;
 };
 
 export type SessionPromptCancelResponse = {
@@ -6699,6 +6803,55 @@ export type SessionProviderOptionPayload = {
   name: string;
   runtime_provider?: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+};
+
+export type SessionPullRequestChecksPayload = {
+  failed: number;
+  failed_names: Array<string>;
+  passed: number;
+  pending: number;
+  state: "passing" | "failing" | "pending" | "none" | "unknown";
+};
+
+export type SessionPullRequestErrorPayload = {
+  cause?: string;
+  code?: string;
+  config_path?: string;
+  current_turn_id?: string;
+  details?: {
+    [key: string]: string;
+  };
+  diagnostic?: DiagnosticItem | null;
+  error: string;
+  message: string;
+  unknown_keys?: Array<string>;
+};
+
+export type SessionPullRequestLookupPayload = {
+  cause: string;
+  observed_at: string | null;
+  stale: boolean;
+  state: "ok" | "pending" | "error" | "incomplete";
+};
+
+export type SessionPullRequestPayload = {
+  checks: SessionPullRequestChecksPayload;
+  draft: boolean | null;
+  head_sha: string;
+  mergeable: "mergeable" | "conflicting" | "unknown";
+  number: number;
+  provider: string;
+  ready_to_merge: boolean;
+  review_decision: "approved" | "changes_requested" | "review_required" | "none" | "unknown";
+  state: "open" | "closed" | "merged";
+  url: string;
+};
+
+export type SessionPullRequestResponse = {
+  branch: string;
+  pull_request: SessionPullRequestPayload | null;
+  pull_request_lookup: SessionPullRequestLookupPayload | null;
+  session_id: string;
 };
 
 export type SessionQueueSummaryPayload = {
@@ -6750,6 +6903,7 @@ export type SessionRuntimePayload = {
   generation?: number;
   last_known?: RuntimeSelectionPayload | null;
   recovery?: SessionRuntimeRecoveryPayload | null;
+  requested?: PromptRuntimeSelectionPayload | null;
   selected?: PromptRuntimeSelectionPayload | null;
   selection_revision: number;
   status: string;
@@ -6785,7 +6939,19 @@ export type SessionStatusResponse = {
   agent_name: string;
   attachable: boolean;
   attention?: string;
-  badge: string;
+  badge:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
   derivation?: SessionDerivationPayload | null;
   eligible_for_wake: boolean;
   escalated?: boolean | null;
@@ -6859,6 +7025,7 @@ export type SessionUsagePayload = {
   total_cost?: number | null;
   total_tokens?: number | null;
   turn_count: number;
+  work_time?: SessionWorkTimePayload | null;
 };
 
 export type SessionUsageResponse = {
@@ -6894,6 +7061,12 @@ export type SessionWaitResponse = {
   waited_ms: number;
 };
 
+export type SessionWorkTimePayload = {
+  active_duration_ms: number;
+  last_completed_turn_id?: string;
+  turn_count: number;
+};
+
 export type SessionWorkspaceFacetsPayload = {
   facets: SessionCatalogFacetsPayload;
   workspace_id: string;
@@ -6906,6 +7079,10 @@ export type SetExtensionEnablementRequest = {
 
 export type SetExtensionSecretsRequest = {
   bindings: Array<ExtensionSecretBindingInput>;
+};
+
+export type SetSessionParentRequest = {
+  parent_session_id: string;
 };
 
 export type SetSessionRuntimeRequest = {
@@ -7029,6 +7206,7 @@ export type SettingsAutomationResponse = {
 
 export type SettingsAutomationRuntimePayload = {
   available: boolean;
+  host_timezone?: string;
   job_enabled: number;
   job_total: number;
   last_synced_at?: string | null;
@@ -7913,6 +8091,59 @@ export type SettingsRolesResponse = {
   workspace_id?: string;
 };
 
+export type SettingsShellLegacyScopePayload = {
+  explicit: boolean;
+  revision: number;
+  value: "workspace" | "all-workspaces";
+};
+
+export type SettingsShellMutationResponse = {
+  active_config_hash: string;
+  active_generation: number;
+  agent_name?: string;
+  applied: boolean;
+  apply_record_id: string;
+  config: SettingsShellPayload;
+  legacy_scope: SettingsShellLegacyScopePayload;
+  lifecycle: "live" | "live-add" | "live-remove-if-unused" | "restart-required" | "session-rebind";
+  next_action: "none" | "restart-daemon" | "new-session" | "retry";
+  partial_failures?: Array<SettingsApplyFailurePayload>;
+  profile?: string;
+  restart_required?: boolean;
+  restart_scope?: string;
+  scope?: "user" | "profile" | "workspace" | "agent";
+  section?:
+    | "general"
+    | "persona"
+    | "roles"
+    | "skills"
+    | "automation"
+    | "window-manager"
+    | "cmd-palette"
+    | "attention"
+    | "shell"
+    | "provider-usage"
+    | "observability"
+    | "hooks-extensions"
+    | "marketplace"
+    | "providers"
+    | "mcp-servers"
+    | "hooks";
+  skipped?: boolean;
+  skipped_reason?: string;
+  warnings?: Array<string>;
+  workspace_id?: string;
+  write_target?:
+    | "global-config"
+    | "profile-config"
+    | "workspace-config"
+    | "global-mcp-sidecar"
+    | "profile-mcp-sidecar"
+    | "workspace-mcp-sidecar"
+    | "global-agent-file"
+    | "workspace-agent-file";
+};
+
 export type SettingsShellPayload = {
   sessions: SettingsShellSessionsPayload;
 };
@@ -7920,6 +8151,7 @@ export type SettingsShellPayload = {
 export type SettingsShellResponse = {
   available_scopes: Array<"user">;
   config: SettingsShellPayload;
+  legacy_scope: SettingsShellLegacyScopePayload;
   scope: "user";
   section:
     | "general"
@@ -7935,11 +8167,13 @@ export type SettingsShellResponse = {
     | "observability"
     | "hooks-extensions"
     | "marketplace";
+  warnings: Array<string>;
 };
 
 export type SettingsShellSessionsPayload = {
-  scope: "workspace" | "all-workspaces";
-  sort: "created" | "name" | "last_activity" | "attention" | "manual";
+  group_by?: "none" | "project" | "profile";
+  scope?: "workspace" | "all-workspaces";
+  sort?: "created" | "name" | "last_activity" | "attention" | "manual";
 };
 
 export type SettingsSkillSourceCollisionPayload = {
@@ -8428,7 +8662,8 @@ export type SignalSourceState = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   state: string;
 };
@@ -8619,11 +8854,41 @@ export type SpawnBudgetPayload = {
   ttl_seconds: number;
 };
 
+export type SpawnNewWorktreeRequest = {
+  base_ref?: string;
+  branch?: string;
+  name?: string;
+};
+
 export type SpawnPermissionPolicyPayload = {
   mcp_servers: Array<string>;
   skills: Array<string>;
   tools: Array<string>;
   workspace_paths: Array<string>;
+};
+
+export type SpawnPermissionRequestPayload = {
+  mcp_servers?: Array<string>;
+  skills?: Array<string>;
+  tools?: Array<string>;
+  workspace_paths?: Array<string>;
+};
+
+export type SpawnPromptPayload = {
+  error?: string;
+  message_id: string;
+  reply_watch_id?: string;
+  reply_watch_state?: string;
+  status: string;
+};
+
+export type SpawnWorktreePayload = {
+  base_sha?: string;
+  branch: string;
+  created: boolean;
+  id: string;
+  name: string;
+  path: string;
 };
 
 export type StartBinding = {
@@ -10305,6 +10570,7 @@ export type ToolAvailabilityPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10366,6 +10632,7 @@ export type ToolCallEventPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -10463,6 +10730,7 @@ export type ToolCallEventPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10552,6 +10820,7 @@ export type ToolErrorPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -10646,6 +10915,7 @@ export type ToolErrorPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10768,6 +11038,7 @@ export type ToolPolicyDecisionPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10903,6 +11174,7 @@ export type ToolsetPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -11425,7 +11697,8 @@ export type WorkSignal = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   since: string;
 };
@@ -11649,6 +11922,7 @@ export type WorktreePolicy = {
 export type WorktreeRemovalRefusalPayload = {
   code: string;
   downgrade: boolean;
+  error?: string;
   risk: WorktreeRemovalRiskPayload;
 };
 
@@ -11657,6 +11931,7 @@ export type WorktreeRemovalRiskPayload = {
   deletions: number;
   exists_on_remote: boolean;
   insertions: number;
+  leftover_files: number;
   unpushed_commits: number;
 };
 
@@ -12648,6 +12923,85 @@ export type CreateAgentResponses = {
 };
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
+
+export type ListAgentsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Exact agent name
+     */
+    name?: string;
+    /**
+     * Case-insensitive agent name or category search
+     */
+    q?: string;
+    /**
+     * Exact category path joined by slash separators
+     */
+    category?: string;
+    /**
+     * Agent session status
+     */
+    status?: "active" | "idle";
+    /**
+     * Opaque cursor bound to workspace and filters
+     */
+    cursor?: string;
+    /**
+     * Agents per page (1-100; default 50)
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/aggregate";
+};
+
+export type ListAgentsAggregateErrors = {
+  /**
+   * Invalid filter
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Workspace root missing
+   */
+  410: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace resolver unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentsAggregateError = ListAgentsAggregateErrors[keyof ListAgentsAggregateErrors];
+
+export type ListAgentsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: AgentCatalogResponse;
+};
+
+export type ListAgentsAggregateResponse =
+  ListAgentsAggregateResponses[keyof ListAgentsAggregateResponses];
 
 export type ListAgentCatalogData = {
   body?: never;
@@ -13954,11 +14308,19 @@ export type ListAutomationJobsData = {
     /**
      * Filter by automation scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace id
      */
     workspace_id?: string;
+    /**
+     * Read every definition
+     */
+    all_workspaces?: boolean;
+    /**
+     * Project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by job source
      */
@@ -14353,6 +14715,22 @@ export type ListAutomationRunsData = {
   path?: never;
   query?: {
     /**
+     * Filter by source project; @user selects User
+     */
+    workspace_id?: string;
+    /**
+     * Read every run, including unknown attribution
+     */
+    all_workspaces?: boolean;
+    /**
+     * Source project IDs or @user; excludes unknown attribution
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Opaque source-filter-bound cursor
+     */
+    cursor?: string;
+    /**
      * Filter by automation job id
      */
     job_id?: string;
@@ -14462,6 +14840,58 @@ export type GetAutomationRunResponses = {
 
 export type GetAutomationRunResponse = GetAutomationRunResponses[keyof GetAutomationRunResponses];
 
+export type ListAutomationSuggestionsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by suggestion status
+     */
+    status?: "pending" | "accepted" | "dismissed";
+  };
+  url: "/api/automation/suggestions";
+};
+
+export type ListAutomationSuggestionsAggregateErrors = {
+  /**
+   * Invalid suggestion status
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Automation manager is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListAutomationSuggestionsAggregateError =
+  ListAutomationSuggestionsAggregateErrors[keyof ListAutomationSuggestionsAggregateErrors];
+
+export type ListAutomationSuggestionsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: AutomationSuggestionsResponse;
+};
+
+export type ListAutomationSuggestionsAggregateResponse =
+  ListAutomationSuggestionsAggregateResponses[keyof ListAutomationSuggestionsAggregateResponses];
+
 export type ListAutomationTriggersData = {
   body?: never;
   path?: never;
@@ -14469,11 +14899,19 @@ export type ListAutomationTriggersData = {
     /**
      * Filter by automation scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace id
      */
     workspace_id?: string;
+    /**
+     * Read every definition
+     */
+    all_workspaces?: boolean;
+    /**
+     * Project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by trigger source
      */
@@ -17359,6 +17797,253 @@ export type ListLogsResponses = {
 
 export type ListLogsResponse = ListLogsResponses[keyof ListLogsResponses];
 
+export type ListLoopRequestsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by Loop run id
+     */
+    run_id?: string;
+    /**
+     * Filter by pending or resolved state
+     */
+    state?: string;
+    /**
+     * Opaque continuation cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of records to return
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/loop-requests";
+};
+
+export type ListLoopRequestsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopRequestsAggregateError =
+  ListLoopRequestsAggregateErrors[keyof ListLoopRequestsAggregateErrors];
+
+export type ListLoopRequestsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopRequestsResponse;
+};
+
+export type ListLoopRequestsAggregateResponse =
+  ListLoopRequestsAggregateResponses[keyof ListLoopRequestsAggregateResponses];
+
+export type ListLoopRunsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by Loop name
+     */
+    loop?: string;
+    /**
+     * Filter by Loop status
+     */
+    status?: string;
+    /**
+     * Filter by catalog or session origin
+     */
+    origin?: string;
+    /**
+     * Filter by origin session id
+     */
+    origin_session?: string;
+    /**
+     * Filter by live or terminal status
+     */
+    live?: boolean;
+    /**
+     * Opaque server-order cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of records to return
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+    /**
+     * Aggregate runs support recency order only
+     */
+    order?: "recency";
+  };
+  url: "/api/loop-runs";
+};
+
+export type ListLoopRunsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopRunsAggregateError =
+  ListLoopRunsAggregateErrors[keyof ListLoopRunsAggregateErrors];
+
+export type ListLoopRunsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopRunsResponse;
+};
+
+export type ListLoopRunsAggregateResponse =
+  ListLoopRunsAggregateResponses[keyof ListLoopRunsAggregateResponses];
+
+export type ListLoopsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Search Loop name or contract goal
+     */
+    q?: string;
+    /**
+     * Filter by effective Loop kind
+     */
+    kind?: "read_only" | "workspace";
+    /**
+     * Filter by exact catalog category
+     */
+    category?: string;
+    /**
+     * Filter by exact latest-run status
+     */
+    status?:
+      | "queued"
+      | "running"
+      | "watching"
+      | "needs-approval"
+      | "paused"
+      | "done"
+      | "no-op"
+      | "blocked"
+      | "failed"
+      | "exhausted"
+      | "stalled"
+      | "canceled";
+    /**
+     * Stable read-only-first name order
+     */
+    sort?: "name";
+    /**
+     * Continue after this workspace- and query-bound Loop cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of Loops to return; defaults to 50 and is capped at 200
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/loops";
+};
+
+export type ListLoopsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopsAggregateError = ListLoopsAggregateErrors[keyof ListLoopsAggregateErrors];
+
+export type ListLoopsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopCatalogBatchResponse;
+};
+
+export type ListLoopsAggregateResponse =
+  ListLoopsAggregateResponses[keyof ListLoopsAggregateResponses];
+
 export type ListMarketplaceData = {
   body?: never;
   path?: never;
@@ -18213,6 +18898,10 @@ export type ListAttentionNotificationsData = {
      */
     workspace?: string;
     /**
+     * Every project's tasks, matching an All projects Home overview
+     */
+    all_workspaces?: boolean;
+    /**
      * Read one profile's rows by name
      */
     profile?: string;
@@ -18272,6 +18961,10 @@ export type AcknowledgeAttentionNotificationsData = {
      */
     workspace?: string;
     /**
+     * Every project's tasks, matching an All projects Home overview
+     */
+    all_workspaces?: boolean;
+    /**
      * Read one profile's rows by name
      */
     profile?: string;
@@ -18328,6 +19021,10 @@ export type GetObserveOverviewData = {
   path?: never;
   query?: {
     /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
      * Profile owning acknowledgement receipts, including aggregate reads
      */
     receipt_profile?: string;
@@ -18352,6 +19049,14 @@ export type GetObserveOverviewData = {
 };
 
 export type GetObserveOverviewErrors = {
+  /**
+   * Invalid workspace breadth
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
   /**
    * Workspace not found
    */
@@ -18387,9 +19092,17 @@ export type GetTaskDashboardData = {
   path?: never;
   query?: {
     /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs; @user selects User; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by task scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -18432,6 +19145,14 @@ export type GetTaskDashboardData = {
 
 export type GetTaskDashboardErrors = {
   /**
+   * Invalid workspace breadth
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
+  /**
    * Workspace not found
    */
   404: ErrorPayload;
@@ -18467,11 +19188,19 @@ export type GetTaskInboxData = {
     /**
      * Filter by task scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
     workspace?: string;
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by active run worktree ID
      */
@@ -20505,7 +21234,7 @@ export type GetSchedulerBacklogData = {
     /**
      * Filter by catalog visibility
      */
-    scope?: "all" | "global" | "workspace";
+    scope?: "all" | "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -20686,6 +21415,10 @@ export type ListSessionsData = {
      */
     all_workspaces?: boolean;
     /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Include metadata-only health for returned sessions
      */
     include_health?: boolean;
@@ -20709,6 +21442,10 @@ export type ListSessionsData = {
      * Subagent session visibility (default include)
      */
     subagents?: "include" | "exclude" | "only";
+    /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
     /**
      * Filter by exact parent session id
      */
@@ -20737,6 +21474,10 @@ export type ListSessionsData = {
      * Only list sessions in the needs-you attention class
      */
     attention?: boolean;
+    /**
+     * Repeatable board column filter: needs_you, working, in_review, done
+     */
+    board_column?: Array<string>;
     /**
      * Filter by comma-separated exact session badges
      */
@@ -20900,6 +21641,10 @@ export type ListSessionFacetsData = {
      */
     all_workspaces?: boolean;
     /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by bound worktree id
      */
     worktree?: string;
@@ -20911,6 +21656,10 @@ export type ListSessionFacetsData = {
      * Subagent session visibility (default include)
      */
     subagents?: "include" | "exclude" | "only";
+    /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
     /**
      * Filter by exact parent session id
      */
@@ -21216,6 +21965,51 @@ export type GetSessionOwnerResponses = {
 };
 
 export type GetSessionOwnerResponse = GetSessionOwnerResponses[keyof GetSessionOwnerResponses];
+
+export type RefreshSessionPullRequestData = {
+  body?: never;
+  path: {
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/{session_id}/pull-request/refresh";
+};
+
+export type RefreshSessionPullRequestErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Session branch unavailable
+   */
+  409: SessionPullRequestErrorPayload;
+  /**
+   * Forge unavailable without cached facts
+   */
+  502: SessionPullRequestErrorPayload;
+};
+
+export type RefreshSessionPullRequestError =
+  RefreshSessionPullRequestErrors[keyof RefreshSessionPullRequestErrors];
+
+export type RefreshSessionPullRequestResponses = {
+  /**
+   * Refreshed or retained cached facts
+   */
+  200: SessionPullRequestResponse;
+};
+
+export type RefreshSessionPullRequestResponse =
+  RefreshSessionPullRequestResponses[keyof RefreshSessionPullRequestResponses];
 
 export type GetGlobalSessionStatusData = {
   body?: never;
@@ -23262,7 +24056,7 @@ export type UpdateSettingsShellResponses = {
   /**
    * OK
    */
-  200: SettingsApplyResponse;
+  200: SettingsShellMutationResponse;
 };
 
 export type UpdateSettingsShellResponse =
@@ -24846,9 +25640,17 @@ export type ListTasksData = {
   path?: never;
   query?: {
     /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs; @user selects User; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by catalog visibility
      */
-    scope?: "all" | "global" | "workspace";
+    scope?: "all" | "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -24935,6 +25737,10 @@ export type ListTasksErrors = {
    * Invalid task filter or cursor
    */
   400: TaskQueryErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
   /**
    * Workspace not found
    */
@@ -26708,6 +27514,74 @@ export type MarkTaskReadResponses = {
 };
 
 export type MarkTaskReadResponse = MarkTaskReadResponses[keyof MarkTaskReadResponses];
+
+export type ListTerminalsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/terminals";
+};
+
+export type ListTerminalsAggregateErrors = {
+  /**
+   * Malformed terminal request
+   */
+  400: TerminalErrorResponse;
+  /**
+   * Terminal authentication required
+   */
+  401: TerminalErrorResponse;
+  /**
+   * Terminal operation forbidden
+   */
+  403: TerminalErrorResponse;
+  /**
+   * Terminal state or profile conflict
+   */
+  409: TerminalErrorResponse;
+  /**
+   * Invalid profile selection
+   */
+  422: TerminalErrorResponse;
+  /**
+   * Terminal transport failed
+   */
+  500: TerminalErrorResponse;
+  /**
+   * Terminal service unavailable
+   */
+  503: TerminalErrorResponse;
+};
+
+export type ListTerminalsAggregateError =
+  ListTerminalsAggregateErrors[keyof ListTerminalsAggregateErrors];
+
+export type ListTerminalsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: TerminalListResponse;
+};
+
+export type ListTerminalsAggregateResponse =
+  ListTerminalsAggregateResponses[keyof ListTerminalsAggregateResponses];
 
 export type ListToolApprovalGrantsData = {
   body?: never;
@@ -31129,6 +32003,10 @@ export type ListWorkspaceSessionsData = {
   };
   query?: {
     /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Include metadata-only health for returned sessions
      */
     include_health?: boolean;
@@ -31152,6 +32030,10 @@ export type ListWorkspaceSessionsData = {
      * Subagent session visibility (default include)
      */
     subagents?: "include" | "exclude" | "only";
+    /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
     /**
      * Filter by exact parent session id
      */
@@ -31180,6 +32062,10 @@ export type ListWorkspaceSessionsData = {
      * Only list sessions in the needs-you attention class
      */
     attention?: boolean;
+    /**
+     * Repeatable board column filter: needs_you, working, in_review, done
+     */
+    board_column?: Array<string>;
     /**
      * Filter by comma-separated exact session badges
      */
@@ -31455,6 +32341,10 @@ export type ArchiveSessionData = {
   };
   query?: {
     /**
+     * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
+     */
+    stop?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -31464,11 +32354,15 @@ export type ArchiveSessionData = {
 
 export type ArchiveSessionErrors = {
   /**
+   * Invalid archive request
+   */
+  400: ErrorPayload;
+  /**
    * Session not found
    */
   404: ErrorPayload;
   /**
-   * Session must be stopped before archiving
+   * Session must be stopped before archiving, or the requested stop failed
    */
   409: ErrorPayload;
   /**
@@ -32598,11 +33492,24 @@ export type ListSessionMonitorsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors";
 };
 
 export type ListSessionMonitorsErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Session or monitor not found
    */
@@ -32645,11 +33552,20 @@ export type CancelSessionMonitorData = {
      */
     monitor_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel";
 };
 
 export type CancelSessionMonitorErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Session or monitor not found
    */
@@ -32734,6 +33650,120 @@ export type MoveSessionResponses = {
 };
 
 export type MoveSessionResponse = MoveSessionResponses[keyof MoveSessionResponses];
+
+export type ClearSessionParentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent";
+};
+
+export type ClearSessionParentErrors = {
+  /**
+   * Invalid reparent request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Reparent refused by a lineage rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session reparent unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ClearSessionParentError = ClearSessionParentErrors[keyof ClearSessionParentErrors];
+
+export type ClearSessionParentResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type ClearSessionParentResponse =
+  ClearSessionParentResponses[keyof ClearSessionParentResponses];
+
+export type SetSessionParentData = {
+  /**
+   * JSON request body
+   */
+  body: SetSessionParentRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent";
+};
+
+export type SetSessionParentErrors = {
+  /**
+   * Invalid reparent request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Reparent refused by a lineage rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session reparent unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type SetSessionParentError = SetSessionParentErrors[keyof SetSessionParentErrors];
+
+export type SetSessionParentResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type SetSessionParentResponse = SetSessionParentResponses[keyof SetSessionParentResponses];
 
 export type UpdateSessionPresenceData = {
   /**
@@ -35522,6 +36552,10 @@ export type RegisterWindowManagerClientData = {
 
 export type RegisterWindowManagerClientErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -35575,6 +36609,10 @@ export type UnregisterWindowManagerClientData = {
 
 export type UnregisterWindowManagerClientErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -35626,6 +36664,10 @@ export type ExecuteWindowManagerCommandData = {
 };
 
 export type ExecuteWindowManagerCommandErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */
@@ -35719,6 +36761,10 @@ export type ReplaceWindowManagerLayoutData = {
 };
 
 export type ReplaceWindowManagerLayoutErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */
@@ -35969,6 +37015,10 @@ export type ValidateWindowManagerLayoutData = {
 
 export type ValidateWindowManagerLayoutErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -36020,6 +37070,10 @@ export type PreviewWindowManagerCommandData = {
 };
 
 export type PreviewWindowManagerCommandErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */
@@ -36700,6 +37754,54 @@ export type CancelWorktreeExitActionResponses = {
 export type CancelWorktreeExitActionResponse =
   CancelWorktreeExitActionResponses[keyof CancelWorktreeExitActionResponses];
 
+export type PrepareWorktreeExitPlanData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+    /**
+     * Worktree id, name, or path
+     */
+    worktree_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare";
+};
+
+export type PrepareWorktreeExitPlanErrors = {
+  /**
+   * Worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Worktree exit plan is unavailable
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PrepareWorktreeExitPlanError =
+  PrepareWorktreeExitPlanErrors[keyof PrepareWorktreeExitPlanErrors];
+
+export type PrepareWorktreeExitPlanResponses = {
+  /**
+   * OK
+   */
+  200: WorktreeExitPlanResponse;
+};
+
+export type PrepareWorktreeExitPlanResponse =
+  PrepareWorktreeExitPlanResponses[keyof PrepareWorktreeExitPlanResponses];
+
 export type GetWorktreeStatusData = {
   body?: never;
   path: {
@@ -36763,3 +37865,51 @@ export type GetWorktreeStatusResponses = {
 
 export type GetWorktreeStatusResponse =
   GetWorktreeStatusResponses[keyof GetWorktreeStatusResponses];
+
+export type ListWorktreesAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+  };
+  url: "/api/worktrees";
+};
+
+export type ListWorktreesAggregateErrors = {
+  /**
+   * Invalid worktree list query
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListWorktreesAggregateError =
+  ListWorktreesAggregateErrors[keyof ListWorktreesAggregateErrors];
+
+export type ListWorktreesAggregateResponses = {
+  /**
+   * OK
+   */
+  200: WorktreesResponse;
+};
+
+export type ListWorktreesAggregateResponse =
+  ListWorktreesAggregateResponses[keyof ListWorktreesAggregateResponses];

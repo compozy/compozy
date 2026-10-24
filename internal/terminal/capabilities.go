@@ -16,6 +16,9 @@ func (m *Service) Capabilities(ctx context.Context, workspaceID string) (Capabil
 			ErrServiceUnavailable,
 		)
 	}
+	if terminalWorkspaceID(workspaceID) == "" {
+		return Capabilities{Interactive: true}, nil
+	}
 	_, err := m.workspaces.Resolve(ctx, workspaceID)
 	if err != nil {
 		return Capabilities{}, fmt.Errorf("terminal: resolve workspace capabilities: %w", err)

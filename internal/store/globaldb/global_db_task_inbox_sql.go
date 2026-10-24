@@ -166,6 +166,7 @@ func taskInboxBaseFilter(query taskpkg.InboxQuery) ([]string, []any) {
 		ReadScope:        query.ReadScope,
 		Scope:            query.Scope,
 		WorkspaceID:      query.WorkspaceID,
+		WorkspaceIDs:     query.WorkspaceIDs,
 		Priority:         query.Priority,
 		IncludeDrafts:    true,
 		OwnerKind:        query.OwnerKind,

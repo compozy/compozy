@@ -1,7 +1,7 @@
 import { Pill } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
-import { SessionArchivedToggle, SessionScopeToggle } from "@/systems/session";
+import { SessionArchivedToggle } from "@/systems/session";
 
 import {
   PALETTE_SESSION_FILTER_LIST,
@@ -13,35 +13,27 @@ import { paletteViewGutterClass } from "../lib/palette-view-inset";
 export interface OsPaletteSessionChipsProps {
   filterId: PaletteSessionFilterId;
   counts: PaletteSessionFilterCounts | undefined;
-  allWorkspaces: boolean;
   archived: boolean;
-  /** True while the daemon has not acknowledged the scope write yet. */
-  scopeBusy: boolean;
   onFilterChange: (filterId: PaletteSessionFilterId) => void;
-  onAllWorkspacesChange: (allWorkspaces: boolean) => void;
   onArchivedChange: (archived: boolean) => void;
 }
 
 /**
- * State filters and breadth for the Sessions view.
+ * State filters and the archive switch for the Sessions view.
  *
  * Each filter is its own pill — a segmented track collapses five labels plus
  * counts into one run-on string. Counts sit beside the label so a chip reading
  * `Finished 0` still renders: it tells the operator the filter is empty before
  * they press it.
  *
- * The globe is the operator's persisted session-list breadth — the same setting
- * the sessions sidebar writes and `compozy config get shell.sessions.scope`
- * reports.
+ * Breadth is not here: the view follows the topbar globe like every session
+ * list (ADR-004).
  */
 export function OsPaletteSessionChips({
   filterId,
   counts,
-  allWorkspaces,
   archived,
-  scopeBusy,
   onFilterChange,
-  onAllWorkspacesChange,
   onArchivedChange,
 }: OsPaletteSessionChipsProps) {
   return (
@@ -78,12 +70,6 @@ export function OsPaletteSessionChips({
         })}
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <SessionScopeToggle
-          allWorkspaces={allWorkspaces}
-          busy={scopeBusy}
-          onAllWorkspacesChange={onAllWorkspacesChange}
-          testId="os-palette-session-scope"
-        />
         <SessionArchivedToggle
           archived={archived}
           onArchivedChange={onArchivedChange}

@@ -34,15 +34,19 @@ type ShellConfig struct {
 
 // ShellSessionsConfig persists session-list preferences across shell restarts.
 type ShellSessionsConfig struct {
-	Sort  ShellSessionSort  `toml:"sort"`
-	Scope ShellSessionScope `toml:"scope"`
+	GroupBy         ShellSessionGroupBy `toml:"group_by"`
+	GroupByExplicit bool                `toml:"-"        json:"-"`
+	ScopeExplicit   bool                `toml:"-"        json:"-"`
+	Sort            ShellSessionSort    `toml:"sort"`
+	Scope           ShellSessionScope   `toml:"scope"`
 }
 
 // DefaultShellConfig returns the built-in operator shell preferences.
 func DefaultShellConfig() ShellConfig {
 	return ShellConfig{Sessions: ShellSessionsConfig{
-		Sort:  ShellSessionSortCreated,
-		Scope: ShellSessionScopeWorkspace,
+		Sort:    ShellSessionSortCreated,
+		GroupBy: ShellSessionGroupByNone,
+		Scope:   ShellSessionScopeWorkspace,
 	}}
 }
 
@@ -65,6 +69,15 @@ func (c ShellConfig) Validate() error {
 			),
 		)
 	}
+	switch c.Sessions.GroupBy {
+	case "":
+		if c.Sessions.GroupByExplicit {
+			return shellValidationError("shell.sessions.group_by", "must be none, project or profile")
+		}
+	case ShellSessionGroupByNone, ShellSessionGroupByProject, ShellSessionGroupByProfile:
+	default:
+		return shellValidationError("shell.sessions.group_by", "must be none, project or profile")
+	}
 	switch c.Sessions.Scope {
 	case ShellSessionScopeWorkspace, ShellSessionScopeAllWorkspaces:
 		return nil
@@ -83,4 +96,26 @@ func (c ShellConfig) Validate() error {
 
 func shellValidationError(path string, message string) error {
 	return ValidationError{Code: shellConfigInvalidCode, Path: path, Message: message}
+}
+
+type ShellSessionGroupBy string
+
+const (
+	ShellSessionGroupByNone    ShellSessionGroupBy = "none"
+	ShellSessionGroupByProject ShellSessionGroupBy = "project"
+	ShellSessionGroupByProfile ShellSessionGroupBy = "profile"
+)
+
+// Scope remains functional through v0.4.0; remove this translation in v0.5.0.
+const ShellScopeDeprecationWarning = "shell.sessions.scope is deprecated; use shell.sessions.group_by for grouping " +
+	"and the topbar globe for All projects (removed in v0.5.0)"
+
+func (c *ShellSessionsConfig) ResolveGroupBy() {
+	if c.GroupByExplicit {
+		return
+	}
+	c.GroupBy = ShellSessionGroupByNone
+	if c.Scope == ShellSessionScopeAllWorkspaces {
+		c.GroupBy = ShellSessionGroupByProject
+	}
 }

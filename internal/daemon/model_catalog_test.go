@@ -34,6 +34,124 @@ import (
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep live discovery independent of the models dev deadline", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		daemon := newTestDaemon(t, home, &cfg)
+		sources, err := daemon.modelCatalogSources(
+			&bootState{cfg: cfg},
+			&http.Client{Timeout: time.Second},
+			modelcatalog.DefaultLiveDiscoveryTimeout,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := &modelCatalogRuntime{
+			timeout:     modelCatalogRefreshCleanupGrace,
+			liveSources: make(map[string]*modelcatalog.LiveProviderSource),
+		}
+		for _, source := range sources {
+			if live, ok := source.(*modelcatalog.LiveProviderSource); ok {
+				runtime.liveSources[live.ProviderIDs()[0]] = live
+			}
+		}
+		claude := runtime.liveSources["claude"]
+		if claude == nil || claude.DiscoveryTimeout() != 60*time.Second {
+			t.Fatalf("Claude discovery deadline = %#v", claude)
+		}
+		if got := runtime.refreshTimeout("claude"); got < claude.DiscoveryTimeout()+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("outer refresh deadline %s truncates live discovery", got)
+		}
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Models.Discovery.Timeout = "90s"
+		custom, err := modelcatalog.NewLiveProviderSource("claude", provider, &modelcatalog.LiveProviderSourcesConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"claude": custom, "cursor": claude}
+		if got := runtime.refreshTimeout(""); got != 150*time.Second+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("aggregate refresh deadline = %s, want both sequential probe budgets", got)
+		}
+
+		if got := runtime.refreshTimeout("claude"); got != 90*time.Second+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("configured refresh deadline = %s", got)
+		}
+		service := newManuallyReleasedModelCatalogService()
+		running, err := newModelCatalogRuntime(
+			t.Context(),
+			service,
+			discardLogger(),
+			nil,
+			modelCatalogRefreshCleanupGrace,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		running.liveSources = runtime.liveSources
+		result := make(chan error, 1)
+		go func() {
+			_, err := running.Refresh(t.Context(), modelcatalog.RefreshOptions{Force: true})
+			result <- err
+		}()
+		waitForCatalogTestSignal(t, service.started, "aggregate refresh start")
+		refreshCtx := <-service.refreshCtx
+		deadline, ok := refreshCtx.Deadline()
+		close(service.release)
+		if err := waitForCatalogTestError(t, result, "aggregate refresh completion"); err != nil {
+			t.Error(err)
+		}
+		if err := running.Shutdown(t.Context()); err != nil {
+			t.Error(err)
+		}
+		if !ok || time.Until(deadline) < 140*time.Second {
+			t.Fatalf("aggregate execution deadline = %v, want both sequential discovery budgets", deadline)
+		}
+	})
+
+	t.Run("Should give live HTTP discovery its provider deadline instead of the models dev client", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(`{"models":[{"name":"confirmed"}]}`)); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		provider := compozyconfig.BuiltinProviders()["ollama"]
+		provider.Command = "ollama-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		provider.Models.Discovery.Endpoint = server.URL
+		provider.Models.Discovery.Enabled = new(true)
+		provider.Models.Discovery.Timeout = "1s"
+		cfg.Providers["ollama"] = provider
+		daemon := newTestDaemon(t, home, &cfg)
+		sources, err := daemon.modelCatalogSources(
+			&bootState{cfg: cfg},
+			&http.Client{Timeout: time.Nanosecond},
+			modelcatalog.DefaultLiveDiscoveryTimeout,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, source := range sources {
+			if source.ID() != modelcatalog.SourceKindProviderLiveID("ollama") {
+				continue
+			}
+			rows, err := source.ListModels(t.Context(), modelcatalog.ListOptions{ProviderID: "ollama"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "confirmed" {
+				t.Fatalf("live HTTP rows = %#v", rows)
+			}
+			return
+		}
+		t.Fatal("live HTTP source missing")
+	})
+
 	t.Run("Should resolve only the selected provider model context window", func(t *testing.T) {
 		t.Parallel()
 		catalog := &recordingModelCatalogService{models: []modelcatalog.Model{
@@ -2960,10 +3078,12 @@ func (s usageConsentSettings) Reload(ctx context.Context) (settingspkg.ApplyResu
 	return settingspkg.ApplyResult{}, nil
 }
 
-type usageConsentKeychain struct{ reads chan string }
+type usageConsentKeychain struct{ prompts chan string }
 
-func (r usageConsentKeychain) Read(_ context.Context, _, account string) ([]byte, error) {
-	r.reads <- account
+func (r usageConsentKeychain) Read(_ context.Context, _, account string, interactive bool) ([]byte, error) {
+	if interactive {
+		r.prompts <- account
+	}
 	return nil, os.ErrNotExist
 }
 
@@ -2986,7 +3106,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 			),
 			func(t *testing.T) {
 				t.Parallel()
-				reader := usageConsentKeychain{reads: make(chan string, 2)}
+				reader := usageConsentKeychain{prompts: make(chan string, 2)}
 				catalog := &providerusage.TargetCatalog{}
 				for _, id := range []string{store.DefaultProfileID, "work-id"} {
 					home := t.TempDir()
@@ -3022,10 +3142,10 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if initial.Targets[0].Error.Code != providerusage.ErrorCodeKeychainTokenExpired ||
-					initial.Targets[0].Error.Action != string(providerusage.ActionRefresh) ||
-					len(reader.reads) != 0 {
-					t.Fatal("restart/background must request Refresh without reading the Keychain")
+				if initial.Targets[0].Error.Code != providerusage.ErrorCodeAuthMissing ||
+					initial.Targets[0].Error.Action != string(providerusage.ActionSignIn) ||
+					len(reader.prompts) != 0 {
+					t.Fatal("background must report missing credentials without prompting")
 				}
 				before, err := manager.Envelope(t.Context(), selection.otherID)
 				if err != nil {
@@ -3053,8 +3173,8 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 						http.NoBody,
 					),
 				)
-				if reload.Code != http.StatusOK || len(reader.reads) != 0 {
-					t.Fatalf("reload granted consent: status=%d reads=%d", reload.Code, len(reader.reads))
+				if reload.Code != http.StatusOK || len(reader.prompts) != 0 {
+					t.Fatalf("reload granted consent: status=%d reads=%d", reload.Code, len(reader.prompts))
 				}
 				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
 				requestCtx := t.Context()
@@ -3089,8 +3209,8 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 					if refreshResponse.Code != http.StatusOK {
 						t.Fatalf("refresh: %d %s", refreshResponse.Code, refreshResponse.Body.String())
 					}
-					if len(reader.reads) != 0 ||
-						!strings.Contains(refreshResponse.Body.String(), "keychain_token_expired") {
+					if len(reader.prompts) != 0 ||
+						!strings.Contains(refreshResponse.Body.String(), "auth_missing") {
 						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
 					}
 					return
@@ -3112,7 +3232,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 						t.Fatal("selected profile collection did not finish")
 					}
 				}
-				if len(reader.reads) != 1 || <-reader.reads != selection.profileID {
+				if len(reader.prompts) != 1 || <-reader.prompts != selection.profileID {
 					t.Fatal("consent read another profile login")
 				}
 				after, err := manager.Envelope(ctx, selection.otherID)

@@ -30,6 +30,7 @@ const DefaultDaemonSubprocessHealthEscalationThreshold = 3
 
 // DaemonConfig controls daemon-local socket, runtime reporting, and hot-reload settings.
 type DaemonConfig struct {
+	ShutdownGrace                       time.Duration              `toml:"shutdown_grace"`
 	Socket                              string                     `toml:"socket"`
 	MemoryReportInterval                time.Duration              `toml:"memory_report_interval"`
 	SubprocessHealthEscalationThreshold int                        `toml:"subprocess_health_escalation_threshold"`
@@ -45,6 +46,7 @@ type DaemonReloadTimeoutsConfig struct {
 
 func defaultDaemonConfig(homePaths HomePaths) DaemonConfig {
 	return DaemonConfig{
+		ShutdownGrace:                       30 * time.Second,
 		Socket:                              homePaths.DaemonSocket,
 		MemoryReportInterval:                DefaultDaemonMemoryReportInterval,
 		SubprocessHealthEscalationThreshold: DefaultDaemonSubprocessHealthEscalationThreshold,
@@ -63,6 +65,9 @@ func DefaultDaemonReloadTimeoutsConfig() DaemonReloadTimeoutsConfig {
 
 // Validate ensures daemon config values are internally consistent.
 func (c DaemonConfig) Validate() error {
+	if c.ShutdownGrace < 0 || c.ShutdownGrace > 5*time.Minute {
+		return fmt.Errorf("daemon.shutdown_grace must be between 0s and 5m: %s", c.ShutdownGrace)
+	}
 	if strings.TrimSpace(c.Socket) == "" {
 		return errors.New("daemon.socket is required")
 	}

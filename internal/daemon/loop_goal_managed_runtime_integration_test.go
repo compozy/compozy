@@ -25,6 +25,7 @@ import (
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -34,6 +35,36 @@ import (
 )
 
 func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
+	t.Run("Should queue requested Fast after the provider revokes it", func(t *testing.T) {
+		fixture := newLoopGoalManagedRuntimeFixture(t, "revoked-speed", nil,
+			withoutInitialGoalBinding(),
+			withGoalRuntimeSessionManager(func(manager *session.Manager) SessionManager {
+				return &revokedSpeedSessionManager{Manager: manager}
+			}),
+		)
+		request := fixture.bindingRequest("revoked-speed")
+		request.Runtime = &looppkg.RuntimeSpec{Speed: speedpkg.SpeedFast}
+		binding, err := fixture.runtime.BindActionSession(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if binding.AppliedRuntime.Speed != speedpkg.SpeedNormal {
+			t.Fatalf("applied speed = %q, want provider-observed normal", binding.AppliedRuntime.Speed)
+		}
+		fixture.binding = binding
+		ticket, err := fixture.preparePrompt(t, "goal-prompt-revoked-speed", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := fixture.goalStore.GetSessionInputQueueEntryByID(t.Context(), ticket.QueueEntryID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if entry.Runtime.Speed != string(speedpkg.SpeedFast) {
+			t.Fatalf("queued speed = %q, want retained Fast intent", entry.Runtime.Speed)
+		}
+	})
+
 	t.Run("Should drain messages and reply wakes before a prepared Goal at the turn boundary", func(t *testing.T) {
 		driver := newHarnessIntegrationDriver()
 		received := make(chan acp.PromptRequest, 4)
@@ -1643,7 +1674,6 @@ func newLoopGoalCoordinatorRuntimeFixture(
 	runtime := newLoopGoalProductionRuntime(
 		goalStore,
 		manager,
-		homePaths.HomeDir,
 		policyGate,
 		time.Now,
 		discardLogger(),
@@ -1895,6 +1925,27 @@ type delayedEnsureCreatedManager struct {
 	release      <-chan struct{}
 }
 
+// revokedSpeedSessionManager injects provider observations at the session I/O boundary.
+type revokedSpeedSessionManager struct {
+	*session.Manager
+}
+
+func (m *revokedSpeedSessionManager) Status(ctx context.Context, id string) (*session.Info, error) {
+	info, err := m.Manager.Status(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	info.Speed = speedpkg.SpeedFast
+	info.SpeedResolution = &speedpkg.Resolution{
+		Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionRejected, Reason: speedpkg.ReasonProviderRejected,
+	}
+	info.ACPCapsKnown = true
+	info.ACPCaps.ConfigOptions = []acp.SessionConfigOption{{
+		ID: "fast", Category: "model_config", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(false),
+	}}
+	return info, nil
+}
+
 type failFirstEnsureCreatedManager struct {
 	*session.Manager
 	beforeFailure func(context.Context) error
@@ -2093,7 +2144,6 @@ func newLoopGoalManagedRuntimeFixture(
 	runtime := newLoopGoalProductionRuntime(
 		goalStore,
 		runtimeSessions,
-		homePaths.HomeDir,
 		policyGate,
 		time.Now,
 		discardLogger(),

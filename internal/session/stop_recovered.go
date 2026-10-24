@@ -54,7 +54,7 @@ func (m *Manager) prepareRecoveredStopRun(
 		}
 		return
 	}
-	meta, err := m.readMetaWithContext(operationCtx, id)
+	meta, err := m.reconcileInactiveSession(operationCtx, id)
 	if err != nil {
 		unlock()
 		m.failRecoveredStopPreparation(run, err)
@@ -173,7 +173,10 @@ func (m *Manager) persistRecoveredStop(
 			if err := restoreStopReceiptClassification(&meta, &settlement.receipt); err != nil {
 				return err
 			}
-			if settlement.receipt.TerminalEvent == nil {
+			// A released runtime already persisted its terminal classification before
+			// clearing process identity. Recovery must not classify that exit again.
+			if settlement.receipt.TerminalEvent == nil &&
+				(!unboundRuntimeWithoutProcess(&meta) || meta.StopReason == nil) {
 				reason, stopDetail := classifyStopReason(outcome.Cause, nil, detail)
 				if outcome.Cause == CauseProcessExited {
 					reason, stopDetail = store.StopAgentCrashed, detail

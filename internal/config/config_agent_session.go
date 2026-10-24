@@ -40,6 +40,7 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
+	Restart     SessionRestartConfig     `toml:"restart"`
 	Stop        SessionStopConfig        `toml:"stop"`
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`

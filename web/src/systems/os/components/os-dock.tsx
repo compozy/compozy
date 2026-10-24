@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
 import type { LaunchModifiers } from "../lib/launch-placement";
-import { dockItemAccessibleName, dockItemTip, type OsDockItemData } from "../lib/os-dock-model";
+import { dockItemAccessibleName, type OsDockItemData } from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
 export type { OsDockItemData } from "../lib/os-dock-model";
@@ -96,7 +96,7 @@ function DockItem({
   const classes = cn(ITEM_BASE, onSelect && ITEM_INTERACTIVE, item.active && ITEM_ACTIVE);
   const tip = (
     <TooltipContent side="right" sideOffset={RAIL_TIP_SIDE_OFFSET}>
-      {dockItemTip(item)}
+      {item.name}
     </TooltipContent>
   );
 

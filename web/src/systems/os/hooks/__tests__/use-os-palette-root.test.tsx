@@ -134,12 +134,13 @@ const paletteMocks = vi.hoisted(() => {
     openForAgent: vi.fn(),
     pending: false,
     profileAggregate: false,
-    scope: "workspace" as "workspace" | "global",
+    /** The one item-open path (`openTarget`); its in-place semantics are owned by its own suite. */
+    openItem: vi.fn(),
+    /** Destination: a project (`activeWorkspaceId`), User, or All projects (`global`). */
+    scope: "workspace" as "workspace" | "global" | "user",
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
-    sessionListScope: "workspace" as "workspace" | "all-workspaces",
-    sessionListSaving: false,
     sessions: [] as PaletteSessionFixture[],
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
@@ -147,9 +148,6 @@ const paletteMocks = vi.hoisted(() => {
     sessionsEnabled: vi.fn(),
     nextCatalogPage: vi.fn(),
     previousCatalogPage: vi.fn(),
-    sessionGroupWorkspaces: vi.fn(),
-    setSessionListScope: vi.fn(),
-    toggleLocked: false,
     windowCommands: {
       arrangeCommands: [],
       commandsAvailable: true,
@@ -205,10 +203,20 @@ vi.mock("@/systems/session", async importOriginal => ({
     return { pending: paletteMocks.fallbackPending, run: paletteMocks.runFallback };
   },
   useSessionCatalog: (
-    workspaceId: string | null,
+    scope: { kind: "all" } | { kind: "user" } | { kind: "project"; workspaceId: string } | null,
     filters: { q?: string; badge?: string; attention?: boolean },
     enabled: boolean
   ) => {
+    // Recorded as the selector the catalog sends: `null` = every project, `@user`
+    // = User, `undefined` = unsettled (the real hook reads nothing).
+    const workspaceId =
+      scope === null
+        ? undefined
+        : scope.kind === "all"
+          ? null
+          : scope.kind === "user"
+            ? "@user"
+            : scope.workspaceId;
     paletteMocks.sessionsWorkspaceId(workspaceId);
     paletteMocks.sessionsFilters(filters);
     paletteMocks.sessionsEnabled(enabled);
@@ -259,24 +267,27 @@ vi.mock("@/systems/session", async importOriginal => ({
   },
   useSessionListPreferences: () => ({
     sort: "last_activity" as const,
-    scope: paletteMocks.sessionListScope,
-    setSort: vi.fn(),
-    setScope: paletteMocks.setSessionListScope,
+    groupBy: "none" as const,
     loading: false,
-    saving: paletteMocks.sessionListSaving,
   }),
-  useWorkspaceSessionGroups: (input: { workspaces: ReadonlyArray<{ id: string }> }) => {
-    paletteMocks.sessionGroupWorkspaces(input.workspaces);
-    return paletteMocks.workspaceGroups;
-  },
 }));
+
+function mockDataScope() {
+  if (paletteMocks.scope === "global") return { kind: "all" as const };
+  if (paletteMocks.scope === "user") return { kind: "user" as const };
+  // A stored project focus is unconfirmed while the catalog is pending.
+  return paletteMocks.pending || paletteMocks.activeWorkspaceId === null
+    ? null
+    : { kind: "project" as const, workspaceId: paletteMocks.activeWorkspaceId };
+}
 
 vi.mock("@/systems/workspace", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/workspace")>()),
   useSelectedWorkspaceId: () => paletteMocks.activeWorkspaceId,
-  useWorkspaceScopeMode: () => paletteMocks.scope,
+  useBreadthMode: () => (paletteMocks.scope === "global" ? "all" : "focused"),
   useWorktrees: () => ({ data: undefined }),
   useWorktreeListings: () => ({}),
+  useWorktreeAggregate: () => ({ data: undefined }),
   useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
   useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
   useActiveWorkspace: () => ({
@@ -285,12 +296,11 @@ vi.mock("@/systems/workspace", async importOriginal => ({
     setActiveWorkspaceId: paletteMocks.setActiveWorkspaceId,
     workspaces: paletteMocks.workspaces,
     registeredWorkspaces: paletteMocks.registeredWorkspaces,
-    scope: paletteMocks.scope,
+    breadthMode: paletteMocks.scope === "global" ? "all" : "focused",
+    dataScope: mockDataScope(),
     pending: paletteMocks.pending,
     hasHydrated: true,
-    toggleLocked: paletteMocks.toggleLocked,
-    canDisableGlobal: true,
-    toggleGlobalScope: vi.fn(),
+    toggleAllProjects: vi.fn(),
   }),
 }));
 
@@ -320,6 +330,10 @@ vi.mock("../../../profiles/hooks/use-profile-read-scope", () => ({
 
 vi.mock("../use-attention-jump", () => ({
   useAttentionJump: () => paletteMocks.jumpToSession,
+}));
+
+vi.mock("../use-open-target", () => ({
+  useOpenTarget: () => paletteMocks.openItem,
 }));
 
 vi.mock("@/lib/user-feedback", () => ({
@@ -734,15 +748,11 @@ function resetPaletteHarness() {
   paletteMocks.sessionsLoading = false;
   paletteMocks.sessionsWorkspaceId.mockClear();
   paletteMocks.sessionsFilters.mockClear();
-  paletteMocks.sessionGroupWorkspaces.mockClear();
-  paletteMocks.sessionListScope = "workspace";
-  paletteMocks.sessionListSaving = false;
-  paletteMocks.setSessionListScope.mockClear();
   paletteMocks.jumpToSession.mockClear();
+  paletteMocks.openItem.mockClear();
   paletteMocks.notifyUser.mockClear();
   paletteMocks.workspaceGroups = [];
   paletteMocks.writeViewStack([]);
-  paletteMocks.toggleLocked = false;
   paletteMocks.windowSlots.clear();
   paletteMocks.windowCommands.commandsAvailable = true;
   paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
@@ -792,15 +802,23 @@ describe("useOsPaletteRoot", () => {
     expect(paletteDispatch.run.mock.lastCall?.[0]).toMatchObject({ id: "app.open.tasks" });
   });
 
-  it("Should keep session lookup on the runtime workspace while scope resolution is pending [RA0289]", () => {
+  it("Should never widen session lookup to every project while resolution is pending [RA0289]", () => {
     paletteMocks.pending = true;
-    paletteMocks.toggleLocked = true;
     renderRoot();
 
-    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("workspace:alpha");
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith(undefined);
+    expect(paletteMocks.sessionsWorkspaceId).not.toHaveBeenCalledWith(null);
   });
 
-  it("Should omit workspace-name indexes outside global scope [RA0303]", () => {
+  it("Should look up only User sessions while User is focused", () => {
+    paletteMocks.scope = "user";
+    renderRoot();
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("@user");
+    expect(paletteMocks.sessionsWorkspaceId).not.toHaveBeenCalledWith(null);
+  });
+
+  it("Should omit workspace-name indexes outside All projects [RA0303]", () => {
     renderRoot();
     expect(paletteMocks.domainWorkspaceNames).toHaveBeenLastCalledWith(new Map());
 
@@ -815,7 +833,7 @@ describe("useOsPaletteRoot", () => {
     );
   });
 
-  it("Should include the home workspace in global session search", async () => {
+  it("Should include the home workspace in All projects session search", async () => {
     vi.useFakeTimers();
     paletteMocks.scope = "global";
     paletteMocks.rankSignals = TEST_RANK_SIGNALS;
@@ -1115,14 +1133,85 @@ describe("useOsPaletteRoot", () => {
         key: "task:task-42",
         label: "Review release",
         route: { pathname: "/tasks/task-42", search: {} },
+        workspaceId: "workspace:alpha",
       });
     });
 
+    // A task row takes the one item path, bound to its own project, so under All
+    // projects it opens in place instead of switching project.
     expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
-    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-      app: "tasks",
-      route: { pathname: "/tasks/task-42", search: {} },
+    expect(paletteMocks.openItem).toHaveBeenCalledExactlyOnceWith(
+      {
+        app: "tasks",
+        binding: { kind: "project", workspaceId: "workspace:alpha" },
+        route: { pathname: "/tasks/task-42", search: {} },
+      },
+      "Couldn't open Review release. Try again."
+    );
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+    expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+  });
+
+  // Agents: under All projects a project agent opens in place bound to its project; a
+  // user-layer agent (no project) opens unbound and reads the user layer.
+  it("Should open an All projects agent row in place, and a user-layer agent unbound", async () => {
+    paletteMocks.scope = "global";
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("global"),
+    };
+    const { result } = renderRoot(true);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "agents",
+        key: "agent:workspace:alpha:reviewer",
+        label: "reviewer",
+        route: { pathname: "/agents/reviewer", search: {} },
+        workspaceId: "workspace:alpha",
+      });
     });
+    expect(paletteMocks.openItem).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        app: "agents",
+        binding: { kind: "project", workspaceId: "workspace:alpha" },
+      }),
+      "Couldn't open reviewer. Try again."
+    );
+    expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "agents",
+        key: "agent:global:general",
+        label: "general",
+        route: { pathname: "/agents/general", search: {} },
+      });
+    });
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ app: "agents", route: { pathname: "/agents/general", search: {} } })
+    );
+    expect(paletteMocks.openItem).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should bind a User task row to the User scope", async () => {
+    paletteMocks.scope = "global";
+    const { result } = renderRoot(true);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "tasks",
+        key: "task:task-user",
+        label: "User task",
+        route: { pathname: "/tasks/task-user", search: {} },
+      });
+    });
+
+    expect(paletteMocks.openItem).toHaveBeenCalledWith(
+      expect.objectContaining({ binding: { kind: "user" } }),
+      expect.any(String)
+    );
   });
 
   it("Should open a terminal catalog row as that instance, not a session", async () => {
@@ -1164,16 +1253,16 @@ describe("useOsPaletteRoot", () => {
 
     await act(async () => {
       result.current.openDomainRow({
-        app: "tasks",
-        key: "task:unreachable",
-        label: "Unavailable task",
-        route: { pathname: "/tasks/unreachable", search: {} },
+        app: "vault",
+        key: "vault:unreachable",
+        label: "Unavailable secret",
+        route: { pathname: "/vault", search: { ref: "unreachable" } },
       });
     });
 
     await waitFor(() =>
       expect(paletteMocks.notifyUser).toHaveBeenCalledWith({
-        message: "Couldn't open Unavailable task. Try again.",
+        message: "Couldn't open Unavailable secret. Try again.",
         tone: "error",
       })
     );
@@ -1267,10 +1356,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "tasks",
-        key: "task:task-alpha",
-        label: "Alpha task",
-        route: { pathname: "/tasks/task-alpha", search: {} },
+        app: "automations",
+        key: "job:job-alpha",
+        label: "Alpha job",
+        route: { pathname: "/automations/jobs/job-alpha", search: {} },
         workspaceId: "workspace:alpha",
       });
     });
@@ -1286,8 +1375,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "tasks",
-        route: { pathname: "/tasks/task-alpha", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-alpha", search: {} },
       })
     );
   });
@@ -1463,7 +1552,7 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-command-palette.view.sessions")).toBeInTheDocument();
   });
 
-  it("Should enable the Global Sessions view without a project workspace", async () => {
+  it("Should enable the All projects Sessions view without a project workspace", async () => {
     const user = userEvent.setup();
     paletteMocks.scope = "global";
     paletteMocks.activeWorkspaceId = null;
@@ -1553,54 +1642,31 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
 
-  it("Should widen through the operator's persisted session-list scope [UT-099]", async () => {
+  it("Should follow the topbar breadth across projects [UT-099]", async () => {
     const user = userEvent.setup();
-    paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
+    paletteMocks.scope = "global";
+    paletteMocks.sessions = [
+      paletteSession({ id: "s-alpha", name: "Refactor session store" }),
+      paletteSession({
+        id: "s-beta",
+        name: "Chargeback flow",
+        workspace_id: "workspace:beta",
+        badge: "waiting-for-input",
+      }),
+    ];
     const rendered = renderPalette();
     await pushSessionsView(user);
 
-    const scope = screen.getByTestId("os-palette-session-scope");
-    expect(scope).toHaveAccessibleName("All projects");
-    expect(scope).toHaveAttribute("aria-pressed", "false");
-    await user.click(scope);
-    expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
-
-    paletteMocks.sessionListScope = "all-workspaces";
-    paletteMocks.workspaceGroups = [
-      workspaceGroup("workspace:alpha", "Alpha", [
-        paletteSession({ id: "s-alpha", name: "Refactor session store" }),
-      ]),
-      workspaceGroup("workspace:beta", "Beta", [
-        paletteSession({
-          id: "s-beta",
-          name: "Chargeback flow",
-          workspace_id: "workspace:beta",
-          badge: "waiting-for-input",
-        }),
-      ]),
-      workspaceGroup("workspace:gamma", "Gamma", [], { failed: true }),
-    ];
-    rendered.rerender(
-      <PaletteHarness>
-        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
-      </PaletteHarness>
-    );
-
-    expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
     expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
+    expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
     // Attention-first survives the union: the needs-you row from the foreign
-    // workspace outranks the idle row from this one.
+    // project outranks the idle row from this one.
     const rows = screen.getAllByTestId(/^os-palette-session-view-/);
     expect(rows.map(row => row.dataset.testid)).toEqual([
       "os-palette-session-view-s-beta",
       "os-palette-session-view-s-alpha",
     ]);
 
-    await user.click(screen.getByTestId("os-palette-session-scope"));
-    expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
-
-    paletteMocks.workspaceGroups = [];
     paletteMocks.sessions = [];
     rendered.rerender(
       <PaletteHarness>
@@ -1632,8 +1698,6 @@ describe("palette nested views", () => {
     expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
       expect.objectContaining({ archive: "only" })
     );
-    // The archive is its own axis: flipping it never writes the persisted breadth.
-    expect(paletteMocks.setSessionListScope).not.toHaveBeenCalled();
   });
 
   it("Should land on a session through the shared attention jump [UT-060]", async () => {
@@ -1818,7 +1882,7 @@ describe("palette nested views", () => {
           value: "must-never-cross-the-projection",
         } as never,
       ],
-      "workspace",
+      { kind: "project", workspaceId: "ws-a" },
       new Map()
     );
 
@@ -2444,6 +2508,29 @@ describe("palette execution surfaces", () => {
       tone: "info",
       retryable: false,
     });
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
+      sessionId: "session:foreign",
+      agentName: "claude",
+      workspaceId: "workspace:beta",
+    });
+  });
+
+  it("Should open another project's session in place under All projects without a switch", async () => {
+    const user = userEvent.setup();
+    paletteMocks.scope = "global";
+    paletteMocks.sessions = [
+      paletteSession({
+        id: "session:foreign",
+        name: "Fix payment retries",
+        workspace_id: "workspace:beta",
+      }),
+    ];
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-session-session:foreign"));
+    expect(paletteMocks.notifyUser).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("Switched to") })
+    );
     expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
       sessionId: "session:foreign",
       agentName: "claude",

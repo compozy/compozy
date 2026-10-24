@@ -3,7 +3,10 @@ package builtin
 const taskListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string"},
+		"scope":{
+			"type":"string",
+			"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+		},
 		"workspace":{"type":"string"},
 		"status":{"type":"string"},
 		"priority":{"type":"string"},

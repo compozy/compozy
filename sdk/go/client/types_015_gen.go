@@ -4,6 +4,16 @@ package client
 
 import "time"
 
+// ScheduleSpec is a daemon API value.
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
 // SchedulerBacklogPayload is a daemon API value.
 type SchedulerBacklogPayload struct {
 	Runs  []SchedulerBacklogRunPayload `json:"runs"`
@@ -246,6 +256,14 @@ type SessionAttentionSummaryPayload struct {
 	ByWorkspace []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
 }
 
+// SessionBoardCountsPayload is a daemon API value.
+type SessionBoardCountsPayload struct {
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
+}
+
 // SessionCatalogEventPayload is a daemon API value.
 type SessionCatalogEventPayload struct {
 	Kind        string `json:"kind"`
@@ -257,16 +275,18 @@ type SessionCatalogEventPayload struct {
 
 // SessionCatalogFacetsPayload is a daemon API value.
 type SessionCatalogFacetsPayload struct {
-	All               int `json:"all"`
-	NeedsYou          int `json:"needs_you"`
-	Working           int `json:"working"`
-	Finished          int `json:"finished"`
-	Idle              int `json:"idle"`
-	TerminalApprovals int `json:"terminal_approvals"`
+	Board             SessionBoardCountsPayload `json:"board"`
+	All               int                       `json:"all"`
+	NeedsYou          int                       `json:"needs_you"`
+	Working           int                       `json:"working"`
+	Finished          int                       `json:"finished"`
+	Idle              int                       `json:"idle"`
+	TerminalApprovals int                       `json:"terminal_approvals"`
 }
 
 // SessionCatalogFacetsResponse is a daemon API value.
 type SessionCatalogFacetsResponse struct {
+	ByProfile   []SessionProfileFacetsPayload   `json:"by_profile"`
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
 }
@@ -283,6 +303,15 @@ type SessionCatalogPagePayload struct {
 type SessionCatalogResponse struct {
 	Sessions []SessionPayload          `json:"sessions"`
 	Page     SessionCatalogPagePayload `json:"page"`
+}
+
+// SessionChildrenPayload is a daemon API value.
+type SessionChildrenPayload struct {
+	Total    int `json:"total"`
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
 }
 
 // SessionCommandPayload is a daemon API value.
@@ -408,38 +437,3 @@ type SessionContextPayload struct {
 	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
 	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
 }
-
-// SessionContextRowPayload is a daemon API value.
-type SessionContextRowPayload struct {
-	Key              string    `json:"key"`
-	Label            string    `json:"label"`
-	Kind             string    `json:"kind"`
-	OwnerKind        string    `json:"owner_kind"`
-	Bytes            int64     `json:"bytes"`
-	Tokens           *int64    `json:"tokens,omitzero"`
-	DeliveredTurnID  string    `json:"delivered_turn_id"`
-	DeliverySequence int64     `json:"delivery_sequence"`
-	SentAt           time.Time `json:"sent_at"`
-	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
-	Unchanged        bool      `json:"unchanged"`
-	Stale            bool      `json:"stale"`
-	Delivery         string    `json:"delivery,omitempty"`
-	HookModified     bool      `json:"hook_modified,omitzero"`
-	Name             string    `json:"name,omitempty"`
-}
-
-// SessionContextSpanPayload is a daemon API value.
-type SessionContextSpanPayload struct {
-	Key          string `json:"key"`
-	Kind         string `json:"kind"`
-	Bytes        int64  `json:"bytes"`
-	Tokens       *int64 `json:"tokens,omitzero"`
-	Unchanged    bool   `json:"unchanged"`
-	StartupDedup bool   `json:"startup_dedup,omitzero"`
-	Delivery     string `json:"delivery,omitempty"`
-	HookModified bool   `json:"hook_modified,omitzero"`
-	Name         string `json:"name,omitempty"`
-}
-
-// SessionContextState is a daemon API value.
-type SessionContextState string

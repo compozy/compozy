@@ -7,6 +7,7 @@ import { parseTerminalQuote } from "@/systems/terminal/parts";
 
 import { SessionCreateContext } from "../contexts/session-create-context-value";
 import { clearPendingTerminalQuote, holdPendingTerminalQuote } from "../lib/session-terminal-quote";
+import type { SessionCreateOpenOptions } from "../lib/session-create-target";
 import type { SessionCreateStore } from "../stores/session-create-store";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
@@ -22,19 +23,19 @@ export function useSessionCreateStore(): SessionCreateStore {
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
   const {
+    dataScope,
     registeredWorkspaces,
     runtimeWorkspace,
     runtimeWorkspaceId,
-    scope,
     setActiveWorkspaceId,
   } = useActiveWorkspace();
+  // Every settled destination has a target: a project, User, or — under All
+  // projects — the one picked inline (ADR-003).
+  const canStart = dataScope !== null;
   const scopeId = useWorktreeScopeId();
-  const scopedWorktree = useScopedWorktreeFilter(
-    scope === "workspace" ? runtimeWorkspaceId : null,
-    scopeId
-  );
-  const openForAgent = (agentName: string, options: { folderId?: string } = {}) => {
-    if (runtimeWorkspaceId === null) {
+  const scopedWorktree = useScopedWorktreeFilter(runtimeWorkspaceId, scopeId);
+  const openForAgent = (agentName: string, options: SessionCreateOpenOptions = {}) => {
+    if (!canStart) {
       toast.error("Select an active workspace before starting a session.");
       return;
     }
@@ -46,8 +47,11 @@ export function useSessionCreateActions() {
     clearPendingTerminalQuote();
     store.trigger.dialogOpened({
       agentName: agentName.trim() || runtimeWorkspace?.default_agent?.trim() || "",
-      workspaceId: runtimeWorkspaceId,
+      workspaceId: runtimeWorkspaceId ?? "",
       ...(options.folderId ? { folderId: options.folderId } : {}),
+      ...(options.workspaceId || options.profile
+        ? { target: { project: options.workspaceId, profile: options.profile } }
+        : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),
@@ -55,7 +59,7 @@ export function useSessionCreateActions() {
   };
 
   const openCreateDialog = (pendingPrompt?: string) => {
-    if (runtimeWorkspaceId === null) {
+    if (!canStart) {
       toast.error("Select an active workspace before starting a session.");
       return;
     }
@@ -65,7 +69,7 @@ export function useSessionCreateActions() {
     }
     store.trigger.dialogOpened({
       agentName: runtimeWorkspace?.default_agent?.trim() ?? "",
-      workspaceId: runtimeWorkspaceId,
+      workspaceId: runtimeWorkspaceId ?? "",
       ...(pendingPrompt !== undefined ? { pendingPrompt } : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree" as const, worktreeId: scopedWorktree.worktreeId } }
@@ -102,7 +106,7 @@ export function useSessionCreateActions() {
     }
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
-    if (scope !== "workspace" || runtimeWorkspaceId !== workspaceId) {
+    if (runtimeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
     store.trigger.dialogOpened({
@@ -115,15 +119,19 @@ export function useSessionCreateActions() {
     });
   };
 
-  return { openForAgent, openForWorktree, openWithPrompt, openWithTerminalQuote };
+  return { openForAgent, openForWorktree, openWithPrompt, openWithTerminalQuote, canStart };
 }
 
 function isSessionCreateSubmitting(store: SessionCreateStore): boolean {
   return store.getSnapshot().context.operation.status === "submitting";
 }
 
+/**
+ * A session can be started from here: a project is focused, or All projects
+ * offers the inline Project picker. User focus joins once User sessions ship.
+ */
 export function useSessionCreateHasActiveWorkspace(): boolean {
-  return useActiveWorkspace().runtimeWorkspaceId !== null;
+  return useActiveWorkspace().dataScope !== null;
 }
 
 export function useSessionCreateIsCreating(): boolean {

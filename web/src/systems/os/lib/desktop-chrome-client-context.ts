@@ -1,4 +1,4 @@
-import type { WorkspaceScopeMode } from "@/systems/workspace";
+import type { BreadthMode } from "@/systems/workspace";
 
 import type { WindowManagerClientContextInput } from "../hooks/use-window-manager-stream";
 import type { OsDesktopRuntimeStore, OsWindowRoute } from "./os-types";
@@ -13,14 +13,15 @@ export function selectPaletteDestinationRoute(
 }
 
 export function resolveLivePaletteClientContext(input: {
-  scope: WorkspaceScopeMode;
+  breadthMode: BreadthMode;
   focusedSessionState: string | null | undefined;
   registeredWorkspaceTrusted: boolean | undefined;
   destinationRoute: OsWindowRoute | null;
   globalShortcuts: WindowManagerClientContextInput["globalShortcuts"];
 }): WindowManagerClientContextInput {
   return {
-    scopeGlobal: input.scope === "global",
+    // The daemon's `scope.global` predicate names the globe: All projects on.
+    scopeGlobal: input.breadthMode === "all",
     focusedSessionState: input.focusedSessionState ?? null,
     workspaceTrusted: input.registeredWorkspaceTrusted ?? false,
     destinationIntent: input.destinationRoute,

@@ -13,6 +13,7 @@ import {
 
 import { AutomationFormSection } from "./automation-form-section";
 import { ProfileDestinationChip } from "@/systems/profiles";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 /** 01 Name, with the daemon's name conflict on the field. */
 export function AutomationNameSection({
@@ -124,7 +125,7 @@ export function AutomationFormFooter({
   );
 }
 
-/** `Creates in checkout-api.` · `Creates a Global automation.` · `Saves to checkout-api.` */
+/** `Creates in checkout-api.` · `Creates in User.` · `Saves to checkout-api.` */
 function AutomationDestinationNote({
   destination,
   mode,
@@ -134,15 +135,9 @@ function AutomationDestinationNote({
   mode: "create" | "edit";
   profileDestination?: string | null;
 }) {
-  const place = <span className="font-medium text-fg">{destination ?? "Global"}</span>;
-  const text =
-    mode === "edit" ? (
-      <>Saves to {place}.</>
-    ) : destination === null ? (
-      <>Creates a {place} automation.</>
-    ) : (
-      <>Creates in {place}.</>
-    );
+  // No project is the User scope (COPY.md): the word is "User", never "Global".
+  const place = <span className="font-medium text-fg">{destination ?? DESTINATION_COPY.user}</span>;
+  const text = mode === "edit" ? <>Saves to {place}.</> : <>Creates in {place}.</>;
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1.5">
       <span className="text-form-hint text-muted" data-testid="automation-destination">

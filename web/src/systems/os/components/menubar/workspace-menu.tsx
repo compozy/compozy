@@ -2,8 +2,6 @@ import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { Check, ChevronRight } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -13,12 +11,15 @@ import {
 } from "@compozy/ui";
 
 import {
+  DESTINATION_COPY,
   groupWorkspaceTree,
   WorkspaceWorkingDot,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
   worktreeNestPresence,
   WORKTREE_SUBMENU_FRAME_CLASS,
+  type BreadthMode,
+  type Focus,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
@@ -33,16 +34,18 @@ export interface WorkspaceMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaces: WorkspacePayload[];
-  activeWorkspaceId: string | undefined;
-  globalScopeOn?: boolean;
-  monogram: (name: string) => string;
+  /** All projects is checked while on; otherwise the focus is. */
+  breadthMode: BreadthMode;
+  focus: Focus;
   onSelectWorkspace: (workspaceId: string) => void;
+  onFocusUser?: () => void;
+  onEnableAllProjects?: () => void;
   /** Runs a registry command through the one dispatch seam. */
   onRun: (commandId: string) => void;
   onAddWorkspace: () => void;
   /** Same query as the S1 switcher — the two surfaces must not diverge. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
-  /** Working-session counts by workspace id; drives the monogram's corner dot. */
+  /** Working-session counts by workspace id; drives the dot after each name. */
   workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   selectedWorktreeId?: string | null;
@@ -57,40 +60,67 @@ export interface WorkspaceMenuProps {
   notice?: string | null;
 }
 
+/** The name alone, like the topbar chip, then what is working there. */
 function WorkspaceRowLabel({
-  monogram,
   name,
   runningAgents,
   workingSessions,
 }: {
-  monogram: string;
   name: string;
   runningAgents: number;
   workingSessions: number;
 }) {
   return (
     <>
-      {/* The same monogram well as the topbar's workspace chip. */}
-      <Avatar size="sm" className="size-5 shrink-0">
-        <AvatarFallback className="text-badge font-semibold">{monogram}</AvatarFallback>
-        <WorkspaceWorkingDot count={workingSessions} />
-      </Avatar>
-      {name}
+      <span className="min-w-0 truncate">{name}</span>
+      <WorkspaceWorkingDot count={workingSessions} placement="inline" />
       <WorktreeAggregate runningAgents={runningAgents} />
     </>
   );
 }
 
-/** Workspace switcher: the bound set, then the overview and creation paths. */
+function ActiveCheck({ active }: { active: boolean }) {
+  return active ? <Check className="ml-auto size-3.5 text-accent" /> : null;
+}
+
+/** The All projects and User rows: destinations, never projects, with no worktree submenu. */
+function DestinationRows({
+  breadthMode,
+  focus,
+  onFocusUser,
+  onEnableAllProjects,
+}: Pick<WorkspaceMenuProps, "breadthMode" | "focus" | "onFocusUser" | "onEnableAllProjects">) {
+  return (
+    <>
+      <MenubarItem
+        data-testid="os-destination-all-projects"
+        onClick={() => onEnableAllProjects?.()}
+      >
+        {DESTINATION_COPY.allProjects}
+        <ActiveCheck active={breadthMode === "all"} />
+      </MenubarItem>
+      <MenubarItem data-testid="os-destination-user" onClick={() => onFocusUser?.()}>
+        {DESTINATION_COPY.user}
+        <ActiveCheck active={breadthMode === "focused" && focus.kind === "user"} />
+      </MenubarItem>
+    </>
+  );
+}
+
+/**
+ * Destination switcher in order: All projects, User, then the projects (each
+ * with its worktrees), then the overview and creation paths.
+ */
 export function WorkspaceMenu({
   trigger,
   open,
   onOpenChange,
   workspaces,
-  activeWorkspaceId,
-  globalScopeOn = false,
-  monogram,
+  breadthMode,
+  focus,
   onSelectWorkspace,
+  onFocusUser,
+  onEnableAllProjects,
   onRun,
   onAddWorkspace,
   worktreesByWorkspace,
@@ -105,9 +135,9 @@ export function WorkspaceMenu({
   onRemoveWorktrees,
   notice,
 }: WorkspaceMenuProps) {
-  const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
-    : null;
+  const focusedProjectId =
+    breadthMode === "focused" && focus.kind === "project" ? focus.workspaceId : undefined;
+  const tree = worktreesByWorkspace ? groupWorkspaceTree(workspaces, worktreesByWorkspace) : null;
   const nodeByWorkspaceId = new Map(tree?.map(node => [node.workspace.id, node]) ?? []);
   const orderedWorkspaces = tree?.map(node => node.workspace) ?? workspaces;
 
@@ -130,6 +160,17 @@ export function WorkspaceMenu({
                 ]
               : []),
             {
+              id: "destinations",
+              content: (
+                <DestinationRows
+                  breadthMode={breadthMode}
+                  focus={focus}
+                  onFocusUser={onFocusUser}
+                  onEnableAllProjects={onEnableAllProjects}
+                />
+              ),
+            },
+            {
               id: "workspaces",
               content:
                 orderedWorkspaces.length > 0 ? (
@@ -141,10 +182,9 @@ export function WorkspaceMenu({
                       const presence = node
                         ? worktreeNestPresence(node, Boolean(onCreateWorktree))
                         : "absent";
-                      const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
+                      const isActive = workspace.id === focusedProjectId;
                       const rowLabel = (
                         <WorkspaceRowLabel
-                          monogram={monogram(workspace.name)}
                           name={workspace.name}
                           runningAgents={node?.runningAgents ?? 0}
                           workingSessions={workingSessionsByWorkspace?.[workspace.id] ?? 0}
@@ -158,7 +198,7 @@ export function WorkspaceMenu({
                             onClick={() => onSelectWorkspace(workspace.id)}
                           >
                             {rowLabel}
-                            {isActive ? <Check className="ml-auto size-3.5 text-accent" /> : null}
+                            <ActiveCheck active={isActive} />
                           </MenubarItem>
                         );
                       }
@@ -190,7 +230,7 @@ export function WorkspaceMenu({
                             <WorktreeSubmenuPanel
                               node={node}
                               onRemoveWorktrees={onRemoveWorktrees}
-                              selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
+                              selectedWorktreeId={isActive ? selectedWorktreeId : null}
                               testIdPrefix="os"
                               variant="menu"
                               userHomeDir={userHomeDir}

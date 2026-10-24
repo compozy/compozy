@@ -1,12 +1,13 @@
 /**
  * Operator preferences for every session list surface: how rows are ordered and
- * how wide the list reaches.
+ * how they group.
  *
  * Both persist per operator through the daemon's `[shell.sessions]` config
  * section, so the choice survives a reload, a restart, and a second client —
  * and round-trips with `compozy config get/set shell.sessions.*` like every
  * other setting. The vocabulary below mirrors `internal/config/shell.go`
- * exactly; the daemon validates it and rejects anything else.
+ * exactly; the daemon validates it and rejects anything else. Breadth is not a
+ * list preference: the topbar globe owns it (ADR-004).
  */
 
 export const SESSION_LIST_SORTS = [
@@ -16,24 +17,24 @@ export const SESSION_LIST_SORTS = [
   "attention",
   "manual",
 ] as const;
-export const SESSION_LIST_SCOPES = ["workspace", "all-workspaces"] as const;
+export const SESSION_LIST_GROUP_BYS = ["none", "project", "profile"] as const;
 
 export type SessionListSort = (typeof SESSION_LIST_SORTS)[number];
-export type SessionListScope = (typeof SESSION_LIST_SCOPES)[number];
+export type SessionListGroupBy = (typeof SESSION_LIST_GROUP_BYS)[number];
 
 export interface SessionListPreferences {
   sort: SessionListSort;
-  scope: SessionListScope;
+  groupBy: SessionListGroupBy;
 }
 
-/** Calm defaults: newest created first, this workspace's own sessions. */
+/** Calm defaults: newest created first, one flat list. */
 export const DEFAULT_SESSION_LIST_PREFERENCES: SessionListPreferences = {
   sort: "created",
-  scope: "workspace",
+  groupBy: "none",
 };
 
 const SORTS: ReadonlySet<string> = new Set(SESSION_LIST_SORTS);
-const SCOPES: ReadonlySet<string> = new Set(SESSION_LIST_SCOPES);
+const GROUP_BYS: ReadonlySet<string> = new Set(SESSION_LIST_GROUP_BYS);
 
 export function toSessionListSort(value: string | null | undefined): SessionListSort {
   return value !== null && value !== undefined && SORTS.has(value)
@@ -41,15 +42,60 @@ export function toSessionListSort(value: string | null | undefined): SessionList
     : DEFAULT_SESSION_LIST_PREFERENCES.sort;
 }
 
-export function toSessionListScope(value: string | null | undefined): SessionListScope {
-  return value !== null && value !== undefined && SCOPES.has(value)
-    ? (value as SessionListScope)
-    : DEFAULT_SESSION_LIST_PREFERENCES.scope;
+export function toSessionListGroupBy(value: string | null | undefined): SessionListGroupBy {
+  return value !== null && value !== undefined && GROUP_BYS.has(value)
+    ? (value as SessionListGroupBy)
+    : DEFAULT_SESSION_LIST_PREFERENCES.groupBy;
 }
 
-/** The list order the daemon should serve for a given preference. */
-export function sessionListSortParam(sort: SessionListSort): SessionListSort {
-  return sort;
+/** Which aggregate axes the list is reading; each one unlocks its own grouping. */
+export interface SessionListBreadth {
+  allProjects: boolean;
+  allProfiles: boolean;
+}
+
+/** Group-by options offered now: `project` only under All projects, `profile` only under All profiles. */
+export function availableSessionListGroupBys(
+  breadth: SessionListBreadth
+): readonly SessionListGroupBy[] {
+  return SESSION_LIST_GROUP_BYS.filter(
+    value =>
+      value === "none" ||
+      (value === "project" && breadth.allProjects) ||
+      (value === "profile" && breadth.allProfiles)
+  );
+}
+
+/** The grouping that renders: an inapplicable stored value renders flat, unchanged in storage. */
+export function effectiveSessionListGroupBy(
+  stored: SessionListGroupBy,
+  breadth: SessionListBreadth
+): SessionListGroupBy {
+  return availableSessionListGroupBys(breadth).includes(stored) ? stored : "none";
+}
+
+/**
+ * The order a query is served: manual order lives in one (workspace, profile)
+ * pair's folders, so any wider query reads `last_activity` instead. The stored
+ * sort is never rewritten.
+ */
+export function sessionListSortParam(sort: SessionListSort, singlePair = true): SessionListSort {
+  return sort === "manual" && !singlePair ? "last_activity" : sort;
+}
+
+type SessionBoardSort = Exclude<SessionListSort, "manual">;
+
+/**
+ * Sorts the board offers. Manual order is the List's drag order inside one
+ * project and profile's folders; it has no meaning across board columns.
+ */
+export const SESSION_BOARD_SORTS: readonly SessionBoardSort[] = SESSION_LIST_SORTS.filter(
+  (sort): sort is SessionBoardSort => sort !== "manual"
+);
+
+/** The order board columns read: a stored `manual` reads `last_activity`, unchanged in storage. */
+export function sessionBoardSort(sort: SessionListSort): SessionBoardSort {
+  return sort === "manual" ? "last_activity" : sort;
 }
 
 /**

@@ -49,6 +49,9 @@ type ProviderUsageWindow struct {
 	ResetText       string               `json:"reset_text"`
 }
 
+// PullRequestState is a daemon API value.
+type PullRequestState string
+
 // PutLoopAnnotationsRequest is a daemon API value.
 type PutLoopAnnotationsRequest struct {
 	Annotations []LoopAnnotationPayload `json:"annotations"`

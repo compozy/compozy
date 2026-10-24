@@ -11,6 +11,7 @@ import { sessionSidebarStore } from "../../hooks/use-session-sidebar-state";
 import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "../../lib/session-sidebar-width";
 import { SessionSidebar } from "../session-sidebar";
 import { SessionSidebarLayout } from "../session-sidebar-layout";
+import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
 import { PROVENANCE_FAMILY } from "./session-sidebar-fixtures";
 
 type StoryArgs = { open: boolean; width: number | null; frameWidth: number };
@@ -67,23 +68,15 @@ const meta: Meta<StoryArgs> = {
               sessions={PROVENANCE_FAMILY}
               disconnected={false}
               collapsedThreadIds={[]}
+              subagentThreadIds={[]}
               currentSessionId="sess-migration"
-              view={{
-                scope: "workspace",
+              view={sessionListViewFixture({
                 sort: "last_activity",
-                archived: false,
-                saving: false,
-                setScope: fn(),
                 setSort: fn(),
                 setArchived: fn(),
-                workspaceGroups: [],
-                collapsedWorkspaceIds: new Set(),
-                toggleWorkspace: fn(),
-                aggregate: false,
-                scopeLabel: "default",
                 ownerOf: () => ({ id: "default", name: "default", archived: false }),
-              }}
-              onToggleThread={fn()}
+              })}
+              onThreadBranchChange={fn()}
               onSelectSession={fn()}
               onNewSession={fn()}
               sessionActions={{

@@ -202,7 +202,8 @@ func subagentTurnCompleted(events []store.SessionEvent) (bool, error) {
 			return false, err
 		}
 		return decoded.PromptStopReason != acp.PromptStopReasonCancelled &&
-			decoded.StopReason != string(acp.PromptStopReasonCancelled), nil
+			decoded.StopReason != string(acp.PromptStopReasonCancelled) &&
+			decoded.StopReason != string(store.StopShutdown), nil
 	}
 	return false, nil
 }
@@ -393,29 +394,9 @@ func (r managerSubagentRuntime) WakeTurnCompleted(ctx context.Context, wake stor
 }
 
 func (r managerSubagentRuntime) ResumeChild(ctx context.Context, row store.SessionSubagent) error {
-	info, err := r.m.Status(ctx, *row.ChildSessionID)
-	if err != nil {
-		return err
+	resumed, err := r.m.ResumeInterruptedSession(ctx, *row.ChildSessionID)
+	if err == nil && !resumed {
+		return ErrRestartContinuationSkipped
 	}
-	identity := row.ID + ":resume:" + info.UpdatedAt.UTC().Format("20060102T150405.000000000")
-	if _, err := r.m.Resume(ctx, *row.ChildSessionID); err != nil {
-		return err
-	}
-	result, err := r.m.SendPrompt(ctx, *row.ChildSessionID, SendPromptOpts{
-		Message:        "Continue the interrupted delegated task.",
-		MessageID:      identity,
-		IdempotencyKey: identity,
-		Mode:           BusyInputModeQueue,
-	})
-	if err != nil {
-		return err
-	}
-	if result.Events != nil {
-		r.m.startTrackedPromptTask(func() {
-			for range result.Events {
-				continue
-			}
-		})
-	}
-	return nil
+	return err
 }

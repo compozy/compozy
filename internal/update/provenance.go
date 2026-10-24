@@ -196,8 +196,12 @@ func normalizeDesktopProvenanceMetadata(
 	if metadata.RuntimeVersion == "" {
 		return DesktopProvenanceMetadata{}, errors.New("update: desktop provenance runtime version is required")
 	}
-	if metadata.Channel != "development" && metadata.Channel != string(releaseTrackBeta) {
-		return DesktopProvenanceMetadata{}, errors.New("update: desktop provenance channel must be development or beta")
+	switch metadata.Channel {
+	case "development", string(releaseTrackBeta), string(releaseTrackStable):
+	default:
+		return DesktopProvenanceMetadata{}, errors.New(
+			"update: desktop provenance channel must be development, beta, or stable",
+		)
 	}
 	return metadata, nil
 }

@@ -39,13 +39,14 @@ type SessionProviderExecutionState struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID              string         `json:"id"`
-	Name            string         `json:"name,omitempty"`
-	AgentName       string         `json:"agent_name"`
-	Provider        string         `json:"provider,omitempty"`
-	Model           string         `json:"model,omitempty"`
-	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed `json:"speed,omitempty"`
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
+	ID                       string         `json:"id"`
+	Name                     string         `json:"name,omitempty"`
+	AgentName                string         `json:"agent_name"`
+	Provider                 string         `json:"provider,omitempty"`
+	Model                    string         `json:"model,omitempty"`
+	ReasoningEffort          string         `json:"reasoning_effort,omitempty"`
+	Speed                    speedpkg.Speed `json:"speed,omitempty"`
 	*SessionRuntimeDetails
 	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitzero"`
 	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`
@@ -70,6 +71,9 @@ type SessionMeta struct {
 	// cleared with it, and drives resume affinity.
 	AcceptedRoute *SessionAcceptedRoute `json:"accepted_route,omitzero"`
 	Liveness      *SessionLivenessMeta  `json:"liveness,omitzero"`
+	// RestartBoundary snapshots the last dispatched turn without adding transcript events.
+	// Older metadata omits it and is recovered from the existing prompt history.
+	RestartBoundary *SessionRestartCheckpoint `json:"restart_boundary,omitzero"`
 	// Derivation and ImportedContext are present only on continued or forked children.
 	Derivation      *SessionDerivation      `json:"derivation,omitzero"`
 	ImportedContext *SessionImportedContext `json:"imported_context,omitzero"`
@@ -86,6 +90,29 @@ type SessionMeta struct {
 	ParentSoulDigest string    `json:"parent_soul_digest,omitempty"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+// SessionRestartCheckpoint binds recovery to the policy and route accepted at dispatch.
+type SessionRestartCheckpoint struct {
+	TurnID          string                `json:"turn_id"`
+	RuntimeRevision int64                 `json:"runtime_revision,omitempty"`
+	Delivery        string                `json:"delivery,omitempty"`
+	PolicyDigest    string                `json:"policy_digest,omitempty"`
+	Route           *SessionAcceptedRoute `json:"route,omitzero"`
+	Permissions     string                `json:"permissions,omitempty"`
+	WorktreeID      string                `json:"worktree_id,omitempty"`
+	CWD             string                `json:"cwd,omitempty"`
+	Reason          string                `json:"reason,omitempty"`
+}
+
+// CloneSessionRestartCheckpoint isolates a persisted recovery snapshot from later routing changes.
+func CloneSessionRestartCheckpoint(checkpoint *SessionRestartCheckpoint) *SessionRestartCheckpoint {
+	if checkpoint == nil {
+		return nil
+	}
+	cloned := *checkpoint
+	cloned.Route = CloneSessionAcceptedRoute(checkpoint.Route)
+	return &cloned
 }
 
 // WorktreeIDValue returns the optional worktree binding without exposing nil embedding details.

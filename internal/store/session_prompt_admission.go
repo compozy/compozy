@@ -153,8 +153,6 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return errors.New("store: session prompt admission id is required")
-	case normalized.WorkspaceID == "":
-		return errors.New("store: session prompt admission workspace id is required")
 	case normalized.SessionID == "":
 		return errors.New("store: session prompt admission session id is required")
 	case normalized.MessageID == "":

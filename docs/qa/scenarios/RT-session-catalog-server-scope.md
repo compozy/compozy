@@ -35,3 +35,11 @@ for exact verification and limits. These backend checks do not replace or promot
 scenario's historical browser/provider verdict.
 
 Issue #756 acceptance: with both active and persisted verdict-only `system` judges, the default CLI/HTTP/UDS catalog, sidebar, sessions modal, facets and attention summary exclude them before pagination. `--type system` / `type=system` returns them under the same profile/workspace scope. Direct session reads remain available; no archive/delete/migration is required. Verify a user session whose name resembles a gate stays visible.
+
+Issue #933 backend acceptance: after boot reconciliation, repeat list/status reads
+with hundreds of stopped sessions. Reads must not repair metadata, update the
+catalog, or create stop receipts. Warm lists must reuse unchanged metadata while
+observing current catalog ownership, transcript epochs and attention. Replace,
+corrupt and remove one metadata file; verify invalidation, stable creation-time/ID
+ordering, and unchanged workspace/profile filtering. Backend evidence and limits:
+[session inventory performance](../reports/2026-10-23-session-inventory.md).

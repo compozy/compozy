@@ -267,6 +267,51 @@ func TestTranscriptRuntimeMarkers(t *testing.T) {
 	}
 }
 
+// Invariant (issue #923): marker identity handles survive redaction so each
+// delivered message keeps its own identity; secrets in evidence still do not.
+func TestTranscriptMarkerEvidenceIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep distinct ULID-shaped identities while redacting evidence secrets", func(t *testing.T) {
+		t.Parallel()
+
+		occurredAt := time.Date(2026, 10, 23, 17, 3, 2, 0, time.UTC)
+		identities := []string{"wake_01M5MV5SVJGJVBC5P1278DP0KA", "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E"}
+		for _, identity := range identities {
+			marker, err := NewMarker(MarkerPromptSteered, "Subagent finished.", occurredAt, map[string]any{
+				"kind":           "subagent_wake",
+				"message_id":     identity,
+				"queue_entry_id": "inq_01M5MV7B2YLR3SUC8X4JAD5E9F",
+				"note":           "opaque sk-ant-api03-abcdefghijklmnopqrstuv",
+				"token_id":       "compozy_claim_identity_123",
+			})
+			if err != nil {
+				t.Fatalf("NewMarker() error = %v", err)
+			}
+			event, err := marker.AgentEvent("sess-identity", "turn-identity")
+			if err != nil {
+				t.Fatalf("AgentEvent() error = %v", err)
+			}
+			parsed, ok := ParseMarker(RedactAgentEvent(event).Raw)
+			if !ok {
+				t.Fatalf("ParseMarker(%s) = false", event.Raw)
+			}
+			if got := parsed.Evidence["message_id"]; got != identity {
+				t.Fatalf("evidence[message_id] = %v, want %q", got, identity)
+			}
+			if got, want := parsed.Evidence["queue_entry_id"], "inq_01M5MV7B2YLR3SUC8X4JAD5E9F"; got != want {
+				t.Fatalf("evidence[queue_entry_id] = %v, want %q", got, want)
+			}
+			for _, key := range []string{"note", "token_id"} {
+				if got, _ := parsed.Evidence[key].(string); strings.Contains(got, "sk-ant-api03") ||
+					strings.Contains(got, "claim_identity_123") {
+					t.Fatalf("evidence[%s] = %q, want secret redacted", key, got)
+				}
+			}
+		}
+	})
+}
+
 func TestTranscriptCompactionRedaction(t *testing.T) {
 	const helperEnv = "COMPOZY_TEST_COMPACTION_REDACTION_DISABLED"
 	if os.Getenv(helperEnv) == "1" {

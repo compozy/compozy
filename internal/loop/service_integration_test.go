@@ -72,7 +72,7 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 			t.Fatalf("Configure() error = %v", err)
 		}
 
-		cfg, err := globalDB.GetLoopConfig(ctx, "ws-1", "valid-loop")
+		cfg, err := globalDB.GetLoopConfig(ctx, "ws-1", "", "valid-loop")
 		if err != nil {
 			t.Fatalf("GetLoopConfig() error = %v", err)
 		}
@@ -188,7 +188,7 @@ func TestServiceIntegrationExecutedDefinitionSnapshot(t *testing.T) {
 		if stored.DefinitionDigest != run.DefinitionDigest || stored.Status != loop.StatusRunning {
 			t.Fatalf("stored Run = %#v, want running with digest %q", stored, run.DefinitionDigest)
 		}
-		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, "ws-1", run.DefinitionDigest)
+		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, "ws-1", "", run.DefinitionDigest)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}

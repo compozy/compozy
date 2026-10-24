@@ -28,6 +28,7 @@ export type {
   SessionByIDResponse,
   SessionOwnerResponse,
   SessionPayload,
+  SessionListTarget,
   SessionSupervisionPayload,
   SessionWorkSignalPayload,
   SessionWorkSignalKind,
@@ -162,34 +163,37 @@ export {
   renewSessionPresence,
   SESSION_BADGE_SIGNAL,
   SESSION_BADGES,
-  SESSION_LIST_SCOPES,
+  SESSION_BOARD_SORTS,
+  SESSION_LIST_GROUP_BYS,
   SESSION_LIST_SORTS,
   SessionBadgeGlyph,
   SessionBadgeMark,
   SessionArchivedToggle,
-  SessionScopeToggle,
   sessionAttentionClass,
   sessionBadgeSignal,
   sessionBadgeWordClass,
+  sessionBoardSort,
   sessionListSortParam,
   toSessionBadge,
-  toSessionListScope,
+  toSessionListGroupBy,
   toSessionListSort,
+  useSessionListGroups,
   useSessionListPreferences,
+  SESSION_LIST_MANUAL_SORT_NOTE,
   useSessionListView,
   useSessionPresence,
-  useWorkspaceSessionGroups,
   type SessionAttentionClass,
   type SessionBadgeGlyphProps,
   type SessionBadgeMarkProps,
   type SessionBadgeSignal,
   type SessionBadgeToken,
+  type SessionListGroupBy,
+  type SessionListGroupSpec,
+  type SessionListGroupsModel,
   type SessionListPreferences,
   type SessionListPreferencesModel,
-  type SessionListScope,
   type SessionListSort,
   type SessionListViewModel,
-  type WorkspaceSessionGroup,
 } from "./attention";
 export {
   isQueuedPromptMutable,
@@ -300,6 +304,7 @@ export type {
   SessionTranscriptThreadStatus,
 } from "./lib/session-transcript-thread-context-value";
 export { SessionCreateProvider } from "./contexts/session-create-context";
+export type { SessionCreateOpenOptions } from "./lib/session-create-target";
 export { createSessionCreateStore, type SessionCreateStore } from "./stores/session-create-store";
 
 export {
@@ -409,6 +414,10 @@ export {
 } from "./lib/session-hierarchy";
 export { visibleSessionOrder, type VisibleSessionOrderOptions } from "./lib/session-folders";
 export {
+  sessionListVisibleOrder,
+  type SessionListOrderSource,
+} from "./lib/session-list-visible-order";
+export {
   SessionWorkspaceSwitchDialog,
   type SessionWorkspaceSwitchDialogProps,
 } from "./components/session-workspace-switch-dialog";
@@ -460,6 +469,8 @@ export {
 export * from "./environment";
 // Derive surface — continue (and fork) plus origin display (./derive).
 export * from "./derive";
+// Board surface — Sessions board plus its pull-request facts (./board).
+export * from "./board";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
 export * from "./mentions";
@@ -478,13 +489,11 @@ export {
   type SessionContextActivitySource,
 } from "./hooks/use-session-context-activity";
 
-export { useSessionCatalog } from "./hooks/use-session-catalog";
-export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
-export { fetchSessionFacets } from "./adapters/session-catalog-api";
-
 export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
 
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
 export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter";
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
+export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
+export { subagentNavigationTarget, subagentRevealStore } from "./lib/subagent-navigation";

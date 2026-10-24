@@ -69,3 +69,42 @@ The automated soak runs in the release desktop nightly lane (`make test-e2e-desk
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Backend contract checks for All projects
+
+- Query `/api/sessions?all_workspaces=true&workspace_ids=<project>&workspace_ids=@user&limit=1`.
+  Follow cursors; every row must belong to the selected project or User. Reusing a cursor with a
+  different selection must fail. Empty selections and `global` filter values are rejected.
+- Read session facets with `all_profiles=true`: `by_profile` covers every eligible profile,
+  including groups with no row on the current page. Text and badge selections do not narrow facets.
+- PATCH `/api/settings/shell` with legacy `scope=all-workspaces`: verify the warning, explicit legacy
+  scope, and increasing revision on every repeated write. Set `group_by=profile`, write legacy scope
+  again, and reload; the explicit grouping must survive.
+- Open a global window with an unknown workspace binding: expect HTTP 400 `window_binding_invalid`.
+  `@user` succeeds. Saved snapshots remain structurally loadable after project removal.
+- Delete a session referenced from multiple profiles and project/global desktops; reload each partition.
+  The session view is empty and undo, navigation, and reopen cannot resurrect it. Unregistering a
+  bound project similarly retires every affected window onto its app's catalog.
+
+Backend evidence is owned by the session query/store, shell settings, window-manager lifecycle,
+and daemon partition reconciliation suites. Browser grouping and destination behavior are validated
+by the frontend slice and integrated journey.
+
+
+2026-10-21 backend gap follow-up: compare `compozy session list --all-workspaces` with the catalog. Its additional PROJECT column names registered projects and labels workspace-less rows User while retaining Workspace and all existing columns. The focused CLI suite covers the output contract; the full browser walk remains pending integration QA.
+
+Release review regression (#887): search while sessions are grouped. The modal header must omit the
+unfiltered total while a search is active; clearing the search restores the complete facets total.
+
+Issue #903 regression: in a session window under All projects with Group by project, collapse a workspace group and select sessions in other groups, then reload. The group stays collapsed and opens only on its toggle. Per-window rules: ET-web-session-sidebar-per-window.
+
+### Deferred profile identity and per-window folds
+
+With project grouping enabled, delay the profile catalog response and collapse a group in one
+window while a second window remains expanded. Resolve the profile catalog: both windows must
+keep their own choice. A newly opened window inherits the last-used folds. Rename that profile
+without changing its ID and verify the first window remains collapsed. Reusing the old profile
+name for a different ID must not transfer the old folds.
+
+Focused hook coverage: `use-session-list-groups.test.tsx`, W-15. Browser execution remains part
+of the owning scenario run; the focused hook test does not claim browser verification.

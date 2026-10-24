@@ -6,27 +6,22 @@ import { useSelector } from "@xstate/store-react";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
+import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
+import {
+  DEFAULT_SCOPE_STATE,
+  isRecord,
+  normalizedCollapsedFlags,
+  normalizedScopeState,
+  type SessionSidebarScopeState,
+  type SessionWindowViewMode,
+} from "../lib/session-sidebar-scope";
+import type { SessionThreadSegment } from "../lib/session-thread-branch";
 import {
   normalizeSessionSidebarWidth,
   SESSION_SIDEBAR_DEFAULT_WIDTH,
 } from "../lib/session-sidebar-width";
 
-/**
- * One window's sessions-rail presentation. Per-window by design: two session
- * windows side by side open, close, collapse, and resize independently.
- */
-export interface SessionSidebarScopeState {
-  /** The rail is open until the operator closes it in this window. */
-  open: boolean;
-  collapsedThreads: Record<string, boolean>;
-  /** Folders start expanded; a collapse is remembered per folder id. */
-  collapsedFolders: Record<string, boolean>;
-  /**
-   * The rail width the operator dragged to in this window, in pixels. `null`
-   * follows the default, so a reset tracks it.
-   */
-  width: number | null;
-}
+export type { SessionSidebarScopeState, SessionWindowViewMode };
 
 interface SessionSidebarContext {
   /**
@@ -47,49 +42,41 @@ interface SessionSidebarContext {
 
 export const SESSION_SIDEBAR_STORAGE_KEY = "compozy:session:sidebar:v1";
 
-const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
-  open: true,
-  collapsedThreads: {},
-  collapsedFolders: {},
-  width: null,
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizedCollapsedFlags(value: unknown): Record<string, boolean> {
-  if (!isRecord(value)) {
-    return {};
-  }
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, boolean] => typeof entry[1] === "boolean"
-    )
-  );
-}
-
-function normalizedScopeState(value: unknown): SessionSidebarScopeState {
-  if (!isRecord(value)) {
-    return DEFAULT_SCOPE_STATE;
-  }
-  return {
-    open: typeof value.open === "boolean" ? value.open : DEFAULT_SCOPE_STATE.open,
-    collapsedThreads: normalizedCollapsedFlags(value.collapsedThreads),
-    collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
-    width: normalizeSessionSidebarWidth(value.width),
-  };
-}
-
 /**
  * A scope with no entry of its own follows the shell (last-used) state, so a
- * new window opens looking like the last one the operator touched.
+ * new window opens looking like the last one the operator touched. Its order
+ * and grouping are the exception: read them through `resolveSessionWindowOrder`.
  */
 export function resolveSessionSidebarScope(
   byScope: Record<string, SessionSidebarScopeState>,
   scopeId: string
 ): SessionSidebarScopeState {
   return byScope[scopeId] ?? byScope[SHELL_WORKTREE_SCOPE] ?? DEFAULT_SCOPE_STATE;
+}
+
+/**
+ * A window's own order and grouping. A window never inherits them from the
+ * shell (last-used) state: until it chooses, both read `null` and the daemon's
+ * value seeds it, so one window's choice never reaches a new window.
+ */
+export function resolveSessionWindowOrder(
+  byScope: Record<string, SessionSidebarScopeState>,
+  scopeId: string
+): Pick<SessionSidebarScopeState, "sort" | "groupBy"> {
+  return byScope[scopeId] ?? NO_WINDOW_ORDER;
+}
+
+const NO_WINDOW_ORDER = { sort: null, groupBy: null } as const;
+
+/** The state a gesture starts from: inherited rail state, never an inherited order. */
+function scopeBaseState(
+  byScope: Record<string, SessionSidebarScopeState>,
+  scopeId: string
+): SessionSidebarScopeState {
+  const state = resolveSessionSidebarScope(byScope, scopeId);
+  return Object.hasOwn(byScope, scopeId) || scopeId === SHELL_WORKTREE_SCOPE
+    ? state
+    : { ...state, ...NO_WINDOW_ORDER };
 }
 
 function mergeSessionSidebarPreferences(
@@ -114,21 +101,54 @@ function mergeSessionSidebarPreferences(
   return { byScope, partitionByScope };
 }
 
-/** Writes one scope and makes it the last-used state new windows inherit. */
+/**
+ * Writes one scope and makes it the last-used state new windows inherit. The
+ * board view, its filter, and the order and grouping stay with their window: a
+ * window opened to show a session must never land on another window's board.
+ */
 function withScopeState(
   context: SessionSidebarContext,
   scopeId: string,
   update: (state: SessionSidebarScopeState) => SessionSidebarScopeState
 ): SessionSidebarContext {
-  const next = update(resolveSessionSidebarScope(context.byScope, scopeId));
+  const next = update(scopeBaseState(context.byScope, scopeId));
+  const previousShell = context.byScope[SHELL_WORKTREE_SCOPE];
+  const shell = {
+    ...next,
+    view: DEFAULT_SCOPE_STATE.view,
+    hideChildren: false,
+    sort: previousShell?.sort ?? null,
+    groupBy: previousShell?.groupBy ?? null,
+  };
   return {
     ...context,
-    byScope: { ...context.byScope, [scopeId]: next, [SHELL_WORKTREE_SCOPE]: next },
+    byScope: { ...context.byScope, [SHELL_WORKTREE_SCOPE]: shell, [scopeId]: next },
   };
 }
 
 function toggledFlag(flags: Record<string, boolean>, id: string): Record<string, boolean> {
   return { ...flags, [id]: !(flags[id] ?? false) };
+}
+
+/** Subagent lists start closed, so only an open one is stored. */
+function withoutFalseFlag(
+  flags: Record<string, boolean>,
+  id: string,
+  value: boolean
+): Record<string, boolean> {
+  if (value) return { ...flags, [id]: true };
+  if (!Object.hasOwn(flags, id)) return flags;
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
+}
+
+/**
+ * Group ids carry their whole lens, so every scope, profile, and grouping the
+ * operator ever toggled would pile up if an expand kept a `false` flag. Groups
+ * start expanded, so an expand just drops the entry: only folds are stored.
+ */
+function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
+  if (!flags[id]) return { ...flags, [id]: true };
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
 }
 
 /**
@@ -169,15 +189,39 @@ export const sessionSidebarLogic = createStoreLogic({
       withScopeState(context, event.scopeId, state => ({ ...state, open: !state.open })),
     sidebarVisibilityChanged: (context, event: { scopeId: string; open: boolean }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, open: event.open })),
-    threadToggled: (context, event: { scopeId: string; sessionId: string }) => {
+    threadBranchChanged: (
+      context,
+      event: { scopeId: string; sessionId: string; segment: SessionThreadSegment | null }
+    ) => {
       if (!event.sessionId) {
         return;
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedThreads: toggledFlag(state.collapsedThreads, event.sessionId),
+        collapsedThreads: {
+          ...state.collapsedThreads,
+          [event.sessionId]: event.segment !== "children",
+        },
+        subagentThreads: withoutFalseFlag(
+          state.subagentThreads,
+          event.sessionId,
+          event.segment === "subagents"
+        ),
       }));
     },
+    viewChanged: (context, event: { scopeId: string; view: SessionWindowViewMode }) => {
+      if (resolveSessionSidebarScope(context.byScope, event.scopeId).view === event.view) return;
+      return withScopeState(context, event.scopeId, state => ({ ...state, view: event.view }));
+    },
+    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) =>
+      withScopeState(context, event.scopeId, state => ({
+        ...state,
+        hideChildren: event.hideChildren,
+      })),
+    sortChanged: (context, event: { scopeId: string; sort: SessionListSort }) =>
+      withScopeState(context, event.scopeId, state => ({ ...state, sort: event.sort })),
+    groupByChanged: (context, event: { scopeId: string; groupBy: SessionListGroupBy }) =>
+      withScopeState(context, event.scopeId, state => ({ ...state, groupBy: event.groupBy })),
     widthChanged: (context, event: { scopeId: string; width: number }) => {
       const width = normalizeSessionSidebarWidth(event.width);
       if (width === null) {
@@ -203,6 +247,37 @@ export const sessionSidebarLogic = createStoreLogic({
         collapsedFolders: toggledFlag(state.collapsedFolders, event.folderId),
       }));
     },
+    groupToggled: (context, event: { scopeId: string; groupId: string }) => {
+      if (!event.groupId) {
+        return;
+      }
+      return withScopeState(context, event.scopeId, state => ({
+        ...state,
+        collapsedGroups: toggledGroup(state.collapsedGroups, event.groupId),
+      }));
+    },
+    groupLensResolved: (context, event: { from: string; to: string }) => {
+      if (event.from === event.to) return;
+      const prefix = `${event.from}\u0000`;
+      const byScope = { ...context.byScope };
+      let changed = false;
+      // Resolve each window independently, including the default new windows inherit.
+      for (const [scopeId, state] of Object.entries(byScope)) {
+        const entries = Object.entries(state.collapsedGroups).filter(([id]) =>
+          id.startsWith(prefix)
+        );
+        if (entries.length === 0) continue;
+        const collapsedGroups = { ...state.collapsedGroups };
+        for (const [id, collapsed] of entries) {
+          const resolved = `${event.to}\u0000${id.slice(prefix.length)}`;
+          collapsedGroups[resolved] ??= collapsed;
+          delete collapsedGroups[id];
+        }
+        byScope[scopeId] = { ...state, collapsedGroups };
+        changed = true;
+      }
+      return changed ? { ...context, byScope } : undefined;
+    },
     /**
      * Pins a window to the state it opened with. Without its own entry a window
      * would keep following the shell, i.e. every other window's gestures.
@@ -215,7 +290,7 @@ export const sessionSidebarLogic = createStoreLogic({
         ...context,
         byScope: {
           ...context.byScope,
-          [event.scopeId]: resolveSessionSidebarScope(context.byScope, event.scopeId),
+          [event.scopeId]: scopeBaseState(context.byScope, event.scopeId),
         },
       };
     },
@@ -332,9 +407,14 @@ export interface UseSessionSidebarStateResult {
   toggle: () => void;
   setOpen: (open: boolean) => void;
   collapsedThreadIds: string[];
-  toggleThread: (sessionId: string) => void;
+  /** Parent sessions whose subagent list is open. */
+  subagentThreadIds: string[];
+  /** Shows one list under a session row, or folds its branch (`null`). */
+  setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) => void;
   collapsedFolderIds: string[];
   toggleFolder: (folderId: string) => void;
+  collapsedGroupIds: string[];
+  toggleGroup: (groupId: string) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -367,12 +447,16 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     toggle: () => sessionSidebarStore.trigger.sidebarToggled({ scopeId }),
     setOpen: (nextOpen: boolean) =>
       sessionSidebarStore.trigger.sidebarVisibilityChanged({ scopeId, open: nextOpen }),
-    collapsedThreadIds: collapsedIds(state.collapsedThreads),
-    toggleThread: (sessionId: string) =>
-      sessionSidebarStore.trigger.threadToggled({ scopeId, sessionId }),
-    collapsedFolderIds: collapsedIds(state.collapsedFolders),
+    collapsedThreadIds: flaggedIds(state.collapsedThreads),
+    subagentThreadIds: flaggedIds(state.subagentThreads),
+    setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) =>
+      sessionSidebarStore.trigger.threadBranchChanged({ scopeId, sessionId, segment }),
+    collapsedFolderIds: flaggedIds(state.collapsedFolders),
     toggleFolder: (folderId: string) =>
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
+    collapsedGroupIds: flaggedIds(state.collapsedGroups),
+    toggleGroup: (groupId: string) =>
+      sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),
@@ -380,6 +464,6 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
   };
 }
 
-function collapsedIds(flags: Record<string, boolean>): string[] {
+function flaggedIds(flags: Record<string, boolean>): string[] {
   return Object.entries(flags).flatMap(([id, collapsed]) => (collapsed ? [id] : []));
 }

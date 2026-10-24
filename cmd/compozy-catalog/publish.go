@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 )
 
+// publishCatalog stages and validates one publication before replacing its public files.
 func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string) (err error) {
 	sources, err := readPublicationSources(sourceDirectory)
 	if err != nil {
@@ -39,6 +40,7 @@ func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string
 	return commitCatalogPublication(ctx, stage, output)
 }
 
+// stageCatalogPublication writes artifacts, the released feed, and digest-bound compatibility metadata into staging.
 func stageCatalogPublication(ctx context.Context, source, stage string, sources *publicationSources) error {
 	current := make([]publicationEntry, 0, len(sources.Entries))
 	for _, metadata := range sources.Entries {
@@ -54,6 +56,20 @@ func stageCatalogPublication(ctx context.Context, source, stage string, sources 
 	if err := writePublicationJSON(stage, "v3/extensions.json", publicationDocument[publicationEntry]{
 		ManifestVersion: marketplace.ManifestVersion, GeneratedAt: sources.GeneratedAt, Entries: current,
 	}); err != nil {
+		return err
+	}
+	digest, err := marketplace.DigestFile(filepath.Join(stage, "v3", "extensions.json"))
+	if err != nil {
+		return err
+	}
+	compatibility := marketplace.CompatibilityDocument{
+		FeedDigestSHA256: digest,
+		MinimumVersions:  make(map[string]string, len(current)),
+	}
+	for _, entry := range current {
+		compatibility.MinimumVersions[entry.DigestSHA256] = entry.MinCompozyVersion
+	}
+	if err := writePublicationJSON(stage, "v3/compatibility.json", compatibility); err != nil {
 		return err
 	}
 	// #nosec G703 -- source is the explicit local catalog root selected by the publishing operator.

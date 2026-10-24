@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   subagentCardLines,
-  subagentChipPreview,
   subagentChipState,
   subagentCounts,
   subagentElapsedClock,
@@ -336,27 +335,6 @@ describe("subagentChipState (UT-W17)", () => {
 
   it("Should hide once everything settled without failure or attention", () => {
     expect(subagentChipState({ live: 0, total: 6, failed: 0, attention: 0 }, false)).toBeNull();
-  });
-
-  it("Should preview the five most urgent then +N more", () => {
-    const rows = [
-      withStatus("completed", "done", 9),
-      withStatus("running", "run-old", 1),
-      withStatus("running", "run-new", 5),
-      withStatus("failed", "failed", 2),
-      withStatus("waiting", "waiting", 0),
-      withStatus("queued", "queued", 3),
-      withStatus("canceled", "canceled", 4),
-    ];
-    const preview = subagentChipPreview(rows, 10);
-    expect(preview.rows.map(row => row.id)).toEqual([
-      "waiting",
-      "failed",
-      "run-new",
-      "run-old",
-      "queued",
-    ]);
-    expect(preview.more).toBe(5);
   });
 });
 

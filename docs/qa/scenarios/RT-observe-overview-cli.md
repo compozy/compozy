@@ -36,3 +36,12 @@ of BUG-20261002-task-action-profile-scope are required before this scenario is s
 QA completion 2026-10-02: explicit-zero validation and owner-scoped CLI actions are repaired.
 Fresh reads retain all output-mode and transport contracts; approve/reject succeed and disappear
 from attention, while a foreign-profile mutation still refuses. The affected local gate passed.
+
+QA impact and focused verification 2026-10-23 (harness dogfood): at INFO, successful read
+polling, successful hook dispatches and empty scheduler/Loop sweeps do not crowd out incident
+records. DEBUG retains detailed tracing. Mutations/repairs and rejected/failed requests remain
+visible at their respective INFO/WARN/ERROR levels; hook failures include available
+session/workspace/turn/task/run identity. Persisted hook runs, events and metrics are unchanged.
+Existing HTTP/hook tests and the real hosted-MCP hook journey verify these changed paths.
+No post-deployment retention or performance improvement is asserted; see
+[focused verification](../reports/2026-10-23-harness-dogfood.md).

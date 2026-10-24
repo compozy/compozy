@@ -1,3 +1,5 @@
+import { useContext } from "react";
+
 import { Checkbox, Time, formatAbsoluteTime } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
@@ -5,21 +7,27 @@ import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
-import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
-import { sessionAwaitsMonitors } from "../../lib/session-monitor-summary";
+import { sessionWaitingOn } from "../../lib/session-pull-request";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row-context-menu";
-import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
+import type {
+  SessionDragHandlers,
+  SessionDropPosition,
+  SessionRowDropEdge,
+} from "../../hooks/use-session-list-dnd";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListRowWho } from "./session-list-row-meta";
+import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
+import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
-import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 
 export interface SessionListRowProps {
   session: SessionPayload;
@@ -29,6 +37,8 @@ export interface SessionListRowProps {
    * child in its root's profile repeats it (US-011.AC-1).
    */
   owner?: ProfileOwner;
+  /** A child in its root's project repeats nothing: the project badge is omitted. */
+  inheritsProject?: boolean;
   current?: boolean;
   onSelect: () => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -36,7 +46,7 @@ export interface SessionListRowProps {
   testIdPrefix: string;
   /** A subagent session whose ancestry was deleted: it leads its thread, labelled. */
   orphanedSubagent?: boolean;
-  /** Controls rendered in the meta line's trailing cluster (e.g. a thread toggle). */
+  /** Controls rendered in the meta line's trailing cluster (the branch toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
   /** Folder moves and manual-order verbs for a root row in the workspace list. */
@@ -44,7 +54,7 @@ export interface SessionListRowProps {
   /** Drag source/target wiring for a root row in the workspace list. */
   drag?: SessionDragHandlers;
   /** The pending drop lands on this edge of the row. */
-  dropEdge?: SessionDropPosition | null;
+  dropEdge?: SessionRowDropEdge | null;
   /** This row is the one being dragged. */
   dragging?: boolean;
 }
@@ -54,7 +64,7 @@ export interface SessionListRowProps {
  * holding the compact time at rest and the row actions on hover or focus. Line 2
  * carries who runs it (owner, provider, agent), attention words, and the trailing
  * cluster. The title button's `::after` stretches over the row so the whole row
- * navigates, while the checkbox, chip, toggle, and actions sit above it as
+ * navigates, while the checkbox, branch toggle, and actions sit above it as
  * siblings — no interactive control nests inside another.
  */
 export function SessionListRow(props: SessionListRowProps) {
@@ -89,6 +99,7 @@ export function SessionListRow(props: SessionListRowProps) {
 function SessionListRowBody({
   session,
   owner,
+  inheritsProject = false,
   current = false,
   onSelect,
   sessionActions,
@@ -100,13 +111,14 @@ function SessionListRowBody({
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
-  const subagentCounts = sessionSubagentCounts(session);
   const runtime = useSessionRowRuntimeLabel(session);
-  const signal = sessionBadgeSignal(session.badge);
+  const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
   const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
-  const hasTrailing = subagentCounts !== null || trailing !== undefined;
+  const badgeOf = useContext(SessionListBadgeContext);
+  const badge = inheritsProject ? undefined : badgeOf?.(session);
+  const hasTrailing = trailing !== undefined;
   return (
     <>
       <SessionRowTarget
@@ -133,6 +145,7 @@ function SessionListRowBody({
       {meta.visible || hasTrailing ? (
         <SessionRowMetaLine
           session={session}
+          badge={badge}
           owner={owner}
           meta={meta}
           mark={
@@ -143,16 +156,7 @@ function SessionListRowBody({
               onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
             />
           }
-          trailing={
-            hasTrailing ? (
-              <SessionRowTrailing
-                session={session}
-                subagentCounts={subagentCounts}
-                trailing={trailing}
-                onSelect={onSelect}
-              />
-            ) : null
-          }
+          trailing={hasTrailing ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null}
         />
       ) : null}
     </>
@@ -208,8 +212,7 @@ function SessionRowTarget({
     >
       <SessionBadgeMark
         badge={session.badge}
-        delegated={sessionAwaitsSubagents(session)}
-        monitoring={sessionAwaitsMonitors(session)}
+        waitingOn={sessionWaitingOn(session)}
         className={badgeMarkClass(selection)}
       />
       <span className="min-w-0 truncate">{title}</span>
@@ -219,15 +222,20 @@ function SessionRowTarget({
   );
 }
 
-/** Line 2: who runs the row (owner, provider, agent), its words, and the trailing cluster. */
+/**
+ * Line 2: where and who (project badge, owner, provider, agent), its words, and
+ * the trailing cluster. The project name gives way before the agent.
+ */
 function SessionRowMetaLine({
   session,
+  badge,
   owner,
   meta,
   mark,
   trailing,
 }: {
   session: SessionPayload;
+  badge: WorkspaceBadgeIdentity | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
   mark: React.ReactNode;
@@ -236,9 +244,19 @@ function SessionRowMetaLine({
   return (
     <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2">
       <span className="flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle">
+        {badge ? (
+          <WorkspaceBadge
+            identity={badge}
+            className="max-w-40 shrink-[1000]"
+            data-testid={`session-row-project-${session.id}`}
+          />
+        ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
         <SessionListRowWho session={session} meta={meta} />
+        {sessionIsUnrestricted(session) ? (
+          <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
+        ) : null}
       </span>
       {trailing}
     </span>
@@ -274,24 +292,9 @@ function SessionRowEndSlot({
 }
 
 /** The meta line's trailing cluster, lifted above the row target. */
-function SessionRowTrailing({
-  session,
-  subagentCounts,
-  trailing,
-  onSelect,
-}: {
-  session: SessionPayload;
-  subagentCounts: ReturnType<typeof sessionSubagentCounts>;
-  trailing: React.ReactNode;
-  onSelect: () => void;
-}) {
+function SessionRowTrailing({ children }: { children: React.ReactNode }) {
   return (
-    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">
-      {subagentCounts !== null ? (
-        <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
-      ) : null}
-      {trailing}
-    </span>
+    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">{children}</span>
   );
 }
 
@@ -356,7 +359,7 @@ function SessionRowDragFrame({
   ...rest
 }: React.ComponentProps<"div"> & {
   drag: SessionDragHandlers | undefined;
-  dropEdge: SessionDropPosition | null;
+  dropEdge: SessionRowDropEdge | null;
   dragging: boolean;
   dropTestId: string;
 }) {
@@ -365,9 +368,18 @@ function SessionRowDragFrame({
       {...rest}
       {...drag}
       data-dragging={dragging || undefined}
-      className={cn(dragging && "opacity-50", className)}
+      data-drop={dropEdge ?? undefined}
+      className={cn(
+        dragging && "opacity-50",
+        // Dropping onto the row nests the dragged session under it.
+        dropEdge === "into" && "rounded-md bg-accent-tint ring-1 ring-accent ring-inset",
+        className
+      )}
     >
-      {dropEdge !== null ? <SessionRowDropLine edge={dropEdge} testId={dropTestId} /> : null}
+      {dropEdge === "before" || dropEdge === "after" ? (
+        <SessionRowDropLine edge={dropEdge} testId={dropTestId} />
+      ) : null}
+
       {children}
     </div>
   );

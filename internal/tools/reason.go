@@ -122,6 +122,8 @@ const (
 	ReasonSchemaInvalid ReasonCode = "schema_invalid"
 	// ReasonConflictedID reports a canonical id conflict.
 	ReasonConflictedID ReasonCode = "conflicted_id"
+	// ReasonSpawnBudgetExhausted reports a governed spawn refused by a live-child cap.
+	ReasonSpawnBudgetExhausted ReasonCode = "spawn_budget_exhausted"
 	// ReasonConflictedSanitizedName reports an external-name sanitization conflict.
 	ReasonConflictedSanitizedName ReasonCode = "conflicted_sanitized_name"
 	// ReasonResultBudgetExceeded reports a result budget violation.
@@ -245,6 +247,7 @@ var validReasonCodes = map[ReasonCode]struct{}{
 	ReasonHookDenied:                     {},
 	ReasonSchemaInvalid:                  {},
 	ReasonConflictedID:                   {},
+	ReasonSpawnBudgetExhausted:           {},
 	ReasonConflictedSanitizedName:        {},
 	ReasonResultBudgetExceeded:           {},
 	ReasonResultPersistenceFailed:        {},

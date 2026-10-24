@@ -70,6 +70,9 @@ func normalizeAutomationTrigger(trigger automation.Trigger) automation.Trigger {
 }
 
 func normalizeAutomationRun(run automation.Run) automation.Run {
+	if run.Attribution == "" {
+		run.Attribution = "unknown"
+	}
 	run.ID = strings.TrimSpace(run.ID)
 	run.JobID = strings.TrimSpace(run.JobID)
 	run.TriggerID = strings.TrimSpace(run.TriggerID)

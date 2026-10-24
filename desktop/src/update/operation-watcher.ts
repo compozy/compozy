@@ -13,7 +13,7 @@ function isMissingFile(error: unknown): boolean {
 export class OperationWatcher {
   readonly #path: string;
   readonly #pollIntervalMs: number;
-  readonly #onOperation: (operation: UpdateOperation | null) => Promise<void>;
+  readonly #onOperation: (operation: UpdateOperation | null) => Promise<boolean>;
   readonly #onError: (error: Error) => void;
   #watcher: FSWatcher | null = null;
   #timer: NodeJS.Timeout | null = null;
@@ -24,7 +24,7 @@ export class OperationWatcher {
   constructor(options: {
     path: string;
     pollIntervalMs: number;
-    onOperation: (operation: UpdateOperation | null) => Promise<void>;
+    onOperation: (operation: UpdateOperation | null) => Promise<boolean>;
     onError: (error: Error) => void;
   }) {
     this.#path = options.path;
@@ -82,13 +82,11 @@ export class OperationWatcher {
       const operation = parseUpdateOperation(JSON.parse(data.toString("utf8")) as unknown);
       const revision = `${operation.operation_id}:${operation.revision}`;
       if (revision === this.#lastRevision) return;
-      this.#lastRevision = revision;
-      await this.#onOperation(operation);
+      if (await this.#onOperation(operation)) this.#lastRevision = revision;
     } catch (error) {
       if (isMissingFile(error)) {
         if (this.#lastRevision !== "missing") {
-          this.#lastRevision = "missing";
-          await this.#onOperation(null);
+          if (await this.#onOperation(null)) this.#lastRevision = "missing";
         }
         return;
       }

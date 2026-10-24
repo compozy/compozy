@@ -2,6 +2,7 @@ package spec
 
 import (
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -27,4 +28,12 @@ func customizeSchedulerDrainRequestSchema(schema *openapi3.Schema) {
 	timeoutSeconds.Value.
 		WithMin(0).
 		WithMax(float64(contract.SchedulerDrainTimeoutMaxSeconds))
+}
+
+func customizeUserScopeInputSchema(schema *openapi3.Schema) {
+	if schema == nil || schema.Properties["scope"] == nil || schema.Properties["scope"].Value == nil {
+		return
+	}
+	scope := schema.Properties["scope"].Value
+	scope.Enum = append(scope.Enum, "user", workspaceaccess.UserSelector)
 }

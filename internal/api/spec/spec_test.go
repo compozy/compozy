@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	collisionfixture "github.com/compozy/compozy/internal/api/spec/testdata/componentnames/collision/session"
@@ -1305,7 +1307,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				createJobSchema := jsonRequestSchema(t, createJob)
 				assertRequired(t, createJobSchema, "scope", "name", "agent_name", "prompt", "schedule")
 				assertNotRequired(t, createJobSchema, "workspace_id", "enabled", "retry", "fire_limit")
-				assertEnumValues(t, propertySchema(t, createJobSchema, "scope"), "global", "workspace")
+				assertEnumValues(
+					t,
+					propertySchema(t, createJobSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					workspaceaccess.UserSelector,
+				)
 
 				scheduleSchema := propertySchema(t, createJobSchema, "schedule")
 				assertRequired(t, scheduleSchema, "mode")
@@ -1336,7 +1345,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"endpoint_slug",
 					"webhook_secret_value",
 				)
-				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")
+				assertEnumValues(
+					t,
+					propertySchema(t, createTriggerSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					workspaceaccess.UserSelector,
+				)
 
 				healthOperation := operationFor(t, doc, "/api/status", "GET")
 				healthSchema := jsonResponseSchema(t, healthOperation, 200)
@@ -1981,7 +1997,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"wake_creator",
 					"metadata",
 				)
-				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace")
+				assertEnumValues(
+					t,
+					propertySchema(t, createTaskSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					workspaceaccess.UserSelector,
+				)
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "priority"), "low", "medium", "high", "urgent")
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "approval_policy"), "none", "manual")
 
@@ -2066,7 +2089,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					parameterSchema(t, listTasks, "scope", openapi3.ParameterInQuery),
-					"all", "global", "workspace",
+					"all", "global", "workspace", "user", workspaceaccess.UserSelector,
 				)
 				listTasksSchema := jsonResponseSchema(t, listTasks, 200)
 				assertRequired(t, listTasksSchema, "tasks", "page", "facets")
@@ -3444,6 +3467,22 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
+	automationProperties := baseline
+	for _, key := range []string{
+		"paths", "/api/settings/automation", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "runtime", "properties",
+	} {
+		next, ok := automationProperties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved automation schema addition: missing object %q", key)
+		}
+		automationProperties = next
+	}
+	if _, exists := automationProperties["host_timezone"]; exists {
+		t.Fatal("host_timezone already exists in the historical baseline")
+	}
+	automationProperties["host_timezone"] = map[string]any{"type": "string"}
 	// #864: optional workspace-config error details; required fields stay unchanged.
 	if addWorkspaceConfigErrorSchema(baseline) == 0 {
 		t.Fatal("approved workspace config error additions: no historical error schemas found")
@@ -3451,8 +3490,16 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addDeclaredEnvironmentSchemas(baseline) == 0 {
 		t.Fatal("approved environment additions: no historical declaration owners found")
 	}
+	// Spawn orchestration: optional worktree, inheritance, toolset, and first-prompt fields on the
+	// agent spawn request and payload, plus the spawn_budget_exhausted tool reason code.
+	addSpawnOrchestrationSchemas(t, baseline)
+	// #908: tool error code for a failed stop-first archive; existing codes stay unchanged.
+	if addToolErrorCode(baseline, string(tools.ErrorCodeSessionArchiveStopFailed)) == 0 {
+		t.Fatal("approved tool error code addition: no historical tool error code enums found")
+	}
 	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
-	if addLastKnownRuntimeSchema(baseline) == 0 {
+	// #914: requested has the existing optional PromptRuntimeSelectionPayload contract.
+	if addSessionRuntimeReadSchemas(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
 	}
 	// #804: optional additive field; no required/type/removal change.
@@ -3476,6 +3523,33 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #788: optional additive field; no required/type/removal change.
 	paths := baseline["paths"].(map[string]any)
 	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	// #920: optional own-turn work aggregate; existing usage fields remain unchanged.
+	usageProperties := paths
+	for _, key := range []string{
+		prefix + "/usage", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "usage", "properties",
+	} {
+		next, ok := usageProperties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved work-time addition: missing object %q", key)
+		}
+		usageProperties = next
+	}
+	if _, exists := usageProperties["work_time"]; exists {
+		t.Fatal("approved work-time addition: work_time already exists in the historical baseline")
+	}
+	usageProperties["work_time"] = map[string]any{"oneOf": []any{
+		map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"active_duration_ms":     map[string]any{"type": "integer", "format": "int64"},
+				"turn_count":             map[string]any{"type": "integer", "format": "int64"},
+				"last_completed_turn_id": map[string]any{"type": "string"},
+			},
+			"required": []any{"active_duration_ms", "turn_count"},
+		},
+		map[string]any{"enum": []any{nil}, "nullable": true},
+	}}
 	prompt := paths[prefix+"/prompt"].(map[string]any)["post"].(map[string]any)
 	steer := paths[prefix+"/steer"].(map[string]any)["post"].(map[string]any)
 	promptBody := prompt["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
@@ -3509,6 +3583,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// Session monitors: optional additive `monitor_summary` on session payloads; no
 	// required/type/removal change.
 	addSessionMonitorSummary(t, baseline)
+	addSessionsKanbanSchemas(t, baseline)
 
 	// Composer mentions: optional additive `mentions` on queued-input payloads; no
 	// required/type/removal change.
@@ -3526,6 +3601,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}{
 		{worktreePath, "delete", []any{boolQuery("delete_branch")}},
 		{worktreePath + "/dismiss", "post", []any{boolQuery("delete_branch"), boolQuery("force")}},
+		// #908: optional stop-first opt-in on session archive.
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("stop")}},
 	} {
 		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
 		parameters := operation["parameters"].([]any)
@@ -3541,6 +3618,63 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			parameters[last],
 		)
 	}
+
+	// #953: optional human-readable reason on worktree removal refusals; the
+	// code and risk inventory keep their meaning.
+	refusalProperties := paths[worktreePath].(map[string]any)
+	for _, key := range []string{
+		"delete", "responses", "409", "content", "application/json", "schema", "properties",
+	} {
+		refusalProperties = refusalProperties[key].(map[string]any)
+	}
+	if _, exists := refusalProperties["error"]; exists {
+		t.Fatal("approved removal refusal addition: error already exists in the historical baseline")
+	}
+	refusalProperties["error"] = map[string]any{"type": "string"}
+	riskSchema := refusalProperties["risk"].(map[string]any)
+	riskSchema["properties"].(map[string]any)["leftover_files"] = map[string]any{"type": "integer"}
+	if required, ok := riskSchema["required"].([]any); ok {
+		required = append(required, "leftover_files")
+		slices.SortFunc(required, func(left, right any) int {
+			return strings.Compare(left.(string), right.(string))
+		})
+		riskSchema["required"] = required
+	}
+
+	// All projects (AP BR-12): optional breadth parameters inserted right after the
+	// existing workspace selector; existing parameters keep their meaning.
+	workspaceIDs := map[string]any{
+		"in": "query", "name": "workspace_ids",
+		"schema": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}
+	for _, change := range []struct {
+		path, method string
+		added        []any
+	}{
+		{"/api/notifications/attention", "get", []any{boolQuery("all_workspaces")}},
+		{"/api/notifications/attention/acknowledge", "post", []any{boolQuery("all_workspaces")}},
+		{"/api/observe/tasks/inbox", "get", []any{boolQuery("all_workspaces"), workspaceIDs}},
+	} {
+		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "workspace"
+		})
+		if at < 0 {
+			t.Fatalf("approved All projects addition: %s %s has no workspace parameter", change.method, change.path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], change.added, parameters[at+1:])
+	}
+	// All projects: the owning workspace of each Home attention item (empty for User rows).
+	attentionItem := paths["/api/observe/overview"].(map[string]any)
+	for _, key := range []string{
+		"get", "responses", "200", "content", "application/json", "schema", "properties", "overview",
+		"properties", "attention", "properties", "items", "items",
+	} {
+		attentionItem = attentionItem[key].(map[string]any)
+	}
+	attentionItem["properties"].(map[string]any)["workspace_id"] = map[string]any{"type": "string"}
+	attentionItem["required"] = append(attentionItem["required"].([]any), "workspace_id")
 }
 
 // Match historical generic error fields, including payloads that embed them.
@@ -3623,16 +3757,150 @@ func addDeclaredEnvironmentSchemas(value any) int {
 	return count
 }
 
-func addLastKnownRuntimeSchema(value any) int {
+func addSpawnOrchestrationSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	stringSchema := func() map[string]any { return map[string]any{"type": "string"} }
+	added := map[string]map[string]any{
+		"SpawnNewWorktreeRequest": {
+			"type": "object",
+			"properties": map[string]any{
+				"name": stringSchema(), "base_ref": stringSchema(), "branch": stringSchema(),
+			},
+		},
+		"SpawnWorktreePayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"id": stringSchema(), "name": stringSchema(), "branch": stringSchema(), "path": stringSchema(),
+				"base_sha": stringSchema(), "created": map[string]any{"type": "boolean"},
+			},
+			"required": []any{"branch", "created", "id", "name", "path"},
+		},
+		// The request's permission lists become optional so inherit_permissions can omit them.
+		"SpawnPermissionRequestPayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"tools":           map[string]any{"type": "array", "items": stringSchema()},
+				"skills":          map[string]any{"type": "array", "items": stringSchema()},
+				"mcp_servers":     map[string]any{"type": "array", "items": stringSchema()},
+				"workspace_paths": map[string]any{"type": "array", "items": stringSchema()},
+			},
+		},
+		"SpawnPromptPayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"message_id": stringSchema(), "status": stringSchema(),
+				"reply_watch_id": stringSchema(), "reply_watch_state": stringSchema(), "error": stringSchema(),
+			},
+			"required": []any{"message_id", "status"},
+		},
+	}
+	for name, schema := range added {
+		if _, exists := components[name]; exists {
+			t.Fatalf("approved spawn orchestration addition: %s already exists in the historical baseline", name)
+		}
+		components[name] = schema
+	}
+	nullableRef := func(name string) map[string]any {
+		return map[string]any{"oneOf": []any{
+			map[string]any{"$ref": "#/components/schemas/" + name},
+			map[string]any{"enum": []any{nil}, "nullable": true},
+		}}
+	}
+	requests, payloads, enums := 0, 0, 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for key, child := range node {
+				if values, ok := child.([]any); ok && slices.Contains(values, any(string(tools.ReasonConflictedID))) {
+					node[key] = insertReasonCode(values, string(tools.ReasonSpawnBudgetExhausted))
+					enums++
+					continue
+				}
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["ttl_seconds"] != nil && properties["spawn_role"] != nil && properties["agent_name"] != nil {
+				properties["inherit_permissions"] = map[string]any{"type": "boolean"}
+				properties["toolsets"] = map[string]any{"type": "array", "items": stringSchema()}
+				properties["worktree"] = stringSchema()
+				properties["new_worktree"] = nullableRef("SpawnNewWorktreeRequest")
+				properties["prompt"] = stringSchema()
+				properties["permissions"] = map[string]any{"$ref": "#/components/schemas/SpawnPermissionRequestPayload"}
+				requests++
+			}
+			if properties["lineage"] != nil && properties["permissions"] != nil && properties["session"] != nil &&
+				len(properties) == 3 {
+				properties["worktree"] = nullableRef("SpawnWorktreePayload")
+				properties["prompt"] = nullableRef("SpawnPromptPayload")
+				payloads++
+			}
+		}
+	}
+	walk(baseline)
+	if requests == 0 || payloads == 0 || enums == 0 {
+		t.Fatalf("approved spawn orchestration additions: requests=%d payloads=%d enums=%d", requests, payloads, enums)
+	}
+}
+
+// insertReasonCode adds code where the generator places it: sorted enums keep their order.
+func insertReasonCode(values []any, code string) []any {
+	codes := make([]string, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			return append(slices.Clone(values), code)
+		}
+		codes = append(codes, text)
+	}
+	if !slices.IsSorted(codes) {
+		return append(slices.Clone(values), code)
+	}
+	index, _ := slices.BinarySearch(codes, code)
+	return slices.Insert(slices.Clone(values), index, any(code))
+}
+
+// addToolErrorCode inserts code into every tool error code enum, identified by
+// the compaction_unsupported member only tool error codes carry.
+func addToolErrorCode(value any, code string) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addLastKnownRuntimeSchema(child)
+			count += addToolErrorCode(child, code)
+		}
+	case map[string]any:
+		for key, child := range node {
+			if values, ok := child.([]any); ok &&
+				slices.Contains(values, any(string(tools.ErrorCodeCompactionUnsupported))) {
+				node[key] = insertReasonCode(values, code)
+				count++
+				continue
+			}
+			count += addToolErrorCode(child, code)
+		}
+	}
+	return count
+}
+
+func addSessionRuntimeReadSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionRuntimeReadSchemas(child)
 		}
 	case map[string]any:
 		for child := range maps.Values(node) {
-			count += addLastKnownRuntimeSchema(child)
+			count += addSessionRuntimeReadSchemas(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok || properties["acp_session_id"] == nil || properties["selection_revision"] == nil {
@@ -3642,8 +3910,236 @@ func addLastKnownRuntimeSchema(value any) int {
 			properties["last_known"] = effective
 			count++
 		}
+		if selected, exists := properties["selected"]; exists {
+			properties["requested"] = selected
+		}
 	}
 	return count
+}
+
+// Sessions Kanban DX: add only the declared response fields and query filters.
+// Keep historical properties and required fields so the comparator still detects drift.
+func addSessionsKanbanSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	var additions map[string]any
+	if err := json.Unmarshal([]byte(`{
+		"SessionPullRequestChecksPayload": {
+			"type":"object", "required":["failed","failed_names","passed","pending","state"],
+			"properties": {
+				"state":{"type":"string","enum":["passing","failing","pending","none","unknown"]},
+				"passed":{"type":"integer"},"failed":{"type":"integer"},"pending":{"type":"integer"},
+				"failed_names":{"type":"array","items":{"type":"string"}}
+			}
+		},
+		"SessionPullRequestPayload": {
+			"type":"object",
+			"required":["checks","draft","head_sha","mergeable","number","provider","ready_to_merge","review_decision","state","url"],
+			"properties": {
+				"provider":{"type":"string"},"number":{"type":"integer"},"url":{"type":"string"},
+				"state":{"type":"string","enum":["open","closed","merged"]},
+				"draft":{"type":"boolean","nullable":true},"head_sha":{"type":"string"},
+				"checks":{"$ref":"#/components/schemas/SessionPullRequestChecksPayload"},
+				"review_decision":{"type":"string","enum":["approved","changes_requested","review_required","none","unknown"]},
+				"mergeable":{"type":"string","enum":["mergeable","conflicting","unknown"]},
+				"ready_to_merge":{"type":"boolean"}
+			}
+		},
+		"SessionPullRequestLookupPayload": {
+			"type":"object", "required":["cause","observed_at","stale","state"],
+			"properties": {
+				"state":{"type":"string","enum":["ok","pending","error","incomplete"]},
+				"cause":{"type":"string"},"observed_at":{"type":"string","format":"date-time","nullable":true},
+				"stale":{"type":"boolean"}
+			}
+		},
+		"SessionBoardCountsPayload": {
+			"type":"object", "required":["done","in_review","needs_you","working"],
+			"properties": {
+				"done":{"type":"integer"},"in_review":{"type":"integer"},
+				"needs_you":{"type":"integer"},"working":{"type":"integer"}
+			}
+		},
+		"SessionChildrenPayload": {
+			"type":"object", "required":["done","in_review","needs_you","total","working"],
+			"properties": {
+				"done":{"type":"integer"},"in_review":{"type":"integer"},"needs_you":{"type":"integer"},
+				"total":{"type":"integer"},"working":{"type":"integer"}
+			}
+		}
+	}`), &additions); err != nil {
+		t.Fatalf("decode approved Sessions Kanban schemas: %v", err)
+	}
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name, schema := range additions {
+		if components[name] != nil {
+			t.Fatalf("approved Sessions Kanban schema %s already exists", name)
+		}
+		components[name] = schema
+	}
+	ref := func(name string) map[string]any {
+		return map[string]any{"$ref": "#/components/schemas/" + name}
+	}
+	nullable := func(name string) map[string]any {
+		return map[string]any{"oneOf": []any{ref(name), map[string]any{"enum": []any{nil}, "nullable": true}}}
+	}
+	enum := func(values ...string) map[string]any {
+		items := make([]any, len(values))
+		for i, value := range values {
+			items[i] = value
+		}
+		return map[string]any{"type": "string", "enum": items}
+	}
+	badgeValues := enum(
+		"running", "idle", "unhealthy", "hung", "waiting-for-auth", "waiting-for-input",
+		"done", "stopped", "failed", "unknown", "needs-attention", "waiting",
+	)["enum"]
+	counts := make(map[string]int)
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for child := range maps.Values(node) {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["badge"] != nil && properties["attachable"] != nil {
+				// The response now documents all existing badges plus the new waiting value.
+				properties["badge"].(map[string]any)["enum"] = badgeValues
+			}
+
+			if properties["session_id"] != nil && properties["class"] != nil && properties["from"] != nil &&
+				properties["to"] != nil {
+				properties["from"].(map[string]any)["enum"] = badgeValues
+				properties["to"].(map[string]any)["enum"] = badgeValues
+			}
+
+			switch {
+			case properties["subagent_summary"] != nil && properties["badge"] != nil:
+				properties["branch"] = map[string]any{"type": "string"}
+				properties["parent_title"] = map[string]any{"type": "string"}
+				properties["waiting_on"] = enum("sessions", "monitor")
+				properties["board_column"] = enum("needs_you", "working", "in_review", "done")
+				properties["children"] = nullable("SessionChildrenPayload")
+				properties["pull_request"] = nullable("SessionPullRequestPayload")
+				properties["pull_request_lookup"] = nullable("SessionPullRequestLookupPayload")
+
+				node["required"] = append(
+					node["required"].([]any),
+					"board_column",
+					"pull_request",
+					"pull_request_lookup",
+				)
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+				counts["session"]++
+			case properties["terminal_approvals"] != nil && properties["finished"] != nil:
+				properties["board"] = ref("SessionBoardCountsPayload")
+				node["required"] = append(node["required"].([]any), "board")
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+				counts["facets"]++
+			case properties["kind"] != nil && properties["ref"] != nil &&
+				(properties["since"] != nil || properties["state"] != nil):
+				kind := properties["kind"].(map[string]any)
+				values, ok := kind["enum"].([]any)
+				if ok && slices.Contains(values, any("awaiting_reply")) {
+					kind["enum"] = append(values, "active_monitor")
+					counts["work signal"]++
+				}
+			}
+		}
+	}
+	walk(baseline)
+	for _, name := range []string{"session", "facets", "work signal"} {
+		if counts[name] == 0 {
+			t.Fatalf("approved Sessions Kanban addition: no historical %s schemas", name)
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		var updated []any
+		for _, parameter := range parameters {
+			updated = append(updated, parameter)
+			switch parameter.(map[string]any)["name"] {
+			case "subagents":
+				updated = append(
+					updated,
+					map[string]any{"in": "query", "name": "children", "schema": enum("include", "exclude")},
+				)
+			case "attention":
+				if path != "/api/sessions/facets" {
+					updated = append(
+						updated,
+						map[string]any{"in": "query", "name": "board_column", "schema": map[string]any{
+							"type": "array", "items": map[string]any{"type": "string"},
+						}},
+					)
+				}
+			}
+		}
+		operation["parameters"] = updated
+	}
+	addSessionsKanbanRoutes(t, paths, nullable)
+}
+
+func addSessionsKanbanRoutes(t *testing.T, paths map[string]any, nullable func(string) map[string]any) {
+	t.Helper()
+	prefix := "/api/workspaces/{workspace_id}"
+	plan := paths[prefix+"/worktrees/{worktree_id}/exit"].(map[string]any)["get"].(map[string]any)
+	paths[prefix+"/worktrees/{worktree_id}/exit/prepare"] = map[string]any{"post": map[string]any{
+		"parameters": plan["parameters"].([]any)[:2], "responses": plan["responses"],
+	}}
+	sessionRead := paths[prefix+"/sessions/{session_id}"].(map[string]any)["get"].(map[string]any)
+	errorResponse := sessionRead["responses"].(map[string]any)["404"]
+	errorSchema := errorResponse.(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	refreshError := maps.Clone(errorSchema)
+	properties := maps.Clone(errorSchema["properties"].(map[string]any))
+	properties["message"] = map[string]any{"type": "string"}
+	properties["cause"] = map[string]any{"type": "string"}
+	refreshError["properties"] = properties
+	refreshError["required"] = append(slices.Clone(errorSchema["required"].([]any)), "message")
+	slices.SortFunc(
+		refreshError["required"].([]any),
+		func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+	)
+	response := func(schema any) map[string]any {
+		return map[string]any{"content": map[string]any{"application/json": map[string]any{"schema": schema}}}
+	}
+	paths["/api/sessions/{session_id}/pull-request/refresh"] = map[string]any{"post": map[string]any{
+		"parameters": []any{
+			map[string]any{
+				"in":       "path",
+				"name":     "session_id",
+				"required": true,
+				"schema":   map[string]any{"type": "string"},
+			},
+			map[string]any{"in": "query", "name": "profile", "schema": map[string]any{"type": "string"}},
+		},
+		"responses": map[string]any{
+			"200": response(map[string]any{
+				"type": "object", "required": []any{"branch", "pull_request", "pull_request_lookup", "session_id"},
+				"properties": map[string]any{
+					"session_id": map[string]any{"type": "string"}, "branch": map[string]any{"type": "string"},
+					"pull_request":        nullable("SessionPullRequestPayload"),
+					"pull_request_lookup": nullable("SessionPullRequestLookupPayload"),
+				},
+			}),
+			"404": errorResponse, "409": response(refreshError), "502": response(refreshError),
+		},
+	}}
 }
 
 // addSessionMonitorSummary adds the approved nullable `monitor_summary` to every

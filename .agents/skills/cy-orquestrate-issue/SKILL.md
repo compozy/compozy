@@ -1,6 +1,6 @@
 ---
 name: cy-orquestrate-issue
-description: Orchestrate GitHub bug resolution through a new CompozyOS managed worktree and Codex Astra High session per issue. Investigate reported bugs, create missing issues, and dispatch a Goal-backed executor responsible for a detailed PR, green CI, and all CodeRabbit and Greptile feedback. Use when asked to delegate issue resolution; excludes spec task graphs, direct implementation, and review-only work on an existing PR.
+description: Orchestrate GitHub bug resolution through a new CompozyOS managed worktree and Claude Opus 5.5 Medium session per issue. Investigate reported bugs, create missing issues, and dispatch an executor responsible for a detailed PR, green CI, and all CodeRabbit and Greptile feedback. Use when asked to delegate issue resolution; excludes spec task graphs, direct implementation, and review-only work on an existing PR.
 ---
 
 # Orchestrate Issue Resolution
@@ -12,8 +12,9 @@ through PR delivery.
 
 - Accept issue numbers/URLs or a bug report with screenshots, logs, or reproduction steps. Resolve
   the repository from the workspace remote; ask only if the target remains ambiguous.
-- Default executor: agent `general`, provider `codex`, model `gpt-6-astra`, reasoning effort `high`.
-  Explicit user overrides win. Verify the effective runtime; never silently substitute a model.
+- Default executor: agent `general`, provider `claude`, model `claude-opus-5-5`, reasoning effort
+  `medium`. Explicit user overrides win. Verify the effective runtime; never silently substitute a
+  model.
 - Create one **new managed worktree and new logical session per issue**. Follow-ups for that issue
   go to its recorded session. Never repurpose an unrelated active session.
 - An invocation to resolve issues authorizes the scoped issue, branch, push, PR, review replies,
@@ -26,11 +27,11 @@ through PR delivery.
 ## 1. Load the runtime contract
 
 Use the active harness to resolve `compozy__skill_view`. Load the Compozy skill and the full
-references selected by its router for tools, worktrees, sessions, orchestration, and Goals:
+references selected by its router for tools, worktrees, sessions, and orchestration:
 `references/tools-and-skills.md`, `references/native-tools.md`, `references/worktrees.md`,
-`references/runtime-operations.md`, `references/tasks-and-orchestration.md`, and
-`references/loops.md`. Reuse complete current reads from this session. Follow source-qualified
-`command_id` and retained-result continuation instructions when supplied.
+`references/runtime-operations.md`, and `references/tasks-and-orchestration.md`. Reuse complete
+current reads from this session. Follow source-qualified `command_id` and retained-result
+continuation instructions when supplied.
 
 Discover capabilities with `compozy__tool_search` and inspect live descriptors with
 `compozy__tool_info`. The canonical IDs below are discovery keys, not harness invocation names.
@@ -73,12 +74,14 @@ Perform these dependent operations in order:
    `<ORCHESTRATOR_SESSION_ID>`, your own session ID, so the executor can report back), and send the
    full briefing with the native `compozy__session_prompt` tool, never `compozy session prompt`
    (the CLI carries no sender identity unless you pass `--from-session auto` or `--from-session <id>`). Set runtime explicitly on this first prompt:
-   `{"provider":"codex","model":"gpt-6-astra","reasoning_effort":"high"}` unless overridden.
+   `{"provider":"claude","model":"claude-opus-5-5","reasoning_effort":"medium"}` unless overridden.
    Use unique stable `message_id` and `idempotency_key`; use `wait:false` for background dispatch.
 5. `compozy__session_status`: confirm the prompt is accepted, runtime ready with the requested
    effective selection, and the session bound to the intended worktree. The executor verifies cwd
-   and branch before editing. Inspect `compozy__goal_control` status to confirm actual activation;
-   distinguish requested, activated, and executing successfully.
+   and branch before editing. Distinguish an accepted prompt from a turn that is executing.
+
+Do not activate a Compozy Goal for the executor; the briefing and its delivery contract drive the
+work.
 
 If creation or prompt admission has an ambiguous result, reconcile the worktree/session catalog
 against the recorded mapping before retrying. Replay the same prompt idempotency key where supported;
@@ -99,16 +102,15 @@ messages with `in_reply_to` set to their `message_id`; use `supersede: true` whe
 replaces an unread one. Executors report milestones only, so do not poll them for status and do not
 answer pure acknowledgments. Consolidate cross-surface impact notes from the PR bodies yourself;
 executors must not co-edit shared files such as `docs/_memory/change-impact.md`. Do not assume a
-slash-shaped string in an agent prompt activates a skill or Goal; require the native operation.
+slash-shaped string in an agent prompt activates a skill; require the native operation.
 
 The executor prompt owns implementation, validation, PR description, and the complete review cycle.
 Do not duplicate its checks or routinely interrupt it for status. If supervising, investigate
 finished CI failures while other jobs run and inspect new review evidence after relevant pushes.
-An idle turn or active Goal flag alone is neither completion nor a blocker. If Goal supervision
-fails while ordinary work continues, preserve the evidence, avoid repeated activation, and continue
-authorized work; do not repair the host or clear runtime records as a shortcut.
+An idle turn alone is neither completion nor a blocker; if the executor stops before delivery, steer
+it with the remaining contract. Do not repair the host or clear runtime records as a shortcut.
 
-Report the issue links, worktree/branch and session mapping, verified runtime/Goal state, and actual
+Report the issue links, worktree/branch and session mapping, verified runtime state, and actual
 launch or delivery status concisely. Do not stop the executor or remove its worktree after dispatch.
 At delivery, verify the PR head, required checks, both reviewers' completed coverage, all finding
 dispositions, and current description. Missing/red/pending CI or missing reviewer evidence means

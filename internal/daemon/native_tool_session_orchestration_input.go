@@ -20,6 +20,7 @@ type nativeSessionSpawnInput struct {
 	Speed            string                             `json:"speed"`
 	ACPOptions       []contract.AgentACPOptionSelection `json:"acp_options"`
 	Name             string                             `json:"name"`
+	Workspace        string                             `json:"workspace"`
 	PromptOverlay    string                             `json:"prompt_overlay"`
 	SpawnRole        string                             `json:"spawn_role"`
 	TTLSeconds       int64                              `json:"ttl_seconds"`
@@ -29,6 +30,12 @@ type nativeSessionSpawnInput struct {
 	Skills           []string                           `json:"skills"`
 	MCPServers       []string                           `json:"mcp_servers"`
 	WorkspacePaths   []string                           `json:"workspace_paths"`
+	// InheritPermissions keeps the caller's grant for each omitted permission list.
+	InheritPermissions bool                              `json:"inherit_permissions"`
+	Toolsets           []string                          `json:"toolsets"`
+	Worktree           string                            `json:"worktree"`
+	NewWorktree        *contract.SpawnNewWorktreeRequest `json:"new_worktree"`
+	Prompt             string                            `json:"prompt"`
 
 	IdempotencyKey string `json:"idempotency_key"`
 }

@@ -4,9 +4,9 @@ area: APP
 title: A failed update never strands me silently
 persona: Dora
 journey: J-desktop-update-moment
-expected: A forced app apply failure leaves the installed app intact and launchable with the failure reported and a manual-download path; a post-swap runtime failure retains the replacement and backup, archives the operation as `failed` with recovery guidance, and preserves migrated user state. A live slow boot remains in progress until ready or actual exit. Recovery to the target version or newer clears historical rollback from the live projection without editing history.
+expected: A download or native-staging failure leaves the app usable, archives the failure, and offers Retry update without canceling a staged operation first. A post-swap runtime failure retains the replacement and backup, reports recovery guidance, and preserves migrated user state. A live slow boot remains in progress until ready or actual exit. Recovery clears historical rollback from the live projection without editing history.
 entry_points: update surface after a forced app apply failure; compozy update -o json; update-history.jsonl after a runtime failure
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: pass
@@ -57,3 +57,7 @@ If product-window disposal fails, keep the startup marker while logging the fail
 continuing the remaining cleanup. The packaged E2E-007 failure-path case rejects the real atomic
 window-state write and verifies that the next launch's public `app diagnose` reports the prior
 boot identity. It reproduced a missing `previous_crash` before the guard and passed after it.
+
+2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
+`untested`; native fixture and owning-suite results do not replace published-release or
+cross-platform acceptance. Prior dated reports retain their historical evidence.

@@ -25,6 +25,52 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	nativeDescriptors := NativeDescriptors()
 	descriptors := descriptorMap(nativeDescriptors)
 
+	t.Run("Should accept ultra through every runtime input boundary", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{
+				toolspkg.ToolIDSessionPrompt,
+				`{"session_id":"s","message_id":"m","idempotency_key":"k","message":"work","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDSessionRuntimeSet,
+				`{"session_id":"s","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDGoalControl,
+				`{"session_id":"s","operation":"set","objective":"work","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDAgentCreate,
+				`{"scope":"workspace","name":"coder","prompt":"work","provider":"codex","reasoning_effort":"ultra","fallback_chain":[{"provider":"codex","model":"model","reasoning_effort":"ultra"}]}`,
+			},
+			{
+				toolspkg.ToolIDProviderModelsCurate,
+				`{"provider_id":"codex","model_id":"model","default_effort":"ultra"}`,
+			},
+			{
+				toolspkg.ToolIDLoopRun,
+				`{"name":"work","config_overrides":{"runtime_rules":[{"match":{"type":"implementation"},"runtime":{"provider":"codex","reasoning":"ultra"}}]}}`,
+			},
+		}
+		for _, tc := range cases {
+			t.Run("Should accept ultra for "+string(tc.id), func(t *testing.T) {
+				descriptor := descriptors[tc.id]
+				schema := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+				var input any
+				if err := json.Unmarshal([]byte(tc.input), &input); err != nil {
+					t.Fatal(err)
+				}
+				if err := schema.Validate(input); err != nil {
+					t.Fatalf("%s rejects ultra: %v", tc.id, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should expose exactly the MVP native tool scope", func(t *testing.T) {
 		t.Parallel()
 
@@ -292,13 +338,23 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
 		assertSessionRenameMutationSchema(t, descriptors[toolspkg.ToolIDSessionRename])
+		assertSessionReparentMutationSchema(t, descriptors[toolspkg.ToolIDSessionReparent])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
 			t.Parallel()
-			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
+			// Archive alone carries the stop-first opt-in for live sessions.
+			assertSessionTargetMutationSchema(
+				t,
+				descriptors[toolspkg.ToolIDSessionArchive],
+				[]string{"profile", "session_id", "stop", "workspace"},
+			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
 			t.Parallel()
-			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionUnarchive])
+			assertSessionTargetMutationSchema(
+				t,
+				descriptors[toolspkg.ToolIDSessionUnarchive],
+				[]string{"profile", "session_id", "workspace"},
+			)
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
 		assertSessionClarifyAnswerSchema(t, descriptors[toolspkg.ToolIDSessionClarifyAnswer])
@@ -677,6 +733,42 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			descriptors[toolspkg.ToolIDToolApprovalsList],
 			`{"grants":[`+grant+`],"total":1}`,
 		)
+	})
+
+	t.Run("Should advertise spawn worktree, inheritance, and first prompt contracts", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: session_spawn accepts the orchestration inputs it handles and its results validate.
+		spawn := descriptors[toolspkg.ToolIDSessionSpawn]
+		input := compileNativeSchema(t, spawn, spawn.InputSchema, "input")
+		for _, payload := range []string{
+			`{"agent_name":"general","ttl_seconds":60,"inherit_permissions":true,"toolsets":["compozy__sessions"],` +
+				`"new_worktree":{"name":"auth","base_ref":"main","branch":"feat/auth"},"prompt":"Do the task."}`,
+			`{"agent_name":"general","ttl_seconds":60,"worktree":"wt-ready"}`,
+		} {
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := input.Validate(instance); err != nil {
+				t.Fatalf("session_spawn input schema rejected %s: %v", payload, err)
+			}
+		}
+		conflicting, err := jsonschema.UnmarshalJSON(strings.NewReader(
+			`{"agent_name":"general","ttl_seconds":60,"worktree":"wt-ready","new_worktree":{}}`,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := input.Validate(conflicting); err == nil {
+			t.Fatal("session_spawn input schema accepted worktree with new_worktree")
+		}
+		assertNativeOutputSchemaAccepts(t, spawn, `{
+			"session_id":"sess-child","spawn_role":"worker","spawn_depth":1,"ttl_expires_at":"2026-10-21T12:00:00Z",
+			"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]},
+			"worktree":{"id":"wt-1","name":"auth","branch":"feat/auth","path":"/wt/auth","base_sha":"abc","created":true},
+			"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1","reply_watch_state":"armed"}
+		}`)
 	})
 
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
@@ -1457,6 +1549,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_reparent", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_search", risk: toolspkg.RiskRead,
@@ -1722,7 +1816,7 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
 	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"agent", "name", "new_worktree", "workspace", "worktree",
+		"agent", "name", "new_worktree", "profile", "workspace", "worktree",
 	})
 	var newWorktree nativeObjectSchema
 	if err := json.Unmarshal(input.Properties["new_worktree"], &newWorktree); err != nil {
@@ -1732,13 +1826,13 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
 
-func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descriptor, properties []string) {
 	t.Helper()
 	var input nativeObjectSchema
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"session_id", "workspace"})
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, properties)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}
@@ -1762,7 +1856,12 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"name", "session_id", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"name", "profile", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
 		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
 	}
@@ -1776,27 +1875,51 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
 
+func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"parent_session_id", "profile", "session_id", "top_level", "workspace"},
+	)
+	if !slices.Equal(input.Required, []string{"session_id"}) {
+		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
+	}
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+}
+
 func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
 	var input nativeObjectSchema
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"attachments",
-		"expected_turn_id",
-		"idempotency_key",
-		"in_reply_to",
-		"message",
-		"message_id",
-		"mode",
-		"notify_on_complete",
-		"runtime",
-		"session_id",
-		"supersede",
-		"wait",
-		"workspace",
-	})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{
+			"attachments",
+			"expected_turn_id",
+			"idempotency_key",
+			"in_reply_to",
+			"message",
+			"message_id",
+			"mode",
+			"notify_on_complete",
+			"profile",
+			"runtime",
+			"session_id",
+			"supersede",
+			"wait",
+			"workspace",
+		},
+	)
 	if !slices.Equal(input.Required, []string{
 		"session_id", "message_id", "idempotency_key",
 	}) {
@@ -2012,7 +2135,7 @@ func assertSessionRuntimeMutationSchemas(
 		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 			t.Fatalf("%s input schema unmarshal error = %v", id, err)
 		}
-		wantFields := []string{"expected_revision", "session_id", "workspace"}
+		wantFields := []string{"expected_revision", "profile", "session_id", "workspace"}
 		if id == toolspkg.ToolIDSessionRuntimeSet {
 			wantFields = append(wantFields, "runtime")
 		}
@@ -2123,7 +2246,12 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"session_id", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"all_profiles", "profile", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}
@@ -2149,7 +2277,7 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 func assertSessionInputReplaceSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
 	assertSessionInputMutationSchema(t, descriptor, []string{
-		"idempotency_key", "message_id", "queue_entry_id", "session_id", "text", "workspace",
+		"idempotency_key", "message_id", "profile", "queue_entry_id", "session_id", "text", "workspace",
 	}, []string{"session_id", "queue_entry_id", "text", "message_id", "idempotency_key"}, false)
 	assertSessionInputOutputSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema)
 }
@@ -2160,9 +2288,12 @@ func assertSessionInputCancelSchema(t *testing.T, descriptor toolspkg.Descriptor
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{
-		"queue_entry_id", "session_id", "workspace",
-	})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"profile", "queue_entry_id", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id", "queue_entry_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id queue_entry_id]", descriptor.ID, input.Required)
 	}
@@ -2172,7 +2303,14 @@ func assertSessionInputCancelSchema(t *testing.T, descriptor toolspkg.Descriptor
 func assertSessionInputPromoteSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
 	assertSessionInputMutationSchema(t, descriptor, []string{
-		"expected_turn_id", "idempotency_key", "message_id", "queue_entry_id", "session_id", "text", "workspace",
+		"expected_turn_id",
+		"idempotency_key",
+		"message_id",
+		"profile",
+		"queue_entry_id",
+		"session_id",
+		"text",
+		"workspace",
 	}, []string{
 		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key",
 	}, true)
@@ -2920,6 +3058,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionArchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionUnarchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRename) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionReparent) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||

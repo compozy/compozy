@@ -4,10 +4,14 @@ import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { useSessionTranscriptThreadMessages } from "./use-session-transcript-thread-messages";
 import { useSubagentRoster } from "./use-subagent-roster";
 import { deriveWorkingStatus } from "../lib/session-working-status";
-import { deriveSessionActivityView, type SessionActivityView } from "../lib/session-activity-view";
+import {
+  deriveSessionActivityView,
+  describeTotalWork,
+  type SessionActivityView,
+} from "../lib/session-activity-view";
 import { isAgentEventPayload } from "../lib/message-parts";
 import { isRuntimeActivityEvent } from "@/systems/session/lib/runtime-activity-notice";
-import type { SessionGoalSnapshot, SessionPayload } from "../types";
+import type { SessionGoalSnapshot, SessionPayload, SessionUsagePayload } from "../types";
 
 export interface SessionContextActivitySource {
   session: SessionPayload;
@@ -22,7 +26,8 @@ export function useSessionContextActivity(
   running: boolean,
   live: boolean,
   queued: number | undefined,
-  goal: SessionGoalSnapshot | null
+  goal: SessionGoalSnapshot | null,
+  workTime?: SessionUsagePayload["work_time"]
 ): SessionActivityView {
   const messages = useSessionTranscriptThreadMessages();
   const nowMs = useSecondClock(running && live);
@@ -39,14 +44,22 @@ export function useSessionContextActivity(
   });
   // The compiler caches this pure calculation by message identity, outside the leaf clock.
   const summary = activityTranscriptSummary(messages);
-  return deriveSessionActivityView({
-    status,
-    lastTurn,
-    ...summary,
-    queued,
-    goal,
-    stopped: session.state === "stopped",
-  });
+  return {
+    ...deriveSessionActivityView({
+      status,
+      lastTurn,
+      ...summary,
+      queued,
+      goal,
+      stopped: session.state === "stopped",
+    }),
+    totalWork: describeTotalWork(
+      workTime,
+      session.activity?.turn_id,
+      status.kind === "working" ? status.startedAtMs : null,
+      nowMs
+    ),
+  };
 }
 
 function activityTranscriptSummary(

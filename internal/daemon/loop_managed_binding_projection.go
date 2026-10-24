@@ -232,6 +232,7 @@ func actionBindingFromGoal(
 		State:              string(binding.State),
 		Ownership:          string(binding.Ownership),
 		Isolated:           req.Isolated,
+		RequestedRuntime:   appliedRuntime,
 		AppliedRuntime:     appliedRuntime,
 	}
 }
@@ -258,8 +259,11 @@ func (b *loopActionSessionBinder) projectActionBindingSpeed(
 			binding.SessionID,
 		)
 	}
-	if info.Speed != "" {
-		binding.AppliedRuntime.Speed = info.Speed
+	if info.Speed != "" || info.SpeedResolution != nil {
+		binding.AppliedRuntime.Speed = info.EffectiveRuntime().Speed
+	}
+	if info.ACPCapsKnown {
+		binding.AppliedRuntime.Reasoning = info.EffectiveRuntime().ReasoningEffort
 	}
 	binding.SpeedResolution = speedpkg.CloneResolution(info.SpeedResolution)
 	return binding, nil

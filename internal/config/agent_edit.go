@@ -106,6 +106,7 @@ func agentDefFromParsedFile(
 		Toolsets:        normalizeAgentToolsetRefs(parsed.Toolsets),
 		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
 		Permissions:     strings.TrimSpace(parsed.Permissions),
+		WorkspaceAccess: parsed.WorkspaceAccess,
 		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
@@ -147,6 +148,7 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Toolsets = cloneStrings(agent.Toolsets)
 	parsed.DenyTools = cloneStrings(agent.DenyTools)
 	parsed.Permissions = strings.TrimSpace(agent.Permissions)
+	parsed.WorkspaceAccess = agent.WorkspaceAccess
 	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	parsed.MCPServers = cloneMCPServers(agent.MCPServers)

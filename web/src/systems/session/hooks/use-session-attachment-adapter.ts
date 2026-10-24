@@ -12,6 +12,11 @@ import {
   uploadSessionAttachment,
 } from "../adapters/session-attachment-api";
 import { ATTACHMENT_ALLOWED_REASON, SESSION_ATTACHMENT_PART_NAME } from "../lib/attachment-kinds";
+import {
+  releaseComposerDraftFile,
+  retainComposerDraftUpload,
+  retainedComposerDraftUpload,
+} from "../lib/session-composer-attachment-drafts";
 import { consumeSubmittedComposerAttachment } from "../lib/session-composer-attachment-ownership";
 import type { SessionAttachment } from "../types";
 import { sessionStore } from "../stores/session-store";
@@ -98,7 +103,12 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     };
 
     try {
-      const upload = uploadSessionAttachment(this.workspaceId, this.sessionId, file);
+      // A draft restored after a runtime rebuild reuses its upload instead of sending the bytes again.
+      let upload = retainedComposerDraftUpload(this.workspaceId, this.sessionId, file);
+      if (!upload) {
+        upload = uploadSessionAttachment(this.workspaceId, this.sessionId, file);
+        retainComposerDraftUpload(this.workspaceId, this.sessionId, file, upload);
+      }
       this.inFlightUploads.set(id, upload);
       const uploaded = await upload;
       if (this.removedWhileUploading.has(id)) return;
@@ -133,6 +143,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
 
   public async remove(attachment: Attachment): Promise<void> {
     if (!this.sessionId) return;
+    if (attachment.file) releaseComposerDraftFile(attachment.file);
     // Removal transfers the first-message handoff to the edited draft before upload cleanup awaits.
     sessionStore.trigger.firstPromptSent({ sessionId: this.sessionId });
     if (consumeSubmittedComposerAttachment(attachment)) {
@@ -178,6 +189,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     }
     this.uploads.delete(attachment.id);
     if (attachment.file) {
+      releaseComposerDraftFile(attachment.file);
       registerFileAliases(this.sentFiles, attachment.id, uploaded.id, attachment.file);
     }
     return {

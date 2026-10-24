@@ -28,9 +28,6 @@ func (m *Manager) Rename(
 		return nil, errors.New("session: rename context is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, fmt.Errorf("%w: workspace id is required", ErrValidation)
-	}
 	target, err := normalizeStoredSessionID(sessionID)
 	if err != nil {
 		return nil, err

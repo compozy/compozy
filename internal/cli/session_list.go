@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ const allWorkspacesFlagName = "all-workspaces"
 const sessionSubagentsInclude = "include"
 
 type sessionListFlags struct {
+	columns         []string
+	hideChildren    bool
 	subagents       string
 	includeAll      bool
 	workspaceFilter string
@@ -86,6 +89,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, name, last_activity, attention, navigator, or manual")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
+	cmd.Flags().StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|in_review|done)")
+	cmd.Flags().BoolVar(&flags.hideChildren, "hide-children", false, "Exclude every session with a parent")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
@@ -123,11 +128,24 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 	if err != nil {
 		return err
 	}
+	format, err := resolveInheritedOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if flags.allWorkspaces && len(page.Sessions) > 0 && format != OutputJSON && format != OutputJSONL {
+		labels, err := aggregateProjectLabels(cmd, client)
+		if err != nil {
+			return err
+		}
+		return writeCommandOutput(cmd, sessionListBundle(page, deps.now, labels))
+	}
 	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
 }
 
 func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, workspaceID string) SessionListQuery {
 	return SessionListQuery{
+		Columns:       flags.columns,
+		HideChildren:  flags.hideChildren,
 		Subagents:     flags.subagents,
 		Workspace:     workspaceID,
 		Worktree:      flags.worktreeFilter,
@@ -151,7 +169,9 @@ func buildSessionListQuery(flags sessionListFlags, badges []session.Badge, works
 func sessionListState(flags sessionListFlags, badges []session.Badge) string {
 	state := strings.TrimSpace(flags.stateFilter)
 	if state == "" && !flags.includeAll && !flags.resumable && !flags.attention && len(badges) == 0 &&
-		!flags.archived && !flags.includeArchived {
+		len(flags.columns) == 0 &&
+		!flags.archived &&
+		!flags.includeArchived {
 		return string(session.StateActive)
 	}
 	return state
@@ -179,6 +199,14 @@ func sessionListSort(flags sessionListFlags, badges []session.Badge) string {
 }
 
 func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]session.Badge, error) {
+	for _, column := range flags.columns {
+		if _, err := session.ParseBoardColumns([]string{column}); err != nil {
+			return nil, withCommandExitCode(
+				2,
+				fmt.Errorf("invalid --column %q (allowed: needs_you, working, in_review, done)", column),
+			)
+		}
+	}
 	switch flags.subagents {
 	case "", sessionSubagentsInclude, "exclude", "only":
 	default:
@@ -207,28 +235,37 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 }
 
 func sessionListHasRowFilters(flags sessionListFlags) bool {
-	hasSubagentFilter := flags.subagents != "" && flags.subagents != sessionSubagentsInclude
-	return hasSubagentFilter || flags.includeAll || strings.TrimSpace(flags.workspaceFilter) != "" ||
+	return sessionListHasVisibilityFilters(flags) || strings.TrimSpace(flags.workspaceFilter) != "" ||
 		strings.TrimSpace(flags.worktreeFilter) != "" || strings.TrimSpace(flags.stateFilter) != "" ||
 		strings.TrimSpace(flags.typeFilter) != "" || strings.TrimSpace(flags.agentFilter) != "" ||
 		strings.TrimSpace(flags.parentFilter) != "" || strings.TrimSpace(flags.rootFilter) != "" ||
 		strings.TrimSpace(flags.search) != "" || flags.resumable || flags.attention || len(flags.badgeFilters) > 0 ||
-		flags.archived || flags.includeArchived || flags.includeHealth ||
+		flags.archived || flags.includeArchived ||
+		flags.includeHealth ||
 		flags.limit != 0 ||
 		strings.TrimSpace(flags.sortKey) != "" ||
 		strings.TrimSpace(flags.cursor) != ""
 }
 
-func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {
+func sessionListBundle(page SessionListPage, now func() time.Time, projectLabels ...map[string]string) outputBundle {
+	headers := sessionListHumanHeaders()
+	row := sessionListHumanRow(now)
+	if len(projectLabels) > 0 {
+		headers = append([]string{cliProjectHeader}, headers...)
+		baseRow := row
+		row = func(item SessionRecord) []string {
+			return append([]string{aggregateProjectName(projectLabels[0], item.WorkspaceID)}, baseRow(item)...)
+		}
+	}
 	items := page.Sessions
 	bundle := listBundle(
 		page,
 		items,
 		"Sessions",
-		sessionListHumanHeaders(),
+		headers,
 		"sessions",
 		sessionListToonFields(),
-		sessionListHumanRow(now),
+		row,
 		sessionListToonRow,
 	)
 	return decorateSessionListBundle(bundle, page)
@@ -238,7 +275,7 @@ func sessionListHumanHeaders() []string {
 	return []string{
 		"ID", sessionProfileValue, sessionNameValue, sessionAgentValue, "Parent", sessionProviderValue,
 		sessionStateValue, sessionBadgeValue, "Failure", sessionWorkspaceValue,
-		"Health State", "Health", sessionUpdatedValue,
+		"Health State", "Health", sessionUpdatedValue, "BRANCH", "PR", "CHECKS", "REVIEW",
 	}
 }
 
@@ -246,20 +283,32 @@ func sessionListToonFields() []string {
 	return []string{
 		"id", profileNameOutputKey, sessionNameKey, sessionAgentNameKey, "parent_session_id", sessionProviderKey,
 		sessionStateKey, sessionBadgeKey, taskFailureKindKey, workspaceSkillSource,
-		"health_state", extensionHealthKey, sessionUpdatedAtKey,
+		"health_state", extensionHealthKey, sessionUpdatedAtKey, "branch", "pr", "checks", "review",
 	}
 }
 
 func sessionListHumanRow(now func() time.Time) func(SessionRecord) []string {
 	return func(item SessionRecord) []string {
 		return []string{
-			stringOrDash(item.ID), stringOrDash(item.ProfileName), stringOrDash(item.Name),
-			stringOrDash(item.AgentName), stringOrDash(sessionParentID(&item)),
+			stringOrDash(item.ID),
+			stringOrDash(item.ProfileName),
+			stringOrDash(item.Name),
+			stringOrDash(item.AgentName),
+			stringOrDash(sessionParentID(&item)),
 			stringOrDash(sessionRuntimeProvider(&item)),
-			stringOrDash(string(item.State)), stringOrDash(string(item.Badge)),
-			stringOrDash(sessionFailureKind(&item)), stringOrDash(displaySessionWorkspace(&item)),
+			stringOrDash(string(item.State)),
+			stringOrDash(string(item.Badge)),
+			stringOrDash(sessionFailureKind(&item)),
+			stringOrDash(displaySessionWorkspace(&item)),
 			stringOrDash(sessionHealthState(&item)),
-			stringOrDash(sessionHealthStatus(&item)), stringOrDash(formatAge(now, item.UpdatedAt)),
+			stringOrDash(sessionHealthStatus(&item)),
+			stringOrDash(formatAge(now, item.UpdatedAt)),
+			stringOrDash(
+				item.Branch,
+			),
+			stringOrDash(sessionPRNumber(&item)),
+			stringOrDash(sessionPRChecks(&item)),
+			stringOrDash(sessionPRReview(&item)),
 		}
 	}
 }
@@ -271,6 +320,7 @@ func sessionListToonRow(item SessionRecord) []string {
 		sessionRuntimeProvider(&item), string(item.State), string(item.Badge),
 		sessionFailureKind(&item), displaySessionWorkspace(&item),
 		sessionHealthState(&item), sessionHealthStatus(&item), formatTime(item.UpdatedAt),
+		item.Branch, sessionPRNumber(&item), sessionPRChecks(&item), sessionPRReview(&item),
 	}
 }
 
@@ -350,4 +400,28 @@ func sessionPageHuman(page contract.CountedCursorPagePayload) string {
 		{Label: "Has More", Value: strconv.FormatBool(page.HasMore)},
 		{Label: "Next Cursor", Value: stringOrDash(page.NextCursor)},
 	})
+}
+
+func sessionPRNumber(item *SessionRecord) string {
+	if item.PullRequest == nil {
+		return ""
+	}
+	return "#" + strconv.Itoa(item.PullRequest.Number)
+}
+func sessionPRChecks(item *SessionRecord) string {
+	if item.PullRequest == nil {
+		return ""
+	}
+	return string(item.PullRequest.Checks.State)
+}
+func sessionPRReview(item *SessionRecord) string {
+	if item.PullRequest == nil {
+		return ""
+	}
+	return string(item.PullRequest.ReviewDecision)
+}
+
+func sessionListHasVisibilityFilters(flags sessionListFlags) bool {
+	return flags.subagents != "" && flags.subagents != sessionSubagentsInclude ||
+		len(flags.columns) > 0 || flags.hideChildren || flags.includeAll || flags.archived || flags.includeArchived
 }

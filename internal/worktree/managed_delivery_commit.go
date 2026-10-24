@@ -90,7 +90,8 @@ func (s *Service) reconcileManagedPR(ctx context.Context, j *managedDeliveryJour
 			},
 		)
 		j.Result.CTA = &ExitCTA{Action: ExitActionViewPR, Label: exitViewPRLabel, URL: url}
-		return s.store.SaveForgeStatus(ctx, j.Item.WorkspaceID, j.Item.ID, *status)
+		s.requestPullRequestRefresh(ctx, j.Item)
+		return nil
 	}
 	// Persisted phase remains string(ExitPhasePR) until success; ambiguous responses are always
 	// reconciled by the exact provider query above before any subsequent create.

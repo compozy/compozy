@@ -342,6 +342,7 @@ func scheduledRunAfterClaim(
 	activeRunID string,
 ) automation.Run {
 	run := automation.Run{
+		WorkspaceID: new(claim.WorkspaceID), Attribution: "recorded",
 		ProfileID:   claim.ProfileID,
 		ID:          claim.RunID,
 		JobID:       claim.JobID,

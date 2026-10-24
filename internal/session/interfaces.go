@@ -41,8 +41,9 @@ type PromptOpts struct {
 type PromptDelivery string
 
 const (
-	PromptDeliveryNormal      PromptDelivery = ""
-	PromptDeliveryMaintenance PromptDelivery = "maintenance"
+	PromptDeliveryNormal       PromptDelivery = ""
+	PromptDeliveryMaintenance  PromptDelivery = "maintenance"
+	PromptDeliveryAgentCommand PromptDelivery = "agent_command"
 )
 
 // PromptDeliveryInfo identifies a prompt whose agent-event stream is ready to start.
@@ -426,6 +427,12 @@ type PromptAssembler interface {
 // AgentResolver resolves agent definitions from the daemon-authoritative catalog.
 type AgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
+}
+
+// AgentCatalogResolver enumerates the same scoped definitions used for target resolution.
+type AgentCatalogResolver interface {
+	AgentResolver
+	ListAgentDefinitions(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.AgentDef
 }
 
 // SkillRegistry resolves the active skill set for a workspace during session start.

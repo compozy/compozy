@@ -24,5 +24,6 @@ func (d *Daemon) snapshotShutdownTargetsLocked() shutdownTargets {
 func (d *Daemon) resetRuntimeStateLocked() {
 	d.daemonRuntimeState = daemonRuntimeState{}
 	d.booting = false
+	d.restartRequested = false
 	d.closeLogger = func() error { return nil }
 }

@@ -4,7 +4,7 @@ area: RT
 title: First-run setup renders over an inert desktop shell
 persona: Lea
 journey: J-19
-expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads Global (`~`) with the Global switch on (locked until a project folder exists) and no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar stays Global (`~`) when no folder was added, or names the first project workspace when one was) without a full reload.
+expected: With onboarding incomplete the desktop chrome renders behind a blocking setup panel — wallpaper, a menu bar whose workspace slot reads Global with the Global switch on (locked until a project folder exists) and no sync-status pill, and a dimmed dormant dock — while the panel owns focus; Esc and outside-press do not dismiss it, ⌘K and ⌘N do nothing, nothing behind the scrim is clickable or tabbable, the runtime popover still opens above the panel, and finishing setup wakes the same desktop (menu bar stays Global when no folder was added, or names the first project workspace when one was) without a full reload.
 entry_points: web `/_app/` first-run against a fresh `COMPOZY_HOME`; `desktop-gate.tsx`, `desktop-shell.tsx`, `onboarding-setup-panel.tsx`
 qa_status: skipped
 bug_ids: BUG-20260820-global-home-deleted-onboarding
@@ -48,3 +48,6 @@ two-pane workspace split, and the shell is where a first run either fits or clip
 2026-08-20 qa-impact: workspace-step copy density (heading HelpTip; Skip/empty/footer no longer
 restate Global). Shell contract this file owns is unchanged. Status stays skipped per the
 explicit replay skip above.
+
+2026-10-22 qa-impact (#900 shell UI polish): the menubar chip shows the destination name only;
+the `~` mark is gone. Expected text only; status fields untouched.

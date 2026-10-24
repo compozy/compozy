@@ -5,7 +5,7 @@ title: Configure future worktree creation without moving existing checkouts
 persona: Dora
 journey: J-worktree-management
 expected: Worktree defaults, parent-workspace overlays, personal-profile and workspace-profile destination layers, copy and setup bootstrap, timeouts, discovery caching, and the default task mode apply live only to future operations; invalid values name the exact config key, adoption skips bootstrap, setup failure leaves a truthful ready-but-flagged worktree, and existing paths never move after a live config edit.
-entry_points: config.toml [worktrees].root|run_branch_namespace|copy_list|setup_command|setup_timeout|discovery_cache_ttl; [task.orchestration.profile].default_worktree_mode; active `--profile <name>` config context; compozy config show|list|get; compozy config set|unset --scope user|profile|workspace -o json; workspace named-profile config layer
+entry_points: config.toml [worktrees].root|run_branch_namespace|copy_list|setup_command|setup_timeout|teardown_command|teardown_timeout|discovery_cache_ttl; [task.orchestration.profile].default_worktree_mode; active `--profile <name>` config context; compozy config show|list|get; compozy config set|unset --scope user|profile|workspace -o json; workspace named-profile config layer
 qa_status: skipped
 bug_ids: BUG-20260813-default-home-global-config-reclassified; BUG-20260813-worktree-config-paths-not-mutable
 fix_status: fixed
@@ -40,3 +40,30 @@ Task 10 charter.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Teardown removal walk
+
+In an isolated lab, set `worktrees.teardown_command` and `worktrees.teardown_timeout` through
+`compozy config set` and verify read-back plus `live` apply history. Verify user/profile/workspace
+precedence, an explicit empty command disabling the inherited command, and rejection of zero timeout.
+
+Create a worktree whose setup creates a marker. Teardown must read that marker in the checkout,
+write an external cleanup marker using `COMPOZY_WORKSPACE_ROOT`, and emit stdout/stderr. Remove it
+and verify cleanup happened before checkout deletion. Observe `worktree.teardown_output` on the
+worktree event stream; secret-shaped output must be redacted. Repeat with exit 7 and a command
+exceeding its timeout: one `worktree.teardown_failed` diagnostic appears and removal completes.
+
+A denying `worktree.pre_remove` hook must leave both checkout and cleanup marker untouched, even
+with force. Unset teardown, repeated removal and missing-checkout reconciliation must not run it.
+Dismiss a failed/missing record with an existing path: dismissal must remain metadata-only.
+
+Validation ownership: focused real-Git lifecycle integration and canonical removal/config suites;
+public CLI/HTTP/SSE lab walk remains CI-owned under the issue's local machine constraint.
+
+Repeat removal for a worktree owned by a named profile with a different teardown command and
+shorter timeout. Confirm the owner profile wins over user/workspace defaults; an explicit empty
+profile command disables inherited cleanup. Print a registered multiline secret across separate
+writes to stdout and stderr: after completion, neither output event exposes either secret line.
+Have teardown create a new unpushed commit and confirm normal removal refuses and retains the
+checkout; explicit force follows the existing removal risk policy. Output and failure events for
+per-run worktrees retain their run attribution.

@@ -48,27 +48,8 @@ func (r DirectoryResult) Unchanged(ctx context.Context, root string, trustedRoot
 	if !slices.Equal(canonicalTrustedRoots(trustedRoots, snapshot.resolved[absolute]), snapshot.trustedRoots) {
 		return false
 	}
-	return snapshot.unchangedPaths(ctx) && snapshot.unchangedFiles(ctx) && snapshot.unchangedDirectories(ctx) &&
+	return snapshot.unchangedPaths(ctx) && snapshot.unchangedFiles(ctx) &&
 		r.unchangedSkippedLinks(ctx, snapshot.trustedRoots)
-}
-
-// unchangedDirectories detects membership or type changes even when directory timestamps are preserved.
-func (s *directorySnapshot) unchangedDirectories(ctx context.Context) bool {
-	for path, expected := range s.directories {
-		if ctx.Err() != nil {
-			return false
-		}
-		current, err := os.ReadDir(path)
-		if err != nil || len(current) != len(expected) {
-			return false
-		}
-		for index, entry := range current {
-			if entry.Name() != expected[index].name || entry.Type() != expected[index].typeBits {
-				return false
-			}
-		}
-	}
-	return true
 }
 
 // unchangedSkippedLinks requires each rejected link to retain its recorded failure or containment reason.
@@ -111,6 +92,7 @@ func (s *directorySnapshot) unchangedPaths(ctx context.Context) bool {
 
 // unchangedFiles revalidates every recorded file and directory against its captured snapshot.
 func (s *directorySnapshot) unchangedFiles(ctx context.Context) bool {
+	// Directory ctime (or the portable listing fingerprint) also covers membership and entry type changes.
 	for path, expected := range s.files {
 		if ctx.Err() != nil {
 			return false

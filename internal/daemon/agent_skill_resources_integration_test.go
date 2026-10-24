@@ -985,6 +985,54 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 }
 
 func TestAgentDefinitionMutationLifecycleIntegration(t *testing.T) {
+	t.Run("Should publish workspace agent mutations before the snapshot TTL expires", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		home := agentSkillIntegrationHome(t)
+		root := t.TempDir()
+		ws := workspacepkg.Workspace{ID: "ws_mutation_cache", Name: "mutations", RootDir: root}
+		if err := db.InsertWorkspace(t.Context(), ws); err != nil {
+			t.Fatal(err)
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(home),
+			workspacepkg.WithSnapshotTTL(time.Hour), workspacepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := daemonAgentSkillDeclarationProvider(home, db, resolver, nil, nil, discardLogger())
+		if _, err := provider(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(root, compozyconfig.DirName, compozyconfig.AgentsDirName, "fresh", "AGENT.md")
+		for _, prompt := range []string{"Created agent.", "Updated agent.", ""} {
+			if prompt == "" {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				writeAgentSkillIntegrationFile(t, path, "---\nname: fresh\nprovider: claude\n---\n\n"+prompt+"\n")
+			}
+			if _, err := provider(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := resolver.Resolve(t.Context(), ws.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, agent := range resolved.Agents {
+				if agent.Name == "fresh" {
+					found = true
+					if strings.TrimSpace(agent.Prompt) != prompt {
+						t.Fatalf("agent prompt = %q, want %q", agent.Prompt, prompt)
+					}
+				}
+			}
+			if found != (prompt != "") {
+				t.Fatalf("agent present = %t after mutation %q", found, prompt)
+			}
+		}
+	})
 	t.Run("Should create update duplicate delete and rebuild an agent definition end to end", func(t *testing.T) {
 		// not parallel: gin.SetMode mutates process-global state.
 		ctx := testutil.Context(t)

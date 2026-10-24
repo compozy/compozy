@@ -1,8 +1,10 @@
-// Suite: WorkspaceMenu worktree submenu
-// Invariant: a git-backed workspace row is a submenu trigger — a pointer click
-// selects the workspace and closes the menu, while keyboard traversal opens the
-// side submenu holding the root row, the worktree rows, and New worktree. A
-// non-git workspace stays a plain selectable item with no submenu affordance.
+// Suite: WorkspaceMenu destination switcher and worktree submenu
+// Invariant: the switcher lists All projects, User, then projects, with one ✓ on the
+// current destination; picking All projects or User reports that destination, and User
+// has no worktree submenu. A git-backed workspace row is a submenu trigger — a pointer
+// click selects the workspace and closes the menu, while keyboard traversal opens the
+// side submenu holding the root row, the worktree rows, and New worktree. A non-git
+// workspace stays a plain selectable item with no submenu affordance.
 // Owning layer: WorkspaceMenu. No existing suite owned this fold.
 import type { ComponentProps } from "react";
 import { act, render, screen, within } from "@testing-library/react";
@@ -72,6 +74,8 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
   const onOpenWorktreeContext = vi.fn();
   const onRemoveWorktree = vi.fn();
   const onRun = vi.fn();
+  const onFocusUser = vi.fn();
+  const onEnableAllProjects = vi.fn();
   render(
     <UIProvider reducedMotion="never" skipAnimations>
       <CmdPaletteRegistryProvider registry={WORKSPACE_REGISTRY}>
@@ -81,9 +85,11 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
             open
             onOpenChange={onOpenChange}
             workspaces={[gitAlpha, gitBeta, plainNotes]}
-            activeWorkspaceId={gitAlpha.id}
-            monogram={name => name.slice(0, 2).toUpperCase()}
+            breadthMode="focused"
+            focus={{ kind: "project", workspaceId: gitAlpha.id }}
             onSelectWorkspace={onSelectWorkspace}
+            onFocusUser={onFocusUser}
+            onEnableAllProjects={onEnableAllProjects}
             onRun={onRun}
             onAddWorkspace={vi.fn()}
             worktreesByWorkspace={{
@@ -111,7 +117,21 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
     onOpenWorktreeContext,
     onRemoveWorktree,
     onRun,
+    onFocusUser,
+    onEnableAllProjects,
   };
+}
+
+/** Item rows in menu order, by test id, ending at the first project row. */
+function destinationOrder(): string[] {
+  const menu = screen.getByTestId("os-workspace-menu");
+  return Array.from(menu.querySelectorAll<HTMLElement>("[data-testid]"))
+    .map(node => node.dataset.testid ?? "")
+    .filter(id => id.startsWith("os-destination-") || id.startsWith("os-workspace-option-"));
+}
+
+function checked(testId: string): boolean {
+  return screen.getByTestId(testId).querySelector("svg.text-accent") !== null;
 }
 
 /** Keyboard path into a submenu: highlight the trigger row, then ArrowRight. */
@@ -125,6 +145,60 @@ async function openSubmenuByKeyboard(user: ReturnType<typeof userEvent.setup>, t
 function openChangeFlags(onOpenChange: ReturnType<typeof vi.fn>): boolean[] {
   return onOpenChange.mock.calls.map(call => call[0] as boolean);
 }
+
+describe("WorkspaceMenu destinations", () => {
+  it("Should list All projects, User, then projects with the focused project checked", () => {
+    renderMenu();
+
+    expect(destinationOrder()).toEqual([
+      "os-destination-all-projects",
+      "os-destination-user",
+      `os-workspace-option-${gitAlpha.id}`,
+      `os-workspace-option-${gitBeta.id}`,
+      `os-workspace-option-${plainNotes.id}`,
+    ]);
+    expect(checked(`os-workspace-option-${gitAlpha.id}`)).toBe(true);
+    expect(checked("os-destination-user")).toBe(false);
+    expect(checked("os-destination-all-projects")).toBe(false);
+  });
+
+  it("Should check User alone while User is focused", () => {
+    renderMenu({ focus: { kind: "user" } });
+
+    expect(checked("os-destination-user")).toBe(true);
+    expect(checked(`os-workspace-option-${gitAlpha.id}`)).toBe(false);
+  });
+
+  it("Should check All projects alone while it is on", () => {
+    renderMenu({ breadthMode: "all" });
+
+    expect(checked("os-destination-all-projects")).toBe(true);
+    expect(checked(`os-workspace-option-${gitAlpha.id}`)).toBe(false);
+  });
+
+  it("Should offer All projects and User with zero projects", () => {
+    renderMenu({ workspaces: [], worktreesByWorkspace: {}, focus: { kind: "user" } });
+
+    expect(destinationOrder()).toEqual(["os-destination-all-projects", "os-destination-user"]);
+  });
+
+  it("Should report the picked destination without a worktree submenu on User", async () => {
+    const user = userEvent.setup();
+    const { onFocusUser } = renderMenu();
+
+    expect(screen.queryByTestId("os-worktree-submenu-user")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("os-destination-user"));
+    expect(onFocusUser).toHaveBeenCalledOnce();
+  });
+
+  it("Should turn All projects on from its row", async () => {
+    const user = userEvent.setup();
+    const { onEnableAllProjects } = renderMenu();
+
+    await user.click(screen.getByTestId("os-destination-all-projects"));
+    expect(onEnableAllProjects).toHaveBeenCalledOnce();
+  });
+});
 
 describe("WorkspaceMenu", () => {
   it("Should select missing records without navigation and freeze the represented eligible population", async () => {
@@ -169,7 +243,7 @@ describe("WorkspaceMenu", () => {
     expect(screen.queryByTestId(`os-worktree-create-${gitAlpha.id}`)).not.toBeInTheDocument();
   });
 
-  it("Should dot the monogram of every workspace with working sessions", () => {
+  it("Should dot every workspace with working sessions", () => {
     renderMenu({ workingSessionsByWorkspace: { [gitBeta.id]: 2, [plainNotes.id]: 1 } });
 
     expect(
@@ -407,9 +481,9 @@ describe("WorkspaceMenu", () => {
   });
 
   it("Should omit info and warning notices from the menu", () => {
-    renderMenu({ globalScopeOn: true });
+    renderMenu({ breadthMode: "all" });
 
-    expect(screen.queryByText(/Global scope is on/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/All projects is on/)).not.toBeInTheDocument();
     expect(screen.queryByText(/remembered workspace was removed/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("os-workspace-deletion-notice")).not.toBeInTheDocument();
     expect(screen.queryByRole("note")).not.toBeInTheDocument();

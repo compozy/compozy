@@ -1,15 +1,15 @@
 ---
 id: MS-web-menubar-global-scope-toggle
 area: MS
-title: Menubar Global toggle owns destination
+title: Menubar globe owns All projects; the switcher focuses a project or User
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A 28px Globe toggle sits between the CompozyOS mark and the workspace chip, outside `role="menubar"`. Off is muted like the bell; on is pressed fill plus accent globe (`aria-pressed`). ON sets the chip to Global (`~`) and keeps the remembered project id; OFF restores that project when it still exists. ⇧⌘G toggles the same control and is skipped on editable targets. With zero project folders the toggle stays on and is `aria-disabled` (not `disabled`) with tooltip "Add a workspace to scope down"; with project folders but no remembered selection it stays on with tooltip "Pick a workspace to scope down" (never the add-a-workspace copy). While the workspace catalog is still loading the toggle claims nothing — no locked reason. A polite live region announces the mode. The workspace menu lists project folders only; while Global is on it shows no check and no info or warning notice; picking a folder turns Global off. Compact viewports keep logo · globe · chip leading after app menus hide.
+expected: A 28px Globe toggle sits between the CompozyOS mark and the destination chip, outside `role="menubar"`; its accessible name is "All projects". Pressed means All projects (the globe turns accent with no background plate; chip "All projects", tooltip "Back to {project | User}"); unpressed means the focus — a project (chip shows its name) or User (chip "User"). The chip and the switcher rows show names only, with no initials mark; hover keeps the chrome plate and focus-visible keeps the focus ring. The switcher lists All projects, User, then projects, with one ✓ on the current destination; picking User focuses User and binds the `user` desktop; picking a project or worktree turns All projects off. Turning the globe off returns to the last focus (project or User); a deleted project resolves to User, never to another project. With zero projects the globe is never locked: off means User. While the workspace catalog is still loading the globe waits (`aria-disabled`) and claims nothing. ⇧⌘G toggles the same control and is skipped on editable targets. A polite live region announces "All projects on/off". The v4 storage key upgrades schema v1 → v2 losslessly (Global → All projects focused on the remembered project or User; workspace → that project); per-window worktree picks survive leaving and returning to a project.
 entry_points: web desktop menubar; ⇧⌘G; command palette Turn on/off Global scope
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20261003-background-windows-forget-global; BUG-20260906-stopped-history-schema-upgrade
 fix_status: fixed
-retest_status: pass
+retest_status: untested
 fix_commits: 62b58628b62a03048967a91543323d3cb427bb7b; 3f53932aa35300c32e92bb6a84d469e1d89f367c; 7a9d15e2f
 evidence: docs/qa/evidence/2026-10-02-untested/scope-legacy-crossdoc-bruno-confirm.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-delivery-gate-retry.json; docs/qa/evidence/2026-10-02-untested/scope-legacy-history-evidence-audit-final.json
 last_report: docs/qa/reports/2026-10-02-untested.md
@@ -105,3 +105,14 @@ original three lifecycle events and physical database owner. Current affected ga
 lab evidence audit pass; both exact-manifest Global labs have clean teardown receipts. The fixture
 has no authored provider narrative, and no such rendering claim is made. See the final Global
 closure in the cycle report for the complete earlier scope-control legs and evidence.
+
+2026-10-21 qa-impact (user-scope-work, web destination model): **reset to `untested`**. The binary Global/workspace scope became the destination model (breadth + focus with User). Re-walk the switcher order, User focus and its desktop, the zero-project globe, the v1→v2 upgrade of a real browser profile, and two windows on different worktrees surviving project → User → project → reload (E-01). Owned by the trailing QA pair of the user-scope-work / all-projects delivery.
+
+
+2026-10-21 qa-impact (all-projects AW3): Loops windows no longer adopt their route workspace. A `?workspace=` Loop run (bound window) renders in place and never changes the destination, so the 2026-10-04 retained-Loop-run reversal path is gone by design rather than guarded; `loops.spec.ts` now asserts the globe stays on through a bound Loop run permalink, the aggregate Runs and catalog, and a reload. Remains `untested` for the trailing QA pair.
+
+2026-10-22 qa-impact (#900 shell UI polish): the pressed globe no longer fills a background
+plate; its glyph turns accent instead, while hover, the focus ring, and the locked-pressed state
+stay visible. The destination chip and the switcher rows dropped their initials/stacked marks and
+show names only; a project's working dot now follows its name in the switcher. Status stays
+`untested`.

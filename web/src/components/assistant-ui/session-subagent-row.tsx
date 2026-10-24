@@ -8,6 +8,10 @@ import type { SubagentView } from "@/systems/session/components/subagents/types"
 
 import { subagentCardModel } from "./session-timeline-subagents";
 import type { SessionSubagentRow } from "./session-timeline.logic";
+import {
+  useOptionalSessionNavigationTarget,
+  useRevealHold,
+} from "./hooks/session-navigation-target-context";
 
 export interface SessionSubagentRowViewProps {
   row: SessionSubagentRow;
@@ -26,6 +30,17 @@ export function SessionSubagentRowView({
   onGroupOpenChange,
 }: SessionSubagentRowViewProps) {
   const { workspaceId, sessionId, onOpen } = useSubagentRosterContext();
+  const navigation = useOptionalSessionNavigationTarget();
+  const revealedId = navigation?.reveal?.subagentId;
+  const revealOpen =
+    revealedId && !navigation?.released.has(`subagent:${revealedId}`) ? revealedId : undefined;
+  const releaseCard = () => {
+    if (revealedId) navigation?.releaseDisclosure(`subagent:${revealedId}`);
+  };
+  const groupHold = useRevealHold(
+    row.id,
+    reveal => reveal.subagentId !== undefined && row.subagentIds.includes(reveal.subagentId)
+  );
   // This row's members only: another card's progress never re-renders it.
   const models = useSubagentRosterSelect(workspaceId, sessionId, roster =>
     row.parts.map(part => subagentCardModel(part, roster))
@@ -40,6 +55,8 @@ export function SessionSubagentRowView({
           stale={model!.stale}
           onOpen={onOpen}
           nested={nested(model!.subagent)}
+          revealOpen={model!.subagent.id === revealOpen}
+          onRevealClose={releaseCard}
         />
       </div>
     );
@@ -49,8 +66,16 @@ export function SessionSubagentRowView({
       <SubagentGroup
         subagents={models.map(model => model.subagent)}
         stale={models.some(model => model.stale)}
-        open={row.expanded}
-        onOpenChange={onGroupOpenChange}
+        open={row.expanded || groupHold.held}
+        onOpenChange={() => {
+          if (groupHold.held) {
+            groupHold.release();
+            if (!row.expanded) return;
+          }
+          onGroupOpenChange();
+        }}
+        revealedSubagentId={revealOpen}
+        onRevealClose={releaseCard}
         onOpen={onOpen}
         nested={nested}
       />

@@ -9,11 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/heartbeat"
-
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/soul"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -38,6 +36,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 			http.StatusBadRequest,
 			fmt.Errorf("%s: decode update agent request: %w", h.transportName(), err),
 		)
+		return
+	}
+	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
 		return
 	}
 	name := compozyconfig.NormalizeAgentName(c.Param("name"))
@@ -133,7 +134,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	resolved, err := h.resolveAgentDefinition(
-		c.Request.Context(), c.Query("workspace"), name, profileScope, profileName,
+		c.Request.Context(), agentWorkspaceRef(c), name, profileScope, profileName,
 	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
@@ -233,6 +234,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 	draft, err := duplicateAgentDraft(source.Entry.Def, req)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
+		return
+	}
+	if !h.allowWorkspaceAccessWrite(c, draft.WorkspaceAccess) {
 		return
 	}
 	if err := validateAgentDraftRuntime(draft, &target.Config); err != nil {
@@ -400,7 +404,7 @@ func (h *BaseHandlers) logAgentMutation(
 		handlersOperationKey, "agent." + operation,
 		"agent_name", entry.Def.Name,
 		"origin", entry.Origin,
-		"workspace_id", entry.WorkspaceID,
+		workspaceIDKey, entry.WorkspaceID,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
 		"sync_duration_ms", syncDuration.Milliseconds(),
 		"outcome", "success",

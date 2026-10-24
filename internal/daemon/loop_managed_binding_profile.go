@@ -8,11 +8,13 @@ import (
 	"slices"
 	"strings"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
-
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -128,6 +130,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
+		Origin:          workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
 		ProfileID:       strings.TrimSpace(req.ProfileID),
 		AgentName:       strings.TrimSpace(agent),
 		Provider:        strings.TrimSpace(runtime.Provider),
@@ -147,7 +150,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else {
-		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
+		opts.Scope = workspacepkg.ScopeUser
 	}
 	return opts
 }
@@ -187,7 +190,7 @@ func createOptionsFromProfile(
 	req looppkg.ActionSessionBindRequest,
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
-	return session.CreateOpts{
+	opts := session.CreateOpts{
 		ProfileID:       profile.ProfileID,
 		AgentName:       profile.AgentName,
 		Provider:        profile.Provider,
@@ -208,7 +211,14 @@ func createOptionsFromProfile(
 		Type:                 session.SessionTypeSystem,
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
+		// A pinned recreation keeps the loop run's persisted grant ceiling (USW BR-9).
+		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
 	}
+	if profile.WorkspaceID == workspaceaccess.UserSelector {
+		opts.Scope = workspacepkg.ScopeUser
+		opts.Workspace = ""
+	}
+	return opts
 }
 
 func profileFromPolicyResolution(
@@ -220,6 +230,7 @@ func profileFromPolicyResolution(
 		permissions = strings.TrimSpace(resolution.agent.Permissions)
 	}
 	return session.BuildCreationProfile(session.CreationProfileInput{
+		Scope:           resolution.workspace.Scope,
 		AgentName:       resolution.agent.Name,
 		Provider:        resolution.agent.Provider,
 		Model:           resolution.agent.Model,

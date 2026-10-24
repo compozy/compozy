@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
@@ -93,6 +94,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"DELETE /api/settings/providers/:name",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/attachments/:attachment_id",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/parent",
 		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/runtime",
 		"DELETE /api/workspaces/:workspace_id/terminals/:id",
 		"DELETE /api/tasks/:id",
@@ -325,6 +327,14 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/loop-runs/:run_id/turns",
 		"GET /api/workspaces/:workspace_id/loop-requests",
 		"GET /api/workspaces/:workspace_id/loops",
+		"GET /api/loops",
+		"GET /api/loop-runs",
+		"GET /api/agents/aggregate",
+		"GET /api/automation/suggestions",
+		"GET /api/terminals",
+		"GET /api/terminals/catalog-stream",
+		"GET /api/worktrees",
+		"GET /api/loop-requests",
 		"GET /api/workspaces/:workspace_id/loops/:name",
 		"GET /api/workspaces/:workspace_id/loops/:name/annotations",
 		"GET /api/workspaces/:workspace_id/loops/:name/config",
@@ -373,6 +383,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/cancel",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
+		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/prepare",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/accept",
 		"POST /api/workspaces/:workspace_id/automation/suggestions/:suggestion_id/dismiss",
@@ -411,6 +422,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/extensions/update",
 		"POST /api/notifications/attention/acknowledge",
 		"POST /api/sessions",
+		"POST /api/sessions/:session_id/pull-request/refresh",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/approve",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clarifications/:request_id/answer",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/compact",
@@ -510,6 +522,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"PATCH /api/tasks/:id/execution-profile/worktree",
 		"PUT /api/vault/secrets",
 		"PUT /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
+		"PUT /api/workspaces/:workspace_id/sessions/:session_id/parent",
 		"PUT /api/workspaces/:workspace_id/sessions/:session_id/runtime",
 		"DELETE /api/workspaces/:workspace_id/loops/:name",
 		"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
@@ -1394,7 +1407,7 @@ func TestMCPAuthCallbackHonorsLoopbackBindAndReturnsStaticPages(t *testing.T) {
 		t.Parallel()
 
 		var logs bytes.Buffer
-		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		engine := gin.New()
 		engine.Use(requestLoggingMiddleware(logger))
 		engine.GET("/api/mcp/oauth/callback", func(c *gin.Context) {
@@ -3738,7 +3751,9 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 			t.Parallel()
 			var logs bytes.Buffer
 			engine := gin.New()
-			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(&logs, nil))))
+			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(
+				&logs, &slog.HandlerOptions{Level: slog.LevelDebug},
+			))))
 			engine.GET("/api/sessions", func(c *gin.Context) { c.Status(http.StatusOK) })
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", http.NoBody)
 			request.Header.Set("X-Compozy-Client-ID", tc.value)
@@ -3746,6 +3761,52 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 			engine.ServeHTTP(response, request)
 			if response.Code != http.StatusOK || !strings.Contains(logs.String(), `"client_id":"`+tc.want+`"`) {
 				t.Fatalf("status=%d log=%s", response.Code, logs.String())
+			}
+		})
+	}
+}
+
+func TestRequestLoggingLevels(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, method, wantLevel string
+		status                  int
+		configured              slog.Level
+	}{
+		{"Should omit successful polling at info", http.MethodGet, "", http.StatusOK, slog.LevelInfo},
+		{"Should retain successful polling at debug", http.MethodGet, "DEBUG", http.StatusOK, slog.LevelDebug},
+		{"Should omit successful preflights at info", http.MethodOptions, "", http.StatusOK, slog.LevelInfo},
+		{"Should retain mutations at info", http.MethodPost, "INFO", http.StatusOK, slog.LevelInfo},
+		{"Should retain rejected reads at warn", http.MethodGet, "WARN", http.StatusForbidden, slog.LevelInfo},
+		{"Should retain failed reads at error", http.MethodGet, "ERROR", http.StatusServiceUnavailable, slog.LevelInfo},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: tc.configured}))
+			engine := gin.New()
+			engine.Use(requestLoggingMiddleware(logger))
+			engine.Handle(tc.method, "/api/sessions", func(c *gin.Context) {
+				c.JSON(tc.status, gin.H{"observed": true})
+			})
+			response := performRequest(t, engine, tc.method, "/api/sessions?token=private-query", nil)
+			if response.Code != tc.status || response.Body.String() != `{"observed":true}` {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+			if tc.wantLevel == "" {
+				if logs.Len() != 0 {
+					t.Fatalf("routine read consumed the info log: %s", logs.String())
+				}
+				return
+			}
+			var entry map[string]any
+			if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+				t.Fatalf("decode request log: %v", err)
+			}
+			if entry["level"] != tc.wantLevel || entry["method"] != tc.method ||
+				entry["status"] != float64(tc.status) || entry["path"] != "/api/sessions" ||
+				strings.Contains(logs.String(), "private-query") {
+				t.Fatalf("request log = %s", logs.String())
 			}
 		})
 	}
@@ -3977,6 +4038,20 @@ type discardMonitorWaker struct{}
 
 func (discardMonitorWaker) WakeSession(context.Context, monitorpkg.Notification) error { return nil }
 
+// marketingProfileService resolves the "marketing" profile by name.
+type marketingProfileService struct {
+	core.ProfileService
+}
+
+func (marketingProfileService) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.Flag != "marketing" {
+		return profilepkg.Resolution{}, profilepkg.ErrNotFound
+	}
+	return profilepkg.Resolution{Profile: profilepkg.Profile{
+		ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+	}}, nil
+}
+
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
 func TestSessionMonitorHandlers(t *testing.T) {
@@ -4076,6 +4151,63 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		}
 		if counts := monitors.ActiveCounts([]string{"sess-foreign"}); counts["sess-foreign"] != 1 {
 			t.Fatalf("active after denied cancel=%v, want the monitor kept", counts)
+		}
+	})
+
+	// #956: the operator reaches another profile's session through the owner selector.
+	t.Run("Should list and cancel another profile's monitor through the profile selector", func(t *testing.T) {
+		owned, err := monitors.Create(t.Context(), monitorpkg.Spec{
+			WorkspaceID: "ws-workspace", SessionID: "sess-marketing", Kind: monitorpkg.KindTimer,
+			Description: "marketing wake", Delay: time.Hour,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		ownerHandlers := newTestHandlers(t, stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, WorkspaceID: "ws-workspace", ProfileID: "profile-marketing",
+					State: session.StateActive,
+				}, nil
+			},
+		}, stubObserver{}, newTestHomePaths(t))
+		ownerHandlers.SessionMonitors = monitors
+		ownerHandlers.Profiles = marketingProfileService{}
+		ownerEngine := newTestRouter(t, ownerHandlers)
+		ownerBase := "/api/workspaces/ws-workspace/sessions/sess-marketing/monitors"
+
+		for _, query := range []string{"?all_profiles=true", "?profile=marketing"} {
+			response := performRequest(t, ownerEngine, http.MethodGet, ownerBase+query, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("list%s status=%d body=%s", query, response.Code, response.Body.String())
+			}
+			var listed contract.SessionMonitorsResponse
+			decodeJSONResponse(t, response, &listed)
+			if len(listed.Monitors) != 1 || listed.Monitors[0].MonitorID != owned.ID {
+				t.Fatalf("list%s monitors=%#v", query, listed.Monitors)
+			}
+		}
+
+		cancelPath := ownerBase + "/" + owned.ID + "/cancel"
+		response := performRequest(t, ownerEngine, http.MethodPost, cancelPath+"?all_profiles=true", []byte("{}"))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("aggregate cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		var refused contract.ProfileErrorPayload
+		decodeJSONResponse(t, response, &refused)
+		if refused.Error.Code != "profile_selection_conflict" ||
+			refused.Error.Message != "all_profiles is only available for reads" {
+			t.Fatalf("aggregate cancel error=%#v", refused.Error)
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-marketing"}); counts["sess-marketing"] != 1 {
+			t.Fatalf("active after refused cancel=%v, want the monitor kept", counts)
+		}
+		response = performRequest(t, ownerEngine, http.MethodPost, cancelPath+"?profile=marketing", []byte("{}"))
+		if response.Code != http.StatusOK {
+			t.Fatalf("owner cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-marketing"}); len(counts) != 0 {
+			t.Fatalf("active after owner cancel=%v", counts)
 		}
 	})
 }

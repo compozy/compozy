@@ -54,7 +54,7 @@ func (s *Service) pinWorkspaceDatabaseForRemoval(ctx context.Context, workspaceI
 	s.mu.Lock()
 	hasLane := false
 	for _, lane := range s.lanes {
-		if lane.info.WS == workspaceID {
+		if terminalpkg.JournalWorkspaceID(lane.info.WS, lane.info.ProfileID) == workspaceID {
 			hasLane = true
 			break
 		}
@@ -122,7 +122,7 @@ func (p *workspaceRemovalPreparation) Commit(ctx context.Context) error {
 		return errors.New("terminal journal: workspace removal was not staged before commit")
 	}
 	if err := p.service.closeLanes(ctx, func(lane *terminalLane) bool {
-		return lane.info.WS == p.workspaceID
+		return terminalpkg.JournalWorkspaceID(lane.info.WS, lane.info.ProfileID) == p.workspaceID
 	}); err != nil {
 		return fmt.Errorf("terminal journal: close workspace lanes: %w", err)
 	}

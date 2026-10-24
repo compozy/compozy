@@ -49,7 +49,7 @@ func (m *Manager) stageSessionAttachmentDelete(
 	sessionID string,
 	deletionID string,
 ) (*stagedAttachmentDelete, error) {
-	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, workspaceID)
+	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, attachmentspkg.ScopeDir(workspaceID))
 	return m.stageAttachmentDirectoryDeleteWithLease(ctx, attachmentDeleteStageSpec{
 		workspaceID:   workspaceID,
 		sessionID:     sessionID,
@@ -214,7 +214,7 @@ func (m *Manager) recoverSessionAttachmentDelete(
 	deletionID string,
 	restore bool,
 ) error {
-	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, workspaceID)
+	parentPath := filepath.Join(m.homePaths.SessionAttachmentsDir, attachmentspkg.ScopeDir(workspaceID))
 	names := []string{
 		sessionDeleteTombstoneName(sessionDeleteStagedPrefix, sessionID, deletionID),
 		sessionDeleteTombstoneName(sessionDeleteCommittedPrefix, sessionID, deletionID),

@@ -57,6 +57,27 @@ export interface AgentSettingsDraft {
   fallbackChain: AgentSettingsFallbackRoute[];
   definitionDigest: string;
   origin: AgentPayload["origin"];
+  /** The operator-authored workspace grant (`unrestricted`), carried through every save. */
+  workspaceAccess: AgentWorkspaceAccess;
+  /** The definition's source layer, for the grant's trusted-source rule. */
+  layer: string;
+}
+
+/** `""` follows the permission mode for other projects; `unrestricted` crosses them all. */
+export type AgentWorkspaceAccess = "" | "unrestricted";
+
+/** Operator-authored layers. Marketplace, extension, and bundled definitions never carry the grant. */
+const GRANT_TRUSTED_LAYERS = new Set([
+  "user",
+  "profile",
+  "additional",
+  "project",
+  "project_profile",
+]);
+
+/** Whether this definition's Access can be edited here (USW S6: untrusted sources are read-only). */
+export function agentWorkspaceAccessEditable(draft: Pick<AgentSettingsDraft, "layer">): boolean {
+  return GRANT_TRUSTED_LAYERS.has(draft.layer);
 }
 
 export interface AgentSettingsValidation {
@@ -99,6 +120,8 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
     fallbackChain: (agent.fallback_chain ?? []).map(toFallbackRouteInput),
     definitionDigest: agent.definition_digest,
     origin: agent.origin,
+    workspaceAccess: agent.workspace_access === "unrestricted" ? "unrestricted" : "",
+    layer: agent.layer?.trim() || (agent.origin === "workspace" ? "project" : "user"),
   };
 }
 
@@ -117,7 +140,8 @@ export function isAgentSettingsDraftDirty(draft: AgentSettingsDraft, agent: Agen
     !sameList(draft.tools, baseline.tools) ||
     !sameList(draft.toolsets, baseline.toolsets) ||
     !sameList(draft.denyTools, baseline.denyTools) ||
-    !sameList(draft.disabledSkills, baseline.disabledSkills)
+    !sameList(draft.disabledSkills, baseline.disabledSkills) ||
+    draft.workspaceAccess !== baseline.workspaceAccess
   );
 }
 
@@ -192,6 +216,8 @@ export function buildUpdateAgentParams(
       ...(draft.fallbackChain.length > 0
         ? { fallback_chain: draft.fallbackChain.map(route => ({ ...route })) }
         : {}),
+      // The update replaces the definition: omitting the grant would revoke it.
+      ...(draft.workspaceAccess ? { workspace_access: draft.workspaceAccess } : {}),
     },
   };
 }

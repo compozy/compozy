@@ -2,9 +2,14 @@ package update
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,6 +18,9 @@ import (
 	"testing/iotest"
 	"testing/synctest"
 	"time"
+
+	"github.com/compozy/compozy/internal/appstatecontract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func TestManagerCheck(t *testing.T) {
@@ -553,6 +561,52 @@ func TestManagerCheck(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move a beta install onto a newer stable release", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+		manager, _ := newManagerWithExecutable(t, &Config{
+			CurrentVersion: "v0.3.0-beta.38",
+			Now:            func() time.Time { return now },
+			HTTPClient: &http.Client{
+				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return jsonHTTPResponse(t, http.StatusOK, []githubReleaseResponse{
+						{
+							TagName:     "v0.4.0",
+							HTMLURL:     "https://github.com/compozy/compozy/releases/tag/v0.4.0",
+							PublishedAt: now.Add(-time.Hour),
+							Assets:      testGitHubAssets(t, nil),
+						},
+						{
+							TagName:     "v0.3.0-beta.38",
+							Prerelease:  true,
+							PublishedAt: now.Add(-24 * time.Hour),
+						},
+						{
+							TagName:     "v0.2.15",
+							PublishedAt: now.Add(-48 * time.Hour),
+						},
+					}), nil
+				}),
+			},
+		})
+
+		state, release, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
+		if err != nil {
+			t.Fatalf("Check() error = %v", err)
+		}
+		if release == nil || release.Version != "v0.4.0" {
+			t.Fatalf("release = %#v, want stable v0.4.0", release)
+		}
+		if state.Status != StatusAvailable || !state.Available {
+			t.Fatalf("state = %#v, want available stable update", state)
+		}
+		npmState := manager.composeState(installInfo{Method: string(InstallMethodNPM), Managed: true}, release, nil)
+		if !strings.Contains(npmState.Recommendation, "npm install -g @compozy/cli`") {
+			t.Fatalf("npm recommendation = %q, want the plain stable package", npmState.Recommendation)
+		}
+	})
+
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
@@ -643,7 +697,7 @@ func TestManagerCheck(t *testing.T) {
 			forbidden string
 		}{
 			{
-				name:   "Should recommend the npm beta tag",
+				name:   "Should keep a selected beta on the npm beta tag",
 				method: InstallMethodNPM,
 				want:   "npm install -g @compozy/cli@beta",
 			},
@@ -735,20 +789,59 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-mac-arm64-debug.zip"},
 				{Name: "CompozyOS-1.2.0-mac-arm64.dmg"},
 				{Name: "CompozyOS-1.2.0-mac-arm64.zip"},
+				{Name: "CompozyOS-1.2.0-mac-x64.zip"},
 				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
+				{Name: "compozy_darwin_x86_64.tar.gz"},
+				{Name: checksumsAssetName},
+				{Name: checksumsBundleAssetName},
+				{Name: compatibilityAssetName},
 			},
 		}
 		mac := &Manager{runtimeOS: runtimeOSDarwin, runtimeArch: runtimeArchARM64}
-		macAsset, err := mac.resolveAppReleaseAsset(release)
+		macAsset, err := mac.resolveAppReleaseAsset(t.Context(), release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(macOS) error = %v", err)
 		}
 		if macAsset.Name != "CompozyOS-1.2.0-mac-arm64.zip" {
 			t.Fatalf("resolveAppReleaseAsset(macOS) = %q, want zip", macAsset.Name)
 		}
+		for _, tc := range []struct {
+			name   string
+			output string
+			err    error
+			asset  string
+		}{
+			{name: "Should match Apple Silicon hardware under Rosetta", output: "1\n", asset: "arm64"},
+			{name: "Should retain Intel app on Intel hardware", output: "0\n", asset: "x64"},
+			{name: "Should retain Intel app when hardware cannot be probed", err: errors.New("sysctl unavailable"), asset: "x64"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				manager := &Manager{
+					runtimeOS: runtimeOSDarwin, runtimeArch: runtimeArchAMD64,
+					runCommand: func(ctx context.Context, name string, args ...string) (string, error) {
+						if name != "/usr/sbin/sysctl" || !slices.Equal(args, []string{"-n", "hw.optional.arm64"}) {
+							t.Fatalf("hardware probe = %s %v, want Apple Silicon capability", name, args)
+						}
+						if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > time.Second {
+							t.Fatal("hardware probe must have a bounded lifetime")
+						}
+						return tc.output, tc.err
+					},
+				}
+				asset, err := manager.resolveAppReleaseAsset(t.Context(), release)
+				if err != nil || asset.Name != "CompozyOS-1.2.0-mac-"+tc.asset+".zip" {
+					t.Fatalf("resolveAppReleaseAsset() = %q, %v, want %s app", asset.Name, err, tc.asset)
+				}
+				assets, err := manager.resolvePlanReleaseAssets(release, true)
+				if err != nil || assets.archive.Name != "compozy_darwin_x86_64.tar.gz" {
+					t.Fatalf("runtime archive = %q, %v, want unchanged amd64", assets.archive.Name, err)
+				}
+			})
+		}
 
 		linux := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchAMD64}
-		linuxAsset, err := linux.resolveAppReleaseAsset(release)
+		linuxAsset, err := linux.resolveAppReleaseAsset(t.Context(), release)
 		if err != nil {
 			t.Fatalf("resolveAppReleaseAsset(Linux) error = %v", err)
 		}
@@ -757,13 +850,13 @@ func TestManagerCheck(t *testing.T) {
 		}
 
 		linuxARM := &Manager{runtimeOS: runtimeOSLinux, runtimeArch: runtimeArchARM64}
-		if _, err := linuxARM.resolveAppReleaseAsset(release); err == nil ||
+		if _, err := linuxARM.resolveAppReleaseAsset(t.Context(), release); err == nil ||
 			!strings.Contains(err.Error(), "unsupported on linux/arm64") {
 			t.Fatalf("resolveAppReleaseAsset(Linux ARM) error = %v, want unsupported", err)
 		}
 
 		windows := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
-		if _, err := windows.resolveAppReleaseAsset(release); err == nil {
+		if _, err := windows.resolveAppReleaseAsset(t.Context(), release); err == nil {
 			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
 		}
 	})
@@ -806,6 +899,196 @@ func TestManagerCheck(t *testing.T) {
 			if requestURL == "https://downloads.example/app" {
 				t.Fatalf("app-only planning downloaded install payload: %s", requestURL)
 			}
+		}
+	})
+
+	t.Run("Should plan desktop-owned joint updates through the app bundle", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name           string
+			desktopOwned   bool
+			managed        string
+			currentVersion string
+			appVersion     string
+			targets        []Target
+			wantTargets    []Target
+			wantError      string
+		}{
+			{
+				name: "Should plan only the app when its bundle owns both requested updates", desktopOwned: true,
+				targets: []Target{TargetRuntime, TargetApp}, wantTargets: []Target{TargetApp},
+			},
+			{
+				name: "Should preserve an explicit desktop runtime-only request", desktopOwned: true,
+				targets: []Target{TargetRuntime}, wantTargets: []Target{TargetRuntime},
+			},
+			{
+				name: "Should preserve a joint update for an independently installed runtime", appVersion: "v1.0.0",
+				targets: []Target{TargetRuntime, TargetApp}, wantTargets: []Target{TargetRuntime, TargetApp},
+			},
+			{
+				name:    "Should preserve a standalone runtime update",
+				targets: []Target{TargetRuntime}, wantTargets: []Target{TargetRuntime},
+			},
+			{
+				name: "Should preserve managed runtime refusal before collapsing targets", desktopOwned: true,
+				managed: string(InstallMethodDesktopApp), targets: []Target{TargetRuntime, TargetApp},
+				wantError: "runtime is not eligible",
+			},
+			{
+				name: "Should preserve app eligibility checks before collapsing targets", desktopOwned: true,
+				appVersion: "v1.1.0", targets: []Target{TargetRuntime, TargetApp},
+				wantError: "desktop app update is not available",
+			},
+			{
+				name: "Should preserve runtime eligibility checks before collapsing targets", desktopOwned: true,
+				currentVersion: "v1.1.0", appVersion: "v1.0.0", targets: []Target{TargetRuntime, TargetApp},
+				wantError: "runtime is not eligible",
+			},
+			{
+				name: "Should preserve target order validation before collapsing targets", desktopOwned: true,
+				targets: []Target{TargetApp, TargetRuntime}, wantError: "runtime must be the first target",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				binaryPath := filepath.Join(paths.BinDir, compozyBinaryName)
+				if err := os.MkdirAll(paths.BinDir, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(binaryPath, []byte("current-runtime"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if tc.desktopOwned {
+					if err := WriteDesktopProvenance(paths, binaryPath, DesktopProvenanceMetadata{
+						AppVersion: "v1.0.0", Channel: "beta", RuntimeVersion: "v1.0.0",
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if tc.appVersion != "" {
+					appState, err := json.Marshal(appStateSnapshot{
+						SchemaVersion: appstatecontract.SchemaVersion, AppVersion: tc.appVersion,
+					})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(paths.AppStateFile, appState, 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				verifier := &stubBundleVerifier{}
+				manager, _ := newManagerWithExecutable(t, &Config{
+					HomePaths: paths, CurrentVersion: tc.currentVersion,
+					RuntimeOS: runtimeOSDarwin, RuntimeArch: runtimeArchARM64,
+					ExecutablePath: func() (string, error) { return binaryPath, nil },
+					Getenv: func(key string) string {
+						if key == ManagedEnvName {
+							return tc.managed
+						}
+						return ""
+					},
+					Now: func() time.Time { return testOperationNow }, BundleVerifier: verifier,
+				})
+				manager.operationStore.now = manager.now
+				archiveBody := createTarGzBinary(t, compozyBinaryName, []byte("new-runtime"), 0o755)
+				archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+				if err != nil {
+					t.Fatal(err)
+				}
+				appAsset := "CompozyOS-1.1.0-mac-arm64.zip"
+				appDigest := sha256Hex([]byte("new-app"))
+				release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+					archiveBody: archiveBody, bundleBody: []byte(`{}`),
+					checksumsBody: fmt.Appendf(nil, "%s  %s\n%s  %s\n",
+						sha256Hex(archiveBody), archiveName, appDigest, appAsset),
+				})
+				t.Cleanup(server.Close)
+				release.Assets = append(release.Assets, ReleaseAsset{Name: appAsset, DownloadURL: server.URL + "/app"})
+				payload := githubReleaseResponse{TagName: release.Version, HTMLURL: release.ReleaseURL}
+				for _, asset := range release.Assets {
+					payload.Assets = append(payload.Assets, githubAssetResponse{
+						Name: asset.Name, BrowserDownloadURL: asset.DownloadURL,
+					})
+				}
+				var archiveRequests, supportRequests atomic.Int32
+				manager.httpClient = &http.Client{
+					Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+						if request.URL.Host == "api.github.com" {
+							return jsonHTTPResponse(t, http.StatusOK, payload), nil
+						}
+						if request.URL.Path == "/archive" {
+							archiveRequests.Add(1)
+						} else {
+							supportRequests.Add(1)
+						}
+						return server.Client().Transport.RoundTrip(request)
+					}),
+				}
+				targets := slices.Clone(tc.targets)
+				request, err := manager.PlanOperation(
+					t.Context(),
+					ActorWeb,
+					targets,
+					operationTestRequest(testOperationNow).Holder,
+				)
+				if !slices.Equal(targets, tc.targets) {
+					t.Fatalf("caller targets = %v, want unchanged %v", targets, tc.targets)
+				}
+				if tc.wantError != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+						t.Fatalf("PlanOperation() error = %v, want %q", err, tc.wantError)
+					}
+					if verifier.calls != 0 || archiveRequests.Load() != 0 || supportRequests.Load() != 0 {
+						t.Fatal("invalid plan acquired release artifacts")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("PlanOperation() error = %v", err)
+				}
+				if !slices.Equal(request.Targets, tc.wantTargets) {
+					t.Errorf("planned targets = %v, want %v", request.Targets, tc.wantTargets)
+				}
+				wantRuntime := slices.Contains(tc.wantTargets, TargetRuntime)
+				var wantArchiveRequests int32
+				if wantRuntime {
+					wantArchiveRequests = 1
+				}
+				if (request.Runtime != nil) != wantRuntime || archiveRequests.Load() != wantArchiveRequests {
+					t.Errorf("runtime plan = %#v, archive requests = %d, want runtime=%t",
+						request.Runtime, archiveRequests.Load(), wantRuntime)
+				}
+				if verifier.calls != 1 || supportRequests.Load() != 3 {
+					t.Errorf(
+						"verification calls = %d, support requests = %d, want 1 and 3",
+						verifier.calls,
+						supportRequests.Load(),
+					)
+				}
+				if slices.Contains(tc.wantTargets, TargetApp) &&
+					(request.App == nil || request.App.Digest != "sha256:"+appDigest) {
+					t.Fatalf("app plan = %#v, want verified release digest", request.App)
+				}
+				operation, err := manager.AcquireOperation(t.Context(), request)
+				if err != nil {
+					t.Fatalf("AcquireOperation() error = %v", err)
+				}
+				if !slices.Equal(operation.Targets, tc.wantTargets) || operation.ActiveTarget != tc.wantTargets[0] {
+					t.Errorf(
+						"acquired targets = %v, active = %q, want %v",
+						operation.Targets,
+						operation.ActiveTarget,
+						tc.wantTargets,
+					)
+				}
+			})
 		}
 	})
 

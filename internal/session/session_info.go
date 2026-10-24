@@ -28,8 +28,13 @@ func (s *Session) infoLocked() *Info {
 		acpCapsKnown = true
 	}
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
+	resolution := speedpkg.CloneResolution(s.SpeedResolution)
+	if acpCaps.SpeedResolution != nil {
+		resolution = s.speedResolutionForCapsLocked(acpCaps)
+	}
 
 	return &Info{
+		runtimeStrategy:          s.runtimeStrategyLocked(),
 		Supervision:              CloneSupervisionState(s.supervisionState),
 		BusyInput:                s.busyInputStateLocked(acpCaps),
 		ID:                       s.ID,
@@ -42,7 +47,7 @@ func (s *Session) infoLocked() *Info {
 		ReasoningEffort:          s.ReasoningEffort,
 		Speed:                    s.Speed,
 		ACPOptions:               acp.CloneSessionConfigOptionSelections(s.ACPOptions),
-		SpeedResolution:          speedpkg.CloneResolution(s.SpeedResolution),
+		SpeedResolution:          resolution,
 		VerdictOnly:              s.creationProfile != nil && s.creationProfile.RuntimeMode == RuntimeModeVerdictOnly,
 		RuntimeStatus:            s.RuntimeStatus,
 		RuntimeTransition:        s.RuntimeTransition,
@@ -51,6 +56,7 @@ func (s *Session) infoLocked() *Info {
 		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		SelectedRuntime:          cloneRuntimeSelection(s.SelectedRuntime),
 		RuntimeSelectionRevision: s.RuntimeSelectionRevision,
+		EffectiveWorkspaceAccess: s.EffectiveWorkspaceAccess,
 		EffectivePermissions:     s.EffectivePermissions,
 		WorkspaceID:              s.WorkspaceID,
 		Workspace:                s.Workspace,
@@ -89,4 +95,49 @@ func (s *Session) infoLocked() *Info {
 		CreatedAt:                s.CreatedAt,
 		UpdatedAt:                s.UpdatedAt,
 	}
+}
+
+// RequestedRuntime returns the persisted intent of the current or last binding.
+func (info *Info) RequestedRuntime() RuntimeSelection {
+	if info == nil {
+		return RuntimeSelection{}
+	}
+	return RuntimeSelection{
+		Provider: info.Provider, Model: info.Model, ReasoningEffort: info.ReasoningEffort,
+		Speed: info.Speed, ACPOptions: acp.CloneSessionConfigOptionSelections(info.ACPOptions),
+	}
+}
+
+// EffectiveRuntime projects the latest provider observations while Info retains persisted intent.
+func (info *Info) EffectiveRuntime() RuntimeSelection {
+	if info == nil {
+		return RuntimeSelection{}
+	}
+	runtime := info.RequestedRuntime()
+	strategy := info.runtimeStrategy
+	if strategy == "" {
+		strategy = RuntimeStrategyForProvider(info.Provider)
+	}
+	if strategy != acp.RuntimeApplicationSessionConfig {
+		return runtime
+	}
+	if option, ok := acp.ReasoningConfigOption(info.ACPCaps.ConfigOptions); ok {
+		runtime.ReasoningEffort = strings.TrimSpace(option.CurrentValueID)
+	} else if info.ACPCapsKnown {
+		runtime.ReasoningEffort = ""
+	}
+	if current := acp.CurrentSpeed(info.ACPCaps.ConfigOptions); current != "" {
+		runtime.Speed = current
+	} else if info.SpeedResolution != nil && info.SpeedResolution.Status != speedpkg.ResolutionApplied {
+		runtime.Speed = ""
+	}
+	return runtime
+}
+
+func (s *Session) runtimeStrategyLocked() acp.RuntimeApplicationStrategy {
+	provider := strings.TrimSpace(s.providerRoute.RuntimeProvider)
+	if provider == "" {
+		provider = s.Provider
+	}
+	return RuntimeStrategyForProvider(provider)
 }

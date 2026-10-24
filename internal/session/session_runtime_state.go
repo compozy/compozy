@@ -12,6 +12,7 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
+	runtimeStrategy     acp.RuntimeApplicationStrategy
 	process             *AgentProcess
 	selection           RuntimeSelection
 	status              RuntimeStatus
@@ -29,6 +30,7 @@ type runtimeBindingSnapshot struct {
 	speedResolution     *speedpkg.Resolution
 	liveness            *store.SessionLivenessMeta
 	agentDef            compozyconfig.AgentDef
+	advertisedCommands  []store.SessionAdvertisedCommand
 	startupManifest     acp.StartupManifest
 	runtimeRelease      *runtimeRelease
 }
@@ -40,7 +42,8 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
-		process: s.process,
+		runtimeStrategy: s.runtimeStrategyLocked(),
+		process:         s.process,
 		selection: RuntimeSelection{
 			Provider:        s.Provider,
 			Model:           s.Model,
@@ -63,6 +66,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		speedResolution:     speedpkg.CloneResolution(s.SpeedResolution),
 		liveness:            store.CloneSessionLivenessMeta(s.Liveness),
 		agentDef:            compozyconfig.CloneAgentDef(s.agentDef),
+		advertisedCommands:  store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
 		startupManifest:     acp.CloneStartupManifest(s.startupManifest),
 		runtimeRelease:      s.runtimeRelease,
 	}
@@ -241,10 +245,31 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.SpeedResolution = speedpkg.CloneResolution(snapshot.speedResolution)
 	s.Liveness = store.CloneSessionLivenessMeta(snapshot.liveness)
 	s.agentDef = compozyconfig.CloneAgentDef(snapshot.agentDef)
+	s.AdvertisedCommands = store.CloneSessionAdvertisedCommands(snapshot.advertisedCommands)
 	s.startupManifest = acp.CloneStartupManifest(snapshot.startupManifest)
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}
+}
+
+// detachRuntimeAfterFailedRollback preserves intent without reusing an unconfirmed process.
+// The release owns the old process until exit is verified, including failed stop retries.
+func (s *Session) detachRuntimeAfterFailedRollback(
+	snapshot *runtimeBindingSnapshot, failure string, now time.Time,
+) *runtimeRelease {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.restoreRuntimeBindingLocked(snapshot, failure, now)
+	s.captureProcessCapabilitiesLocked()
+	release := &runtimeRelease{
+		acpSessionID: strings.TrimSpace(s.ACPSessionID), process: s.process, done: make(chan struct{}),
+	}
+	s.process = nil
+	s.runtimeRelease = release
+	s.RuntimeStatus = RuntimeStatusUnbound
+	s.RuntimeTransition = RuntimeTransitionNone
+	s.RuntimeRecovery = nil
+	return release
 }
 
 func (s *Session) markRuntimeUnbound(now time.Time) {
@@ -253,6 +278,7 @@ func (s *Session) markRuntimeUnbound(now time.Time) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.captureProcessCapabilitiesLocked()
 	s.process = nil
 	s.RuntimeStatus = RuntimeStatusUnbound
 	s.RuntimeFailure = ""

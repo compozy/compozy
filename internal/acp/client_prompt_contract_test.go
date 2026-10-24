@@ -1927,7 +1927,7 @@ func TestPromptOriginContract(t *testing.T) {
 		{"Should accept a session origin", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 1}, true},
 		{"Should reject another kind", PromptOriginMeta{Kind: "agent", SessionID: "a", WorkspaceID: "w", Hop: 1}, false},
 		{"Should reject an empty sender", PromptOriginMeta{Kind: "session", WorkspaceID: "w", Hop: 1}, false},
-		{"Should reject an empty workspace", PromptOriginMeta{Kind: "session", SessionID: "a", Hop: 1}, false},
+		{"Should accept a User-scope sender without a workspace", PromptOriginMeta{Kind: "session", SessionID: "a", Hop: 1}, true},
 		{"Should reject hop zero", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w"}, false},
 		{"Should reject hop nine", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 9}, false},
 	} {
@@ -1953,6 +1953,54 @@ func TestPromptOriginContract(t *testing.T) {
 		meta.Synthetic = &PromptSyntheticMeta{Kind: "subagent", Reason: "done"}
 		if meta.Validate() == nil {
 			t.Fatal("synthetic origin accepted")
+		}
+	})
+}
+
+func TestPromptAgentCommandPreservesContextDelivery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should send command as the first wire block and defer context", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			SystemPrompt: "startup instructions", SystemPromptDelivery: SystemPromptDeliveryFirstTurnPrefix,
+		})
+		defer stopProcess(t, driver, proc)
+		section := PromptSection{Key: "skills", Content: "pending skills", UnchangedContent: "skills unchanged"}
+		requests := []PromptRequest{
+			{
+				TurnID:       "command",
+				Message:      "/compact keep decisions",
+				AgentCommand: true,
+				Sections:     []PromptSection{section},
+			},
+			{TurnID: "ordinary", Message: "pending skills\n\ncontinue", Sections: []PromptSection{section}},
+			{TurnID: "later", Message: "pending skills\n\ncontinue", Sections: []PromptSection{section}},
+		}
+		for index, request := range requests {
+			stream, err := driver.Prompt(t.Context(), proc, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events := collectEvents(t, stream)
+			if len(events) == 0 {
+				t.Fatal("missing wire echo")
+			}
+			got := events[0].Text
+			switch index {
+			case 0:
+				if got != request.Message {
+					t.Fatalf("first wire block = %q", got)
+				}
+			case 1:
+				if !strings.Contains(got, "startup instructions") || !strings.Contains(got, section.Content) {
+					t.Fatalf("deferred context missing: %q", got)
+				}
+			case 2:
+				if strings.Contains(got, "startup instructions") || !strings.Contains(got, section.UnchangedContent) {
+					t.Fatalf("context delivery not advanced: %q", got)
+				}
+			}
 		}
 	})
 }

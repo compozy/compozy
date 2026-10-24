@@ -4,7 +4,7 @@ area: ET
 title: Claude's own subagents render as nested cards
 persona: Rafa
 journey: J-14-read-a-finished-transcript
-expected: When Claude (claude-agent-acp) runs its own Agent or Task tool, CompozyOS records a provider-native subagent (origin provider_native, no child session, provider_tool_call_id set, model from the tool input when reported) and the parent transcript shows the same subagent card titled with the tool's description, with no chevron, expandable inline to show the subagent's own tool rows and text; those inner parts (parentToolCallId equal to the Agent call) no longer interleave with the parent's work rows or reply text, while an unknown parent tool call id falls back to the parent flow; the status line counts it in "N agents running" while live; it settles with its tool result — or, when Claude runs it in the background (the Agent tool returns a launch receipt), stays Running until the parent's turn ends and then reads Completed with no result (Interrupted when the turn is canceled or the session stops) — never wakes the parent, never shows the waiting banner, cannot be canceled (409 subagent_not_cancelable, no Stop in the roster), and counts toward the parent's sidebar chip; the rendering survives reload from the persisted transcript.
+expected: When Claude (claude-agent-acp) runs its own Agent or Task tool, CompozyOS records a provider-native subagent (origin provider_native, no child session, provider_tool_call_id set, model from the tool input when reported) and the parent transcript shows the same subagent card titled with the tool's description, with no chevron, expandable inline to show the subagent's own tool rows and text; those inner parts (parentToolCallId equal to the Agent call) no longer interleave with the parent's work rows or reply text, while an unknown parent tool call id falls back to the parent flow; the status line counts it in "N agents running" while live; it settles with its tool result — or, when Claude runs it in the background (the Agent tool returns a launch receipt), stays Running until the parent's turn ends and then reads Completed with no result (Interrupted when the turn is canceled or the session stops) — never wakes the parent, never shows the waiting banner, cannot be canceled (409 subagent_not_cancelable, no Stop in the roster), and counts toward the parent's sidebar subagent indicator and appears in its subagent branch as a clickable row that opens the parent session, reveals its card, expands available nested activity, and briefly highlights it; the rendering survives reload from the persisted transcript.
 entry_points: web session window transcript (SubagentCard provider-native state, inline expansion); compozy session subagents <session-id> --origin provider_native --json; POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel; session inspector Subagents section; docs/design/opendesign/subagents/subagents-transcript.html#tr-native (VC-05)
 qa_status: pass
 bug_ids: BUG-20261009-native-subagent-title-task; BUG-20261009-subagent-preview-raw-markdown
@@ -45,7 +45,7 @@ shape (Known Risk: shape drift).
    with `origin: "provider_native"`, `child_session_id: null`, `provider_tool_call_id: "toolu_…"`,
    and the model when Claude reported it. `POST …/subagents/{id}/cancel` → 409
    `subagent_not_cancelable` with `Provider-native subagents cannot be canceled; stop the parent turn instead.`
-   The inspector roster lists it without a Stop button; the sidebar chip counts it.
+   The inspector roster lists it without a Stop button; the sidebar subagent indicator counts it.
 6. **Fallback.** With a parent tool call id that matches no recorded Agent call (fixture), the inner
    parts render in the parent flow as before and `subagent.native_stitch_miss` is logged.
 7. **Reload.** Reload the window and reopen the finished session: the card, its inner rows, and the
@@ -77,3 +77,20 @@ then stop a later parent turn and reload. Compare the compositor and an independ
 window. The broader foreground/background/native cancellation matrix above
 retains its prior status; this follow-up is recorded in the
 [issues 851–854 report](../reports/2026-10-19-issues-851-854.md).
+
+QA impact 2026-10-24 (#947): from the sidebar branch, All projects session list, composer
+roster, and inspector, click a provider-native row. The parent opens (or stays open), older
+transcript pages load when needed, and enclosing turn/group/card disclosures open to reveal
+that subagent with a brief focus highlight. Close it manually and click the row again: it
+reopens. A card without projected nested activity still receives focus; no child session is
+invented. Verify keyboard activation and a narrow session window. Delegated rows continue
+to open their actual child sessions. E2E-006 owns the daemon-served native click journey;
+`session-thread-navigation.test.tsx` owns paging and repeat-reveal behavior.
+
+QA re-walk 2026-10-24 (merge train, E2E-006): the isolated daemon-served scenario
+passed in 12.3s (48.3s total). Sidebar reveal, manual close/reopen, and All projects
+modal reveal of the settled fold all passed. Native reveal now locates the fold's
+card by subagent ID: retained streaming rows may lack projected part indices.
+The modal gesture uses the existing branch-toggle test ID and preserves an
+already-expanded branch. All content, fold and completion assertions remain.
+This is deterministic ACP-fixture evidence; the real-provider matrix above is unchanged.

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,13 +32,19 @@ func execute(args []string) int {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: compozy-desktop-release <publish|repair|assert-inventory|assert-version>")
+		return fmt.Errorf("usage: compozy-desktop-release <%s>", strings.Join([]string{
+			"publish", "repair", "compatibility-channels", "min-app-version", "assert-inventory", "assert-version",
+		}, "|"))
 	}
 	switch args[0] {
 	case "publish":
 		return runPublish(ctx, args[1:])
 	case "repair":
 		return runRepair(ctx, args[1:])
+	case "compatibility-channels":
+		return runCompatibilityChannels(args[1:])
+	case "min-app-version":
+		return runMinAppVersion(args[1:])
 	case "assert-inventory":
 		return runAssertInventory(ctx, args[1:])
 	case "assert-version":
@@ -128,6 +135,43 @@ func newAuthority(values *authorityFlags) (*desktoprelease.Authority, error) {
 		return nil, err
 	}
 	return desktoprelease.NewAuthority(backend)
+}
+
+func runCompatibilityChannels(args []string) error {
+	flags := newFlagSet("compatibility-channels")
+	channel := flags.String("channel", "", "release channel")
+	if err := parseFlags(flags, args); err != nil {
+		return err
+	}
+	channels, err := desktoprelease.CompatibilityChannels(*channel)
+	if err != nil {
+		return err
+	}
+	return writeJSON(map[string][]string{"channels": channels})
+}
+
+func runMinAppVersion(args []string) error {
+	flags := newFlagSet("min-app-version")
+	version := flags.String("version", "", "release version")
+	var live repeatedFlag
+	flags.Var(&live, "live", "live app version of one compatibility channel; repeat per channel")
+	if err := parseFlags(flags, args); err != nil {
+		return err
+	}
+	minimum, err := desktoprelease.MinAppVersion(*version, live)
+	if err != nil {
+		return err
+	}
+	return writeJSON(map[string]string{"min_app_version": minimum})
+}
+
+type repeatedFlag []string
+
+func (values *repeatedFlag) String() string { return strings.Join(*values, ",") }
+
+func (values *repeatedFlag) Set(value string) error {
+	*values = append(*values, value)
+	return nil
 }
 
 func runAssertInventory(ctx context.Context, args []string) error {

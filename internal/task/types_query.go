@@ -35,6 +35,7 @@ type RunStarvationMutation struct {
 // Query captures the supported task-list filters and an explicit profile or
 // aggregate read lens when supplied.
 type Query struct {
+	WorkspaceIDs  []string        `json:"workspace_ids,omitempty"`
 	ReadScope     store.ReadScope `json:"read_scope,omitzero"`
 	Scope         Scope           `json:"scope,omitempty"`
 	WorkspaceID   string          `json:"workspace_id,omitempty"`

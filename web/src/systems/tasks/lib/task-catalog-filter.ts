@@ -2,15 +2,13 @@ import type { TaskInboxFilter, TaskListFilter } from "../types";
 
 import type { TasksRouteSearch } from "./task-location-search";
 import { taskOwnerFilterFromValue } from "./tasks-list-filters";
-import type { ActiveTaskScopeFilter } from "./workspace-scope";
+import { taskInboxScope, type ActiveTaskScopeFilter } from "./workspace-scope";
 
 export const DEFAULT_TASK_LIST_LIMIT = 50;
 
 export function defaultTaskCatalogFilter(scope: ActiveTaskScopeFilter): TaskListFilter {
   return {
-    scope: scope.scope,
-    workspace: scope.workspace,
-    worktree: scope.worktree,
+    ...scope,
     include_drafts: true,
     limit: DEFAULT_TASK_LIST_LIMIT,
     sort: "recent",
@@ -50,9 +48,7 @@ export function taskInboxFilterFromRouteSearch(
   search: TasksRouteSearch
 ): TaskInboxFilter {
   return {
-    scope: scope.scope,
-    workspace: scope.workspace,
-    worktree: scope.worktree,
+    ...taskInboxScope(scope),
     lane:
       search.inboxLane === undefined || search.inboxLane === "all" ? undefined : search.inboxLane,
     status: search.inboxStatus,

@@ -153,6 +153,13 @@ func (m *Manager) prepareFallbackStartRuntime(
 	if err != nil {
 		return sessionStartRuntime{}, startupFailure("session fallback route resolution failed", err)
 	}
+	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: materialize delegation tools for %q: %w",
+			spec.sessionID,
+			err,
+		)
+	}
 	if !spec.deferRuntimeValidation {
 		if err := m.validateExplicitStartModel(ctx, &runtime, spec); err != nil {
 			return sessionStartRuntime{}, err

@@ -36,7 +36,6 @@ export const sessionWindowTestIds = {
   composerAttachmentRemove: "composer-attachment-remove",
   composerAttachmentStrip: "composer-attachment-strip",
   composerAttachmentTile: "composer-attachment-tile",
-  composerClearButton: "composer-clear-button",
   composerDropOverlay: "composer-drop-overlay",
   composerQueuedAttachmentWell: "composer-queued-attachment-well",
   composerEnterHint: "composer-enter-hint",
@@ -46,13 +45,12 @@ export const sessionWindowTestIds = {
   composerSendButton: "composer-send-button",
   composerSteerButton: "composer-steer-button",
   composerStopButton: "composer-stop-button",
-  deleteButton: "delete-button",
   permissionAllowAlways: "permission-allow-always",
   permissionAllowOnce: "permission-allow-once",
   permissionPrompt: "permission-dock",
   processingIndicator: "processing-indicator",
   stopButton: "stop-button",
-  topbarOverflow: "session-topbar-overflow",
+  viewToggle: "session-view-toggle",
   userMessageAttachmentFileCard: "user-message-attachment-file-card",
   userMessageAttachmentFrame: "user-message-attachment-frame",
   userMessageAttachmentGallery: "user-message-attachment-gallery",
@@ -73,7 +71,6 @@ export interface SessionWindowSelectors {
   composerAttachmentRemove: Locator;
   composerAttachmentStrip: Locator;
   composerAttachmentTile: Locator;
-  composerClearButton: Locator;
   composerDropOverlay: Locator;
   composerEnterHint: Locator;
   composerFeedbackNote: Locator;
@@ -84,13 +81,16 @@ export interface SessionWindowSelectors {
   composerSteerButton: Locator;
   composerStopButton: Locator;
   composerTextarea: Locator;
-  deleteButton: Locator;
   permissionAllowAlways: Locator;
   permissionAllowOnce: Locator;
   permissionPrompt: Locator;
   processingIndicator: Locator;
   stopButton: Locator;
-  topbarOverflow: Locator;
+  viewToggle: Locator;
+  /** The `…` trigger of one session's row in this window's sessions list. */
+  sessionRowActions(sessionId: string): Locator;
+  /** One verb of that row menu (`rename`, `continue`, `clear`, `delete`, …), rendered in the portal. */
+  sessionRowMenuItem(verb: string, sessionId: string): Locator;
   userMessageAttachmentFileCard: Locator;
   userMessageAttachmentFrame: Locator;
   userMessageAttachmentGallery: Locator;
@@ -682,7 +682,6 @@ export function sessionWindowSelectors(
     composerAttachmentRemove: win.getByTestId(sessionWindowTestIds.composerAttachmentRemove),
     composerAttachmentStrip: win.getByTestId(sessionWindowTestIds.composerAttachmentStrip),
     composerAttachmentTile: win.getByTestId(sessionWindowTestIds.composerAttachmentTile),
-    composerClearButton: portalRoot.getByTestId(sessionWindowTestIds.composerClearButton),
     composerDropOverlay: win.getByTestId(sessionWindowTestIds.composerDropOverlay),
     composerEnterHint: win.getByTestId(sessionWindowTestIds.composerEnterHint),
     composerFeedbackNote: win.getByTestId(sessionWindowTestIds.composerFeedbackNote),
@@ -695,13 +694,15 @@ export function sessionWindowSelectors(
     composerSteerButton: win.getByTestId(sessionWindowTestIds.composerSteerButton),
     composerStopButton: win.getByTestId(sessionWindowTestIds.composerStopButton),
     composerTextarea: win.getByRole("textbox", { name: "Session prompt" }),
-    deleteButton: portalRoot.getByTestId(sessionWindowTestIds.deleteButton),
     permissionAllowAlways: win.getByTestId(sessionWindowTestIds.permissionAllowAlways),
     permissionAllowOnce: win.getByTestId(sessionWindowTestIds.permissionAllowOnce),
     permissionPrompt: win.getByTestId(sessionWindowTestIds.permissionPrompt),
     processingIndicator: win.getByTestId(sessionWindowTestIds.processingIndicator),
     stopButton: win.getByTestId(sessionWindowTestIds.stopButton),
-    topbarOverflow: win.getByTestId(sessionWindowTestIds.topbarOverflow),
+    viewToggle: win.getByTestId(sessionWindowTestIds.viewToggle),
+    sessionRowActions: sessionId => win.getByTestId(`session-row-actions-${sessionId}`),
+    sessionRowMenuItem: (verb, sessionId) =>
+      portalRoot.getByTestId(`session-row-${verb}-${sessionId}`),
     userMessageAttachmentFileCard: win.getByTestId(
       sessionWindowTestIds.userMessageAttachmentFileCard
     ),

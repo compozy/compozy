@@ -1,6 +1,5 @@
 import type { SessionFolderPayload, SessionPayload } from "../types";
 import { isSubagentSession } from "./session-hierarchy";
-import type { SessionListScope } from "./session-list-preferences";
 import {
   buildSessionListThreads,
   threadVisibleOrder,
@@ -87,33 +86,23 @@ export function sectionsVisibleOrder(
 }
 
 export interface VisibleSessionOrderOptions {
-  scope: SessionListScope;
   collapsedThreadIds: ReadonlySet<string>;
-  collapsedWorkspaceIds: ReadonlySet<string>;
-  workspaceGroups: ReadonlyArray<{
-    workspaceId: string;
-    sessions: readonly SessionPayload[];
-  }>;
-  /** The workspace list's folders once loaded; without them the list renders flat. */
+  /** The flat list's folders once loaded; without them the list renders flat. */
   folders?: readonly SessionFolderPayload[];
-  profileFolderGroups?: ReadonlyArray<{
-    owner: { id: string };
+  /**
+   * A grouped list: each group's loaded page in group order, with that group's
+   * folders when its own query is one (workspace, profile) pair.
+   */
+  groups?: ReadonlyArray<{
+    key: string;
+    sessions: readonly SessionPayload[];
     folders?: readonly SessionFolderPayload[];
   }>;
+  collapsedGroupKeys?: ReadonlySet<string>;
   collapsedFolderIds?: ReadonlySet<string>;
   archived?: boolean;
   /** A search is narrowing the list, which opens every folder holding a match. */
   filtering?: boolean;
-}
-
-/** Independent profile/catalog snapshots must never drop an unmatched root. */
-export function canGroupSessionThreads(
-  threads: readonly SessionThreadModel[],
-  groups: VisibleSessionOrderOptions["profileFolderGroups"]
-): boolean {
-  if (!groups?.length) return false;
-  const owners = new Set(groups.map(group => group.owner.id));
-  return threads.every(thread => owners.has(thread.session.profile_id ?? ""));
 }
 
 /**
@@ -126,44 +115,34 @@ export function visibleSessionOrder(
   sessions: readonly SessionPayload[],
   options: VisibleSessionOrderOptions
 ): SessionPayload[] {
-  if (options.scope === "all-workspaces") {
-    return options.workspaceGroups.flatMap(group =>
-      options.collapsedWorkspaceIds.has(group.workspaceId) ? [] : group.sessions
-    );
-  }
-
-  const threads = buildSessionListThreads(sessions, "");
   const filtering = options.filtering ?? false;
-  const inFolders = (
-    owned: readonly SessionThreadModel[],
-    folders?: readonly SessionFolderPayload[]
-  ) =>
-    folders
+  const ordered = (
+    served: readonly SessionPayload[],
+    folders: readonly SessionFolderPayload[] | undefined
+  ): SessionPayload[] => {
+    const threads = buildSessionListThreads(served, "");
+    const visibleThreads = folders
       ? sectionsVisibleThreads(
-          buildSessionListSections(owned, folders, {
+          buildSessionListSections(threads, folders, {
             filtering,
             archived: options.archived ?? false,
           }),
           options.collapsedFolderIds ?? new Set(),
           filtering
         )
-      : owned;
-  const groups = canGroupSessionThreads(threads, options.profileFolderGroups)
-    ? options.profileFolderGroups
-    : undefined;
-  const visibleThreads = groups?.length
-    ? groups.flatMap(group =>
-        inFolders(
-          threads.filter(thread => thread.session.profile_id === group.owner.id),
-          group.folders
-        )
-      )
-    : inFolders(threads, options.folders);
-  const byId = new Map(sessions.map(session => [session.id, session]));
-  return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
-    const session = byId.get(id);
-    return session ? [session] : [];
-  });
+      : threads;
+    const byId = new Map(served.map(session => [session.id, session]));
+    return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
+      const session = byId.get(id);
+      return session ? [session] : [];
+    });
+  };
+  if (options.groups) {
+    return options.groups.flatMap(group =>
+      options.collapsedGroupKeys?.has(group.key) ? [] : ordered(group.sessions, group.folders)
+    );
+  }
+  return ordered(sessions, options.folders);
 }
 
 /** Moves `id` one step up (-1) or down (+1); returns null at the edge or when absent. */

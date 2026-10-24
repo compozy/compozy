@@ -10,9 +10,12 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 	toolID := toolspkg.ToolIDSessionArchive
 	name := "session_archive"
 	title := "Session Archive"
-	description := "Archive a stopped session without deleting its history."
-	keywords := []string{"archive session", "hide session"}
+	description := "Archive a stopped session without deleting its history. Set stop=true to stop a live " +
+		"session through the normal stop path (canceling any active turn) and archive it in one call."
+	keywords := []string{"archive session", "hide session", "stop and archive session"}
+	inputSchema := sessionArchiveInputSchema
 	if !archived {
+		inputSchema = sessionIDInputSchema
 		toolID = toolspkg.ToolIDSessionUnarchive
 		name = "session_unarchive"
 		title = "Session Unarchive"
@@ -24,7 +27,7 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 		name,
 		title,
 		description,
-		sessionIDInputSchema,
+		inputSchema,
 		toolspkg.RiskMutating,
 		false,
 		false,
@@ -36,3 +39,17 @@ func sessionArchiveDescriptor(archived bool) toolspkg.Descriptor {
 	descriptor.OutputSchema = json.RawMessage(sessionStatusOutputSchema)
 	return descriptor
 }
+
+const sessionArchiveInputSchema = `{
+	"type":"object",
+	"required":["session_id"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string"},
+		"stop":{
+			"type":"boolean",
+			"description":"Stop a live session first; a failed stop leaves it unarchived."
+		}
+	},
+	"additionalProperties":false
+}`

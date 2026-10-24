@@ -18,6 +18,7 @@ import {
   type InboxLaneFilterId,
 } from "../lib/inbox-grouping";
 import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
+import type { ProjectFilterModel } from "@/systems/workspace";
 import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
 import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
@@ -30,6 +31,8 @@ export interface TasksInboxViewProps {
   onStatusChange: (next: TaskStatus | null) => void;
   priorityFilter: TaskPriority | null;
   onPriorityChange: (next: TaskPriority | null) => void;
+  /** The shared Project filter; its field is present only under All projects. */
+  projectFilter?: Pick<ProjectFilterModel, "field" | "values" | "setValues">;
   unreadOnly: boolean;
   onToggleUnread: (next: boolean) => void;
   searchQuery: string;
@@ -43,6 +46,7 @@ export interface TasksInboxViewProps {
   onDismiss?: TasksInboxItemProps["onDismiss"];
   onMarkRead?: TasksInboxItemProps["onMarkRead"];
   onOpen?: TasksInboxItemProps["onOpen"];
+  projectBadgeOf?: TasksInboxItemProps["projectBadgeOf"];
   pendingApproveIds?: ReadonlySet<string>;
   pendingRejectIds?: ReadonlySet<string>;
   pendingRetryIds?: ReadonlySet<string>;
@@ -65,6 +69,7 @@ export function TasksInboxView({
   onStatusChange,
   priorityFilter,
   onPriorityChange,
+  projectFilter,
   unreadOnly,
   onToggleUnread,
   searchQuery,
@@ -86,6 +91,7 @@ export function TasksInboxView({
       onStatusChange,
       priorityFilter,
       onPriorityChange,
+      projectFilter,
     });
 
   return (

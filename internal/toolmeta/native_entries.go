@@ -168,6 +168,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__session_prompt_cancel":         nativeEntry("Canceling", " ", false, "💬", "auto"),
 	"compozy__session_rename":                nativeEntry("Renaming", " ", false, "💬", "auto"),
 	"compozy__session_reorder":               nativeEntry("Reordering", " ", false, "💬", "auto"),
+	"compozy__session_reparent":              nativeEntry("Reparenting", " ", false, "💬", "auto"),
 	"compozy__session_rewind":                nativeEntry("Rewinding", " ", false, "💬", "auto"),
 	"compozy__session_runtime_clear":         nativeEntry("Clearing", " ", false, "💬", "auto"),
 	"compozy__session_runtime_set":           nativeEntry("Selecting", " ", false, "💬", "auto"),

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -504,6 +506,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent")
 		taskRecord.ProfileID = "profile-editorial"
+		taskRecord.GrantCeiling = workspaceaccess.Unrestricted
 		run := taskRoleRuntimeRun("run-starved", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -532,6 +535,9 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		if got, want := call.Type, session.SessionTypeSystem; got != want {
 			t.Fatalf("CreateOpts.Type = %q, want %q", got, want)
+		}
+		if got := call.Origin.Ceiling; got != workspaceaccess.Unrestricted {
+			t.Fatalf("CreateOpts.Origin.Ceiling = %q, want the task's persisted ceiling (USW BR-9)", got)
 		}
 		if call.Lineage == nil {
 			t.Fatal("CreateOpts.Lineage = nil, want TTL + spawn budget")
@@ -880,7 +886,6 @@ func newTaskRoleRuntimeForTest(
 	runtime, err := newTaskRoleRuntime(
 		store,
 		sessions,
-		t.TempDir(),
 		discardLogger(),
 		func() time.Time { return taskRoleRuntimeClock },
 	)

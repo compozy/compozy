@@ -95,6 +95,11 @@ func (m *Manager) repairActionEvent(meta *store.SessionMeta, action RepairAction
 		event.Error = repairTerminalErrorMessage
 		event.StopReason = string(sessionMetaStopReason(meta))
 		event.Failure = store.CloneSessionFailure(meta.Failure)
+		if sessionMetaStopReason(meta) == store.StopShutdown {
+			event.Type = acp.EventTypeDone
+			event.Error = ""
+			event.Text = "Interrupted by daemon restart."
+		}
 	default:
 		return acp.AgentEvent{}, fmt.Errorf("session: unknown repair action %q", action.Code)
 	}

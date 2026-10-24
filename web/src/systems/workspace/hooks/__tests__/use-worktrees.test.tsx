@@ -356,7 +356,7 @@ describe("worktree batch lifecycle", () => {
     expect(screen.queryByRole("button", { name: /Force remove/ })).not.toBeInTheDocument();
   });
 
-  it("Should remove discovered paths without a record and force only a refused live checkout", async () => {
+  it("Should remove discovered paths without a record and force only refused quantified losses", async () => {
     const discovered = (path: string, stale: boolean) => ({
       name: path.split("/").at(-1) ?? path,
       branch: "",
@@ -372,7 +372,23 @@ describe("worktree batch lifecycle", () => {
     const lost = discovered("/Users/ada/dev/detached-lost", false);
     const orphaned = discovered("/Users/ada/dev/workspace-gone", false);
     const reappeared = discovered("/private/tmp/detached-back", true);
+    // Git lists a checkout that lost its .git link as stale, but its folder survives.
+    const leftover = discovered("/private/tmp/detached-leftover", true);
     mocks.removeDiscoveredWorktree.mockImplementation(async (_workspace, path, options) => {
+      if (path === leftover.path && !options.force) {
+        throw new WorktreeApiError("refused", 409, {
+          code: "worktree_checkout_orphaned",
+          error: "The checkout's Git metadata (.git) is missing.",
+          risk: {
+            changed_files: 0,
+            insertions: 0,
+            deletions: 0,
+            unpushed_commits: 0,
+            exists_on_remote: false,
+            leftover_files: 12,
+          },
+        });
+      }
       // A stale confirmation must not remove a checkout that came back.
       if (path === reappeared.path && options.expectStale) {
         throw new WorktreeApiError("changed", 409, { code: "worktree_discovered_changed" });
@@ -401,7 +417,7 @@ describe("worktree batch lifecycle", () => {
         useWorktreeRemovalBatch({
           workspaceId: "ws_alpha",
           worktrees: [],
-          discovered: [stale, live, lost, orphaned, reappeared],
+          discovered: [stale, live, lost, orphaned, reappeared, leftover],
         }),
       { wrapper: createWrapper(new QueryClient()) }
     );
@@ -417,9 +433,14 @@ describe("worktree batch lifecycle", () => {
         "failed",
         "The checkout is back on disk, so nothing was removed. Refresh and select it again.",
       ],
+      [
+        "failed",
+        "Its Git metadata (.git) is missing, so this folder is left over from an interrupted removal. Nothing was removed.",
+      ],
     ]);
+    expect(result.current.results[5]?.refusal?.risk?.leftoverFiles).toBe(12);
     expect(mocks.inspectWorktree).not.toHaveBeenCalled();
-    expect(result.current.forceEligible).toHaveLength(1);
+    expect(result.current.forceEligible).toHaveLength(2);
     act(() => result.current.requestForce());
     await act(async () => {
       await result.current.confirmForce();
@@ -427,6 +448,10 @@ describe("worktree batch lifecycle", () => {
     expect(result.current.results[1]).toMatchObject({
       status: "success",
       message: "Worktree removed. Branch kept.",
+    });
+    expect(result.current.results[5]).toMatchObject({
+      status: "success",
+      message: "Leftover files deleted and stale Git entry cleared. Branch kept.",
     });
     expect(
       mocks.removeDiscoveredWorktree.mock.calls.map(call => [
@@ -440,7 +465,9 @@ describe("worktree batch lifecycle", () => {
       [lost.path, false, false],
       [orphaned.path, false, false],
       [reappeared.path, false, true],
+      [leftover.path, false, true],
       [live.path, true, false],
+      [leftover.path, true, true],
     ]);
     expect(mocks.removeWorktree).not.toHaveBeenCalled();
   });

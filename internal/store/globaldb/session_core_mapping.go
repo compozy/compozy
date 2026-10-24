@@ -45,6 +45,7 @@ func newSessionUpsertParams(
 	activityJSON string,
 ) sqlcgen.UpsertSessionParams {
 	return sqlcgen.UpsertSessionParams{
+		EffectiveWorkspaceAccess: session.EffectiveWorkspaceAccess,
 		ProfileID:                session.ProfileID,
 		ID:                       session.ID,
 		Name:                     nullableSessionString(session.Name),

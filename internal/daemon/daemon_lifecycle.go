@@ -12,6 +12,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 )
 
 // Run boots the daemon, blocks until signal or context cancellation, then performs graceful shutdown.
@@ -120,8 +121,11 @@ func (d *Daemon) gracefulShutdownTimeoutLocked() time.Duration {
 }
 
 // GracefulShutdownTimeout returns the daemon's complete shutdown budget for a config.
-func GracefulShutdownTimeout(_ *compozyconfig.Config) time.Duration {
-	return defaultShutdownTimeout
+func GracefulShutdownTimeout(cfg *compozyconfig.Config) time.Duration {
+	if cfg == nil {
+		return defaultShutdownTimeout
+	}
+	return defaultShutdownTimeout + cfg.Daemon.ShutdownGrace + session.TerminationBudget(cfg.Session.Stop)
 }
 
 func (d *Daemon) shutdownDetached(ctx context.Context, targets *shutdownTargets) error {

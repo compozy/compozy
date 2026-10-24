@@ -13,6 +13,10 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -126,6 +130,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", http.NoBody)
 			handlers := &BaseHandlers{TransportName: tc.transport}
 
 			actor, err := handlers.taskActorContext(ctx, taskActionGet)
@@ -144,6 +149,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", http.NoBody)
 		handlers := &BaseHandlers{
 			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 				return taskpkg.DeriveHumanActorContext("user-2", taskpkg.OriginKindHTTP, "custom."+action)
@@ -593,4 +599,95 @@ func TestTaskExecutionRequestFromRequestValidatesDomainRequest(t *testing.T) {
 			t.Fatalf("taskExecutionRequestFromRequest() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
 		}
 	})
+}
+
+func TestResolveTaskCatalogWorkspaceUserReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should map the User reference to global-scope tasks without a registry lookup", func(t *testing.T) {
+		t.Parallel()
+		h := &BaseHandlers{}
+		scope := taskpkg.CatalogScopeWorkspace
+		workspaceID := "stale"
+		if err := h.resolveTaskCatalogWorkspace(
+			t.Context(),
+			workspaceaccess.UserSelector,
+			&scope,
+			&workspaceID,
+		); err != nil {
+			t.Fatalf("resolveTaskCatalogWorkspace(@user) error = %v", err)
+		}
+		if scope != taskpkg.CatalogScopeGlobal || workspaceID != "" {
+			t.Fatalf("scope = %q workspace = %q, want global User rows", scope, workspaceID)
+		}
+	})
+}
+
+func TestAgentWorkspaceRefUserReference(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ query, want string }{
+		{query: "workspace=@user", want: ""},
+		{query: "workspace=ws-a", want: "ws-a"},
+		{query: "", want: ""},
+	} {
+		t.Run("Should map "+tc.query+" to the agent selector", func(t *testing.T) {
+			t.Parallel()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/agents?"+tc.query, nil)
+			if got := agentWorkspaceRef(c); got != tc.want {
+				t.Fatalf("agentWorkspaceRef(%q) = %q, want %q (User selects the user layer)", tc.query, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRequestOperatorOriginAppTokens(t *testing.T) {
+	t.Parallel()
+	t.Run("Should never let an app token carry the unrestricted grant", func(t *testing.T) {
+		t.Parallel()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
+		c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+		origin := requestOperatorOrigin(c)
+		if origin.Kind != workspaceaccess.ActorApp || origin.Effective(workspaceaccess.Unrestricted) != "" {
+			t.Fatalf(
+				"app token origin = %#v, effective = %q, want no grant",
+				origin,
+				origin.Effective(workspaceaccess.Unrestricted),
+			)
+		}
+	})
+	t.Run("Should keep the operator origin without an app token", func(t *testing.T) {
+		t.Parallel()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
+		if got := requestOperatorOrigin(
+			c,
+		).Effective(workspaceaccess.Unrestricted); got != workspaceaccess.Unrestricted {
+			t.Fatalf("operator effective grant = %q, want unrestricted", got)
+		}
+	})
+}
+
+func TestInheritedUserAgentWithoutProjectWork(t *testing.T) {
+	t.Parallel()
+	user := map[string]struct{}{"general": {}}
+	for _, tc := range []struct {
+		name  string
+		entry AgentCatalogEntry
+		total int
+		want  bool
+	}{
+		{name: "Should drop an inherited User agent without project sessions", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "user"}}, want: true},
+		{name: "Should keep an inherited User agent with project sessions", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "user"}}, total: 1},
+		{name: "Should keep a project override of a User agent", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "project"}}},
+		{name: "Should keep a project-only agent", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "reviewer", SourceLayer: "user"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			metrics := map[string]session.AgentSessionMetrics{tc.entry.Def.Name: {Total: tc.total}}
+			if got := inheritedUserAgentWithoutProjectWork(tc.entry, user, metrics); got != tc.want {
+				t.Fatalf("inheritedUserAgentWithoutProjectWork() = %t, want %t", got, tc.want)
+			}
+		})
+	}
 }

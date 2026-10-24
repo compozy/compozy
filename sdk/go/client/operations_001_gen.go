@@ -33,6 +33,7 @@ func (c *Client) AcceptAutomationSuggestion(ctx context.Context, params AcceptAu
 type AcknowledgeAttentionNotificationsParams struct {
 	ReceiptProfile *string `url:"receipt_profile"`
 	Workspace      *string `url:"workspace"`
+	AllWorkspaces  *bool   `url:"all_workspaces"`
 	Profile        *string `url:"profile"`
 	AllProfiles    *bool   `url:"all_profiles"`
 	Surface        *string `url:"surface"`
@@ -47,6 +48,9 @@ func (c *Client) AcknowledgeAttentionNotifications(ctx context.Context, params A
 	}
 	if params.Workspace != nil {
 		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -368,15 +372,19 @@ func (c *Client) ArchiveProfile(ctx context.Context, params ArchiveProfileParams
 type ArchiveSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
+	Stop        *bool   `url:"stop"`
 	Profile     *string `url:"profile"`
 }
 
-// ArchiveSession Archive a stopped session
+// ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
 func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
+	if params.Stop != nil {
+		query.Set("stop", strconv.FormatBool(*params.Stop))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}

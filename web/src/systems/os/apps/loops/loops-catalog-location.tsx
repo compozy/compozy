@@ -2,6 +2,7 @@ import { AlertCircle, Activity, Repeat2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
+  Button,
   Empty,
   ListingPage,
   ListingToolbar,
@@ -15,109 +16,107 @@ import { LoopCatalog, LoopCatalogFilters, LoopCatalogLede } from "@/systems/loop
 
 export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const page = useLoopsCatalog(search);
-  const loops = page.loopsQuery.loops;
-  const loopCount = page.loopsQuery.total;
+  const { catalogQuery } = page;
 
-  const toolbar =
-    page.workspaceId === "" ? undefined : (
-      <ListingToolbar>
-        <ListingToolbar.Leading>
-          <ListingToolbar.Search
-            aria-label="Search loops"
-            data-testid="loop-search-input"
-            onChange={page.setSearchQuery}
-            placeholder="Search loops"
-            value={page.searchQuery}
+  const toolbar = !page.ready ? undefined : (
+    <ListingToolbar>
+      <ListingToolbar.Leading>
+        <ListingToolbar.Search
+          aria-label="Search loops"
+          data-testid="loop-search-input"
+          onChange={page.setSearchQuery}
+          placeholder="Search loops"
+          value={page.searchQuery}
+        />
+        <ListingToolbar.Filters>
+          <LoopCatalogFilters
+            categoryOptions={page.categoryOptions}
+            filter={page.filter}
+            onFiltersChange={page.setFilters}
+            projectFilter={page.projectFilter}
           />
-          <ListingToolbar.Filters>
-            <LoopCatalogFilters
-              categoryOptions={page.categoryOptions}
-              filter={page.filter}
-              onFiltersChange={page.setFilters}
-            />
-          </ListingToolbar.Filters>
-        </ListingToolbar.Leading>
-        <ListingToolbar.Trailing>
-          <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-        </ListingToolbar.Trailing>
-      </ListingToolbar>
-    );
+        </ListingToolbar.Filters>
+      </ListingToolbar.Leading>
+      <ListingToolbar.Trailing>
+        {page.definitionsNote ? (
+          <span className="text-caption text-muted" data-testid="loops-definitions-note">
+            {page.definitionsNote}
+          </span>
+        ) : null}
+        <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
+      </ListingToolbar.Trailing>
+    </ListingToolbar>
+  );
 
   useTopbarSlot({
     glyph: <Repeat2 />,
-    actions:
-      page.workspaceId === "" ? undefined : (
-        <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
-          <Link
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-            data-testid="loops-runs-link"
-            to="/loop-runs"
-          >
-            <Activity aria-hidden="true" />
-            Runs
-          </Link>
-        </div>
-      ),
+    actions: !page.ready ? undefined : (
+      <div className="flex items-center gap-2" data-testid="loops-topbar-actions">
+        <Link
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+          data-testid="loops-runs-link"
+          to="/loop-runs"
+        >
+          <Activity aria-hidden="true" />
+          Runs
+        </Link>
+      </div>
+    ),
     toolbar,
   });
 
-  if (page.workspaceId === "") {
-    return (
-      <CatalogState
-        description="Select a project to browse its Loops."
-        testId="loops-no-workspace"
-        title="No project selected"
-      />
-    );
+  // The first load stays blank until the window's data scope settles.
+  if (!page.ready) {
+    return <div className="min-h-0 flex-1" data-testid="loops-no-workspace" aria-busy="true" />;
   }
-  if (page.loopsQuery.isLoading) {
+  if (catalogQuery.isLoading) {
     return (
       <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loops-loading">
         <SkeletonRows count={6} rowClassName="border-b border-line-soft py-3" />
       </div>
     );
   }
-  if (page.loopsQuery.error && loops.length === 0) {
+  // One read: a failure with nothing to keep is one error with Retry.
+  if (catalogQuery.error && page.entries.length === 0) {
     return (
-      <CatalogState
-        description={page.loopsQuery.error.message ?? "Failed to load loops"}
-        icon={AlertCircle}
-        testId="loops-error"
-        title="Unable to load loops"
-      />
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center py-10"
+        data-testid="loops-error"
+      >
+        <Empty
+          action={
+            <Button onClick={catalogQuery.retry} size="sm" type="button" variant="secondary">
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={catalogQuery.error.message ?? "Failed to load loops"}
+          icon={AlertCircle}
+          title="Unable to load loops"
+        />
+      </div>
     );
   }
 
   return (
     <ListingPage data-testid="loops-catalog">
-      <LoopCatalogLede total={loopCount} workspaceLabel={page.activeWorkspace?.name} />
+      <LoopCatalogLede total={page.total} workspaceLabel={page.workspaceLabel} />
       <LoopCatalog
-        entries={loops}
-        errorMessage={page.loopsQuery.error?.message}
+        aggregate={page.aggregate}
+        emptyDescription={
+          page.allProjects ? "No project has Loops yet." : "This project has no Loops yet."
+        }
+        entries={page.entries}
+        errorMessage={catalogQuery.error?.message}
         facets={page.facets}
         hasActiveFilters={page.hasActiveFilters}
-        hasNextPage={page.loopsQuery.hasNextPage}
-        isFetchingNextPage={page.loopsQuery.isFetchingNextPage}
+        hasNextPage={catalogQuery.hasNextPage}
+        isFetchingNextPage={catalogQuery.isFetchingNextPage}
         onClearFilters={page.clearFilters}
-        onLoadMore={() => void page.loopsQuery.fetchNextPage()}
+        onLoadMore={catalogQuery.fetchNextPage}
         onRun={page.handleRun}
         view={page.view}
       />
     </ListingPage>
-  );
-}
-
-interface CatalogStateProps {
-  title: string;
-  description: string;
-  testId: string;
-  icon?: typeof Repeat2;
-}
-
-function CatalogState({ title, description, testId, icon = Repeat2 }: CatalogStateProps) {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center py-10" data-testid={testId}>
-      <Empty className="max-w-md" description={description} icon={icon} title={title} />
-    </div>
   );
 }

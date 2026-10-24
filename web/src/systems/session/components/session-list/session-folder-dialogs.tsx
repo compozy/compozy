@@ -28,6 +28,8 @@ export interface SessionFolderDialogsProps {
   onCreate: (name: string) => Promise<unknown>;
   onRename: (folderId: string, name: string) => Promise<unknown>;
   onDelete: (folderId: string) => Promise<unknown>;
+  /** Pickers for the parts of the folder's destination the opener did not settle. */
+  destination?: React.ReactNode;
 }
 
 /** New folder, rename folder, and the delete confirmation for the session list. */
@@ -37,6 +39,7 @@ export function SessionFolderDialogs({
   onCreate,
   onRename,
   onDelete,
+  destination,
 }: SessionFolderDialogsProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +90,7 @@ export function SessionFolderDialogs({
             key={rename?.id ?? "create"}
             {...folderNameCopy(state)}
             initialName={rename?.name ?? ""}
+            destination={rename ? undefined : destination}
             pending={pending}
             requestError={error}
             onCancel={() => close(false)}
@@ -124,6 +128,7 @@ function SessionFolderNameForm({
   confirmLabel,
   confirmIcon: ConfirmIcon,
   initialName,
+  destination,
   pending,
   requestError,
   onCancel,
@@ -134,6 +139,7 @@ function SessionFolderNameForm({
   confirmLabel: string;
   confirmIcon: typeof Pencil;
   initialName: string;
+  destination?: React.ReactNode;
   pending: boolean;
   requestError: string | null;
   onCancel: () => void;
@@ -160,6 +166,7 @@ function SessionFolderNameForm({
         <DialogTitle>{title}</DialogTitle>
         {description ? <DialogDescription>{description}</DialogDescription> : null}
       </DialogHeader>
+      {destination}
       <Field data-invalid={Boolean(shownError)}>
         <FieldLabel htmlFor="session-folder-name">Name</FieldLabel>
         <Input

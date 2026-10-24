@@ -14,12 +14,12 @@ Assignment:
 - Your CompozyOS session: <SESSION_ID>.
 - Orchestrator session (report here): <ORCHESTRATOR_SESSION_ID>.
 - Your managed worktree: <WORKTREE_ID>, path <WORKTREE_PATH>, branch <BRANCH>.
-- Runtime: <PROVIDER>, <MODEL>, reasoning effort <REASONING_EFFORT> (default Codex Astra High).
+- Runtime: <PROVIDER>, <MODEL>, reasoning effort <REASONING_EFFORT> (default Claude Opus 5.5 Medium).
 - Reproduction, evidence, code pointers, hypotheses, acceptance criteria, and user corrections:
   <INVESTIGATION_HANDOFF>.
 - Dependencies, exclusions, and already-valid verification evidence: <CONSTRAINTS_OR_NONE>.
 
-## Ownership and Goal
+## Ownership
 
 You exclusively own this issue's implementation in the assigned worktree. You are not alone in the
 repository: preserve others' changes and accommodate shared-base updates. Verify cwd and branch
@@ -29,14 +29,8 @@ create another worktree, or run destructive Git commands without explicit user a
 Read current AGENTS.md, applicable subtree instructions, relevant skills, and the live issue and
 comments. Resolve skills through the active harness; slash text alone is not activation.
 
-Load Compozy's tool, native-tool, and Goal runtime references and inspect `compozy__goal_control`.
-Activate your own Compozy Goal through its public tool, using your session ID and the assigned
-runtime. Its objective includes implementation, validation, a detailed PR, current-head green CI,
-and completion of both reviewers' feedback. Confirm activation with a structured status read.
-Continue an existing Goal only if it is already for this exact assignment; do not duplicate it.
-An active flag does not prove healthy Goal execution. If supervision fails, record the error and
-continue authorized ordinary work without repeated activation or changes to the user's host daemon.
-Mark the Goal complete only when the full delivery contract below is satisfied.
+Do not activate a Compozy Goal. Keep working through the full delivery contract below until it is
+satisfied or genuinely blocked; do not end your turn at an intermediate checkpoint.
 
 ## Reporting to the orchestrator
 
@@ -131,4 +125,4 @@ head did not change during verification. Do not merge or remove the worktree.
 
 Report in Brazilian Portuguese: PR URL, branch/head, concise fix, verification evidence, reviewer
 completion/dispositions, and genuine limits. If blocked, state what is done, the precise blocker,
-and next concrete action; do not claim success or complete the Goal prematurely.
+and next concrete action; do not claim success prematurely.

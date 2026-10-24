@@ -10,6 +10,11 @@ export interface AutomationsRouteSearch {
   start?: AutomationsStartParam;
   q?: string;
   enabled?: boolean;
+  /**
+   * Retired Location facet, still parsed so URLs keep the daemon's retired-route
+   * rewrite shape (`retired_app_routes.json`). The listing ignores it: breadth
+   * comes from the destination and, under All projects, the Project filter.
+   */
   scope?: AutomationScope;
   source?: AutomationSource;
   target?: AutomationDoes;
@@ -61,7 +66,6 @@ export function automationRouteHasActiveFilters(search: AutomationsRouteSearch):
   return (
     (search.q?.trim() ?? "") !== "" ||
     automationListLoopFilter(search) !== undefined ||
-    search.scope !== undefined ||
     search.source !== undefined ||
     search.enabled !== undefined ||
     search.target !== undefined ||

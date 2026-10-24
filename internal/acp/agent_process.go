@@ -28,6 +28,7 @@ type AgentProcess struct {
 
 	capsMu          sync.RWMutex
 	caps            Caps
+	configRevision  uint64
 	runtimeConfigMu sync.Mutex
 	managed         *subprocess.Process
 	handle          Handle
@@ -178,6 +179,7 @@ func (p *AgentProcess) setCaps(caps Caps) {
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
 	p.caps = CloneCaps(caps)
+	p.configRevision++
 }
 
 func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
@@ -186,7 +188,15 @@ func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
 	}
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
+	p.setConfigOptionsLocked(options)
+}
+
+func (p *AgentProcess) setConfigOptionsLocked(options []SessionConfigOption) {
+	p.configRevision++
 	p.caps.ConfigOptions = preserveSyntheticModelConfigOption(p.caps.ConfigOptions, options)
+	if resolution := p.caps.SpeedResolution; resolution != nil {
+		p.caps.SpeedResolution = ResolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
+	}
 }
 
 func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
@@ -196,6 +206,9 @@ func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
 	p.caps.SpeedResolution = speedpkg.CloneResolution(resolution)
+	if resolution != nil && resolution.Status == speedpkg.ResolutionApplied {
+		p.caps.SpeedResolution = ResolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
+	}
 }
 
 // ToolHost returns the local tool host used by this process.

@@ -491,40 +491,19 @@ describe("OsDock", () => {
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
-  it("Should hand a Global dock click with no sessions to the workspace switcher and say why", () => {
+  it("Should start a New session from an All projects dock click with no sessions", async () => {
     launchCatalog.workspaceId = null;
     launchCatalog.sessions = [];
+    launchCatalog.resolveLatest.mockResolvedValue(null);
     const onNewSession = vi.fn();
-    const onPickProject = vi.fn();
-    const { result } = renderHook(() => useDesktopDock({}, { onNewSession, onPickProject }));
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
     setDockState(desktopState());
 
-    const sessions = result.current.entries.find(entry => entry.id === "session");
-    expect(sessions?.hint).toBe("Pick a project to start a session");
-    act(() => result.current.handleSelect("session"));
+    expect(result.current.entries.find(entry => entry.id === "session")?.name).toBe("Sessions");
+    await act(async () => result.current.handleSelect("session"));
 
-    expect(onPickProject).toHaveBeenCalledOnce();
-    expect(onNewSession).not.toHaveBeenCalled();
-  });
-
-  it("Should name the Sessions launcher with its Global hint", () => {
-    renderDock(
-      <OsDock
-        items={[
-          {
-            id: "session",
-            name: "Sessions",
-            icon: "sessions",
-            hint: "Pick a project to start a session",
-          },
-        ]}
-        onSelect={vi.fn()}
-      />
-    );
-
-    expect(
-      screen.getByRole("button", { name: "Sessions. Pick a project to start a session" })
-    ).toBeInTheDocument();
+    expect(onNewSession).toHaveBeenCalledOnce();
+    expect(jumpToSession).not.toHaveBeenCalled();
   });
 
   it("Should ignore a Sessions dock click while the catalog is still unknown", async () => {
@@ -557,6 +536,25 @@ describe("OsDock", () => {
       workspaceId: "workspace:test",
     });
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should open a latest User session, which omits workspace_id, under All projects", async () => {
+    launchCatalog.workspaceId = null;
+    launchCatalog.sessions = [
+      catalogSession("sess-user", "2026-08-02T00:00:00Z", { workspace_id: undefined }),
+    ];
+    const onNewSession = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
+    setDockState(desktopState());
+
+    await act(async () => result.current.handleSelect("session"));
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "sess-user",
+      agentName: "qa-agent",
+      workspaceId: "",
+    });
   });
 
   it("Should open the last created session instead of the most recently used window", async () => {

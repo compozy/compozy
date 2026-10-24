@@ -262,8 +262,48 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 	return result.RowsAffected()
 }
 
+const updateSessionLineageHierarchy = `-- name: UpdateSessionLineageHierarchy :execrows
+UPDATE sessions
+SET parent_session_id = ?1,
+  root_session_id = ?2,
+  spawn_depth = ?3,
+  lineage_kind = ?4,
+  auto_stop_on_parent = ?5,
+  updated_at = ?6
+WHERE workspace_id = ?7 AND id = ?8
+`
+
+type UpdateSessionLineageHierarchyParams struct {
+	ParentSessionID  sql.NullString `json:"parent_session_id"`
+	RootSessionID    sql.NullString `json:"root_session_id"`
+	SpawnDepth       int64          `json:"spawn_depth"`
+	LineageKind      string         `json:"lineage_kind"`
+	AutoStopOnParent bool           `json:"auto_stop_on_parent"`
+	UpdatedAt        string         `json:"updated_at"`
+	WorkspaceID      string         `json:"workspace_id"`
+	ID               string         `json:"id"`
+}
+
+func (q *Queries) UpdateSessionLineageHierarchy(ctx context.Context, arg UpdateSessionLineageHierarchyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSessionLineageHierarchy,
+		arg.ParentSessionID,
+		arg.RootSessionID,
+		arg.SpawnDepth,
+		arg.LineageKind,
+		arg.AutoStopOnParent,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
+ effective_workspace_access,
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
@@ -277,39 +317,40 @@ INSERT INTO sessions (
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
   created_at, updated_at
 ) SELECT
-  ?1, ?2, ?3, ?4, ?5, ?6,
-  ?7, ?8, ?9, ?10,
-  ?11, ?12, ?13,
-  ?14, ?15,
-  ?16, ?17, ?18,
-  ?19, ?20, ?21,
-  CASE WHEN ?22 = '' THEN 'global' ELSE 'workspace' END,
-  ?22,
+ ?1,
+  ?2, ?3, ?4, ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14,
+  ?15, ?16,
+  ?17, ?18, ?19,
+  ?20, ?21, ?22,
+  CASE WHEN ?23 = '' THEN 'global' ELSE 'workspace' END,
   ?23,
-  ?24, ?25, ?26,
-  ?27, ?28, ?29, ?30,
-  ?31, ?32, ?33, ?34,
-  ?35, ?36, ?37,
-  ?38, ?39, ?40, ?41, ?42, ?43,
-  ?44, ?45, ?46,
-  ?47, ?48, ?49,
-  ?50, ?51, ?52,
-  ?53, ?54, ?55,
-  ?56, ?57
-WHERE ?23 IS NULL
+  ?24,
+  ?25, ?26, ?27,
+  ?28, ?29, ?30, ?31,
+  ?32, ?33, ?34, ?35,
+  ?36, ?37, ?38,
+  ?39, ?40, ?41, ?42, ?43, ?44,
+  ?45, ?46, ?47,
+  ?48, ?49, ?50,
+  ?51, ?52, ?53,
+  ?54, ?55, ?56,
+  ?57, ?58
+WHERE ?24 IS NULL
    OR EXISTS (
       SELECT 1
       FROM worktrees
-      WHERE worktrees.workspace_id = ?22
-        AND worktrees.id = ?23
+      WHERE worktrees.workspace_id = ?23
+        AND worktrees.id = ?24
         AND worktrees.state = 'ready'
    )
    OR EXISTS (
       SELECT 1
       FROM sessions AS existing_session
-      WHERE existing_session.id = ?2
-        AND existing_session.workspace_id = ?22
-        AND existing_session.worktree_id IS ?23
+      WHERE existing_session.id = ?3
+        AND existing_session.workspace_id = ?23
+        AND existing_session.worktree_id IS ?24
    )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -371,6 +412,7 @@ WHERE sessions.workspace_id = excluded.workspace_id
 `
 
 type UpsertSessionParams struct {
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ProfileID                string         `json:"profile_id"`
 	ID                       string         `json:"id"`
 	Name                     sql.NullString `json:"name"`
@@ -432,6 +474,7 @@ type UpsertSessionParams struct {
 
 func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertSession,
+		arg.EffectiveWorkspaceAccess,
 		arg.ProfileID,
 		arg.ID,
 		arg.Name,

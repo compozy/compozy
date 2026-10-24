@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -87,6 +87,13 @@ describe("StreamMarkdown", () => {
     expect(proseRoot(container)).not.toHaveAttribute("data-rhythm");
   });
 
+  it("Should leave the reading measure to the caller", () => {
+    const { container, rerender } = render(<StreamMarkdown># Title</StreamMarkdown>);
+    expect(proseRoot(container)?.className).not.toMatch(/(^|\s)max-w-/);
+    rerender(<StreamMarkdown className="max-w-prose"># Title</StreamMarkdown>);
+    expect(proseRoot(container)).toHaveClass("max-w-prose");
+  });
+
   it("Should mark the prose root compact so parts select the dense tier", () => {
     const { container } = render(<StreamMarkdown compact># Title</StreamMarkdown>);
     expect(proseRoot(container)).toHaveAttribute("data-compact", "true");
@@ -164,6 +171,77 @@ describe("StreamMarkdown", () => {
     expect(container).toHaveTextContent(`raw ${TOKEN}`);
     expect(screen.queryByTestId("slot-m0")).toBeNull();
     expect(container.textContent).not.toMatch(/[\uE000-\uE002]/);
+  });
+
+  // Invariant: typed chat input keeps each authored line break as a line break, its
+  // block structure, and literal code; model output keeps Markdown's soft breaks.
+  // Owner: StreamMarkdown `authored` mode; canonical suite: this file.
+  it("Should render authored line breaks as breaks without changing code or block structure", () => {
+    const source = [
+      "first line",
+      "second line",
+      "",
+      "- alpha",
+      "- beta",
+      "  - nested",
+      "",
+      "```",
+      "a",
+      "b",
+      "```",
+    ].join("\n");
+    const { container } = render(<StreamMarkdown authored>{source}</StreamMarkdown>);
+    const paragraph = container.querySelector("p")!;
+    expect(paragraph.querySelectorAll("br")).toHaveLength(1);
+    expect(paragraph.textContent?.replace(/\n/g, "")).toBe("first linesecond line");
+    expect(
+      Array.from(container.querySelectorAll("li"), li => li.firstChild?.textContent?.trim())
+    ).toEqual(["alpha", "beta", "nested"]);
+    expect(
+      Array.from(
+        container.querySelectorAll('[data-slot="code-block-line"]'),
+        line => line.textContent
+      )
+    ).toEqual(["a", "b"]);
+
+    const model = render(<StreamMarkdown>{source}</StreamMarkdown>);
+    expect(model.container.querySelector("p")!.querySelectorAll("br")).toHaveLength(0);
+  });
+
+  it("Should keep authored line breaks around slots", () => {
+    const { container } = render(
+      <StreamMarkdown authored slots={chipSlots()}>
+        {slotted([`${TOKEN} first`, "second"])}
+      </StreamMarkdown>
+    );
+    const paragraph = container.querySelector("p")!;
+    expect(within(paragraph).getByTestId("slot-m0")).toBeInTheDocument();
+    expect(paragraph.querySelectorAll("br")).toHaveLength(1);
+  });
+
+  // Invariant: authored links open only safe external destinations, in a new tab
+  // without opener/referrer, with the full address available while truncated.
+  it("Should open only safe authored links behind the external-link affordance", () => {
+    const longUrl = `https://example.com/${"segment/".repeat(20)}end`;
+    const { container } = render(
+      <StreamMarkdown authored>
+        {`${longUrl} [Email](mailto:hello@example.com) [unsafe](javascript:alert(1))`}
+      </StreamMarkdown>
+    );
+    const links = screen.getAllByRole("link");
+    expect(links.map(link => link.getAttribute("href"))).toEqual([
+      longUrl,
+      "mailto:hello@example.com",
+    ]);
+    for (const link of links) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveAttribute("title", link.getAttribute("href"));
+      expect(link.querySelector("svg[aria-hidden='true']")).not.toBeNull();
+      expect(link.querySelector(".truncate")).not.toBeNull();
+    }
+    expect(container).toHaveTextContent("unsafe");
+    expect(container.querySelector("a[href^='javascript']")).toBeNull();
   });
 
   it("Should keep slot nodes mounted when the slots object is rebuilt with the same content", () => {

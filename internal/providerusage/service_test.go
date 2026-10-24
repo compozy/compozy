@@ -66,6 +66,89 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	for _, change := range []string{"native login", "config directory", "secure storage directory", "home"} {
+		t.Run("Should recover Claude usage after switching "+change, func(t *testing.T) {
+			t.Parallel()
+			target, dir, credential := claudeFixture(t, false)
+			clock := fixtureClock(t)
+			var login atomic.Value
+			login.Store(credential)
+			reader := &fakeClaudeKeychain{
+				read: func(_ context.Context, service, account string, _ bool) ([]byte, error) {
+					wantService, wantAccount := claudeKeychainItem(target)
+					requireEqual(t, wantService, service)
+					requireEqual(t, wantAccount, account)
+					return []byte(login.Load().(string)), nil
+				},
+			}
+			var requests atomic.Int32
+			server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				if r.Header.Get("Authorization") == "Bearer replacement-secret" {
+					writeFixture(w, t, `{"five_hour":{"utilization":17}}`)
+					return
+				}
+				requireEqual(t, "Bearer synthetic-secret", r.Header.Get("Authorization"))
+				writeFixture(w, t, `{"five_hour":{"utilization":42}}`)
+			})
+			collector := NewClaudeCollector(
+				WithClaudeClock(clock.Now), WithClaudeKeychain(reader),
+				WithClaudeHTTP(server.URL, nil), WithClaudePlatform("darwin"),
+			)
+			catalog := &TargetCatalog{}
+			catalog.Replace(target.ProfileID, []Target{target})
+			service := NewService(Options{Resolver: catalog, Collectors: Registry{"claude": collector}, Clock: clock})
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			refresh := func(intent Intent) Snapshot {
+				t.Helper()
+				env, err := service.Refresh(t.Context(), RefreshRequest{
+					ProfileID: target.ProfileID, Intent: intent, Wait: 15 * time.Second,
+				})
+				requireNoError(t, err)
+				return env.Targets[0]
+			}
+			first := refresh(IntentExplicit)
+			requireEqual(t, StatusOK, first.Status)
+			requireEqual(t, 42.0, *first.Windows[0].UsedPercent)
+			requireEqual(t, "max_20x", first.Account.Plan)
+			if change != "native login" {
+				target.RouteFingerprint = "route-two"
+				switch change {
+				case "config directory":
+					dir = t.TempDir()
+					target.Route.Env = append(target.Route.Env, "CLAUDE_CONFIG_DIR="+dir)
+				case "secure storage directory":
+					target.Route.Env = append(target.Route.Env, "CLAUDE_SECURESTORAGE_CONFIG_DIR="+t.TempDir())
+				case "home":
+					dir = t.TempDir()
+					target.Route.Env = []string{"HOME=" + dir, "USER=test-user"}
+				}
+			}
+			requireNoError(t, os.WriteFile(filepath.Join(dir, ".claude.json"),
+				[]byte(`{"oauthAccount":{"accountUuid":"account-B"}}`), 0o600))
+			renewed := strings.ReplaceAll(credential, "synthetic-secret", "replacement-secret")
+			renewed = strings.ReplaceAll(renewed, "default_claude_max_20x", "default_claude_max_5x")
+			login.Store(renewed)
+			catalog.Replace(target.ProfileID, []Target{target})
+			after := refresh(IntentBackground)
+			requireEqual(t, StatusOK, after.Status)
+			requireEqual(t, 17.0, *after.Windows[0].UsedPercent)
+			requireEqual(t, "max_5x", after.Account.Plan)
+			requireEqual(t, int32(1), reader.interactive.Load())
+			clock.Advance(5 * time.Minute)
+			next := refresh(IntentBackground)
+			requireEqual(t, StatusOK, next.Status)
+			requireEqual(t, 17.0, *next.Windows[0].UsedPercent)
+			requireEqual(t, "max_5x", next.Account.Plan)
+			requireEqual(t, int32(2), reader.calls.Load())
+			requireEqual(t, int32(3), requests.Load())
+		})
+	}
+
 	t.Run("Should not let an older overlapping resolution restore a disabled provider", func(t *testing.T) {
 		t.Parallel()
 		entered, release := make(chan struct{}), make(chan struct{})
@@ -207,9 +290,14 @@ func TestUsageService(t *testing.T) {
 			target, _, credential := claudeFixture(t, file)
 			clock := fixtureClock(t)
 			reader := &fakeClaudeKeychain{data: credential}
+			var expectedToken atomic.Value
+			expectedToken.Store("synthetic-secret")
 			server := fixtureServer(
 				t,
-				func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, `{"five_hour":{"utilization":42}}`) },
+				func(w http.ResponseWriter, r *http.Request) {
+					requireEqual(t, "Bearer "+expectedToken.Load().(string), r.Header.Get("Authorization"))
+					writeFixture(w, t, `{"five_hour":{"utilization":42}}`)
+				},
 			)
 			collector := NewClaudeCollector(
 				WithClaudeClock(clock.Now),
@@ -237,24 +325,27 @@ func TestUsageService(t *testing.T) {
 			requireEqual(t, StatusStale, stale.Status)
 			requireEqual(t, *first.MeasuredAt, *stale.MeasuredAt)
 			requireEqual(t, 42.0, *stale.Windows[0].UsedPercent)
-			action := ActionRefresh
-			if file {
-				action = ActionSignIn
-				requireEqual(t, "Run Claude to refresh your login", stale.Error.Message)
-			}
-			requireEqual(t, string(action), stale.Error.Action)
+			requireEqual(t, "Run claude /login to sign in again", stale.Error.Message)
+			requireEqual(t, string(ActionSignIn), stale.Error.Action)
 			renewed := strings.Replace(
 				credential,
 				fmt.Sprint(oldExpiry),
 				fmt.Sprint(clock.Now().Add(time.Hour).UnixMilli()),
 				1,
 			)
+			renewed = strings.ReplaceAll(renewed, "synthetic-secret", "renewed-secret")
+			expectedToken.Store("renewed-secret")
 			if file {
 				requireNoError(t, os.WriteFile(claudeCredentialPath(target), []byte(renewed), 0o600))
 			} else {
 				reader.data = renewed
 			}
-			requireEqual(t, StatusOK, refresh(IntentExplicit).Status)
+			requireEqual(t, StatusOK, refresh(IntentBackground).Status)
+			wantInteractive := int32(1)
+			if file {
+				wantInteractive = 0
+			}
+			requireEqual(t, wantInteractive, reader.interactive.Load())
 		})
 	}
 
@@ -820,6 +911,75 @@ func TestUsageScheduling(t *testing.T) {
 		}
 		once.Do(func() { close(release) })
 		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+	})
+
+	t.Run("Should honor an explicit refresh joined during a Claude authentication failure", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, false)
+		clock := fixtureClock(t)
+		var login atomic.Value
+		login.Store(credential)
+		reader := &fakeClaudeKeychain{read: func(context.Context, string, string, bool) ([]byte, error) {
+			return []byte(login.Load().(string)), nil
+		}}
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		defer once.Do(func() { close(release) })
+		var requests atomic.Int32
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if requests.Add(1) == 1 {
+				requireEqual(t, "Bearer synthetic-secret", r.Header.Get("Authorization"))
+				close(entered)
+				<-release
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			requireEqual(t, "Bearer renewed-secret", r.Header.Get("Authorization"))
+			writeFixture(w, t, `{"five_hour":{"utilization":17}}`)
+		})
+		collector := NewClaudeCollector(WithClaudeClock(clock.Now), WithClaudeKeychain(reader),
+			WithClaudeHTTP(server.URL, nil), WithClaudePlatform("darwin"))
+		catalog := &TargetCatalog{}
+		catalog.Replace(target.ProfileID, []Target{target})
+		service := NewService(Options{Resolver: catalog, Collectors: Registry{"claude": collector}, Clock: clock})
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		results := make(chan Envelope, 1)
+		go func() {
+			env, err := service.Refresh(ctx, RefreshRequest{
+				ProfileID: target.ProfileID, Intent: IntentBackground, Wait: 15 * time.Second,
+			})
+			if err != nil {
+				t.Error(err)
+			}
+			results <- env
+		}()
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("background collection did not start")
+		}
+		login.Store(strings.ReplaceAll(credential, "synthetic-secret", "renewed-secret"))
+		pending, err := service.Refresh(ctx, RefreshRequest{ProfileID: target.ProfileID, Intent: IntentExplicit})
+		requireNoError(t, err)
+		requireEqual(t, true, pending.Targets[0].Refreshing)
+		once.Do(func() { close(release) })
+		select {
+		case result := <-results:
+			requireEqual(t, 1, len(result.Targets))
+			requireEqual(t, StatusOK, result.Targets[0].Status)
+			requireEqual(t, 17.0, *result.Targets[0].Windows[0].UsedPercent)
+		case <-ctx.Done():
+			t.Fatal("joined explicit refresh did not finish")
+		}
+		requireEqual(t, int32(2), requests.Load())
+		requireEqual(t, int32(2), reader.calls.Load())
+		requireEqual(t, int32(1), reader.interactive.Load())
 	})
 
 	t.Run("Should run one explicit recovery after a joined stale rate limit", func(t *testing.T) {

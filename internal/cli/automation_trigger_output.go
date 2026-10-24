@@ -78,7 +78,17 @@ func automationTriggerToonValues(item TriggerRecord) []string {
 	}
 }
 
-func automationTriggerListBundle(page AutomationTriggerListRecord, now func() time.Time) outputBundle {
+func automationTriggerListBundle(
+	page AutomationTriggerListRecord,
+	now func() time.Time,
+	projectLabels ...map[string]string,
+) outputBundle {
+	projectHeader := automationWorkspaceValue
+	projectName := stringOrDash
+	if len(projectLabels) > 0 {
+		projectHeader = cliProjectHeader
+		projectName = func(id string) string { return aggregateProjectName(projectLabels[0], id) }
+	}
 	items := page.Triggers
 	return listBundle(
 		page,
@@ -90,7 +100,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord, now func() ti
 			automationNameValue,
 			automationEventValue,
 			automationScopeValue,
-			automationWorkspaceValue,
+			projectHeader,
 			automationAgentValue,
 			automationEnabledValue,
 			automationSourceValue,
@@ -117,7 +127,7 @@ func automationTriggerListBundle(page AutomationTriggerListRecord, now func() ti
 				stringOrDash(item.Name),
 				stringOrDash(item.Event),
 				stringOrDash(string(item.Scope)),
-				stringOrDash(item.WorkspaceID),
+				projectName(item.WorkspaceID),
 				stringOrDash(item.AgentName),
 				strconv.FormatBool(item.Enabled),
 				stringOrDash(string(item.Source)),

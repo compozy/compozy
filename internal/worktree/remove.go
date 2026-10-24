@@ -18,6 +18,9 @@ type RemovalRisk struct {
 	Deletions       int
 	UnpushedCommits int
 	ExistsOnRemote  bool
+	// LeftoverFiles counts files left in an orphaned checkout. Git can no
+	// longer tell which of them hold changes, so all of them are at risk.
+	LeftoverFiles int
 }
 
 type RemovalRefusal struct {
@@ -103,7 +106,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 		}
 	}()
 
-	workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
+	workspace, err := s.resolveProfileWorkspace(ctx, item.WorkspaceID, item.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +143,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	if err != nil {
 		return nil, err
 	}
-	terminal, _, refusalResult, err = s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	terminal, _, refusalResult, err = s.prepareFencedRemoval(ctx, workspace, item, commonDir, force)
 	if terminal {
 		restoreReady = false
 	}
@@ -148,16 +151,21 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 		return refusalResult, err
 	}
 
-	removedDespiteError, err := s.runFencedRemoval(ctx, workspace.Root, item, commonDir, force)
+	// Once Git starts deleting, a client disconnect must not strand the record
+	// in removing: the deletion and its bookkeeping finish together.
+	completionCtx := context.WithoutCancel(ctx)
+	removedDespiteError, refusalResult, err := s.runFencedRemoval(
+		completionCtx, workspace.Root, item, commonDir, force,
+	)
 	if removedDespiteError {
 		restoreReady = false
 	}
-	if err != nil {
-		return nil, err
+	if err != nil || refusalResult != nil {
+		return refusalResult, err
 	}
 
 	restoreReady = false
-	return nil, s.finishRemoval(ctx, workspace, item)
+	return nil, s.finishRemoval(completionCtx, workspace, item)
 }
 
 func (s *Service) readFencedRemovalTarget(ctx context.Context, item Worktree) (Worktree, error) {
@@ -201,23 +209,40 @@ func (s *Service) runFencedRemoval(
 	item Worktree,
 	commonDir string,
 	force bool,
-) (bool, error) {
-	args := []string{"--git-dir", commonDir, worktreeDescriptorName, exitRemoveAction}
+) (bool, *RemovalRefusal, error) {
+	presence, orphan, err := s.validateRemovalIdentity(ctx, item, commonDir)
+	if err != nil {
+		return false, nil, err
+	}
+	if presence == checkoutOrphaned {
+		return false, nil, s.removeOrphanedCheckout(ctx, workspaceRoot, commonDir, item.Path, orphan, force)
+	}
+	if presence == checkoutAbsent {
+		return false, nil, s.removeAbsentCheckout(ctx, workspaceRoot, commonDir, item, force)
+	}
+	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction}
 	if force {
 		args = append(args, "--force")
 	}
 	args = append(args, item.Path)
-	_, stderr, removeErr := s.runner.Run(ctx, workspaceRoot, args...)
+	_, stderr, removeErr := s.runCheckoutRemoval(ctx, workspaceRoot, args...)
 	if removeErr == nil {
-		return false, nil
+		return false, nil, nil
 	}
 	detail := diagnostics.RedactAndBound(string(stderr), 2048)
-	stillPresent, identityErr := s.validateRemovalIdentity(ctx, item, commonDir)
+	presence, orphan, identityErr := s.validateRemovalIdentity(ctx, item, commonDir)
 	switch {
 	case identityErr != nil:
-		return true, errors.Join(fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr), identityErr)
-	case !stillPresent:
-		return true, nil
+		return true, nil, errors.Join(fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr), identityErr)
+	case presence == checkoutAbsent:
+		return false, nil, s.removeAbsentCheckout(ctx, workspaceRoot, commonDir, item, force)
+	case presence == checkoutOrphaned:
+		// Git stopped midway, after deleting the .git link. The record stays
+		// ready, and the refusal offers to delete what is left.
+		refusalResult, err := s.interruptedRemovalRefusal(
+			ctx, workspaceRoot, orphan, fmt.Errorf("%s: %w", detail, removeErr),
+		)
+		return false, refusalResult, err
 	case force:
 		// Git documents a second --force as the explicit override for a locked
 		// linked worktree. Keep deletion inside Git so its admin record and the
@@ -225,18 +250,18 @@ func (s *Service) runFencedRemoval(
 		retryArgs := append([]string(nil), args...)
 		forceIndex := len(retryArgs) - 2
 		retryArgs = append(retryArgs[:forceIndex], append([]string{"--force"}, retryArgs[forceIndex:]...)...)
-		_, retryStderr, retryErr := s.runner.Run(ctx, workspaceRoot, retryArgs...)
+		_, retryStderr, retryErr := s.runCheckoutRemoval(ctx, workspaceRoot, retryArgs...)
 		if retryErr != nil {
-			return false, fmt.Errorf(
+			return false, nil, fmt.Errorf(
 				"%w: forced removal retry: %s: %v",
 				ErrRemovalFailed,
 				diagnostics.RedactAndBound(string(retryStderr), 2048),
 				retryErr,
 			)
 		}
-		return false, nil
+		return false, nil, nil
 	default:
-		return false, fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr)
+		return false, nil, fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr)
 	}
 }
 
@@ -249,18 +274,29 @@ func (s *Service) evaluateFencedRemoval(
 	commonDir string,
 	force bool,
 ) (bool, RemovalRisk, *RemovalRefusal, error) {
-	present, err := s.validateRemovalIdentity(ctx, item, commonDir)
+	presence, orphan, err := s.validateRemovalIdentity(ctx, item, commonDir)
 	if err != nil {
 		return false, RemovalRisk{}, nil, err
 	}
-	if !present {
+	switch presence {
+	case checkoutAbsent:
 		if err := s.requireNoActiveSession(ctx, item); err != nil {
 			return false, RemovalRisk{}, nil, err
 		}
+		if err := s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, force); err != nil {
+			return false, RemovalRisk{}, nil, err
+		}
 		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)
+	case checkoutOrphaned:
+		if err := s.requireNoActiveSession(ctx, item); err != nil {
+			return false, RemovalRisk{}, nil, err
+		}
+		risk, refusalResult, err := s.evaluateOrphanedRemoval(ctx, workspace.Root, orphan, force)
+		return false, risk, refusalResult, err
+	default:
+		risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)
+		return false, risk, refusalResult, err
 	}
-	risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)
-	return false, risk, refusalResult, err
 }
 
 func (s *Service) authoritativeRemovalEvaluation(
@@ -336,22 +372,41 @@ func (s *Service) finishRemoval(
 	return nil
 }
 
+// checkoutPresence classifies what a removal finds at the record's path.
+type checkoutPresence int
+
+const (
+	checkoutAbsent checkoutPresence = iota
+	checkoutLive
+	checkoutOrphaned
+)
+
 func (s *Service) validateRemovalIdentity(
 	ctx context.Context,
 	item Worktree,
 	commonDir string,
-) (bool, error) {
+) (checkoutPresence, orphanedCheckout, error) {
 	if _, err := os.Lstat(item.Path); errors.Is(err, os.ErrNotExist) {
-		return false, nil
+		return checkoutAbsent, orphanedCheckout{}, nil
 	} else if err != nil {
-		return false, fmt.Errorf("worktree: inspect removal path: %w", err)
+		return checkoutLive, orphanedCheckout{}, fmt.Errorf("worktree: inspect removal path: %w", err)
+	}
+	orphan, orphaned, err := findOrphanedCheckout(item.Path, commonDir)
+	if err != nil {
+		return checkoutLive, orphanedCheckout{}, fmt.Errorf("%w: %v", ErrRemovalFailed, err)
+	}
+	if orphaned {
+		if orphan.adminGitDir != filepath.Clean(item.GitDir) {
+			return checkoutLive, orphanedCheckout{}, refusal(ErrRemovalFailed, "worktree Git identity changed")
+		}
+		return checkoutOrphaned, orphan, nil
 	}
 	identity, err := s.validateAdoptionIdentity(ctx, item.Path, commonDir)
 	if err != nil {
-		return true, fmt.Errorf("%w: %v", ErrRemovalFailed, err)
+		return checkoutLive, orphanedCheckout{}, fmt.Errorf("%w: %v", ErrRemovalFailed, err)
 	}
 	if identity.adminGitDir != filepath.Clean(item.GitDir) {
-		return true, refusal(ErrRemovalFailed, "worktree Git identity changed")
+		return checkoutLive, orphanedCheckout{}, refusal(ErrRemovalFailed, "worktree Git identity changed")
 	}
-	return true, nil
+	return checkoutLive, orphanedCheckout{}, nil
 }

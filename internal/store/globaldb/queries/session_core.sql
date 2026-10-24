@@ -55,6 +55,7 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
+ effective_workspace_access,
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
@@ -68,6 +69,7 @@ INSERT INTO sessions (
   transcript_epoch, soul_snapshot_id, soul_digest, parent_soul_digest,
   created_at, updated_at
 ) SELECT
+ sqlc.arg(effective_workspace_access),
   sqlc.arg(profile_id), sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
   sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(acp_options_json), sqlc.arg(speed_resolution_json),
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
@@ -167,4 +169,14 @@ WHERE id = sqlc.arg(id);
 
 -- name: GetSessionArchivedAt :one
 SELECT archived_at FROM sessions
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: UpdateSessionLineageHierarchy :execrows
+UPDATE sessions
+SET parent_session_id = sqlc.narg(parent_session_id),
+  root_session_id = sqlc.narg(root_session_id),
+  spawn_depth = sqlc.arg(spawn_depth),
+  lineage_kind = sqlc.arg(lineage_kind),
+  auto_stop_on_parent = sqlc.arg(auto_stop_on_parent),
+  updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

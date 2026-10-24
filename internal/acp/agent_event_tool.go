@@ -29,6 +29,7 @@ type agentEventPayload struct {
 	toolErrorDetail    string
 	toolFailed         bool
 	toolPrechecked     bool
+	toolResultUpdate   bool
 	hasTool            bool
 	promptRuntime      *PromptRuntime
 	availableCommands  *AvailableCommandSet
@@ -75,7 +76,7 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 		payload.resolvedBy == "" && !payload.hasProviderToolFacts() &&
 		len(payload.subagentCard) == 0 &&
 		len(payload.sessionMessageCard) == 0 &&
-		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
+		!payload.hasTool && !payload.toolPrechecked && !payload.toolResultUpdate && payload.promptRuntime == nil &&
 		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil && payload.origin == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.mentions) == 0 && len(payload.attachments) == 0 {
 		return nil
@@ -233,6 +234,19 @@ func (e AgentEvent) WithToolPrechecked() AgentEvent {
 // ToolPrechecked reports whether tool admission was already enforced.
 func (e AgentEvent) ToolPrechecked() bool {
 	return e.payload != nil && e.payload.toolPrechecked
+}
+
+// WithToolResultUpdate marks additional output after completion was already observed.
+func (e AgentEvent) WithToolResultUpdate() AgentEvent {
+	payload := e.clonePayload()
+	payload.toolResultUpdate = true
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// ToolResultUpdate reports whether this event only enriches an earlier completion.
+func (e AgentEvent) ToolResultUpdate() bool {
+	return e.payload != nil && e.payload.toolResultUpdate
 }
 
 // WithToolKind returns an event carrying the normalized tool kind.

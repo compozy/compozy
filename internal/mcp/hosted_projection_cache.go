@@ -143,6 +143,12 @@ func (c *hostedProjectionCache) load(key hostedProjectionFlightKey) (HostedProje
 func (c *hostedProjectionCache) begin(key hostedProjectionFlightKey) (*hostedProjectionFlight, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// A builder can publish between the caller's cache lookup and acquiring this lock.
+	if entry, ok := c.entries[key.bindID]; ok && entry.generation == key.generation {
+		flight := &hostedProjectionFlight{done: make(chan struct{}), response: entry.response}
+		close(flight.done)
+		return flight, false
+	}
 	if flight := c.flights[key]; flight != nil {
 		return flight, false
 	}

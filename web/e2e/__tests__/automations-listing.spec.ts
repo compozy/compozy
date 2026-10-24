@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { appWindow } from "../fixtures/os-navigation";
+import { appWindow, focusUserScope } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { automationOperatorSelectors, osShellSelectors } from "../fixtures/selectors";
@@ -100,6 +100,8 @@ test("Automations E2E-001/E2E-002: one listing filters, searches, and toggles jo
   await completeOnboardingIfPrompted(appPage);
   const job = await createJob(runtime, uniqueName("listing-job"));
   const trigger = await createTrigger(runtime, uniqueName("listing-trigger"));
+  // Both fixtures are User-scope (global), listed under the User destination.
+  await focusUserScope(appPage);
 
   await test.step("the All view lists both kinds with per-start counts", async () => {
     await appPage.goto(runtime.url("/automations"), { waitUntil: "domcontentloaded" });

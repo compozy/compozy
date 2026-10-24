@@ -45,7 +45,7 @@ describe("Hero", () => {
         "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
       )
     ).toBeDefined();
-    const install = screen.getByText("Install the beta");
+    const install = screen.getByText("Install CompozyOS");
     expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const overview = screen.getByText("See how CompozyOS works");
     expect(overview.closest("a")?.getAttribute("href")).toBe("/docs");
@@ -162,7 +162,7 @@ describe("AutonomyKernelSection", () => {
 describe("FinalCta", () => {
   it("links the final actions to installation guidance and the repository", () => {
     render(<FinalCta />);
-    const install = screen.getByText("Install the beta");
+    const install = screen.getByText("Install CompozyOS");
     expect(install.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");
     const spec = screen.getByText("Read the installation guide");
     expect(spec.closest("a")?.getAttribute("href")).toBe("/docs/getting-started/installation");

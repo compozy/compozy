@@ -4,12 +4,12 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects an unbound Terminal window lists every project's terminals (plus User's) from `/api/terminals?all_workspaces=true`, kept live by the selection-bound aggregate stream, each with a project badge; opening one, or New terminal in the chosen project, binds the window to that terminal's scope in place, and a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
-fix_status: fixed
-retest_status:
+fix_status: none
+retest_status: untested
 fix_commits:
 evidence: .compozy/tasks/sessions-stability/memory/terminal-retention-ci.md; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20260902-020216-937662-lab/qa-artifacts/qa/screenshots/bruno-two-terminals-after-reload.png; /Users/pedronauck/dev/qa-labs/compozy-terminal-shared-control-20260904-204013-041114-lab/qa-artifacts/window-canary-after-reload.png; docs/qa/reports/2026-09-04-terminal-shared-control.md
 last_report: docs/qa/reports/2026-09-04-terminal-shared-control.md
@@ -59,3 +59,5 @@ QA re-walk 2026-09-10: PASS for the changed close contract. Production-bundle E2
 Post-merge creation-scope verification is recorded in
 `docs/qa/reports/2026-09-10-merged-pr-ci-review-remediation.md`; earlier browser evidence
 does not independently prove the newly added pending-response step.
+
+All-projects AW4 (2026-10-21): reset to untested. Walk with terminals in two projects and User under All projects: list with badges; open one in place (chrome badge, no project switch); New terminal in another project; close a terminal and see the list update live; switch profile and see the list re-read. PR screenshots: aggregate terminal list; New terminal project picker.

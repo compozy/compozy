@@ -41,14 +41,14 @@ func (g *LoopRepo) respondRequestWithExecutor(
 	}
 	actorKind := string(input.Actor.Actor.Kind.Normalize())
 	actorID := strings.TrimSpace(input.Actor.Actor.Ref)
-	payload, schema, err := requestDecisionPayload(ctx, exec, stored, decision, input.Payload)
+	payload, schema, err := requestDecisionPayload(ctx, exec, &stored, decision, input.Payload)
 	if err != nil {
 		return err
 	}
 	if stored.request.State != looppkg.RequestStatePending {
-		return resolvedRequestOutcome(ctx, exec, stored, decision, payload, actorKind, actorID, result)
+		return resolvedRequestOutcome(ctx, exec, &stored, decision, payload, actorKind, actorID, result)
 	}
-	if err := validateRequestDecision(stored, decision, schema, payload); err != nil {
+	if err := validateRequestDecision(&stored, decision, schema, payload); err != nil {
 		return err
 	}
 	run, err := nodePauseRun(ctx, exec, input.WorkspaceID, input.RunID)
@@ -79,7 +79,7 @@ func (g *LoopRepo) respondRequestWithExecutor(
 }
 
 func validateRequestDecision(
-	stored storedRequest,
+	stored *storedRequest,
 	decision string,
 	schema json.RawMessage,
 	payload json.RawMessage,
@@ -155,7 +155,7 @@ func (g *LoopRepo) commitRequestResponse(
 func appendRequestResponseEvents(ctx context.Context, exec taskSQLExecutor, state *requestResponseState) error {
 	if err := appendLoopRunEventWithExecutor(ctx, exec, state.run.ID, state.run.WorkspaceID,
 		loopRunEventRequestAnswered,
-		requestResolutionEventPayload(state.stored, state.decision, state.actorKind, state.actorID),
+		requestResolutionEventPayload(&state.stored, state.decision, state.actorKind, state.actorID),
 		state.mutation.RequestedAt); err != nil {
 		return err
 	}

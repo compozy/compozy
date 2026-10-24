@@ -1,6 +1,11 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
-import { fetchAgent, fetchAgentCatalog, fetchAgents } from "../adapters/agent-api";
+import {
+  fetchAgent,
+  fetchAgentAggregate,
+  fetchAgentCatalog,
+  fetchAgents,
+} from "../adapters/agent-api";
 import {
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
@@ -20,6 +25,30 @@ export function agentCatalogOptions(workspace: string, filters: AgentCatalogStab
     queryKey: agentKeys.catalog(workspace, normalizedFilters),
     queryFn: ({ pageParam, signal }) =>
       fetchAgentCatalog(agentCatalogRequest(workspace, normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    staleTime: 5_000,
+  });
+}
+
+/** Every project's agents plus User's for one profile, narrowed by the Project filter. */
+export function agentAggregateOptions(
+  workspaceIds: readonly string[],
+  filters: AgentCatalogStableFilter = {}
+) {
+  const normalizedFilters = normalizeAgentCatalogFilter(filters);
+  const ids = [...new Set(workspaceIds)].sort();
+  return infiniteQueryOptions({
+    queryKey: agentKeys.aggregate(ids, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      fetchAgentAggregate(
+        {
+          ...normalizedFilters,
+          ...(ids.length > 0 ? { workspace_ids: ids } : {}),
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
+        signal
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: 5_000,

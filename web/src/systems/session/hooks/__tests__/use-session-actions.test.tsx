@@ -3,12 +3,19 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  composerDraftAttachmentFiles,
+  recordComposerDraftAttachments,
+  retainComposerDraftUpload,
+  retainedComposerDraftUpload,
+} from "../../lib/session-composer-attachment-drafts";
 import { sessionStore } from "../../stores/session-store";
 import {
   useClearSessionConversation,
   useArchiveSession,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
@@ -47,6 +54,8 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
+  setSessionParent: vi.fn(),
+  clearSessionParent: vi.fn(),
   promoteSessionInputToSteer: vi.fn(),
   replaceSessionInput: vi.fn(),
   rewindSession: vi.fn(),
@@ -56,7 +65,12 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha", runtimeWorkspaceId: "ws_alpha" }),
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: "ws_alpha",
+    runtimeWorkspaceId: "ws_alpha",
+    breadthMode: "focused",
+    registeredWorkspaces: [{ id: "ws_alpha", name: "alpha" }],
+  }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -73,6 +87,8 @@ import {
   fetchSessionInputs,
   repairSession,
   renameSession,
+  setSessionParent,
+  clearSessionParent,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -103,9 +119,14 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  board_column: "done",
+  pull_request: null,
+  pull_request_lookup: null,
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   id: "sess-created",
   name: "Created session",
   agent_name: "claude-agent",
@@ -253,7 +274,7 @@ describe("session actions", () => {
     });
   });
 
-  it("Should announce the acting profile after aggregate session creation", async () => {
+  it("Should announce the project and profile after aggregate session creation", async () => {
     act(() => setProfileView({ kind: "aggregate" }));
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const queryClient = new QueryClient({
@@ -269,9 +290,25 @@ describe("session actions", () => {
 
     expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "default");
     expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
-      message: "Created in default.",
+      message: "Session started in alpha · default",
       tone: "success",
     });
+  });
+
+  it("Should file the session into the picked profile instead of the acting one", async () => {
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useCreateSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ workspace: WORKSPACE_ID, profile: "marketing" });
+    });
+
+    expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "marketing");
   });
 
   it("useClearSessionConversation clears transcript caches optimistically without touching drafts", async () => {
@@ -416,7 +453,8 @@ describe("session actions", () => {
     );
   });
 
-  // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID.
+  // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID, and
+  // a settled deletion stays attributed to the operator so its window retires quietly (#952).
   // Owner: session mutation cache; canonical suite: session actions.
   it("tracks deletion until the host finishes retiring its windows", async () => {
     let retire!: () => void;
@@ -431,6 +469,8 @@ describe("session actions", () => {
         remove: useDeleteSession({ onDeleteSuccess }),
         pending: useSessionDeletionPending(createdSession.id),
         otherPending: useSessionDeletionPending("another-session"),
+        deleted: useSessionDeletedByOperator(createdSession.id),
+        otherDeleted: useSessionDeletedByOperator("another-session"),
       }),
       { wrapper: createWrapper(client) }
     );
@@ -438,8 +478,11 @@ describe("session actions", () => {
     await waitFor(() => expect(retire).toBeTypeOf("function"));
     expect(result.current.pending).toBe(true);
     expect(result.current.otherPending).toBe(false);
+    expect(result.current.deleted).toBe(false);
     act(() => retire());
     await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current.deleted).toBe(true);
+    expect(result.current.otherDeleted).toBe(false);
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {
@@ -476,6 +519,9 @@ describe("session actions", () => {
       createdSession
     );
     sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "remove me" });
+    const file = new File(["draft"], "draft.txt");
+    recordComposerDraftAttachments(createdSession.id, [file]);
+    retainComposerDraftUpload(WORKSPACE_ID, createdSession.id, file, new Promise(() => {}));
 
     const { result } = renderHook(() => useDeleteSession({ onDeleteSuccess }), {
       wrapper: createWrapper(queryClient),
@@ -485,6 +531,8 @@ describe("session actions", () => {
       await result.current.mutateAsync(createdSession);
     });
 
+    expect(composerDraftAttachmentFiles(createdSession.id)).toEqual([]);
+    expect(retainedComposerDraftUpload(WORKSPACE_ID, createdSession.id, file)).toBeUndefined();
     expect(deleteSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,
@@ -721,7 +769,8 @@ describe("session actions", () => {
       target.workspace_id,
       target.id,
       target.profile_name,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      false
     );
     expect(unarchiveSession).toHaveBeenCalledWith(
       target.workspace_id,
@@ -764,6 +813,33 @@ describe("session actions", () => {
 
     expect(requestSignal?.aborted).toBe(true);
     await expect(mutation).rejects.toThrow("Aborted");
+  });
+
+  it("archives a live session in one action by asking the daemon to stop it first", async () => {
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    }));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onArchive(createdSession));
+
+    await waitFor(() =>
+      expect(archiveSession).toHaveBeenCalledWith(
+        createdSession.workspace_id,
+        createdSession.id,
+        createdSession.profile_name,
+        expect.any(AbortSignal),
+        true
+      )
+    );
   });
 
   it("reports a lifecycle action failure without showing a success notification", async () => {
@@ -852,6 +928,39 @@ describe("session actions", () => {
     await act(async () => resolveRename({ ...createdSession, name: "Release review" }));
     await waitFor(() => expect(result.current.renameDialog.open).toBe(false));
     expect(result.current.renameDialog.session).toBeNull();
+  });
+
+  // Invariant: a drop adopts the row's session under its new parent through the
+  // session's own profile, and the confirmation's Undo makes it top-level again.
+  it("adopts a session under a parent and undoes it from the toast", async () => {
+    const parent = { ...createdSession, id: "sess-parent", name: "Parent" };
+    const owned = { ...createdSession, profile_name: "work" };
+    vi.mocked(setSessionParent).mockResolvedValue(owned);
+    vi.mocked(clearSessionParent).mockResolvedValue(owned);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onAdopt?.(owned, parent));
+    await waitFor(() =>
+      expect(setSessionParent).toHaveBeenCalledWith(WORKSPACE_ID, owned.id, "work", "sess-parent")
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+    const options = vi.mocked(toast.success).mock.calls.at(-1)?.[1] as {
+      action: { label: string; onClick: () => void };
+    };
+    expect(options.action.label).toBe("Undo");
+    act(() => options.action.onClick());
+    await waitFor(() =>
+      expect(clearSessionParent).toHaveBeenCalledWith(WORKSPACE_ID, owned.id, "work")
+    );
   });
 
   it("updates the detail cache and invalidates session views after rename", async () => {
@@ -1450,7 +1559,11 @@ describe("session lifecycle batches", () => {
     });
     const { result } = lifecycle();
     act(() => result.current.actions.onStopMany?.([createdSession]));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Stop is still pending"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't stop 1 session", {
+        description: "Created session: Stop is still pending",
+      })
+    );
     expect(toast.success).not.toHaveBeenCalled();
     expect(result.current.batchResults[0]?.status).toBe("failed");
   });
@@ -1462,12 +1575,25 @@ describe("session lifecycle batches", () => {
     vi.mocked(unarchiveSession).mockResolvedValue(stopped);
     const { result } = lifecycle();
     act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived]));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session archived"));
-    expect(archiveSession).toHaveBeenCalledExactlyOnceWith(
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 sessions archived"));
+    // Every row archives through the stop-first operation, so a stopped parent with a
+    // still-live subagent session archives too.
+    expect(archiveSession).toHaveBeenCalledTimes(2);
+    expect(archiveSession).toHaveBeenNthCalledWith(
+      1,
+      WORKSPACE_ID,
+      createdSession.id,
+      createdSession.profile_name,
+      expect.any(AbortSignal),
+      true
+    );
+    expect(archiveSession).toHaveBeenNthCalledWith(
+      2,
       WORKSPACE_ID,
       "stopped",
       createdSession.profile_name,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      true
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session unarchived"));
@@ -1477,5 +1603,44 @@ describe("session lifecycle batches", () => {
       createdSession.profile_name,
       expect.any(AbortSignal)
     );
+  });
+
+  it("archives a mixed selection with per-session outcomes when one stop fails", async () => {
+    const live = { ...createdSession, id: "sess-live", state: "active" as const };
+    const stopped = { ...createdSession, id: "sess-stopped", state: "stopped" as const };
+    const failing = {
+      ...createdSession,
+      id: "sess-failing",
+      name: "Failing session",
+      state: "active" as const,
+    };
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === failing.id) throw new Error("stop before archiving failed");
+      return { ...createdSession, id, state: "stopped", archived_at: "2026-08-04T12:00:00Z" };
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onArchiveMany?.([live, failing, stopped]));
+
+    await waitFor(() =>
+      expect(result.current.batchResults).toEqual([
+        { id: live.id, status: "done" },
+        { id: failing.id, status: "failed", error: "stop before archiving failed" },
+        { id: stopped.id, status: "done" },
+      ])
+    );
+    const stopFlags = vi
+      .mocked(archiveSession)
+      .mock.calls.map(([, id, , , stop]) => [id, stop] as const);
+    expect(stopFlags).toEqual([
+      [live.id, true],
+      [failing.id, true],
+      [stopped.id, true],
+    ]);
+    // Successes are counted and each failure names its session.
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("2 sessions archived, 1 failed", {
+      description: "Failing session: stop before archiving failed",
+    });
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

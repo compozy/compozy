@@ -131,8 +131,10 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
   );
   await harness.sessionUI.stopButton.click();
   expect((await stopped).ok()).toBe(true);
-  await harness.sessionUI.topbarOverflow.click();
-  await expect(harness.sessionUI.composerClearButton).toBeEnabled({ timeout: 60_000 });
+  await harness.sessionUI.sessionRowActions(harness.sessionId).click();
+  await expect(
+    harness.sessionUI.sessionRowMenuItem("clear", harness.sessionId)
+  ).not.toHaveAttribute("aria-disabled", "true", { timeout: 60_000 });
   await appPage.keyboard.press("Escape");
 }
 

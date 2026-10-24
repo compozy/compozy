@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type acceptedSessionStart struct {
@@ -49,6 +51,15 @@ func (m *Manager) acceptSessionStart(
 		}
 	}()
 
+	if err := m.refreshStartLineage(acceptCtx, spec); err != nil {
+		return nil, err
+	}
+	// Refresh reads persisted lineage on resume; materialize afterwards so legacy
+	// derived sessions are repaired without treating computed grants as create input.
+	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
+		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
+	}
+
 	storage, err := m.prepareSessionStartStorage(spec)
 	if err != nil {
 		return nil, fmt.Errorf("session: prepare %s storage for %q: %w", spec.startAction, spec.sessionID, err)
@@ -69,6 +80,9 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.Join(err, cleanupErr)
 	}
 
+	if spec.startAction == sessionStartActionCreate {
+		spec.effectiveWorkspaceAccess = spec.origin.Effective(runtime.agentDef.WorkspaceAccess)
+	}
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
 	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)
@@ -112,7 +126,7 @@ func (m *Manager) resolveAcceptedStartRuntime(
 			return sessionStartRuntime{}, err
 		}
 	}
-	if spec.creationIdentityPinned {
+	if spec.creationIdentityPinned || spec.workspace.Scope == workspacepkg.ScopeUser {
 		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
 			return sessionStartRuntime{}, fmt.Errorf(
 				"session: prepare creation identity for %q: %w",

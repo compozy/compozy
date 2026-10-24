@@ -64,6 +64,9 @@ func TestSchedulerIntegrationFastScheduleDispatchesThroughDispatcher(t *testing.
 	if len(runs) == 0 {
 		t.Fatal("ListRuns() = 0 runs, want at least one")
 	}
+	if runs[0].WorkspaceID == nil || *runs[0].WorkspaceID != job.WorkspaceID || runs[0].Attribution != "recorded" {
+		t.Fatalf("scheduled source attribution = %#v", runs[0])
+	}
 	if got, want := runs[0].Status, RunCompleted; got != want {
 		t.Fatalf("runs[0].Status = %q, want %q", got, want)
 	}
@@ -238,6 +241,174 @@ func waitUntil(t *testing.T, timeout time.Duration, interval time.Duration, fn f
 	}
 }
 
+// Invariant: a cron's durable cursor follows explicit zone changes while upgrades preserve pending work.
+func TestSchedulerIntegrationTimezoneReconciliation(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain an unstarted legacy reservation when adopting the zone identity", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openAutomationIntegrationDB(t, ctx)
+		now := time.Date(2026, 10, 22, 8, 0, 0, 0, time.UTC)
+		job := testJob(AutomationScopeGlobal, "legacy-reservation", "")
+		job.Schedule = &ScheduleSpec{Mode: ScheduleModeCron, Expr: "30 8 * * *"}
+		job, err := db.CreateJob(ctx, job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fireAt := now.Add(-23*time.Hour - 30*time.Minute)
+		claim := SchedulerClaim{
+			ProfileID:     job.ProfileID,
+			JobID:         job.ID,
+			RunID:         scheduledRunID(job.ID, fireAt),
+			FireID:        scheduledFireID(job.ID, fireAt),
+			ScheduledAt:   fireAt,
+			ClaimedAt:     fireAt,
+			NextRunAt:     new(now.Add(30 * time.Minute)),
+			ScheduleHash:  scheduleHash(job.Schedule),
+			CatchUpPolicy: SchedulerCatchUpPolicySkipMissed,
+		}
+		if _, err := db.ClaimScheduledRun(ctx, claim); err != nil {
+			t.Fatal(err)
+		}
+		scheduler := newTestScheduler(
+			t,
+			newStubScheduleDispatcher(),
+			WithSchedulerStore(db),
+			WithSchedulerClock(clockwork.NewFakeClockAt(now)),
+		)
+		if _, err := scheduler.Register(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+		run, err := db.GetRun(ctx, claim.RunID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if run.Status != RunScheduled || run.FireID != claim.FireID {
+			t.Fatalf("legacy reservation changed on identity upgrade: %+v", run)
+		}
+		state, err := db.GetSchedulerState(ctx, job.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.LastFireID != claim.FireID || state.LastScheduledAt == nil || !state.LastScheduledAt.Equal(fireAt) {
+			t.Fatalf("last fire changed on identity upgrade: %+v", state)
+		}
+	})
+	for _, tc := range []struct {
+		name       string
+		zone       string
+		legacy     bool
+		overdue    bool
+		wantHour   int
+		mode       ScheduleMode
+		skipMissed bool
+	}{
+		{name: "Should move an existing cron to the new zone", zone: "America/Sao_Paulo", wantHour: 11},
+		{name: "Should preserve the cursor with the same zone", zone: "UTC", wantHour: 8},
+		{name: "Should adopt a legacy cursor without moving it", zone: "UTC", legacy: true, wantHour: 8},
+		{name: "Should retain legacy catch-up work", zone: "UTC", legacy: true, overdue: true, wantHour: 8},
+		{name: "Should retain legacy skip-missed policy", zone: "UTC", legacy: true, overdue: true, skipMissed: true, wantHour: 8},
+		{name: "Should preserve interval timing on a zone change", zone: "America/Sao_Paulo", mode: ScheduleModeEvery, wantHour: 8},
+		{name: "Should preserve absolute timing on a zone change", zone: "America/Sao_Paulo", mode: ScheduleModeAt, wantHour: 8},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t)
+			db := openAutomationIntegrationDB(t, ctx)
+			base := time.Date(2026, 10, 22, 8, 0, 0, 0, time.UTC)
+			clock := clockwork.NewFakeClockAt(base)
+			job := testJob(AutomationScopeGlobal, "timezone-reconcile", "")
+			job.Schedule = &ScheduleSpec{
+				Mode:          ScheduleModeCron,
+				Expr:          "30 8 * * *",
+				CatchUpPolicy: SchedulerCatchUpPolicyReplay,
+			}
+			if tc.skipMissed {
+				job.Schedule.CatchUpPolicy = SchedulerCatchUpPolicySkipMissed
+			}
+			if tc.mode == ScheduleModeEvery {
+				job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "30m"}
+			}
+			if tc.mode == ScheduleModeAt {
+				job.Schedule = &ScheduleSpec{
+					Mode: ScheduleModeAt,
+					Time: base.Add(30 * time.Minute).Format(time.RFC3339),
+				}
+			}
+			job, err := db.CreateJob(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first := newTestScheduler(t, newStubScheduleDispatcher(), WithSchedulerStore(db), WithSchedulerClock(clock))
+			if _, err := first.Register(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			if err := first.Stop(ctx); err != nil {
+				t.Fatal(err)
+			}
+			before, err := db.GetSchedulerState(ctx, job.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.legacy {
+				before.ScheduleHash = scheduleHash(job.Schedule)
+				if _, err := db.SaveSchedulerState(ctx, before); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.overdue {
+				clock.Advance(31 * time.Minute)
+			}
+			zone, err := time.LoadLocation(tc.zone)
+			if err != nil {
+				t.Fatal(err)
+			}
+			restarted := newTestScheduler(
+				t,
+				newStubScheduleDispatcher(),
+				WithSchedulerStore(db),
+				WithSchedulerClock(clock),
+				WithSchedulerLocation(zone),
+			)
+			state, err := restarted.Register(ctx, job)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := time.Date(2026, 10, 22, tc.wantHour, 30, 0, 0, time.UTC)
+			if tc.skipMissed {
+				want = want.Add(24 * time.Hour)
+			}
+			if state.NextRun == nil || !state.NextRun.Equal(want) {
+				t.Fatalf("next run = %v, want %s", state.NextRun, want)
+			}
+			if tc.legacy && !tc.overdue {
+				if err := restarted.Stop(ctx); err != nil {
+					t.Fatal(err)
+				}
+				changedZone, err := time.LoadLocation("America/Sao_Paulo")
+				if err != nil {
+					t.Fatal(err)
+				}
+				changed := newTestScheduler(
+					t,
+					newStubScheduleDispatcher(),
+					WithSchedulerStore(db),
+					WithSchedulerClock(clock),
+					WithSchedulerLocation(changedZone),
+				)
+				state, err := changed.Register(ctx, job)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want = want.Add(3 * time.Hour)
+				if state.NextRun == nil || !state.NextRun.Equal(want) {
+					t.Fatalf("post-upgrade zone edit next run = %v, want %s", state.NextRun, want)
+				}
+			}
+		})
+	}
+}
+
 // Invariant: a busy gate retains the original fire across restart or retires it
 // on schedule replacement. Owner: durable automation scheduler integration suite.
 func TestSchedulerIntegrationDeferredFire(t *testing.T) {
@@ -245,6 +416,7 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 	for _, scenario := range []string{
 		"one-shot restart", "recurring restart", "schedule replacement", "past replacement", "gate release",
 		"draining restart", "cancelled restart", "deadline restart", "recurring draining restart",
+		"cron zone restart", "legacy cron restart",
 	} {
 		t.Run("Should preserve fire ownership on "+scenario, func(t *testing.T) {
 			t.Parallel()
@@ -297,6 +469,9 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 			if scenario == "recurring restart" || scenario == "recurring draining restart" {
 				job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
 			}
+			if scenario == "cron zone restart" || scenario == "legacy cron restart" {
+				job.Schedule = &ScheduleSpec{Mode: ScheduleModeCron, Expr: "1 12 * * *"}
+			}
 			job, err = db.CreateJob(ctx, job)
 			if err != nil {
 				t.Fatal(err)
@@ -316,6 +491,13 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 			if deferred.DeferredUntil == nil || deferred.LastScheduledAt == nil ||
 				!deferred.LastScheduledAt.Equal(fireAt) {
 				t.Fatalf("missing durable deferral: %+v", deferred)
+			}
+			if scenario == "legacy cron restart" {
+				// Model the durable hash written by the previous release before upgrading the scheduler.
+				deferred.ScheduleHash = scheduleHash(job.Schedule)
+				if _, err := db.SaveSchedulerState(ctx, deferred); err != nil {
+					t.Fatal(err)
+				}
 			}
 			originalID := scheduledRunID(job.ID, fireAt)
 			if scenario == "schedule replacement" || scenario == "past replacement" {
@@ -387,7 +569,20 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 				}
 				clock = clockwork.NewFakeClockAt(fireAt.Add(10 * time.Minute))
 				dispatcher = newTestDispatcher(t, newRecordingSessionCreator(), db, WithDispatcherNow(clock.Now))
-				scheduler = newTestScheduler(t, dispatcher, WithSchedulerStore(db), WithSchedulerClock(clock))
+				location := time.UTC
+				if scenario == "cron zone restart" {
+					location, err = time.LoadLocation("America/Sao_Paulo")
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				scheduler = newTestScheduler(
+					t,
+					dispatcher,
+					WithSchedulerStore(db),
+					WithSchedulerClock(clock),
+					WithSchedulerLocation(location),
+				)
 				state, err := scheduler.Register(ctx, job)
 				if err != nil {
 					t.Fatal(err)
@@ -428,6 +623,12 @@ func TestSchedulerIntegrationDeferredFire(t *testing.T) {
 			}
 			if state.DeferredUntil != nil {
 				t.Fatal("completed fire remains deferred")
+			}
+			if scenario == "cron zone restart" {
+				wantNext := time.Date(2026, 4, 10, 15, 1, 0, 0, time.UTC)
+				if state.NextRunAt == nil || !state.NextRunAt.Equal(wantNext) {
+					t.Fatalf("next run after deferred completion = %v, want %s", state.NextRunAt, wantNext)
+				}
 			}
 		})
 	}

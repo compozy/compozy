@@ -64,3 +64,12 @@ describe("windowManagerSnapshotOptions", () => {
     expect(windowManagerSnapshotOptions("workspace:alpha", " ").enabled).toBe(false);
   });
 });
+
+describe("windowManagerKeys.config", () => {
+  it("Should share one keymap entry between the shell read and the reserved User and global partitions", () => {
+    const shellRead = windowManagerKeys.config(null, "web-1");
+    expect(windowManagerKeys.config("user", "web-1")).toEqual(shellRead);
+    expect(windowManagerKeys.config("global", "web-1")).toEqual(shellRead);
+    expect(windowManagerKeys.config("ws-a", "web-1")).not.toEqual(shellRead);
+  });
+});

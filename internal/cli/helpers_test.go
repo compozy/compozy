@@ -142,9 +142,11 @@ type stubClient struct {
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn                func(context.Context, string, bool) (SessionStopRecord, error)
-	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
+	archiveSessionFn             func(context.Context, string, bool) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
+	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
+	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
@@ -236,6 +238,7 @@ type stubClient struct {
 	putLoopInputDefaultFn func(
 		context.Context, string, string, string, contract.PutLoopInputDefaultRequest,
 	) (contract.LoopInputDefaultResponse, error)
+	listLoopRequestsFn func(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
 	listLoopRunsFn     func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
 	listGoalTurnsFn    func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
 	getLoopRunFn       func(context.Context, string, string) (contract.LoopRunResponse, error)
@@ -1308,9 +1311,9 @@ func (s *stubClient) StopSession(ctx context.Context, id string, wait bool) (Ses
 	return SessionStopRecord{}, errors.New("unexpected StopSession call")
 }
 
-func (s *stubClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
+func (s *stubClient) ArchiveSession(ctx context.Context, id string, stop bool) (SessionRecord, error) {
 	if s.archiveSessionFn != nil {
-		return s.archiveSessionFn(ctx, id)
+		return s.archiveSessionFn(ctx, id, stop)
 	}
 	return SessionRecord{}, errors.New("unexpected ArchiveSession call")
 }
@@ -1331,6 +1334,24 @@ func (s *stubClient) RenameSession(
 		return s.renameSessionFn(ctx, id, request)
 	}
 	return SessionRecord{}, errors.New("unexpected RenameSession call")
+}
+
+func (s *stubClient) SetSessionParent(
+	ctx context.Context,
+	id string,
+	request SetSessionParentRequest,
+) (SessionRecord, error) {
+	if s.setSessionParentFn != nil {
+		return s.setSessionParentFn(ctx, id, request)
+	}
+	return SessionRecord{}, errors.New("unexpected SetSessionParent call")
+}
+
+func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (SessionRecord, error) {
+	if s.clearSessionParentFn != nil {
+		return s.clearSessionParentFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
 }
 
 func (s *stubClient) DeleteSession(ctx context.Context, id string) error {
@@ -1951,10 +1972,13 @@ func (s *stubClient) ListLoopRuns(
 }
 
 func (s *stubClient) ListLoopRequests(
-	context.Context,
-	string,
-	LoopRequestListQuery,
+	ctx context.Context,
+	workspace string,
+	query LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if s.listLoopRequestsFn != nil {
+		return s.listLoopRequestsFn(ctx, workspace, query)
+	}
 	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
 }
 

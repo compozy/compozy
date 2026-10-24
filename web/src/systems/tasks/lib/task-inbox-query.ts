@@ -19,6 +19,8 @@ export function normalizeTaskInboxFilter(filters: TaskInboxFilter = {}): TaskInb
   return {
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
+    all_workspaces: filters.all_workspaces || undefined,
+    workspace_ids: filters.all_workspaces ? filters.workspace_ids : undefined,
     worktree: normalizeOptionalText(filters.worktree),
     owner_kind: filters.owner_kind,
     owner_ref: normalizeOptionalText(filters.owner_ref),
@@ -39,6 +41,8 @@ export function taskInboxStableFilter(filters: TaskInboxFilter = {}): TaskInboxS
   return {
     scope: normalized.scope,
     workspace: normalized.workspace,
+    all_workspaces: normalized.all_workspaces,
+    workspace_ids: normalized.workspace_ids,
     worktree: normalized.worktree,
     owner_kind: normalized.owner_kind,
     owner_ref: normalized.owner_ref,

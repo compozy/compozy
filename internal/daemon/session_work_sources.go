@@ -6,6 +6,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -58,6 +59,11 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		if store.HierarchyParentSessionID(row.Lineage) != id {
 			continue
 		}
+		// A daemon-owned child (auto-title) is not work the session delegated: it must
+		// not hold the parent waiting, like it stays out of catalogs and metrics.
+		if session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
+			continue
+		}
 		info, err := s.manager.Status(ctx, row.ID)
 		if err != nil {
 			return nil, err
@@ -65,6 +71,13 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		until := s.now().Add(2 * toolruntime.SweepInterval)
 		switch info.State {
 		case session.StateStarting, session.StateActive:
+			finished, err := s.childDelegationFinished(ctx, row.ID, row.Lineage.SpawnRole)
+			if err != nil {
+				return nil, err
+			}
+			if finished {
+				continue
+			}
 		case session.StateStopping:
 			child, ok := s.manager.Get(info.ID)
 			if !ok {
@@ -82,6 +95,25 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		})
 	}
 	return result, nil
+}
+
+// A completed delegation can keep its ACP session alive without keeping its parent waiting.
+func (s sessionWorkSources) childDelegationFinished(ctx context.Context, id, role string) (bool, error) {
+	if role != store.SubagentSpawnRole {
+		return false, nil
+	}
+	db, ok := s.state.registry.(store.SubagentStore)
+	if !ok {
+		return false, errors.New("subagent store is unavailable")
+	}
+	row, err := db.GetSubagentByChild(ctx, id)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return store.IsSubagentStatusTerminal(row.Status), nil
 }
 
 func (s sessionWorkSources) leases(ctx context.Context, id string) ([]session.WorkSignal, error) {
@@ -214,4 +246,28 @@ func (s sessionWorkSources) replies(ctx context.Context, id string) ([]session.W
 		return nil, errors.New("reply watch service is unavailable")
 	}
 	return service.AwaitingReplySignals(ctx, id, s.now().Add(2*toolruntime.SweepInterval))
+}
+
+func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.WorkSignal, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.state.sessionMonitors == nil {
+		return nil, errors.New("monitor service is unavailable")
+	}
+	result := make([]session.WorkSignal, 0)
+	for _, item := range s.state.sessionMonitors.List(id) {
+		if item.Status != monitor.StatusActive && item.Status != monitor.StatusDelivering {
+			continue
+		}
+		validUntil := item.DeadlineAt
+		if item.Status == monitor.StatusDelivering {
+			validUntil = s.now().Add(2 * toolruntime.SweepInterval)
+		}
+		result = append(result, session.WorkSignal{
+			Kind: session.WorkSignalActiveMonitor, Since: item.CreatedAt,
+			Ref: item.ID, ValidUntil: validUntil,
+		})
+	}
+	return result, nil
 }

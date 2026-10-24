@@ -234,15 +234,16 @@ func sourceQualifiedSkillViewPayload(
 	copy(projectedExposures, exposures)
 	owner := core.SkillPayloadFromSkill(skill)
 	return map[string]any{
-		bootNameKey:   skill.Meta.Name,
-		"description": skill.Meta.Description,
-		"version":     skill.Meta.Version,
-		bootSourceKey: skillspkg.CommandSourceForSkill(skill),
-		"origin":      strings.TrimSpace(skill.Origin),
-		"owner_scope": owner.OwnerScope,
-		"owner_id":    owner.OwnerID,
-		"exposures":   projectedExposures,
-		"enabled":     skill.Enabled,
+		bootNameKey:      skill.Meta.Name,
+		"description":    skill.Meta.Description,
+		"version":        skill.Meta.Version,
+		bootSourceKey:    owner.Source,
+		"command_source": skillspkg.CommandSourceForSkill(skill),
+		"origin":         strings.TrimSpace(skill.Origin),
+		"owner_scope":    owner.OwnerScope,
+		"owner_id":       owner.OwnerID,
+		"exposures":      projectedExposures,
+		"enabled":        skill.Enabled,
 	}
 }
 
@@ -332,7 +333,7 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	if err != nil {
 		return nil, nativeInputError(toolspkg.ToolIDSkillView, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, toolspkg.ToolIDSkillView, workspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, toolspkg.ToolIDSkillView, workspaceID, sessionID)
 	if err != nil {
 		return nil, err
 	}

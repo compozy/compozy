@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -61,7 +63,13 @@ type SpawnOpts struct {
 	NotifyCreator       bool
 	NotifyCreatorSet    bool
 	PermissionPolicy    store.SessionPermissionPolicy
-	IdempotencyKey      string
+	// InheritPermissions starts from the parent's ceiling; PermissionNarrowing lists
+	// replace only the categories they set. Without it, PermissionPolicy is literal.
+	InheritPermissions  bool
+	PermissionNarrowing *SubagentPermissionNarrowing
+	// Toolsets selects parent-granted tools by toolset ID; it never widens the parent.
+	Toolsets       []string
+	IdempotencyKey string
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
 	// Command is an explicit launch command for this attempt (a fallback route's account).
@@ -110,6 +118,10 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	}
 
 	child, err := m.Create(ctx, CreateOpts{
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: parent.EffectiveWorkspaceAccess,
+		},
 		DesiredSessionID:    desiredID,
 		ProfileID:           strings.TrimSpace(parent.ProfileID),
 		AgentName:           normalized.AgentName,
@@ -170,6 +182,10 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 
+	normalized.PermissionPolicy, err = m.resolveSpawnPermissionPolicy(parent, normalized)
+	if err != nil {
+		return SpawnOpts{}, nil, nil, err
+	}
 	lineage, err := m.spawnLineage(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
@@ -285,8 +301,8 @@ func (m *Manager) validateSpawnWorkspace(
 		return SpawnOpts{}, err
 	}
 	targetWorkspaceID := ""
-	for _, ref := range refs {
-		resolved, resolveErr := resolver.Resolve(ctx, ref)
+	for index, ref := range refs {
+		resolved, resolveErr := resolveWorkspaceForProfile(ctx, resolver, m.profileNames, ref, parent.ProfileID)
 		if resolveErr != nil {
 			return SpawnOpts{}, fmt.Errorf(
 				"%w: resolve child workspace %q: %w",
@@ -296,22 +312,16 @@ func (m *Manager) validateSpawnWorkspace(
 			)
 		}
 		resolvedID := strings.TrimSpace(resolved.ID)
-		if resolvedID == "" {
+		if resolvedID == "" && resolved.Scope != workspacepkg.ScopeUser {
 			return SpawnOpts{}, fmt.Errorf("%w: child workspace %q has no id", ErrSpawnValidation, ref)
 		}
-		if targetWorkspaceID != "" && targetWorkspaceID != resolvedID {
+		if index > 0 && targetWorkspaceID != resolvedID {
 			return SpawnOpts{}, fmt.Errorf("%w: child workspace references disagree", ErrSpawnValidation)
 		}
 		targetWorkspaceID = resolvedID
 	}
 	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
-	if parentWorkspaceID == "" && strings.TrimSpace(parent.Workspace) != "" {
-		resolved, resolveErr := resolver.Resolve(ctx, parent.Workspace)
-		if resolveErr != nil {
-			return SpawnOpts{}, fmt.Errorf("%w: resolve parent workspace: %w", ErrSpawnValidation, resolveErr)
-		}
-		parentWorkspaceID = strings.TrimSpace(resolved.ID)
-	}
+
 	if parentWorkspaceID != targetWorkspaceID {
 		policy := m.workspaceAccessPolicy()
 		if policy == nil {
@@ -324,8 +334,8 @@ func (m *Manager) validateSpawnWorkspace(
 				WorkspaceID: parentWorkspaceID,
 				AgentName:   strings.TrimSpace(parent.AgentName),
 			},
-			TargetWorkspaceID: targetWorkspaceID,
-			Seam:              workspaceaccess.SeamSpawn,
+			Target: workspaceaccess.ScopeTarget(targetWorkspaceID, parent.ProfileID),
+			Seam:   workspaceaccess.SeamSpawn,
 		})
 		if authorizeErr != nil {
 			return SpawnOpts{}, fmt.Errorf(
@@ -340,18 +350,15 @@ func (m *Manager) validateSpawnWorkspace(
 		}
 	}
 	opts.Workspace = targetWorkspaceID
+	if targetWorkspaceID == "" {
+		opts.Workspace = workspaceaccess.UserSelector
+		if opts.IsolatedWorktreeID != "" {
+			return SpawnOpts{}, spawnValidation("User scope does not support worktrees")
+		}
+		opts.InheritedWorktreeID = ""
+	}
 	opts.WorkspacePath = ""
 	return opts, nil
-}
-
-func spawnWorkspaceAccessDenied(targetWorkspaceID string, parentWorkspaceID string) error {
-	return fmt.Errorf(
-		"%w: child workspace %q is outside parent workspace %q: %s",
-		ErrSpawnPermissionDenied,
-		targetWorkspaceID,
-		parentWorkspaceID,
-		workspaceaccess.DenialHint,
-	)
 }
 
 func (m *Manager) spawnLineage(
@@ -382,7 +389,10 @@ func (m *Manager) spawnLineage(
 		)
 	}
 	targetWorkspaceID := strings.TrimSpace(opts.Workspace)
-	if targetWorkspaceID == "" {
+	switch targetWorkspaceID {
+	case workspaceaccess.UserSelector:
+		targetWorkspaceID = ""
+	case "":
 		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 	}
 	if err := m.validateSpawnCaps(ctx, parent, governance, budget, targetWorkspaceID); err != nil {
@@ -450,6 +460,10 @@ func (m *Manager) validateSpawnCaps(
 			continue
 		}
 		lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+		// Subagents are bounded by the caller's turn, not the spawn budget.
+		if lineage.SpawnRole == store.SubagentSpawnRole {
+			continue
+		}
 		if lineage.ParentSessionID == parent.ID {
 			activeChildren++
 		}
@@ -464,22 +478,15 @@ func (m *Manager) validateSpawnCaps(
 		}
 	}
 	if activeChildren >= budget.MaxChildren {
-		return fmt.Errorf(
-			"%w: parent %q has %d active children, max_children %d",
-			ErrSpawnLimitExceeded,
-			parent.ID,
-			activeChildren,
-			budget.MaxChildren,
-		)
+		return &SpawnLimitError{
+			Limit: SpawnLimitMaxChildren, Max: budget.MaxChildren, Live: activeChildren, Scope: parent.ID,
+		}
 	}
 	if budget.MaxActivePerWorkspace > 0 && activeInWorkspace >= budget.MaxActivePerWorkspace {
-		return fmt.Errorf(
-			"%w: workspace %q has %d active spawned sessions, max_active_per_workspace %d",
-			ErrSpawnLimitExceeded,
-			targetWorkspaceID,
-			activeInWorkspace,
-			budget.MaxActivePerWorkspace,
-		)
+		return &SpawnLimitError{
+			Limit: SpawnLimitMaxActivePerWorkspace, Max: budget.MaxActivePerWorkspace,
+			Live: activeInWorkspace, Scope: targetWorkspaceID,
+		}
 	}
 	return nil
 }

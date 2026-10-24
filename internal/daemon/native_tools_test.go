@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
+
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -35,6 +37,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -737,6 +740,19 @@ type nativeOrchestrationSessionManager struct {
 	awaitStoppedFn func(context.Context, string) (session.StopOutcome, error)
 	waitFn         func(context.Context, session.WaitRequest) (session.WaitOutcome, error)
 	spawnFn        func(context.Context, session.SpawnOpts) (*session.Session, error)
+	spawnPromptFn  func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error)
+	spawnWsFn      func(context.Context, string, string) (string, error)
+}
+
+func (m *nativeOrchestrationSessionManager) ResolveSpawnWorkspace(
+	ctx context.Context,
+	parentSessionID string,
+	workspaceRef string,
+) (string, error) {
+	if m.spawnWsFn == nil {
+		return "", errors.New("unexpected ResolveSpawnWorkspace call")
+	}
+	return m.spawnWsFn(ctx, parentSessionID, workspaceRef)
 }
 
 type nativeCoreOnlySessionManager struct {
@@ -1082,6 +1098,16 @@ func (m *nativeOrchestrationSessionManager) Spawn(
 	return m.spawnFn(ctx, opts)
 }
 
+func (m *nativeOrchestrationSessionManager) SendSpawnPrompt(
+	ctx context.Context,
+	req session.SpawnPromptRequest,
+) (session.SendPromptResult, error) {
+	if m.spawnPromptFn == nil {
+		return session.SendPromptResult{}, errors.New("unexpected SendSpawnPrompt call")
+	}
+	return m.spawnPromptFn(ctx, req)
+}
+
 type nativeOrchestrationClarifyBroker struct {
 	answerFn func(
 		context.Context,
@@ -1269,6 +1295,129 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) apitest.
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+	t.Run("Should explain invalid monitor fields without creating a monitor or exposing input", func(t *testing.T) {
+		t.Parallel()
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeTestSessionManager("ws-1"),
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		for _, tc := range []struct{ name, input string }{
+			{"Should reject a missing monitor description", `{"kind":"timer","delay_seconds":5,"note":"secret-value"}`},
+			{"Should reject an overlong monitor description", `{"kind":"timer","delay_seconds":5,"description":"` + strings.Repeat("secret-value", 20) + `"}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(tc.input)})
+				detail, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || detail.Operator == nil || !strings.Contains(detail.Operator.Cause, "description") ||
+					strings.Contains(detail.Operator.Cause, "secret-value") {
+					t.Fatalf("monitor correction = %#v, want safe description guidance", detail)
+				}
+				encoded, marshalErr := json.Marshal(detail)
+				if marshalErr != nil {
+					t.Fatal(marshalErr)
+				}
+				if strings.Contains(string(encoded)+detail.Error(), "secret-value") {
+					t.Fatal("native monitor error exposed submitted input")
+				}
+				if len(service.List("sess-1")) != 0 {
+					t.Fatal("invalid input created a monitor")
+				}
+			})
+		}
+	})
+
+	t.Run("Should read assistant answers without hydrating tool payloads", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+			SessionID: "sess-answer", WorkspaceID: "ws-1",
+		}, filepath.Join(t.TempDir(), "events.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, turn := range []string{"turn-older", "turn-newer"} {
+			for _, event := range []store.SessionEvent{
+				{Type: acp.EventTypeToolResult, Content: `{"tool_call_id":"payload","raw":{"raw_output":"` + strings.Repeat("tool-output", 100000) + `"}}`},
+				{Type: acp.EventTypeAgentMessage, Content: `{"text":"Answer ` + turn + `: "}`},
+				{Type: acp.EventTypeAgentMessage, Content: `{"text":"café ready"}`},
+			} {
+				event.TurnID, event.AgentName = turn, "coder"
+				if err := db.Record(ctx, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		manager := &nativeSessionPageHealthManager{
+			StatusFn: nativeTestSessionManager("ws-1").StatusFn,
+			EventsFn: func(ctx context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if query.Type != acp.EventTypeAgentMessage {
+					t.Fatalf("answer read did not filter before storage: %#v", query)
+				}
+				return db.Query(ctx, query)
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+		}, nativeApproveAllPolicyInputs())
+		for _, tc := range []struct {
+			name, cursor, turn string
+			more               bool
+		}{
+			{"Should read the newest answer", "", "turn-newer", true},
+			{"Should read the previous answer", `,"before_sequence":5`, "turn-older", false},
+			{"Should page forward from the beginning", `,"after_sequence":0`, "turn-older", true},
+			{"Should page forward to the newest answer", `,"after_sequence":2`, "turn-newer", false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := registry.Call(ctx, toolspkg.Scope{SessionID: "sess-reader", WorkspaceID: "ws-1"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionHistory, Input: json.RawMessage(
+						`{"session_id":"sess-answer","type":"agent_message","limit":1` + tc.cursor + `}`)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload struct {
+					History []struct {
+						TurnID string `json:"turn_id"`
+						Events []struct {
+							Content struct {
+								Text string `json:"text"`
+							} `json:"content"`
+						} `json:"events"`
+					} `json:"history"`
+					Page nativeSessionPage `json:"page"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if result.Truncated || len(result.Artifacts) != 0 || len(result.Structured) > 4096 ||
+					len(payload.History) != 1 || payload.History[0].TurnID != tc.turn ||
+					len(payload.History[0].Events) != 2 || payload.Page.HasMore != tc.more {
+					t.Fatalf("answer page = %s, want complete inline answer for %s", result.Structured, tc.turn)
+				}
+				answer := payload.History[0].Events[0].Content.Text + payload.History[0].Events[1].Content.Text
+				if answer != "Answer "+tc.turn+": café ready" {
+					t.Fatalf("answer = %q", answer)
+				}
+			})
+		}
+	})
+
 	bundledSkills := newLoadedNativeSkillRegistry(t)
 
 	t.Run("Should expose the session-bound profile through read-only native tools [UT-073]", func(t *testing.T) {
@@ -1605,6 +1754,94 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report a failed stop-first archive as a structured conflict", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		stopErr := fmt.Errorf(
+			"%w: sess-123: %w",
+			session.ErrSessionArchiveStopFailed,
+			session.ErrStopVerificationFailed,
+		)
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			return nil, stopErr
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-123","stop":true}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeSessionArchiveStopFailed ||
+			!errors.Is(err, session.ErrSessionArchiveStopFailed) {
+			t.Fatalf("error = %#v, want session_archive_stop_failed wrapping the stop failure", err)
+		}
+	})
+
+	t.Run("Should deny a stop-first archive whose stop would cascade to the caller", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// sess-grandchild descends from sess-parent through a subagent and an auto-stop
+		// spawn link; sess-continued and sess-forked only name sess-parent as their source.
+		lineages := map[string]*store.SessionLineage{
+			"sess-grandchild": {ParentSessionID: "sess-child", SpawnRole: store.SubagentSpawnRole},
+			"sess-child":      {ParentSessionID: "sess-parent", AutoStopOnParent: true},
+			"sess-continued":  {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+			"sess-forked":     {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+			// A corrupt subagent cycle must end the walk, not loop.
+			"sess-loop-a": {ParentSessionID: "sess-loop-b", SpawnRole: store.SubagentSpawnRole},
+			"sess-loop-b": {ParentSessionID: "sess-loop-a", SpawnRole: store.SubagentSpawnRole},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		archived := 0
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			archived++
+			return &session.Info{ID: "sess-other", State: session.StateStopped}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-grandchild", AgentName: "coder"}
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-other","stop":true}`),
+		}); err != nil || archived != 1 {
+			t.Fatalf("stop-first archive of an unrelated session = %v, calls=%d, want one archive", err, archived)
+		}
+		// Archiving a continue/fork source never stops the derived caller.
+		for _, caller := range []string{"sess-continued", "sess-forked", "sess-loop-a"} {
+			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
+			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+			}); err != nil {
+				t.Fatalf("stop-first archive of the source from %s = %v, want allowed", caller, err)
+			}
+		}
+		if archived != 4 {
+			t.Fatalf("archive calls = %d, want 4", archived)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -1631,6 +1868,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self","wait":false}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{
+				toolspkg.ToolIDSessionArchive,
+				`{"session_id":"sess-self","stop":true}`,
+				toolspkg.ReasonSelfTargetDenied,
+			},
 			{
 				toolspkg.ToolIDSessionApprove,
 				`{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`,
@@ -2935,6 +3177,72 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	for _, profile := range []struct{ id, name string }{
+		{store.DefaultProfileID, "default"}, {"profile-design", "design"},
+	} {
+		t.Run("Should scope extension agent reads to session profile "+profile.name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newResourceCatalog(cloneAgentDef)
+			catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
+				ID:    "design:designer",
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design"},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-design"},
+				Spec:  compozyconfig.AgentDef{Name: "designer", Prompt: "Design"},
+			}, {
+				ID:    "design:workspace-designer",
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design"},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-design"},
+				Spec:  compozyconfig.AgentDef{Name: "workspace-designer", Prompt: "Design locally"},
+			}})
+			resolver := nativeTestWorkspaceService(t)
+			resolver.ResolveForProfileFn = func(_ context.Context, ref, name string) (workspacepkg.ResolvedWorkspace, error) {
+				if name != profile.name {
+					t.Fatalf("resolved profile = %q, want %q", name, profile.name)
+				}
+				return workspacepkg.ResolvedWorkspace{ID: ref, ProfileID: profile.id, ProfileName: name}, nil
+			}
+
+			for _, selection := range []struct {
+				name, workspace, input string
+				wantWorkspace          bool
+			}{
+				{"Should use caller workspace", "ws-design", `{}`, true},
+				{"Should recover session workspace", "", `{}`, true},
+				{"Should preserve explicit user scope", "", `{"workspace":"@user"}`, false},
+			} {
+				t.Run(selection.name, func(t *testing.T) {
+					t.Parallel()
+					registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+						HomePaths:  apitest.NewTestHomePaths(t),
+						Workspaces: resolver, WorkspaceResolver: resolver,
+						Sessions: nativeTestSessionManager("ws-design", profile.id),
+						Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
+							{ID: store.DefaultProfileID, Name: "default"}, {ID: "profile-design", Name: "design"},
+						}},
+						AgentCatalog: agentCatalogDependency(catalog),
+					}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+						&recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}})
+					result, err := registry.Call(t.Context(), toolspkg.Scope{
+						SessionID: "sess-design", AgentName: "coder", WorkspaceID: selection.workspace,
+					}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentList, Input: json.RawMessage(selection.input)})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if profile.name == "design" {
+						requireNativeStructuredContains(t, result, []byte(`"name":"designer"`))
+					} else {
+						requireNativeStructuredExcludes(t, result, []byte(`"name":"designer"`))
+					}
+					if selection.wantWorkspace {
+						requireNativeStructuredContains(t, result, []byte(`"name":"workspace-designer"`))
+					} else {
+						requireNativeStructuredExcludes(t, result, []byte(`"name":"workspace-designer"`))
+					}
+				})
+			}
+		})
+	}
+
 	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
 		t.Parallel()
 
@@ -2953,9 +3261,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			Present: true,
 		}}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			AgentCatalog: agents,
-			Vault:        secrets,
-			Workspaces:   nativeTestWorkspaceService(t),
+			AgentCatalog:      agents,
+			Vault:             secrets,
+			Workspaces:        nativeTestWorkspaceService(t),
+			WorkspaceResolver: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		agentResult, err := registry.Call(
@@ -3380,6 +3689,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		if exposures, present := viewedSkill["exposures"].([]any); !present || len(exposures) != 0 {
 			t.Fatalf("skill_view command_id exposures = %#v, want explicit empty list", viewedSkill["exposures"])
 		}
+		// Invariant: the command_id result validates against the advertised output schema while
+		// keeping the exact source identity under command_source.
+		view, err := registry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDSkillView)
+		if err != nil {
+			t.Fatalf("Registry.Get(skill_view) error = %v", err)
+		}
+		requireNativeOutputSchemaAccepts(t, view.Descriptor, result.Structured)
+		if source := viewedSkill["source"]; source != "bundled" {
+			t.Fatalf("skill_view command_id source = %#v, want bundled", source)
+		}
+		commandSource, ok := viewedSkill["command_source"].(map[string]any)
+		if !ok || commandSource["kind"] != "extension" || commandSource["id"] != "spec-cycle" {
+			t.Fatalf(
+				"skill_view command_id command_source = %#v, want extension spec-cycle",
+				viewedSkill["command_source"],
+			)
+		}
 	})
 
 	t.Run("Should report an unknown session skill command id as not found", func(t *testing.T) {
@@ -3798,7 +4124,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
 			t.Fatalf("AuthorizeCallInput(allow) error = %v", err)
 		}
-		if policy.calls != 1 || policy.last.TargetWorkspaceID != "ws-2" {
+		if policy.calls != 1 || policy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf("policy calls/request = %d/%#v, want foreign target", policy.calls, policy.last)
 		}
 
@@ -3952,7 +4278,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if daemonPolicy.calls != 1 ||
 			daemonPolicy.last.Actor.Kind != workspaceaccess.ActorDaemon ||
 			daemonPolicy.last.Actor.WorkspaceID != "ws-1" ||
-			daemonPolicy.last.TargetWorkspaceID != "ws-2" {
+			daemonPolicy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf(
 				"daemon foreign-workspace policy calls/request = %d/%#v, want daemon ws-1 to ws-2",
 				daemonPolicy.calls,
@@ -7739,8 +8065,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
 		var archiveTarget string
+		var archiveWithStopTarget string
 		var unarchiveTarget string
 		var renamedTarget string
+		var detachedTarget string
 		var renamedName string
 		renameCalls := 0
 		promptSubmitCalls := 0
@@ -7849,6 +8177,14 @@ func TestDaemonNativeTools(t *testing.T) {
 				archived.ArchivedAt = &archivedAt
 				return &archived, nil
 			},
+			ArchiveWithStopFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				archiveWithStopTarget = workspaceID + "/" + id
+				archived := *info
+				archived.State = session.StateStopped
+				archivedAt := now.Add(time.Minute)
+				archived.ArchivedAt = &archivedAt
+				return &archived, nil
+			},
 			UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 				unarchiveTarget = workspaceID + "/" + id
 				restored := *info
@@ -7862,6 +8198,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				renamed := *info
 				renamed.Name = name
 				return &renamed, nil
+			},
+			DetachSessionFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				detachedTarget = workspaceID + "/" + id
+				detached := *info
+				detached.Lineage = &store.SessionLineage{RootSessionID: id}
+				return &detached, nil
 			},
 			SetRuntimeSelectionFn: func(
 				_ context.Context,
@@ -8750,7 +9092,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input: json.RawMessage(
 					`{"workspace":"ws-stable","worktree":"wt-filtered","state":"active","type":"user","agent":"coder","q":"review",` +
 						`"resumable":true,"archive":"only","include_health":true,"sort":"last_activity",` +
-						`"cursor":"cursor-prev","limit":2}`,
+						`"cursor":"cursor-prev","limit":2,"board_column":["needs_you"],"children":"exclude"}`,
 				),
 			},
 		)
@@ -8764,7 +9106,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
 			!seenListQuery.Resumable || seenListQuery.Archive != session.ArchiveOnly ||
 			seenListQuery.Sort != "last_activity" ||
-			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 {
+			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 ||
+			!seenListQuery.HideChildren || !slices.Equal(seenListQuery.Columns, []string{"needs_you"}) {
 			t.Fatalf("session list query = %#v, want full paged filter parity", seenListQuery)
 		}
 		var listResponse contract.SessionCatalogResponse
@@ -8787,6 +9130,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("session_list health = %#v, want nested page health", health)
 		}
 
+		_, invalidColumnErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionList,
+			Input:  json.RawMessage(`{"workspace":"ws-stable","board_column":["blocked"]}`),
+		})
+		if !errors.Is(invalidColumnErr, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("invalid board column = %v", invalidColumnErr)
+		}
+
 		t.Run("Should archive a session", func(t *testing.T) {
 			result, callErr := registry.Call(
 				t.Context(),
@@ -8800,6 +9151,23 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("Registry.Call(session_archive) error = %v", callErr)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"archived_at":"`))
+		})
+		t.Run("Should stop and archive a live session when the input opts in", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionArchive,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","stop":true}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_archive stop) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"state":"stopped"`))
+			if archiveWithStopTarget != "ws-1/sess-1" {
+				t.Fatalf("archive-with-stop target = %q, want ws-1/sess-1", archiveWithStopTarget)
+			}
 		})
 		t.Run("Should unarchive a session", func(t *testing.T) {
 			result, callErr := registry.Call(
@@ -8857,6 +9225,77 @@ func TestDaemonNativeTools(t *testing.T) {
 		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
 			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)
 		}
+		t.Run("Should make a session top-level and refuse ambiguous reparent input", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","top_level":true}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_reparent) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"root_session_id":"sess-1"`))
+			if detachedTarget != "ws-1/sess-1" {
+				t.Fatalf("detach target = %q, want ws-1/sess-1", detachedTarget)
+			}
+			for _, input := range []string{
+				`{"workspace":"ws-stable","session_id":"sess-1"}`,
+				`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-2","top_level":true}`,
+			} {
+				_, callErr = registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionReparent, Input: json.RawMessage(input)},
+				)
+				if !errors.Is(callErr, toolspkg.ErrToolInvalidInput) {
+					t.Fatalf("Registry.Call(session_reparent %s) error = %v, want invalid input", input, callErr)
+				}
+			}
+		})
+
+		t.Run("Should preserve reparent refusal codes through the registry", func(t *testing.T) {
+			original := manager.DetachSessionFn
+			t.Cleanup(func() { manager.DetachSessionFn = original })
+			for _, reason := range []session.ReparentRefusal{
+				session.ReparentRefusalNotDetachable, session.ReparentRefusalCrossWorkspace,
+			} {
+				manager.DetachSessionFn = func(context.Context, string, string) (*session.Info, error) {
+					return nil, &session.ReparentError{Reason: reason, SessionID: "sess-1", Detail: "refused"}
+				}
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","top_level":true}`),
+				})
+				got, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || string(got.Code) != "session_reparent_"+string(reason) {
+					t.Fatalf("Registry.Call() error = %v, want refusal %s", err, reason)
+				}
+			}
+		})
+		t.Run("Should fence both reparent targets to the effective profile", func(t *testing.T) {
+			original := manager.StatusFn
+			t.Cleanup(func() { manager.StatusFn = original })
+			for _, foreignID := range []string{"sess-1", "sess-parent"} {
+				manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+					target := *info
+					target.ID = id
+					if id == foreignID {
+						target.ProfileID = "profile-foreign"
+					}
+					return &target, nil
+				}
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input: json.RawMessage(
+						`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-parent"}`,
+					),
+				})
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			}
+		})
 		if renamedTarget != "ws-1/sess-1" || renamedName != "Release review" {
 			t.Fatalf("rename request = %q/%q, want ws-1/sess-1 and Release review", renamedTarget, renamedName)
 		}
@@ -9175,6 +9614,64 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				requireNativeStructuredContains(t, result, tc.want)
 			})
+		}
+	})
+
+	t.Run("Should list the other workspaces a bound session may address", func(t *testing.T) {
+		t.Parallel()
+
+		workspaces := apitest.StubWorkspaceService{
+			ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+				return []workspacepkg.Workspace{
+					{ID: "ws-a", RootDir: "/workspace/a", Name: "a"},
+					{ID: "ws-b", RootDir: "/workspace/b", Name: "b"},
+				}, nil
+			},
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "stable-a" && ref != "ws-a" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					ID: "ws-a", RootDir: "/workspace/a", Name: "a", WorkspaceID: "stable-a",
+				}, nil
+			},
+		}
+		for _, tt := range []struct {
+			name    string
+			allowed bool
+		}{
+			{name: "approve-all", allowed: true},
+			{name: "deny-all", allowed: false},
+		} {
+			policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: tt.allowed}}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: apitest.StubSessionManager{
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						return &session.Info{
+							ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder",
+							WorkspaceID: "stable-a", State: session.StateActive,
+						}, nil
+					},
+				},
+				Workspaces:      workspaces,
+				WorkspaceAccess: policy,
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sess-a", WorkspaceID: "stable-a", AgentName: "coder"},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceList, Input: json.RawMessage(`{}`)},
+			)
+			if err != nil {
+				t.Fatalf("%s: Registry.Call(workspace_list) error = %v", tt.name, err)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"id":"ws-a"`))
+			if got := bytes.Contains(result.Structured, []byte(`"id":"ws-b"`)); got != tt.allowed {
+				t.Fatalf("%s: workspace_list = %s, want ws-b listed = %t", tt.name, result.Structured, tt.allowed)
+			}
+			if policy.last.Seam != workspaceaccess.SeamCatalog || policy.last.Target.WorkspaceID != "ws-b" ||
+				policy.last.Actor.SessionID != "sess-a" {
+				t.Fatalf("%s: access request = %#v, want catalog seam for ws-b", tt.name, policy.last)
+			}
 		}
 	})
 
@@ -13977,4 +14474,677 @@ func TestNativeSessionLayoutTools(t *testing.T) {
 			t.Fatalf("layout scope after denied move = %#v, want no call outside ws-1", sessions.scope)
 		}
 	})
+}
+
+func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
+	t.Parallel()
+
+	const workspaceID = "ws-orchestration"
+	const callerID = "sess-caller"
+	ttl := time.Date(2026, 8, 16, 18, 0, 0, 0, time.UTC)
+	newManager := func(spawn func(session.SpawnOpts) (*session.Session, error)) *nativeOrchestrationSessionManager {
+		base := nativeTestSessionManager(workspaceID)
+		base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			if strings.TrimSpace(id) != callerID {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID: callerID, ProfileID: store.DefaultProfileID, AgentName: "creator",
+				WorkspaceID: workspaceID, State: session.StateActive,
+			}, nil
+		}
+		return &nativeOrchestrationSessionManager{
+			StubSessionManager: base,
+			spawnFn:            func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) { return spawn(opts) },
+		}
+	}
+	child := func(opts session.SpawnOpts) *session.Session {
+		return &session.Session{
+			ID: "sess-child", AgentName: opts.AgentName, WorkspaceID: workspaceID, WorktreeID: opts.IsolatedWorktreeID,
+			State: session.StateActive, Type: session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: callerID, RootSessionID: callerID, SpawnDepth: 1, SpawnRole: "worker",
+				TTLExpiresAt: &ttl, PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__read"}},
+			},
+		}
+	}
+	scope := toolspkg.Scope{WorkspaceID: workspaceID, SessionID: callerID, AgentName: "creator"}
+
+	t.Run("Should bind a new worktree, inherit permissions, and send the first prompt", func(t *testing.T) {
+		t.Parallel()
+
+		var spawnOpts session.SpawnOpts
+		var createOpts worktree.CreateOptions
+		var promptReq session.SpawnPromptRequest
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = opts
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
+			if parent != callerID || (ref != "" && ref != workspaceID) {
+				t.Fatalf("ResolveSpawnWorkspace(%q, %q), want caller and parent workspace", parent, ref)
+			}
+			return workspaceID, nil
+		}
+		manager.spawnPromptFn = func(_ context.Context, req session.SpawnPromptRequest) (session.SendPromptResult, error) {
+			promptReq = req
+			return session.SendPromptResult{
+				MessageID: session.SpawnPromptMessageID(req.ChildSessionID), Status: "accepted",
+				ReplyWatch: &session.ReplyWatchRef{ID: "rw-1", State: "armed"},
+			}, nil
+		}
+		worktrees := &nativeWorktreeServiceStub{create: func(
+			_ context.Context, ws string, opts worktree.CreateOptions,
+		) (*worktree.Worktree, error) {
+			if ws != workspaceID {
+				t.Fatalf("CreateReady() workspace = %q, want %q", ws, workspaceID)
+			}
+			createOpts = opts
+			return &worktree.Worktree{
+				ID:          "wt-new",
+				Name:        "feature-auth",
+				Branch:      "feat/auth",
+				Path:        "/wt/feature-auth",
+				CreatedHead: "abc123",
+			}, nil
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: worktrees,
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"inherit_permissions":true,` +
+				`"skills":[],"toolsets":["compozy__sessions"],` +
+				`"new_worktree":{"name":"feature-auth","base_ref":"main","branch":"feat/auth"},` +
+				`"prompt":"Implement auth and commit."}`),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %v", err)
+		}
+		if createOpts.Name != "feature-auth" || createOpts.BaseRef != "main" || createOpts.Branch != "feat/auth" ||
+			createOpts.Origin != worktree.OriginManual {
+			t.Fatalf("CreateReady() opts = %#v", createOpts)
+		}
+		if spawnOpts.IsolatedWorktreeID != "wt-new" || !spawnOpts.InheritPermissions ||
+			!slices.Equal(spawnOpts.Toolsets, []string{"compozy__sessions"}) ||
+			spawnOpts.PermissionNarrowing == nil || spawnOpts.PermissionNarrowing.Skills == nil ||
+			spawnOpts.PermissionNarrowing.Tools != nil {
+			t.Fatalf("Spawn() opts = %#v, want bound worktree, inheritance, and nil-preserving narrowing", spawnOpts)
+		}
+		if promptReq.ParentSessionID != callerID || promptReq.ChildSessionID != "sess-child" ||
+			promptReq.Message != "Implement auth and commit." || promptReq.ParentAgentName != "creator" {
+			t.Fatalf("SendSpawnPrompt() request = %#v", promptReq)
+		}
+		for _, want := range []string{
+			`"worktree":{"id":"wt-new","name":"feature-auth","branch":"feat/auth","path":"/wt/feature-auth",` +
+				`"base_sha":"abc123","created":true}`,
+			`"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1"`,
+			`"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]}`,
+		} {
+			requireNativeStructuredContains(t, result, []byte(want))
+		}
+	})
+
+	t.Run("Should roll back a created worktree when the spawn is refused", func(t *testing.T) {
+		t.Parallel()
+
+		removed := ""
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			return nil, &session.SpawnPermissionError{
+				Field: "workspace_paths", Value: "/elsewhere", Rule: session.SpawnPermissionRuleSubset,
+			}
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		worktrees := &nativeWorktreeServiceStub{
+			create: func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error) {
+				return &worktree.Worktree{ID: "wt-new", Name: "feature"}, nil
+			},
+			remove: func(_ context.Context, _ string, id string, force bool) (*worktree.RemovalRefusal, error) {
+				if !force {
+					t.Fatalf("Remove(%q) force = false, want forced rollback", id)
+				}
+				removed = id
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: worktrees,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,` +
+				`"workspace_paths":["/elsewhere"],"new_worktree":{}}`),
+		})
+		if removed != "wt-new" {
+			t.Fatalf("rolled back worktree = %q, want wt-new", removed)
+		}
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeDenied || toolErr.Operator == nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %#v, want denied operator failure", err)
+		}
+		if !strings.Contains(toolErr.Operator.Cause, `workspace_paths value "/elsewhere"`) ||
+			!strings.Contains(toolErr.Operator.Cause, session.SpawnPermissionRuleSubset) ||
+			!strings.Contains(toolErr.Operator.Recovery, "new_worktree") {
+			t.Fatalf("operator failure = %#v, want field, value, rule, and worktree recovery", toolErr.Operator)
+		}
+		details := core.ToolErrorResponseForError(err, 403, false).Error.Details
+		if _, ok := details[contract.ToolOperatorCauseDetailKey]; !ok {
+			t.Fatalf("tool error details = %#v, want operator cause", details)
+		}
+	})
+
+	t.Run("Should bind a worktree of another workspace only after authorizing it", func(t *testing.T) {
+		t.Parallel()
+
+		const foreignID = "ws-compozy"
+		var spawnOpts session.SpawnOpts
+		deny := true
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			spawnOpts = opts
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(_ context.Context, parent string, ref string) (string, error) {
+			if parent != callerID || ref == "" {
+				t.Fatalf("ResolveSpawnWorkspace(%q, %q), want caller and requested workspace", parent, ref)
+			}
+			if deny {
+				return "", fmt.Errorf(
+					"%w: child workspace is outside the parent workspace",
+					session.ErrSpawnPermissionDenied,
+				)
+			}
+			return foreignID, nil
+		}
+		resolvedIn := ""
+		worktrees := &nativeWorktreeServiceStub{resolve: func(
+			_ context.Context, ws string, ref string,
+		) (*worktree.Worktree, error) {
+			resolvedIn = ws
+			return &worktree.Worktree{ID: "wt-foreign", Name: ref, WorkspaceID: ws}, nil
+		}}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: worktrees,
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			&recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}})
+		call := func() error {
+			_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSpawn,
+				Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"workspace":"` + foreignID +
+					`","worktree":"spawn-orchestration"}`),
+			})
+			return err
+		}
+		if err := call(); !errors.Is(err, session.ErrSpawnPermissionDenied) || resolvedIn != "" {
+			t.Fatalf(
+				"denied spawn error = %v, worktree looked up in %q; want denial before any lookup",
+				err,
+				resolvedIn,
+			)
+		}
+		deny = false
+		if err := call(); err != nil {
+			t.Fatalf("Registry.Call(session_spawn foreign) error = %v", err)
+		}
+		if resolvedIn != foreignID || spawnOpts.Workspace != foreignID || spawnOpts.IsolatedWorktreeID != "wt-foreign" {
+			t.Fatalf(
+				"foreign spawn looked up in %q with opts %#v, want worktree of %q",
+				resolvedIn,
+				spawnOpts,
+				foreignID,
+			)
+		}
+	})
+
+	t.Run("Should report an exhausted spawn budget with its cap and live count", func(t *testing.T) {
+		t.Parallel()
+
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			return nil, &session.SpawnLimitError{
+				Limit: session.SpawnLimitMaxChildren, Max: 5, Live: 5, Scope: callerID,
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn, Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600}`),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSpawnBudgetExhausted) ||
+			slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonConflictedID) || toolErr.Operator == nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %#v, want spawn_budget_exhausted", err)
+		}
+		if !strings.Contains(toolErr.Operator.Cause, "max_children 5") ||
+			!strings.Contains(toolErr.Operator.Cause, "5 live spawned sessions") {
+			t.Fatalf("operator cause = %q, want cap and live count", toolErr.Operator.Cause)
+		}
+	})
+
+	t.Run("Should keep a live child's worktree and report a failed first prompt", func(t *testing.T) {
+		t.Parallel()
+
+		removed := ""
+		hookFailure := true
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			if hookFailure {
+				return child(opts), errors.New("spawn.created hook failed")
+			}
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		manager.spawnPromptFn = func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error) {
+			return session.SendPromptResult{}, errors.New("input hook refused the prompt")
+		}
+		worktrees := &nativeWorktreeServiceStub{
+			create: func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error) {
+				return &worktree.Worktree{ID: "wt-new", Name: "feature"}, nil
+			},
+			remove: func(_ context.Context, _ string, id string, _ bool) (*worktree.RemovalRefusal, error) {
+				removed = id
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: worktrees,
+		}, nativeApproveAllPolicyInputs())
+		call := func() (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSpawn,
+				Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"new_worktree":{},` +
+					`"prompt":"Do the task."}`),
+			})
+		}
+		if _, err := call(); err == nil || !strings.Contains(err.Error(), "spawn.created hook failed") ||
+			removed != "" {
+			t.Fatalf("spawn with live child error = %v removed = %q, want error and kept worktree", err, removed)
+		}
+		hookFailure = false
+		result, err := call()
+		if err != nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %v, want the child payload with a failed prompt", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"session_id":"sess-child"`))
+		requireNativeStructuredContains(t, result, []byte(
+			`"prompt":{"message_id":"spawn-prompt-sess-child","status":"failed","error":"input hook refused the prompt"}`,
+		))
+		if removed != "" {
+			t.Fatalf("removed worktree %q after a failed first prompt, want the child's checkout kept", removed)
+		}
+	})
+
+	t.Run("Should refuse worktree and new_worktree together before spawning", func(t *testing.T) {
+		t.Parallel()
+
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			t.Fatal("Spawn() called for conflicting worktree selectors")
+			return nil, nil
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: &nativeWorktreeServiceStub{},
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"worktree":"wt-a",` +
+				`"new_worktree":{"name":"b"}}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+}
+
+func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
+	t.Parallel()
+
+	descriptors := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptors[descriptor.ID] = descriptor
+	}
+	// Invariant: native session mutation/read results validate against their advertised output schema.
+	startedAt := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	nextAttemptAt := startedAt.Add(30 * time.Second)
+	createdAt := startedAt.Add(-time.Hour)
+	boolValue := true
+	withProvider := func(info *session.Info) *session.Info {
+		info.Provider = "codex"
+		info.Model = "gpt-6"
+		info.ReasoningEffort = "high"
+		info.Speed = speedpkg.SpeedFast
+		info.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "sandbox", BoolValue: &boolValue}}
+		info.SelectedRuntime = &session.RuntimeSelection{Provider: "codex", Model: "gpt-6"}
+		info.RuntimeSelectionRevision = 2
+		return info
+	}
+	base := func(status session.RuntimeStatus) *session.Info {
+		return &session.Info{
+			ID:            "sess-1",
+			Name:          "worker",
+			AgentName:     "codex",
+			WorkspaceID:   "ws-1",
+			RuntimeStatus: status,
+			State:         session.StateActive,
+			CreatedAt:     createdAt,
+			UpdatedAt:     startedAt,
+		}
+	}
+	recovering := withProvider(base(session.RuntimeStatusRecovering))
+	recovering.RuntimeTransition = session.RuntimeTransitionAutomaticRecovery
+	recovering.RuntimeGeneration = 3
+	recovering.RuntimeRecovery = &store.SessionRuntimeRecovery{
+		Attempt:       1,
+		MaxAttempts:   3,
+		Generation:    4,
+		StartedAt:     startedAt,
+		LastAttemptAt: startedAt,
+		NextAttemptAt: &nextAttemptAt,
+		LastError:     "provider exited",
+	}
+	ready := withProvider(base(session.RuntimeStatusReady))
+	ready.RuntimeTransition = session.RuntimeTransitionInitialBind
+	ready.RuntimeGeneration = 1
+	ready.ACPSessionID = "acp-1"
+	ready.ACPCapsKnown = true
+	unbound := base(session.RuntimeStatusUnbound)
+	unbound.State = session.StateStarting
+
+	const recoveringCase = "Should accept a recovering session with last-known runtime"
+	cases := map[string]*session.Info{
+		recoveringCase: recovering,
+		"Should accept a ready session with effective runtime": ready,
+		"Should accept an unbound session before first bind":   unbound,
+	}
+	toolIDs := []toolspkg.ToolID{
+		toolspkg.ToolIDSessionCreate,
+		toolspkg.ToolIDSessionStatus,
+		toolspkg.ToolIDSessionRename,
+		toolspkg.ToolIDSessionArchive,
+		toolspkg.ToolIDSessionRuntimeSet,
+		toolspkg.ToolIDSessionRuntimeClear,
+	}
+	for name, info := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			envelope, err := json.Marshal(map[string]any{"session": core.SessionPayloadFromInfo(info)})
+			if err != nil {
+				t.Fatalf("marshal session envelope error = %v", err)
+			}
+			if name == recoveringCase && !strings.Contains(string(envelope), `"last_known"`) {
+				t.Fatalf("envelope %s, want last_known runtime", envelope)
+			}
+			for _, toolID := range toolIDs {
+				requireNativeOutputSchemaAccepts(t, descriptors[toolID], envelope)
+			}
+		})
+	}
+}
+
+func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload []byte) {
+	t.Helper()
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))
+	if err != nil {
+		t.Fatalf("%s output schema parse error = %v", descriptor.ID, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	resource := descriptor.ID.String() + "-output.json"
+	if err := compiler.AddResource(resource, schema); err != nil {
+		t.Fatalf("%s output schema add error = %v", descriptor.ID, err)
+	}
+	compiled, err := compiler.Compile(resource)
+	if err != nil {
+		t.Fatalf("%s output schema compile error = %v", descriptor.ID, err)
+	}
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s payload parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err != nil {
+		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
+	}
+}
+
+func TestNativeUserWorkspaceReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should parse User before registry lookup and authorize a typed User target", func(t *testing.T) {
+		t.Parallel()
+		descriptor := toolspkg.Descriptor{
+			ID:          toolspkg.ToolIDWorkspaceDescribe,
+			Backend:     toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`),
+		}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		sessions := apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			return &session.Info{ID: "sess-user", ProfileID: "p1", State: session.StateActive}, nil
+		}}
+		binder := newNativeWorkspaceInputBinder(nil, sessions, policy, nil)
+		scope := toolspkg.Scope{SessionID: "sess-user", ProfileID: "p1"}
+		input, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(`{"workspace":"@user"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(input) != `{"workspace":"@user"}` {
+			t.Fatalf("bound input = %s", input)
+		}
+		if err := binder.AuthorizeCallInput(
+			t.Context(),
+			scope,
+			descriptor,
+			toolspkg.CallRequest{Input: input},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if policy.calls != 1 || policy.last.Target != workspaceaccess.ScopeTarget(workspaceaccess.UserSelector, "p1") ||
+			policy.last.Actor.WorkspaceID != "" {
+			t.Fatalf("User policy request = %#v", policy.last)
+		}
+	})
+}
+
+func TestNativeUserSession(t *testing.T) {
+	t.Run("Should accept explicit User creation without project resolution", func(t *testing.T) {
+		t.Parallel()
+		var accepted *session.CreateAcceptedOpts
+		manager := &nativeSessionPageHealthManager{
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{
+					ID:        "session-user",
+					ProfileID: opts.Session.ProfileID,
+					AgentName: "general",
+					State:     session.StateActive,
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeUserWorkspaceService{
+				StubWorkspaceService: apitest.StubWorkspaceService{},
+			},
+			Sessions: manager,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate, Input: json.RawMessage(`{"agent":"general","workspace":"@user"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.Scope != workspacepkg.ScopeUser || accepted.Session.Workspace != "" ||
+			accepted.Session.ProfileID != store.DefaultProfileID {
+			t.Fatalf("accepted=%+v", accepted)
+		}
+	})
+}
+
+type nativeUserWorkspaceService struct{ apitest.StubWorkspaceService }
+
+func (nativeUserWorkspaceService) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profileID}, nil
+}
+
+func TestNativeWindowGlobalPartition(t *testing.T) {
+	t.Run("Should bind operator global before registry resolution and deny agents", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:       nativeTestSessionManager("workspace-a"),
+				WindowManagers: fixture.registry,
+				Workspaces:     fixture.resolver,
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		request := toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowOpen,
+			Input: json.RawMessage(
+				`{"workspace":"global","expected_revision":0,"window_id":"global-window","app":"session","desktop_id":"desktop-default","route":{"pathname":"/sessions","search":{"workspace":"@user"}}}`,
+			),
+		}
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID},
+			request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var opened windowManagerCommandResult
+		if err := json.Unmarshal(result.Structured, &opened); err != nil {
+			t.Fatal(err)
+		}
+		if opened.WorkspaceID != windowmanager.GlobalDesktopWorkspaceID || !opened.Applied {
+			t.Fatalf("result = %#v", opened)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				WorkspaceID: "workspace-a",
+				SessionID:   "session-a",
+				AgentName:   "agent-a",
+				ProfileID:   testWindowManagerProfileID,
+			},
+			request,
+		)
+		if !errors.Is(err, toolspkg.ErrToolDenied) {
+			t.Fatalf("agent global error = %v", err)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorkspaceDescribe,
+				Input:  json.RawMessage(`{"workspace":"global"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("non-WM global error = %v", err)
+		}
+	})
+}
+
+func TestNativeGrantSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should select another profile and retain the authenticated creator ceiling", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingNativeWorkspaceAccessPolicy{
+			decision: workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant},
+		}
+		var accepted *session.CreateAcceptedOpts
+		manager := apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                       "creator",
+					ProfileID:                "p1",
+					AgentName:                "coder",
+					State:                    session.StateActive,
+					EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
+				}, nil
+			},
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{ID: "child", ProfileID: opts.Session.ProfileID, State: session.StateActive}, nil
+			},
+		}
+		deps := &daemonNativeToolsDeps{
+			Sessions:        manager,
+			Workspaces:      nativeUserWorkspaceService{},
+			WorkspaceAccess: policy,
+			Profiles: nativeProfileReaderStub{
+				profiles: []profilepkg.WithCounts{
+					{ID: "p1", Name: "one", State: profilepkg.StateActive},
+					{ID: "p2", Name: "two", State: profilepkg.StateActive},
+				},
+			},
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+			t,
+			deps,
+			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			policy,
+		)
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "creator", ProfileID: "p1", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input:  json.RawMessage(`{"agent":"general","workspace":"@user","profile":"two"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.ProfileID != "p2" ||
+			accepted.Session.Origin.Kind != workspaceaccess.ActorAgentSession ||
+			accepted.Session.Origin.Ceiling != workspaceaccess.Unrestricted {
+			t.Fatalf("accepted = %+v", accepted)
+		}
+		if policy.last.Target.ProfileID != "p2" || policy.last.Target.Kind != workspaceaccess.TargetUser {
+			t.Fatalf("profile authorization = %+v", policy.last)
+		}
+	})
+}
+
+func TestNativeUserLogSelection(t *testing.T) {
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDListLogs, toolspkg.ToolIDObserveSearch} {
+		t.Run(string(toolID), func(t *testing.T) {
+			t.Parallel()
+			observer := &nativeObserverStub{}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Observer: observer, Sessions: nativeTestSessionManager("ws-1"),
+				Workspaces: nativeUserWorkspaceService{},
+			}, nativeApproveAllPolicyInputs())
+			input := json.RawMessage(`{"workspace":"@user"}`)
+			if toolID == toolspkg.ToolIDObserveSearch {
+				input = json.RawMessage(`{"workspace":"@user","query":"audit"}`)
+			}
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true, ProfileID: "profile-user"},
+				toolspkg.CallRequest{
+					ToolID: toolID, Input: input,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if observer.lastEventQuery.WorkspaceID != workspaceaccess.UserSelector ||
+				observer.lastEventQuery.ReadScope.ProfileID != "profile-user" {
+				t.Fatalf("User event query lost its workspace or profile filter: %+v", observer.lastEventQuery)
+			}
+		})
+	}
+}
+
+func (s nativeProfileReaderStub) ListIdentities(ctx context.Context) ([]profilepkg.Profile, error) {
+	items, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]profilepkg.Profile, 0, len(items))
+	for _, item := range items {
+		profiles = append(profiles, item.Profile)
+	}
+	return profiles, nil
 }

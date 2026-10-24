@@ -23,6 +23,7 @@ import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { SessionSidebar } from "../session-sidebar";
+import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
 
 const meta: Meta<typeof SessionSidebar> = {
   title: "systems/session/components/SessionSidebar",
@@ -32,7 +33,7 @@ const meta: Meta<typeof SessionSidebar> = {
     docs: {
       description: {
         component:
-          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the trailing chip and fold share line 2.",
+          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the branch toggle share line 2.",
       },
     },
   },
@@ -59,27 +60,19 @@ type Story = StoryObj<typeof meta>;
  */
 export const ProvenanceThreads: Story = {
   args: {
-    view: {
-      scope: "workspace",
+    view: sessionListViewFixture({
       sort: "last_activity",
-      archived: false,
-      saving: false,
-      setScope: fn(),
       setSort: fn(),
       setArchived: fn(),
-      workspaceGroups: [],
-      collapsedWorkspaceIds: new Set(),
-      toggleWorkspace: fn(),
-      aggregate: false,
-      scopeLabel: "default",
       ownerOf: () => ({ id: "default", name: "default", archived: false }),
-    },
+    }),
     open: true,
     sessions: PROVENANCE_FAMILY,
     disconnected: false,
     collapsedThreadIds: [],
+    subagentThreadIds: [],
     currentSessionId: "sess-migration",
-    onToggleThread: fn(),
+    onThreadBranchChange: fn(),
     onSelectSession: fn(),
     onNewSession: fn(),
     sessionActions: {
@@ -199,8 +192,9 @@ export const SelectionFolderMenu: Story = {
 
 /**
  * Subagents (nav VC-02): subagent sessions take no rows; each parent carries one
- * chip — attention, delegated while its turn is idle, or the failed total — and
- * plain spawned children keep their thread.
+ * subagent indicator — attention, delegated while its turn is idle, the failed
+ * total, or a quiet count once all settled — and plain spawned children keep
+ * their thread.
  */
 export const SubagentParents: Story = {
   args: {
@@ -241,7 +235,7 @@ export const StableSortMenu: Story = {
   args: CreatedOrder.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Sort sessions" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Sort by: Created" }));
     await expect(
       await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", {
         name: "Created",

@@ -25,7 +25,10 @@ type skillExposureOperation struct {
 	configGeneration int64
 }
 
-const workspaceScopeValue = "workspace"
+const (
+	workspaceScopeValue = "workspace"
+	userScopeValue      = "user"
+)
 
 // ExposeSkill creates provider-root links for one skill.
 func (h *BaseHandlers) ExposeSkill(c *gin.Context) {

@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@compozy/ui";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import type { LoopRunGroup } from "../../lib/loop-runs-view";
 import { LoopRunRow } from "./loop-run-row";
@@ -18,11 +19,16 @@ interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children">
   group: LoopRunGroup;
   /** Resolves each run's owner. Absent in a scoped list — no tags there. */
   ownerOf?: (run: ProfileOwnerLabel) => ProfileOwner;
+  /** Resolves each run's project under All projects; absent in a one-project list. */
+  projectOf?: (workspaceId: string) => WorkspaceBadgeIdentity;
   nowMs: number;
 }
 
-/** The roster's closed column set; a sixth column is a design decision, not a typo. */
-type LoopRunColumnKey = "loop" | "status" | "progress" | "started" | "duration";
+/**
+ * The roster's closed column set; a further column is a design decision, not a
+ * typo. Project is the All projects listing's identity column (`_uiux.md` S5).
+ */
+type LoopRunColumnKey = "loop" | "project" | "status" | "progress" | "started" | "duration";
 
 interface LoopRunColumn {
   key: LoopRunColumnKey;
@@ -46,8 +52,18 @@ const COLUMNS: readonly LoopRunColumn[] = [
  * icon beside every group heading is decoration rather than wayfinding. Groups arrive
  * already ranked by the daemon, so this renders the order it is handed.
  */
-export function LoopRunsTable({ group, ownerOf, nowMs, className, ...props }: LoopRunsTableProps) {
+const PROJECT_COLUMN: LoopRunColumn = { key: "project", label: "Project" };
+
+export function LoopRunsTable({
+  group,
+  ownerOf,
+  projectOf,
+  nowMs,
+  className,
+  ...props
+}: LoopRunsTableProps) {
   const headingId = `loop-runs-group-${group.id}-heading`;
+  const columns = projectOf ? [COLUMNS[0], PROJECT_COLUMN, ...COLUMNS.slice(1)] : COLUMNS;
   return (
     <section
       aria-labelledby={headingId}
@@ -64,7 +80,7 @@ export function LoopRunsTable({ group, ownerOf, nowMs, className, ...props }: Lo
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              {COLUMNS.map(column => (
+              {columns.map(column => (
                 <TableHead className={column.className} key={column.key}>
                   {column.label}
                 </TableHead>
@@ -73,7 +89,13 @@ export function LoopRunsTable({ group, ownerOf, nowMs, className, ...props }: Lo
           </TableHeader>
           <TableBody>
             {group.rows.map(row => (
-              <LoopRunRow key={row.run.id} nowMs={nowMs} owner={ownerOf?.(row.run)} row={row} />
+              <LoopRunRow
+                key={row.run.id}
+                nowMs={nowMs}
+                owner={ownerOf?.(row.run)}
+                project={projectOf?.(row.run.workspace_id)}
+                row={row}
+              />
             ))}
           </TableBody>
         </Table>

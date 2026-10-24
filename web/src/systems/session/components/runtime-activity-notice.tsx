@@ -15,7 +15,9 @@ import {
   isQueueRemovalMarker,
   isRuntimeActivityEvent,
   isSessionErrorEvent,
+  isSilentTranscriptMarker,
   isTranscriptMarkerEvent,
+  markerFromEvent,
 } from "@/systems/session/lib/runtime-activity-notice";
 
 function formatDuration(seconds: number | undefined): string | null {
@@ -96,33 +98,6 @@ function sessionErrorDescription(event: AgentEventPayload): string {
   );
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function markerFromEvent(event: AgentEventPayload): TranscriptMarkerPayload | null {
-  if (event.marker) {
-    return event.marker;
-  }
-  if (!isRecord(event.raw)) {
-    return null;
-  }
-  const kind = typeof event.raw.kind === "string" ? event.raw.kind : event.title;
-  const summary = typeof event.raw.summary === "string" ? event.raw.summary : event.text;
-  const occurredAt =
-    typeof event.raw.occurred_at === "string" ? event.raw.occurred_at : event.timestamp;
-  if (!hasText(kind) || !hasText(summary) || !hasText(occurredAt)) {
-    return null;
-  }
-  return {
-    kind,
-    summary,
-    occurred_at: occurredAt,
-    evidence: isRecord(event.raw.evidence) ? event.raw.evidence : undefined,
-    diagnostic: event.raw.diagnostic,
-  };
-}
-
 function markerTone(marker: TranscriptMarkerPayload | null) {
   const kind = marker?.kind ?? "";
   if (kind.includes("failure") || kind.includes("interrupted")) {
@@ -140,20 +115,6 @@ function markerTone(marker: TranscriptMarkerPayload | null) {
     return "info" as const;
   }
   return "warning" as const;
-}
-
-function isOperationalPromptKind(kind: string | undefined): boolean {
-  const value = kind ?? "";
-  return [
-    "prompt_accepted",
-    "prompt_queued",
-    "prompt_steered",
-    "prompt_interrupted",
-    "prompt_dropped",
-    "prompt_cancel",
-    "prompt_canceled",
-    "prompt_cancelled",
-  ].some(operation => value.includes(operation));
 }
 
 function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPayload): string {
@@ -268,7 +229,7 @@ function TranscriptMarkerNotice({ event, count }: { event: AgentEventPayload; co
       </Marker>
     );
   }
-  if (isOperationalPromptKind(marker?.kind)) {
+  if (isSilentTranscriptMarker(event)) {
     return null;
   }
   if (marker?.kind === POST_STOP_MARKER) {
@@ -344,6 +305,22 @@ export function RuntimeActivityNotice({
   event: AgentEventPayload;
   count?: number;
 }) {
+  if (
+    event.type === "session.restart_interrupted" ||
+    event.type === "session.restart_resumed" ||
+    event.type === "session.restart_skipped"
+  ) {
+    return (
+      <Marker role="status" tone="neutral" icon={<Info />}>
+        {event.text?.trim() ||
+          (event.type === "session.restart_interrupted"
+            ? "Interrupted by CompozyOS restart."
+            : event.type === "session.restart_resumed"
+              ? "Resumed after CompozyOS restart."
+              : "Automatic continuation paused. Review this session.")}
+      </Marker>
+    );
+  }
   if (isSessionErrorEvent(event)) {
     return <SessionErrorNotice event={event} count={count} />;
   }

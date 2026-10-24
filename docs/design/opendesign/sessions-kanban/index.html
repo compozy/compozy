@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sessions Kanban — PR chip, waiting, board</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="sessions-kanban.css">
+<script src="sessions-kanban.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- Lucide (ISC), inlined so the board opens offline -->
+  <symbol id="i-git-branch" viewBox="0 0 24 24"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-git-pull-request" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" x2="6" y1="9" y2="21"/></symbol>
+  <symbol id="i-git-pull-request-draft" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 6V5"/><path d="M18 11v-1"/><line x1="6" x2="6" y1="9" y2="21"/></symbol>
+  <symbol id="i-git-merge" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+  <symbol id="i-git-pull-request-closed" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M6 9v12"/><path d="m21 3-6 6"/><path d="m21 9-6-6"/><path d="M18 11.5V15"/><circle cx="18" cy="18" r="3"/></symbol>
+  <symbol id="i-git-pull-request-create" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><path d="M6 9v12"/><path d="M13 6h3a2 2 0 0 1 2 2v3"/><path d="M18 15v6"/><path d="M21 18h-6"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/></symbol>
+  <symbol id="i-square-kanban" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-square" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/></symbol>
+  <symbol id="i-ellipsis" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-external-link" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-folder-git-2" viewBox="0 0 24 24"><path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5"/><circle cx="13" cy="12" r="2"/><path d="M18 19c-2.8 0-5-2.2-5-5v8"/><circle cx="20" cy="19" r="2"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+  <symbol id="i-corner-down-right" viewBox="0 0 24 24"><polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="i-message-square-text" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M13 8H7"/><path d="M17 12H7"/></symbol>
+  <symbol id="i-list-tree" viewBox="0 0 24 24"><path d="M21 12h-8"/><path d="M21 6H8"/><path d="M21 18h-8"/><path d="M3 6v4c0 1.1.9 2 2 2h3"/><path d="M3 10v6c0 1.1.9 2 2 2h3"/></symbol>
+  <symbol id="i-panel-left" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-panel-right" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-circle-slash" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/></symbol>
+  <symbol id="i-circle-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="p-claude" viewBox="0 0 256 257"><path fill="#D97757" d="m50.228 170.321 50.357-28.257.843-2.463-.843-1.361h-2.462l-8.426-.518-28.775-.778-24.952-1.037-24.175-1.296-6.092-1.297L0 125.796l.583-3.759 5.12-3.434 7.324.648 16.202 1.101 24.304 1.685 17.629 1.037 26.118 2.722h4.148l.583-1.685-1.426-1.037-1.101-1.037-25.147-17.045-27.22-18.017-14.258-10.37-7.713-5.25-3.888-4.925-1.685-10.758 7-7.713 9.397.649 2.398.648 9.527 7.323 20.35 15.75L94.817 91.9l3.889 3.24 1.555-1.102.195-.777-1.75-2.917-14.453-26.118-15.425-26.572-6.87-11.018-1.814-6.61c-.648-2.723-1.102-4.991-1.102-7.778l7.972-10.823L71.42 0 82.05 1.426l4.472 3.888 6.61 15.101 10.694 23.786 16.591 32.34 4.861 9.592 2.592 8.879.973 2.722h1.685v-1.556l1.36-18.211 2.528-22.36 2.463-28.776.843-8.1 4.018-9.722 7.971-5.25 6.222 2.981 5.12 7.324-.713 4.73-3.046 19.768-5.962 30.98-3.889 20.739h2.268l2.593-2.593 10.499-13.934 17.628-22.036 7.778-8.749 9.073-9.657 5.833-4.601h11.018l8.1 12.055-3.628 12.443-11.342 14.388-9.398 12.184-13.48 18.147-8.426 14.518.778 1.166 2.01-.194 30.46-6.481 16.462-2.982 19.637-3.37 8.88 4.148.971 4.213-3.5 8.62-20.998 5.184-24.628 4.926-36.682 8.685-.454.324.519.648 16.526 1.555 7.065.389h17.304l32.21 2.398 8.426 5.574 5.055 6.805-.843 5.184-12.962 6.611-17.498-4.148-40.83-9.721-14-3.5h-1.944v1.167l11.666 11.406 21.387 19.314 26.767 24.887 1.36 6.157-3.434 4.86-3.63-.518-23.526-17.693-9.073-7.972-20.545-17.304h-1.36v1.814l4.73 6.935 25.017 37.59 1.296 11.536-1.814 3.76-6.481 2.268-7.13-1.297-14.647-20.544-15.1-23.138-12.185-20.739-1.49.843-7.194 77.448-3.37 3.953-7.778 2.981-6.48-4.925-3.436-7.972 3.435-15.749 4.148-20.544 3.37-16.333 3.046-20.285 1.815-6.74-.13-.454-1.49.194-15.295 20.999-23.267 31.433-18.406 19.702-4.407 1.75-7.648-3.954.713-7.064 4.277-6.286 25.47-32.405 15.36-20.092 9.917-11.6-.065-1.686h-.583L44.07 198.125l-12.055 1.555-5.185-4.86.648-7.972 2.463-2.593 20.35-13.999-.064.065Z"/></symbol>
+  <symbol id="p-openai" viewBox="0 0 721 721"><path fill="currentColor" d="M304.246 294.611V249.028C304.246 245.189 305.687 242.309 309.044 240.392L400.692 187.612C413.167 180.415 428.042 177.058 443.394 177.058C500.971 177.058 537.44 221.682 537.44 269.182C537.44 272.54 537.44 276.379 536.959 280.218L441.954 224.558C436.197 221.201 430.437 221.201 424.68 224.558L304.246 294.611ZM518.245 472.145V363.224C518.245 356.505 515.364 351.707 509.608 348.349L389.174 278.296L428.519 255.743C431.877 253.826 434.757 253.826 438.115 255.743L529.762 308.523C556.154 323.879 573.905 356.505 573.905 388.171C573.905 424.636 552.315 458.225 518.245 472.141V472.145ZM275.937 376.182L236.592 353.152C233.235 351.235 231.794 348.354 231.794 344.515V238.956C231.794 187.617 271.139 148.749 324.4 148.749C344.555 148.749 363.264 155.468 379.102 167.463L284.578 222.164C278.822 225.521 275.942 230.319 275.942 237.039V376.186L275.937 376.182ZM360.626 425.122L304.246 393.455V326.283L360.626 294.616L417.002 326.283V393.455L360.626 425.122ZM396.852 570.989C376.698 570.989 357.989 564.27 342.151 552.276L436.674 497.574C442.431 494.217 445.311 489.419 445.311 482.699V343.552L485.138 366.582C488.495 368.499 489.936 371.379 489.936 375.219V480.778C489.936 532.117 450.109 570.985 396.852 570.985V570.989ZM283.134 463.99L191.486 411.211C165.094 395.854 147.343 363.229 147.343 331.562C147.343 294.616 169.415 261.509 203.48 247.593V356.991C203.48 363.71 206.361 368.508 212.117 371.866L332.074 441.437L292.729 463.99C289.372 465.907 286.491 465.907 283.134 463.99ZM277.859 542.68C223.639 542.68 183.813 501.895 183.813 451.514C183.813 447.675 184.294 443.836 184.771 439.997L279.295 494.698C285.051 498.056 290.812 498.056 296.568 494.698L417.002 425.127V470.71C417.002 474.549 415.562 477.429 412.204 479.346L320.557 532.126C308.081 539.323 293.206 542.68 277.854 542.68H277.859ZM396.852 599.776C454.911 599.776 503.37 558.513 514.41 503.812C568.149 489.896 602.696 439.515 602.696 388.176C602.696 354.587 588.303 321.962 562.392 298.45C564.791 288.373 566.231 278.296 566.231 268.224C566.231 199.611 510.571 148.267 446.274 148.267C433.322 148.267 420.846 150.184 408.37 154.505C386.775 133.392 357.026 119.958 324.4 119.958C266.342 119.958 217.883 161.22 206.843 215.921C153.104 229.837 118.557 280.218 118.557 331.557C118.557 365.146 132.95 397.771 158.861 421.283C156.462 431.36 155.022 441.437 155.022 451.51C155.022 520.123 210.682 571.466 274.978 571.466C287.931 571.466 300.407 569.549 312.883 565.228C334.473 586.341 364.222 599.776 396.852 599.776Z"/></symbol>
+</svg>
+
+<main class="lab" data-od-id="board">
+  <span class="lab-kicker">opendesign / sessions-kanban · board v2 · 2026-10-23 · spec <a class="lab-kicker" href="../../../../.compozy/tasks/sessions-kanban/_uiux.md">.compozy/tasks/sessions-kanban/_uiux.md</a> · tokens: packages/ui/src/tokens.css</span>
+  <h1>Sessions Kanban — the PR on the topbar, waiting is not done, and a board over it all</h1>
+  <p class="lab-lead">Visual contract for <code>_uiux.md</code> S1–S7. The session window's topbar gets an automatic PR chip whose menu carries the next delivery action; a “List | Kanban” toggle turns the window into a board of four derived columns; a waiting session stops looking finished. Titles, PR numbers, counts and times are <strong>illustrative</strong>.</p>
+  <nav class="lab-nav" aria-label="Board sections">
+    <a href="#demo">Live demo</a><a href="#s1">S1 PR chip</a><a href="#s2">S2 Menu</a><a href="#s3">S3 Toggle</a><a href="#s4">S4 Board</a><a href="#s5">S5 Card</a><a href="#s6">S6 Waiting</a><a href="#s7">S7 Toast</a><a href="#decisions">Decisions</a>
+    <span class="sp"></span>
+    <div class="svt" role="group" aria-label="Theme"><button type="button" class="svt-item" data-theme-set="dark" aria-pressed="true">Dark</button><button type="button" class="svt-item" data-theme-set="light" aria-pressed="false">Light</button></div>
+  </nav>
+
+  <section class="lab-contract" data-od-id="contract" aria-label="Board contract">
+    <div>
+      <h3 class="eyebrow-caps">What it represents</h3>
+      <p>The web half of the Sessions Kanban spec: the topbar status zone (S1–S2), the window identity toggle (S3), the board and its card (S4–S5), waiting (S6) and the finished toast (S7). Behavior authority is <code>_spec.md</code> Part I.</p>
+      <p>Every value comes from <code>packages/ui/src/tokens.css</code> (dark and light) and every recipe from the named <code>@compozy/ui</code> component. No new token, no new primitive.</p>
+    </div>
+    <div>
+      <h3 class="eyebrow-caps">Production components</h3>
+      <ul>
+        <li><span class="lab-mod">modify</span><span><b>useSessionTopbarSlot</b><i>session/hooks/use-session-topbar-slot.tsx</i> chip first in <code>status</code>; toggle beside the overflow</span></li>
+        <li><span class="lab-mod">modify</span><span><b>SessionStatusLine</b><i>components/session-status-line.tsx</i> drops avatar · agent · provider · time</span></li>
+        <li><span class="lab-mod">modify</span><span><b>SessionBadgeMark</b> · <b>SESSION_BADGE_SIGNAL</b> — <code>waiting</code> + <code>waiting_on</code> replace the client parked marks</span></li>
+        <li><span class="lab-mod">modify</span><span><b>attention-toast</b><i>os/components/attention-toast.tsx</i> PR body line</span></li>
+        <li><span class="lab-mod lab-mod--new">new</span><span><b>SessionPullRequestChip</b> · <b>pull-request-signal.ts</b></span></li>
+        <li><span class="lab-mod lab-mod--new">new</span><span><b>SessionViewToggle</b> — controlled <code>ToggleGroup</code> sm</span></li>
+        <li><span class="lab-mod lab-mod--new">new</span><span><b>SessionsBoard</b> · <b>Column</b> · <b>ArchiveBar</b> · <b>SessionBoardCard</b><i>copy of tasks-kanban-*</i></span></li>
+        <li><span class="lab-mod">reuse</span><span><b>Pill</b> (plain + Dot), <b>Button</b>, <b>DropdownMenu</b>, <b>Tooltip</b>, <b>Skeleton</b>, <b>StateGlyph</b>, <b>MonoId</b>, <b>Time</b>, <b>SessionListProviderMark</b>, <b>SessionWorktreeBindingChip</b>, <b>WorktreePrDialog</b></span></li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="eyebrow-caps">States · visual contracts</h3>
+      <ul>
+        <li><span class="lab-vc">VC-01…05</span>branch chip: none · pending · no PR · unavailable · incomplete</li>
+        <li><span class="lab-vc">VC-06…12</span>PR chip: pending · failing · changes · draft · ready · conflicts · merged/closed</li>
+        <li><span class="lab-vc">VC-13…14</span>stale facts · refreshing</li>
+        <li><span class="lab-vc">VC-15…18</span>menu: exit first · prompt first · read-only · running</li>
+        <li><span class="lab-vc">VC-19</span>toggle List / Kanban / focus</li>
+        <li><span class="lab-vc">VC-20…27</span>board: populated · loading · empty · error · partial · Done collapsed · Archive · children hidden</li>
+        <li><span class="lab-vc">VC-28…30</span>card anatomy · states · child rollup</li>
+        <li><span class="lab-vc">VC-31</span>waiting on sessions · monitoring</li>
+        <li><span class="lab-vc">VC-32</span>finished toast with / without PR</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ================= LIVE DEMO ================= -->
+  <section class="lab-section" id="demo" data-od-id="demo">
+    <h2>Live demo — one session window, two views</h2>
+    <p>Pick a session in the list, open the PR chip, switch to <b>Kanban</b> (arrow keys move focus, Enter/Space selects), hide child sessions, collapse Done, open Archive, then click a card to land back in List with that session open. The preset strip forces each S1 state onto the selected session's chip.</p>
+    <div class="lab-controls">
+      <span class="eyebrow" id="preset-l">Chip preset</span>
+      <div class="svt" role="group" aria-labelledby="preset-l" style="flex-wrap:wrap">
+        <button type="button" class="svt-item" data-preset="live" aria-pressed="true">Session's own</button>
+        <button type="button" class="svt-item" data-preset="nobranch" aria-pressed="false">No branch</button>
+        <button type="button" class="svt-item" data-preset="pending" aria-pressed="false">Lookup pending</button>
+        <button type="button" class="svt-item" data-preset="nopr" aria-pressed="false">Branch, no PR</button>
+        <button type="button" class="svt-item" data-preset="error" aria-pressed="false">Unavailable</button>
+        <button type="button" class="svt-item" data-preset="pendingChecks" aria-pressed="false">Checks pending</button>
+        <button type="button" class="svt-item" data-preset="failing" aria-pressed="false">Checks failing</button>
+        <button type="button" class="svt-item" data-preset="changes" aria-pressed="false">Changes requested</button>
+        <button type="button" class="svt-item" data-preset="ready" aria-pressed="false">Ready to merge</button>
+        <button type="button" class="svt-item" data-preset="stale" aria-pressed="false">Stale</button>
+        <button type="button" class="svt-item" data-preset="merged" aria-pressed="false">Merged</button>
+      </div>
+    </div>
+    <div class="lab-win lab-win--demo" id="demo-win" data-od-id="demo-window" aria-label="Session window demo"></div>
+    <p class="lab-tag" style="margin-top:10px">The sidebar and transcript are simplified stand-ins this spec does not change. Done pages 5 cards here so “Load more” is reachable (production: 50).</p>
+  </section>
+
+  <!-- ================= S1 ================= -->
+  <section class="lab-section" id="s1" data-od-id="s1">
+    <span class="lab-tag">S1 · modify · useSessionTopbarSlot + new SessionPullRequestChip · US-004, US-005</span>
+    <h2>S1 — Topbar status zone: the PR chip</h2>
+    <p>The <code>Topbar</code> right-aligns the status zone against the actions, so the chip sits first in that zone — never against the toggle — in the exact geometry of the worktree chip beside it: 24 px <code>surface-2</code> pill, <code>text-badge</code> medium, <code>muted</code> ink, 12 px glyphs. Anatomy: <b>PR shape</b> (neutral ink — the shape says open, draft, merged or closed) · <b>#number</b> in mono · <b>state word</b> · at most <b>two signals</b> · chevron. Color appears only when the PR needs a decision (failing, changes requested, conflicts) or is ready; everything else stays <code>muted</code>. Breakdown, failing names and check time live in the tooltip.</p>
+
+    <h3 class="lab-h3">Before → after</h3>
+    <div class="lab-split" style="grid-template-columns:1fr">
+      <figure class="lab-spec">
+        <div class="lab-stage" style="gap:8px;justify-content:flex-end">
+          <span style="display:flex;align-items:center;gap:6px;font-size:var(--text-meta);color:var(--color-muted)"><span style="display:inline-grid;place-items:center;width:var(--size-avatar-sm);height:var(--size-avatar-sm);border-radius:50%;background:var(--color-avatar-agent-0-bg);color:var(--color-avatar-agent-0-fg);font-size:9px;font-weight:600">DE</span><span style="color:var(--color-fg-2);font-weight:500">designer</span><span style="color:var(--color-faint)">·</span>Claude<span style="color:var(--color-faint)">·</span><span style="font-family:var(--font-mono);font-size:var(--text-mono-id);color:var(--color-faint)">4m</span></span>
+          <span class="wt-chip"><svg class="i"><use href="#i-folder-git-2"/></svg>session-pr-chip</span>
+        </div>
+        <figcaption><b>Today</b> — <code>SessionStatusLine</code> spends the zone on avatar · agent · provider · time; the branch and PR stay invisible unless the worktree dialog is refreshed by hand.</figcaption>
+      </figure>
+      <figure class="lab-spec">
+        <div class="lab-stage" data-render="status" data-model="draft" data-wt="session-pr-chip" data-callouts="glyph:1,num:2,word:3,checks:4"></div>
+        <figcaption><b>Proposed</b> — PR chip first; worktree chip, unrestricted badge, transport chip and origin link keep their places.
+          <ol class="lab-legend">
+            <li><i class="lab-n">1</i>PR shape — <code>git-pull-request</code> / <code>-draft</code> / <code>git-merge</code> / <code>-closed</code>, <code>subtle</code> ink</li>
+            <li><i class="lab-n">2</i>#number — <code>font-mono text-mono-id</code>, <code>fg-2</code></li>
+            <li><i class="lab-n">3</i>State word — <code>muted</code></li>
+            <li><i class="lab-n">4</i>Checks — <code>&lt;Spinner&gt;</code> + “3 pending”, <code>muted</code> (pending is not a decision)</li>
+          </ol>
+          <div class="lab-tags"><span>VC-06</span><span>SessionPullRequestChip</span><span>h-6 · surface-2 · text-badge</span></div>
+        </figcaption>
+      </figure>
+    </div>
+
+    <h3 class="lab-h3">Branch chip — before a PR exists</h3>
+    <p>With a branch but no PR facts, the chip is the branch with one trailing lookup marker. With no branch (default branch, detached HEAD, no repo, removed worktree) nothing renders.</p>
+    <div class="lab-grid">
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="nobranch"></div><figcaption><b>No branch</b> — no chip. <div class="lab-tags"><span>VC-01</span><span>branch = ""</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="pending" data-callouts="mark:1"></div><figcaption><b>Lookup pending</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>StateGlyph queued</code> — “looking”, distinct from “no PR”</li></ol><div class="lab-tags"><span>VC-02</span><span>lookup.state = pending</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="nopr"></div><figcaption><b>Branch, no PR</b> — branch only. <div class="lab-tags"><span>VC-03</span><span>lookup ok · pull_request null</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--tall" data-render="chip" data-model="error" data-tip data-callouts="mark:1"></div><figcaption><b>Unavailable</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>circle-slash</code>, <code>subtle</code>; the tooltip names the sanitized cause (“GitHub not connected”, “Rate limited”)</li></ol><div class="lab-tags"><span>VC-04</span><span>lookup error · no facts</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--tall" data-render="chip" data-model="incomplete" data-tip data-callouts="mark:1"></div><figcaption><b>Incomplete</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>circle-help</code> — never shown as a confirmed “no PR”</li></ol><div class="lab-tags"><span>VC-05</span><span>lookup incomplete</span></div></figcaption></figure>
+    </div>
+
+    <h3 class="lab-h3">PR chip — states</h3>
+    <div class="lab-grid">
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="pendingChecks" data-callouts="checks:1,review:2"></div><figcaption><b>Open · checks pending</b><ol class="lab-legend"><li><i class="lab-n">1</i>spinner + count, <code>muted</code></li><li><i class="lab-n">2</i>“Review required”, <code>muted</code></li></ol><div class="lab-tags"><span>VC-06</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--tall" data-render="chip" data-model="failing" data-tip data-callouts="checks:1"></div><figcaption><b>Checks failing</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>danger</code> dot + text; the tooltip lists ≤ 5 failing names in mono</li></ol><div class="lab-tags"><span>VC-07</span><span>checks.state = failing</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="changes" data-callouts="review:1"></div><figcaption><b>Changes requested</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>danger</code> dot + text — a blocking review</li></ol><div class="lab-tags"><span>VC-08</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="draft"></div><figcaption><b>Draft</b> — draft shape, word “Draft”. <div class="lab-tags"><span>VC-09</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--tall" data-render="chip" data-model="ready" data-tip data-callouts="ready:1"></div><figcaption><b>Ready to merge</b><ol class="lab-legend"><li><i class="lab-n">1</i>one <code>success</code> dot + text replaces both signals — only when every Business Rule 9 fact is known and fresh</li></ol><div class="lab-tags"><span>VC-10</span><span>ready_to_merge</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="conflicts" data-callouts="review:1"></div><figcaption><b>Conflicts</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>mergeable = conflicting</code> → <code>danger</code> dot + “Conflicts”</li></ol><div class="lab-tags"><span>VC-11</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--col" style="align-items:flex-start"><span data-render="chip" data-model="merged"></span><span data-render="chip" data-model="closed"></span></div><figcaption><b>Merged · Closed</b> — terminal PRs drop signals; the shape alone tells them apart. <div class="lab-tags"><span>VC-12</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--col" style="align-items:flex-start"><span data-render="chip" data-model="passing"></span><span data-render="chip" data-model="unknownChecks"></span></div><figcaption><b>Passing + approved · Unknown</b> — quiet <code>muted</code> text; unknown facts never assemble into Ready. <div class="lab-tags"><span>VC-06</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--tall" data-render="chip" data-model="stale" data-tip data-callouts="num:1,stale:2"></div><figcaption><b>Stale facts</b><ol class="lab-legend"><li><i class="lab-n">1</i>dotted underline on the number; signals drop to <code>muted</code></li><li><i class="lab-n">2</i><code>clock</code> marker; tooltip: cause + last checked</li></ol><div class="lab-tags"><span>VC-13</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="chip" data-model="refreshing" data-callouts="glyph:1"></div><figcaption><b>Refreshing</b><ol class="lab-legend"><li><i class="lab-n">1</i><code>&lt;Spinner&gt;</code> in the shape slot; facts stay until the result lands</li></ol><div class="lab-tags"><span>VC-14</span></div></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ================= S2 ================= -->
+  <section class="lab-section" id="s2" data-od-id="s2">
+    <span class="lab-tag">S2 · new · SessionPullRequestChip menu (DropdownMenu) · US-006, US-007, US-008</span>
+    <h2>S2 — Chip menu: the next action first</h2>
+    <p>A plain <code>DropdownMenu</code>: <code>bg-popover</code>, <code>shadow-pop</code>, 32 px items at <code>text-small-body</code> with 16 px glyphs. Order carries priority — no special weight: the exit plan's action for a managed worktree, else “Fix failing checks”, else “Address review comments”, else “Open PR”; then Open PR and Refresh; then the <code>DropdownMenuLabel</code> “Ask the agent” with any remaining prompt. Unavailable actions are absent, never disabled.</p>
+    <div class="lab-grid">
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="draft" data-exit="commit_push"></div><figcaption><b>Managed worktree — Commit &amp; push</b> — exit plan first; reuses <code>useWorktreeDetailContext</code>. <div class="lab-tags"><span>VC-15</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="nopr" data-exit="create_pr"></div><figcaption><b>Managed worktree, no PR — Create PR</b> — opens <code>WorktreePrDialog</code>; no Open PR without a URL. <div class="lab-tags"><span>VC-15</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="failing"></div><figcaption><b>Checks failing</b> — “Fix failing checks” first; one normal prompt naming #, URL, head SHA and ≤ 5 check names. <div class="lab-tags"><span>VC-16</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="changes"></div><figcaption><b>Changes requested</b> — “Address review comments” first. <div class="lab-tags"><span>VC-16</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="failing" data-controllable="false"></div><figcaption><b>Non-controllable session</b> — Open PR + Refresh only. <div class="lab-tags"><span>VC-17</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="menu" data-model="draft" data-exit="commit_push" data-busy="exit"></div><figcaption><b>Exit action running</b> — the item holds a <code>&lt;Spinner&gt;</code> and a progressive label; Refresh does the same. A refresh error is a toast; cached facts stay. <div class="lab-tags"><span>VC-18</span></div></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ================= S3 ================= -->
+  <section class="lab-section" id="s3" data-od-id="s3">
+    <span class="lab-tag">S3 · new · SessionViewToggle (ToggleGroup sm, controlled, multiple=false) · US-011</span>
+    <h2>S3 — “List | Kanban” after the title menu</h2>
+    <p>Right after the “…” overflow, outside it, so sessions without an overflow still get it. <code>ToggleGroup</code> size <code>sm</code>: 26 px, <code>text-meta</code>, 14 px glyphs, no track — the pressed item alone takes the <code>surface-2</code> plate. In Kanban the board publishes its own head: route glyph well, “Sessions”, the toggle, then <code>quiet</code> “Hide child sessions” and <code>secondary</code> “New session” — window heads never carry the inverted primary.</p>
+    <div class="lab-grid lab-grid--wide">
+      <figure class="lab-spec"><div class="lab-stage" data-render="status" data-model="pendingChecks" data-mode="list" data-callouts="id:1"></div><figcaption><b>List selected</b><ol class="lab-legend"><li><i class="lab-n">1</i>identity: state glyph · title · “…” · toggle</li></ol><div class="lab-tags"><span>VC-19</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="status" data-model="pendingChecks" data-mode="list" data-focus="kanban"></div><figcaption><b>Keyboard focus on Kanban</b> — <code>shadow-focus-ring</code>; arrows move focus, Enter/Space selects, an empty selection is ignored. <div class="lab-tags"><span>VC-19</span></div></figcaption></figure>
+      <figure class="lab-spec" style="grid-column:1/-1"><div class="lab-win" style="height:auto"><div data-render="board" data-empty style="display:contents"></div></div><figcaption><b>Kanban · every column empty</b> — quiet one-line empties, no illustration; “New session” stays in the head. <div class="lab-tags"><span>VC-19</span><span>VC-22</span></div></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ================= S4 ================= -->
+  <section class="lab-section" id="s4" data-od-id="s4">
+    <span class="lab-tag">S4 · new · SessionsBoard / SessionsBoardColumn / SessionsBoardArchiveBar · US-011, US-012, US-016</span>
+    <h2>S4 — The board</h2>
+    <p>The Tasks board recipe, unchanged: 296 px <code>sunken</code> columns (no border, no tint) on the <code>canvas</code> pane, 12 px apart; header = 14 px column glyph · <code>text-item-title</code> name · <code>subtle</code> count. Needs you is told apart only by its accent glyph. Columns page 50 with a <code>quiet</code> “Load more · N of M”; Done collapses to a 44 px rail; Archive is a bottom disclosure bar, collapsed, absent at zero.</p>
+    <div class="lab-win" style="height:660px" data-od-id="s4-board"><div data-render="board" style="display:contents"></div></div>
+    <p class="lab-tag" style="margin-top:8px">VC-20 · column glyphs: Needs you = StateGlyph attention (accent) · Working = running · In review = git-pull-request icon (info) · Done = done.</p>
+
+    <h3 class="lab-h3">Column states</h3>
+    <div class="lab-grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));align-items:start">
+      <figure class="lab-spec"><div style="height:340px;display:flex" data-render="column" data-column="working" data-state="loading"></div><figcaption><b>Loading</b> — three card-shaped <code>Skeleton</code>s; count withheld. <div class="lab-tags"><span>VC-21</span></div></figcaption></figure>
+      <figure class="lab-spec"><div style="height:340px;display:flex" data-render="column" data-column="needs_you" data-count="0"></div><figcaption><b>Empty column</b> — one <code>subtle</code> line. <div class="lab-tags"><span>VC-22</span></div></figcaption></figure>
+      <figure class="lab-spec"><div style="height:340px;display:flex" data-render="column" data-column="in_review" data-state="error" data-count="6"></div><figcaption><b>Error</b> — per column, with a <code>secondary sm</code> Retry; the other columns keep working. <div class="lab-tags"><span>VC-23</span></div></figcaption></figure>
+      <figure class="lab-spec"><div style="height:340px;display:flex" data-render="column" data-column="done" data-ids="s14,s15" data-count="128"></div><figcaption><b>Partial load</b> — count from <code>facets.board</code>. <div class="lab-tags"><span>VC-24</span></div></figcaption></figure>
+      <figure class="lab-spec"><div style="height:340px;display:flex" data-render="column" data-column="done" data-ids="s14" data-count="128" data-collapsed></div><figcaption><b>Done collapsed</b> — 44 px rail: disclosure · glyph · vertical name · count. <div class="lab-tags"><span>VC-25</span></div></figcaption></figure>
+    </div>
+
+    <h3 class="lab-h3">Archive open · child sessions hidden · Done collapsed</h3>
+    <div class="lab-win" style="height:620px"><div data-render="board" data-hide data-collapsed data-archive style="display:contents"></div></div>
+    <p class="lab-tag" style="margin-top:8px">VC-26 archived cards: transparent with a hairline, muted titles · VC-27 “Hide child sessions” pressed (surface-2 plate): children leave rows and counts (3→2, 5→3, 6→5) · VC-25.</p>
+    <div class="lab-note"><b>300+ sessions.</b> Nothing changes visually: columns hold their loaded pages, counts come from facets, the row scrolls inside the window. A live update re-renders the column queries — no drag affordance, no animation between columns (placement is derived, ADR-004).</div>
+  </section>
+
+  <!-- ================= S5 ================= -->
+  <section class="lab-section" id="s5" data-od-id="s5">
+    <span class="lab-tag">S5 · new · SessionBoardCard · US-013, US-014, US-015</span>
+    <h2>S5 — The card: three rows, calm at rest</h2>
+    <p>The <code>TaskKanbanCard</code> recipe: <code>bg-card</code> + <code>shadow-card</code>, <code>radius-lg</code>, 12 px padding, 8 px row gap, hover to <code>surface-2</code>. One whole-card button opens the session in List. Status is a <code>&lt;Pill form="plain"&gt;</code> — a 6 px dot plus <code>muted</code> text, never a plate — so a full board stays neutral and only the dots carry live state (DESIGN.md §2, §10 “signal overload”).</p>
+    <div class="lab-split" style="margin-top:18px">
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" style="padding:26px 34px 30px" data-render="card" data-session="s2" data-callouts="meta:1:l,pill:2:t,title:3:l,who:4:b,parent:5:b,time:6:r"></div>
+        <figcaption><b>Anatomy</b>
+          <ol class="lab-legend">
+            <li><i class="lab-n">1</i>Meta — <code>MonoId</code> recipe: PR shape (<code>subtle</code>) · branch (<code>faint</code>) · #number (<code>fg-2</code>)</li>
+            <li><i class="lab-n">2</i>Status — <code>Pill form="plain"</code> + <code>Pill.Dot</code>: needs-you reason first, else the PR signal</li>
+            <li><i class="lab-n">3</i>Title — <code>text-small-body</code> medium, two-line clamp</li>
+            <li><i class="lab-n">4</i>Provider mark (brand ink, as in the session list) + agent, <code>text-eyebrow</code></li>
+            <li><i class="lab-n">5</i>Child → <code>↳ parent title</code>; parent → <code>list-tree N</code></li>
+            <li><i class="lab-n">6</i><code>Time</code>, mono <code>text-mono-id</code>, <code>faint</code></li>
+          </ol>
+          <div class="lab-tags"><span>VC-28</span><span>bg-card · shadow-card · radius-lg</span></div>
+        </figcaption>
+      </figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" style="padding:26px 22px 22px;flex-direction:column;gap:10px;align-items:stretch"><div data-render="card" data-session="s1" data-callouts="kids:1"></div><div class="tip tip--static" style="min-width:0;max-width:240px"><div>4 child sessions</div><div class="tip-rows"><div class="tip-row"><span class="k">Needs you</span><span>1</span></div><div class="tip-row"><span class="k">Working</span><span>2</span></div><div class="tip-row"><span class="k">In review</span><span>1</span></div><div class="tip-row"><span class="k">Done</span><span>0</span></div></div></div></div>
+        <figcaption><b>Child rollup</b><ol class="lab-legend"><li><i class="lab-n">1</i>direct, non-archived children, <code>muted</code>; an accent dot only when a child needs you. Tooltip (shown open) breaks it down. A parent without a branch has no meta row.</li></ol><div class="lab-tags"><span>VC-30</span></div></figcaption></figure>
+    </div>
+
+    <h3 class="lab-h3">Status and card states</h3>
+    <div class="lab-grid lab-grid--cards">
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s3"></div><figcaption><b>Approval</b> · unread dot (<code>fg-strong</code>, 6 px). <div class="lab-tags"><span>VC-29</span><span>accent dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s10" data-patch='{"reason":"auth","title":"Sign in to Codex to continue"}'></div><figcaption><b>Auth</b> <div class="lab-tags"><span>VC-29</span><span>accent dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s10"></div><figcaption><b>Failed</b> <div class="lab-tags"><span>VC-29</span><span>danger dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s9"></div><figcaption><b>Ready to merge</b> · child. <div class="lab-tags"><span>VC-29</span><span>success dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s8"></div><figcaption><b>Checks failing</b> <div class="lab-tags"><span>VC-29</span><span>danger dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s7"></div><figcaption><b>Changes requested</b> <div class="lab-tags"><span>VC-29</span><span>danger dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s12"></div><figcaption><b>Conflicts</b> · unread. <div class="lab-tags"><span>VC-29</span><span>danger dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s11"></div><figcaption><b>Draft</b> <div class="lab-tags"><span>VC-29</span><span>neutral dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s14"></div><figcaption><b>Merged</b> <div class="lab-tags"><span>VC-29</span><span>info dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s17"></div><figcaption><b>Closed</b> <div class="lab-tags"><span>VC-29</span><span>neutral dot</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s13"></div><figcaption><b>No status</b> — open PR, nothing to decide. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s4" data-current></div><figcaption><b>Selected</b> — <code>selected</code> plate + <code>shadow-inset-strong</code>, as Tasks. <div class="lab-tags"><span>VC-29</span><span>aria-current</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s6" data-patch='{"title":"GraphQL pagination for terminal PRs when the 100-PR candidate limit is hit without a match on the origin repository"}'></div><figcaption><b>Long title</b> — two-line clamp. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s18"></div><figcaption><b>Untitled</b> — <code>subtle</code>, regular weight; no meta row. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s5" data-patch='{"parentArchived":true,"parentTitle":"Forge cache coordinator"}'></div><figcaption><b>Parent archived</b> — title kept, struck through in <code>faint</code>. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="s16" data-all data-patch='{"ws":"polygo","title":"Review fill-rate report"}'></div><figcaption><b>All projects, no PR</b> — the workspace name takes the meta slot. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" data-render="card" data-session="a3"></div><figcaption><b>Archived</b> — Archive bar only. <div class="lab-tags"><span>VC-29</span></div></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ================= S6 ================= -->
+  <section class="lab-section" id="s6" data-od-id="s6">
+    <span class="lab-tag">S6 · modify · SESSION_BADGE_SIGNAL + SessionBadgeMark · US-009 · reuses StateGlyph delegated / monitoring</span>
+    <h2>S6 — Waiting: one badge, two glyphs you already know</h2>
+    <p>The sidebar already parks idle sessions in two shapes: <b>delegated</b> (info ring + dot) and <b>monitoring</b> (amber radar). The daemon's <code>waiting</code> badge now says <b>why</b> through <code>waiting_on</code>, and every surface draws the matching glyph — no hourglass, no third shape.</p>
+    <table class="lab-table" style="max-width:980px">
+      <thead><tr><th class="eyebrow">Open waiting signal</th><th class="eyebrow"><code>waiting_on</code></th><th class="eyebrow">Glyph</th><th class="eyebrow">Word</th></tr></thead>
+      <tbody>
+        <tr><td><code>active_child</code> · <code>awaiting_reply</code> · <code>loop_run</code> · <code>task_lease</code></td><td><code>sessions</code></td><td><span data-render="glyph" data-state="delegated"></span> delegated · info</td><td>Waiting on sessions</td></tr>
+        <tr><td><code>active_monitor</code> (new) · <code>scheduled_wait</code></td><td><code>monitor</code></td><td><span data-render="glyph" data-state="monitoring"></span> monitoring · warning</td><td>Monitoring</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:10px">Both open: <code>sessions</code> wins (today's precedence). Needs-you, failure and stop keep priority over both.</p>
+    <div class="lab-grid">
+      <figure class="lab-spec"><div class="lab-stage" style="background:var(--color-sidebar);flex-direction:column;align-items:stretch;gap:2px;padding:8px">
+        <div class="ls-row" aria-current="true" style="cursor:default"><span data-render="glyph" data-state="delegated" data-sm></span><span class="t">Sessions Kanban — coordinator</span><span class="tm">4m</span><span class="sub"><span class="w">orchestrator</span> · Waiting on sessions</span></div>
+        <div class="ls-row" style="cursor:default"><span data-render="glyph" data-state="monitoring" data-sm></span><span class="t">Merge train: #919–#923</span><span class="tm">7m</span><span class="sub"><span class="w">general</span> · Monitoring</span></div>
+        <div class="ls-row" data-attn="true" style="cursor:default"><span data-render="glyph" data-state="monitoring" data-sm></span><span class="t">Issue #930: Claude usage after reset</span><span class="tm">1m</span><span class="sub"><span class="w">general</span> · Monitoring</span></div>
+      </div><figcaption><b>Sidebar rows</b> — today's marks, backed by the daemon; unread keeps the medium title. <div class="lab-tags"><span>VC-31</span><span>badge = waiting · waiting_on</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken lab-stage--col" style="padding:26px 22px 22px"><div data-render="card" data-session="s1"></div><div data-render="card" data-session="s19" data-callouts="wait:1:t"></div></div><figcaption><b>Cards in Working</b><ol class="lab-legend"><li><i class="lab-n">1</i>a parked card would read as running, so its footer states the reason: 12 px glyph + “Waiting” / “Monitoring”, <code>muted</code></li></ol><div class="lab-tags"><span>VC-31</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" data-render="status" data-model="nobranch" data-glyph="monitoring" data-title="Merge train: #919–#923"></div><figcaption><b>Topbar glyph</b> — same mapping. <div class="lab-tags"><span>VC-31</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage" style="flex-direction:column;align-items:stretch;padding:6px;background:var(--color-popover)">
+        <div class="pal-row is-active"><span data-render="glyph" data-state="delegated"></span><span>Sessions Kanban — coordinator</span><span class="w">Waiting on sessions</span></div>
+        <div class="pal-row"><span data-render="glyph" data-state="monitoring"></span><span>Merge train: #919–#923</span><span class="w">Monitoring</span></div>
+      </div><figcaption><b>Command palette</b> — the word rides the right column. The bell lists needs-you and finished only, so waiting never appears there and never fires a toast. <div class="lab-tags"><span>VC-31</span></div></figcaption></figure>
+    </div>
+    <div class="lab-note"><b>Spec updated (2026-10-23).</b> <code>active_monitor</code> joins the waiting signals and the payload gains <code>waiting_on</code> — <code>_spec.md</code> Business Rule 10, ADR-003, <code>_dx.md</code>, US-009, <code>_tests.md</code> (UT-074/075, IT-009e). The web drops <code>sessionAwaitsMonitors</code> and the <code>delegated</code> prop of <code>SessionBadgeMark</code>.</div>
+  </section>
+
+  <!-- ================= S7 ================= -->
+  <section class="lab-section" id="s7" data-od-id="s7">
+    <span class="lab-tag">S7 · modify · attention-toast.tsx (ToastFrame) · US-010</span>
+    <h2>S7 — Finished toast</h2>
+    <p>Fires only when the badge enters <code>done</code>, never for waiting. With an open PR, only the body line changes.</p>
+    <div class="lab-grid">
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" style="justify-content:center;padding:24px"><div class="toast" data-od-id="toast-finished-pr"><span class="toast-mark"><span data-render="glyph" data-state="done"></span></span><span class="toast-body"><span class="toast-title">Board column SQL expression + equivalence test</span><span class="toast-text">#945 ready for review</span><span class="toast-meta">compozy · codex</span></span></div></div><figcaption><b>With an open PR</b> — “Finished while you were away” becomes “#945 ready for review”; title, meta and click-to-open stay. <div class="lab-tags"><span>VC-32</span><span>ToastFrame body</span></div></figcaption></figure>
+      <figure class="lab-spec"><div class="lab-stage lab-stage--sunken" style="justify-content:center;padding:24px"><div class="toast" data-od-id="toast-finished"><span class="toast-mark"><span data-render="glyph" data-state="done"></span></span><span class="toast-body"><span class="toast-title">Spike: REST vs GraphQL request budget</span><span class="toast-text">Finished while you were away</span><span class="toast-meta">compozy · claude</span></span></div></div><figcaption><b>Without a PR</b> — today's toast, unchanged (as is the grouped “N sessions finished”). <div class="lab-tags"><span>VC-32</span></div></figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ================= DECISIONS ================= -->
+  <section class="lab-section" id="decisions" data-od-id="decisions">
+    <h2>Decisions this board makes</h2>
+    <p>Where the board departs from the <code>_uiux.md</code> proposal, the reason is <code>DESIGN.md</code> or the shipped component.</p>
+    <table class="lab-table">
+      <thead><tr><th class="eyebrow">Topic</th><th class="eyebrow">_uiux proposal</th><th class="eyebrow">Board decision</th><th class="eyebrow">Why</th></tr></thead>
+      <tbody>
+        <tr><td>Card status</td><td>tinted pills by tone</td><td><code>Pill form="plain"</code> + <code>Pill.Dot</code></td><td>DESIGN.md §9: status indicators are plain so a state never reads as a button; §10 “signal overload” — a board of tinted pills is the control-room look.</td></tr>
+        <tr><td>PR shape ink</td><td>colored by state</td><td>neutral <code>subtle</code> on chip and card</td><td>Open/draft/merged/closed is taxonomy, not live state; the shape already says it.</td></tr>
+        <tr><td>Chip signals</td><td>“#123 · Open · ● 3 pending”</td><td>≤ 2; color only for failing · changes requested · conflicts · ready</td><td>Pending, passing, approved and review-required are not decisions; amber is for real warnings only.</td></tr>
+        <tr><td>Board head actions</td><td>“New session”</td><td><code>secondary sm</code>; “Hide child sessions” <code>quiet sm</code> with <code>aria-pressed</code></td><td>DESIGN.md §9: window heads use secondary, never the inverted primary.</td></tr>
+        <tr><td>Needs you column</td><td>danger tint</td><td>no tint; accent glyph only</td><td>Rejected by Pedro (2026-10-23); accent once per viewport.</td></tr>
+        <tr><td>In review header</td><td>info</td><td><code>git-pull-request</code> icon, info</td><td>Keeps <code>delegated</code> for waiting on sessions.</td></tr>
+        <tr><td>Waiting</td><td>neutral hourglass</td><td><code>delegated</code> / <code>monitoring</code> by <code>waiting_on</code></td><td>Reuses the marks the sidebar shows today; spec updated.</td></tr>
+        <tr><td>Status precedence</td><td>—</td><td>reason › failing › changes › conflicts › ready › draft › merged › closed</td><td>One status per card; the most actionable wins. <span class="lab-provisional">confirm</span></td></tr>
+        <tr><td>Stale</td><td>dotted underline + tooltip</td><td>underline on #, signals to <code>muted</code>, <code>clock</code> marker</td><td>The underline alone is invisible without hover.</td></tr>
+        <tr><td>Unread</td><td>“unread dot”</td><td>6 px <code>fg-strong</code> dot before the title</td><td>Not accent (accent means needs-you). <span class="lab-provisional">no unread dot in the list today</span></td></tr>
+        <tr><td>Toast copy</td><td>“#123 ready for review”</td><td>replaces the body line only</td><td>Several toasts still say which session each belongs to.</td></tr>
+        <tr><td>Done default</td><td>Open Question 1</td><td>expanded</td><td>The collapsed rail is designed; flipping is one line.</td></tr>
+      </tbody>
+    </table>
+  </section>
+</main>
+</body>
+</html>

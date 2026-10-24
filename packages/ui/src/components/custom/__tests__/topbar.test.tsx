@@ -47,6 +47,24 @@ describe("Topbar", () => {
     expect(document.querySelector("[data-slot='topbar-breadcrumb']")).toBeNull();
   });
 
+  it("Should render host context before the identity only when supplied", () => {
+    const { container, rerender } = render(
+      <TopbarSlotProvider>
+        <Topbar leading={<span data-testid="host">checkout-api</span>} title="Session" />
+      </TopbarSlotProvider>
+    );
+    const leading = container.querySelector("[data-slot='topbar-leading']");
+    expect(leading).toContainElement(screen.getByTestId("host"));
+    expect(leading?.nextElementSibling).toHaveAttribute("data-slot", "topbar-identity");
+
+    rerender(
+      <TopbarSlotProvider>
+        <Topbar title="Session" />
+      </TopbarSlotProvider>
+    );
+    expect(container.querySelector("[data-slot='topbar-leading']")).toBeNull();
+  });
+
   it("Should render route identity without controls or slots", () => {
     const { container } = render(
       <TopbarSlotProvider>

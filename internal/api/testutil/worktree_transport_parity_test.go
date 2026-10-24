@@ -47,6 +47,7 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				{name: "inspect by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusOK, wantRef: "parity"},
 				{name: "status by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/status?refresh=true", wantStatus: http.StatusOK, wantRef: "parity", wantWorktreeID: "wt-parity"},
 				{name: "exit plan by name", method: http.MethodGet, path: "/api/workspaces/ws-public/worktrees/parity/exit", wantStatus: http.StatusOK, wantRef: "parity"},
+				{name: "prepare exit by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/prepare", wantStatus: http.StatusOK, wantRef: "parity"},
 				{name: "exit action by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/actions", body: `{"action":"commit"}`, wantStatus: http.StatusAccepted, wantRef: "parity"},
 				{name: "exit cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent, wantRef: "parity"},
 				{name: "create cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/cancel", wantStatus: http.StatusNoContent, wantRef: "parity"},
@@ -355,6 +356,13 @@ func (s *parityWorktreeService) StatusDetails(
 ) (*worktree.StatusDetails, error) {
 	s.recordRef(ref)
 	return &worktree.StatusDetails{WorktreeID: s.item.ID, Status: &s.status}, nil
+}
+
+func (s *parityWorktreeService) PrepareExitPlan(
+	ctx context.Context,
+	workspaceID, ref string,
+) (*worktree.ExitPlan, error) {
+	return s.ExitPlan(ctx, workspaceID, ref)
 }
 
 func (s *parityWorktreeService) ExitPlan(_ context.Context, _ string, ref string) (*worktree.ExitPlan, error) {

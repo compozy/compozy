@@ -63,9 +63,9 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)
 	}
 	decision, err := r.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
-		Actor:             workspaceAccessActorFromScope(scope),
-		TargetWorkspaceID: requestedWorkspaceID,
-		Seam:              workspaceaccess.SeamTool,
+		Actor:  workspaceAccessActorFromScope(scope),
+		Target: workspaceaccess.ScopeTarget(requestedWorkspaceID, scope.ProfileID),
+		Seam:   workspaceaccess.SeamTool,
 	})
 	if err != nil || !decision.Allowed {
 		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)

@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -29,6 +31,40 @@ func testEventSummaryWithContent(summary store.EventSummary, content json.RawMes
 
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should expose waiting reasons only for the final waiting badge", func(t *testing.T) {
+		t.Parallel()
+		info := &session.Info{
+			ID:    "sess-waiting",
+			State: session.StateActive,
+			Supervision: &session.SupervisionState{
+				WorkSignals: []session.WorkSignal{{Kind: session.WorkSignalActiveMonitor}},
+			},
+		}
+		payload := core.SessionPayloadFromInfo(info)
+		if payload.Badge != session.BadgeWaiting || payload.WaitingOn != session.WaitingOnMonitor {
+			t.Fatalf("waiting payload = %#v", payload)
+		}
+		reader := sessionHealthPageReaderStub{
+			pageFn: func(context.Context, []*session.Info) (map[string]heartbeat.SessionHealth, error) {
+				return map[string]heartbeat.SessionHealth{
+					info.ID: {SessionID: info.ID, State: heartbeat.SessionHealthStateIdle,
+						Health: heartbeat.SessionHealthDegraded},
+				}, nil
+			},
+		}
+		payloads, err := core.SessionPayloadsWithPageHealth(t.Context(), []*session.Info{info}, reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if payloads[0].Badge != session.BadgeUnhealthy || payloads[0].WaitingOn != "" {
+			t.Fatalf("health-overridden payload = %#v", payloads[0])
+		}
+		info.State = session.StateStopped
+		if stopped := core.SessionPayloadFromInfo(info); stopped.WaitingOn != "" {
+			t.Fatalf("stopped waiting reason = %q", stopped.WaitingOn)
+		}
+	})
 
 	t.Run(
 		"Should expose the live or persisted stop cause without classifying active work as stopped",
@@ -189,15 +225,20 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Runtime.Effective.ReasoningEffort != "high" {
 			t.Fatalf("payload runtime = %#v", payload.Runtime)
 		}
-		if payload.Runtime.Effective.Speed != contract.SpeedFast ||
+		if payload.Runtime.Effective.Speed != "" ||
 			payload.Runtime.Effective.SpeedResolution == nil ||
+			payload.Runtime.Effective.SpeedResolution.Requested != contract.SpeedFast ||
 			payload.Runtime.Effective.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
 			payload.Runtime.Effective.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
 			t.Fatalf(
-				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
+				"payload speed fields = %q, %#v, want no effective speed and requested Fast unsupported capability_absent",
 				payload.Runtime.Effective.Speed,
 				payload.Runtime.Effective.SpeedResolution,
 			)
+		}
+		if payload.Runtime.Requested == nil || payload.Runtime.Requested.Speed != contract.SpeedFast ||
+			payload.Runtime.Requested.ReasoningEffort != "high" || payload.Runtime.Requested.Provider != "fake" {
+			t.Fatalf("binding intent = %#v, want retained fake/high/Fast", payload.Runtime.Requested)
 		}
 		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
 			payload.Runtime.Selected.Model != "claude-fable-5" ||

@@ -2,12 +2,8 @@ import { useState } from "react";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
 
-import {
-  useSessionListPreferences,
-  useSessionCatalog,
-  type SessionPayload,
-} from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useSessionCatalog, type SessionPayload } from "@/systems/session";
+import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteSessionChips } from "../components/os-palette-session-chips";
 import { OsPaletteSessionRow } from "../components/os-palette-session-row";
@@ -28,9 +24,8 @@ import { useProfileReadScope } from "@/systems/profiles";
  * Order, tone and landing all come from the surfaces that already own them:
  * The daemon orders each page, the badge dictionary draws every row, and
  * `useAttentionJump` performs the switch-then-focus that
- * the bell and the sidebar perform. Breadth is the operator's persisted
- * session-list scope, so widening here is the same choice — and the same stored
- * value — as widening the sidebar.
+ * the bell and the sidebar perform. Breadth is the topbar globe, the same one
+ * every session list follows.
  */
 export function useOsPaletteSessionsView({
   query,
@@ -43,12 +38,12 @@ export function useOsPaletteSessionsView({
   // not a preference worth round-tripping through config.
   const [archived, setArchived] = useState(false);
   const profile = useProfileReadScope();
-  const preferences = useSessionListPreferences();
-  const { registeredWorkspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const { registeredWorkspaces, dataScope } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
-  const allWorkspaces = preferences.scope === "all-workspaces";
+  // Breadth is the topbar globe's: a project, User (`@user`), or All projects.
+  const allWorkspaces = dataScope?.kind === "all";
   const catalog = useSessionCatalog(
-    allWorkspaces || scope === "global" ? null : runtimeWorkspaceId,
+    dataScope,
     {
       include_health: true,
       limit: 100,
@@ -58,7 +53,7 @@ export function useOsPaletteSessionsView({
       ...paletteSessionFilterParams(filterId),
       ...(archived ? { archive: "only" as const } : {}),
     },
-    allWorkspaces || scope === "global" || runtimeWorkspaceId !== null,
+    true,
     { facets: true }
   );
   const visible = catalog.sessions;
@@ -73,7 +68,6 @@ export function useOsPaletteSessionsView({
       ...projectPaletteSessionRows(visible, profile, {
         allWorkspaces,
         workspaceNames,
-        runtimeWorkspaceId,
         onDismiss,
         jumpToSession,
         busy: loading,
@@ -84,11 +78,8 @@ export function useOsPaletteSessionsView({
       <OsPaletteSessionChips
         filterId={filterId}
         counts={counts}
-        allWorkspaces={allWorkspaces}
         archived={archived}
-        scopeBusy={preferences.saving}
         onFilterChange={setFilterId}
-        onAllWorkspacesChange={next => preferences.setScope(next ? "all-workspaces" : "workspace")}
         onArchivedChange={setArchived}
       />
     ),
@@ -150,15 +141,14 @@ function projectPaletteSessionRows(
   {
     allWorkspaces,
     workspaceNames,
-    runtimeWorkspaceId,
     onDismiss,
     jumpToSession,
     busy,
   }: {
     busy: boolean;
+    /** Rows name their owner: a project, or User. */
     allWorkspaces: boolean;
     workspaceNames: ReadonlyMap<string, string>;
-    runtimeWorkspaceId: string | null;
     onDismiss: PaletteViewControllerInput["onDismiss"];
     jumpToSession: ReturnType<typeof useAttentionJump>;
   }
@@ -172,7 +162,13 @@ function projectPaletteSessionRows(
       <OsPaletteSessionRow
         owner={profile.aggregate ? profile.ownerOf(session) : undefined}
         session={session}
-        workspaceLabel={allWorkspaces ? workspaceNames.get(session.workspace_id ?? "") : undefined}
+        workspaceLabel={
+          allWorkspaces
+            ? session.workspace_id
+              ? workspaceNames.get(session.workspace_id)
+              : DESTINATION_COPY.user
+            : undefined
+        }
       />
     ),
     onSelect: () => {
@@ -181,7 +177,8 @@ function projectPaletteSessionRows(
       jumpToSession({
         sessionId: session.id,
         agentName: session.agent_name,
-        workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+        // Absent or empty is a User session.
+        workspaceId: session.workspace_id ?? "",
       });
     },
   }));

@@ -15,16 +15,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/procutil"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestManagerListForWorkspace(t *testing.T) {
@@ -50,8 +54,8 @@ func TestManagerListForWorkspace(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if reads != 8 || !reflect.DeepEqual(got, want) {
-			t.Fatalf("ListForWorkspace() = %#v, reads=%d; want %#v, 8 reads", got, reads, want)
+		if reads != 0 || !reflect.DeepEqual(got, want) {
+			t.Fatalf("ListForWorkspace() = %#v, reads=%d; want %#v, 0 cached reads", got, reads, want)
 		}
 	})
 	t.Run("Should preserve active unpublished sessions and skip deleted or unreadable histories", func(t *testing.T) {
@@ -580,6 +584,78 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			ErrSessionArchiveRequiresStopped,
 		) {
 			t.Fatalf("Archive(active) error = %v, want ErrSessionArchiveRequiresStopped", err)
+		}
+	})
+
+	t.Run("Should stop and archive a live session in one archive-with-stop call", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		active := createSession(t, h)
+
+		archived, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, active.ID)
+		if err != nil {
+			t.Fatalf("ArchiveWithStop(active) error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != StateStopped {
+			t.Fatalf("ArchiveWithStop(active) = %#v, want stopped archived session", archived)
+		}
+		status, err := h.manager.Status(ctx, active.ID)
+		if err != nil || status.State != StateStopped || status.ArchivedAt == nil {
+			t.Fatalf("Status(after archive-with-stop) = %#v, %v, want stopped archived session", status, err)
+		}
+		again, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, active.ID)
+		if err != nil || again.ArchivedAt == nil {
+			t.Fatalf("ArchiveWithStop(archived) = %#v, %v, want idempotent archive", again, err)
+		}
+	})
+
+	t.Run("Should stop live family members the parent stop leaves running before archiving", func(t *testing.T) {
+		t.Parallel()
+
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &familyArchiveCatalog{pagedRecordingSessionCatalog: paged, members: map[string][]string{}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		// A completed subagent keeps its session live until the reaper stops it;
+		// the parent's stop cascade skips it.
+		child := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID)
+
+		archived, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, parent.ID)
+		if err != nil {
+			t.Fatalf("ArchiveWithStop(parent with live member) error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != StateStopped {
+			t.Fatalf("ArchiveWithStop(parent) = %#v, want stopped archived parent", archived)
+		}
+		status, err := h.manager.Status(ctx, child.ID)
+		if err != nil || status.State != StateStopped {
+			t.Fatalf("Status(family member) = %#v, %v, want stopped", status, err)
+		}
+	})
+
+	t.Run("Should leave the session unarchived when the stop before archiving fails", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		// A durable live row without a runtime the manager can stop.
+		catalog.sessions["sess-orphan-live"] = store.SessionInfo{
+			ID: "sess-orphan-live", WorkspaceID: h.workspaceID, AgentName: "coder",
+			State: string(StateActive), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}
+
+		_, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, "sess-orphan-live")
+		if !errors.Is(err, ErrSessionArchiveStopFailed) {
+			t.Fatalf("ArchiveWithStop(unstoppable) error = %v, want ErrSessionArchiveStopFailed", err)
+		}
+		if row := catalog.sessions["sess-orphan-live"]; row.ArchivedAt != nil {
+			t.Fatalf("catalog row after failed stop = %#v, want unarchived", row)
 		}
 	})
 
@@ -1128,6 +1204,59 @@ func TestSessionMatchesListQuery(t *testing.T) {
 
 func TestNormalizeListQuery(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bind cursors to canonical board columns and child visibility", func(t *testing.T) {
+		t.Parallel()
+		base := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			Columns:       []string{"done", "in_review"},
+		}
+		query, err := normalizeListQuery(base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := sessionListFingerprintForQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		cursor, err := encodeSessionListCursor(
+			fingerprint,
+			store.SessionCatalogPosition{ID: "cursor-row", PrimaryAt: now, SecondaryAt: now, CreatedAt: now},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name    string
+			columns []string
+			hide    bool
+			reject  bool
+		}{
+			{"same columns reordered", []string{"in_review", "done"}, false, false},
+			{"different column", []string{"working"}, false, true},
+			{"children excluded", base.Columns, true, true},
+		} {
+			changed := base
+			changed.Columns, changed.HideChildren = tc.columns, tc.hide
+			changed, err = normalizeListQuery(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key, err := sessionListFingerprintForQuery(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = decodeSessionListCursor(cursor, key, changed.Sort)
+			if tc.reject != errors.Is(err, ErrListCursorInvalid) {
+				t.Fatalf("%s cursor: %v", tc.name, err)
+			}
+		}
+		base.Columns = []string{"blocked"}
+		if _, err := normalizeListQuery(base); !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("invalid column: %v", err)
+		}
+	})
 
 	t.Run("Should normalize defaults and case-insensitive search", func(t *testing.T) {
 		t.Parallel()
@@ -1772,7 +1901,7 @@ func exitedProcessLiveness(proc *AgentProcess) *store.SessionLivenessMeta {
 	return &store.SessionLivenessMeta{SubprocessPID: proc.PID, SubprocessStartedAt: new(proc.StartedAt)}
 }
 
-func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
+func TestManagerReconcileIncompleteStartMetadata(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should retry catalog projection after metadata recovery already committed", func(t *testing.T) {
@@ -1790,10 +1919,10 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 		}
 		projectionErr := errors.New("catalog unavailable")
 		catalog.setUpdateErr(projectionErr)
-		if _, err := h.manager.Status(t.Context(), target.ID); !errors.Is(err, projectionErr) {
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); !errors.Is(err, projectionErr) {
 			t.Fatalf("failed projection: %v", err)
 		}
-		if _, err := h.manager.ListAll(t.Context()); !errors.Is(err, projectionErr) {
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); !errors.Is(err, projectionErr) {
 			t.Fatalf("session inventory hid incomplete recovery: %v", err)
 		}
 		// Without recorded process identity the interrupted start cannot prove exit,
@@ -1802,6 +1931,9 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 			t.Fatalf("metadata recovery did not commit: %s", meta.State)
 		}
 		catalog.setUpdateErr(nil)
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(t.Context(), target.ID)
 		if err != nil || info.StopReason != store.StopError {
 			t.Fatalf("recovery retry: %#v, %v", info, err)
@@ -1838,6 +1970,9 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("Status(repaired) error = %v", err)
@@ -1886,7 +2021,7 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	})
 }
 
-func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
+func TestManagerReconcileInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should retain stalled live process identity and reject resume", func(t *testing.T) {
@@ -1918,6 +2053,9 @@ func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStal
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("Status(stalled) error = %v", err)
@@ -2008,6 +2146,63 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
+	t.Run("Should sum settled own-turn work across idle gaps and recorder reopen", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		at := time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC)
+		for _, turn := range []struct {
+			id              string
+			start, duration time.Duration
+			terminal        string
+		}{
+			{"A", 0, 2 * time.Minute, acp.EventTypeDone},
+			{"B", time.Hour, 3 * time.Minute, acp.EventTypeError},
+			{"C", 2 * time.Hour, time.Minute, events.SessionTurnQuiesced},
+			{"running", 3 * time.Hour, 0, ""},
+		} {
+			start := at.Add(turn.start)
+			delivery := acp.AgentEvent{Type: acp.EventTypePromptDelivery, TurnID: turn.id, Timestamp: start}.
+				WithDelivery(&acp.DeliveryManifest{TurnID: turn.id, SentAt: start})
+			if err := h.manager.recordEvent(t.Context(), sess, delivery); err != nil {
+				t.Fatal(err)
+			}
+			// A recovery delivery belongs to the same turn, not another interval.
+			if turn.id == "A" {
+				delivery.Timestamp = start.Add(time.Second)
+				delivery = delivery.WithDelivery(&acp.DeliveryManifest{TurnID: turn.id, SentAt: delivery.Timestamp})
+				if err := h.manager.recordEvent(t.Context(), sess, delivery); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if turn.terminal != "" {
+				if err := h.manager.recordEvent(t.Context(), sess, acp.AgentEvent{
+					Type: turn.terminal, TurnID: turn.id, Timestamp: start.Add(turn.duration),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		assertWork := func() {
+			t.Helper()
+			snapshot, err := h.manager.ContextEvents(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			work := snapshot.WorkTime
+			if work.ActiveDurationMS != (6*time.Minute).Milliseconds() ||
+				work.TurnCount != 3 || work.LastCompletedTurnID != "C" {
+				t.Fatalf("work time = %#v, want six minutes across three settled turns", work)
+			}
+		}
+		assertWork()
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertWork()
+	})
+
 	t.Run("Should preserve event metadata for active and stopped session reads", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -3572,4 +3767,557 @@ func TestManagerUnreadableMetadataWarnings(t *testing.T) {
 			t.Fatalf("backoff warnings = %d, want 3", count)
 		}
 	})
+}
+
+func TestSessionWorkspaceFilter(t *testing.T) {
+	t.Run("Should normalize selection and bind cursor identity to the full workspace set", func(t *testing.T) {
+		t.Parallel()
+		query := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			WorkspaceIDs:  []string{" ws-a ", workspaceaccess.UserSelector, "ws-a"},
+		}
+		normalized, err := normalizeListQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(normalized.WorkspaceIDs, []string{workspaceaccess.UserSelector, "ws-a"}) {
+			t.Fatalf("selection = %v", normalized.WorkspaceIDs)
+		}
+		fingerprint, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized.WorkspaceIDs = []string{"ws-b"}
+		other, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fingerprint == other {
+			t.Fatal("different selections share cursor identity")
+		}
+		for _, id := range []string{"", "ws-a"} {
+			if !sessionMatchesWorkspaceIDs(id, []string{workspaceaccess.UserSelector, "ws-a"}) {
+				t.Fatalf("excluded %q", id)
+			}
+		}
+		if sessionMatchesWorkspaceIDs("ws-b", []string{workspaceaccess.UserSelector, "ws-a"}) {
+			t.Fatal("included another project")
+		}
+	})
+	for _, values := range [][]string{{""}, {"global"}} {
+		t.Run("Should reject reserved or empty filter "+strings.Join(values, ","), func(t *testing.T) {
+			t.Parallel()
+			_, err := NormalizeWorkspaceIDs(values, true)
+			if !errors.Is(err, ErrListQueryInvalid) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	t.Run("Should reject a filter without aggregate breadth", func(t *testing.T) {
+		t.Parallel()
+		_, err := NormalizeWorkspaceIDs([]string{"ws-a"}, false)
+		if !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}
+
+func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project the persisted grant for a session that is not loaded", func(t *testing.T) {
+		t.Parallel()
+		info := sessionInfoFromCatalog(&store.SessionInfo{ID: "sess-granted", EffectiveWorkspaceAccess: "unrestricted"})
+		if info.EffectiveWorkspaceAccess != "unrestricted" {
+			t.Fatalf(
+				"EffectiveWorkspaceAccess = %q, want the persisted unrestricted grant (USW BR-13)",
+				info.EffectiveWorkspaceAccess,
+			)
+		}
+	})
+}
+
+// familyArchiveCatalog refuses an archive while a declared family member is
+// live, naming that member the way the durable family archive does.
+type familyArchiveCatalog struct {
+	*pagedRecordingSessionCatalog
+	members map[string][]string
+}
+
+func (c *familyArchiveCatalog) setMembers(parent string, members ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.members[parent] = members
+}
+
+func (c *familyArchiveCatalog) SetSessionArchived(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	if archived {
+		c.mu.Lock()
+		for _, member := range c.members[sessionID] {
+			if c.sessions[member].State != string(StateStopped) {
+				c.mu.Unlock()
+				return store.SessionInfo{}, &store.SessionArchiveLiveMemberError{SessionID: member}
+			}
+		}
+		c.mu.Unlock()
+	}
+	return c.pagedRecordingSessionCatalog.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+}
+
+func TestManagerListAllMetadataCache(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip metadata removed during reading without an unreadable warning", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		var logs bytes.Buffer
+		manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err != nil {
+				return meta, err
+			}
+			return meta, os.Remove(path)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 0 {
+			t.Fatalf("removed inventory = %#v, error = %v", infos, err)
+		}
+		if strings.Contains(logs.String(), "session: skip unreadable session metadata") {
+			t.Fatalf("removed metadata reported as unreadable: %s", logs.String())
+		}
+	})
+	t.Run("Should preserve fresh scoped metadata after replacement deletion and caller mutation", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 4, 2)
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads++
+			return store.ReadSessionMeta(path)
+		}
+		first, err := manager.ListAll(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		first[0].Name = "caller mutation"
+		second, err := manager.ListAll(t.Context())
+		if err != nil || len(second) != 4 || reads != 4 || second[0].Name == first[0].Name {
+			t.Fatalf("cached inventory: %#v reads=%d error=%v", second, reads, err)
+		}
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, second[0].ID))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.Name = "replacement"
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		third, err := manager.ListAll(t.Context())
+		if err != nil || len(third) != 4 || reads != 5 || third[0].Name != "replacement" {
+			t.Fatalf("replaced inventory: %#v reads=%d error=%v", third, reads, err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		fourth, err := manager.ListAll(t.Context())
+		if err != nil || len(fourth) != 3 || fourth[0].ID == second[0].ID {
+			t.Fatalf("deleted inventory: %#v %v", fourth, err)
+		}
+	})
+	t.Run("Should refresh catalog epoch without rereading unchanged metadata", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		if _, err := manager.ListAll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager.readSessionMeta = func(string) (store.SessionMeta, error) {
+			t.Fatal("unchanged metadata reread")
+			return store.SessionMeta{}, nil
+		}
+		epoch, err := manager.transcriptEpochStore.EnsureSessionTranscriptEpoch(
+			t.Context(), store.SessionTranscriptEpochUpdate{SessionID: "sess-read-000", Minimum: 7},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].TranscriptEpoch != epoch {
+			t.Fatalf("fresh epoch: %#v %v", infos, err)
+		}
+	})
+	t.Run("Should leave interrupted metadata unchanged until explicit reconciliation", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-000"))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.State, meta.StopReason = string(StateStarting), nil
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			infos, err := manager.ListAll(t.Context())
+			if err != nil || len(infos) != 1 || infos[0].State != StateStarting {
+				t.Fatalf("read: %#v %v", infos, err)
+			}
+			if _, err := manager.Status(t.Context(), meta.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("read changed metadata: %v", err)
+		}
+		rows, err := manager.sessionCatalog.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil || len(rows) != 1 || rows[0].State != string(StateStopped) {
+			t.Fatalf("read changed catalog: %#v %v", rows, err)
+		}
+		if err := manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].State != StateStopping {
+			t.Fatalf("reconciled: %#v %v", infos, err)
+		}
+	})
+}
+
+func TestManagerListLive(t *testing.T) {
+	t.Parallel()
+	t.Run("Should include retained live sessions and exclude stopped history without parsing it", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 279, 1)
+		id := "sess-read-278"
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, id))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.State = string(StateActive)
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.sessionCatalog.UpdateSessionState(t.Context(), store.SessionStateUpdate{
+			ID: id, State: string(StateActive),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads++
+			return store.ReadSessionMeta(path)
+		}
+		infos, err := manager.ListLive(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].ID != id || reads != 1 {
+			t.Fatalf("live inventory=%#v reads=%d error=%v", infos, reads, err)
+		}
+	})
+}
+
+// Invariant: a bounded page resolves branches once and deduplicates shared PR lookups.
+// Owner: session read-model projection; canonical query suite.
+func TestSessionPullRequestProjection(t *testing.T) {
+	t.Parallel()
+	reader := &pullRequestQueryReader{}
+	branches := &pullRequestQueryBranches{values: map[string]string{"one": "topic", "two": "topic", "default": "main"}}
+	manager := &Manager{}
+	manager.ConfigurePullRequests(reader, branches)
+	infos := []*Info{
+		{ID: "one", WorkspaceID: "ws"},
+		{ID: "two", WorkspaceID: "ws"},
+		{ID: "default", WorkspaceID: "ws"},
+		{ID: "none", WorkspaceID: "ws"},
+	}
+	got, err := manager.SessionPullRequests(t.Context(), infos)
+	if err != nil || branches.calls != 1 || reader.calls != 1 || len(reader.keys) != 1 || len(got) != 2 ||
+		got["one"].Branch != "topic" ||
+		got["two"].PullRequest.Number != 42 {
+		t.Fatalf(
+			"projection=%#v %v branchReads=%d PRReads=%d keys=%#v",
+			got,
+			err,
+			branches.calls,
+			reader.calls,
+			reader.keys,
+		)
+	}
+}
+
+type pullRequestQueryBranches struct {
+	ids    []string
+	values map[string]string
+	calls  int
+}
+
+func (b *pullRequestQueryBranches) SessionBranches(_ context.Context, ids []string) (map[string]string, error) {
+	b.calls++
+	b.ids = ids
+	return b.values, nil
+}
+
+type pullRequestQueryReader struct {
+	state        PullRequestState
+	repositories map[string]string
+	calls        int
+	keys         []BranchKey
+}
+
+func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
+	r.calls++
+	r.keys = keys
+	result := make(map[BranchKey]PullRequestView)
+	for _, key := range keys {
+		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42, State: r.state}}
+	}
+	return result
+}
+func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []BranchKey) map[BranchKey]bool {
+	result := make(map[BranchKey]bool)
+	for _, key := range keys {
+		result[key] = key.Branch == "main"
+	}
+	return result
+}
+
+func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope, []string) map[string]string {
+	return r.repositories
+}
+
+func TestManagerBoardCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should discover old stopped PR branches outside the selected column and page", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		manager := newWorkspaceSessionReadFixture(t, 122, 2)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		tracked := &catalogBranchReadCounter{GlobalDB: catalog}
+		manager.sessionCatalog = tracked
+		now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+		manager.now = func() time.Time { return now }
+		for _, value := range []struct{ workspace, id, branch string }{
+			{"ws-read-00", "sess-read-000", "old-topic"},
+			{"ws-read-00", "sess-read-002", "main"},
+			{"ws-read-01", "sess-read-001", "foreign-topic"},
+		} {
+			if err := catalog.SaveSessionBranch(ctx, value.workspace, value.id, value.branch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const repo = "github.com/owner/repo"
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": repo}}
+		manager.ConfigurePullRequests(reader, catalog)
+		query := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: "ws-read-00",
+			Columns:     []string{"in_review"},
+			Limit:       DefaultListLimit,
+		}
+		page, err := manager.ListPage(ctx, query)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("cold page = %#v, %v", page, err)
+		}
+		if !slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
+			t.Fatalf("refresh keys = %#v", reader.keys)
+		}
+		if err := catalog.Worktrees.SavePullRequest(
+			ctx,
+			worktreepkg.PullRequestEntry{
+				Key:         worktreepkg.PullRequestKey{WorkspaceID: "ws-read-00", RepoKey: repo, Branch: "old-topic"},
+				LookupState: "ok",
+				Facts:       &worktreepkg.ForgeStatus{PRState: new("open"), PRNumber: new(42)},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		page, err = manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "sess-read-000" {
+			t.Fatalf("refreshed page = %#v, %v", page, err)
+		}
+		reader.keys = nil
+		if _, err := manager.CatalogFacets(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+		if len(reader.keys) != 0 || tracked.calls != 1 {
+			t.Fatalf("repeated discovery: keys=%#v calls=%d", reader.keys, tracked.calls)
+		}
+		now = now.Add(time.Minute)
+		if _, err := manager.CatalogFacets(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+		if tracked.calls != 2 ||
+			!slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
+			t.Fatalf("expired discovery: keys=%#v calls=%d", reader.keys, tracked.calls)
+		}
+	})
+	t.Run("Should overlay active PR columns and direct children before filtering and counting", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		parent, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.manager.Create(
+			ctx,
+			CreateOpts{
+				AgentName: "coder",
+				Name:      "Child",
+				Workspace: h.workspaceID,
+				Type:      SessionTypeSpawned,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: parent.ID,
+					RootSessionID:   parent.ID,
+					SpawnDepth:      1,
+					SpawnRole:       "worker",
+					TTLExpiresAt:    new(time.Now().Add(time.Hour)),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child.mu.Lock()
+		child.supervisionState = &SupervisionState{WorkSignals: []WorkSignal{{Kind: WorkSignalActiveMonitor}}}
+		child.mu.Unlock()
+		durable := sessionCatalogInfoFromRuntime(child.Info())
+		durable.ID, durable.Name, durable.State = "durable-child", "Durable child", string(StateStopped)
+		if err := catalog.RegisterSession(ctx, durable); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{parent.ID, durable.ID} {
+			if err := catalog.SaveSessionBranch(ctx, h.workspaceID, id, "topic"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const repo = "github.com/owner/repo"
+		if err := catalog.Worktrees.SavePullRequest(ctx, worktreepkg.PullRequestEntry{
+			Key: worktreepkg.PullRequestKey{
+				WorkspaceID: h.workspaceID,
+				RepoKey:     repo,
+				Branch:      "topic",
+			},
+			LookupState: "ok",
+			Facts:       &worktreepkg.ForgeStatus{PRState: new("open"), PRNumber: new(42)},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reader := &pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{h.workspaceID: repo}}
+		h.manager.ConfigurePullRequests(reader, catalog)
+		query := ListQuery{
+			ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:  h.workspaceID,
+			Columns:      []string{"in_review"},
+			HideChildren: true,
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != parent.ID ||
+			page.Sessions[0].BoardColumn != BoardInReview {
+			t.Fatalf("root board = %#v", page)
+		}
+		if reader.calls != 1 {
+			t.Fatalf("active projection calls = %d, want one batch", reader.calls)
+		}
+		counts := page.Sessions[0].Children
+		if counts == nil || counts.Working != 1 || counts.InReview != 1 || counts.Done != 0 {
+			t.Fatalf("children = %#v", counts)
+		}
+		facets, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.Board.InReview != 1 || facets.Facets.All != 1 {
+			t.Fatalf("root facets = %#v", facets)
+		}
+		query.HideChildren = false
+		facets, err = h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Working != 1 || facets.Facets.All != 3 {
+			t.Fatalf("all facets = %#v", facets)
+		}
+		query.Columns = []string{"working"}
+		page, err = h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].ParentTitle != "Parent" {
+			t.Fatalf("child board = %#v", page)
+		}
+		// Detail projects only direct children; the parent remains a title lookup.
+		snapshots := &pullRequestQueryBranches{values: map[string]string{child.ID: "child-topic", parent.ID: "topic"}}
+		h.manager.ConfigurePullRequests(reader, snapshots)
+		detail := parent.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(snapshots.ids, []string{child.ID}) {
+			t.Fatalf("detail projection IDs=%v want only direct child", snapshots.ids)
+		}
+		if detail.Children == nil || *detail.Children != *counts {
+			t.Fatalf("detail children = %#v", detail.Children)
+		}
+		childDetail := child.Info()
+		if err := h.manager.PopulateSessionRelations(
+			ctx,
+			childDetail,
+		); err != nil ||
+			childDetail.ParentTitle != "Parent" {
+			t.Fatalf("child detail parent=%q error=%v", childDetail.ParentTitle, err)
+		}
+		if len(snapshots.ids) != 0 {
+			t.Fatalf("parent title lookup projected PRs: %v", snapshots.ids)
+		}
+		h.manager.ConfigurePullRequests(nil, nil)
+		query.Columns = []string{"in_review"}
+		page, err = h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("unconfigured reader = %#v, %v", page, err)
+		}
+	})
+}
+
+func (r *pullRequestQueryReader) DefaultBranchNames(context.Context, store.ReadScope, []string) map[string][]string {
+	result := make(map[string][]string)
+	for workspace := range r.repositories {
+		result[workspace] = []string{"main", "master"}
+	}
+	return result
+}
+
+// The database remains real; only discovery calls are counted at its I/O boundary.
+type catalogBranchReadCounter struct {
+	*globaldb.GlobalDB
+	calls int
+}
+
+func (r *catalogBranchReadCounter) SessionCatalogBranches(
+	ctx context.Context,
+	query store.SessionCatalogPageQuery,
+) ([]store.SessionBranchKey, error) {
+	r.calls++
+	return r.GlobalDB.SessionCatalogBranches(ctx, query)
 }

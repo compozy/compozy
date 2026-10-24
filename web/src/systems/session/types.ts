@@ -20,6 +20,10 @@ export type OperatorNotificationEventPayload = Extract<
 export type SessionsQuery = OperationQuery<"listSessions">;
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
+/** What opening a session from the list needs: a catalog row, or a subagent's child session. */
+export type SessionListTarget = Pick<SessionPayload, "id" | "agent_name" | "workspace_id"> & {
+  subagentId?: string;
+};
 export type SessionResponse = OperationResponse<"getSession", 200>;
 export type SessionByIDResponse = OperationResponse<"getSessionByID", 200>;
 /** Minimal workspace-ownership projection: the only session read allowed before a switch confirm. */

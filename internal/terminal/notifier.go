@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	EventKindDeleted           EventKind = "deleted"
 	EventKindOpened            EventKind = "opened"
 	EventKindClosed            EventKind = "closed"
 	EventKindTitleChanged      EventKind = "title_changed"

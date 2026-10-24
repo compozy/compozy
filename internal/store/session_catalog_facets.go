@@ -5,6 +5,7 @@ import "context"
 // SessionCatalogFacets is exact metadata across an eligible catalog population.
 // Search and selected badge are excluded so the chip counts remain scope counts.
 type SessionCatalogFacets struct {
+	Board             SessionBoardCounts
 	All               int
 	NeedsYou          int
 	Working           int
@@ -19,13 +20,47 @@ type WorkspaceSessionCatalogFacets struct {
 	Facets      SessionCatalogFacets
 }
 
+type ProfileSessionCatalogFacets struct {
+	ProfileID string
+	Facets    SessionCatalogFacets
+}
+
 // SessionCatalogFacetResult aggregates durable metadata without hydrating rows.
 type SessionCatalogFacetResult struct {
 	Facets      SessionCatalogFacets
 	ByWorkspace []WorkspaceSessionCatalogFacets
+	ByProfile   []ProfileSessionCatalogFacets
 }
 
 // SessionCatalogFacetReader is the metadata-only catalog count boundary.
 type SessionCatalogFacetReader interface {
 	SessionCatalogFacets(context.Context, SessionCatalogPageQuery) (SessionCatalogFacetResult, error)
 }
+
+// SessionBoardCounts counts sessions in each derived board column.
+type SessionBoardCounts struct {
+	NeedsYou int
+	Working  int
+	InReview int
+	Done     int
+}
+
+func (counts *SessionBoardCounts) Add(column string, count int) {
+	switch column {
+	case SessionBoardNeedsYou:
+		counts.NeedsYou += count
+	case SessionBoardWorking:
+		counts.Working += count
+	case SessionBoardInReview:
+		counts.InReview += count
+	case SessionBoardDone:
+		counts.Done += count
+	}
+}
+
+const (
+	SessionBoardNeedsYou = "needs_you"
+	SessionBoardWorking  = "working"
+	SessionBoardInReview = "in_review"
+	SessionBoardDone     = "done"
+)

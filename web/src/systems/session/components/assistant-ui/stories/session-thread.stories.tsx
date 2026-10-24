@@ -20,6 +20,7 @@ import {
   hoverToolbarTranscript,
   mixedStreamingTranscript,
   transcriptPayload,
+  wideProseTranscript,
 } from "./session-thread-story-transcripts";
 import {
   completedGroupTranscript,
@@ -356,6 +357,12 @@ export const WidePanel: Story = {
     ),
   ],
 };
+
+/**
+ * Wide prose — long user and agent messages, a wide table, and a long code line
+ * grow with the pane: no fixed reading measure caps the transcript (#897).
+ */
+export const WideProse: Story = quietTimelineStory(wideProseTranscript);
 
 /**
  * Onboarding inset — matches wizard header/footer horizontal padding (px-8).

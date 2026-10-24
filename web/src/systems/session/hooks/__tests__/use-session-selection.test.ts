@@ -100,7 +100,9 @@ describe("useSessionSelection", () => {
     ];
     expect(sessionSelectionCounts(sessions, ["active", "stopped"])).toEqual({
       stoppable: 2,
-      archivable: 1,
+      // Live sessions archive too: the daemon stops them first.
+      archivable: 3,
+      archivableLive: 2,
       unarchivable: 1,
       hiddenByFilter: 2,
     });

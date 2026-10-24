@@ -101,6 +101,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		Tools:           append([]string(nil), agent.Tools...),
 		Toolsets:        append([]string(nil), agent.Toolsets...),
 		DenyTools:       append([]string(nil), agent.DenyTools...),
+		WorkspaceAccess: agent.WorkspaceAccess,
 		Permissions:     string(agent.Permissions),
 		Skills:          compozyconfig.AgentSkillsConfig{Disabled: disabledSkills},
 		CategoryPath:    append([]string(nil), agent.CategoryPath...),

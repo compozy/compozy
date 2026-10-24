@@ -100,7 +100,8 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Job name")
-	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Job scope: global or workspace")
+	cmd.Flags().
+		StringVar(&input.ScopeRaw, automationScopeKey, "", "Job scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(
 			&input.ScheduleRaw,

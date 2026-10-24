@@ -55,7 +55,16 @@ func resolveGatewayIngressSubject(
 		if row.ScopeKind == string(gateway.IngressScopeWorkspace) {
 			prefix = "/api/webhooks/workspaces/" + url.PathEscape(row.WorkspaceID.String)
 		}
-		return gatewayIngressSubject(ref, row.ScopeKind, row.WorkspaceID, prefix+"/"+endpoint)
+		subject, err := gatewayIngressSubject(ref, row.ScopeKind, row.WorkspaceID, prefix+"/"+endpoint)
+		if err != nil {
+			return gateway.IngressSubject{}, err
+		}
+		profileID := strings.TrimSpace(row.ProfileID)
+		if profileID == "" {
+			return gateway.IngressSubject{}, errors.New("store: ingress subject profile is unavailable")
+		}
+		subject.ProfileID = profileID
+		return subject, nil
 	default:
 		return gateway.IngressSubject{}, gateway.ErrIngressSubjectNotFound
 	}

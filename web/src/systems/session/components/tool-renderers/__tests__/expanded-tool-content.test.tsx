@@ -1,76 +1,23 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render as renderBare, screen, waitFor } from "@testing-library/react";
+import { render as renderBare, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { terminalCatalogQuery, terminalScope } from "@/systems/terminal/parts";
-import {
-  DEV_SERVER_TERMINAL,
-  SSH_STAGING_TERMINAL,
-} from "@/systems/terminal/mocks/terminal-fixtures";
-import type { SessionTerminalBlockProps } from "@/systems/terminal";
-
 import { SessionRuntimeRenderProvider } from "../../../lib/session-runtime-render-context";
-import { sessionDetailOptions } from "../../../lib/query-options";
-import type { SessionPayload, UIMessage } from "../../../types";
+import type { UIMessage } from "../../../types";
 
 vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
-/** Isolate the catalog stream's network boundary so a seeded cache stays put. */
-vi.mock("@/lib/ticketed-event-source", () => ({
-  createStreamEventSource: () => ({
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-    close: () => undefined,
-    onmessage: null,
-    onerror: null,
-    onopen: null,
-  }),
-}));
-
-/** Captures what the transcript hands the terminal block, without an emulator. */
-const blockProps = vi.fn();
-vi.mock("@/systems/terminal", () => ({
-  SessionTerminalBlock: (props: SessionTerminalBlockProps) => {
-    blockProps(props);
-    return <div data-testid="session-terminal-block-stub" />;
-  },
-}));
-
 import { ExpandedToolContent } from "../expanded-tool-content";
 
-const WORKSPACE_ID = "ws-atlas";
-const SESSION_ID = "sess-77ab";
-
-/**
- * The transcript's own surroundings.
- *
- * The terminal renderer learns a terminal's scope from the session it is inside
- * — the workspace from the render context, the profile from the session itself
- * — so every renderer here is rendered the way the transcript renders it.
- */
-function render(
-  ui: ReactElement,
-  options: { profileName?: string; catalog?: (typeof DEV_SERVER_TERMINAL)[] } = {}
-) {
+/** The transcript's own surroundings, as the dispatcher is rendered inside a row body. */
+function render(ui: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  if (options.profileName) {
-    // Only the two fields this renderer reads; the rest of the session payload
-    // is irrelevant to which terminal it attaches to.
-    client.setQueryData(sessionDetailOptions(WORKSPACE_ID, SESSION_ID).queryKey, {
-      id: SESSION_ID,
-      profile_name: options.profileName,
-    } as unknown as SessionPayload);
-    client.setQueryData(
-      terminalCatalogQuery(terminalScope(WORKSPACE_ID, options.profileName)).queryKey,
-      options.catalog ?? []
-    );
-  }
   return renderBare(
     <QueryClientProvider client={client}>
-      <SessionRuntimeRenderProvider sessionId={SESSION_ID} workspaceId={WORKSPACE_ID}>
+      <SessionRuntimeRenderProvider sessionId="sess-77ab" workspaceId="ws-atlas">
         {ui}
       </SessionRuntimeRenderProvider>
     </QueryClientProvider>
@@ -101,213 +48,6 @@ describe("ExpandedToolContent", () => {
     expect(screen.getByTestId("bash-content")).toBeInTheDocument();
   });
 
-  it("routes a deliberate terminal run to the terminal block", async () => {
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-4f21c9a03b7e",
-              output: "VITE ready in 412 ms",
-              still_running: true,
-            },
-          },
-        })}
-      />
-    );
-
-    // The conversation object is the terminal block, not a generic tool row.
-    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
-    expect(await screen.findByTestId("session-terminal-block-stub")).toBeInTheDocument();
-  });
-
-  it("routes terminal open as a live terminal even without an explicit running flag", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_open",
-          toolInput: { title: "Build logs" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-open",
-              output: "waiting for input",
-            },
-          },
-        })}
-      />
-    );
-
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
-      stillRunning: true,
-      terminalId: "term-open",
-      title: "Build logs",
-    });
-  });
-
-  it("Should title a deliberate terminal from the catalog or a human name, never the argv", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-4f21c9a03b7e",
-              output: "VITE ready in 412 ms",
-              duration_ms: 161_000,
-              exit_code: 0,
-            },
-          },
-        })}
-      />
-    );
-
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
-      title: "Terminal",
-      durationLabel: "2m 41s",
-    });
-    expect(blockProps.mock.calls.at(-1)?.[0].title).not.toBe("bun run dev");
-  });
-
-  it("scopes a still-running terminal to the session's own profile", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-4f21c9a03b7e",
-              output: "VITE ready in 412 ms",
-              still_running: true,
-            },
-          },
-        })}
-      />,
-      // The conversation belongs to `work`, whatever profile the shell is
-      // currently showing — a link or the all-profiles view changes neither.
-      { profileName: "work", catalog: [DEV_SERVER_TERMINAL] }
-    );
-
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
-      scope: { workspaceId: WORKSPACE_ID, profile: "work" },
-    });
-  });
-
-  it.each(["pipe", "missing"])(
-    "keeps the recorded output without a socket for %s terminals",
-    async mode => {
-      blockProps.mockClear();
-      render(
-        <ExpandedToolContent
-          message={makeMessage({
-            toolName: "compozy__terminal_exec",
-            toolResult: {
-              rawOutput: {
-                terminal_id: DEV_SERVER_TERMINAL.id,
-                output: "retained output",
-                still_running: true,
-              },
-            },
-          })}
-        />,
-        {
-          profileName: "work",
-          catalog: mode === "pipe" ? [{ ...DEV_SERVER_TERMINAL, mode: "pipe" }] : [],
-        }
-      );
-      await waitFor(() => expect(blockProps).toHaveBeenCalled());
-      expect(blockProps.mock.calls.at(-1)?.[0].scope).toBeUndefined();
-      expect(blockProps.mock.calls.at(-1)?.[0].preview).toBe("retained output");
-    }
-  );
-
-  it("shows the recorded screen when the session's profile is not known yet", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-4f21c9a03b7e",
-              output: "VITE ready in 412 ms",
-              still_running: true,
-            },
-          },
-        })}
-      />
-    );
-
-    // Attaching with a guessed profile is `terminal_not_found`, so the block
-    // paints what was recorded instead of pretending to follow a stream.
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0].scope).toBeUndefined();
-  });
-
-  it("Should show the catalog title and start time when that row already exists", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: DEV_SERVER_TERMINAL.id,
-              output: "VITE ready in 412 ms",
-              still_running: true,
-            },
-          },
-        })}
-      />,
-      { profileName: "work", catalog: [DEV_SERVER_TERMINAL] }
-    );
-
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
-      title: "dev server",
-      startedLabel: expect.any(String),
-    });
-    expect(blockProps.mock.calls.at(-1)?.[0].title).not.toBe("bun run dev");
-  });
-
-  it("Should finish a still-running envelope when the catalog already exited", async () => {
-    blockProps.mockClear();
-    render(
-      <ExpandedToolContent
-        message={makeMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "ssh staging" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: SSH_STAGING_TERMINAL.id,
-              output: "Connection to staging closed.",
-              still_running: true,
-            },
-          },
-        })}
-      />,
-      { profileName: "work", catalog: [SSH_STAGING_TERMINAL] }
-    );
-
-    await waitFor(() => expect(blockProps).toHaveBeenCalled());
-    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
-      stillRunning: false,
-      title: "ssh staging",
-      exit: SSH_STAGING_TERMINAL.exit,
-    });
-  });
-
   it("keeps a pipe exec with no terminal as plain output", async () => {
     render(
       <ExpandedToolContent
@@ -323,6 +63,24 @@ describe("ExpandedToolContent", () => {
     // dressing it as one would claim a surface that does not exist.
     expect(await screen.findByTestId("terminal-content-plain")).toHaveTextContent("41 passed");
     expect(screen.queryByTestId("terminal-content")).not.toBeInTheDocument();
+  });
+
+  it("Should never paint the tool envelope as terminal output when the output is empty", () => {
+    // Invariant: an empty `output` stays empty. MCP results also serialize the
+    // envelope into `content`; reading it would show raw JSON as if printed.
+    const envelope = { command_id: "cmd-1", exit_code: 0, output: "", untrusted: true };
+    const { container } = render(
+      <ExpandedToolContent
+        message={makeMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "true" },
+          toolResult: { content: JSON.stringify(envelope), rawOutput: { structured: envelope } },
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId("terminal-content-plain")).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("command_id");
   });
 
   it("routes Read tool to read-content renderer", () => {

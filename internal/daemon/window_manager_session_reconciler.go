@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync/atomic"
 
 	"github.com/compozy/compozy/internal/session"
@@ -38,8 +37,8 @@ func (r *windowManagerSessionReconciler) SetReady() {
 
 func (r *windowManagerSessionReconciler) ReconcileDeletedSession(
 	ctx context.Context,
-	profileID string,
-	workspaceID string,
+	_ string,
+	_ string,
 	sessionID string,
 ) error {
 	if r == nil || r.registry == nil {
@@ -48,23 +47,10 @@ func (r *windowManagerSessionReconciler) ReconcileDeletedSession(
 	if !r.ready.Load() {
 		return errWindowManagerSessionReconcilerNotReady
 	}
-	manager, err := r.registry.For(profileID)
-	if err != nil {
-		if errors.Is(err, errWindowManagerProfileDeleted) {
-			return nil
-		}
-		return fmt.Errorf("resolve window manager for profile %q: %w", profileID, err)
-	}
-	if err := manager.ReconcileDeletedSession(ctx, windowmanager.WorkspaceID(workspaceID), sessionID); err != nil {
-		if errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
-			return nil
-		}
-		return fmt.Errorf(
-			"reconcile deleted session %q in workspace %q: %w",
-			sessionID,
-			workspaceID,
-			err,
-		)
-	}
-	return nil
+	return r.registry.reconcilePartitions(
+		ctx,
+		func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+			return manager.ReconcileDeletedSession(ctx, partition, sessionID)
+		},
+	)
 }

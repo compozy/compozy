@@ -64,7 +64,7 @@ export interface DesktopShellProps {
   /** Extra classes on the menubar (first-run dimming). */
   menubarClassName?: string;
   /** Menubar workspace slot; omit for the bound `compozy` workspace. */
-  workspace?: { name: string; monogram: string };
+  workspace?: { name: string };
   /** Menubar approvals count; 0 renders no badge. */
   notifications?: number;
   /** Show the empty desktop — question and composer (VC-10). */
@@ -91,7 +91,7 @@ export function DesktopShell({
   dockItems = DESK_ITEMS,
   dockClassName,
   menubarClassName,
-  workspace = { name: "compozy", monogram: "CO" },
+  workspace = { name: "compozy" },
   notifications = 2,
   deskHint = false,
   compact = false,

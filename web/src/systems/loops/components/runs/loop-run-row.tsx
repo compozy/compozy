@@ -5,11 +5,19 @@ import { cn, StateGlyph, TableCell, TableRow, Time } from "@compozy/ui";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRunRow as LoopRunRowModel } from "../../lib/loop-runs-view";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import {
+  itemBindingSearch,
+  useWindowBindingSearch,
+  WorkspaceBadge,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
 
 interface LoopRunRowProps {
   row: LoopRunRowModel;
   /** The run's profile, supplied only in aggregate mode. */
   owner?: ProfileOwner;
+  /** The run's project, supplied only under All projects: its own column, and the link binds to it. */
+  project?: WorkspaceBadgeIdentity;
   /** Display clock, so a live run's duration ticks the same as on the Loop page. */
   nowMs: number;
 }
@@ -24,8 +32,10 @@ const META_CELL = "font-mono text-mono-id tabular-nums text-muted";
  * Spend (generations, best score, budget) is deliberately absent: it is demoted
  * to the run page, where there is room to say what it means.
  */
-export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
+export function LoopRunRow({ row, owner, project, nowMs }: LoopRunRowProps) {
   const { run } = row;
+  const windowSearch = useWindowBindingSearch();
+  const linkSearch = project ? itemBindingSearch(run.workspace_id) : windowSearch;
   return (
     <TableRow
       className={cn(row.needsYou && "bg-selected hover:bg-selected")}
@@ -41,6 +51,7 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
               className="min-w-0 truncate text-ws-name font-medium text-fg-strong underline-offset-3 hover:underline"
               data-testid="loop-run-name"
               params={{ runId: run.id }}
+              search={linkSearch}
               title={run.id}
               to="/loop-runs/$runId"
             >
@@ -55,6 +66,11 @@ export function LoopRunRow({ row, owner, nowMs }: LoopRunRowProps) {
           ) : null}
         </span>
       </TableCell>
+      {project ? (
+        <TableCell className="max-w-48" data-testid="loop-run-project">
+          <WorkspaceBadge identity={project} />
+        </TableCell>
+      ) : null}
       <TableCell>
         <span
           className="inline-flex items-center gap-1.75 text-small-body text-fg-2"

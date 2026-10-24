@@ -1,26 +1,81 @@
-import { Archive, ArrowRightLeft, GitFork, Pencil, RotateCcw, Square, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowRightLeft,
+  Copy,
+  CornerLeftUp,
+  CornerDownRight,
+  Eraser,
+  GitFork,
+  Hash,
+  Pencil,
+  RotateCcw,
+  Square,
+  Trash2,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { use } from "react";
 
+import { SessionClearContext } from "../contexts/session-clear-context-value";
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
+import { copySessionText } from "../lib/session-copy";
+import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
+import { sessionAdoptRefusal, sessionCanMakeTopLevel } from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
 /** One lifecycle verb shared by the row's `…` menu and its context menu. */
 export interface SessionRowMenuItem {
   /** Stable verb id; test ids read `session-row-<id>-<session id>`. */
-  id: "rename" | "continue" | "fork" | "stop" | "unarchive" | "archive" | "delete";
+  id:
+    | "rename"
+    | "copy-id"
+    | "copy-title"
+    | "continue"
+    | "fork"
+    | "make-top-level"
+    | "nest"
+    | "stop"
+    | "unarchive"
+    | "archive"
+    | "clear"
+    | "delete";
   label: string;
   icon: LucideIcon;
   destructive?: boolean;
-  onSelect: () => void;
+  /** Shown but unavailable right now, independent of a pending lifecycle action. */
+  disabled?: boolean;
+  onSelect?: () => void;
+  choices?: Array<{ id: string; label: string; onSelect: () => void }>;
 }
 
 function isStopEligible(session: SessionPayload): boolean {
   return session.state === "active" || session.state === "starting";
+}
+
+/** Archive or restore; a live session stops first, which cancels any active turn. */
+function sessionArchiveMenuItem(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem | null {
+  // A subagent session archives with its parent (ADR-005): no standalone verb.
+  if (isSubagentSession(session)) return null;
+  if (session.archived_at !== null) {
+    return {
+      id: "unarchive",
+      label: "Unarchive session",
+      icon: RotateCcw,
+      onSelect: () => actions.onUnarchive(session),
+    };
+  }
+  return {
+    id: "archive",
+    label: session.state === "stopped" ? "Archive session" : "Stop and archive session",
+    icon: Archive,
+    onSelect: () => actions.onArchive(session),
+  };
 }
 
 /** State-gated lifecycle verbs for one session row, in menu order. */
@@ -30,6 +85,7 @@ export function useSessionRowMenuItems(
 ): SessionRowMenuItem[] {
   const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
+  const clear = use(SessionClearContext);
   const isArchived = session.archived_at !== null;
   const userSession = isUserControllableSession(session);
   const items: SessionRowMenuItem[] = [];
@@ -41,6 +97,20 @@ export function useSessionRowMenuItems(
       onSelect: () => actions.onRename(session),
     });
   }
+  items.push(
+    {
+      id: "copy-id",
+      label: "Copy session ID",
+      icon: Hash,
+      onSelect: () => void copySessionText(session.id, "Session ID"),
+    },
+    {
+      id: "copy-title",
+      label: "Copy title",
+      icon: Copy,
+      onSelect: () => void copySessionText(getSessionDisplayTitle(session), "Title"),
+    }
+  );
   if (userSession && !isArchived && requestContinue) {
     items.push({
       id: "continue",
@@ -57,6 +127,16 @@ export function useSessionRowMenuItems(
       onSelect: () => requestFork(session),
     });
   }
+  items.push(...sessionNestMenuItems(session, actions));
+  const { onMakeTopLevel } = actions;
+  if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {
+    items.push({
+      id: "make-top-level",
+      label: "Make top-level",
+      icon: CornerLeftUp,
+      onSelect: () => onMakeTopLevel(session),
+    });
+  }
   if (!isArchived && isStopEligible(session)) {
     items.push({
       id: "stop",
@@ -65,23 +145,16 @@ export function useSessionRowMenuItems(
       onSelect: () => actions.onStop(session),
     });
   }
-  // A subagent session archives with its parent (ADR-005): no standalone verb.
-  if (!isSubagentSession(session)) {
-    if (isArchived) {
-      items.push({
-        id: "unarchive",
-        label: "Unarchive session",
-        icon: RotateCcw,
-        onSelect: () => actions.onUnarchive(session),
-      });
-    } else if (session.state === "stopped") {
-      items.push({
-        id: "archive",
-        label: "Archive session",
-        icon: Archive,
-        onSelect: () => actions.onArchive(session),
-      });
-    }
+  const archiveItem = sessionArchiveMenuItem(session, actions);
+  if (archiveItem) items.push(archiveItem);
+  if (userSession && clear?.sessionId === session.id) {
+    items.push({
+      id: "clear",
+      label: "Clear conversation",
+      icon: Eraser,
+      disabled: !clear.canClear,
+      onSelect: clear.request,
+    });
   }
   items.push({
     id: "delete",
@@ -90,5 +163,29 @@ export function useSessionRowMenuItems(
     destructive: true,
     onSelect: () => actions.onDelete(session),
   });
+  return items;
+}
+
+function sessionNestMenuItems(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem[] {
+  const items: SessionRowMenuItem[] = [];
+  const { onAdopt } = actions;
+  const parents = onAdopt
+    ? (actions.nestParents ?? []).filter(parent => sessionAdoptRefusal(session, parent) === null)
+    : [];
+  if (onAdopt && parents.length > 0) {
+    items.push({
+      id: "nest",
+      label: "Nest under…",
+      icon: CornerDownRight,
+      choices: parents.map(parent => ({
+        id: parent.id,
+        label: getSessionDisplayTitle(parent),
+        onSelect: () => onAdopt(session, parent),
+      })),
+    });
+  }
   return items;
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -122,4 +123,27 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+var _ session.AgentCatalogResolver = (*resourceAgentCatalog)(nil)
+
+// ListAgentDefinitions enumerates scoped agents with the same catalog precedence as target resolution.
+func (c *resourceAgentCatalog) ListAgentDefinitions(
+	resolved *workspacepkg.ResolvedWorkspace,
+) []compozyconfig.AgentDef {
+	merged := make(map[string]compozyconfig.AgentDef)
+	if resolved != nil {
+		for _, agent := range resolved.Agents {
+			merged[agent.Name] = cloneAgentDef(agent)
+		}
+	}
+	for _, entry := range c.agentEntriesForWorkspace(resolved) {
+		merged[entry.Def.Name] = entry.Def
+	}
+	agents := make([]compozyconfig.AgentDef, 0, len(merged))
+	for _, agent := range merged {
+		agents = append(agents, agent)
+	}
+	slices.SortFunc(agents, func(a, b compozyconfig.AgentDef) int { return strings.Compare(a.Name, b.Name) })
+	return agents
 }

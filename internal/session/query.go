@@ -38,6 +38,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	switch {
 	case err == nil:
 	case errors.Is(err, os.ErrNotExist):
+		m.pruneMetadataCache(nil)
 		return sortSessionInfos(active), nil
 	default:
 		return nil, fmt.Errorf("session: read sessions directory %q: %w", m.homePaths.SessionsDir, err)
@@ -49,15 +50,21 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 			ids = append(ids, entry.Name())
 		}
 	}
-	return m.mergePersistedSessionInfos(ctx, ids, activeByID)
+	m.pruneMetadataCache(ids)
+	rows, err := m.readSessionInventory(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)
 }
 
 func (m *Manager) mergePersistedSessionInfos(
 	ctx context.Context,
 	ids []string,
 	activeByID map[string]*Info,
+	rows sessionInventory,
 ) ([]*Info, error) {
-	infos, seen, err := m.readPersistedSessionInfos(ctx, ids, activeByID)
+	infos, seen, err := m.readPersistedSessionInfos(ctx, ids, activeByID, rows)
 	if err != nil {
 		return nil, err
 	}
@@ -76,9 +83,11 @@ func (m *Manager) readPersistedSessionInfos(
 	ctx context.Context,
 	ids []string,
 	activeByID map[string]*Info,
+	rows sessionInventory,
 ) ([]*Info, map[string]struct{}, error) {
 	infos := make([]*Info, 0, len(ids)+len(activeByID))
 	seen := make(map[string]struct{}, len(ids))
+	roots := make(map[string]string)
 	var failures loggerpkg.FailureSummary
 	for _, id := range ids {
 		if err := ctx.Err(); err != nil {
@@ -88,28 +97,23 @@ func (m *Manager) readPersistedSessionInfos(
 		if id == "" || strings.HasPrefix(id, sessionDeleteTombstonePrefix) {
 			continue
 		}
-		meta, err := m.readMetaWithContext(ctx, id)
+		if info := activeByID[id]; info != nil {
+			infos = append(infos, info)
+			seen[id] = struct{}{}
+			continue
+		}
+		info, err := m.inventorySessionInfo(ctx, id, rows, roots)
 		if err != nil {
-			if errors.Is(err, ErrRecoveryPersistence) {
+			if errors.Is(err, ErrRecoveryPersistence) || errors.Is(err, errInventoryHydration) {
 				return nil, nil, err
 			}
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
 			}
 			failures.Add(id, err)
-			if info := activeByID[id]; info != nil {
-				infos = append(infos, info)
-				seen[id] = struct{}{}
-			}
 			continue
 		}
-		info := activeByID[id]
-		if info == nil {
-			info = m.sessionInfoFromMeta(ctx, &meta)
-			if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
-				return nil, nil, err
-			}
-		}
+
 		infos = append(infos, info)
 		seen[id] = struct{}{}
 	}

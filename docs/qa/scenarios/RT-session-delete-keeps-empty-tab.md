@@ -34,3 +34,7 @@ with the sidebar, and did not open the agent page. Independent HTTP GET was 404.
 6. Open a valid foreign-profile deep link from a scoped profile. Preserve the owner banner and switch action. A network/owner lookup failure must remain an error rather than being treated as deletion.
 
 2026-10-19: real isolated daemon + branch Vite walk passed all four list-deletion combinations. Public detail reads returned 404 and window-manager snapshots cleared the bindings. The foreign-profile canary retained its banner (scoped detail 404, aggregate detail 200). Regression suites cover failed deletion, remote-lookup errors, background focus, and the SSE/operator deletion race. Evidence and limits: [run report](../reports/2026-10-19-issue-812-session-delete.md).
+
+2026-10-21 User scope coverage:
+
+Open one User session in `user`, `global`, and project desktop partitions across two profiles, reload the layouts, delete the session, and verify every window retires the session resource while unrelated windows remain intact. This extends the project-only deletion walk.

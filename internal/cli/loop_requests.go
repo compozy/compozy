@@ -15,22 +15,51 @@ import (
 func newLoopRequestsCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, runID, state, cursor string
 	var limit int
+	var allWorkspaces bool
 	cmd := &cobra.Command{
 		Use: loopRequestsKey, Short: "List human requests", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
+			client, workspaceID, err := loopListClientAndWorkspace(cmd, deps, workspaceRef, allWorkspaces)
 			if err != nil {
 				return err
 			}
-			response, err := client.ListLoopRequests(cmd.Context(), workspaceID, LoopRequestListQuery{
-				RunID: strings.TrimSpace(runID), State: strings.TrimSpace(state),
-				Cursor: strings.TrimSpace(cursor), Limit: limit,
-			})
+			response, err := client.ListLoopRequests(
+				cmd.Context(),
+				workspaceID,
+				LoopRequestListQuery{AllWorkspaces: allWorkspaces,
+					RunID: strings.TrimSpace(runID), State: strings.TrimSpace(state),
+					Cursor: strings.TrimSpace(cursor), Limit: limit,
+				},
+			)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, loopOutputBundle(response,
-				fmt.Sprintf("%d requests · %d pending", len(response.Items), response.Aggregates.Pending)))
+			bundle := loopOutputBundle(
+				response,
+				fmt.Sprintf("%d requests · %d pending", len(response.Items), response.Aggregates.Pending),
+			)
+			if allWorkspaces {
+				ids := make([]string, 0, len(response.Items))
+				for _, item := range response.Items {
+					ids = append(ids, item.WorkspaceID)
+				}
+				labels, err := loopProjectNames(cmd.Context(), client, ids)
+				if err != nil {
+					return err
+				}
+				bundle.human = func() (string, error) {
+					rows := make([][]string, 0, len(response.Items))
+					for _, item := range response.Items {
+						rows = append(rows, []string{labels[item.WorkspaceID], item.LoopName, item.NodeID, item.State})
+					}
+					return renderHumanTable(
+						"Requests",
+						[]string{cliProjectHeader, "LOOP", "NODE", cliStateHeader},
+						rows,
+					), nil
+				}
+			}
+			return writeCommandOutput(cmd, bundle)
 		},
 	}
 	cmd.Flags().StringVar(&workspaceRef, loopWorkspaceKey, "", "Override workspace (ID, name, or path)")
@@ -38,6 +67,9 @@ func newLoopRequestsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&state, loopStateKey, "pending", "Filter by pending or resolved")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from a request cursor")
 	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum requests to return")
+	cmd.Flags().BoolVar(&allWorkspaces, "all-workspaces", false, "List every project and User scope")
+	cmd.MarkFlagsMutuallyExclusive("workspace", "all-workspaces")
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

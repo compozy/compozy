@@ -84,7 +84,6 @@ describe("HomeHeader", () => {
     expect(logo).not.toBeNull();
     expect(logo?.getAttribute("data-variant")).toBe("logo");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
-    expect(screen.getByText("Beta")).toBeDefined();
   });
 
   it("renders the five public navigation links in desktop and mobile headers (D1)", () => {

@@ -23,7 +23,10 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
     activeWorkspaceId: mocks.workspaceId,
     activeWorkspace: { name: "Test" },
     runtimeWorkspaceId: mocks.workspaceId,
+    registeredWorkspaces: mocks.workspaceId ? [{ id: mocks.workspaceId, name: "Test" }] : [],
   }),
+  useDataScope: () =>
+    mocks.workspaceId ? { kind: "project", workspaceId: mocks.workspaceId } : { kind: "all" },
 }));
 vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   useWorkspace: () => ({ data: { providers: [] }, isLoading: false }),
@@ -213,6 +216,7 @@ describe("useAgentSettingsPage", () => {
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/agents/$name",
       params: { name: primaryAgentFixture.name },
+      search: {},
     });
     expect(mocks.navigate).toHaveBeenCalledWith({ to: "/settings/providers" });
   });

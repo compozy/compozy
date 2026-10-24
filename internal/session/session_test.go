@@ -79,17 +79,85 @@ func TestSessionInvalidTransitionRejected(t *testing.T) {
 func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should report provider runtime changes without losing requested intent", func(t *testing.T) {
+		t.Parallel()
+		applied := &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied}
+		session := &Session{
+			Provider:        "claude",
+			ReasoningEffort: "max",
+			Speed:           speedpkg.SpeedFast,
+			SpeedResolution: applied,
+		}
+		proc := NewAgentProcess(AgentProcessOptions{PID: 42, Caps: acp.Caps{SpeedResolution: applied}})
+		session.updateFromProcessLocked(proc, time.Now(), false)
+		proc.setCaps(acp.Caps{
+			SpeedResolution: &speedpkg.Resolution{
+				Requested: speedpkg.SpeedFast,
+				Status:    speedpkg.ResolutionRejected,
+				Reason:    speedpkg.ReasonProviderRejected,
+			},
+			ConfigOptions: []acp.SessionConfigOption{
+				{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+				{
+					ID:             "fast",
+					Category:       "model_config",
+					Kind:           acp.SessionConfigOptionKindSelect,
+					CurrentValueID: "off",
+					Values:         []acp.SessionConfigOptionValue{{Value: "off"}, {Value: "on"}},
+				},
+			},
+		})
+		info := session.Info()
+		effective := info.EffectiveRuntime()
+		if effective.Speed != speedpkg.SpeedNormal || effective.ReasoningEffort != "high" ||
+			info.SpeedResolution.Status != speedpkg.ResolutionRejected {
+			t.Fatalf(
+				"effective runtime = %s/%s/%#v, want normal/high/rejected",
+				effective.Speed,
+				effective.ReasoningEffort,
+				info.SpeedResolution,
+			)
+		}
+		intent := session.runtimeBindingSnapshot().selection
+		if intent.Speed != speedpkg.SpeedFast || intent.ReasoningEffort != "max" {
+			t.Fatalf("requested intent changed: %#v", intent)
+		}
+		event := promptRuntimeFallbackForEvent(session, acp.AgentEvent{Type: acp.EventTypeDone})
+		if got := event.PromptRuntimeSnapshot(); got.Speed != speedpkg.SpeedNormal || got.ReasoningEffort != "high" {
+			t.Fatalf("event runtime = %#v, want observed normal/high", got)
+		}
+		meta := session.Meta()
+		catalog := sessionCatalogStateUpdate(info)
+		if meta.Speed != speedpkg.SpeedFast || meta.SpeedResolution.Status != speedpkg.ResolutionRejected ||
+			catalog.Speed != speedpkg.SpeedFast || catalog.SpeedResolution.Requested != catalog.Speed {
+			t.Fatalf("persisted intent = %#v/%#v, want requested Fast with rejected outcome", meta, catalog)
+		}
+		session.markExited(time.Now())
+		session.clearProcess(time.Now())
+		last := session.Info()
+		if last.Liveness.SubprocessPID != 0 || last.Liveness.SubprocessStartedAt != nil {
+			t.Fatalf("released runtime restored stopped process liveness: %#v", last.Liveness)
+		}
+		if last.EffectiveRuntime().Speed != speedpkg.SpeedNormal ||
+			last.SpeedResolution.Status != speedpkg.ResolutionRejected ||
+			session.Meta().SpeedResolution.Status != speedpkg.ResolutionRejected {
+			t.Fatalf("released runtime = %#v, want latest rejected Fast observation retained", last)
+		}
+	})
+
 	t.Run("Should preserve known empty ACP capabilities in Info", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Now().UTC()
 		session := &Session{
-			ID:        "sess-1",
-			AgentName: "coder",
-			Workspace: t.TempDir(),
-			State:     StateStarting,
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:              "sess-1",
+			AgentName:       "coder",
+			Provider:        "claude",
+			ReasoningEffort: "max",
+			Workspace:       t.TempDir(),
+			State:           StateStarting,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		proc := NewAgentProcess(AgentProcessOptions{Caps: acp.Caps{}})
 		if err := session.activateWithProcess(proc, now, false, false); err != nil {
@@ -99,6 +167,9 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 		info := session.Info()
 		if !info.ACPCapsKnown {
 			t.Fatal("Info().ACPCapsKnown = false, want true for negotiated empty capabilities")
+		}
+		if info.EffectiveRuntime().ReasoningEffort != "" || info.ReasoningEffort != "max" {
+			t.Fatalf("missing selector = %#v, want unknown effective effort with max intent retained", info)
 		}
 		if info.ACPCaps.PromptImage ||
 			info.ACPCaps.PromptAudio ||
@@ -170,7 +241,9 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 		}
 		previousManifest := acp.OpaqueStartupManifest("previous startup", true)
 		session.setAgentDefinition(session.AgentDefinition(), previousManifest)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, now)
 		snapshot := session.runtimeBindingSnapshot()
+		session.replaceAdvertisedCommands(nil, now)
 		session.setAgentDefinition(compozyconfig.AgentDef{
 			Name:   "coder",
 			Prompt: "candidate definition",
@@ -178,6 +251,9 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 		}, acp.OpaqueStartupManifest("candidate startup", false))
 
 		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
+		if commands := session.Info().AdvertisedCommands; len(commands) != 1 || commands[0].Name != "compact" {
+			t.Fatalf("restored command advertisements = %#v", commands)
+		}
 		_, manifest := session.startupDefinition()
 		if !reflect.DeepEqual(manifest, previousManifest) {
 			t.Fatalf("restored startup manifest = %#v, want %#v", manifest, previousManifest)

@@ -3,7 +3,7 @@ import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { StorybookFieldDirtySetup } from "@/storybook/settings-state-helpers";
+import { userEvent, within } from "storybook/test";
 import {
   StorybookRestartNoticeSetup,
   StorybookRouteCanvas,
@@ -45,15 +45,15 @@ export const Default: Story = {
 export const Dirty: Story = {
   args: {},
   parameters: appRouteParameters("/settings/automation"),
-  render: () => (
-    <>
-      <StorybookWorkspaceSetup />
-      <StorybookFieldDirtySetup
-        testId="settings-page-automation-timezone-input"
-        value="America/Sao_Paulo"
-      />
-    </>
-  ),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", {
+        name: "Use this machine’s time zone (America/Sao_Paulo)",
+      })
+    );
+  },
 };
 
 /**

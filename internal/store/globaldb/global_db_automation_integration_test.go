@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/automation"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -563,5 +565,77 @@ func TestGlobalDBAutomationTriggerUpdateContention(t *testing.T) {
 		if err != nil || persisted.Name != updated.Name {
 			t.Fatalf("update after writer released = %#v, %v", persisted, err)
 		}
+	})
+}
+
+func TestGlobalDBAutomationAttributionMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should derive only source evidence and preserve every historical row", func(t *testing.T) {
+		t.Parallel()
+		stream := MigrationStream()
+		entries, err := fs.ReadDir(stream.FS, stream.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for _, entry := range entries {
+			if strings.HasSuffix(entry.Name(), ".sql") && entry.Name() < "00148" {
+				names = append(names, entry.Name())
+			}
+		}
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		previous, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefix(t, names...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := t.Context()
+		for _, stmt := range []string{
+			`INSERT INTO automation_jobs(id,profile_id,scope,name,agent_name,prompt,enabled,retry,fire_limit,source,target_kind,loop_inputs,loop_input_mapping,created_at,updated_at) VALUES ('source','00000000000000000000000000','global','source','general','test',1,'{}','{}','dynamic','agent','{}','{}','2026-10-21T00:00:00Z','2026-10-21T00:00:00Z')`,
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('ws-source','/source','Source','2026-10-21T00:00:00Z','2026-10-21T00:00:00Z')`,
+			`INSERT INTO automation_jobs(id,profile_id,scope,workspace_id,name,agent_name,prompt,enabled,retry,fire_limit,source,target_kind,loop_inputs,loop_input_mapping,created_at,updated_at) VALUES ('project-source','00000000000000000000000000','workspace','ws-source','project-source','general','test',1,'{}','{}','dynamic','agent','{}','{}','2026-10-21T00:00:00Z','2026-10-21T00:00:00Z')`,
+			`INSERT INTO automation_runs(id,job_id,status) VALUES ('known','source','scheduled'),('orphan','deleted','scheduled'),('project','project-source','scheduled')`,
+		} {
+			if _, err := previous.ExecContext(ctx, stmt); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := previous.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		known, err := db.GetRun(ctx, "known")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if known.WorkspaceID == nil || *known.WorkspaceID != "" || known.Attribution != "derived" {
+			t.Fatalf("known = %#v", known)
+		}
+		project, err := db.GetRun(ctx, "project")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if project.WorkspaceID == nil || *project.WorkspaceID != "ws-source" || project.Attribution != "derived" {
+			t.Fatalf("project attribution = %#v", project)
+		}
+		orphan, err := db.GetRun(ctx, "orphan")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if orphan.WorkspaceID != nil || orphan.Attribution != "unknown" {
+			t.Fatalf("orphan = %#v", orphan)
+		}
+		status, err := store.Status(ctx, db.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 	})
 }

@@ -15,7 +15,8 @@ func KeychainSupported() bool { return runtime.GOOS == "darwin" }
 const claudeProviderID = "claude"
 
 type KeychainReader interface {
-	Read(ctx context.Context, service, account string) ([]byte, error)
+	// Read must never prompt when interactive is false.
+	Read(ctx context.Context, service, account string, interactive bool) ([]byte, error)
 }
 
 type ClaudeOption func(*ClaudeCollector)
@@ -123,11 +124,11 @@ func (c *ClaudeCollector) Identity(ctx context.Context, target Target, intent In
 func (c *ClaudeCollector) Collect(
 	ctx context.Context,
 	target Target,
-	intent Intent,
+	_ Intent,
 	identity CredentialIdentity,
 ) (Snapshot, error) {
 	c.mu.Lock()
-	record, err := c.forCollection(target, intent, identity)
+	record, err := c.forCollection(target, identity)
 	if err != nil {
 		c.mu.Unlock()
 		return Snapshot{}, err
@@ -152,13 +153,18 @@ func (c *ClaudeCollector) Collect(
 	}
 	if !c.now().Before(record.expires) {
 		record.expire()
-		return Snapshot{}, claudeExpiryError(record.keychain)
+		return Snapshot{}, claudeExpiryError()
 	}
 	if record.singleUse {
 		clear(record.token)
 		record.token = nil
 	}
 	if err != nil {
+		code := AsUsageError(err, "Claude").Code
+		if code == ErrorCodeAuthMissing || code == ErrorCodeAuthExpired {
+			// Claude may replace a revoked token before its recorded expiry.
+			record.expire()
+		}
 		return Snapshot{}, err
 	}
 	snapshot, err := decodeClaudeUsage(data)
@@ -183,17 +189,15 @@ func (c *ClaudeCollector) ValidateIdentity(_ context.Context, target Target, ide
 
 func (c *ClaudeCollector) forCollection(
 	target Target,
-	intent Intent,
 	identity CredentialIdentity,
 ) (*claudeCredential, error) {
 	if err := c.validateLocked(target, identity); err != nil {
 		return nil, err
 	}
 	record := c.records[target.ProfileID]
-	if record.expired || !c.now().Before(record.expires) || len(record.token) == 0 ||
-		(record.singleUse && intent != IntentExplicit) {
+	if record.expired || !c.now().Before(record.expires) || len(record.token) == 0 {
 		record.expire()
-		return nil, claudeExpiryError(record.keychain)
+		return nil, claudeExpiryError()
 	}
 	return record, nil
 }

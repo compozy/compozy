@@ -9,6 +9,8 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	storepkg "github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var _ looppkg.AmendmentStore = (*LoopRepo)(nil)
@@ -31,6 +33,12 @@ func (g *LoopRepo) AmendNodeOutput(
 	err := g.withTaskImmediateTransaction(ctx, "amend Loop node output", func(exec taskSQLExecutor) error {
 		originalRef, sequence, err := loadAmendmentTarget(ctx, exec, input)
 		if err != nil {
+			return err
+		}
+		if err := sqlcgen.New(exec).UpdateLoopRunGrantCeiling(ctx, sqlcgen.UpdateLoopRunGrantCeilingParams{
+			ID: string(input.RunID), Operator: input.Actor.Scope.Operator,
+			Ceiling: workspaceaccess.AuthoringCeiling(ctx, input.Actor.Scope.Operator),
+		}); err != nil {
 			return err
 		}
 		amendedRef := looppkg.OutputRefForPayload(input.Payload)

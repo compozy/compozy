@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"sync"
 	"sync/atomic"
 	"time"
@@ -54,6 +53,10 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	BoardColumn              BoardColumn
+	ParentTitle              string
+	Children                 *store.SessionBoardCounts
+	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState
 	BusyInput                *BusyInputState
@@ -75,6 +78,7 @@ type Info struct {
 	RuntimeRecovery          *store.SessionRuntimeRecovery
 	SelectedRuntime          *RuntimeSelection
 	RuntimeSelectionRevision int64
+	EffectiveWorkspaceAccess string
 	EffectivePermissions     string
 	WorkspaceID              string
 	Workspace                string
@@ -117,6 +121,7 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	supervisionInspectMu         sync.Mutex
 	supervisionState             *SupervisionState
 	supervisionWarningEvent      *acp.AgentEvent
 	supervisionStoppedEvent      *acp.AgentEvent
@@ -162,6 +167,7 @@ type Session struct {
 	RuntimeRecovery           *store.SessionRuntimeRecovery
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64
+	EffectiveWorkspaceAccess  string
 	EffectivePermissions      string
 	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
 	providerHomePolicy        compozyconfig.ProviderHomePolicy
@@ -204,6 +210,7 @@ type Session struct {
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
 	acceptedRoute             *store.SessionAcceptedRoute
+	restartBoundary           *store.SessionRestartCheckpoint
 	// derivation and importedContext exist only on continued or forked children.
 	derivation          *store.SessionDerivation
 	importedContext     *store.SessionImportedContext
@@ -349,6 +356,7 @@ func (s *Session) clearProcess(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.captureProcessCapabilitiesLocked()
 	s.process = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now

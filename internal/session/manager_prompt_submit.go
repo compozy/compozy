@@ -171,6 +171,12 @@ func (m *Manager) preparePromptRequestMessage(
 	if err != nil {
 		return "", err
 	}
+	if err := m.prepareAgentCommandDelivery(ctx, req, message); err != nil {
+		return "", err
+	}
+	if req.delivery == PromptDeliveryAgentCommand {
+		message = strings.TrimSpace(message)
+	}
 	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
 	// A hook rewrite keeps only admitted mentions whose exact token is still present; it never adds one.
 	// Survivors keep their authored-text offsets, which the transcript displays.
@@ -191,6 +197,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.recordRestartBoundary(session, req); err != nil {
+		return nil, err
+	}
 	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput)
 	if err != nil {
 		return nil, err
@@ -265,6 +274,7 @@ func (m *Manager) newDispatchPromptRequest(
 ) acp.PromptRequest {
 	request := acp.PromptRequest{
 		Maintenance:               req.delivery == PromptDeliveryMaintenance,
+		AgentCommand:              req.delivery == PromptDeliveryAgentCommand,
 		TurnID:                    req.turnID,
 		RunID:                     req.runID,
 		Generation:                session.Info().RuntimeGeneration,
@@ -368,7 +378,7 @@ func (m *Manager) promptDispatchMessage(
 	message string,
 	delivery PromptDelivery,
 ) (preparedPromptInput, error) {
-	if delivery == PromptDeliveryMaintenance {
+	if delivery == PromptDeliveryMaintenance || delivery == PromptDeliveryAgentCommand {
 		return preparedPromptInput{message: message}, nil
 	}
 	ctx, sections := acp.CollectPromptSections(ctx)
@@ -419,14 +429,14 @@ func (m *Manager) prepareReservedPromptInput(
 	}
 	raiseBatchedPromptHops(session, input.batched)
 	replayBlock := ""
-	if req.delivery != PromptDeliveryMaintenance {
+	if req.delivery == PromptDeliveryNormal {
 		replayBlock = m.pendingResumeReplay(session.ID)
 	}
 	return promptWithResumeReplay(replayBlock, input.message), replayBlock, nil
 }
 
 func (m *Manager) consumeReservedPromptContext(session *Session, req promptRequest, replayBlock string) {
-	if req.delivery == PromptDeliveryMaintenance {
+	if req.delivery != PromptDeliveryNormal {
 		return
 	}
 	m.consumeResumeReplay(session.ID, replayBlock)

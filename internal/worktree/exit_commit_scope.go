@@ -16,7 +16,16 @@ import (
 const gitLiteralPathspecs = "--literal-pathspecs"
 
 func (s *Service) ExitPlanForPaths(ctx context.Context, workspaceID, ref string, paths []string) (*ExitPlan, error) {
-	plan, err := s.ExitPlan(ctx, workspaceID, ref)
+	return s.exitPlanForPaths(ctx, workspaceID, ref, paths, false)
+}
+
+func (s *Service) exitPlanForPaths(
+	ctx context.Context,
+	workspaceID, ref string,
+	paths []string,
+	action bool,
+) (*ExitPlan, error) {
+	plan, err := s.exitPlan(ctx, workspaceID, ref, action)
 	if err != nil || len(paths) == 0 {
 		return plan, err
 	}

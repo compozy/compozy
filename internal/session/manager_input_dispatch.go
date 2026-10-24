@@ -160,6 +160,9 @@ func (m *Manager) peekNextQueuedInputPrompt(
 	if m == nil || m.inputQueue == nil {
 		return "", nil, store.SessionInputQueueEntry{}, false
 	}
+	if _, held := m.restartInputsHeld.Load(sessionID); held {
+		return "", nil, store.SessionInputQueueEntry{}, false
+	}
 	target := strings.TrimSpace(sessionID)
 	if target == "" {
 		return "", nil, store.SessionInputQueueEntry{}, false

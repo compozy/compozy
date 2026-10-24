@@ -30,7 +30,8 @@ func insertReplyWatchTx(
 	exec store.DBTX,
 	w store.ReplyWatchRegistration,
 ) (store.ReplyWatch, error) {
-	if w.WorkspaceID == "" || w.SenderSessionID == "" || w.TargetWorkspaceID == "" || w.TargetSessionID == "" ||
+	// An empty sender or target workspace is the User scope (USW BR-1); the sessions identify it.
+	if w.SenderSessionID == "" || w.TargetSessionID == "" ||
 		w.MessageID == "" ||
 		w.AdmissionID == "" ||
 		w.Hop < 1 ||

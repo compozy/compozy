@@ -25,7 +25,6 @@ type claudeCredential struct {
 	evidencePath    string
 	evidenceAccount string
 	expired         bool
-	denied          bool
 	keychain        bool
 	singleUse       bool
 }
@@ -34,10 +33,7 @@ type claudeRead struct{ cancel context.CancelFunc }
 
 func (r *claudeCredential) expire() { clear(r.token); r.token = nil; r.expired = true }
 
-func claudeExpiryError(keychain bool) *UsageError {
-	if keychain {
-		return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
-	}
+func claudeExpiryError() *UsageError {
 	return NewUsageError(ErrorCodeAuthExpired, "Claude")
 }
 
@@ -70,26 +66,21 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 	}
 	if intent != IntentExplicit {
 		record = c.records[target.ProfileID]
-		if record == nil {
-			return nil, NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
+		if record != nil && c.validateLocked(target, record.identity) == nil {
+			if !record.singleUse && !record.expired && c.now().Before(record.expires) {
+				return record, nil
+			}
 		}
-		if err := c.validateLocked(target, record.identity); err != nil {
-			return nil, err
-		}
-		if record.denied {
-			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
-		}
-		if record.singleUse || record.expired || !c.now().Before(record.expires) {
-			record.expire()
-			return record, claudeExpiryError(true)
-		}
-		return record, nil
 	}
-	return c.readKeychainLocked(ctx, target)
+	return c.readKeychainLocked(ctx, target, intent)
 }
 
-// readKeychainLocked releases the collector lock while the OS may prompt the operator.
-func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target) (*claudeCredential, error) {
+// readKeychainLocked releases the collector lock during OS access; only explicit reads may prompt.
+func (c *ClaudeCollector) readKeychainLocked(
+	ctx context.Context,
+	target Target,
+	intent Intent,
+) (*claudeCredential, error) {
 	c.clearLocked(target.ProfileID)
 	path, account := claudeAccountEvidence(target)
 	service, username := claudeKeychainItem(target)
@@ -97,7 +88,7 @@ func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target)
 	pending := &claudeRead{cancel: cancel}
 	c.pending[target.ProfileID] = pending
 	c.mu.Unlock()
-	data, err := c.keychain.Read(readCtx, service, username)
+	data, err := c.keychain.Read(readCtx, service, username, intent == IntentExplicit)
 	c.mu.Lock()
 	defer cancel()
 	defer clear(data)
@@ -110,13 +101,6 @@ func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target)
 		case errors.Is(err, os.ErrNotExist):
 			return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
 		case errors.Is(err, os.ErrPermission):
-			c.records[target.ProfileID] = &claudeCredential{
-				denied:          true,
-				keychain:        true,
-				route:           target.RouteFingerprint,
-				evidencePath:    path,
-				evidenceAccount: account,
-			}
 			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
 		default:
 			return nil, AsUsageError(err, "Claude")
@@ -131,7 +115,7 @@ func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target)
 	record.identity = claudeIdentity(record.token, account)
 	if record.expired {
 		record.expire()
-		err = claudeExpiryError(true)
+		err = claudeExpiryError()
 	}
 	c.records[target.ProfileID] = record
 	if err := c.validateLocked(target, record.identity); err != nil {
@@ -194,7 +178,7 @@ func parseClaudeCredential(data []byte, now time.Time) (*claudeCredential, error
 		expired: !now.Before(expires),
 	}
 	if record.expired {
-		return record, claudeExpiryError(false)
+		return record, claudeExpiryError()
 	}
 	return record, nil
 }

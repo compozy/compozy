@@ -155,7 +155,7 @@ test("drops the control when provider usage is turned off (E2E-003)", async ({
   });
 });
 
-test("opens the Usage app from the popover with Codex expanded (E2E-004)", async ({
+test("opens the Usage app from the popover with Codex collapsed until expanded (E2E-004)", async ({
   appPage,
   runtime,
 }) => {
@@ -167,10 +167,11 @@ test("opens the Usage app from the popover with Codex expanded (E2E-004)", async
   const usageWindow = appWindow(appPage, "usage");
   await expect(usageWindow).toBeVisible();
   await expect(usageWindow.getByRole("region", { name: "Usage" })).toBeVisible();
-  await expect(usageWindow.getByRole("button", { name: /^Codex/ })).toHaveAttribute(
-    "aria-expanded",
-    "true"
-  );
+  const codexRow = usageWindow.getByRole("button", { name: /^Codex/ });
+  await expect(codexRow).toHaveAttribute("aria-expanded", "false");
+  await expect(usageWindow).not.toContainText("120 credits");
+  await codexRow.click();
+  await expect(codexRow).toHaveAttribute("aria-expanded", "true");
   await expect(usageWindow).toContainText("120 credits");
 });
 

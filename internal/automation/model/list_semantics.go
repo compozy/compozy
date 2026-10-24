@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // SortJobsForList orders jobs by source precedence, name, and id.
@@ -60,6 +62,9 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 }
 
 func jobMatchesListQuery(job Job, query JobListQuery) bool {
+	if !WorkspaceMatches(query.WorkspaceIDs, job.WorkspaceID) {
+		return false
+	}
 	if !query.ReadScope.Matches(job.ProfileID) {
 		return false
 	}
@@ -108,14 +113,19 @@ func JobMatchesListQuery(job Job, query JobListQuery) bool {
 	return jobMatchesListQuery(job, normalizeJobListQuery(query))
 }
 
-func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
-	if !query.ReadScope.Matches(trigger.ProfileID) {
+// triggerMatchesListOwner applies the profile and workspace boundary of a trigger query.
+func triggerMatchesListOwner(trigger *Trigger, query *TriggerListQuery) bool {
+	if !WorkspaceMatches(query.WorkspaceIDs, trigger.WorkspaceID) || !query.ReadScope.Matches(trigger.ProfileID) {
 		return false
 	}
 	if query.Scope != "" && trigger.Scope != query.Scope {
 		return false
 	}
-	if query.WorkspaceID != "" && strings.TrimSpace(trigger.WorkspaceID) != query.WorkspaceID {
+	return query.WorkspaceID == "" || strings.TrimSpace(trigger.WorkspaceID) == query.WorkspaceID
+}
+
+func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
+	if !triggerMatchesListOwner(&trigger, &query) {
 		return false
 	}
 	if query.Event != "" && strings.TrimSpace(trigger.Event) != query.Event {
@@ -219,4 +229,14 @@ func JobListTarget(job Job) string {
 		return "task"
 	}
 	return string(normalizedTargetKind(job.TargetKind, job.LoopTarget))
+}
+
+func WorkspaceMatches(ids []string, workspaceID string) bool {
+	if len(ids) == 0 {
+		return true
+	}
+	if workspaceID == "" {
+		workspaceID = workspaceaccess.UserSelector
+	}
+	return slices.Contains(ids, workspaceID)
 }

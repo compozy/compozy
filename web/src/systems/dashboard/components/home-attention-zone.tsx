@@ -7,6 +7,7 @@ import type { AttentionNotificationScope } from "@/systems/notifications";
 
 import type { HomeAttentionActions } from "../hooks/use-home-attention-actions";
 import type { HomeAttentionResolvedKind } from "../hooks/use-home-attention-actions";
+import { itemBindingSearch } from "@/systems/workspace";
 import type { HomeAttention, HomeAttentionItem } from "../types";
 
 export interface HomeAttentionZoneProps {
@@ -14,10 +15,13 @@ export interface HomeAttentionZoneProps {
   actions: HomeAttentionActions;
   notificationScope?: AttentionNotificationScope;
   scopeLabel?: string;
+  /** All projects: items open in place, bound to the project (or User) that owns them. */
+  bindItemsToOwner?: boolean;
 }
 
 interface HomeAttentionRowProps {
   item: HomeAttentionItem;
+  openSearch?: { workspace: string };
   onAcknowledge: (id?: string) => void;
   acknowledgementDisabled: boolean;
   resolved: HomeAttentionResolvedKind | undefined;
@@ -55,6 +59,7 @@ function attentionSentence(item: HomeAttentionItem): string {
 
 function HomeAttentionRow({
   item,
+  openSearch,
   onAcknowledge,
   acknowledgementDisabled,
   resolved,
@@ -133,7 +138,7 @@ function HomeAttentionRow({
         {item.actions.includes("open") && taskId ? (
           <Button
             nativeButton={false}
-            render={<Link params={{ id: taskId }} to="/tasks/$id" />}
+            render={<Link params={{ id: taskId }} search={openSearch} to="/tasks/$id" />}
             size="sm"
             variant="ghost"
           >
@@ -155,6 +160,7 @@ export function HomeAttentionZone({
   actions,
   notificationScope,
   scopeLabel = "Selected scope",
+  bindItemsToOwner = false,
 }: HomeAttentionZoneProps) {
   const {
     resolvedById,
@@ -213,6 +219,7 @@ export function HomeAttentionZone({
                 (item.run_id != null && pendingIds.has(item.run_id))
               }
               item={item}
+              openSearch={bindItemsToOwner ? itemBindingSearch(item.workspace_id) : undefined}
               key={item.notification_id ?? `${item.kind}:${item.task_id ?? item.title}`}
               onAcknowledge={onAcknowledge}
               acknowledgementDisabled={acknowledgementDisabled}

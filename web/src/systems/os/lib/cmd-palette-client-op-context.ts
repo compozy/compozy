@@ -18,7 +18,7 @@ export interface PaletteShellHandlers {
   openNewSession(): void;
   toggleSessions(): void;
   toggleSidebar(): void;
-  toggleGlobalScope(): void;
+  toggleAllProjects(): void;
   /** Switches the active profile through the canonical selection route. */
   useProfile(profile: string, beforeSwitch?: () => void): void | Promise<unknown>;
   cycleWorkspace(direction: "previous" | "next"): void;

@@ -32,20 +32,30 @@ func TestClassifyPreviousStop(t *testing.T) {
 		wantACP     *string
 	}{
 		{
-			name:        "active session classified as crashed",
-			meta:        store.SessionMeta{State: string(StateActive), RuntimeStatus: store.SessionRuntimeReady},
+			name: "active session interrupted by daemon restart",
+			meta: store.SessionMeta{State: string(StateActive), RuntimeStatus: store.SessionRuntimeReady,
+				RuntimeTransition: store.SessionRuntimeTransitionInitialBind},
 			wantChanged: true,
 			wantState:   string(StateStopped),
-			wantReason:  stopReasonPointer(store.StopAgentCrashed),
-			wantDetail:  resumeStopDetailAgentCrashed,
+			wantReason:  stopReasonPointer(store.StopShutdown),
+			wantDetail:  "Interrupted by daemon restart.",
 		},
 		{
-			name:        "stopping session classified as crashed",
+			name:        "stopping session interrupted by daemon restart",
 			meta:        store.SessionMeta{State: string(StateStopping), RuntimeStatus: store.SessionRuntimeReady},
 			wantChanged: true,
 			wantState:   string(StateStopped),
-			wantReason:  stopReasonPointer(store.StopAgentCrashed),
-			wantDetail:  "stop did not complete",
+			wantReason:  stopReasonPointer(store.StopShutdown),
+			wantDetail:  "Interrupted by daemon restart.",
+		},
+		{
+			name: "explicit stop remains canceled after daemon restart",
+			meta: store.SessionMeta{State: string(StateStopping), RuntimeStatus: store.SessionRuntimeReady,
+				StopReason: &existingReason, StopDetail: "requested by user"},
+			wantChanged: true,
+			wantState:   string(StateStopped),
+			wantReason:  &existingReason,
+			wantDetail:  "requested by user",
 		},
 		{
 			name: "starting session classified as error",
@@ -178,9 +188,8 @@ func TestClassifyInactiveMetaForRecoveryReleasedRuntime(t *testing.T) {
 					got.StopVerificationFailed != (tc.want == StateStopping) {
 					t.Fatalf("interrupted release = %s, verification failed %t", got.State, got.StopVerificationFailed)
 				}
-				if clean := got.StopReason != nil &&
-					*got.StopReason == store.StopShutdown; clean != (tc.want == StateStopped) {
-					t.Fatalf("interrupted release stop reason = %v, want clean shutdown %t", got.StopReason, !clean)
+				if got.StopReason == nil || *got.StopReason != store.StopShutdown || got.Failure != nil {
+					t.Fatalf("interrupted release lost restart attribution: %#v", got)
 				}
 				assertOptionalStringEqual(t, got.ACPSessionID, stringPointer("acp-releasing"))
 			})

@@ -9,6 +9,8 @@ import { terminalKeys } from "../../lib/query-keys";
 import type { TerminalRecordingMap } from "../../lib/terminal-recording-state";
 import { DEV_SERVER_TERMINAL, PSQL_TERMINAL } from "../../mocks/terminal-fixtures";
 import type { TerminalInfo } from "../../types";
+import { terminalAggregateScope, type TerminalAggregateScope } from "../../lib/aggregate-query";
+import { useTerminalAggregateStream } from "../use-terminal-aggregate-stream";
 import { useTerminalCatalogStream } from "../use-terminal-catalog-stream";
 
 /**
@@ -581,5 +583,58 @@ describe("useTerminalCatalogStream", () => {
 
     expect(invalidate).not.toHaveBeenCalled();
     expect(catalog(client, "work")).toEqual([DEV_SERVER_TERMINAL]);
+  });
+});
+
+// Invariant: the All projects stream is bound to one selection (Project filter + profile lens):
+// it reads `/api/terminals/catalog-stream?all_workspaces=true…`, writes only that selection's
+// cache, and a selection change replaces both the subscription and the cache entry.
+describe("useTerminalAggregateStream", () => {
+  function renderSelection(initial: TerminalAggregateScope) {
+    const opened: { url: string; fake: ReturnType<typeof createFakeSource> }[] = [];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = renderHook(
+      ({ scope }: { scope: TerminalAggregateScope }) =>
+        useTerminalAggregateStream({
+          scope,
+          eventSourceFactory: url => {
+            const fake = createFakeSource();
+            opened.push({ url, fake });
+            return fake.source as unknown as StreamEventSource;
+          },
+        }),
+      {
+        initialProps: { scope: initial },
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    return { ...view, client, opened };
+  }
+
+  it("Should fold the selection's frames into its own cache and replace both on a selection change", () => {
+    const every = terminalAggregateScope([], "work", false);
+    const { opened, client, rerender } = renderSelection(every);
+    expect(opened.map(entry => entry.url)).toEqual([
+      "/api/terminals/catalog-stream?all_workspaces=true&profile=work",
+    ]);
+
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL], reset: true });
+    opened[0].fake.emit("terminal.created", { terminal: PSQL_TERMINAL });
+    expect(
+      client.getQueryData<TerminalInfo[]>(terminalKeys.aggregate("", "work"))?.map(t => t.id)
+    ).toEqual([DEV_SERVER_TERMINAL.id, PSQL_TERMINAL.id]);
+
+    const narrowed = terminalAggregateScope(["ws-b", "@user"], "work", false);
+    const queued = opened[0].fake.queue("terminal.created", { terminal: DEV_SERVER_TERMINAL });
+    rerender({ scope: narrowed });
+    queued();
+
+    expect(opened[0].fake.closed).toBe(true);
+    expect(opened[1].url).toBe(
+      "/api/terminals/catalog-stream?all_workspaces=true&workspace_ids=%40user&workspace_ids=ws-b&profile=work"
+    );
+    expect(client.getQueryData(terminalKeys.aggregate(narrowed.selection, "work"))).toBeUndefined();
   });
 });

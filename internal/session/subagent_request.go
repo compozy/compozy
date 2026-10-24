@@ -197,7 +197,7 @@ func presentSubagent(row store.SessionSubagent) Subagent {
 		result.ResultPreview = subagentFirstLine(*row.Result, 280)
 	}
 	if row.ResultTruncated {
-		result.Hint = "Read the full answer with compozy__session_history on child_session_id."
+		result.Hint = "Read the full answer with compozy__session_history on child_session_id, type=agent_message, limit=1."
 	}
 	return result
 }

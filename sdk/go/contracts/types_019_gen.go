@@ -4,6 +4,18 @@ package contracts
 
 import "time"
 
+type SourceRef struct {
+	Kind            SourceKind `json:"kind"`
+	Owner           string     `json:"owner"`
+	RawServerName   string     `json:"raw_server_name,omitempty"`
+	RawToolName     string     `json:"raw_tool_name,omitempty"`
+	ResourceID      string     `json:"resource_id,omitempty"`
+	ResourceVersion string     `json:"resource_version,omitempty"`
+	ProfileID       string     `json:"profile_id,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Scope           string     `json:"scope,omitempty"`
+}
+
 type SpawnBudgetPayload struct {
 	MaxChildren           int   `json:"max_children"`
 	MaxDepth              int   `json:"max_depth"`
@@ -291,5 +303,3 @@ type SubagentWorktreePayload struct {
 	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
 	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
 }
-
-type TargetKind string

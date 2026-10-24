@@ -259,6 +259,9 @@ func (m *Manager) previewLocked(
 	if err != nil {
 		return Preview{}, err
 	}
+	if err := m.validateCommandBindings(ctx, working, payload, reduced.changes); err != nil {
+		return Preview{}, err
+	}
 	var projectedClient *ClientView
 	if reduced.changed {
 		nextRevision, revisionErr := NextTopologyRevision(snapshot.Revision)

@@ -103,13 +103,29 @@ func WorktreeRemovalRefusalPayload(
 	refusal worktree.RemovalRefusal,
 ) contract.WorktreeRemovalRefusalPayload {
 	return contract.WorktreeRemovalRefusalPayload{
-		Code: refusal.Code,
+		Code:  refusal.Code,
+		Error: worktreeRemovalRefusalMessage(refusal.Code),
 		Risk: contract.WorktreeRemovalRiskPayload{
 			ChangedFiles: refusal.Risk.ChangedFiles, Insertions: refusal.Risk.Insertions,
 			Deletions: refusal.Risk.Deletions, UnpushedCommits: refusal.Risk.UnpushedCommits,
-			ExistsOnRemote: refusal.Risk.ExistsOnRemote,
+			ExistsOnRemote: refusal.Risk.ExistsOnRemote, LeftoverFiles: refusal.Risk.LeftoverFiles,
 		},
 		Downgrade: refusal.Downgrade,
+	}
+}
+
+// worktreeRemovalRefusalMessage names why removal stopped and what force does.
+func worktreeRemovalRefusalMessage(code string) string {
+	switch code {
+	case worktree.ErrDirtyRequiresForce.Error():
+		return "The worktree has uncommitted changes. Force removal discards them."
+	case worktree.ErrUnpushedRequiresForce.Error():
+		return "The worktree has commits that exist nowhere else. Force removal discards them."
+	case worktree.ErrCheckoutOrphaned.Error():
+		return "The checkout's Git metadata (.git) is missing; the directory is left over from an " +
+			"interrupted removal. Force removal deletes the leftover files and clears Git's entry."
+	default:
+		return ""
 	}
 }
 

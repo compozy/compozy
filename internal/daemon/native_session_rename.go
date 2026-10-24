@@ -31,7 +31,7 @@ func (n *daemonNativeTools) sessionRename(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, input.SessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	manager, ok := n.deps.Sessions.(core.SessionRenameManager)

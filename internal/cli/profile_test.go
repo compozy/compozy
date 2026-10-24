@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -147,6 +149,60 @@ func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
 
 		if _, _, err := executeRootCommand(t, deps, "session", "status", "sess-engineering", "-o", "json"); err != nil {
 			t.Fatalf("session status error = %v", err)
+		}
+	})
+}
+
+func TestAgentCatalogCommandUsesSessionProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should inherit the session profile without an environment profile", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := &profileTestDaemonClient{
+			DaemonClient: &stubClient{
+				getSessionFn: func(context.Context, string) (SessionRecord, error) {
+					return SessionRecord{
+						ID:          "sess-design",
+						ProfileID:   "profile-design",
+						AgentName:   "general",
+						WorkspaceID: "ws-design",
+						State:       session.StateActive,
+					}, nil
+				},
+				getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{
+						Workspace: WorkspaceRecord{ID: "ws-design", RootDir: "/workspace"},
+					}, nil
+				},
+				listAgentsFn: func(ctx context.Context, _ AgentQuery) ([]AgentRecord, error) {
+					called = true
+					if got := profileQueryValues(ctx, nil).Get("profile"); got != "design" {
+						t.Fatalf("profile = %q", got)
+					}
+					return []AgentRecord{}, nil
+				},
+			},
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+				{ID: store.DefaultProfileID, Name: "default", State: "active"},
+				{ID: "profile-design", Name: "design", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-design"
+			case agentidentity.EnvAgent:
+				return "general"
+			default:
+				return ""
+			}
+		}
+		if _, _, err := executeRootCommand(t, deps, "agent", "list", "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if !called {
+			t.Fatal("agent list was not called")
 		}
 	})
 }
@@ -652,4 +708,26 @@ func profileTestDeps(t *testing.T, selections ...contract.ProfileSelection) comm
 	deps.getwd = func() (string, error) { return "/workspace", nil }
 	deps.getenv = func(string) string { return "" }
 	return deps
+}
+
+func TestUserWorkspaceReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward User without a workspace lookup", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+			t.Fatal("User must not query the workspace registry")
+			return WorkspaceDetailRecord{}, nil
+		}}
+		command := &cobra.Command{Use: "list"}
+		got, err := resolveWorkspaceCandidate(
+			t.Context(),
+			command,
+			client,
+			workspaceaccess.UserSelector,
+			workspaceResolutionFlag,
+		)
+		if err != nil || got.ID != workspaceaccess.UserSelector || got.Source != workspaceResolutionFlag {
+			t.Fatalf("User reference = %#v, %v", got, err)
+		}
+	})
 }

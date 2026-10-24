@@ -340,8 +340,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		if err := fixture.service.persistence.UpsertLoopConfig(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 			looppkg.LoopConfig{IterationCap: new(7)},
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
@@ -375,15 +374,13 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		if _, err := fixture.service.persistence.GetLoopConfig(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 		); !errors.Is(err, looppkg.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(after recreate) error = %v, want ErrConfigNotFound", err)
 		}
 		annotations, err := fixture.service.persistence.ListLoopUIAnnotations(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 		)
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(after recreate) error = %v", err)
@@ -408,8 +405,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		if err := fixture.service.persistence.UpsertLoopConfig(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 			looppkg.LoopConfig{IterationCap: new(7)},
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
@@ -456,8 +452,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		config, err := fixture.service.persistence.GetLoopConfig(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 		)
 		if err != nil {
 			t.Fatalf("GetLoopConfig(after rollback) error = %v", err)
@@ -467,8 +462,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		}
 		annotations, err := fixture.service.persistence.ListLoopUIAnnotations(
 			fixture.ctx,
-			looppkg.WorkspaceID(fixture.workspaceID),
-			created.Loop.Name,
+			looppkg.WorkspaceID(fixture.workspaceID), "", created.Loop.Name,
 		)
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(after rollback) error = %v", err)

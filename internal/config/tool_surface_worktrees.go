@@ -2,6 +2,8 @@ package config
 
 func worktreeToolSurfaceMutableConfigKinds() map[string]ValueKind {
 	return map[string]ValueKind{
+		worktreeTeardownCommandPath: ConfigValueString,
+		worktreeTeardownTimeoutPath: ConfigValueDuration,
 		worktreeRootConfigPath:      ConfigValueString,
 		worktreeNamespaceConfigPath: ConfigValueString,
 		worktreeCopyListConfigPath:  ConfigValueStringSlice,

@@ -57,13 +57,6 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err := spec.applyDeniedToolsOverride(&resolved); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: apply denied tools for %q: %w", spec.sessionID, err)
 	}
-	if err := spec.materializeRootDelegationTools(resolved, m.toolsetCatalog, m.toolUniverse); err != nil {
-		return sessionStartRuntime{}, fmt.Errorf(
-			"session: materialize delegation tools for %q: %w",
-			spec.sessionID,
-			err,
-		)
-	}
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
 		agent:    resolved,

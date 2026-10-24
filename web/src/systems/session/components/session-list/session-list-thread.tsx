@@ -1,21 +1,24 @@
+import { memo } from "react";
+
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
-import { ChevronRight } from "lucide-react";
 
-import { Icon, StateGlyph } from "@compozy/ui";
-
-import { cn } from "@/lib/utils";
-
+import { childSessionSignalState, isSubagentSession } from "../../lib/session-hierarchy";
+import { sessionSubagentCounts } from "../../lib/session-subagent-summary";
 import {
-  childSessionSignalState,
-  isSubagentSession,
-  type ChildSessionSignalState,
-} from "../../lib/session-hierarchy";
-import type { SessionPayload } from "../../types";
+  sessionThreadSegment,
+  type SessionThreadBranchChange,
+  type SessionThreadSegment,
+} from "../../lib/session-thread-branch";
+import type { SessionListTarget, SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
+import { SessionListBranch } from "./session-list-branch";
+import { BRANCH_NODE, BRANCH_RAIL } from "./session-list-branch-rail";
+import { SessionListBranchToggle } from "./session-list-branch-toggle";
 import { SessionListRow, type SessionListRowProps } from "./session-list-row";
+import { SessionListSubagentBranch } from "./session-list-subagent-branch";
 
-/** Folder, order, and drag wiring that only a thread's root row carries. */
+/** Folder, order, and drag wiring a row carries (folder and order verbs on roots only). */
 export type SessionThreadRootLayout = Pick<
   SessionListRowProps,
   "layoutMenu" | "drag" | "dropEdge" | "dragging"
@@ -29,148 +32,251 @@ export interface SessionListThreadProps {
   ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   childSessions: readonly SessionPayload[];
   currentSessionId?: string;
+  /** The root's child sessions are folded away. */
   collapsed: boolean;
-  onToggleThread: (sessionId: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
+  /** Sessions whose subagent list is open. */
+  subagentThreads: ReadonlySet<string>;
+  onThreadBranchChange: SessionThreadBranchChange;
+  onSelectSession: (session: SessionListTarget) => void;
   selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
-  rootLayout?: SessionThreadRootLayout;
+  /** Each row's folder, order, and drag wiring, root and children alike. */
+  layoutFor?: (session: SessionPayload) => SessionThreadRootLayout | undefined;
 }
 
 /**
- * One provenance thread: the root session row plus its child sessions, each
- * hanging off the root's rail by a tree elbow — the connector nested tool calls
- * use. Collapsing keeps the most urgent child state visible on the toggle so an
- * escalation never hides behind the fold.
+ * One provenance thread: the root session row and its branch — the child
+ * sessions or the subagents, one list at a time — each row hanging off the
+ * root's rail by a tree elbow. A folded branch keeps the most urgent child
+ * state on its toggle so an escalation never hides behind the fold.
  */
-export function SessionListThread({
+function SessionListThreadView({
   session,
   owner,
   ownerOf,
   childSessions,
   currentSessionId,
   collapsed,
-  onToggleThread,
+  subagentThreads,
+  onThreadBranchChange,
   onSelectSession,
   selection,
   sessionActions,
   testIdPrefix,
-  rootLayout,
+  layoutFor,
 }: SessionListThreadProps) {
   // A revealed subagent session is not a plain child: it adds no toggle count and
   // never folds away while the operator is viewing it (nav VC-02).
   const foldable = childSessions.filter(child => !isSubagentSession(child));
-  const folded = collapsed && foldable.length > 0;
-  const rootRow = (
-    <SessionListRow
-      {...rootLayout}
+  const revealed = childSessions.filter(isSubagentSession);
+  const branch = (
+    <SessionListBranchRow
       session={session}
-      // Context rules make a subagent a root only when its ancestry was deleted.
-      orphanedSubagent={isSubagentSession(session)}
-      owner={owner}
-      current={session.id === currentSessionId}
-      onSelect={() => onSelectSession(session)}
-      selection={selection}
-      sessionActions={sessionActions}
+      childSessions={foldable}
+      collapsed={collapsed}
+      subagentThreads={subagentThreads}
+      onThreadBranchChange={onThreadBranchChange}
+      currentSessionId={currentSessionId}
+      onSelectSession={onSelectSession}
       testIdPrefix={testIdPrefix}
-      trailing={
-        foldable.length > 0 ? (
-          <ThreadToggle
-            sessionId={session.id}
-            childCount={foldable.length}
-            collapsed={folded}
-            childSignal={folded ? childSessionSignalState(foldable) : null}
-            onToggleThread={onToggleThread}
-            testIdPrefix={testIdPrefix}
-          />
-        ) : undefined
-      }
-    />
-  );
-  if (childSessions.length === 0) return rootRow;
-
-  const childRow = (child: SessionPayload) => {
-    const childOwner = ownerOf?.(child);
-    return (
-      <div key={child.id} className={CHILD_NODE}>
+      row={trailing => (
         <SessionListRow
-          session={child}
-          // A child in its root's profile repeats nothing; only a different owner is tagged.
-          owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
-          current={child.id === currentSessionId}
-          onSelect={() => onSelectSession(child)}
+          {...layoutFor?.(session)}
+          session={session}
+          // Context rules make a subagent a root only when its ancestry was deleted.
+          orphanedSubagent={isSubagentSession(session)}
+          owner={owner}
+          current={session.id === currentSessionId}
+          onSelect={() => onSelectSession(session)}
           selection={selection}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
+          trailing={trailing}
         />
-      </div>
-    );
-  };
-  const revealed = childSessions.filter(isSubagentSession);
+      )}
+      childRow={child => {
+        const childOwner = ownerOf?.(child);
+        return (
+          <div key={child.id} className={BRANCH_NODE}>
+            <SessionListBranchRow
+              session={child}
+              childSessions={[]}
+              collapsed
+              subagentThreads={subagentThreads}
+              onThreadBranchChange={onThreadBranchChange}
+              currentSessionId={currentSessionId}
+              onSelectSession={onSelectSession}
+              testIdPrefix={testIdPrefix}
+              row={trailing => (
+                <SessionListRow
+                  {...layoutFor?.(child)}
+                  session={child}
+                  // A child in its root's profile repeats nothing; only a different owner is tagged.
+                  owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
+                  inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
+                  current={child.id === currentSessionId}
+                  onSelect={() => onSelectSession(child)}
+                  selection={selection}
+                  sessionActions={sessionActions}
+                  testIdPrefix={testIdPrefix}
+                  trailing={trailing}
+                />
+              )}
+            />
+          </div>
+        );
+      }}
+    />
+  );
+  if (childSessions.length === 0 && sessionSubagentCounts(session) === null) return branch;
 
   return (
     <div data-testid={`${testIdPrefix}-thread-${session.id}`}>
-      {rootRow}
-      {foldable.length > 0 ? (
-        <div
-          inert={folded}
-          className={cn(
-            "grid transition-[grid-template-rows] duration-base",
-            folded ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
-          )}
-        >
-          <div className={cn(CHILD_RAIL, "min-h-0 overflow-hidden")}>{foldable.map(childRow)}</div>
+      {branch}
+      {/* The viewed subagent sits outside the fold: folding the branch never hides it. */}
+      {revealed.length > 0 ? (
+        <div className={BRANCH_RAIL}>
+          {revealed.map(child => (
+            <div key={child.id} className={BRANCH_NODE}>
+              <SessionListBranchRow
+                session={child}
+                childSessions={[]}
+                collapsed
+                subagentThreads={subagentThreads}
+                onThreadBranchChange={onThreadBranchChange}
+                currentSessionId={currentSessionId}
+                onSelectSession={onSelectSession}
+                testIdPrefix={testIdPrefix}
+                row={trailing => (
+                  <SessionListRow
+                    {...layoutFor?.(child)}
+                    session={child}
+                    inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
+                    current={child.id === currentSessionId}
+                    onSelect={() => onSelectSession(child)}
+                    selection={selection}
+                    sessionActions={sessionActions}
+                    testIdPrefix={testIdPrefix}
+                    trailing={trailing}
+                  />
+                )}
+              />
+            </div>
+          ))}
         </div>
       ) : null}
-      {/* The viewed subagent sits outside the fold: collapsing plain children never hides it. */}
-      {revealed.length > 0 ? <div className={CHILD_RAIL}>{revealed.map(childRow)}</div> : null}
     </div>
   );
 }
 
-/** Child rows indent past the root's status mark, whose center the rail continues. */
-const CHILD_RAIL = "relative pl-5";
+/**
+ * Toggling one branch must not re-render its siblings: a thread renders again
+ * only when its own rows, flags, or wiring change. The open-subagent set is
+ * shared by the list, so only its members inside this thread count.
+ */
+export const SessionListThread = memo(SessionListThreadView, (prev, next) => {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const key of keys as Set<keyof SessionListThreadProps>) {
+    if (key === "subagentThreads" || key === "owner") continue;
+    if (prev[key] !== next[key]) return false;
+  }
+  return (
+    sameOwner(prev.owner, next.owner) &&
+    [next.session, ...next.childSessions].every(
+      row => prev.subagentThreads.has(row.id) === next.subagentThreads.has(row.id)
+    )
+  );
+});
+
+// Aggregate lists resolve a fresh owner object per render; equal fields are the same tag.
+function sameOwner(a: ProfileOwner | undefined, b: ProfileOwner | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.color === b.color &&
+    a.icon === b.icon &&
+    a.emoji === b.emoji &&
+    a.archived === b.archived
+  );
+}
 
 /**
- * Each child's tree elbow ( |_ ): from the rail under the root's mark into the
- * child's own mark on its title line. The rail continues past a child only while
- * a sibling follows, so the last child closes the branch.
+ * A session row with its branch toggle and the fold beneath it. A root row
+ * may unfold child sessions or subagents; a child row only its subagents.
  */
-const CHILD_NODE =
-  "relative before:pointer-events-none before:absolute before:-top-0.5 before:-left-1.75 before:h-4.5 before:w-3 before:rounded-bl-md before:border-b before:border-l before:border-line-strong after:pointer-events-none after:absolute after:top-3.5 after:-bottom-0.5 after:-left-1.75 after:w-px after:bg-line-strong last:after:hidden";
-
-function ThreadToggle({
-  sessionId,
-  childCount,
+function SessionListBranchRow({
+  session,
+  childSessions,
   collapsed,
-  childSignal,
-  onToggleThread,
+  subagentThreads,
+  onThreadBranchChange,
+  currentSessionId,
+  onSelectSession,
   testIdPrefix,
+  row,
+  childRow,
 }: {
-  sessionId: string;
-  childCount: number;
+  session: SessionPayload;
+  childSessions: readonly SessionPayload[];
   collapsed: boolean;
-  childSignal: ChildSessionSignalState | null;
-  onToggleThread: (sessionId: string) => void;
+  subagentThreads: ReadonlySet<string>;
+  onThreadBranchChange: SessionThreadBranchChange;
+  currentSessionId: string | undefined;
+  onSelectSession: (session: SessionListTarget) => void;
   testIdPrefix: string;
+  row: (trailing: React.ReactNode) => React.ReactNode;
+  childRow?: (child: SessionPayload) => React.ReactNode;
 }) {
+  const subagentCounts = sessionSubagentCounts(session);
+  const segment = sessionThreadSegment({
+    hasChildren: childSessions.length > 0,
+    hasSubagents: subagentCounts !== null,
+    collapsed,
+    subagentsOpen: subagentThreads.has(session.id),
+  });
+  if (childSessions.length === 0 && subagentCounts === null) return row(undefined);
+
+  const branchId = `${testIdPrefix}-branch-${session.id}`;
+  const list = (shown: SessionThreadSegment) =>
+    shown === "children" ? (
+      <div className={BRANCH_RAIL}>{childSessions.map(child => childRow?.(child))}</div>
+    ) : (
+      <div className={BRANCH_RAIL}>
+        <SessionListSubagentBranch
+          workspaceId={session.workspace_id ?? ""}
+          sessionId={session.id}
+          total={subagentCounts?.total ?? 0}
+          currentSessionId={currentSessionId}
+          onSelectSession={onSelectSession}
+          testIdPrefix={testIdPrefix}
+        />
+      </div>
+    );
+
   return (
-    <button
-      type="button"
-      className="inline-flex h-5 items-center gap-1 rounded-pill px-1.5 font-mono text-micro text-muted tabular-nums transition-colors duration-fast hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-      aria-expanded={!collapsed}
-      aria-label={`Toggle ${childCount} child ${childCount === 1 ? "session" : "sessions"}`}
-      data-testid={`${testIdPrefix}-thread-toggle-${sessionId}`}
-      onClick={() => onToggleThread(sessionId)}
-    >
-      <Icon
-        as={ChevronRight}
-        size="sm"
-        className={cn("transition-transform", !collapsed && "rotate-90")}
-      />
-      {childCount}
-      {childSignal !== null ? <StateGlyph size="sm" state={childSignal} /> : null}
-    </button>
+    <>
+      {row(
+        <SessionListBranchToggle
+          session={session}
+          childCount={childSessions.length}
+          childSignal={
+            segment !== "children" && childSessions.length > 0
+              ? childSessionSignalState(childSessions)
+              : null
+          }
+          subagentCounts={subagentCounts}
+          segment={segment}
+          onChange={next => onThreadBranchChange(session.id, next)}
+          branchId={branchId}
+          testIdPrefix={testIdPrefix}
+        />
+      )}
+      <div id={branchId}>
+        <SessionListBranch segment={segment} render={list} />
+      </div>
+    </>
   );
 }

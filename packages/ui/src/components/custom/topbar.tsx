@@ -51,6 +51,11 @@ interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {
   titleRef?: React.Ref<HTMLHeadingElement>;
   /** Root identity glyph (rendered in the identity well) when the publisher has not supplied `slot.glyph`. */
   glyph?: React.ReactNode;
+  /**
+   * Host context shown before the identity (e.g. which project a window belongs
+   * to). It never truncates the title away: it shrinks first.
+   */
+  leading?: React.ReactNode;
 }
 
 const MAX_VISIBLE_PARENT_CRUMBS = 2;
@@ -307,7 +312,7 @@ function TopbarTitle({
   );
 }
 
-function Topbar({ controls, title, titleRef, glyph, className, ...props }: TopbarProps) {
+function Topbar({ controls, title, titleRef, glyph, leading, className, ...props }: TopbarProps) {
   const slot = useTopbarSlotValue();
   const hasControls = controls != null;
   const hasTrail = Boolean(slot?.status) || Boolean(slot?.actions);
@@ -321,6 +326,11 @@ function Topbar({ controls, title, titleRef, glyph, className, ...props }: Topba
       )}
       {...props}
     >
+      {leading != null ? (
+        <div data-slot="topbar-leading" className="flex min-w-0 shrink-[2] items-center">
+          {leading}
+        </div>
+      ) : null}
       <TopbarIdentity title={title} titleRef={titleRef} glyph={glyph} slot={slot} />
       <div
         data-slot="topbar-flex"

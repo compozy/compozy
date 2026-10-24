@@ -5,6 +5,7 @@ import { buildReleaseConfig } from "../src/release/release-config";
 import {
   parseBooleanFlag,
   parseReleaseArch,
+  parseReleaseChannel,
   parseReleasePlatform,
   parseReleaseScriptFlags,
   requiredReleaseFlag,
@@ -12,13 +13,13 @@ import {
 
 const values = parseReleaseScriptFlags(
   process.argv.slice(2),
-  ["arch", "notarize", "output", "platform", "version"],
-  ["arch", "notarize", "platform", "version"]
+  ["arch", "channel", "notarize", "output", "platform", "version"],
+  ["arch", "channel", "notarize", "platform", "version"]
 );
 const output = resolve(values.get("output") ?? ".artifacts/release-config.json");
 const config = buildReleaseConfig({
   arch: parseReleaseArch(values.get("arch")),
-  channel: "beta",
+  channel: parseReleaseChannel(values.get("channel")),
   notarize: parseBooleanFlag(values.get("notarize"), "notarize"),
   platform: parseReleasePlatform(values.get("platform")),
   version: requiredReleaseFlag(values, "version"),

@@ -49,7 +49,9 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
   const overview = model.overview;
   const overviewState =
     model.overviewStatus === "ready" && overview ? "ready" : model.overviewStatus;
-  const workspaceName = model.scope.workspaceParam ? model.activeWorkspaceName : null;
+  // The meta line names a project; the first-run title also names User.
+  const projectName = model.scope.dataScope.kind === "project" ? model.activeWorkspaceName : null;
+  const workspaceName = model.scope.dataScope.kind === "all" ? null : model.activeWorkspaceName;
 
   return (
     <div
@@ -57,7 +59,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
       data-testid="home-body"
       {...props}
     >
-      <HomePageMeta workspaceName={workspaceName} />
+      <HomePageMeta workspaceName={projectName} />
       <DataSurface state={overviewState}>
         <div data-surface-state="loading">
           <HomeDashboardSkeleton />
@@ -75,6 +77,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 actions={model.attentionActions}
                 notificationScope={model.notificationScope}
                 scopeLabel={model.activeWorkspaceName ?? "Selected project"}
+                bindItemsToOwner={model.scope.dataScope.kind === "all"}
               />
               {model.hasNoWork ? (
                 <HomeFirstRun workspaceName={workspaceName} />

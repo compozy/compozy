@@ -5,6 +5,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { Marker, MarkerMeta } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
+import { useWindowBindingSearch } from "@/systems/workspace";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import {
@@ -231,13 +232,19 @@ function SessionTurnFoldRowContent({ row }: { row: SessionTurnFoldRow }) {
     row.id,
     reveal =>
       reveal.turnId === turnId &&
-      (reveal.partIndex === null || rowsContainPart(row.rows, reveal.partIndex))
+      (reveal.subagentId
+        ? row.rows.some(
+            nested => nested.kind === "subagents" && nested.subagentIds.includes(reveal.subagentId!)
+          )
+        : reveal.partIndex === null || rowsContainPart(row.rows, reveal.partIndex))
   );
   const openedForMatch = hold.held;
   const expanded = expandedByReader || openedForMatch;
   const matchesInside = navigation?.foldMatchCounts.get(turnId) ?? 0;
   const note = openedForMatch
-    ? "opened for a match"
+    ? navigation?.reveal?.subagentId
+      ? "opened for subagent activity"
+      : "opened for a match"
     : !expanded && matchesInside > 0
       ? `${matchesInside} ${matchesInside === 1 ? "match" : "matches"} inside`
       : null;
@@ -315,6 +322,8 @@ const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
 // `.marker--goal` — the goal prompt as one quiet marker line: a plain step
 // fact, the run link in `--info`. Node and generation stay on data attributes.
 function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
+  // The Goal run lives with its session: a bound session window opens it bound the same way.
+  const bindingSearch = useWindowBindingSearch();
   return (
     <Marker
       data-testid="goal-prompt-meta"
@@ -333,6 +342,7 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
       <Link
         className="text-info transition-colors hover:underline hover:underline-offset-2"
         params={{ runId: goal.run_id }}
+        search={bindingSearch}
         to="/loop-runs/$runId"
       >
         Open run

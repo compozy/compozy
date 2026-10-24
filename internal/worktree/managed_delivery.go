@@ -233,7 +233,7 @@ func (s *Service) replayManagedDelivery(
 func (s *Service) prepareManagedDelivery(
 	ctx context.Context, workspaceID string, item *Worktree, sessionID string, request ExitActionRequest, path string,
 ) (*managedDeliveryJournal, error) {
-	plan, err := s.ExitPlan(ctx, workspaceID, item.ID)
+	plan, err := s.PrepareExitPlan(ctx, workspaceID, item.ID)
 	if err != nil {
 		return nil, err
 	}

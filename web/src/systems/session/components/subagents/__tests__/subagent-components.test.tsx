@@ -10,7 +10,6 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
-import { SubagentChip } from "../subagent-chip";
 import { SubagentComposerControl } from "../subagent-composer-control";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
@@ -101,12 +100,9 @@ describe("SubagentCard", () => {
     });
   });
 
-  it("Should render a provider-native card without a child as static, with no chevron (UT-W05)", () => {
+  it("Should keep a provider-native card static when its host provides no navigation (UT-W05)", () => {
     const { container } = renderUI(
-      <SubagentCard
-        subagent={subagent({ origin: "provider_native", child_session_id: null })}
-        onOpen={vi.fn()}
-      />
+      <SubagentCard subagent={subagent({ origin: "provider_native", child_session_id: null })} />
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(container.querySelector(".lucide-chevron-right")).toBeNull();
@@ -284,40 +280,6 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
 
   it("Should render nothing with no live delegated subagents", () => {
     const { container } = renderUI(<SubagentWaitingBanner subagents={[]} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe("SubagentChip (UT-W17)", () => {
-  it("Should label live/total and preview five rows then +N more with no other footer", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
-    const rows = [...many(3, "running"), ...many(7, "completed")];
-    renderUI(
-      <SubagentChip
-        counts={{ live: 3, total: 10, failed: 0, attention: 0 }}
-        parentTurnRunning
-        preview={rows}
-        onOpen={onOpen}
-      />
-    );
-    const chip = screen.getByRole("button", { name: "3 of 10 subagents running" });
-    expect(chip).toHaveTextContent("3/10");
-    await user.tab();
-    await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
-    expect(document.querySelectorAll('[data-slot="hover-card-content"] li')).toHaveLength(5);
-    expect(screen.queryByText(/click/i)).not.toBeInTheDocument();
-    fireEvent.click(chip);
-    expect(onOpen).toHaveBeenCalledOnce();
-  });
-
-  it("Should render nothing once every subagent settled cleanly", () => {
-    const { container } = renderUI(
-      <SubagentChip
-        counts={{ live: 0, total: 6, failed: 0, attention: 0 }}
-        parentTurnRunning={false}
-      />
-    );
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -521,13 +483,16 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
     expect(screen.queryByRole("button", { name: /^Show / })).not.toBeInTheDocument();
   });
 
-  it("Should open the hover card from keyboard focus on a row that cannot be opened (m19)", async () => {
+  it("Should keep native work keyboard-accessible and open it from the inspector (issue #947)", async () => {
     const user = userEvent.setup();
     const native = subagent({ id: "native", origin: "provider_native", child_session_id: null });
-    renderUI(<SessionInspectorSubagentsSection subagents={[native]} onOpen={vi.fn()} />);
-    const row = screen.getByRole("group", { name: `${native.title}, Running` });
+    const onOpen = vi.fn();
+    renderUI(<SessionInspectorSubagentsSection subagents={[native]} onOpen={onOpen} />);
+    const row = screen.getByRole("button", { name: `Open ${native.title}` });
     await user.tab();
     expect(row).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledWith(native, { newWindow: false });
     await waitFor(() =>
       expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
     );

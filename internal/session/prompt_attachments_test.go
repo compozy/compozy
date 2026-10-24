@@ -333,7 +333,9 @@ func TestSendPromptDispatchesAttachments(t *testing.T) {
 		if h.driver.lastProc == nil {
 			t.Fatal("runtime process = nil after capability preflight")
 		}
-		h.driver.lastProc.handle.setCaps(acp.Caps{PromptImage: true})
+		caps := h.driver.lastProc.handle.CapsSnapshot()
+		caps.PromptImage = true
+		h.driver.lastProc.handle.setCaps(caps)
 		retried, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
 		if err != nil {
 			t.Fatalf("SendPrompt(retry after capability change) error = %v", err)

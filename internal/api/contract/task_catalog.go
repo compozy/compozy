@@ -9,6 +9,8 @@ import (
 
 // TaskListQuery captures the shared bounded task catalog filters.
 type TaskListQuery struct {
+	AllWorkspaces bool                  `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string              `json:"workspace_ids,omitempty"`
 	Scope         taskpkg.CatalogScope  `json:"scope,omitempty"`
 	Workspace     string                `json:"workspace,omitempty"`
 	Status        taskpkg.Status        `json:"status,omitempty"`
@@ -262,16 +264,18 @@ const (
 type TaskInboxQuery struct {
 	Scope     taskpkg.CatalogScope `json:"scope,omitempty"`
 	Workspace string               `json:"workspace,omitempty"`
-	Worktree  string               `json:"worktree,omitempty"`
-	OwnerKind taskpkg.OwnerKind    `json:"owner_kind,omitempty"`
-	OwnerRef  string               `json:"owner_ref,omitempty"`
-	Lane      TaskInboxLane        `json:"lane,omitempty"`
-	Status    taskpkg.Status       `json:"status,omitempty"`
-	Priority  taskpkg.Priority     `json:"priority,omitempty"`
-	Unread    *bool                `json:"unread,omitempty"`
-	Query     string               `json:"query,omitempty"`
-	Cursor    string               `json:"cursor,omitempty"`
-	Limit     int                  `json:"limit,omitempty"`
+	// WorkspaceIDs narrows the All projects inbox (with all_workspaces=true).
+	WorkspaceIDs []string          `json:"workspace_ids,omitempty"`
+	Worktree     string            `json:"worktree,omitempty"`
+	OwnerKind    taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef     string            `json:"owner_ref,omitempty"`
+	Lane         TaskInboxLane     `json:"lane,omitempty"`
+	Status       taskpkg.Status    `json:"status,omitempty"`
+	Priority     taskpkg.Priority  `json:"priority,omitempty"`
+	Unread       *bool             `json:"unread,omitempty"`
+	Query        string            `json:"query,omitempty"`
+	Cursor       string            `json:"cursor,omitempty"`
+	Limit        int               `json:"limit,omitempty"`
 }
 
 // TaskInboxItemPayload is one task inbox item with action-ready metadata.

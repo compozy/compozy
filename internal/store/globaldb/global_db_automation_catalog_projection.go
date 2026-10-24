@@ -11,13 +11,13 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-const automationJobRichSelectSQL = `SELECT
+const automationJobRichSelectSQL = `SELECT grant_ceiling,
 	id, scope, name, agent_name, workspace_id, prompt, schedule, task,
 	enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 	FROM automation_jobs`
 
-const automationTriggerRichSelectSQL = `SELECT
+const automationTriggerRichSelectSQL = `SELECT grant_ceiling,
 	id, scope, name, agent_name, workspace_id, prompt, event, filter,
 	enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
 	webhook_secret_ref, target_kind, loop_workspace_id, loop_name,

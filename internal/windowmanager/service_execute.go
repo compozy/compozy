@@ -124,6 +124,9 @@ func (m *Manager) reduceDurable(
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
 	}
+	if err := m.validateCommandBindings(ctx, working, payload, reduced.changes); err != nil {
+		return Snapshot{}, reduction{}, Config{}, err
+	}
 	return working, reduced, workspaceDefaults, nil
 }
 

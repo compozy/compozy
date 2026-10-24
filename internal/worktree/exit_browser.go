@@ -81,7 +81,7 @@ func parseRemoteWebURL(raw string) (*url.URL, bool) {
 		if !ok {
 			return nil, false
 		}
-		return &url.URL{Scheme: "https", Host: host, Path: "/" + strings.TrimSuffix(repoPath, ".git")}, true
+		return &url.URL{Scheme: httpsScheme, Host: host, Path: "/" + strings.TrimSuffix(repoPath, ".git")}, true
 	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Host == "" {

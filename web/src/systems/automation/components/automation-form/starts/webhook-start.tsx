@@ -12,14 +12,14 @@ interface WebhookStartProps {
   form: AutomationFormModel;
 }
 
-/** Link settings: always Global; the signing secret is write-only and never shown again. */
+/** Link settings: always in User; the signing secret is write-only and never shown again. */
 export function WebhookStart({ draft, form }: WebhookStartProps) {
   return (
     <div className="flex flex-col gap-3">
       <Alert data-testid="automation-webhook-global-note" role="note" variant="info">
         <Info aria-hidden="true" />
         <AlertDescription>
-          Link automations are always <b className="font-medium text-fg">Global</b>. They
+          Link automations always live in <b className="font-medium text-fg">User</b>. They
           aren&apos;t tied to one project.
         </AlertDescription>
       </Alert>

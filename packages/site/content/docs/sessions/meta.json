@@ -3,6 +3,7 @@
     "icon": "Activity",
     "pages": [
         "lifecycle",
+        "board",
         "mentions",
         "control-plane",
         "orchestration",

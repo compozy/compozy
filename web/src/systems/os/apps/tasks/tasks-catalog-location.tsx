@@ -3,16 +3,13 @@ import { ListChecks, Plus } from "lucide-react";
 
 import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 
-import { useOsShell } from "../../hooks/use-os-shell";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { TasksCatalogBody } from "./tasks-catalog-views";
+import { useTasksCatalogNavigation } from "./use-tasks-catalog-navigation";
 import {
-  DEFAULT_TASK_TEMPLATE_ID,
-  taskCatalogSearchFor,
   taskModeSearchFor,
   TasksListToolbar,
   type TasksRouteSearch,
-  type TaskTemplateId,
   type TaskViewMode,
   useTasksPage,
   validateTasksSearch,
@@ -30,7 +27,6 @@ const TASK_MODE_ITEMS: ReadonlyArray<{
 ];
 
 export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
-  const { coordinator } = useOsShell();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const routeNavigate = useNavigate();
   const mode: TaskViewMode = search.mode ?? "list";
@@ -45,15 +41,11 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       });
     },
   });
-  const navigate = (pathname: string, search: Record<string, unknown> = {}) =>
-    void coordinator.userOpen({ app: "tasks", route: { pathname, search } });
-  // The create dialog layers over this catalog, so the active view rides along
-  // and dismissal lands back on the view the operator was reading.
-  const openCreate = (template?: TaskTemplateId) =>
-    navigate("/tasks/new", {
-      ...taskCatalogSearchFor(mode, search),
-      ...(template && template !== DEFAULT_TASK_TEMPLATE_ID ? { template } : {}),
-    });
+  const { openCreate, openTask } = useTasksCatalogNavigation({
+    mode,
+    search,
+    tasks: page.visibleTasks,
+  });
   const modeNav = (
     <TasksModeNav inboxUnreadCount={page.inboxUnreadCount} mode={mode} search={search} />
   );
@@ -96,6 +88,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
               ownerFilter={page.ownerFilter}
               ownerOptions={page.ownerOptions}
               priorityFilter={page.priorityFilter}
+              projectFilter={page.projectFilter}
               recordsFilter={page.recordsFilter}
               searchQuery={page.searchQuery}
               sortBy={page.sortBy}
@@ -114,12 +107,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       data-density="route"
       data-testid="tasks-shell"
     >
-      <TasksCatalogBody
-        mode={mode}
-        openCreate={openCreate}
-        openTask={taskId => navigate(`/tasks/${encodeURIComponent(taskId)}`)}
-        page={page}
-      />
+      <TasksCatalogBody mode={mode} openCreate={openCreate} openTask={openTask} page={page} />
     </div>
   );
 }

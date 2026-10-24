@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
@@ -184,16 +185,17 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 		Short:  "Internal daemon relaunch helper",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			homePaths, err := deps.resolveHome()
+			runtime, err := loadRuntimeContext(deps)
 			if err != nil {
 				return err
 			}
 
 			return deps.runRelaunchHelper(cmd.Context(), &compozydaemon.RelaunchHelperConfig{
-				HomePaths:   homePaths,
-				OperationID: strings.TrimSpace(os.Getenv(compozydaemon.RestartOperationEnvKey)),
-				Executable:  deps.executable,
-				Sandbox:     os.Environ(),
+				HomePaths:      runtime.HomePaths,
+				ReleaseTimeout: compozydaemon.GracefulShutdownTimeout(&runtime.Config) + 5*time.Second,
+				OperationID:    strings.TrimSpace(os.Getenv(compozydaemon.RestartOperationEnvKey)),
+				Executable:     deps.executable,
+				Sandbox:        os.Environ(),
 			})
 		},
 	}

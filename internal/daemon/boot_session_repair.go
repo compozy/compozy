@@ -37,13 +37,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err := d.installBootSupervisedWorkRecovery(state); err != nil {
 		return err
 	}
-	if recoverer, ok := state.sessions.(sessionPendingStopRecoverer); ok {
-		if err := recoverer.RecoverPendingStops(ctx); err != nil {
-			return fmt.Errorf("daemon: recover pending session stops: %w", err)
-		}
+	if err := recoverBootPendingStops(ctx, state.sessions); err != nil {
+		return err
 	}
-	recoverBootStaleInputDispatches(ctx, state)
-
 	infos, err := state.sessions.ListAll(ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -55,6 +51,10 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err != nil {
 		return err
 	}
+	if err := captureBootRestartInterruptions(ctx, state.sessions, infos); err != nil {
+		return err
+	}
+	recoverBootStaleInputDispatches(ctx, state)
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
 		return err
 	}
@@ -66,7 +66,15 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("daemon: boot session repair canceled: %w", err)
 		}
-		if !bootShouldRepairSession(info) {
+		needed, err := bootSessionNeedsRepair(ctx, state.sessions, info)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
+			}
+			state.logger.Warn("daemon: inspect restart repair failed", "session_id", info.ID, "error", err)
+			continue
+		}
+		if !needed {
 			continue
 		}
 
@@ -85,23 +93,27 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			)
 			continue
 		}
-		if result == nil {
-			continue
-		}
-		errorIssues := repairIssueCount(result, session.RepairSeverityError)
-		if len(result.Actions) == 0 && errorIssues == 0 {
-			continue
-		}
-		state.logger.Info(
-			"daemon: boot session repair complete",
-			"session_id", result.SessionID,
-			"persisted", result.Persisted,
-			"actions", len(result.Actions),
-			"issues", len(result.Issues),
-			"error_issues", errorIssues,
-		)
+		logBootSessionRepair(state, result)
 	}
 	return recoverBootSessionHealth(ctx, state)
+}
+
+func logBootSessionRepair(state *bootState, result *session.RepairResult) {
+	if result == nil {
+		return
+	}
+	errorIssues := repairIssueCount(result, session.RepairSeverityError)
+	if len(result.Actions) == 0 && errorIssues == 0 {
+		return
+	}
+	state.logger.Info(
+		"daemon: boot session repair complete",
+		"session_id", result.SessionID,
+		"persisted", result.Persisted,
+		"actions", len(result.Actions),
+		"issues", len(result.Issues),
+		"error_issues", errorIssues,
+	)
 }
 
 type sessionDatabaseUpgrader interface {
@@ -264,7 +276,7 @@ func bootShouldRepairSession(info *session.Info) bool {
 		return false
 	}
 	switch info.StopReason {
-	case store.StopAgentCrashed, store.StopError:
+	case store.StopAgentCrashed, store.StopError, store.StopShutdown:
 		return true
 	default:
 		return false
@@ -389,4 +401,20 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 		return nil
 	}
 	return resolver
+}
+
+func bootSessionNeedsRepair(ctx context.Context, sessions SessionManager, info *session.Info) (bool, error) {
+	if !bootShouldRepairSession(info) {
+		return false, nil
+	}
+	if info.StopReason != store.StopShutdown {
+		return true, nil
+	}
+	reader, ok := sessions.(interface {
+		HasPendingRestart(context.Context, string) (bool, error)
+	})
+	if !ok {
+		return false, nil
+	}
+	return reader.HasPendingRestart(ctx, info.ID)
 }

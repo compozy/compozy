@@ -62,3 +62,22 @@ permissions were repaired. PTY line reads now project the retained bytes through
 applying cursor edits before selecting the quote range. Native CLI/HTTP replay verifies both prompt
 glyphs, separate keystrokes, Backspace and subsequent command execution. Browser replay remains
 owned by the unchanged E2E cases; see [the integration report](../reports/2026-09-12-pr-630-634-integration.md).
+
+## AppImage child environment (#945)
+
+From a Linux AppImage launch, open a fresh Terminal and run `mise --version`.
+Confirm `APPIMAGE`, `APPDIR`, `ARGV0`, and `OWD` are absent from the shell.
+With a mixed `LD_LIBRARY_PATH`, current AppDir and stale `.mount_*` entries must
+be removed while unrelated library directories retain their order. When only
+AppImage directories were present, `LD_LIBRARY_PATH` must be unset. Repeat from
+a plain launch without `APPIMAGE`; its inherited environment must be unchanged.
+
+2026-10-24 targeted verification: the canonical procutil environment suite covers
+mixed paths, extracted AppDir boundaries, stale mounts, empty-result removal,
+and absent/empty AppImage markers. A real `/bin/sh` child receives no AppImage
+variables or exhausted library path. Procutil and PTY suites pass with the race
+detector on macOS. `ARGV0=/x/CompozyOS.AppImage mise --version` reproduced the
+invalid-shim failure; launching the installed mise through `FilteredDaemonEnv`
+with the simulated AppImage environment returned its version successfully.
+The Linux packaged-AppImage walk remains unverified on this
+host; these checks do not claim Linux dynamic-loader or packaged-desktop evidence.

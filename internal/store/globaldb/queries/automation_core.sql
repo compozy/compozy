@@ -1,5 +1,5 @@
 -- name: GetAutomationTriggerByWebhookID :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
@@ -7,10 +7,12 @@ FROM automation_triggers WHERE webhook_id = sqlc.arg(webhook_id);
 
 -- name: InsertAutomationRun :exec
 INSERT INTO automation_runs (
+  workspace_id, attribution,
   id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
 	delivery_error, delivery_error_at, loop_run_id, metadata_json
 ) VALUES (
+  sqlc.narg(workspace_id), sqlc.arg(attribution),
   sqlc.arg(id), sqlc.narg(profile_id), sqlc.narg(job_id), sqlc.narg(trigger_id), sqlc.narg(session_id),
   sqlc.narg(task_id), sqlc.narg(task_run_id), sqlc.narg(fire_id), sqlc.arg(status),
   sqlc.arg(attempt), sqlc.narg(scheduled_at), sqlc.narg(started_at), sqlc.narg(ended_at),
@@ -75,11 +77,13 @@ DELETE FROM automation_trigger_overlays WHERE trigger_id = sqlc.arg(trigger_id);
 
 -- name: InsertAutomationJob :exec
 INSERT INTO automation_jobs (
+ grant_ceiling,
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 ) VALUES (
+ sqlc.arg(grant_ceiling),
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.arg(name), sqlc.arg(agent_name),
   sqlc.narg(workspace_id), sqlc.arg(prompt), sqlc.narg(schedule), sqlc.narg(task),
@@ -90,6 +94,7 @@ INSERT INTO automation_jobs (
 
 -- name: UpdateAutomationJob :execrows
 UPDATE automation_jobs SET
+ grant_ceiling = CASE WHEN CAST(sqlc.arg(operator) AS BOOLEAN) THEN sqlc.arg(grant_ceiling) WHEN grant_ceiling = 'unrestricted' AND sqlc.arg(grant_ceiling) = 'unrestricted' THEN 'unrestricted' ELSE '' END,
   scope = sqlc.arg(scope), name = sqlc.arg(name), agent_name = sqlc.arg(agent_name),
   workspace_id = sqlc.narg(workspace_id), prompt = sqlc.arg(prompt),
   schedule = sqlc.narg(schedule), task = sqlc.narg(task), enabled = sqlc.arg(enabled),
@@ -103,19 +108,21 @@ WHERE id = sqlc.arg(id);
 DELETE FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: GetAutomationJob :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_jobs WHERE id = sqlc.arg(id);
 
 -- name: InsertAutomationTrigger :exec
 INSERT INTO automation_triggers (
+ grant_ceiling,
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 	created_at, updated_at
 ) VALUES (
+ sqlc.arg(grant_ceiling),
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(scope), sqlc.arg(name), sqlc.arg(agent_name),
   sqlc.narg(workspace_id), sqlc.arg(prompt), sqlc.arg(event), sqlc.arg(filter),
@@ -127,6 +134,7 @@ INSERT INTO automation_triggers (
 
 -- name: UpdateAutomationTrigger :execrows
 UPDATE automation_triggers SET
+ grant_ceiling = CASE WHEN CAST(sqlc.arg(operator) AS BOOLEAN) THEN sqlc.arg(grant_ceiling) WHEN grant_ceiling = 'unrestricted' AND sqlc.arg(grant_ceiling) = 'unrestricted' THEN 'unrestricted' ELSE '' END,
   scope = sqlc.arg(scope), name = sqlc.arg(name), agent_name = sqlc.arg(agent_name),
   workspace_id = sqlc.narg(workspace_id), prompt = sqlc.arg(prompt), event = sqlc.arg(event),
   filter = sqlc.arg(filter), enabled = sqlc.arg(enabled), retry = sqlc.arg(retry),
@@ -142,7 +150,7 @@ WHERE id = sqlc.arg(id);
 DELETE FROM automation_triggers WHERE id = sqlc.arg(id);
 
 -- name: GetAutomationTrigger :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at

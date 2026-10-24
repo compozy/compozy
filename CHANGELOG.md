@@ -5,119 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-20
+## 0.4.0 - 2026-10-24
 
-### ♻️ Refactoring
-
-- State management with xstate-store (#268)
-- Site improvements (#277)
-- Replace bundles with extension kits (#291)
-- Modernize Go runtime packages (#293)
-- Use geist instead of inter (#334)
-- Add global workspace toggle (#368)
-- Unify PRD and TechSpec into a single spec pipeline (#397)
-- Quiet the Context rail and sessions row for everyday use (#649)
-- Retire Network, managed Sandbox, and Bridges (#681)
-- Complete Modern Go adoption across module boundaries (#706)
-- Remove 12 long-tail builtin providers behind a one-release compatibility shim (#778)
-
-### ⚡ Performance Improvements
-
-- Delegate full gates to pull request CI (#476)
-- Reduce test and development feedback overhead (#556)
-- Avoid rendering unchanged windows during layout updates
-- Reduce SQLite contention and query costs (#723)
-- Reduce desktop startup and live transcript overhead (#784)
-- Cut daemon idle cost and keep the host responsive under agent load (#797)
-- Reduce concurrent session query and projection overhead (#795)
-
-### 🎉 Features
-
-- Introducing CompozyOS beta
-- **BREAKING:** introducing CompozyOS beta
-- Add provider-neutral ACP speed control (#267)
-- Support grouped skill directories (#270)
-- Session transcript calm-surface redesign (#271)
-- Add permission-aware cross-workspace access (#275)
-- Extensions improvements (#278)
-- Select and switch runtime per session prompt (#283)
-- Adopt MCP 2026 and expand the curated catalog (#284)
-- **BREAKING:** MCP catalogs now require manifest_version 2 and public
-  MCP transport no longer accepts SSE.
-- Add support for window tabs (#287)
-- Adopt feedback semantics for durable Loops (#290)
-- Add complete Loop node lifecycle (#305)
-- Rewind sessions to durable conversation checkpoints (#310)
-- Add session-aware slash skill commands (#311)
-- Add reversible session archiving and list actions (#309)
-- Replace software-delivery with implement-tasks (#325)
-- **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
-- Parent and child sessions (#327)
-- Add secure remote gateway access (#331)
-- Ship CompozyOS desktop app (#336)
-- Add first-class worktree support (#388)
-- Close the loops UI visual-contract parity gap (#406)
-- Unify zero-inventory empty states for jobs, triggers, and tasks (#409)
-- Redesign workspaces overview as command-tab switcher (#410)
-- Redesign trigger detail into the When/If/Then rule page (#411)
-- Session attachments — paste, drop, and picker to multimodal agents end to end (#412)
-- Add Agent Plugins ingestion to extensions (#419)
-- Add session attention and orchestration parity (#422)
-- Replace Tauri with Electron and unify updates (#424)
-- Add Batuta to marketplace (#432)
-- Complete Loop graph engineering and typed inputs (#427)
-- Simplify the interface for everyday users (#440)
-- Deliver the command palette operating surface (#441)
-- Make loop runs legible and task lists calm (#452)
-- Complete production demo seed (#453)
-- Profiles — the who-is-working dimension (#457)
-- Combine settings update actions (#461)
-- Replace environment path with worktree icon (#463)
-- Group session tool calls (#466)
-- Restore agent-manageable Goal orchestration (#470)
-- Support conjunctive runtime routing (#475)
-- Expand profile identity customization (#484)
-- Absorb ecosystem skill folders and expose skills back (#488)
-- Merge spec-cycle task delivery loops (#491)
-- Rebuild ACP runtime catalogs (#498)
-- Support child Loop config overrides (#494)
-- Integrated terminal — runtime-owned shells for people and agents (#490)
-- Live steer and truthful stop for sessions (#555)
-- Manageable session queue, truthful live view, and legible transcripts (#557)
-- Add herdr bridge to community catalog (#560)
-- Bulk actions for the sessions list (#619)
-- Add built-in open-design extension (#625)
-- Show session context and confirmed prompt deliveries (#635)
-- Unify marketplace catalog and plugin sources (#636)
-- Add release video workspace and production skill
-- Give rendered Markdown a readable visual hierarchy (#660)
-- Add safe bulk worktree cleanup to workspace lists (#656)
-- Add provider-neutral ACP full-access preference (#674)
-- Calmer, plain-language web UI for everyday users (#683)
-- Continue and fork sessions across agents, with fallback account routes (#684)
-- Shell rail v2 with light and dark themes (#687)
-- Show nested child runs and a distinct awaiting-child state (#708)
-- Merge Jobs and Triggers into one Automations area (#709)
-- Remove the memory feature family and adopt agent-native session compaction (#710)
-- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
-- Render session tool calls as verb + object rows on a work rail (#716)
-- Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
-- One-click CompozyOS update from the menubar (#733)
-- Show the runtime provider mark on session rows (#758)
-- Add session folders, manual drag order, and session context menus (#786)
-- Give session titles their own line in the session list (#790)
-- Adding antigravity acp (#773)
-- Add app SDKs and browser application tokens (#794)
-- Pick the default provider, model and reasoning from Settings → General
-- Clean up missing worktrees in bulk and opt into local branch deletion
-- Open new sessions in the existing Session window
-- Add @ mentions for files, folders, and sessions in the session composer (#842)
-- Make the session window's sessions rail resizable (#845)
-- Add opencode v2 support (#811)
-- Let open-design prototype with the project's component library (#867)
-- Wake agent sessions natively when background work finishes (#860)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Align release and process test contracts
 - Workspace params (#266)
@@ -382,12 +272,193 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bring runtime and attachments to the empty desktop composer (#865)
 - Report actionable errors for invalid workspace config (#866)
 - Consume first-message handoffs when attachments are removed
+- Preserve session message formatting and editing (#874)
+- Stop stale session and terminal retry loops (#875)
+- Replace newer desktop runtimes that reject the app (#878)
+- Keep terminal journal databases outside project directories (#877)
+- Scope session monitor routes to the profile and never drop monitor refreshes
+- Re-read open monitor lists when the session catalog stream reconnects
+- Keep stale provider usage resolutions from restoring disabled targets
+- Prevent session deletion from deadlocking the daemon (#880)
+- Allow session derivation after root deletion (#884)
+- Stage desktop updates before installer shutdown (#886)
+- Default new automations to the host time zone with a searchable picker (#889)
+- Render supervised terminal calls as compact tool rows (#893)
+- Keep skill_view source a string and expose command_source for command_id reads (#892)
+- Address terminal and session release review findings
+- Let session transcript messages use the full pane width on large screens
+- Resolve session agent catalogs in their bound profile
+- Keep an assistant reply as one prose block when subagent work streams between its deltas
+- Collapse provider usage rows, overlay scrollbars, name-only workspace identity, accent All projects globe
+- Keep session list group collapse across session selection
+- Resolve session organization CI lint and formatting failures
+- Preserve session lineage and profile boundaries during reparenting
+- Preserve profile folds and honor reduced motion
+- Enable accessible nesting across session list views
+- Own group folder interaction state in a store
+- Preserve missing-root recovery during lineage refresh
+- Preserve standalone agent slash commands
+- Keep a long transcript at its end while it settles on open
+- Require live bindings for curated model selection
+- Authenticate Windows hosted MCP peers
+- Preserve model negotiation errors after discovery failure
+- Keep transcript following through held-pointer layout clamps
+- Reconcile provider Fast state and accept ultra reasoning
+- Repair delegation and runtime recovery from dogfood evidence (#915)
+- Preserve steered transcript continuity (#926)
+- Preserve message directives and format links (#925)
+- Retain unsent composer attachments across sessions (#928)
+- Complete session branch and attachment lifecycle behavior
+- Validate bridge desktop smoke against its update feed
+- Refresh Claude usage after account ownership changes (#931)
+- Revalidate configuration before reusing workspace snapshots
+- Format workspace snapshot configuration checks
+- Align stable release dry-run verification
+- Resume interrupted sessions after daemon restart (#942)
+- Isolate window surfaces from geometry updates (#943)
+- Recover stops after runtime identity release (#948)
+- Reveal native subagent work from session lists (#949)
+- Keep async subagent navigation outside compiler scope
+- Preserve recovered stop reasons and native reveal state
+- Preserve current branch and destination in session board actions
+- Reveal settled native subagents by card identity
+- Wrap current branch queries within source line limits
+- Stop waiting on completed subagent delegations
+- Collect delivery facts independently of PR display cache
 
-### 🔧 Miscellaneous Tasks
+### Features
+
+- Introducing CompozyOS beta
+- **BREAKING:** introducing CompozyOS beta
+- Add provider-neutral ACP speed control (#267)
+- Support grouped skill directories (#270)
+- Session transcript calm-surface redesign (#271)
+- Add permission-aware cross-workspace access (#275)
+- Extensions improvements (#278)
+- Select and switch runtime per session prompt (#283)
+- Adopt MCP 2026 and expand the curated catalog (#284)
+- **BREAKING:** MCP catalogs now require manifest_version 2 and public
+  MCP transport no longer accepts SSE.
+- Add support for window tabs (#287)
+- Adopt feedback semantics for durable Loops (#290)
+- Add complete Loop node lifecycle (#305)
+- Rewind sessions to durable conversation checkpoints (#310)
+- Add session-aware slash skill commands (#311)
+- Add reversible session archiving and list actions (#309)
+- Replace software-delivery with implement-tasks (#325)
+- **BREAKING:** remove software-delivery; use implement-tasks without gate inputs.
+- Parent and child sessions (#327)
+- Add secure remote gateway access (#331)
+- Ship CompozyOS desktop app (#336)
+- Add first-class worktree support (#388)
+- Close the loops UI visual-contract parity gap (#406)
+- Unify zero-inventory empty states for jobs, triggers, and tasks (#409)
+- Redesign workspaces overview as command-tab switcher (#410)
+- Redesign trigger detail into the When/If/Then rule page (#411)
+- Session attachments — paste, drop, and picker to multimodal agents end to end (#412)
+- Add Agent Plugins ingestion to extensions (#419)
+- Add session attention and orchestration parity (#422)
+- Replace Tauri with Electron and unify updates (#424)
+- Add Batuta to marketplace (#432)
+- Complete Loop graph engineering and typed inputs (#427)
+- Simplify the interface for everyday users (#440)
+- Deliver the command palette operating surface (#441)
+- Make loop runs legible and task lists calm (#452)
+- Complete production demo seed (#453)
+- Profiles — the who-is-working dimension (#457)
+- Combine settings update actions (#461)
+- Replace environment path with worktree icon (#463)
+- Group session tool calls (#466)
+- Restore agent-manageable Goal orchestration (#470)
+- Support conjunctive runtime routing (#475)
+- Expand profile identity customization (#484)
+- Absorb ecosystem skill folders and expose skills back (#488)
+- Merge spec-cycle task delivery loops (#491)
+- Rebuild ACP runtime catalogs (#498)
+- Support child Loop config overrides (#494)
+- Integrated terminal — runtime-owned shells for people and agents (#490)
+- Live steer and truthful stop for sessions (#555)
+- Manageable session queue, truthful live view, and legible transcripts (#557)
+- Add herdr bridge to community catalog (#560)
+- Bulk actions for the sessions list (#619)
+- Add built-in open-design extension (#625)
+- Show session context and confirmed prompt deliveries (#635)
+- Unify marketplace catalog and plugin sources (#636)
+- Add release video workspace and production skill
+- Give rendered Markdown a readable visual hierarchy (#660)
+- Add safe bulk worktree cleanup to workspace lists (#656)
+- Add provider-neutral ACP full-access preference (#674)
+- Calmer, plain-language web UI for everyday users (#683)
+- Continue and fork sessions across agents, with fallback account routes (#684)
+- Shell rail v2 with light and dark themes (#687)
+- Show nested child runs and a distinct awaiting-child state (#708)
+- Merge Jobs and Triggers into one Automations area (#709)
+- Remove the memory feature family and adopt agent-native session compaction (#710)
+- Delegate tasks to subagents with live cards, durable wakes, and operator surfaces (#711)
+- Render session tool calls as verb + object rows on a work rail (#716)
+- Attribute agent session messages, wake senders with replies, and isolate subagents in worktrees (#722)
+- One-click CompozyOS update from the menubar (#733)
+- Show the runtime provider mark on session rows (#758)
+- Add session folders, manual drag order, and session context menus (#786)
+- Give session titles their own line in the session list (#790)
+- Adding antigravity acp (#773)
+- Add app SDKs and browser application tokens (#794)
+- Pick the default provider, model and reasoning from Settings → General
+- Clean up missing worktrees in bulk and opt into local branch deletion
+- Open new sessions in the existing Session window
+- Add @ mentions for files, folders, and sessions in the session composer (#842)
+- Make the session window's sessions rail resizable (#845)
+- Add opencode v2 support (#811)
+- Let open-design prototype with the project's component library (#867)
+- Wake agent sessions natively when background work finishes (#860)
+- Mark workspaces with working sessions in the switchers (#869)
+- Remove discovered worktrees without adopting them (#870)
+- Show and cancel session monitors from the session list and composer (#876)
+- Add provider usage tray, usage app and daemon collectors (#871)
+- Move selected sessions into folders by drag or menu (#881)
+- Bind spawned workers to worktrees and inherit parent permissions (#885)
+- Work across all projects and in a User scope without a project (#887)
+- Bring session list organization to All projects and All profiles and allow nesting sessions
+- Archive a running session in one action
+- Show total active session work time (#924)
+- Unify child sessions and subagent indicators (#927)
+- Prepare the first stable v0.4.0 release (#918)
+- Add managed worktree teardown commands (#937)
+- Link session pull requests, add waiting badge and sessions Kanban (#944)
+
+### Miscellaneous Tasks
 
 - _(mise)_ Pin Go 1.26.6 (#433)
 
-### 🧪 Testing
+### Performance Improvements
+
+- Delegate full gates to pull request CI (#476)
+- Reduce test and development feedback overhead (#556)
+- Avoid rendering unchanged windows during layout updates
+- Reduce SQLite contention and query costs (#723)
+- Reduce desktop startup and live transcript overhead (#784)
+- Cut daemon idle cost and keep the host responsive under agent load (#797)
+- Reduce concurrent session query and projection overhead (#795)
+- Share hosted MCP projections across equivalent peers (#938)
+- Make session inventory reads cheap and side-effect free (#940)
+- Reduce idle skill watcher and workspace resolver scans (#936)
+
+### Refactoring
+
+- State management with xstate-store (#268)
+- Site improvements (#277)
+- Replace bundles with extension kits (#291)
+- Modernize Go runtime packages (#293)
+- Use geist instead of inter (#334)
+- Add global workspace toggle (#368)
+- Unify PRD and TechSpec into a single spec pipeline (#397)
+- Quiet the Context rail and sessions row for everyday use (#649)
+- Retire Network, managed Sandbox, and Bridges (#681)
+- Complete Modern Go adoption across module boundaries (#706)
+- Remove 12 long-tail builtin providers behind a one-release compatibility shim (#778)
+- Group session catalog exports with board surface
+
+### Testing
 
 - Guard ACP initialize protocol version (#318)
 - Align nightly runtime fixtures
@@ -417,14 +488,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Synchronize migration and startup verification
 - Apply formatter to blank promotion regression
 - Assert bounded caller reads in native policy regression
+- Assert specific workspacedb validation errors
+- Assert desktop runtime retry before and after replacement
+- Align UDS integration runtime with user scope
+- Align HTTP integration runtime with user scope
+- Open session creation through the catalog menu
+- Align restart fixtures with explicit restart admission
+- Include pull request columns in CLI round-trip contract
+- Attach successor approval to the named wake turn
+- Separate migration verification from upgrade budget
 
 ## 0.2.15 - 2026-07-17
 
-### 🎉 Features
-
-- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Recover stalled and wedged multi-runs (#230)
 - Share parallel task status enum (#241)
@@ -434,67 +510,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Isolate sync tests and clarify ignore checks (#248)
 - Isolate task artifacts and add complexity runtime defaults (#250)
 
+### Features
+
+- Cy-capture-decisions — skill-only extension for durable decision capture (#237)
+
 ## 0.2.14 - 2026-07-15
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Acp integratoin
 
 ## 0.2.13 - 2026-07-10
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Codex acp
 
 ## 0.2.12 - 2026-07-10
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Parallel tasks (#231)
 
 ## 0.2.11 - 2026-07-03
 
-### 🎉 Features
-
-- Agentic runs (#212)
-- Simplify repo-level default setup overrides (#90)
-- Support COMPOZY_HOME env override for home directory (#216)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Parallel execution (#217)
 - Specifying the model on ACP (#215)
 - Worktree management (#223)
 - Restore run TUI elapsed timer across retry, failure, cancel, and remote paths (#221)
 
+### Features
+
+- Agentic runs (#212)
+- Simplify repo-level default setup overrides (#90)
+- Support COMPOZY_HOME env override for home directory (#216)
+
 ## 0.2.10 - 2026-06-18
 
-### ♻️ Refactoring
+### Bug Fixes
 
-- Tui redesign (#201)
+- Reviews watch bug
 
-### 🎉 Features
+### Features
 
 - Worktree-backed parallel multi-run for tasks run --multiple (#200)
 - Add Devin CLI agent support (#204)
 
-### 🐛 Bug Fixes
+### Refactoring
 
-- Reviews watch bug
+- Tui redesign (#201)
 
 ## 0.2.9 - 2026-06-14
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Record ACP token usage and adapt to acp-go-sdk v0.13.5 (#198)
 
 ## 0.2.8 - 2026-06-12
 
-### 🎉 Features
-
-- Warn when tasks run starts beside active runs in other workspaces (#190)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Keep multi-run task timers ticking (#179)
 - Treat model auto as runtime default (#181)
@@ -503,71 +579,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Surface ACP session setup errors in job logs and fail runs fast (#192)
 - Reviews watch (#196)
 
+### Features
+
+- Warn when tasks run starts beside active runs in other workspaces (#190)
+
 ## 0.2.6 - 2026-05-27
 
-### 🎉 Features
-
-- Add multi-task run support (#162)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Add Windows daemon support (#163)
 
+### Features
+
+- Add multi-task run support (#162)
+
 ## 0.2.5 - 2026-05-25
 
-### 🎉 Features
-
-- Add zsh task completion plugin docs and script (#149)
-- Add kiro-cli as supported ACP execution runtime (#160)
-- Discover task files recursively in nested subdirectories (#153)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Homebrew formula
 - Emit one task slug per compozy completion candidate (#159)
 - Run managed upgrade commands (#158)
 
-### 🧪 Testing
+### Features
+
+- Add zsh task completion plugin docs and script (#149)
+- Add kiro-cli as supported ACP execution runtime (#160)
+- Discover task files recursively in nested subdirectories (#153)
+
+### Testing
 
 - Internal test fix
 
 ## 0.2.4 - 2026-05-14
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Codex acp integration (#151)
 
 ## 0.2.3 - 2026-05-09
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Cwd path
 
 ## 0.2.2 - 2026-05-09
 
-### 🎉 Features
-
-- Add qa extension (#138)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Workspace register (#140)
 - Workspace discover path
 - Prevent false task completion via prompt kickoff + worktree diff-check (#144) (#145)
 
+### Features
+
+- Add qa extension (#138)
+
 ## 0.2.1 - 2026-05-01
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Binary release
 
 ## 0.2.0 - 2026-05-01
 
-### ♻️ Refactoring
+### Bug Fixes
 
-- Daemon improvs (#121)
+- Daemons adjustments (#116)
+- Harden runtime activity and version handling (#127)
+- Release adjustments (#131)
+- Infer task type during migrate (#129)
+- Watch adjustments
+- Lint errors
 
-### 🎉 Features
+### Features
 
 - Add optional sound notifications on run lifecycle events (#96)
 - Global config defaults (#106)
@@ -578,37 +663,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Web ui polish (#125)
 - Review watch (#133)
 
-### 🐛 Bug Fixes
+### Refactoring
 
-- Daemons adjustments (#116)
-- Harden runtime activity and version handling (#127)
-- Release adjustments (#131)
-- Infer task type during migrate (#129)
-- Watch adjustments
-- Lint errors
+- Daemon improvs (#121)
 
-### 🧪 Testing
+### Testing
 
 - Release config
 
 ## 0.1.12 - 2026-04-14
 
-### 🎉 Features
-
-- Add shared layout package for run artifact filenames (#95)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Execution order
 - Fetch reviews parsing
 
-### 🧪 Testing
+### Features
+
+- Add shared layout package for run artifact filenames (#95)
+
+### Testing
 
 - Fix suite
 
 ## 0.1.11 - 2026-04-14
 
-### 🎉 Features
+### Features
 
 - Agents spec (#78)
 - Add extensability (#80)
@@ -618,116 +698,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.1.10 - 2026-04-10
 
-### ♻️ Refactoring
+### Bug Fixes
+
+- Stop rewriting all _meta.md files when listing workflows (#73)
+
+### Features
+
+- Kernel refactoring (#68)
+
+### Refactoring
 
 - Improve packages (#70)
 - Add nitpicks for coderabbit (#75)
 
-### 🎉 Features
-
-- Kernel refactoring (#68)
-
-### 🐛 Bug Fixes
-
-- Stop rewriting all _meta.md files when listing workflows (#73)
-
 ## 0.1.9 - 2026-04-06
 
-### 🎉 Features
-
-- Exec command (#60)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Close issue #61 (#63)
 - Fail for unsupported --add-dir (#66)
 
+### Features
+
+- Exec command (#60)
+
 ## 0.1.8 - 2026-04-05
 
-### ♻️ Refactoring
-
-- Rename idea-factory artifacts from issue to idea (#56)
-
-### 🎉 Features
+### Features
 
 - Add GitHub Copilot CLI as ACP runtime (#57)
 
+### Refactoring
+
+- Rename idea-factory artifacts from issue to idea (#56)
+
 ## 0.1.7 - 2026-04-05
 
-### ♻️ Refactoring
+### Bug Fixes
+
+- Review round
+
+### Features
+
+- _(build)_ Add AUR support and automation via GoReleaser (#49)
+
+### Refactoring
 
 - Tool calls (#48)
 - Task artifacts changes (#52)
 
-### 🎉 Features
-
-- _(build)_ Add AUR support and automation via GoReleaser (#49)
-
-### 🐛 Bug Fixes
-
-- Review round
-
 ## 0.1.6 - 2026-04-04
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Improve failures
 
 ## 0.1.5 - 2026-04-03
 
-### 🎉 Features
-
-- Add config.toml (#40)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Check skills shift before run
 - Acp permission
 
+### Features
+
+- Add config.toml (#40)
+
 ## 0.1.4 - 2026-04-03
 
-### 🎉 Features
-
-- Add cy-idea-factory skill and improve planning skills DX (#35)
-
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - Failed tool call crash
 - Skills frontmatter
 
+### Features
+
+- Add cy-idea-factory skill and improve planning skills DX (#35)
+
 ## 0.1.3 - 2026-04-03
 
-### 🎉 Features
+### Features
 
 - _(repo)_ Add archive command
 - Use acp instead of stream raw json (#34)
 
 ## 0.1.2 - 2026-04-02
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - _(repo)_ Close tui when finish
 - Correct opencode run flags and add stdin support (#25)
 
 ## 0.1.1 - 2026-04-02
 
-### 🐛 Bug Fixes
+### Bug Fixes
 
 - _(repo)_ Automatic completion
 
 ## 0.1.0 - 2026-04-01
 
-### ♻️ Refactoring
+### Bug Fixes
 
-- _(repo)_ Improve commands
-- _(repo)_ Remove not needed flags
-- _(repo)_ Remove PR as required for fix-reviews
-- _(repo)_ Improve setup command
-- _(repo)_ Remove prd- tasks folder prefix
-- _(repo)_ Many improvements
-- _(repo)_ Add cy prefix for skills and memory system
+- _(repo)_ Release
+- _(repo)_ Color bugs
 
-### 🎉 Features
+### Features
 
 - _(repo)_ Add build and release
 - _(repo)_ Add adr support
@@ -737,12 +812,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Add _meta.md for tasks
 - Main structure
 
-### 🐛 Bug Fixes
+### Refactoring
 
-- _(repo)_ Release
-- _(repo)_ Color bugs
+- _(repo)_ Improve commands
+- _(repo)_ Remove not needed flags
+- _(repo)_ Remove PR as required for fix-reviews
+- _(repo)_ Improve setup command
+- _(repo)_ Remove prd- tasks folder prefix
+- _(repo)_ Many improvements
+- _(repo)_ Add cy prefix for skills and memory system
 
-[0.3.0]: https://github.com/compozy/compozy/compare/v0.2.15...v0.3.0
+[0.4.0]: https://github.com/compozy/compozy/compare/v0.2.15...v0.4.0
 [0.2.15]: https://github.com/compozy/compozy/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/compozy/compozy/compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com/compozy/compozy/compare/v0.2.12...v0.2.13

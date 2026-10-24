@@ -17,13 +17,14 @@ const (
 )
 
 const (
-	hookAgentEventsCompletedKey = "completed"
-	hookAgentEventsBlockedKey   = "blocked"
-	hookAgentEventsDenyKey      = "deny"
-	hookAgentEventsFailedKey    = "failed"
-	hookAgentEventsPendingKey   = "pending"
-	hookAgentEventsResolvedKey  = "resolved"
-	hookAgentEventsToolCallKey  = "tool_call"
+	hookAgentEventsCompletedKey      = "completed"
+	hookAgentEventsBlockedKey        = "blocked"
+	hookAgentEventsDenyKey           = "deny"
+	hookAgentEventsFailedKey         = "failed"
+	hookAgentEventsPendingKey        = "pending"
+	hookAgentEventsResolvedKey       = "resolved"
+	hookAgentEventsToolCallKey       = "tool_call"
+	hookAgentEventsToolCallUpdateKey = "tool_call_update"
 )
 
 type hookAgentToolPayload struct {
@@ -91,7 +92,7 @@ func dispatchToolHookEvent(
 	event acp.AgentEvent,
 	defaultTimestamp time.Time,
 ) {
-	if hookAgentToolIsNative(event.ToolName()) || hookAgentToolIsNative(event.Title) {
+	if event.ToolResultUpdate() || hookAgentToolIsNative(event.ToolName()) || hookAgentToolIsNative(event.Title) {
 		return
 	}
 	raw, ok := decodeHookAgentToolPayload(event.Raw)
@@ -111,6 +112,9 @@ func dispatchToolHookEvent(
 	}
 
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
+	if event.Type == acp.EventTypeToolResult {
+		updateType = hookAgentEventsToolCallUpdateKey
+	}
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
 	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked() && status != hookAgentEventsPendingKey:
@@ -122,7 +126,7 @@ func dispatchToolHookEvent(
 			ToolInput:      acp.CloneRawMessage(raw.ToolInput),
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookToolPreCall, err)
-	case updateType == "tool_call_update" && status == hookAgentEventsCompletedKey:
+	case updateType == hookAgentEventsToolCallUpdateKey && status == hookAgentEventsCompletedKey:
 		_, err := hooks.DispatchToolPostCall(ctx, hookspkg.ToolPostCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPostCall),
 			SessionContext: sessionCtx,
@@ -133,7 +137,7 @@ func dispatchToolHookEvent(
 			ToolResult:     acp.CloneRawMessage(raw.ToolResult),
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookToolPostCall, err)
-	case updateType == "tool_call_update" && status == hookAgentEventsFailedKey:
+	case updateType == hookAgentEventsToolCallUpdateKey && status == hookAgentEventsFailedKey:
 		_, err := hooks.DispatchToolPostError(ctx, hookspkg.ToolPostErrorPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPostError),
 			SessionContext: sessionCtx,

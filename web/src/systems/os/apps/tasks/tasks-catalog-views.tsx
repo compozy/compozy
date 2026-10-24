@@ -95,6 +95,7 @@ function TasksDashboardMode({ page }: { page: TasksPageModel }) {
       onDrainScheduler={page.handleDrainScheduler}
       onPauseScheduler={page.handlePauseScheduler}
       onResumeScheduler={page.handleResumeScheduler}
+      projectBadgeOf={page.projectBadgeOf}
     />
   );
 }
@@ -122,6 +123,7 @@ function TasksInboxMode({ page }: { page: TasksPageModel }) {
       onStatusChange={page.handleInboxStatusChange}
       onToggleUnread={page.handleInboxUnreadToggle}
       priorityFilter={page.inboxPriorityFilter}
+      projectFilter={page.projectFilter}
       searchQuery={page.inboxSearchQuery}
       statusFilter={page.inboxStatusFilter}
       unreadOnly={page.inboxUnreadOnly}
@@ -131,6 +133,7 @@ function TasksInboxMode({ page }: { page: TasksPageModel }) {
       pendingMarkReadIds={page.pendingMarkReadIds}
       pendingRejectIds={page.pendingRejectIds}
       pendingRetryIds={page.pendingRetryIds}
+      projectBadgeOf={page.projectBadgeOf}
     />
   );
 }
@@ -157,6 +160,7 @@ function TasksKanbanMode({
       onSelectTask={onSelectTask}
       onLoadMore={page.loadMoreTasks}
       profile={page.profile}
+      projectBadgeOf={page.projectBadgeOf}
       selectedTaskId={page.effectiveSelectedTaskId}
       statusCounts={page.statusCounts}
     />
@@ -164,7 +168,9 @@ function TasksKanbanMode({
 }
 
 function listFilterState(page: TasksPageModel): "active" | "inactive" {
-  const filtered = [page.statusFilter, page.ownerFilter, page.priorityFilter].some(Boolean);
+  const filtered =
+    [page.statusFilter, page.ownerFilter, page.priorityFilter].some(Boolean) ||
+    page.projectFilter.values.length > 0;
   return filtered || page.searchQuery.trim() !== "" ? "active" : "inactive";
 }
 
@@ -178,9 +184,11 @@ function TasksListMode({ page }: { page: TasksPageModel }) {
       isLoading={page.listLoading}
       hasMore={page.hasMoreTasks}
       isLoadingMore={page.isLoadingMoreTasks}
+      onClearFilters={page.clearListFilters}
       onLoadMore={page.loadMoreTasks}
       onRetryLoad={page.retryTasks}
       onOpenLoopRun={showWorkItems}
+      projectBadgeOf={page.projectBadgeOf}
       onShowWorkItems={showWorkItems}
       recordsFilter={page.recordsFilter}
       searchQuery={page.searchQuery}

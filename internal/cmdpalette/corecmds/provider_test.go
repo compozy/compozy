@@ -369,3 +369,19 @@ func TestAutomationsCommands(t *testing.T) {
 		}
 	})
 }
+
+func TestAllProjectsCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should expose All projects under the stable scope command ID", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range mustCommands(t) {
+			if command.ID == "scope.global.toggle" {
+				if command.Title != "All projects" {
+					t.Fatalf("title = %q", command.Title)
+				}
+				return
+			}
+		}
+		t.Fatal("scope command missing")
+	})
+}

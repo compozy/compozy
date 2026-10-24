@@ -731,6 +731,10 @@ func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 				PromptAudio:           true,
 				PromptEmbeddedContext: true,
 				SupportedModes:        []string{"edit"},
+				ConfigOptions: []acp.SessionConfigOption{
+					{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+					{ID: "fast", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(true)},
+				},
 			},
 			CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),
@@ -4837,8 +4841,7 @@ func (*hostAPITestLoopStarter) StartLoop(
 }
 
 type hostAPITestTaskSessionExecutor struct {
-	sessions            *session.Manager
-	globalWorkspacePath string
+	sessions *session.Manager
 }
 
 func mustExtensionTaskActorContext(
@@ -4881,7 +4884,7 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = strings.TrimSpace(spec.Task.WorkspaceID)
 	case taskpkg.ScopeGlobal:
-		opts.WorkspacePath = strings.TrimSpace(e.globalWorkspacePath)
+		opts.Scope = "user"
 	default:
 		return nil, fmt.Errorf("%w: unsupported task scope %q", taskpkg.ErrValidation, spec.Task.Scope)
 	}
@@ -5133,7 +5136,6 @@ Review the workspace changes carefully.
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		}),
 		automationpkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
-		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
 	}
 	if cfg.hooks != nil {
 		automationOpts = append(automationOpts, automationpkg.WithHooks(cfg.hooks))
@@ -5157,8 +5159,7 @@ Review the workspace changes carefully.
 	taskOptions := []taskpkg.Option{
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(&hostAPITestTaskSessionExecutor{
-			sessions:            sessions,
-			globalWorkspacePath: homePaths.HomeDir,
+			sessions: sessions,
 		}),
 		taskpkg.WithManagerNow(func() time.Time { return env.currentTime() }),
 	}
@@ -5580,8 +5581,7 @@ func (e *hostAPITestEnv) useSessionsWithoutObserver(t *testing.T) {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(e.registry),
 		taskpkg.WithSessionExecutor(&hostAPITestTaskSessionExecutor{
-			sessions:            sessions,
-			globalWorkspacePath: e.homePaths.HomeDir,
+			sessions: sessions,
 		}),
 		taskpkg.WithManagerNow(func() time.Time { return e.currentTime() }),
 	)

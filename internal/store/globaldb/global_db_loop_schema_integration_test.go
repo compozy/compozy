@@ -31,8 +31,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 		if err := first.UpsertLoopConfig(
 			testutil.Context(t),
-			"ws-loop-environment",
-			"delivery",
+			"ws-loop-environment", "", "delivery",
 			looppkg.LoopConfig{Environment: &environment},
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
@@ -64,7 +63,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			}
 		})
 		assertLoopRunStateSchema(t, second)
-		stored, err := second.GetLoopConfig(testutil.Context(t), "ws-loop-environment", "delivery")
+		stored, err := second.GetLoopConfig(testutil.Context(t), "ws-loop-environment", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig(reopened environment) error = %v", err)
 		}
@@ -341,7 +340,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
 			}
 		})
-		claim, err := reopened.GetAdmissionClaim(verificationCtx, "ws-upgrade", "delivery", "source", "event:42")
+		claim, err := reopened.GetAdmissionClaim(verificationCtx, "ws-upgrade", "", "delivery", "source", "event:42")
 		if err != nil {
 			t.Fatalf("GetAdmissionClaim() error = %v", err)
 		}
@@ -412,8 +411,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		})
 		claim, err := reopened.GetAdmissionClaim(
 			verificationCtx,
-			"ws-upgrade",
-			"delivery",
+			"ws-upgrade", "", "delivery",
 			"source",
 			"event:fractional",
 		)
@@ -433,8 +431,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		writerClaim, err := reopened.GetAdmissionClaim(
 			verificationCtx,
-			"ws-upgrade",
-			"delivery",
+			"ws-upgrade", "", "delivery",
 			"source",
 			"event:writer",
 		)
@@ -883,6 +880,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_effect_outbox",
 	)
 	assertTableColumns(t, globalDB.db, "loop_runs", []string{
+		"grant_ceiling",
 		"id",
 		"profile_id",
 		"workspace_id",
@@ -1010,6 +1008,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"expect_json", "ahead_payload_json", "issued_epoch", "created_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_admission_claims", []string{
+		"profile_id",
 		"workspace_id", "loop_name", "source_key", "event_key", "loop_run_id", "claimed_at",
 		"expires_at", "suppressed_count", "last_suppressed_at",
 	})
@@ -1018,6 +1017,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"entry_index", "entry_json", "state", "attempts", "created_at", "delivered_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_definition_snapshots", []string{
+		"profile_id",
 		"workspace_id",
 		"definition_digest",
 		"definition_version",
@@ -1060,6 +1060,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"created_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_ui_annotations", []string{
+		"profile_id",
 		"workspace_id",
 		"loop_name",
 		"node_id",
@@ -1067,6 +1068,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"y",
 	})
 	assertTableColumns(t, globalDB.db, "loop_config", []string{
+		"profile_id",
 		"workspace_id",
 		"loop_name",
 		"human_gate_enabled",
@@ -1213,7 +1215,7 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		t,
 		globalDB.db,
 		"loop_definition_snapshots",
-		"PRIMARY KEY (workspace_id, definition_digest)",
+		"PRIMARY KEY (workspace_id, profile_id, definition_digest)",
 	)
 	assertTableSQLContains(
 		t,
@@ -1257,8 +1259,8 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_node_controls",
 		"json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'",
 	)
-	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, loop_name, node_id)")
-	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, loop_name)")
+	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, profile_id, loop_name, node_id)")
+	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, profile_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)
 }
 

@@ -68,7 +68,17 @@ func automationJobToonValues(item JobRecord) []string {
 	}
 }
 
-func automationJobListBundle(page AutomationJobListRecord, now func() time.Time) outputBundle {
+func automationJobListBundle(
+	page AutomationJobListRecord,
+	now func() time.Time,
+	projectLabels ...map[string]string,
+) outputBundle {
+	projectHeader := automationWorkspaceValue
+	projectName := stringOrDash
+	if len(projectLabels) > 0 {
+		projectHeader = cliProjectHeader
+		projectName = func(id string) string { return aggregateProjectName(projectLabels[0], id) }
+	}
 	items := page.Jobs
 	return listBundle(
 		page,
@@ -79,7 +89,7 @@ func automationJobListBundle(page AutomationJobListRecord, now func() time.Time)
 			sessionProfileValue,
 			automationNameValue,
 			automationScopeValue,
-			automationWorkspaceValue,
+			projectHeader,
 			automationScheduleValue,
 			automationAgentValue,
 			automationEnabledValue,
@@ -108,7 +118,7 @@ func automationJobListBundle(page AutomationJobListRecord, now func() time.Time)
 				stringOrDash(item.ProfileName),
 				stringOrDash(item.Name),
 				stringOrDash(string(item.Scope)),
-				stringOrDash(item.WorkspaceID),
+				projectName(item.WorkspaceID),
 				stringOrDash(formatAutomationSchedule(item.Schedule)),
 				stringOrDash(item.AgentName),
 				strconv.FormatBool(item.Enabled),

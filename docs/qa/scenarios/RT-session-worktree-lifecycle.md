@@ -42,3 +42,15 @@ relative, parent/sibling, symlink and agent-pipe allowed-root containment covera
 Review follow-up results and current-head delivery gates are recorded on the same PR.
 
 QA impact 2026-10-07 (memory removal): worktree sessions no longer share a parent workspace memory (the feature was removed); every other binding, containment, spawn, and filtering check is unchanged. No verdict change.
+
+QA impact 2026-10-21 (spawn orchestration): a governed child may now select its checkout
+explicitly. `compozy spawn --worktree|--new-worktree[=name] --base --branch`,
+`compozy__session_spawn.worktree|new_worktree`, and `POST /api/agent/spawn` bind a ready worktree
+of the parent's workspace (or create one) instead of inheriting the parent's binding. Without those
+inputs the child still inherits. Hooks still cannot rewrite the binding. Walk: spawn a child from an
+unbound parent with `new_worktree`, confirm the child's ACP cwd and provider sandbox root are the
+new checkout and that a write there needs no sandbox approval. Then force a refusal (a widening
+`tools` atom) and confirm the created worktree is removed. Owning automated evidence:
+`TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions` (selected worktree subtest),
+`TestDaemonNativeSessionSpawnOrchestration`, and
+`TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt`.

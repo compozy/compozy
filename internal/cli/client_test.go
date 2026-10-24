@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -2696,6 +2697,43 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 	})
 }
 
+func TestSessionPullRequestClient(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refresh through the canonical by-id HTTP route", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/sessions/{id}/pull-request/refresh", func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("id") != "sess-1" {
+				t.Errorf("session id = %q", r.PathValue("id"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := io.WriteString(
+				w,
+				`{"session_id":"sess-1","branch":"topic","pull_request":{"number":43}}`,
+			); err != nil {
+				t.Error(err)
+			}
+		})
+		server := httptest.NewServer(mux)
+		t.Cleanup(server.Close)
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				target, err := url.Parse(server.URL)
+				if err != nil {
+					return nil, err
+				}
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
+		result, err := client.RefreshSessionPullRequest(t.Context(), "sess-1")
+		if err != nil || result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 43 {
+			t.Fatalf("refresh = %#v, %v", result, err)
+		}
+	})
+}
+
 func TestUnixSocketClientMethods(t *testing.T) {
 	t.Parallel()
 
@@ -2750,6 +2788,10 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"session_id":"sess-1","status":"stopping","state":"stopping","verified":false,"escalated":false}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
+					// The default archive sends no stop query; only the opt-in does.
+					if stop, present := req.URL.Query()["stop"]; present && (len(stop) != 1 || stop[0] != "true") {
+						t.Fatalf("archive stop query = %#v, want absent or true", stop)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":"2026-04-03T12:01:00Z","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:01:00Z"}}`,
@@ -2770,6 +2812,23 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"session":{"id":"sess-1","name":"Checkout retries","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":null,"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:03:00Z"}}`,
+					), nil
+				case req.Method == http.MethodPut && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/parent":
+					var body SetSessionParentRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode session parent request error = %v", err)
+					}
+					if body.ParentSessionID != "sess-parent" {
+						t.Fatalf("session parent id = %q", body.ParentSessionID)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","lineage":{"parent_session_id":"sess-parent","root_session_id":"sess-parent","spawn_depth":1,"kind":"provenance"},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:04:00Z"}}`,
+					), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/parent":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","lineage":{"root_session_id":"sess-1","spawn_depth":0},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:05:00Z"}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attach":
 					return newHTTPResponse(
@@ -3078,12 +3137,30 @@ func TestUnixSocketClientMethods(t *testing.T) {
 			t.Fatalf("RenameSession() = %#v, %v", renamed, renameErr)
 		}
 	})
+	t.Run("Should set and clear a session parent through the workspace route", func(t *testing.T) {
+		t.Parallel()
+
+		adopted, adoptErr := client.SetSessionParent(
+			ctx, "sess-1", SetSessionParentRequest{ParentSessionID: "sess-parent"},
+		)
+		if adoptErr != nil || adopted.Lineage == nil || adopted.Lineage.ParentSessionID != "sess-parent" {
+			t.Fatalf("SetSessionParent() = %#v, %v", adopted, adoptErr)
+		}
+		detached, detachErr := client.ClearSessionParent(ctx, "sess-1")
+		if detachErr != nil || detached.Lineage == nil || detached.Lineage.ParentSessionID != "" {
+			t.Fatalf("ClearSessionParent() = %#v, %v", detached, detachErr)
+		}
+	})
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 
-		archived, archiveErr := client.ArchiveSession(ctx, "sess-1")
+		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false)
 		if archiveErr != nil || archived.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession() = %#v, %v, want archived session", archived, archiveErr)
+		}
+		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true)
+		if stopArchiveErr != nil || stopped.ArchivedAt == nil {
+			t.Fatalf("ArchiveSession(stop) = %#v, %v, want archived session", stopped, stopArchiveErr)
 		}
 		restored, unarchiveErr := client.UnarchiveSession(ctx, "sess-1")
 		if unarchiveErr != nil || restored.ArchivedAt != nil {
@@ -3345,6 +3422,27 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 		}
 		if len(paths) != 1 || paths[0] == "/api/sessions" {
 			t.Fatalf("sessionWorkspaceRef() paths = %#v, want one by-id request and no catalog scan", paths)
+		}
+	})
+
+	t.Run("Should address a session without a project through the User reference", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-user","scope":"user","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+				), nil
+			})},
+		}
+		path, err := client.sessionScopedPath(t.Context(), "sess-user", "/prompt")
+		if err != nil {
+			t.Fatalf("sessionScopedPath() error = %v", err)
+		}
+		if path != "/api/workspaces/@user/sessions/sess-user/prompt" {
+			t.Fatalf("sessionScopedPath() = %q, want the @user workspace route", path)
 		}
 	})
 }

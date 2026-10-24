@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor } from "storybook/test";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../card";
 import { Separator } from "../separator";
@@ -12,7 +13,7 @@ const meta: Meta<typeof ScrollArea> = {
     docs: {
       description: {
         component:
-          "Custom scrollbar wrapper with vertical and horizontal modes. Renders a track + thumb only when the viewport actually overflows.",
+          "Overlay scrollbar wrapper with vertical and horizontal modes. Renders a track + thumb only when the viewport actually overflows; the bar stays hidden until hover, scroll, or keyboard focus, over a gutter that keeps it off the content.",
       },
     },
   },
@@ -55,7 +56,7 @@ export const Overflow: Story = {
     docs: {
       description: {
         story:
-          "Viewport overflow surfaces the custom rounded thumb on a translucent track without shifting layout.",
+          "Viewport overflow reserves an inline-end gutter; hover or scroll reveals the rounded thumb inside it.",
       },
     },
   },
@@ -92,4 +93,41 @@ export const Horizontal: Story = {
       <ScrollBar orientation="horizontal" />
     </ScrollArea>
   ),
+};
+
+/**
+ * Hover reveals the bar (scrolling and keyboard focus on the viewport do too),
+ * and vertical overflow keeps a 12px inline-end gutter so the bar never covers
+ * a row.
+ */
+export const RevealedOnHover: Story = {
+  tags: ["play-fn"],
+  render: () => (
+    <div className="h-56 w-64 rounded-lg border bg-card">
+      <ScrollArea className="h-full">
+        <ol className="px-4 py-3 text-sm">
+          {Array.from({ length: 40 }, (_, i) => (
+            <li key={i} className="py-1">
+              Row {String(i + 1).padStart(2, "0")}
+            </li>
+          ))}
+        </ol>
+      </ScrollArea>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const root = canvasElement.querySelector<HTMLElement>("[data-slot=scroll-area]");
+    const viewport = canvasElement.querySelector<HTMLElement>("[data-slot=scroll-area-viewport]");
+    await waitFor(() => expect(viewport).toHaveAttribute("data-has-overflow-y"));
+    await expect(getComputedStyle(viewport!).paddingInlineEnd).toBe("12px");
+    const bar = () =>
+      canvasElement.querySelector<HTMLElement>(
+        "[data-slot=scroll-area-scrollbar][data-orientation=vertical]"
+      );
+    await expect(getComputedStyle(bar()!).opacity).toBe("0");
+    await userEvent.hover(root!);
+    await waitFor(() => expect(getComputedStyle(bar()!).opacity).toBe("1"));
+    await userEvent.unhover(root!);
+    await waitFor(() => expect(getComputedStyle(bar()!).opacity).toBe("0"));
+  },
 };

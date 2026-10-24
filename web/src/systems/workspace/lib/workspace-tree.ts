@@ -1,5 +1,5 @@
 import type { WorktreesResponse } from "../types";
-import { partitionProjectWorkspaces, type WorkspaceHomeCandidate } from "./project-workspaces";
+import type { WorkspaceHomeCandidate } from "./project-workspaces";
 import { toWorktreeNestEntries, type WorktreeNestEntry } from "./worktree-display";
 import { adoptedWorktreeCount, runningAgentCount, sortWorktreeNestEntries } from "./worktree-sort";
 
@@ -42,17 +42,13 @@ export function worktreeNestPresence(
 
 /**
  * Single projection behind the switcher, the menubar menu, and the overview, so
- * the three surfaces cannot diverge. The operator-home registration is hidden;
- * Global is a scope, not a project workspace row.
+ * the three surfaces cannot diverge. User is a destination, not a project row.
  */
 export function groupWorkspaceTree<T extends WorkspaceHomeCandidate & { id: string }>(
   workspaces: ReadonlyArray<T> | undefined,
-  listings: WorktreeListingByWorkspace,
-  userHomeDir: string | undefined
+  listings: WorktreeListingByWorkspace
 ): WorkspaceTreeNode<T>[] {
-  const { projectWorkspaces } = partitionProjectWorkspaces(workspaces, userHomeDir);
-
-  return projectWorkspaces.map(workspace => {
+  return (workspaces ?? []).map(workspace => {
     const listing = listings[workspace.id];
     const gitBacked = listing?.repo.git_backed ?? false;
     // A non-git workspace has no worktree group at all — not an empty one.

@@ -9,6 +9,347 @@ import (
 	"strings"
 )
 
+// ListLoopRequestsAggregate List Loop human requests
+func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
+	path := "/api/loop-requests"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.RunID != nil {
+		query.Set("run_id", *params.RunID)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRequestsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopRunsParams carries the path, query, and header parameters.
+type ListLoopRunsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	Loop          *string `url:"loop"`
+	Status        *string `url:"status"`
+	Origin        *string `url:"origin"`
+	OriginSession *string `url:"origin_session"`
+	Live          *bool   `url:"live"`
+	Cursor        *string `url:"cursor"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// ListLoopRuns List Loop runs
+func (c *Client) ListLoopRuns(ctx context.Context, params ListLoopRunsParams) (*LoopRunsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.OriginSession != nil {
+		query.Set("origin_session", *params.OriginSession)
+	}
+	if params.Live != nil {
+		query.Set("live", strconv.FormatBool(*params.Live))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopRunsAggregateParams carries the path, query, and header parameters.
+type ListLoopRunsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Loop          *string   `url:"loop"`
+	Status        *string   `url:"status"`
+	Origin        *string   `url:"origin"`
+	OriginSession *string   `url:"origin_session"`
+	Live          *bool     `url:"live"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+	Order         *string   `url:"order"`
+}
+
+// ListLoopRunsAggregate List Loop runs
+func (c *Client) ListLoopRunsAggregate(ctx context.Context, params ListLoopRunsAggregateParams) (*LoopRunsResponse, error) {
+	path := "/api/loop-runs"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.OriginSession != nil {
+		query.Set("origin_session", *params.OriginSession)
+	}
+	if params.Live != nil {
+		query.Set("live", strconv.FormatBool(*params.Live))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if params.Order != nil {
+		query.Set("order", *params.Order)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopsParams carries the path, query, and header parameters.
+type ListLoopsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Q           *string `url:"q"`
+	Kind        *string `url:"kind"`
+	Category    *string `url:"category"`
+	Status      *string `url:"status"`
+	Sort        *string `url:"sort"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListLoops List Loop catalog entries
+func (c *Client) ListLoops(ctx context.Context, params ListLoopsParams) (*LoopsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.Category != nil {
+		query.Set("category", *params.Category)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Sort != nil {
+		query.Set("sort", *params.Sort)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListLoopsAggregateParams carries the path, query, and header parameters.
+type ListLoopsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Q             *string   `url:"q"`
+	Kind          *string   `url:"kind"`
+	Category      *string   `url:"category"`
+	Status        *string   `url:"status"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// ListLoopsAggregate List Loop catalog entries
+func (c *Client) ListLoopsAggregate(ctx context.Context, params ListLoopsAggregateParams) (*LoopCatalogBatchResponse, error) {
+	path := "/api/loops"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Kind != nil {
+		query.Set("kind", *params.Kind)
+	}
+	if params.Category != nil {
+		query.Set("category", *params.Category)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Sort != nil {
+		query.Set("sort", *params.Sort)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopCatalogBatchResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListMarketplaceParams carries the path, query, and header parameters.
+type ListMarketplaceParams struct {
+	Q           *string `url:"q"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Scope       *string `url:"scope"`
+	Profile     *string `url:"profile"`
+	WorkspaceID *string `url:"workspace_id"`
+}
+
+// ListMarketplace List the extension catalog with source state and a content revision
+func (c *Client) ListMarketplace(ctx context.Context, params ListMarketplaceParams) (*MarketplaceListResponse, error) {
+	path := "/api/marketplace"
+	query := url.Values{}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListMarketplaceSources List global plugin marketplace sources Experimental: pin the exact SDK version.
+func (c *Client) ListMarketplaceSources(ctx context.Context) (*MarketplaceSourcesResponse, error) {
+	path := "/api/marketplace/sources"
+	var out MarketplaceSourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListOpenAIModelsParams carries the path, query, and header parameters.
+type ListOpenAIModelsParams struct {
+	ProviderID *string `url:"provider_id"`
+}
+
 // ListOpenAIModels List provider models using the OpenAI-compatible model shape
 func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsParams) (*OpenAIModelListResponse, error) {
 	path := "/api/openai/v1/models"
@@ -91,351 +432,4 @@ type ListProviderModelsByProviderParams struct {
 	SourceID     *string `url:"source_id"`
 	Refresh      *bool   `url:"refresh"`
 	IncludeStale *bool   `url:"include_stale"`
-}
-
-// ListProviderModelsByProvider List provider model catalog entries for one provider
-func (c *Client) ListProviderModelsByProvider(ctx context.Context, params ListProviderModelsByProviderParams) (*ProviderModelListResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	query := url.Values{}
-	if params.View != nil {
-		query.Set("view", *params.View)
-	}
-	if params.SourceID != nil {
-		query.Set("source_id", *params.SourceID)
-	}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if params.IncludeStale != nil {
-		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProviderModelListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviderUsageParams carries the path, query, and header parameters.
-type ListProviderUsageParams struct {
-	Profile *string `url:"profile"`
-}
-
-// ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
-func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
-	path := "/api/provider-usage"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProviderUsageEnvelope
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviders List providers and declared auth status
-func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, error) {
-	path := "/api/providers"
-	var out ProviderListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListResourcesParams carries the path, query, and header parameters.
-type ListResourcesParams struct {
-	Kind       *string `url:"kind"`
-	ScopeKind  *string `url:"scope_kind"`
-	ScopeID    *string `url:"scope_id"`
-	OwnerKind  *string `url:"owner_kind"`
-	OwnerID    *string `url:"owner_id"`
-	SourceKind *string `url:"source_kind"`
-	SourceID   *string `url:"source_id"`
-	Limit      *int    `url:"limit"`
-}
-
-// ListResources List desired-state resources on the local operator control plane
-func (c *Client) ListResources(ctx context.Context, params ListResourcesParams) (*ResourcesResponse, error) {
-	path := "/api/resources"
-	query := url.Values{}
-	if params.Kind != nil {
-		query.Set("kind", *params.Kind)
-	}
-	if params.ScopeKind != nil {
-		query.Set("scope_kind", *params.ScopeKind)
-	}
-	if params.ScopeID != nil {
-		query.Set("scope_id", *params.ScopeID)
-	}
-	if params.OwnerKind != nil {
-		query.Set("owner_kind", *params.OwnerKind)
-	}
-	if params.OwnerID != nil {
-		query.Set("owner_id", *params.OwnerID)
-	}
-	if params.SourceKind != nil {
-		query.Set("source_kind", *params.SourceKind)
-	}
-	if params.SourceID != nil {
-		query.Set("source_id", *params.SourceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourcesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListResourcesByKindParams carries the path, query, and header parameters.
-type ListResourcesByKindParams struct {
-	Kind       string  `url:"kind"`
-	ScopeKind  *string `url:"scope_kind"`
-	ScopeID    *string `url:"scope_id"`
-	OwnerKind  *string `url:"owner_kind"`
-	OwnerID    *string `url:"owner_id"`
-	SourceKind *string `url:"source_kind"`
-	SourceID   *string `url:"source_id"`
-	Limit      *int    `url:"limit"`
-}
-
-// ListResourcesByKind List one desired-state resource kind on the local operator control plane
-func (c *Client) ListResourcesByKind(ctx context.Context, params ListResourcesByKindParams) (*ResourcesResponse, error) {
-	path := "/api/resources/{kind}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	query := url.Values{}
-	if params.ScopeKind != nil {
-		query.Set("scope_kind", *params.ScopeKind)
-	}
-	if params.ScopeID != nil {
-		query.Set("scope_id", *params.ScopeID)
-	}
-	if params.OwnerKind != nil {
-		query.Set("owner_kind", *params.OwnerKind)
-	}
-	if params.OwnerID != nil {
-		query.Set("owner_id", *params.OwnerID)
-	}
-	if params.SourceKind != nil {
-		query.Set("source_kind", *params.SourceKind)
-	}
-	if params.SourceID != nil {
-		query.Set("source_id", *params.SourceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourcesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListRolesParams carries the path, query, and header parameters.
-type ListRolesParams struct {
-	Workspace *string `url:"workspace"`
-}
-
-// ListRoles List effective background role configuration
-func (c *Client) ListRoles(ctx context.Context, params ListRolesParams) (*RolesResponse, error) {
-	path := "/api/roles"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RolesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionClarificationsParams carries the path, query, and header parameters.
-type ListSessionClarificationsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ListSessionClarifications List the live pending clarification for a session
-func (c *Client) ListSessionClarifications(ctx context.Context, params ListSessionClarificationsParams) (*ClarificationsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out ClarificationsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionEventsParams carries the path, query, and header parameters.
-type ListSessionEventsParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-}
-
-// ListSessionEvents List persisted session events
-func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEventsParams) (*SessionEventsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/events"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionEventsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionFacetsParams carries the path, query, and header parameters.
-type ListSessionFacetsParams struct {
-	WorkspaceID   *string `url:"workspace_id"`
-	AllWorkspaces *bool   `url:"all_workspaces"`
-	Worktree      *string `url:"worktree"`
-	Agent         *string `url:"agent"`
-	Subagents     *string `url:"subagents"`
-	Parent        *string `url:"parent"`
-	Root          *string `url:"root"`
-	Resumable     *bool   `url:"resumable"`
-	State         *string `url:"state"`
-	Type          *string `url:"type"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListSessionFacets Count session catalog facets
-func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacetsParams) (*SessionCatalogFacetsResponse, error) {
-	path := "/api/sessions/facets"
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Subagents != nil {
-		query.Set("subagents", *params.Subagents)
-	}
-	if params.Parent != nil {
-		query.Set("parent", *params.Parent)
-	}
-	if params.Root != nil {
-		query.Set("root", *params.Root)
-	}
-	if params.Resumable != nil {
-		query.Set("resumable", strconv.FormatBool(*params.Resumable))
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCatalogFacetsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionFoldersParams carries the path, query, and header parameters.
-type ListSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ListSessionFolders List session folders in manual order
-func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFoldersParams) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInputsParams carries the path, query, and header parameters.
-type ListSessionInputsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

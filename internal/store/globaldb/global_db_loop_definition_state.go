@@ -13,9 +13,12 @@ import (
 // DeleteLoopDefinitionState atomically removes mutable sidecars owned by one Loop definition.
 func (g *LoopRepo) DeleteLoopDefinitionState(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 ) (looppkg.DefinitionState, error) {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return looppkg.DefinitionState{}, err
+	}
 	if err := g.checkReady(ctx, "delete loop definition state"); err != nil {
 		return looppkg.DefinitionState{}, err
 	}
@@ -27,6 +30,7 @@ func (g *LoopRepo) DeleteLoopDefinitionState(
 	err = g.withImmediateTransaction(ctx, "delete loop definition state", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
 		row, getErr := queries.GetLoopConfig(ctx, sqlcgen.GetLoopConfigParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		})
@@ -42,6 +46,7 @@ func (g *LoopRepo) DeleteLoopDefinitionState(
 			return fmt.Errorf("store: get loop config before definition state delete: %w", getErr)
 		}
 		rows, listErr := queries.ListLoopUIAnnotations(ctx, sqlcgen.ListLoopUIAnnotationsParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		})
@@ -57,12 +62,14 @@ func (g *LoopRepo) DeleteLoopDefinitionState(
 			})
 		}
 		if deleteErr := queries.DeleteLoopUIAnnotations(ctx, sqlcgen.DeleteLoopUIAnnotationsParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		}); deleteErr != nil {
 			return fmt.Errorf("store: delete loop annotations with definition state: %w", deleteErr)
 		}
 		if deleteErr := queries.DeleteLoopConfig(ctx, sqlcgen.DeleteLoopConfigParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		}); deleteErr != nil {
@@ -79,10 +86,13 @@ func (g *LoopRepo) DeleteLoopDefinitionState(
 // RestoreLoopDefinitionState atomically restores sidecars after a failed file-backed delete.
 func (g *LoopRepo) RestoreLoopDefinitionState(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 	state looppkg.DefinitionState,
 ) error {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return err
+	}
 	if err := g.checkReady(ctx, "restore loop definition state"); err != nil {
 		return err
 	}
@@ -104,12 +114,14 @@ func (g *LoopRepo) RestoreLoopDefinitionState(
 	return g.withImmediateTransaction(ctx, "restore loop definition state", func(exec globalSQLExecutor) error {
 		queries := sqlcgen.New(exec)
 		if deleteErr := queries.DeleteLoopUIAnnotations(ctx, sqlcgen.DeleteLoopUIAnnotationsParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		}); deleteErr != nil {
 			return fmt.Errorf("store: clear loop annotations before restore: %w", deleteErr)
 		}
 		if deleteErr := queries.DeleteLoopConfig(ctx, sqlcgen.DeleteLoopConfigParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID),
 			LoopName:    name,
 		}); deleteErr != nil {
@@ -120,6 +132,7 @@ func (g *LoopRepo) RestoreLoopDefinitionState(
 				ctx,
 				exec,
 				string(workspaceID),
+				profileID,
 				name,
 				*state.Config,
 				normalizedConfig,
@@ -129,6 +142,7 @@ func (g *LoopRepo) RestoreLoopDefinitionState(
 		}
 		for _, annotation := range annotations {
 			if insertErr := queries.InsertLoopUIAnnotation(ctx, sqlcgen.InsertLoopUIAnnotationParams{
+				ProfileID:   loopStateProfileID(workspaceID, profileID),
 				WorkspaceID: string(workspaceID),
 				LoopName:    name,
 				NodeID:      string(annotation.NodeID),

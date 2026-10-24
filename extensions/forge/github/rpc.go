@@ -49,7 +49,7 @@ func forgeProviderHandlers(provider *Provider) compozysdk.ForgeProviderHandlers 
 			request compozysdk.ForgeStatusRequest,
 		) (compozysdk.ForgeStatusResponse, error) {
 			response, err := provider.Status(ctx, extensioncontract.ForgeStatusRequest(request))
-			return compozysdk.ForgeStatusResponse(response), err
+			return forgeStatusSDKResponse(response), err
 		},
 		CreatePR: func(
 			ctx context.Context,
@@ -76,4 +76,18 @@ func providerDefinition() compozysdk.ExtensionDefinition {
 			Args:    []string{"__internal", "extension-provider", Name},
 		},
 	}
+}
+
+func forgeStatusSDKResponse(response extensioncontract.ForgeStatusResponse) compozysdk.ForgeStatusResponse {
+	result := compozysdk.ForgeStatusResponse{
+		Provider: response.Provider, PRNumber: response.PRNumber, PRState: response.PRState,
+		PRURL: response.PRURL, Head: response.Head, Base: response.Base, HeadSHA: response.HeadSHA,
+		Draft: response.Draft, Merged: response.Merged, FetchedAt: response.FetchedAt, Cause: response.Cause,
+		ReviewDecision: response.ReviewDecision, Mergeable: response.Mergeable,
+		UpdatedAt: response.UpdatedAt, Selection: response.Selection, RetryAfter: response.RetryAfter,
+	}
+	if response.Checks != nil {
+		result.Checks = (*compozysdk.ForgeChecks)(response.Checks)
+	}
+	return result
 }

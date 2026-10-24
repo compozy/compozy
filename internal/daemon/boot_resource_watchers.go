@@ -17,12 +17,13 @@ func (d *Daemon) bootResourceWatchers(ctx context.Context, state *bootState, cle
 			state.skillsRegistry,
 			state.cfg.Skills.PollInterval,
 			workspaceSkillWatcherRoots(
-				d.homePaths, state.registry, state.workspaceResolver, bootProfileCatalog{state: state},
+				d.homePaths, state.registry, bootProfileCatalog{state: state},
 			),
 			workspaceAgentWatcherRoots(
 				d.homePaths, state.registry, bootProfileCatalog{state: state},
 			),
 			func(refreshCtx context.Context) error {
+				state.workspaceResolver.InvalidateAll()
 				if agentSkillResources != nil {
 					if err := agentSkillResources.Sync(refreshCtx); err != nil {
 						return err

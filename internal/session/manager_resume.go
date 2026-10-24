@@ -14,6 +14,13 @@ import (
 
 // Resume restarts a stopped session from its persisted metadata and event history.
 func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err error) {
+	if _, held := m.restartInputsHeld.Load(id); held {
+		return nil, fmt.Errorf("%w: restart recovery in progress", ErrPromptInProgress)
+	}
+	return m.resume(ctx, id, true)
+}
+
+func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed *Session, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: resume context is required")
 	}
@@ -28,7 +35,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	}
 	defer func() {
 		unlockConversation()
-		if err == nil && resumed != nil {
+		if err == nil && resumed != nil && dispatch {
 			if service := m.ReplyWatches(); service != nil {
 				service.OnSessionResumed(ctx, target)
 			}
@@ -55,7 +62,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	defer func() {
 		m.finishSessionResume(target, run, resumed, err)
 	}()
-	meta, err := m.readMetaWithContext(ctx, target)
+	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +83,7 @@ func (m *Manager) resumeSession(ctx context.Context, target string) (*Session, e
 		return nil, err
 	}
 
-	meta, err := m.readMetaWithContext(ctx, target)
+	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return nil, err
 	}

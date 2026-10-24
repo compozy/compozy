@@ -14,16 +14,32 @@ import (
 const loopActionRespond = "loops.respond"
 
 func (h *BaseHandlers) ListLoopRequests(c *gin.Context) {
+	breadth, ok := h.loopListBreadth(c)
+	if !ok {
+		return
+	}
 	service, ok := h.requireLoopService(c)
 	if !ok {
 		return
 	}
-	if runID := strings.TrimSpace(c.Query("run_id")); runID != "" {
+	if runID := strings.TrimSpace(c.Query("run_id")); runID != "" && !breadth.AllWorkspaces {
 		if !h.requireLoopRunProfileByID(c, service, runID, false) {
 			return
 		}
 	}
-	query := LoopRequestListQuery{RunID: c.Query("run_id"), State: c.Query("state"), Cursor: c.Query("cursor")}
+	scope, err := h.resolveProfileReadScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	query := LoopRequestListQuery{
+		AllWorkspaces: breadth.AllWorkspaces,
+		WorkspaceIDs:  breadth.WorkspaceIDs,
+		ReadScope:     scope,
+		RunID:         c.Query("run_id"),
+		State:         c.Query("state"),
+		Cursor:        c.Query("cursor"),
+	}
 	if raw := c.Query("limit"); raw != "" {
 		limit, err := strconv.Atoi(raw)
 		if err != nil {
@@ -32,10 +48,13 @@ func (h *BaseHandlers) ListLoopRequests(c *gin.Context) {
 		}
 		query.Limit = limit
 	}
-	response, err := service.ListLoopRequests(c.Request.Context(), c.Param("workspace_id"), query)
+	response, err := service.ListLoopRequests(c.Request.Context(), breadth.WorkspaceID, query)
 	if err != nil {
 		h.respondLoopError(c, err)
 		return
+	}
+	if breadth.AllWorkspaces {
+		logLoopAggregate(c, len(response.Items))
 	}
 	c.JSON(http.StatusOK, response)
 }

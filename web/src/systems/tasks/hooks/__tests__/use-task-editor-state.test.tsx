@@ -57,9 +57,16 @@ vi.mock("../use-tasks", () => ({
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: (options: unknown) => {
     editorMocks.activeWorkspaceOptions = options;
+    const projectId = editorMocks.activeWorkspaceId;
     return {
-      scope: editorMocks.scope,
-      activeWorkspaceId: editorMocks.activeWorkspaceId,
+      // A project focus not yet confirmed by the catalog has no data scope.
+      dataScope:
+        editorMocks.scope === "global"
+          ? { kind: "user" }
+          : projectId
+            ? { kind: "project", workspaceId: projectId }
+            : null,
+      activeWorkspaceId: projectId,
       activeWorkspace: editorWorkspaces.find(item => item.id === editorMocks.activeWorkspaceId),
       workspaces: editorWorkspaces,
     };
@@ -114,7 +121,7 @@ describe("task editor state identity", () => {
     expect(result.current.draft.workspaceId).toBe("ws_alpha");
   });
 
-  it("Should keep an unresolved workspace draft out of Global scope and block submission", async () => {
+  it("Should keep an unresolved workspace draft out of User and block submission", async () => {
     editorMocks.activeWorkspaceId = null;
     const { result } = renderHook(() => useTaskCreateState({}, vi.fn()), {
       wrapper: createWrapper(),

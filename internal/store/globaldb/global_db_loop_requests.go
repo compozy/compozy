@@ -11,16 +11,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/listcursor"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 var _ looppkg.RequestStore = (*LoopRepo)(nil)
 
 type requestCursor struct {
-	NullExpiry bool      `json:"null_expiry,omitzero"`
-	Primary    time.Time `json:"primary"`
-	Secondary  time.Time `json:"secondary,omitzero"`
-	RowID      int64     `json:"row_id"`
+	Fingerprint string    `json:"fingerprint"`
+	NullExpiry  bool      `json:"null_expiry,omitzero"`
+	Primary     time.Time `json:"primary"`
+	Secondary   time.Time `json:"secondary,omitzero"`
+	RowID       int64     `json:"row_id"`
 }
 
 type storedRequest struct {
@@ -35,7 +38,7 @@ type storedRequest struct {
 	answeredNote  string
 }
 
-const requestSelectColumns = `request.rowid, request.loop_run_id, run.loop_name,
+const requestSelectColumns = `request.rowid, request.workspace_id, request.loop_run_id, run.loop_name, run.profile_id,
 	request.generation, request.node_id, request.item_index, request.kind, request.state,
 	request.prompt, request.context_preview_json, request.context_ref,
 	request.answer_schema_json, request.edit_schema_json, request.respond_schema_json,
@@ -53,14 +56,38 @@ func (g *LoopRepo) ListRequests(
 		return looppkg.RequestPage{}, err
 	}
 	workspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(workspaceID)))
-	if workspaceID == "" {
-		return looppkg.RequestPage{}, fmt.Errorf("%w: workspace id is required", looppkg.ErrValidation)
+	if query.ReadScope == (store.ReadScope{}) && query.RunID != "" {
+		run, loadErr := g.GetLoopRun(ctx, workspaceID, query.RunID)
+		if loadErr != nil {
+			return looppkg.RequestPage{}, loadErr
+		}
+		query.ReadScope = store.ReadScope{ProfileID: run.ProfileID}
+	}
+	if query.ReadScope == (store.ReadScope{}) && workspaceID != "" {
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+	}
+	if err := query.ReadScope.Validate(); err != nil {
+		return looppkg.RequestPage{}, err
 	}
 	state, limit, cursor, err := normalizeRequestQuery(query)
 	if err != nil {
 		return looppkg.RequestPage{}, err
 	}
-	rows, err := g.queryRequestRows(ctx, workspaceID, query.RunID, state, cursor, limit+1)
+	fingerprint, err := listcursor.Fingerprint(struct {
+		Workspace string
+		All       bool
+		IDs       []string
+		Scope     store.ReadScope
+		Run       looppkg.RunID
+		State     string
+	}{string(workspaceID), query.AllWorkspaces, query.WorkspaceIDs, query.ReadScope, query.RunID, state})
+	if err != nil {
+		return looppkg.RequestPage{}, err
+	}
+	if cursor != nil && cursor.Fingerprint != fingerprint {
+		return looppkg.RequestPage{}, fmt.Errorf("%w: request cursor scope changed", looppkg.ErrValidation)
+	}
+	rows, err := g.queryRequestRows(ctx, workspaceID, query, state, cursor, limit+1)
 	if err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: list Loop requests: %w", err)
 	}
@@ -70,14 +97,21 @@ func (g *LoopRepo) ListRequests(
 		}
 	}()
 
-	page, err = scanRequestPage(rows, limit, state)
+	page, err = scanRequestPage(rows, limit, state, fingerprint)
 	if err != nil {
 		return looppkg.RequestPage{}, err
 	}
-	if err := g.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_requests
-		WHERE workspace_id = ? AND state = 'pending'`, workspaceID).Scan(&page.Pending); err != nil {
+	where, args := loopRequestWhere(workspaceID, query)
+	where = append(where, "request.state = 'pending'")
+	countQuery := store.AppendWhere(
+		"SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id",
+		where,
+	)
+	if err := g.db.QueryRowContext(ctx, countQuery, args...).
+		Scan(&page.Pending); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
 	}
+
 	return page, nil
 }
 
@@ -100,7 +134,7 @@ func normalizeRequestQuery(query looppkg.RequestQuery) (string, int, *requestCur
 	return state, limit, cursor, err
 }
 
-func scanRequestPage(rows *sql.Rows, limit int, state string) (looppkg.RequestPage, error) {
+func scanRequestPage(rows *sql.Rows, limit int, state string, fingerprint string) (looppkg.RequestPage, error) {
 	items := make([]looppkg.Request, 0, limit)
 	var lastIncluded storedRequest
 	hasMore := false
@@ -121,7 +155,9 @@ func scanRequestPage(rows *sql.Rows, limit int, state string) (looppkg.RequestPa
 	}
 	page := looppkg.RequestPage{Items: items}
 	if hasMore {
-		cursor, err := encodeRequestCursor(cursorForRequest(lastIncluded, state))
+		position := cursorForRequest(&lastIncluded, state)
+		position.Fingerprint = fingerprint
+		cursor, err := encodeRequestCursor(position)
 		if err != nil {
 			return looppkg.RequestPage{}, err
 		}
@@ -207,12 +243,35 @@ func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 	var answeredDecision, answeredRef, answeredNote sql.NullString
 	var actorKind, actorID sql.NullString
 	var resolvedAt, expiresAt sql.NullTime
-	err := scanner.Scan(&stored.rowID, &stored.request.LoopRunID, &stored.request.LoopName,
-		&stored.request.Generation, &stored.request.NodeID, &stored.request.ItemIndex,
-		&stored.request.Kind, &stored.request.State, &stored.request.Prompt, &contextPreview,
-		&contextRef, &answerSchema, &editSchema, &respondSchema, &decisions, &proposedRef,
-		&proposedPreview, &answeredDecision, &answeredRef, &answeredNote,
-		&actorKind, &actorID, &stored.request.OpenedAt, &resolvedAt, &expiresAt)
+	err := scanner.Scan(
+		&stored.rowID,
+		&stored.request.WorkspaceID,
+		&stored.request.LoopRunID,
+		&stored.request.LoopName,
+		&stored.request.ProfileID,
+		&stored.request.Generation,
+		&stored.request.NodeID,
+		&stored.request.ItemIndex,
+		&stored.request.Kind,
+		&stored.request.State,
+		&stored.request.Prompt,
+		&contextPreview,
+		&contextRef,
+		&answerSchema,
+		&editSchema,
+		&respondSchema,
+		&decisions,
+		&proposedRef,
+		&proposedPreview,
+		&answeredDecision,
+		&answeredRef,
+		&answeredNote,
+		&actorKind,
+		&actorID,
+		&stored.request.OpenedAt,
+		&resolvedAt,
+		&expiresAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return storedRequest{}, err
@@ -260,7 +319,7 @@ func requestAllowsDecision(decisions []string, decision string) bool {
 func resolvedRequestOutcome(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	stored storedRequest,
+	stored *storedRequest,
 	decision string,
 	payload json.RawMessage,
 	actorKind string,
@@ -295,7 +354,7 @@ func resolvedRequestOutcome(
 	}
 }
 
-func requestResolutionEventPayload(stored storedRequest, decision, actorKind, actorID string) map[string]any {
+func requestResolutionEventPayload(stored *storedRequest, decision, actorKind, actorID string) map[string]any {
 	return map[string]any{
 		loopRunEventPayloadKeyGeneration: stored.request.Generation,
 		loopRunEventPayloadKeyNodeID:     stored.request.NodeID,
@@ -330,7 +389,7 @@ func decodeRequestCursor(encoded string) (*requestCursor, error) {
 	return &cursor, nil
 }
 
-func cursorForRequest(stored storedRequest, state string) requestCursor {
+func cursorForRequest(stored *storedRequest, state string) requestCursor {
 	if state == looppkg.RequestStatePending {
 		cursor := requestCursor{Secondary: stored.request.OpenedAt, RowID: stored.rowID}
 		if stored.request.ExpiresAt == nil {

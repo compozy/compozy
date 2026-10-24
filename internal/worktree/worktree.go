@@ -98,18 +98,29 @@ func (s Status) IsStale(now time.Time, ttl time.Duration) bool {
 	return timestampIsStale(s.RefreshedAt, now, ttl)
 }
 
+type ForgeChecks struct {
+	State                   string
+	Passed, Failed, Pending int
+	FailedNames             []string
+}
+
 type ForgeStatus struct {
-	WorktreeID string
-	Provider   string
-	PRNumber   *int
-	PRState    *string
-	PRURL      string
-	Head       string
-	Base       string
-	HeadSHA    string
-	Draft      *bool
-	Merged     *bool
-	FetchedAt  *time.Time
+	Checks         *ForgeChecks
+	ReviewDecision string
+	Mergeable      string
+	UpdatedAt      *time.Time
+	Selection      string
+	WorktreeID     string
+	Provider       string
+	PRNumber       *int
+	PRState        *string
+	PRURL          string
+	Head           string
+	Base           string
+	HeadSHA        string
+	Draft          *bool
+	Merged         *bool
+	FetchedAt      *time.Time
 }
 
 // IsStale reports whether the cached forge snapshot is older than the
@@ -126,6 +137,7 @@ func timestampIsStale(observedAt *time.Time, now time.Time, ttl time.Duration) b
 }
 
 type ExitOperation struct {
+	RunID       string
 	ID          string
 	ProfileID   string
 	WorkspaceID string
@@ -163,8 +175,6 @@ type Store interface {
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error
 	GetStatus(context.Context, string, string) (*Status, error)
-	SaveForgeStatus(context.Context, string, string, ForgeStatus) error
-	GetForgeStatus(context.Context, string, string) (*ForgeStatus, error)
 	InsertExitOperation(context.Context, ExitOperation) error
 	FinishExitOperation(context.Context, string, string, string, string, time.Time) (bool, error)
 	ListRunningExitOperations(context.Context) ([]ExitOperation, error)
@@ -198,13 +208,16 @@ var (
 	ErrUnpushedRequiresForce  = errors.New("worktree_unpushed_requires_force")
 	ErrSafetyCheckFailed      = errors.New("worktree_safety_check_failed")
 	ErrRemovalFailed          = errors.New("worktree_removal_failed")
-	ErrPerRunMaterialization  = errors.New("per_run_materialization_failed")
-	ErrConfigInvalid          = errors.New("worktree_config_invalid")
-	ErrDeniedByHook           = errors.New("worktree_denied_by_hook")
-	ErrNotPending             = errors.New("worktree_not_pending")
-	ErrForgeUnavailable       = errors.New("forge_unavailable")
-	ErrForge                  = errors.New("forge_error")
-	ErrExitActionInvalid      = errors.New("worktree_exit_action_invalid")
+	// ErrCheckoutOrphaned names a checkout directory whose .git link is gone
+	// while Git still registers it, usually after an interrupted removal.
+	ErrCheckoutOrphaned      = errors.New("worktree_checkout_orphaned")
+	ErrPerRunMaterialization = errors.New("per_run_materialization_failed")
+	ErrConfigInvalid         = errors.New("worktree_config_invalid")
+	ErrDeniedByHook          = errors.New("worktree_denied_by_hook")
+	ErrNotPending            = errors.New("worktree_not_pending")
+	ErrForgeUnavailable      = errors.New("forge_unavailable")
+	ErrForge                 = errors.New("forge_error")
+	ErrExitActionInvalid     = errors.New("worktree_exit_action_invalid")
 )
 
 type RefusalError struct {

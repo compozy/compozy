@@ -70,6 +70,10 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionRename,
 			availability: catalogAvailability,
 		},
+		toolspkg.ToolIDSessionReparent: {
+			call:         n.sessionReparent,
+			availability: catalogAvailability,
+		},
 		toolspkg.ToolIDSessionCreate: {
 			call:         n.sessionCreate,
 			availability: n.sessionCreateAvailability(),

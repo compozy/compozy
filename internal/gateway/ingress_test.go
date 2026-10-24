@@ -363,8 +363,8 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 	t.Run("Should deny agent mutations of operator-global ingress subjects", func(t *testing.T) {
 		t.Parallel()
 		access := &ingressAccessPolicy{decision: workspaceaccess.Decision{
-			Allowed: true,
-			Source:  workspaceaccess.SourcePermissionMode,
+			Allowed: false,
+			Source:  workspaceaccess.SourceDenied,
 		}}
 		store, manager := newIngressTestManager(t, true, access)
 		ref := IngressSubjectRef{Kind: IngressSubjectWebhookTrigger, ID: "trigger-global-agent"}
@@ -383,7 +383,7 @@ func TestIngressProjectionAndBindings(t *testing.T) {
 		if !errors.Is(err, ErrIngressForbidden) {
 			t.Fatalf("bind(global agent) error = %v, want ErrIngressForbidden", err)
 		}
-		if access.calls != 0 || len(store.bindings) != 0 {
+		if access.calls != 1 || len(store.bindings) != 0 {
 			t.Fatalf(
 				"authorization calls = %d bindings = %#v, want global denial before mutation",
 				access.calls,

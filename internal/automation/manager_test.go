@@ -24,6 +24,7 @@ import (
 	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var automationTestStoreSeed *globalseed.Seed
@@ -2436,7 +2437,7 @@ func (h *managerHarness) newManager(t *testing.T, cfg compozyconfig.AutomationCo
 		WithWorkspaceResolver(h.resolver),
 		WithConfig(cfg),
 		WithLogger(discardAutomationLogger()),
-		WithGlobalWorkspacePath(h.homePaths.HomeDir),
+
 		WithWebhookSecretStore(h.webhookSecretStore(t)),
 	}
 	baseOpts = append(baseOpts, opts...)
@@ -2660,4 +2661,63 @@ func findTriggerByID(triggers []Trigger, id string) *Trigger {
 		}
 	}
 	return nil
+}
+
+func TestAutomationGrantCeiling(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist the author ceiling and narrow executable edits", func(t *testing.T) {
+		t.Parallel()
+		h := newManagerHarness(t)
+		manager := h.newManager(
+			t,
+			compozyconfig.AutomationConfig{
+				Enabled:           true,
+				Timezone:          DefaultTimezone,
+				MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+				DefaultFireLimit:  DefaultFireLimitConfig(),
+			},
+		)
+		operator := workspaceaccess.WithOrigin(h.ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman})
+		agent := workspaceaccess.WithOrigin(h.ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession})
+		job := testJob(AutomationScopeWorkspace, "grant-ceiling", h.workspace.ID)
+		job.Enabled = false
+		created, err := manager.CreateJob(operator, job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if created.GrantCeiling != "unrestricted" {
+			t.Fatalf("operator ceiling=%q", created.GrantCeiling)
+		}
+		created.Name = "Renamed"
+		renamed, err := manager.UpdateJob(agent, created)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if renamed.GrantCeiling != "unrestricted" {
+			t.Fatalf("rename changed ceiling=%q", renamed.GrantCeiling)
+		}
+		renamed.Prompt = "Execute the edited prompt."
+		updated, err := manager.UpdateJob(agent, renamed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		persisted, err := h.db.GetJob(h.ctx, updated.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.GrantCeiling != "" {
+			t.Fatalf("persisted ceiling=%q", persisted.GrantCeiling)
+		}
+		opts := (&Dispatcher{}).createOpts(DispatchRequest{Job: &persisted})
+		if opts.Origin.Effective("unrestricted") != "" {
+			t.Fatal("deferred dispatch widened persisted ceiling")
+		}
+		persisted, err = manager.UpdateJob(operator, persisted)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if persisted.GrantCeiling != "unrestricted" {
+			t.Fatalf("operator resave ceiling=%q", persisted.GrantCeiling)
+		}
+	})
 }

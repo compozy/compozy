@@ -5942,7 +5942,7 @@ func (s *coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID Run
 
 func (s *coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	workspaceID WorkspaceID,
+	workspaceID WorkspaceID, _ string,
 	digest string,
 ) (DefinitionSnapshot, error) {
 	if s.snapshot != nil && s.snapshot.WorkspaceID == workspaceID && s.snapshot.Digest == digest {
@@ -5953,7 +5953,7 @@ func (s *coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
 
 func (s *coordinatorRunnerLoopStore) FindActiveLoopRun(
 	context.Context,
-	WorkspaceID,
+	WorkspaceID, string,
 	string,
 ) (*Run, error) {
 	panic("FindActiveLoopRun should not be called")
@@ -5999,7 +5999,7 @@ func (s *coordinatorRunnerLoopStore) SetLoopRunPauseRequested(
 
 func (s *coordinatorRunnerLoopStore) UpsertLoopConfig(
 	context.Context,
-	WorkspaceID,
+	WorkspaceID, string,
 	string,
 	LoopConfig,
 ) error {
@@ -6008,7 +6008,7 @@ func (s *coordinatorRunnerLoopStore) UpsertLoopConfig(
 
 func (s *coordinatorRunnerLoopStore) GetLoopConfig(
 	context.Context,
-	WorkspaceID,
+	WorkspaceID, string,
 	string,
 ) (*LoopConfig, error) {
 	return nil, ErrConfigNotFound

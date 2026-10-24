@@ -357,3 +357,67 @@ func BenchmarkSessionInfo(b *testing.B) {
 		b.Fatalf("Session.Info() = %#v, want populated snapshot", info)
 	}
 }
+
+func BenchmarkManagerIdleInventory(b *testing.B) {
+	for _, live := range []bool{false, true} {
+		name := "ListAll"
+		if live {
+			name = "ReaperInventory"
+		}
+		b.Run(name, func(b *testing.B) {
+			manager := newWorkspaceSessionReadFixture(b, 279, 1)
+			counts := &benchmarkInventoryReads{
+				SessionCatalog: manager.sessionCatalog, SessionAttentionStore: manager.attentionStore,
+				SessionTranscriptEpochStore: manager.transcriptEpochStore,
+			}
+			manager.sessionCatalog, manager.attentionStore, manager.transcriptEpochStore = counts, counts, counts
+			metadataReads := 0
+			manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+				metadataReads++
+				return store.ReadSessionMeta(path)
+			}
+			read := manager.ListAll
+			want := 279
+			if live {
+				read, want = manager.ListLive, 0
+			}
+			if _, err := read(b.Context()); err != nil {
+				b.Fatal(err)
+			}
+			counts.reads, metadataReads = 0, 0
+			b.ReportAllocs()
+			for b.Loop() {
+				infos, err := read(b.Context())
+				if err != nil || len(infos) != want {
+					b.Fatalf("inventory=%d want=%d error=%v", len(infos), want, err)
+				}
+			}
+			b.ReportMetric(float64(metadataReads)/float64(b.N), "metadata_reads/op")
+			b.ReportMetric(float64(counts.reads)/float64(b.N), "catalog_reads/op")
+		})
+	}
+}
+
+type benchmarkInventoryReads struct {
+	store.SessionCatalog
+	store.SessionAttentionStore
+	store.SessionTranscriptEpochStore
+	reads int
+}
+
+func (s *benchmarkInventoryReads) ListSessions(
+	ctx context.Context, query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
+	s.reads++
+	return s.SessionCatalog.ListSessions(ctx, query)
+}
+
+func (s *benchmarkInventoryReads) GetSessionAttention(ctx context.Context, id string) (store.SessionAttention, error) {
+	s.reads++
+	return s.SessionAttentionStore.GetSessionAttention(ctx, id)
+}
+
+func (s *benchmarkInventoryReads) SessionTranscriptEpoch(ctx context.Context, id string) (int64, error) {
+	s.reads++
+	return s.SessionTranscriptEpochStore.SessionTranscriptEpoch(ctx, id)
+}

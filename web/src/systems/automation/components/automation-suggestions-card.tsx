@@ -20,6 +20,8 @@ export interface AutomationSuggestionsCardProps {
   onDismiss: (suggestionID: string) => void;
   onRetry?: () => void;
   pendingActions?: Partial<Record<string, AutomationSuggestionPendingAction>>;
+  /** All projects: the project badge each suggestion leads its pill with. */
+  projectBadge?: (suggestion: AutomationSuggestion) => ReactNode;
   suggestions: AutomationSuggestion[];
   /** The global automation time zone the schedule phrases read in. */
   timeZone?: string;
@@ -149,6 +151,7 @@ export function AutomationSuggestionsCard({
   onDismiss,
   onRetry,
   pendingActions = {},
+  projectBadge,
   suggestions,
   timeZone,
 }: AutomationSuggestionsCardProps) {
@@ -235,9 +238,12 @@ export function AutomationSuggestionsCard({
               data-testid={`automation-suggestion-${suggestion.id}`}
               key={suggestion.id}
               pill={
-                <Pill mono size="sm" tone="neutral">
-                  {schedule}
-                </Pill>
+                <span className="flex min-w-0 items-center gap-2">
+                  {projectBadge?.(suggestion)}
+                  <Pill mono size="sm" tone="neutral">
+                    {schedule}
+                  </Pill>
+                </span>
               }
               title={payload.name}
               tone="neutral"

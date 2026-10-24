@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (s *service) Start(
@@ -157,7 +158,14 @@ func (s *service) prepareResolvedStart(
 	if err := origin.Validate(); err != nil {
 		return Run{}, err
 	}
-	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
+	resolvedInputs, err := s.resolveEffectiveInputs(
+		ctx,
+		ws,
+		inputs.ProfileID,
+		loopName,
+		resolved.Definition,
+		inputs.Values,
+	)
 	if err != nil {
 		return Run{}, err
 	}
@@ -169,6 +177,7 @@ func (s *service) prepareResolvedStart(
 	effective, err := s.effectiveConfig(
 		ctx,
 		ws,
+		inputs.ProfileID,
 		loopName,
 		resolved,
 		inputs.InheritedEnvironment,
@@ -193,6 +202,7 @@ func (s *service) prepareResolvedStart(
 		return Run{}, fmt.Errorf("loop: generate run id: %w", err)
 	}
 	return s.startResolved(
+		ctx,
 		runID,
 		ws,
 		loopName,
@@ -221,6 +231,7 @@ func (s *service) resolveGoalRunPolicy(ctx context.Context, ws WorkspaceID) (Goa
 }
 
 func (s *service) startResolved(
+	ctx context.Context,
 	runID RunID,
 	ws WorkspaceID,
 	loopName string,
@@ -250,6 +261,7 @@ func (s *service) startResolved(
 		Origin: &origin, Inputs: resolvedInputs,
 	}
 	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	run.SetGrantCeiling(workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator))
 	if inputs.Admission != nil {
 		admission := *inputs.Admission
 		if admission.Horizon <= 0 && effective.Lifecycle.AdmissionHorizon != nil {

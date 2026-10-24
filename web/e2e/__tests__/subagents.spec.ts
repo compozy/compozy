@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { sessionWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
@@ -246,16 +246,17 @@ test("E2E-005: an idle parent waits on two subagents, shows the delegated glyph,
   ).toBeVisible();
   // The sidebar's parent row reads delegated, not done.
   await expect(
-    scene.window.locator('[data-slot="subagent-chip"][data-state="delegated"]')
+    scene.window.locator('[data-segment="subagents"][data-state="delegated"]')
   ).toBeVisible();
 
   await banner.getByRole("button", { name: "Stop" }).click();
   await expect(banner).toHaveCount(0, { timeout: 30_000 });
 });
 
-test("E2E-006: a provider-native subagent is a card whose inner work stays inside it", async ({
+test("E2E-006: native subagent list clicks reveal its nested work in the parent", async ({
   appPage,
   runtime,
+  browserArtifacts,
 }) => {
   const scene = await openSession(appPage, runtime, nativeAgent, "review the diff with a subagent");
   const native = scene.window.locator('[data-slot="subagent-card"][data-origin="provider_native"]');
@@ -266,18 +267,48 @@ test("E2E-006: a provider-native subagent is a card whose inner work stays insid
   await expect(
     scene.window.getByRole("button", { name: "Open Review the diff (high effort)" })
   ).toHaveCount(0);
-  await native.click();
+  // Invariant: a native row reveals its work in the parent, without inventing a child.
+  // Owner/canonical suite: the daemon-served native subagent browser journey.
+  const sidebar = scene.window.getByTestId("session-sidebar");
+  await sidebar.getByRole("button", { name: /1 (?:of 1 )?subagent(?:s running)?$/ }).click();
+  const branch = sidebar.getByTestId(`session-sidebar-subagents-${scene.sessionId}`);
+  await branch.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
   const nested = scene.window.locator('[data-slot="subagent-card-nested"]');
   await expect(nested).toBeVisible();
   await expect(nested).toContainText("Inspecting the diff.");
+  await browserArtifacts.captureScreenshot("native-subagent-sidebar-reveal", appPage);
+  await native.locator("[data-slot=subagent-card-open]").click();
+  await expect(nested).not.toBeVisible();
+  await branch.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
+  await expect(nested).toBeVisible();
   // The parent's own flow never shows the subagent's inner text.
   await expect(scene.window.getByText("Inspecting the diff.")).toHaveCount(1);
 
   await expect(scene.window.getByText("The reviewer found no issues.")).toBeVisible();
   // Final text can precede turn settlement; wait for the settled fold before opening it.
   const fold = scene.window.getByTestId("turn-fold-row");
+  // Release the navigation hold so the next navigation must open the settled fold again.
+  if ((await fold.getAttribute("aria-expanded")) === "true") await fold.click();
   await expect(fold).toHaveAttribute("aria-expanded", "false");
-  await fold.click();
+  await setGlobalScope(appPage, true);
+  await appPage.getByRole("menuitem", { name: "Session", exact: true }).click();
+  await appPage.getByTestId("os-menubar-command-shell.sessions.toggle").click();
+  const modal = appPage.getByTestId("os-sessions-modal");
+  await expect(modal).toBeVisible();
+  const nativeBranchToggle = modal.getByTestId(
+    `os-sessions-modal-thread-toggle-${scene.sessionId}`
+  );
+  if ((await nativeBranchToggle.getAttribute("aria-expanded")) !== "true") {
+    await nativeBranchToggle.click();
+  }
+  await modal
+    .getByTestId(`os-sessions-modal-subagents-${scene.sessionId}`)
+    .getByRole("button", { name: "Open Review the diff (high effort)" })
+    .click();
+  await expect(modal).not.toBeVisible();
+  await expect(nested).toBeVisible();
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
+  await browserArtifacts.captureScreenshot("native-subagent-all-projects-reveal", appPage);
   await expect(native).toHaveAttribute("data-status", "completed");
 });
 

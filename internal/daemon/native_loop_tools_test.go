@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -164,7 +165,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			Cursor:    "cursor-1",
 			Limit:     1,
 		}
-		if capturedQuery != wantQuery {
+		if !reflect.DeepEqual(capturedQuery, wantQuery) {
 			t.Fatalf("query = %#v, want %#v", capturedQuery, wantQuery)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"facets"`))

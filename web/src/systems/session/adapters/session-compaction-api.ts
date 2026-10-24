@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionCompactionReceipt } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /**
  * Asks the agent to compact its own context through the command it advertises
@@ -18,7 +19,7 @@ export async function compactSession(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/compact",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       body: {},
       signal,
     }

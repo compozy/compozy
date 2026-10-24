@@ -4,9 +4,9 @@ area: APP
 title: Apply an app update through the product update surface
 persona: Bruno
 journey: J-desktop-update-moment
-expected: With a newer verified release, the daemon reports the app track in Settings and the menubar points there; an accepted durable operation downloads and verifies the asset, then a running app enters installer handoff only with consent while a closed app stages for next launch. The boot window reports progress but never offers an update.
+expected: One Update activation downloads and verifies the release, waits for native installer readiness while the app remains usable, then restarts on the new version. A desktop-owned runtime updates from that app bundle; a closed app stages for next launch. The boot window reports progress but never offers an update.
 entry_points: Settings → General → Updates in Chrome or the app; product menubar update indicator; compozy update; signed release channel
-qa_status: blocked-decision
+qa_status: untested
 bug_ids: BUG-20260817-macos-channel-manifest-includes-dmg; BUG-20260817-linux-channel-manifest-includes-deb
 fix_status: fixed
 retest_status: pending
@@ -34,3 +34,12 @@ Journal-consumer regression (issue #804): stage the app after the runtime reache
 The desktop must parse the daemon journal's `swapping`, `health-checking`, and `finalized` phases,
 and consume the staged app after runtime readiness. An archived failed install of an older app
 release must not suppress the newly discovered release or replace its version with the failed one.
+
+2026-10-21 regression: native `update-downloaded` must precede product-window disposal; ordinary
+`window-all-closed` quitting must not win over installer handoff. E2E-016 uses different app and
+bundled-runtime versions and verifies the running daemon after relaunch. On Rosetta, the signed
+app plan and updater must select the same native-arm64 artifact without relaxing digest checks.
+
+2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
+`untested`; native fixture and owning-suite results do not replace published-release or
+cross-platform acceptance. Prior dated reports retain their historical evidence.

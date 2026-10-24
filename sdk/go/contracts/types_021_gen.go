@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TaskDashboardStatusBreakdownPayload struct {
+	Status       Status `json:"status"`
+	Count        int    `json:"count"`
+	SharePercent int    `json:"share_percent"`
+}
+
 type TaskDashboardTotalsPayload struct {
 	TasksTotal             int `json:"tasks_total"`
 	RunsTotal              int `json:"runs_total"`
@@ -123,18 +129,19 @@ type TaskInboxLaneGroupPayload struct {
 }
 
 type TaskInboxParams struct {
-	Scope     CatalogScope  `json:"scope,omitempty"`
-	Workspace string        `json:"workspace,omitempty"`
-	Worktree  string        `json:"worktree,omitempty"`
-	OwnerKind OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef  string        `json:"owner_ref,omitempty"`
-	Lane      TaskInboxLane `json:"lane,omitempty"`
-	Status    Status        `json:"status,omitempty"`
-	Priority  Priority      `json:"priority,omitempty"`
-	Unread    *bool         `json:"unread,omitempty"`
-	Query     string        `json:"query,omitempty"`
-	Cursor    string        `json:"cursor,omitempty"`
-	Limit     int           `json:"limit,omitempty"`
+	Scope        CatalogScope  `json:"scope,omitempty"`
+	Workspace    string        `json:"workspace,omitempty"`
+	WorkspaceIDs []string      `json:"workspace_ids,omitempty"`
+	Worktree     string        `json:"worktree,omitempty"`
+	OwnerKind    OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef     string        `json:"owner_ref,omitempty"`
+	Lane         TaskInboxLane `json:"lane,omitempty"`
+	Status       Status        `json:"status,omitempty"`
+	Priority     Priority      `json:"priority,omitempty"`
+	Unread       *bool         `json:"unread,omitempty"`
+	Query        string        `json:"query,omitempty"`
+	Cursor       string        `json:"cursor,omitempty"`
+	Limit        int           `json:"limit,omitempty"`
 }
 
 type TaskInboxPriorityFacetPayload struct {
@@ -229,19 +236,4 @@ type TaskRecoveryTotals struct {
 	Requeued      int `json:"requeued"`
 	MarkedRunning int `json:"marked_running"`
 	Failed        int `json:"failed"`
-}
-
-type TaskReferencePayload struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          Status     `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
 }

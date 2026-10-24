@@ -72,6 +72,7 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
+	Restart     sessionRestartOverlay     `toml:"restart"`
 	Stop        sessionStopOverlay        `toml:"stop"`
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`

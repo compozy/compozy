@@ -17,6 +17,10 @@ import (
 type discoveredRemovalTarget struct {
 	entry GitWorktree
 	stale bool
+	// orphan is set when the checkout survives without its .git link. Git
+	// lists such an entry as prunable but refuses to remove it.
+	orphan   orphanedCheckout
+	orphaned bool
 }
 
 // RemoveDiscoveredOptions carries the caller's acknowledgements for one target.
@@ -63,6 +67,9 @@ func (s *Service) RemoveDiscovered(
 	if err != nil {
 		return nil, err
 	}
+	if target.orphaned {
+		return s.removeDiscoveredOrphan(ctx, workspaceID, workspace, commonDir, target, force)
+	}
 	if options.ExpectStale && !target.stale {
 		return nil, refusal(
 			ErrDiscoveredChanged, "the checkout is present again; refresh and confirm its removal",
@@ -91,8 +98,8 @@ func (s *Service) RemoveDiscovered(
 			}
 		}
 	}
-	if err := s.runDiscoveredRemoval(ctx, workspace.Root, commonDir, target, force); err != nil {
-		return nil, err
+	if refusalResult, err := s.runDiscoveredRemoval(ctx, workspace.Root, commonDir, target, force); err != nil {
+		return refusalResult, err
 	}
 	s.invalidateDiscovery(workspaceID)
 	return nil, nil
@@ -152,6 +159,13 @@ func (s *Service) readDiscoveredRemovalTarget(
 			)
 		}
 	}
+	orphan, orphaned, err := findOrphanedCheckout(matched.Path, commonDir)
+	if err != nil {
+		return discoveredRemovalTarget{}, err
+	}
+	if orphaned {
+		return discoveredRemovalTarget{entry: *matched, orphan: orphan, orphaned: true}, nil
+	}
 	stale := matched.Prunable
 	if !stale {
 		if _, statErr := os.Lstat(matched.Path); errors.Is(statErr, os.ErrNotExist) {
@@ -161,6 +175,55 @@ func (s *Service) readDiscoveredRemovalTarget(
 		}
 	}
 	return discoveredRemovalTarget{entry: *matched, stale: stale}, nil
+}
+
+// removeDiscoveredOrphan deletes an orphaned discovered checkout. Its leftover
+// files and detached commits need force, and hooks see the same risk.
+func (s *Service) removeDiscoveredOrphan(
+	ctx context.Context,
+	workspaceID string,
+	workspace Workspace,
+	commonDir string,
+	target discoveredRemovalTarget,
+	force bool,
+) (*RemovalRefusal, error) {
+	risk, refusalResult, err := s.evaluateOrphanedRemoval(ctx, workspace.Root, target.orphan, force)
+	if err != nil || refusalResult != nil {
+		return refusalResult, err
+	}
+	item := Worktree{
+		WorkspaceID: workspaceID, Name: discoveredLabel(target.entry), Branch: target.entry.Branch,
+		Path: target.orphan.path, GitDir: target.orphan.adminGitDir, State: StateReady,
+	}
+	if err := s.dispatchGate(ctx, EventPreRemove, HookPreRemovePayload{
+		Worktree: eventPayloadFromWorktree(item, workspace.Root), Force: force, Risk: risk, Discovered: true,
+	}); err != nil {
+		return nil, err
+	}
+	// Hooks can run arbitrary code. Close that final race before deleting.
+	current, err := s.readDiscoveredRemovalTarget(ctx, workspaceID, workspace, commonDir, target.entry.Path)
+	if err != nil {
+		return nil, err
+	}
+	if !current.orphaned || current.orphan != target.orphan {
+		return nil, refusal(ErrDiscoveredChanged, "the checkout changed; refresh and confirm its removal")
+	}
+	if _, refusalResult, err := s.evaluateOrphanedRemoval(ctx, workspace.Root, current.orphan, force); err != nil ||
+		refusalResult != nil {
+		return refusalResult, err
+	}
+	if err := s.removeOrphanedCheckout(
+		ctx,
+		workspace.Root,
+		commonDir,
+		target.entry.Path,
+		current.orphan,
+		force,
+	); err != nil {
+		return nil, err
+	}
+	s.invalidateDiscovery(workspaceID)
+	return nil, nil
 }
 
 // evaluateDiscoveredRemoval validates the live checkout's Git identity and its
@@ -206,8 +269,8 @@ func (s *Service) runDiscoveredRemoval(
 	commonDir string,
 	target discoveredRemovalTarget,
 	force bool,
-) error {
-	args := []string{"--git-dir", commonDir, worktreeDescriptorName, exitRemoveAction}
+) (*RemovalRefusal, error) {
+	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction}
 	if force {
 		args = append(args, "--force")
 		if target.entry.Locked {
@@ -215,9 +278,19 @@ func (s *Service) runDiscoveredRemoval(
 		}
 	}
 	args = append(args, target.entry.Path)
-	_, stderr, err := s.runner.Run(ctx, workspaceRoot, args...)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
+	_, stderr, err := s.runCheckoutRemoval(ctx, workspaceRoot, args...)
+	if err == nil {
+		return nil, nil
 	}
-	return nil
+	removeErr := fmt.Errorf("%w: %s: %v", ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
+	orphan, orphaned, inspectErr := findOrphanedCheckout(target.entry.Path, commonDir)
+	if inspectErr != nil {
+		return nil, errors.Join(removeErr, inspectErr)
+	}
+	if orphaned {
+		// Git stopped midway, after deleting the .git link. The refusal offers
+		// to delete what is left.
+		return s.interruptedRemovalRefusal(context.WithoutCancel(ctx), workspaceRoot, orphan, removeErr)
+	}
+	return nil, removeErr
 }

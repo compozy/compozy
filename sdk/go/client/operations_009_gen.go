@@ -9,6 +9,42 @@ import (
 	"strings"
 )
 
+// GetHookEventsParams carries the path, query, and header parameters.
+type GetHookEventsParams struct {
+	Family   *string `url:"family"`
+	SyncOnly *bool   `url:"sync_only"`
+}
+
+// GetHookEvents List supported hook taxonomy metadata
+func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
+	path := "/api/hooks/events"
+	query := url.Values{}
+	if params.Family != nil {
+		query.Set("family", *params.Family)
+	}
+	if params.SyncOnly != nil {
+		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
+}
+
 // GetHookRuns List hook run history for one session
 func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/hooks/runs"
@@ -401,44 +437,6 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 		path += "?" + query.Encode()
 	}
 	var out MarketplaceEntryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetObserveOverviewParams carries the path, query, and header parameters.
-type GetObserveOverviewParams struct {
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	UsageWindow    *string `url:"usage_window"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
-}
-
-// GetObserveOverview Get the observer-backed home overview
-func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
-	path := "/api/observe/overview"
-	query := url.Values{}
-	if params.ReceiptProfile != nil {
-		query.Set("receipt_profile", *params.ReceiptProfile)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.UsageWindow != nil {
-		query.Set("usage_window", *params.UsageWindow)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ObserveOverviewResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

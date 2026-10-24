@@ -1,30 +1,65 @@
 // Suite: session-window sidebar selection
-// Invariant: same-workspace selection retargets the current window; a foreign
-// session goes through the workspace-ready jump coordinator.
+// Invariant: the rail follows the topbar breadth — the aggregate under All projects, the
+// focused project or User otherwise (never a worktree filter outside a project) — and an
+// unsettled destination stays idle. A selection in the window's own scope retargets the window;
+// under All projects every selection retargets in place, rebinding the window to the session's
+// scope; otherwise a foreign session goes through the jump coordinator.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
 import type { SessionPayload } from "@/systems/session";
 
-const { jumpToSession, userRetarget, transport } = vi.hoisted(() => ({
+const {
+  jumpToSession,
+  getState,
+  setSessionWindowView,
+  userRetarget,
+  transport,
+  useSessionListView,
+  useScopedWorktreeFilter,
+  scopes,
+} = vi.hoisted(() => ({
+  scopes: {
+    destination: { kind: "project", workspaceId: "workspace-1" } as unknown,
+    window: { kind: "project", workspaceId: "workspace-1" } as unknown,
+  },
   transport: { degradedAt: null as number | null },
+  getState: vi.fn<
+    () => {
+      windows: Record<string, { id: string; app: string; instanceKey: string }>;
+      client: { focusOrder: string[] };
+    }
+  >(() => ({ windows: {}, client: { focusOrder: [] } })),
+  setSessionWindowView: vi.fn(),
   jumpToSession: vi.fn(),
   userRetarget: vi.fn(),
+  useSessionListView: vi.fn(() => ({ sort: "last_activity", scope: "workspace" })),
+  useScopedWorktreeFilter: vi.fn((_workspaceId: string | null, _scopeId: string) => ({
+    resolved: true,
+    worktreeId: undefined,
+  })),
 }));
 
 vi.mock("@/hooks/use-window-scope", () => ({ useWorktreeScopeId: () => "window:one" }));
-vi.mock("@/systems/workspace", () => ({
-  useScopedWorktreeFilter: () => ({ resolved: true, worktreeId: undefined }),
+vi.mock("@/systems/workspace", async () => ({
+  ...(await import("@/systems/workspace/lib/destination")),
+  ...(await import("@/systems/workspace/lib/window-data-scope")),
+  useScopedWorktreeFilter,
+  useDataScope: () => scopes.destination,
+  useWindowDataWorkspace: () => scopes.window,
 }));
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
 vi.mock("../../../hooks/use-os-reduced-motion", () => ({ useOsReducedMotion: () => true }));
 vi.mock("../../../hooks/use-os-shell", () => ({
-  useOsShell: () => ({ coordinator: { userRetarget } }),
+  useOsShell: () => ({ coordinator: { userRetarget }, manager: { getState } }),
 }));
 vi.mock("@/systems/session", async () => ({
+  subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
+    .subagentRevealStore,
   useSessionTransportState: () => transport,
   useTransportGraceElapsed: (await import("@/systems/session/hooks/use-transport-grace-elapsed"))
     .useTransportGraceElapsed,
@@ -35,23 +70,34 @@ vi.mock("@/systems/session", async () => ({
     deleteDialog: { open: false },
     renameDialog: { open: false },
   }),
-  useSessionListView: () => ({ sort: "last_activity", scope: "workspace" }),
+  setSessionWindowView,
+  useSessionsBoard: () => ({}),
+  useSessionWindowViewState: () => ({ hideChildren: false, setView: vi.fn() }),
+  useSessionWindowOrder: () => ({ sort: "created", groupBy: "none" }),
+  useSessionListView,
   useSessions: () => ({ data: [], isError: false }),
   useSessionSidebarState: () => ({
     open: true,
     toggle: vi.fn(),
     collapsedThreadIds: [],
-    toggleThread: vi.fn(),
+    subagentThreadIds: [],
+    setThreadBranch: vi.fn(),
   }),
 }));
 
+import { useSessionBoardWindow } from "../hooks/use-session-board-window";
 import { useSessionWindowSidebar } from "../use-session-window-sidebar";
 
 function session(workspaceId: string): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id: `session-${workspaceId}`,
     agent_name: "claude",
     runtime: { status: "ready", transition: "initial_bind", selection_revision: 0 },
@@ -72,6 +118,8 @@ describe("useSessionWindowSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transport.degradedAt = null;
+    scopes.destination = { kind: "project", workspaceId: "workspace-1" };
+    scopes.window = { kind: "project", workspaceId: "workspace-1" };
   });
   afterEach(() => vi.useRealTimers());
 
@@ -84,7 +132,6 @@ describe("useSessionWindowSidebar", () => {
     const { result, rerender, unmount } = renderHook(() =>
       useSessionWindowSidebar({
         windowId: "window-session",
-        workspaceId: "workspace-1",
         transportDisconnected: disconnected,
       })
     );
@@ -115,7 +162,6 @@ describe("useSessionWindowSidebar", () => {
     const { result } = renderHook(() =>
       useSessionWindowSidebar({
         windowId: "window-session",
-        workspaceId: "workspace-1",
         sessionId: "session-current",
       })
     );
@@ -131,5 +177,96 @@ describe("useSessionWindowSidebar", () => {
       workspaceId: "workspace-2",
     });
     expect(userRetarget).toHaveBeenCalledTimes(1);
+  });
+
+  // Invariant: selecting native work in the current session still issues a reveal.
+  // Owner: sidebar navigation; canonical suite: this file.
+  it("Should reveal native work without retargeting the already open parent", () => {
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({
+        windowId: "window-session",
+        sessionId: "session-current",
+      })
+    );
+    act(() =>
+      result.current.onSelectSession({
+        id: "session-current",
+        agent_name: "claude",
+        workspace_id: "workspace-1",
+        subagentId: "native-review",
+      })
+    );
+    const request = subagentRevealStore.getSnapshot().context.request;
+    expect(request).toMatchObject({
+      sessionId: "session-current",
+      workspaceId: "workspace-1",
+      subagentId: "native-review",
+    });
+    expect(userRetarget).not.toHaveBeenCalled();
+    expect(jumpToSession).not.toHaveBeenCalled();
+    subagentRevealStore.trigger.settled({ key: request!.key });
+  });
+
+  it("Should list User sessions under User focus without a worktree filter", () => {
+    scopes.destination = { kind: "user" };
+    scopes.window = { kind: "user" };
+    renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-user" })
+    );
+
+    expect(useScopedWorktreeFilter.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: { kind: "user" }, enabled: true })
+    );
+  });
+
+  it("Should list every project under All projects and retarget in place with the new binding", () => {
+    scopes.destination = { kind: "all" };
+    scopes.window = { kind: "project", workspaceId: "workspace-1" };
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+    );
+
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: { kind: "all" }, enabled: true })
+    );
+    act(() => result.current.onSelectSession(session("workspace-2")));
+    expect(jumpToSession).not.toHaveBeenCalled();
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("window-session", {
+      app: "session",
+      instanceKey: "session-workspace-2",
+      route: {
+        pathname: "/agents/claude/sessions/session-workspace-2",
+        search: { workspace: "workspace-2" },
+      },
+    });
+  });
+
+  it("Should keep the rail idle while the destination is unsettled", () => {
+    scopes.destination = null;
+    renderHook(() => useSessionWindowSidebar({ windowId: "window-session" }));
+
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: null, enabled: false })
+    );
+  });
+});
+
+// Invariant: a board card opens List in the actual destination window.
+// Owning layer: session-window navigation; this suite owns selection routing.
+describe("useSessionBoardWindow", () => {
+  it("Should switch the existing destination window to List before focusing it", () => {
+    const target = session("workspace-1");
+    getState.mockReturnValue({
+      windows: { destination: { id: "destination", app: "session", instanceKey: target.id } },
+      client: { focusOrder: ["destination"] },
+    });
+    const { result } = renderHook(() => useSessionBoardWindow("source", null));
+    act(() => result.current.onOpen(target));
+    expect(setSessionWindowView).toHaveBeenCalledWith("destination", "list");
+    expect(userRetarget).toHaveBeenCalledWith(
+      "source",
+      expect.objectContaining({ instanceKey: target.id })
+    );
   });
 });

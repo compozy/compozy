@@ -58,9 +58,12 @@ export function MenubarUpdateIndicator({
   }
 
   const failed = state === "failed";
-  const onClick = !failed && onUpdate ? onUpdate : onOpenUpdates;
+  const onClick = onUpdate ?? onOpenUpdates;
+  const label = failed ? (onUpdate ? "Retry update" : "Update failed") : "Update";
   const hint = failed
-    ? "See what went wrong"
+    ? onUpdate
+      ? "Try the update again"
+      : "See what went wrong"
     : onUpdate
       ? "Install the new version and restart"
       : "See how to update";
@@ -79,7 +82,7 @@ export function MenubarUpdateIndicator({
             type="button"
             variant="ghost"
           >
-            {failed ? "Update failed" : "Update"}
+            {label}
           </Button>
         }
       />

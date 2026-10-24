@@ -4,7 +4,13 @@ import { MessagesSquare, Plus } from "lucide-react";
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
-import { SessionPanelToggle, SessionSidebar, SessionSidebarLayout } from "@/systems/session";
+import {
+  SessionPanelToggle,
+  SessionSidebar,
+  SessionSidebarLayout,
+  SessionViewToggle,
+  useSessionWindowViewState,
+} from "@/systems/session";
 
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
@@ -18,20 +24,13 @@ const SessionRenameDialog = lazy(() =>
 );
 
 /** Keep catalog actions and their confirmation dialogs available without an active session. */
-export function SessionWindowEmpty({
-  windowId,
-  workspaceId,
-}: {
-  windowId: string;
-  workspaceId: string;
-}) {
-  const sidebar = useSessionWindowSidebar({
-    windowId,
-    workspaceId,
-  });
+export function SessionWindowEmpty({ windowId }: { windowId: string }) {
+  const sidebar = useSessionWindowSidebar({ windowId });
+  const view = useSessionWindowViewState();
 
   useTopbarSlot({
     crumb: <span className="text-muted">Sessions</span>,
+    overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
     actions: <SessionPanelToggle panel="sidebar" open={sidebar.open} onToggle={sidebar.toggle} />,
   });
 
@@ -44,8 +43,9 @@ export function SessionWindowEmpty({
             sessions={sidebar.sessions}
             disconnected={sidebar.disconnected}
             collapsedThreadIds={sidebar.collapsedThreadIds}
+            subagentThreadIds={sidebar.subagentThreadIds}
             view={sidebar.view}
-            onToggleThread={sidebar.onToggleThread}
+            onThreadBranchChange={sidebar.onThreadBranchChange}
             onSelectSession={sidebar.onSelectSession}
             onNewSession={sidebar.onNewSession}
             sessionActions={sidebar.sessionActions}

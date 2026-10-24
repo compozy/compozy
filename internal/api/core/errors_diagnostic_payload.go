@@ -20,6 +20,9 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {
+		payload.Code = breadth.code
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		payload.Code = "workspace_config_invalid"
 		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {
@@ -30,8 +33,26 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			}
 		}
 	}
+	for _, sentinel := range []error{
+		session.ErrCreateScopeConflict,
+		workspace.ErrWorkspaceNameReserved,
+		workspace.ErrUserScopeUnsupported,
+		workspace.ErrUserScopeWorktreeUnsupported,
+		workspace.ErrUserScopeWorkDirInvalid,
+	} {
+		if errors.Is(err, sentinel) {
+			payload.Code = sentinel.Error()
+			break
+		}
+	}
 	enrichOperationError(&payload, err)
+	if errors.Is(err, session.ErrBoardFilterInvalid) {
+		payload.Code = "session_list_query_invalid"
+	}
 	if code := DeriveErrorCode(err); code != "" {
+		payload.Code = code
+	}
+	if code := SessionReparentErrorCode(err); code != "" {
 		payload.Code = code
 	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
@@ -54,13 +75,25 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 }
 
 func enrichOperationError(payload *contract.ErrorPayload, err error) {
+	if validation, ok := errors.AsType[compozyconfig.ValidationError](
+		err,
+	); ok &&
+		validation.Code == "shell_config_invalid" {
+		payload.Code = validation.Code
+	}
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
 		payload.Code = "session_not_found"
+	case errors.Is(err, workspace.ErrWorkspaceReserved), errors.Is(err, session.ErrWorkspaceSelectionReserved):
+		payload.Code = "workspace_reserved"
+	case errors.Is(err, session.ErrWorkspaceSelectionInvalid):
+		payload.Code = workspaceBreadthInvalidCode
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):
 		payload.Code = "subagent_archive_follows_parent"
+	case errors.Is(err, session.ErrSessionArchiveStopFailed):
+		payload.Code = "session_archive_stop_failed"
 	case errors.Is(err, session.ErrCompactionUnsupported):
 		payload.Code = "compaction_unsupported"
 	case errors.Is(err, session.ErrPromptInProgress):

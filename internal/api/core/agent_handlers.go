@@ -18,7 +18,7 @@ import (
 
 // ListAgents returns all readable agent definitions in home paths.
 func (h *BaseHandlers) ListAgents(c *gin.Context) {
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+	if workspaceRef := agentWorkspaceRef(c); workspaceRef != "" {
 		profileName, err := h.agentResourceProfileName(c)
 		if err != nil {
 			h.respondProfileReadScopeError(c, err)
@@ -68,6 +68,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
+	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
+		return
+	}
 	profileName := ""
 	var err error
 	if req.Scope == contract.AgentCreateScopeWorkspace {
@@ -122,7 +125,7 @@ func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourc
 
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
+	if workspaceRef := agentWorkspaceRef(c); workspaceRef != "" {
 		profileName, err := h.agentResourceProfileName(c)
 		if err != nil {
 			h.respondProfileReadScopeError(c, err)
@@ -183,4 +186,14 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 		return
 	}
 	h.respondError(c, http.StatusNotFound, os.ErrNotExist)
+}
+
+// agentWorkspaceRef returns the project selector of an agent read. The User reference selects the
+// user-layer definitions, which is the route's omission population (USW ADR-004, AP route matrix).
+func agentWorkspaceRef(c *gin.Context) string {
+	ref := strings.TrimSpace(c.Query("workspace"))
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
+		return ""
+	}
+	return ref
 }

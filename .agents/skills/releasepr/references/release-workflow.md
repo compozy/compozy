@@ -105,8 +105,9 @@ commit subjects, rerun `git cliff --bumped-version`, or infer a channel from a
 branch. The planner emits both the unprefixed version and its single `v`-tag so
 the publishing steps can consume the correct form directly. It also emits the
 nearest predecessor on the first-parent release line, the exact predecessor-
-to-commit range, and explicit first-release intent. Beta plans include
-prerelease predecessors; stable and legacy plans exclude them. Do not recompute
+to-commit range, and explicit first-release intent. Every channel includes
+prerelease predecessors (releasepr v0.0.30+), so each release body covers only
+its own range. Do not recompute
 these values with `git describe` in the consuming workflow.
 
 ## Branch and PR naming

@@ -577,7 +577,7 @@ func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
 				}
 				config.WorkspaceAccess = automationWorkspaceAccessPolicyFunc(
 					func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-						if req.Actor.WorkspaceID != callerWorkspace || req.TargetWorkspaceID != targetWorkspace {
+						if req.Actor.WorkspaceID != callerWorkspace || req.Target.WorkspaceID != targetWorkspace {
 							t.Fatalf("Authorize() request = %#v", req)
 						}
 						return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
@@ -2600,6 +2600,66 @@ func TestAutomationTargetQueryValidation(t *testing.T) {
 			)
 			if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "target") {
 				t.Fatalf("response = %d %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestAutomationListLegacyGlobalWorkspaceAlias(t *testing.T) {
+	t.Parallel()
+	readScope := store.ReadScope{ProfileID: store.DefaultProfileID}
+	request := func(t *testing.T) *gin.Context {
+		t.Helper()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?workspace_id=global", http.NoBody)
+		return c
+	}
+	t.Run("Should filter by the project a migration alias names", func(t *testing.T) {
+		t.Parallel()
+		getter := workspaceGetterStub{get: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{ID: "ws-renamed", Name: "global-project"}, nil
+		}}
+		jobs, err := ParseAutomationJobListQuery(request(t), readScope, getter)
+		if err != nil || jobs.WorkspaceID != "ws-renamed" {
+			t.Fatalf("jobs = %#v, %v", jobs, err)
+		}
+		triggers, err := ParseAutomationTriggerListQuery(request(t), readScope, getter)
+		if err != nil || triggers.WorkspaceID != "ws-renamed" {
+			t.Fatalf("triggers = %#v, %v", triggers, err)
+		}
+	})
+	t.Run("Should reject a bare global selector without a migration alias", func(t *testing.T) {
+		t.Parallel()
+		getter := workspaceGetterStub{get: func(context.Context, string) (workspacepkg.Workspace, error) {
+			return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+		}}
+		if _, err := ParseAutomationJobListQuery(request(t), readScope, getter); err == nil {
+			t.Fatal("ParseAutomationJobListQuery(global without alias) error = nil")
+		}
+	})
+}
+
+func TestAutomationUserScopeAliases(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"user", workspaceaccess.UserSelector, "global"} {
+		t.Run("Should normalize "+raw+" at create and list boundaries", func(t *testing.T) {
+			t.Parallel()
+			scope := automationpkg.Scope(raw)
+			job := AutomationJobFromCreateRequest(contract.CreateJobRequest{Scope: scope})
+			trigger := AutomationTriggerFromCreateRequest(contract.CreateTriggerRequest{Scope: scope})
+			if job.Scope != automationpkg.AutomationScopeGlobal ||
+				trigger.Scope != automationpkg.AutomationScopeGlobal {
+				t.Fatalf("scopes = %q, %q", job.Scope, trigger.Scope)
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?scope="+raw, http.NoBody)
+			jobs, err := ParseAutomationJobListQuery(c, store.ReadScope{ProfileID: store.DefaultProfileID})
+			if err != nil || jobs.Scope != automationpkg.AutomationScopeGlobal {
+				t.Fatalf("jobs = %#v, %v", jobs, err)
+			}
+			triggers, err := ParseAutomationTriggerListQuery(c, store.ReadScope{ProfileID: store.DefaultProfileID})
+			if err != nil || triggers.Scope != automationpkg.AutomationScopeGlobal {
+				t.Fatalf("triggers = %#v, %v", triggers, err)
 			}
 		})
 	}

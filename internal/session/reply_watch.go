@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -309,11 +310,18 @@ func (s *replyWatchService) OnSenderGone(ctx context.Context, sender string) err
 	}
 	return nil
 }
+
+// ListForSender lists the sender's pending watches in exactly one scope; an empty workspace is the
+// User scope, never a wildcard.
 func (s *replyWatchService) ListForSender(ctx context.Context, workspace, sender string) ([]store.ReplyWatch, error) {
-	if workspace == "" || sender == "" {
+	if sender == "" {
 		return nil, errors.New("session: reply watch sender scope is required")
 	}
-	return s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{WorkspaceID: workspace, SenderSessionID: sender})
+	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{WorkspaceID: workspace, SenderSessionID: sender})
+	if err != nil || workspace != "" {
+		return rows, err
+	}
+	return slices.DeleteFunc(rows, func(w store.ReplyWatch) bool { return w.WorkspaceID != "" }), nil
 }
 func (s *replyWatchService) Recover(ctx context.Context) error {
 	rows, err := s.store.ListReplyWatches(ctx, store.ReplyWatchFilter{})

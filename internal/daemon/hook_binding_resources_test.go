@@ -16,6 +16,62 @@ import (
 func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should dispatch completion hooks for results carried by initial terminal calls", func(t *testing.T) {
+		t.Parallel()
+		for _, status := range []string{"completed", "failed"} {
+			t.Run("Should send one pre hook and one "+status+" hook", func(t *testing.T) {
+				t.Parallel()
+				var got []hookspkg.HookEvent
+				runtime := &fakeHookRuntime{
+					onToolPreCall: func(_ context.Context, p hookspkg.ToolPreCallPayload) error {
+						got = append(got, p.Event)
+						return nil
+					},
+					onToolPostCall: func(_ context.Context, p hookspkg.ToolPostCallPayload) error {
+						got = append(got, p.Event)
+						if string(p.ToolResult) != `{"error":"startup diagnostic"}` {
+							t.Fatalf("post-call result = %s, want provider output", p.ToolResult)
+						}
+						return nil
+					},
+					onToolPostError: func(_ context.Context, p hookspkg.ToolPostErrorPayload) error {
+						got = append(got, p.Event)
+						if p.Error != `{"error":"startup diagnostic"}` {
+							t.Fatalf("post-error diagnostic = %q, want provider output", p.Error)
+						}
+						return nil
+					},
+				}
+				raw := mustMarshalJSON(
+					t,
+					toolEventRaw("tool_call", status, map[string]any{"error": "startup diagnostic"}),
+				)
+				for _, eventType := range []string{acp.EventTypeToolCall, acp.EventTypeToolResult} {
+					dispatchACPAgentHookEvent(t.Context(), discardLogger(), runtime, hookspkg.SessionContext{},
+						acp.AgentEvent{Type: eventType, ToolCallID: "startup", Raw: raw},
+						time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC))
+				}
+				for range 2 {
+					dispatchACPAgentHookEvent(
+						t.Context(),
+						discardLogger(),
+						runtime,
+						hookspkg.SessionContext{},
+						(acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "startup", Raw: raw}).WithToolResultUpdate(),
+						time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC),
+					)
+				}
+				want := hookspkg.HookToolPostCall
+				if status == "failed" {
+					want = hookspkg.HookToolPostError
+				}
+				if len(got) != 2 || got[0] != hookspkg.HookToolPreCall || got[1] != want {
+					t.Fatalf("hooks = %v, want pre-call followed by %s", got, want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should leave hosted native lifecycle dispatch to the registry", func(t *testing.T) {
 		t.Parallel()
 

@@ -2,6 +2,7 @@
 // Invariant: a read failure renders a recoverable degraded state over the last
 // read, never a successful empty state — for the inventory and the runs roster alike.
 // A successful filtered-empty roster explains the active filters and clears them together.
+// Under All projects each run names its project and the one-project Steps view is not offered.
 // Boundary IN: LoopRunsLocation query-state routing and retry wiring.
 // Boundary OUT: inventory rows and query transport, owned by their component and adapter suites.
 
@@ -21,8 +22,21 @@ const { inventoryRefetch, useLoopRunsRouteMock } = vi.hoisted(() => ({
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
   // Rows render real links; the route pattern is what the assertion cares about.
-  Link: ({ to, children, ...props }: { to: string; children?: ReactNode }) =>
-    createElement("a", { href: to, ...props }, children),
+  Link: ({
+    to,
+    search,
+    children,
+    ...props
+  }: {
+    to: string;
+    search?: Record<string, unknown>;
+    children?: ReactNode;
+  }) =>
+    createElement(
+      "a",
+      { href: to, "data-search": search ? JSON.stringify(search) : undefined, ...props },
+      children
+    ),
 }));
 
 vi.mock("@compozy/ui", async importOriginal => {
@@ -36,6 +50,14 @@ vi.mock("../use-loop-runs-route", () => ({
 
 const { LoopRunsLocation } = await import("../loop-runs-location");
 
+const projectFilterFixture = {
+  visible: false,
+  values: [],
+  field: null,
+  setValues: vi.fn(),
+  clear: vi.fn(),
+};
+
 describe("LoopRunsLocation", () => {
   beforeEach(() => {
     inventoryRefetch.mockReset();
@@ -46,7 +68,10 @@ describe("LoopRunsLocation", () => {
       runsQuery: { data: { runs: [] }, isLoading: false, error: null },
       setOriginFilter: vi.fn(),
       setOutcome: vi.fn(),
-      workspaceId: "workspace-1",
+      ready: true,
+      allProjects: false,
+      projectFilter: projectFilterFixture,
+      projectOf: undefined,
       inventoryState: "waiting",
       loopOptions: ["catalog-only-loop"],
       inventory: {
@@ -182,6 +207,52 @@ describe("LoopRunsLocation", () => {
     expect(screen.getByTestId("loop-runs-degraded")).toHaveAttribute("data-cause", "read-failed");
     await user.click(screen.getByTestId("loop-runs-degraded-retry"));
     expect(runsRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should list All projects runs with their project and offer no Steps view", () => {
+    const route = useLoopRunsRouteMock();
+    useLoopRunsRouteMock.mockReturnValue({
+      ...route,
+      allProjects: true,
+      inventoryState: undefined,
+      projectFilter: {
+        ...projectFilterFixture,
+        visible: true,
+        field: { key: "project", label: "Project", type: "multiselect", options: [] },
+      },
+      projectOf: (id: string) =>
+        id === "ws_b" ? { kind: "project", name: "beta" } : { kind: "user", name: "User" },
+      runsQuery: {
+        data: {
+          runs: [
+            {
+              id: "looprun-b",
+              loop_name: "triage",
+              status: "running",
+              generation: 1,
+              created_at: "2026-10-21T18:40:00Z",
+              workspace_id: "ws_b",
+              attention: null,
+              progress: { round: 1, steps_done: 2, steps_total: 6 },
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      },
+    });
+
+    render(<LoopRunsLocation search={{ nodes: "waiting" }} />);
+    const toolbar = vi.mocked(useTopbarSlot).mock.calls.at(-1)?.[0]?.toolbar;
+    render(<>{toolbar}</>);
+
+    expect(screen.getByTestId("loop-run-project")).toHaveTextContent("beta");
+    // The row opens in place, bound to its own project.
+    expect(screen.getByTestId("loop-run-name")).toHaveAttribute(
+      "data-search",
+      JSON.stringify({ workspace: "ws_b" })
+    );
+    expect(screen.queryByTestId("loop-runs-view-switch")).not.toBeInTheDocument();
   });
 
   // This roster is polled, not streamed, so "reconnecting" can only honestly mean

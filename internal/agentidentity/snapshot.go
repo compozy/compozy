@@ -11,23 +11,24 @@ import (
 
 // SessionSnapshot is the daemon-authoritative session subset needed for identity validation.
 type SessionSnapshot struct {
-	ID               string
-	ProfileID        string
-	Name             string
-	AgentName        string
-	Provider         string
-	Model            string
-	WorktreeID       string
-	WorkspaceID      string
-	WorkspacePath    string
-	Type             session.Type
-	Lineage          *store.SessionLineage
-	State            session.State
-	SoulSnapshotID   string
-	SoulDigest       string
-	ParentSoulDigest string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	EffectiveWorkspaceAccess string
+	ID                       string
+	ProfileID                string
+	Name                     string
+	AgentName                string
+	Provider                 string
+	Model                    string
+	WorktreeID               string
+	WorkspaceID              string
+	WorkspacePath            string
+	Type                     session.Type
+	Lineage                  *store.SessionLineage
+	State                    session.State
+	SoulSnapshotID           string
+	SoulDigest               string
+	ParentSoulDigest         string
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
 }
 
 // SessionLookup loads a daemon-authoritative session snapshot by session ID.
@@ -40,23 +41,24 @@ func SessionSnapshotFromInfo(info *session.Info) SessionSnapshot {
 	}
 	profileID := strings.TrimSpace(info.ProfileID)
 	return SessionSnapshot{
-		ID:               info.ID,
-		ProfileID:        profileID,
-		Name:             info.Name,
-		AgentName:        info.AgentName,
-		Provider:         info.Provider,
-		Model:            info.Model,
-		WorktreeID:       info.WorktreeID,
-		WorkspaceID:      info.WorkspaceID,
-		WorkspacePath:    info.Workspace,
-		Type:             info.Type,
-		Lineage:          store.CloneSessionLineage(info.Lineage),
-		State:            info.State,
-		SoulSnapshotID:   info.SoulSnapshotID,
-		SoulDigest:       info.SoulDigest,
-		ParentSoulDigest: info.ParentSoulDigest,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
+		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
+		ID:                       info.ID,
+		ProfileID:                profileID,
+		Name:                     info.Name,
+		AgentName:                info.AgentName,
+		Provider:                 info.Provider,
+		Model:                    info.Model,
+		WorktreeID:               info.WorktreeID,
+		WorkspaceID:              info.WorkspaceID,
+		WorkspacePath:            info.Workspace,
+		Type:                     info.Type,
+		Lineage:                  store.CloneSessionLineage(info.Lineage),
+		State:                    info.State,
+		SoulSnapshotID:           info.SoulSnapshotID,
+		SoulDigest:               info.SoulDigest,
+		ParentSoulDigest:         info.ParentSoulDigest,
+		CreatedAt:                info.CreatedAt,
+		UpdatedAt:                info.UpdatedAt,
 	}
 }
 

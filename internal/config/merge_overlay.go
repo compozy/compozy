@@ -1,6 +1,9 @@
 package config
 
 type configOverlay struct {
+	UserScope struct {
+		WorkDir *string `toml:"work_dir"`
+	} `toml:"user_scope"`
 	ProviderUsage *providerUsageOverlay      `toml:"provider_usage"`
 	Vault         *VaultConfig               `toml:"vault"`
 	Subagents     subagentsOverlay           `toml:"subagents"`
@@ -40,6 +43,9 @@ type configOverlay struct {
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
+	if o.UserScope.WorkDir != nil {
+		dst.UserScope.WorkDir = *o.UserScope.WorkDir
+	}
 	if o.ProviderUsage != nil {
 		if err := o.ProviderUsage.Apply(&dst.ProviderUsage); err != nil {
 			return err

@@ -358,13 +358,18 @@ describe("subagent card drill-in (UT-W16)", () => {
     ]);
   });
 
-  it("Should draw a provider-native card as a static row and a roster-less card as unconfirmed", () => {
+  it("Should reveal native work in its parent and keep a roster-less card unconfirmed", () => {
     const native = view("sub-native", { origin: "provider_native", child_session_id: null });
+    const openSession = vi.fn();
     const { container } = renderRow(
       [cardPart("sub-native", "provider_native")],
-      harness([native], { openSession: vi.fn() })
+      harness([native], { openSession })
     );
-    expect(screen.queryByRole("button")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open Task sub-native" }));
+    expect(openSession).toHaveBeenCalledWith(
+      { sessionId: SESSION_ID, agentName: "", workspaceId: WORKSPACE_ID, subagentId: "sub-native" },
+      { newWindow: false }
+    );
     expect(container.querySelector("[data-slot=subagent-card]")).toHaveAttribute(
       "data-origin",
       "provider_native"

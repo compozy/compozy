@@ -906,6 +906,45 @@ func TestProviderUsageIntent(t *testing.T) {
 	}
 }
 
+func TestProviderUsageRefreshProfile(t *testing.T) {
+	for _, query := range []string{"", "?profile=default", "?profile=unrelated"} {
+		t.Run("Should resolve the body profile after middleware reads query "+query, func(t *testing.T) {
+			t.Parallel()
+			catalog := &providerusage.TargetCatalog{}
+			catalog.Replace("profile-marketing", []providerusage.Target{{
+				ProfileID: "profile-marketing", ProviderID: "claude", ProviderName: "Claude",
+				Status: providerusage.StatusSignedOut,
+				Error:  providerusage.NewUsageError(providerusage.ErrorCodeAuthMissing, "Claude"),
+			}})
+			manager := providerusage.NewService(providerusage.Options{Resolver: catalog})
+			t.Cleanup(func() {
+				if err := manager.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			handler := &BaseHandlers{Profiles: modelCatalogProfileServiceStub{}, ProviderUsage: manager}
+			engine := gin.New()
+			engine.Use(handler.WorkspaceReferenceGuard)
+			engine.POST("/api/provider-usage/refresh", handler.RefreshProviderUsage)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/provider-usage/refresh"+query,
+				strings.NewReader(`{"profile":"marketing","provider_ids":["claude"],"intent":"explicit","wait_ms":0}`)))
+			if response.Code != http.StatusOK {
+				t.Fatalf("refresh: %d %s", response.Code, response.Body.String())
+			}
+			var envelope contract.ProviderUsageEnvelope
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if envelope.ProfileID != "profile-marketing" || len(envelope.Targets) != 1 ||
+				envelope.Targets[0].Status != "signed_out" {
+				t.Fatalf("wrong profile result: %+v", envelope)
+			}
+		})
+	}
+}
+
 func TestProviderUsageRefreshBounds(t *testing.T) {
 	for _, wait := range []int64{-1, 30001, 45000} {
 		_, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &wait})
@@ -934,4 +973,61 @@ func TestProviderUsageHostCapability(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestGrantedAggregateProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, grant := range []string{"", workspaceaccess.Unrestricted} {
+		t.Run("Should authorize aggregate profile scope with grant "+grant, func(t *testing.T) {
+			t.Parallel()
+			var aggregateCalls int
+			h := &BaseHandlers{
+				Sessions: modelCatalogSessionManagerStub{
+					info: &session.Info{
+						ID:                       "sess-agent",
+						AgentName:                "coder",
+						ProfileID:                "p1",
+						WorkspaceID:              "ws-1",
+						State:                    session.StateActive,
+						EffectiveWorkspaceAccess: grant,
+					},
+				},
+				WorkspaceAccess: modelCatalogWorkspaceAccessStub{
+					authorize: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+						if req.Target.Kind == workspaceaccess.TargetAggregate {
+							aggregateCalls++
+							if !req.Target.AllProfiles || req.Target.ProfileID != "" ||
+								req.Actor.SessionID != "sess-agent" {
+								t.Fatalf("aggregate target = %+v", req)
+							}
+						}
+						return workspaceaccess.Decision{
+							Allowed: grant != "",
+							Source:  workspaceaccess.SourceAgentGrant,
+						}, nil
+					},
+				},
+			}
+			engine := gin.New()
+			engine.GET("/aggregate", func(c *gin.Context) {
+				if h.requireAggregateSurface(c) {
+					c.Status(http.StatusNoContent)
+				}
+			})
+			response := performModelCatalogRequestWithHeaders(
+				t,
+				engine,
+				http.MethodGet,
+				"/aggregate?all_profiles=true",
+				map[string]string{agentidentity.HeaderSessionID: "sess-agent", agentidentity.HeaderAgent: "coder"},
+			)
+			if grant == "" {
+				if response.Code < 400 || aggregateCalls != 0 {
+					t.Fatalf("ordinary response = %d, calls = %d", response.Code, aggregateCalls)
+				}
+			} else if response.Code != http.StatusNoContent || aggregateCalls != 1 {
+				t.Fatalf("granted response = %d %s, calls = %d", response.Code, response.Body, aggregateCalls)
+			}
+		})
+	}
 }

@@ -24,7 +24,7 @@ type subagentWorktreeService interface {
 	executionWorktreeService
 	List(context.Context, string, bool) (*worktree.Listing, error)
 	Status(context.Context, string, string, bool) (*worktree.Status, error)
-	StatusDetails(context.Context, string, string, bool, bool) (*worktree.StatusDetails, error)
+	ObserveForgeStatus(context.Context, string, string) (*worktree.ForgeStatus, error)
 	CommitsAheadOf(context.Context, string, string, string) (int, error)
 	ResolveCommit(context.Context, string, string) (string, error)
 }
@@ -222,11 +222,10 @@ func (a daemonSubagentWorktrees) Observe(ctx context.Context, ws, id, base strin
 			}
 		}
 	}
-	detail, err := svc.StatusDetails(ctx, ws, id, false, true)
-	if err != nil || detail.ForgeStatus == nil {
+	pr, err := svc.ObserveForgeStatus(ctx, ws, id)
+	if err != nil || pr == nil {
 		return facts
 	}
-	pr := detail.ForgeStatus
 	facts.PRStatus = "none"
 	if pr.PRNumber != nil && pr.PRState != nil {
 		facts.PRStatus = strings.ToLower(strings.TrimSpace(*pr.PRState))

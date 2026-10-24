@@ -145,18 +145,19 @@ function trackProgress(
  * Requires something to apply, a self-applicable install, and a free update
  * channel — acquisition is single-flight per home, so a live operation makes
  * apply impossible rather than merely inadvisable. Managed installs recommend
- * and never mutate, so they never qualify. A failed track remains diagnostic-only
- * until the daemon reports a fresh available state; PlanOperation rejects failed
- * targets even when the lease is free.
+ * and never mutate, so they never qualify. A settled app failure can retry:
+ * PlanOperation refreshes and revalidates the release before acquiring it.
+ * Runtime rollback failures still require a fresh available state.
  */
 function canApplyTrack(input: {
+  target: SettingsUpdateTarget;
   status: SettingsUpdateStatusKind;
   managed: boolean;
   operation: SettingsUpdateOperation | null;
   latestVersion: string | null;
 }): boolean {
   if (input.managed || input.operation !== null || input.latestVersion === null) return false;
-  return input.status === "available";
+  return input.status === "available" || (input.target === "app" && input.status === "failed");
 }
 
 function dormantOperationTarget(
@@ -211,6 +212,7 @@ function buildTrackView(input: {
 }): SettingsUpdateTrackView {
   const latestVersion = text(input.source.latest_version);
   const canApply = canApplyTrack({
+    target: input.id,
     status: input.source.status,
     managed: input.managed,
     operation: input.operation,

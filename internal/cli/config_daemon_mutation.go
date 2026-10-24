@@ -273,9 +273,17 @@ func applyDaemonManagedConfigValue(
 		if applyErr := applyShellConfigValue(&cfg.Shell, path, value); applyErr != nil {
 			return SettingsMutationRecord{}, applyErr
 		}
-		return client.UpdateSettingsShell(ctx, UpdateSettingsShellRequest{
-			Config: settingsShellPayloadFromConfig(cfg.Shell),
-		})
+		payload := settingsShellPayloadFromConfig(cfg.Shell)
+		if path[2] != "sort" {
+			payload.Sessions.Sort = ""
+		}
+		if path[2] != "scope" {
+			payload.Sessions.Scope = ""
+		}
+		if path[2] != "group_by" {
+			payload.Sessions.GroupBy = ""
+		}
+		return client.UpdateSettingsShell(ctx, UpdateSettingsShellRequest{Config: payload})
 	default:
 		return SettingsMutationRecord{}, fmt.Errorf(
 			"cli: config set %q is not daemon-managed",

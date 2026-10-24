@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// sessionStatus projects one authorized session with health and current profile-owner metadata.
 func (n *daemonNativeTools) sessionStatus(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -33,7 +34,7 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -41,7 +42,11 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	owned, err := core.SessionPayloadsWithProfileOwners(ctx, []contract.SessionPayload{payload}, n.deps.Profiles)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{nativeToolsSessionKey: owned[0]}, payload.ID)
 }
 
 func (n *daemonNativeTools) commandList(
@@ -65,7 +70,7 @@ func (n *daemonNativeTools) commandList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	manager, ok := n.deps.Sessions.(core.SessionCommandCatalogManager)
@@ -111,7 +116,7 @@ func (n *daemonNativeTools) sessionHealth(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	if n == nil || n.deps == nil || n.deps.SessionHealth == nil {
@@ -147,7 +152,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	}
 	sessionID := strings.TrimSpace(input.SessionID)
 	if sessionID != "" {
-		if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, target.workspaceID, sessionID); err != nil {
+		if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, target.workspaceID, sessionID); err != nil {
 			return toolspkg.ToolResult{}, err
 		}
 	}
@@ -206,7 +211,7 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, target.workspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, target.workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	source := heartbeat.WakeSource(strings.TrimSpace(input.Source))
@@ -251,7 +256,7 @@ func (n *daemonNativeTools) sessionEvents(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -291,7 +296,7 @@ func (n *daemonNativeTools) sessionHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -338,7 +343,7 @@ func (n *daemonNativeTools) sessionDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

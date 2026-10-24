@@ -91,6 +91,7 @@ type uiMessageBuilder struct {
 	logicalID        string
 	id               string
 	role             string
+	turnID           string
 	finished         bool
 	parts            []UIMessagePart
 	activePartType   string
@@ -187,10 +188,27 @@ func (b *uiMessageBuilder) build(complete bool) *UIMessage {
 	}
 
 	return &UIMessage{
-		ID:    b.id,
-		Role:  b.role,
-		Parts: parts,
+		ID:       b.id,
+		Role:     b.role,
+		Parts:    parts,
+		Metadata: b.continuationMetadata(),
 	}
+}
+
+// continuationMetadata names the turn of an assistant message whose id is not
+// that turn: a turn split around a transcript marker continues as `<turn>-N`,
+// and its text-only pieces carry no event that names the turn otherwise.
+func (b *uiMessageBuilder) continuationMetadata() json.RawMessage {
+	if b.role != UIRoleAssistant || b.turnID == "" || b.turnID == b.id {
+		return nil
+	}
+	encoded, err := json.Marshal(struct {
+		TurnID string `json:"turn_id"`
+	}{TurnID: b.turnID})
+	if err != nil {
+		return nil
+	}
+	return encoded
 }
 
 func cloneUIMessageParts(parts []UIMessagePart) []UIMessagePart {
@@ -207,6 +225,9 @@ func cloneUIMessageParts(parts []UIMessagePart) []UIMessagePart {
 }
 
 func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
+	if builder.turnID == "" {
+		builder.turnID = strings.TrimSpace(decoded.parsed.TurnID)
+	}
 	parentID := decoded.agent.ParentToolCallID()
 	if builder.activePartIndex >= 0 && builder.parts[builder.activePartIndex].ParentToolCallID != parentID {
 		builder.closeActiveStreamPart()

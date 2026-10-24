@@ -16,6 +16,7 @@ const (
 
 func shellConfigSetPathKinds() map[string]configSetValueKind {
 	return map[string]configSetValueKind{
+		"shell.sessions.group_by": configSetString,
 		configShellKey + "." + configShellSessionsKey + "." + configShellSortKey: configSetString,
 		configShellKey + "." + configShellSessionsKey + "." + automationScopeKey: configSetString,
 	}
@@ -34,6 +35,9 @@ func applyShellConfigValue(cfg *compozyconfig.ShellConfig, path []string, value 
 		)
 	}
 	switch path[2] {
+	case "group_by":
+		cfg.Sessions.GroupBy = compozyconfig.ShellSessionGroupBy(text)
+		cfg.Sessions.GroupByExplicit = true
 	case configShellSortKey:
 		cfg.Sessions.Sort = compozyconfig.ShellSessionSort(text)
 	case automationScopeKey:
@@ -46,7 +50,8 @@ func applyShellConfigValue(cfg *compozyconfig.ShellConfig, path []string, value 
 
 func settingsShellPayloadFromConfig(cfg compozyconfig.ShellConfig) contract.SettingsShellPayload {
 	return contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
-		Sort:  contract.SettingsShellSessionSort(cfg.Sessions.Sort),
-		Scope: contract.SettingsShellSessionScope(cfg.Sessions.Scope),
+		GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
+		Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
+		Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
 	}}
 }

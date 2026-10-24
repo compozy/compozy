@@ -71,21 +71,17 @@ describe("DashboardWindow", () => {
     expect(screen.queryByTestId("home-error")).toBeNull();
   });
 
-  it("Should disable New session in Global scope and say why", () => {
+  it("Should rest New session while the destination settles", () => {
     connection.status = "connected";
     sessionCreate.hasActiveWorkspace = false;
     renderWindow();
-    expect(screen.getByRole("button", { name: /New session/ })).toBeDisabled();
-    expect(screen.getByTestId("home-new-session-disabled")).toHaveAccessibleName(
-      "New session — pick a project to start a session"
-    );
+    expect(screen.getByRole("button", { name: "New session" })).toBeDisabled();
   });
 
-  it("Should offer New session once a project is active", () => {
+  it("Should offer New session once the destination has settled", () => {
     connection.status = "connected";
     renderWindow();
-    expect(screen.getByRole("button", { name: /New session/ })).toBeEnabled();
-    expect(screen.queryByTestId("home-new-session-disabled")).toBeNull();
+    expect(screen.getByRole("button", { name: "New session" })).toBeEnabled();
   });
 
   it("Should keep Home live while it remains visible without focus", () => {

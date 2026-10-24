@@ -1,4 +1,7 @@
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
+
 import type { AgentCatalogItem, AgentPayload } from "../types";
+import { agentCatalogItemKey } from "./agent-catalog-query";
 import { AGENT_CATEGORY_LABEL_SEPARATOR, formatCategoryLabel } from "./agent-category";
 import type { AgentFleetStatus } from "./fleet-signals";
 
@@ -6,7 +9,11 @@ const META_SEPARATOR = " · ";
 const CATEGORY_ELLIPSIS_LIMIT = 40;
 
 export interface AgentFleetRowModel {
+  /** Row identity: `(workspace_id, name)`, so same-named agents of two projects stay apart. */
+  key: string;
   agent: AgentPayload;
+  /** Under All projects: the project the agent belongs to (User for user-layer agents). */
+  project?: WorkspaceBadgeIdentity;
   signals: AgentFleetSessionSignals | null;
   meta: string;
   cardCategory: string | null;
@@ -25,7 +32,8 @@ export interface AgentFleetSessionSignals {
 }
 
 export function formatAgentOriginLabel(origin: AgentPayload["origin"]): string {
-  return origin === "workspace" ? "This project" : "All projects";
+  // A user-layer definition is User (BR-16), never "All projects" or "Global".
+  return origin === "workspace" ? "This project" : "User";
 }
 
 export function formatAgentLayer(agent: AgentPayload): string {
@@ -101,9 +109,12 @@ export function formatAgentFleetAriaLabel(
 export function projectAgentFleetRows(input: {
   items: readonly AgentCatalogItem[];
   sessionsAvailable: boolean;
+  /** Supplied only under All projects, where rows of every project mix. */
+  projectOf?: (agent: AgentPayload) => WorkspaceBadgeIdentity;
 }): AgentFleetRowModel[] {
   return input.items.map(item => {
     const agent = item.agent;
+    const project = input.projectOf?.(agent);
     const signals =
       input.sessionsAvailable && item.sessions
         ? {
@@ -113,7 +124,9 @@ export function projectAgentFleetRows(input: {
           }
         : null;
     return {
+      key: agentCatalogItemKey(item),
       agent,
+      ...(project ? { project } : {}),
       signals,
       meta: formatAgentFleetMeta(agent),
       cardCategory: formatAgentFleetCardCategory(agent),

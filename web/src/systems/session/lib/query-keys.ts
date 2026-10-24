@@ -101,6 +101,9 @@ export const sessionKeys = {
   /** A parent's direct subagents, every page of the list route (S10, chip preview). */
   subagents: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "subagents"] as const,
+  /** Short pages of the same list for a session row's subagent branch; parent invalidation reaches it. */
+  subagentBranch: (workspace: string, id: string) =>
+    [...sessionKeys.subagents(workspace, id), "branch"] as const,
   /** The session's daemon-owned monitors (composer monitor popover). */
   monitors: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "monitors"] as const,

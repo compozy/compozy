@@ -39,7 +39,7 @@ func (h *BaseHandlers) GetSessionOwner(c *gin.Context) {
 	}
 
 	if owner.WorkspaceID == "" {
-		c.JSON(http.StatusOK, contract.SessionOwner{SessionID: owner.SessionID, WorkspaceName: "Global"})
+		c.JSON(http.StatusOK, contract.SessionOwner{SessionID: owner.SessionID, WorkspaceName: "User"})
 		return
 	}
 	workspace, err := h.Workspaces.Get(c.Request.Context(), owner.WorkspaceID)

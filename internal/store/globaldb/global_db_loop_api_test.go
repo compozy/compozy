@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -1232,18 +1234,18 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "draft", X: 10, Y: 20},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-a) error = %v", err)
 		}
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-b", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-b", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "draft", X: 30, Y: 40},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-b) error = %v", err)
 		}
 
-		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a) error = %v", err)
 		}
@@ -1254,7 +1256,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("alpha annotation = %#v", alpha[0])
 		}
 
-		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b) error = %v", err)
 		}
@@ -1265,12 +1267,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("beta annotation = %#v", beta[0])
 		}
 
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "review", X: 50, Y: 60},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-a replace) error = %v", err)
 		}
-		alpha, err = globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err = globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a replace) error = %v", err)
 		}
@@ -1281,7 +1283,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("alpha replaced annotation = %#v", alpha[0])
 		}
 
-		beta, err = globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err = globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b after replace) error = %v", err)
 		}
@@ -1296,12 +1298,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		for _, workspaceID := range []looppkg.WorkspaceID{"ws-a", "ws-b"} {
-			if err := globalDB.UpsertLoopConfig(ctx, workspaceID, "delivery", looppkg.LoopConfig{
+			if err := globalDB.UpsertLoopConfig(ctx, workspaceID, "", "delivery", looppkg.LoopConfig{
 				IterationCap: new(7),
 			}); err != nil {
 				t.Fatalf("UpsertLoopConfig(%s) error = %v", workspaceID, err)
 			}
-			if err := globalDB.ReplaceLoopUIAnnotations(ctx, workspaceID, "delivery", []looppkg.UIAnnotation{{
+			if err := globalDB.ReplaceLoopUIAnnotations(ctx, workspaceID, "", "delivery", []looppkg.UIAnnotation{{
 				NodeID: "draft",
 				X:      10,
 				Y:      20,
@@ -1310,23 +1312,23 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			}
 		}
 
-		if _, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery"); err != nil {
+		if _, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "", "delivery"); err != nil {
 			t.Fatalf("DeleteLoopDefinitionState(ws-a) error = %v", err)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); !errors.Is(err, looppkg.ErrConfigNotFound) {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "", "delivery"); !errors.Is(err, looppkg.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(ws-a after delete) error = %v, want ErrConfigNotFound", err)
 		}
-		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a after delete) error = %v", err)
 		}
 		if len(alpha) != 0 {
 			t.Fatalf("ws-a annotations after delete = %#v, want empty", alpha)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-b", "delivery"); err != nil {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-b", "", "delivery"); err != nil {
 			t.Fatalf("GetLoopConfig(ws-b after ws-a delete) error = %v", err)
 		}
-		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b after ws-a delete) error = %v", err)
 		}
@@ -1340,12 +1342,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		ctx := testutil.Context(t)
-		if err := globalDB.UpsertLoopConfig(ctx, "ws-a", "delivery", looppkg.LoopConfig{
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-a", "", "delivery", looppkg.LoopConfig{
 			IterationCap: new(7),
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
 		}
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{{
 			NodeID: "draft",
 			X:      10,
 			Y:      20,
@@ -1362,19 +1364,202 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("create delete failure trigger: %v", err)
 		}
 
-		_, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery")
+		_, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "", "delivery")
 		if err == nil || !strings.Contains(err.Error(), "injected loop config delete failure") {
 			t.Fatalf("DeleteLoopDefinitionState() error = %v, want injected failure", err)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); err != nil {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "", "delivery"); err != nil {
 			t.Fatalf("GetLoopConfig(after rollback) error = %v", err)
 		}
-		annotations, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		annotations, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(after rollback) error = %v", err)
 		}
 		if len(annotations) != 1 || annotations[0].NodeID != "draft" {
 			t.Fatalf("annotations after rollback = %#v, want preserved draft", annotations)
+		}
+	})
+}
+
+func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
+	t.Parallel()
+	t.Run("Should page registered projects and User by recency within the profile lens", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := t.Context()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'aggregate-foreign','#E8572A','circle','active',?)`,
+			foreign,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b", "retired"} {
+			run := testLoopRun(
+				fmt.Sprintf("aggregate-%d", index),
+				now.Add(time.Duration(index)*time.Minute),
+				looppkg.StatusDone,
+			)
+			run.WorkspaceID = looppkg.WorkspaceID(ws)
+			if index == 3 {
+				run.ProfileID = foreign
+			}
+			insertLoopCatalogRunForTest(t, db, run)
+		}
+		query := looppkg.RunListQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			Limit:         2,
+		}
+		first, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(first) != 2 || first[0].ID != "aggregate-2" || first[1].ID != "aggregate-1" {
+			t.Fatalf("first page = %+v, %v", first, err)
+		}
+		query.After = &looppkg.RunListPosition{ID: first[1].ID, CreatedAt: first[1].CreatedAt}
+		next, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(next) != 1 || next[0].ID != "aggregate-0" {
+			t.Fatalf("next page = %+v, %v", next, err)
+		}
+		query.After = nil
+		query.WorkspaceIDs = []string{"ws-b"}
+		narrowed, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(narrowed) != 1 || narrowed[0].ID != "aggregate-1" {
+			t.Fatalf("narrowed page = %+v, %v", narrowed, err)
+		}
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+		all, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(all) != 2 || all[0].ID != "aggregate-3" {
+			t.Fatalf("all profiles = %+v, %v", all, err)
+		}
+	})
+	t.Run("Should page tied requests by rowid with attribution and scope bound cursors", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := t.Context()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'requests-foreign','#E8572A','circle','active',?)`,
+			foreign,
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b"} {
+			run := testLoopRun(fmt.Sprintf("request-aggregate-%d", index), now, looppkg.StatusRunning)
+			run.WorkspaceID = looppkg.WorkspaceID(ws)
+			if index == 3 {
+				run.ProfileID = foreign
+			}
+			insertLoopCatalogRunForTest(t, db, run)
+			for generation := 1; generation <= 2; generation++ {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`INSERT INTO loop_requests (workspace_id,loop_run_id,generation,node_id,item_index,kind,state,prompt,decisions_json,opened_at,expires_at) VALUES (?,?,?,'ask',?,'ask','pending','Approve?','["approve"]',?,?)`,
+					ws,
+					run.ID,
+					generation,
+					generation,
+					now,
+					func() any {
+						if generation == 1 {
+							return now.Add(time.Hour)
+						}
+						return nil
+					}(),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		query := looppkg.RequestQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			Limit:         1,
+		}
+		seen := map[string]bool{}
+		for {
+			page, err := db.ListRequests(ctx, "", query)
+			if err != nil || page.Pending != 6 || len(page.Items) != 1 {
+				t.Fatalf("page = %+v, %v", page, err)
+			}
+			item := page.Items[0]
+			key := fmt.Sprintf("%s/%d/%d", item.LoopRunID, item.Generation, item.ItemIndex)
+			if seen[key] || item.ProfileID != store.DefaultProfileID {
+				t.Fatalf("repeated or foreign row: %+v", item)
+			}
+			seen[key] = true
+			if len(seen) <= 3 && item.ExpiresAt == nil {
+				t.Fatal("null expiry preceded expiring rows")
+			}
+			if len(seen) == 1 {
+				for _, changed := range []looppkg.RequestQuery{
+					{AllWorkspaces: true, WorkspaceIDs: []string{"ws-b"}, ReadScope: query.ReadScope, Cursor: page.NextCursor},
+					{AllWorkspaces: true, ReadScope: store.ReadScope{AllProfiles: true}, Cursor: page.NextCursor},
+					{ReadScope: query.ReadScope, Cursor: page.NextCursor},
+				} {
+					if _, err := db.ListRequests(ctx, "", changed); err == nil {
+						t.Fatal("accepted cursor under a different lens")
+					}
+				}
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if len(seen) != 6 {
+			t.Fatalf("seen = %v", seen)
+		}
+		page, err := db.ListRequests(
+			ctx,
+			"",
+			looppkg.RequestQuery{
+				AllWorkspaces: true,
+				WorkspaceIDs:  []string{workspaceaccess.UserSelector},
+				ReadScope:     query.ReadScope,
+			},
+		)
+		if err != nil || page.Pending != 2 || len(page.Items) != 2 || page.Items[0].WorkspaceID != "" {
+			t.Fatalf("User page = %+v, %v", page, err)
+		}
+	})
+}
+
+func TestGlobalDBLoopAggregateQueryPlans(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serve aggregate filters with profile and recency indexes", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		statements := []string{
+			"SELECT id FROM loop_runs WHERE profile_id = '00000000000000000000000000' AND (workspace_id = '' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = loop_runs.workspace_id)) ORDER BY created_at DESC,id DESC LIMIT 100",
+			"SELECT id FROM loop_runs WHERE (workspace_id = '' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = loop_runs.workspace_id)) ORDER BY created_at DESC,id DESC LIMIT 100",
+			"SELECT request.rowid FROM loop_requests AS request JOIN loop_runs AS run ON run.id=request.loop_run_id WHERE run.profile_id='00000000000000000000000000' AND request.state='pending' AND (request.workspace_id='' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = request.workspace_id)) ORDER BY request.expires_at IS NULL,request.expires_at,request.opened_at,request.rowid LIMIT 200",
+			"SELECT request.rowid FROM loop_requests AS request JOIN loop_runs AS run ON run.id=request.loop_run_id WHERE request.state='pending' AND (request.workspace_id='' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = request.workspace_id)) ORDER BY request.expires_at IS NULL,request.expires_at,request.opened_at,request.rowid LIMIT 200",
+		}
+		for index, statement := range statements {
+			rows, err := db.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+statement)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("plan %d: %s", index+1, detail)
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
 		}
 	})
 }

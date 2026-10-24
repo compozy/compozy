@@ -65,11 +65,20 @@ func readyCapabilityGate() *CapabilityGate {
 }
 
 type staticWorkspaceResolver struct {
-	workspaces map[string]Workspace
+	workspaces        map[string]Workspace
+	profileWorkspaces map[string]map[string]Workspace
 }
 
-func (r staticWorkspaceResolver) ResolveWorktreeWorkspace(_ context.Context, id string) (Workspace, error) {
-	workspace, ok := r.workspaces[id]
+func (r staticWorkspaceResolver) ResolveWorktreeWorkspace(
+	_ context.Context,
+	id string,
+	profileID string,
+) (Workspace, error) {
+	workspaces := r.workspaces
+	if profile, ok := r.profileWorkspaces[profileID]; ok {
+		workspaces = profile
+	}
+	workspace, ok := workspaces[id]
 	if !ok {
 		return Workspace{}, ErrNotFound
 	}
@@ -335,12 +344,16 @@ func (s *memoryWorktreeStore) CompareAndSwapState(
 }
 
 func (s *memoryWorktreeStore) SetState(
-	_ context.Context,
+	ctx context.Context,
 	workspaceID string,
 	id string,
 	state State,
 	updatedAt time.Time,
 ) error {
+	// Like the SQLite store, a canceled caller context fails the write.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := worktreeStoreKey(workspaceID, id)

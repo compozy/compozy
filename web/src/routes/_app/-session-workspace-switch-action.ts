@@ -1,17 +1,11 @@
 import type { SessionOwnerDialogState } from "@/systems/session";
-import { enableGlobalScope, setActiveWorkspaceId } from "@/systems/workspace";
+import { focusDestination, ownerDataScope } from "@/systems/workspace";
 
 export function confirmSessionWorkspaceSwitch(
   owner: SessionOwnerDialogState,
-  options: { isGlobal: boolean },
   reenterDeepLink: () => void
 ): void {
-  // Global history has no project id. Preserve the remembered project while
-  // changing only the data scope.
-  if (options.isGlobal) {
-    enableGlobalScope();
-  } else {
-    setActiveWorkspaceId(owner.workspaceId);
-  }
+  // A session without a project lives in User: focusing it binds the User desktop.
+  focusDestination(ownerDataScope(owner.workspaceId));
   reenterDeepLink();
 }

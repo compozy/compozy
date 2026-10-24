@@ -40,6 +40,14 @@ function profileLens(profile?: string, allProfiles?: boolean): string {
   return allProfiles === true ? PROFILE_AGGREGATE : normalizeText(profile);
 }
 
+/** Workspace-position key segment shared by every All projects aggregate read. */
+export const LOOP_AGGREGATE_KEY = "@all";
+
+/** The aggregate's Project filter as one key segment: sorted, so order never splits a cache. */
+export function loopAggregateFilterKey(workspaceIds?: readonly string[]): string {
+  return [...(workspaceIds ?? [])].sort().join(",");
+}
+
 /**
  * Hierarchical Loop query keys. Every read is workspace-scoped (the Loop API is
  * mounted under `/api/workspaces/{workspace_id}`), so `workspace_id` participates

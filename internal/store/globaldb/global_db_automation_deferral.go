@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
@@ -65,7 +66,7 @@ func resumeDeferredScheduledRun(
 	row := tx.QueryRowContext(ctx, `SELECT
   id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
-  delivery_error, delivery_error_at, loop_run_id, metadata_json
+  delivery_error, delivery_error_at, loop_run_id, metadata_json, workspace_id, attribution
   FROM automation_runs WHERE id = ?`, claim.RunID)
 	run, err := scanAutomationRun(row)
 	if err != nil {
@@ -89,7 +90,15 @@ func (g *AutomationRepo) saveSchedulerState(
 		if err != nil && !errors.Is(err, automation.ErrSchedulerStateNotFound) {
 			return err
 		}
-		if existing.ScheduleHash != state.ScheduleHash {
+		// A zone change or legacy identity upgrade can retain an already reserved fire.
+		// Schedule replacement clears DeferredUntil and still cancels its old reservation.
+		preservesDeferredFire := existing.DeferredUntil != nil && state.DeferredUntil != nil &&
+			existing.LastFireID != "" && existing.LastFireID == state.LastFireID &&
+			existing.LastScheduledAt != nil && state.LastScheduledAt != nil &&
+			existing.LastScheduledAt.Equal(*state.LastScheduledAt)
+		legacyIdentityUpgrade := existing.ScheduleHash != "" &&
+			strings.HasPrefix(state.ScheduleHash, existing.ScheduleHash+":")
+		if existing.ScheduleHash != state.ScheduleHash && !preservesDeferredFire && !legacyIdentityUpgrade {
 			if err := cancelSupersededAutomationReservation(ctx, exec, state.JobID, g.now()); err != nil {
 				return err
 			}

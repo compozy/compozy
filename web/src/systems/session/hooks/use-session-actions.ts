@@ -1,4 +1,9 @@
-import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useMutationState,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -19,6 +24,7 @@ import {
 
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
+import { discardComposerDraftAttachments } from "../lib/session-composer-attachment-drafts";
 import {
   invalidateSessionMutationQueries,
   invalidateWorkspaceSessionCatalog,
@@ -32,16 +38,26 @@ import type {
   SessionRepairQuery,
 } from "../types";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
-import { useActiveWorkspace } from "@/systems/workspace";
-import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
+import {
+  ownerDataScope,
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+  workspaceSelectorForScope,
+} from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
+import { sessionStartedToast } from "../lib/session-create-target";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
 
+/**
+ * The session's own workspace path segment. An empty `workspace_id` is a User
+ * session, addressed through `@user`; only an absent value has no target.
+ */
 function requireWorkspace(workspaceId: string | null | undefined): string {
-  if (!workspaceId) {
+  if (workspaceId === null || workspaceId === undefined) {
     throw new SessionApiError("No active workspace selected", 400);
   }
-  return workspaceId;
+  return workspaceSelectorForScope(ownerDataScope(workspaceId));
 }
 
 interface UseSessionWorkspaceOptions {
@@ -83,22 +99,35 @@ function resolveWorkspaceId(
   return workspaceId ?? runtimeWorkspaceId ?? null;
 }
 
+/** A create request plus the profile that owns it; omitted files into the acting profile. */
+export type CreateSessionVariables = CreateSessionParams & { profile?: string };
+
 export function useCreateSession() {
   const queryClient = useQueryClient();
-  // The destination is the acting profile — `default` while the aggregate is on,
-  // which is exactly what the destination chip promised (ADR-005).
+  // The default owner is the acting profile — the Profile picker overrides it
+  // under the aggregate (ADR-003).
   const { aggregate, destination } = useProfileReadScope();
+  const { breadthMode, registeredWorkspaces } = useActiveWorkspace();
 
   return useMutation({
-    mutationFn: (params: CreateSessionParams) => createSession(params, destination),
+    mutationFn: ({ profile, ...params }: CreateSessionVariables) =>
+      createSession(params, profile ?? destination),
     onSuccess: session => {
-      // Only under the aggregate: a scoped view already shows whose session this
-      // is, so announcing it there would be noise. Here it is the guardrail that
-      // makes a misfile visible immediately (US-012.AC-2).
-      if (aggregate) {
-        notifyUser({ message: createdInProfileToast(session.profile_name), tone: "success" });
+      // Only while an axis is aggregated: a scoped view already shows where the
+      // session is, so announcing it there would be noise. Here it is the
+      // guardrail that makes a misfile visible immediately (ADR-003).
+      if (aggregate || breadthMode === "all") {
+        const projectLabel = workspaceBadgeIdentity(
+          session.workspace_id,
+          new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
+        ).name;
+        notifyUser({
+          message: sessionStartedToast(projectLabel, session.profile_name),
+          tone: "success",
+        });
       }
-      const workspaceId = requireWorkspace(session.workspace_id);
+      // A User session reads and lists through `@user`.
+      const workspaceId = requireWorkspace(session.workspace_id ?? "");
       queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
       void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
@@ -144,6 +173,30 @@ export function useSessionDeletionPending(sessionId: string | null): boolean {
   );
 }
 
+/**
+ * True once this client deleted the session: a window still showing it after an
+ * operator-owned deletion is retired quietly, never reported as a missing session.
+ */
+export function useSessionDeletedByOperator(sessionId: string | null): boolean {
+  return (
+    useMutationState({
+      filters: {
+        mutationKey: sessionKeys.deletions(),
+        status: "success",
+        predicate: mutation => {
+          const variables = mutation.state.variables;
+          return (
+            typeof variables === "object" &&
+            variables !== null &&
+            "id" in variables &&
+            variables.id === sessionId
+          );
+        },
+      },
+    }).length > 0
+  );
+}
+
 /** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
 export function useDeleteSession(
   options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {}
@@ -167,6 +220,7 @@ export function useDeleteSession(
       const { id, workspace_id } = session;
       const successWorkspaceId = requireWorkspace(workspace_id);
       await options.onDeleteSuccess?.(session);
+      discardComposerDraftAttachments(id);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
@@ -183,14 +237,21 @@ export function useDeleteSession(
   });
 }
 
+export interface ArchiveSessionParams extends SessionActionTarget {
+  /** Stop a live session through the daemon's normal stop path before archiving it. */
+  stop?: boolean;
+}
+
 /** Archives the supplied row without depending on the currently selected workspace. */
 export function useArchiveSession() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
-      request(signal => archiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    mutationFn: ({ id, workspace_id, profile_name, stop }: ArchiveSessionParams) =>
+      request(signal =>
+        archiveSession(requireWorkspace(workspace_id), id, profile_name, signal, stop ?? false)
+      ),
     onSettled: (_data, _error, { id, workspace_id }) => {
       if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },

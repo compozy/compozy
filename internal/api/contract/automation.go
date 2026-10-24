@@ -185,6 +185,8 @@ func cloneTriggerFilter(source map[string]string) map[string]string {
 
 // RunPayload is the shared automation run response payload.
 type RunPayload struct {
+	WorkspaceID     *string                 `json:"workspace_id,omitempty"`
+	Attribution     string                  `json:"attribution"`
 	ID              string                  `json:"id"`
 	ProfileID       string                  `json:"profile_id"`
 	ProfileName     string                  `json:"profile_name"`

@@ -25,6 +25,7 @@ const DIRTY_RISK = {
   deletions: 18,
   unpushedCommits: 3,
   existsOnRemote: false,
+  leftoverFiles: 0,
 };
 
 function refusal(overrides: Partial<WorktreeRefusal>): WorktreeRefusal {
@@ -354,6 +355,7 @@ export const BulkForceConfirmation: Story = {
                   deletions: dirty ? 3 : 0,
                   unpushed_commits: dirty ? 0 : 1,
                   exists_on_remote: false,
+                  leftover_files: 0,
                 },
               },
               { status: 409 }
@@ -403,6 +405,7 @@ export const BulkRemoveDiscovered: Story = {
                   deletions: 0,
                   unpushed_commits: 2,
                   exists_on_remote: false,
+                  leftover_files: 0,
                 },
               },
               { status: 409 }

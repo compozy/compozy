@@ -56,3 +56,14 @@ QA impact 2026-10-09 (Subagents tools slice): verify the four `compozy__subagent
 `sessions` toolset, active-turn rejection, narrowing-only budgets, and status acknowledgement.
 Scoped evidence: `TestNativeSubagentBindings`, `TestNativeSubagentPermissionBoundary`, and
 `TestHostedSubagentAnnotations`. The integrated provider-backed walk remains owned by the spec QA slice.
+
+QA impact and focused verification 2026-10-23 (harness dogfood): call `monitor_create` with
+an overlong description through hosted MCP. Expect stable `tool_invalid_input` / `schema_invalid`
+and safe `operator_cause` / `operator_recovery` naming description and its 200-character bound,
+without echoing its submitted value. Missing required schema fields likewise identify their
+declared path; arbitrary unknown keys and backend details stay masked. Existing native validation,
+shared transport, and real hosted-stdio daemon tests pass. Separately, the inline skill router
+requires Task guidance only when exercising daemon Task authority: ordinary delegated provider
+coding/review work can continue without unavailable native manuals, while capability bypass
+remains forbidden. Static instruction review is not a model-compliance score. See
+[focused verification](../reports/2026-10-23-harness-dogfood.md).

@@ -10,6 +10,9 @@ import (
 
 // RecoverPendingStops settles verified exits and terminates recovered orphans before boot admits work.
 func (m *Manager) RecoverPendingStops(ctx context.Context) error {
+	if err := m.ReconcileInactiveSessions(ctx); err != nil {
+		return err
+	}
 	infos, err := m.ListAll(ctx)
 	if err != nil {
 		return err
@@ -22,6 +25,12 @@ func (m *Manager) RecoverPendingStops(ctx context.Context) error {
 			continue
 		}
 		cause := CauseProcessExited
+		if info.StopReason == store.StopShutdown {
+			cause = CauseShutdown
+		}
+		if info.StopReason == store.StopUserCanceled {
+			cause = CauseUserRequested
+		}
 		if info.StopReason == store.StopError && info.StopDetail == resumeStopDetailStartIncomplete {
 			cause = CauseFailed
 		}

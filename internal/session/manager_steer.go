@@ -40,6 +40,10 @@ func (m *Manager) activateSteeringInputText(
 	if err != nil {
 		return err
 	}
+	commandRequest := promptRequest{target: session.ID, authoredMessage: entry.Text, humanIngress: entry.HumanIngress}
+	if err := m.prepareAgentCommandDelivery(ctx, &commandRequest, entry.Text); err != nil {
+		return err
+	}
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
 	if err != nil {
@@ -55,18 +59,52 @@ func (m *Manager) activateSteeringInputText(
 			return store.ErrSessionInputQueueEntryNotQueued
 		}
 	}
+	delivery, completion, err := m.injectSteeringInput(
+		ctx,
+		session,
+		proc,
+		entry,
+		providerText,
+		attachments,
+		commandRequest.delivery,
+	)
+	if err != nil {
+		return err
+	}
+	entry.SteerDelivery = delivery
+	resolved, err := m.persistSteerDelivery(session, entry, completion)
+	if err != nil {
+		return err
+	}
+	*entry = resolved
+	entry.SupersededIDs = superseded
+	session.mu.Lock()
+	session.steerDelivery = delivery
+	session.mu.Unlock()
+	m.emitSteerMarker(ctx, session, entry)
+	if completion != nil {
+		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
+	}
+	return m.activateSteerFallback(ctx, session, entry)
+}
+
+func (m *Manager) injectSteeringInput(
+	ctx context.Context, session *Session, proc *AgentProcess, entry *store.SessionInputQueueEntry,
+	providerText string, attachments []acp.PromptAttachment, deliveryMode PromptDelivery,
+) (store.SteerDeliveryMode, <-chan error, error) {
 	delivery := store.SteerDeliveryInterruptFallback
 	var completion <-chan error
 	// Live injection carries text and attachments only; guidance with mentions takes the prompt path so
 	// its resource links and session references reach the agent.
-	if steerer, ok := m.injectedSteerer(proc); ok && !hasStoredMentions(entry.MentionsJSON) &&
+	if steerer, ok := m.injectedSteerer(proc); ok && deliveryMode != PromptDeliveryAgentCommand &&
+		!hasStoredMentions(entry.MentionsJSON) &&
 		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)
 		origin, originErr := decodePromptOrigin(entry.Origin)
 		if originErr != nil {
 			cancel()
-			return originErr
+			return "", nil, originErr
 		}
 		session.raiseTurnHop(entry.TargetTurnID, originHop(origin))
 		text := entry.Text
@@ -94,21 +132,7 @@ func (m *Manager) activateSteeringInputText(
 				Warn("session: live steer failed; falling back", "entry_id", entry.ID, "error", steerErr)
 		}
 	}
-	entry.SteerDelivery = delivery
-	resolved, err := m.persistSteerDelivery(session, entry, completion)
-	if err != nil {
-		return err
-	}
-	*entry = resolved
-	entry.SupersededIDs = superseded
-	session.mu.Lock()
-	session.steerDelivery = delivery
-	session.mu.Unlock()
-	m.emitSteerMarker(ctx, session, entry)
-	if completion != nil {
-		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
-	}
-	return m.activateSteerFallback(ctx, session, entry)
+	return delivery, completion, nil
 }
 
 func (m *Manager) activateSteerFallback(

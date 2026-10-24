@@ -9,7 +9,6 @@ import (
 
 	"fmt"
 
-	"os"
 	"reflect"
 
 	"slices"
@@ -152,11 +151,11 @@ func (s *HostedService) validatePeer(peer PeerInfo) error {
 	if !peer.Supported {
 		return fmt.Errorf("%w: unsupported peer credential inspection", ErrHostedPeerInvalid)
 	}
-	if peer.PID <= 0 || peer.UID < 0 {
+	if peer.PID <= 0 {
 		return fmt.Errorf("%w: missing peer credentials", ErrHostedPeerInvalid)
 	}
-	if currentUID := os.Getuid(); currentUID >= 0 && peer.UID != currentUID {
-		return fmt.Errorf("%w: uid mismatch", ErrHostedPeerInvalid)
+	if err := validatePeerUser(peer); err != nil {
+		return err
 	}
 	matches, err := sameExecutablePath(s.expectedBinary, peer.ExecutablePath)
 	if err != nil {
@@ -208,7 +207,7 @@ func (r *hostedBindRecord) validatePeer(peer PeerInfo) error {
 	if r == nil {
 		return ErrHostedBindNotFound
 	}
-	if peer.PID != r.peer.PID || peer.UID != r.peer.UID {
+	if peer.PID != r.peer.PID || peer.UID != r.peer.UID || peer.UserSID != r.peer.UserSID {
 		return fmt.Errorf("%w: peer credential changed", ErrHostedPeerInvalid)
 	}
 	matches, err := sameExecutablePath(r.expectedBin, peer.ExecutablePath)

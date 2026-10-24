@@ -117,7 +117,13 @@ func (d *Daemon) RequestRestart(ctx context.Context) (RestartOperation, error) {
 		return RestartOperation{}, fmt.Errorf("daemon: mark restart operation stopping: %w", err)
 	}
 
+	d.mu.Lock()
+	d.restartRequested = true
+	d.mu.Unlock()
 	if err := runtime.signalProcess(operation.OldPID, syscall.SIGTERM); err != nil {
+		d.mu.Lock()
+		d.restartRequested = false
+		d.mu.Unlock()
 		return failRestartOperation(store, operation, "signal daemon shutdown", err)
 	}
 

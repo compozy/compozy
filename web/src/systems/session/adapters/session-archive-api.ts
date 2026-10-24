@@ -2,18 +2,26 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
-/** Archives a stopped session using its explicit owner profile. */
+/**
+ * Archives a session using its explicit owner profile. `stop` lets the daemon
+ * stop a live session through the normal stop path before archiving it.
+ */
 export async function archiveSession(
   workspaceId: string,
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  stop = false
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: stop ? { profile, stop: true } : { profile },
+      },
       signal,
     }
   );
@@ -33,7 +41,10 @@ export async function unarchiveSession(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       signal,
     }
   );

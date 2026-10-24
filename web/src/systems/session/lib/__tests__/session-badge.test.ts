@@ -1,9 +1,10 @@
 // Suite: session-badge
-// Invariant: one exported badge dictionary covers the daemon's eleven-token
+// Invariant: one exported badge dictionary covers the daemon's twelve-token
 // vocabulary exhaustively, is the only state-glyph/tone source for every
 // attention surface, spells out the state word wherever a glyph is shared so no
 // state reads as colour or shape alone, mirrors the daemon's attention classes,
-// and narrows unrecognized tokens to the honesty state.
+// draws `waiting` from the daemon's `waiting_on`, and narrows unrecognized tokens
+// to the honesty state.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -29,7 +30,7 @@ const WAITING_ON_YOU: SessionBadgeToken[] = [
 const NEEDS_YOU: SessionBadgeToken[] = [...WAITING_ON_YOU, "failed"];
 
 describe("session badge dictionary", () => {
-  it("Should cover the daemon's eleven-token vocabulary exhaustively (UT-050)", () => {
+  it("Should cover the daemon's twelve-token vocabulary exhaustively (UT-050)", () => {
     // The Go authority is internal/session/badge.go; a token added there must
     // land here or `satisfies Record<SessionBadgeToken, …>` stops compiling.
     expect([...SESSION_BADGES].sort()).toEqual(
@@ -43,6 +44,7 @@ describe("session badge dictionary", () => {
         "stopped",
         "unhealthy",
         "unknown",
+        "waiting",
         "waiting-for-auth",
         "waiting-for-input",
       ].sort()
@@ -99,6 +101,30 @@ describe("session badge dictionary", () => {
     // resting on the idle dot it shares.
     expect(SESSION_BADGE_SIGNAL.unknown.speaks).toBe(true);
     expect(SESSION_BADGE_SIGNAL.stopped.state).not.toBe(SESSION_BADGE_SIGNAL.unknown.state);
+  });
+
+  it("Should draw waiting from the daemon's waiting_on with its word, never a new glyph (UT-075)", () => {
+    const sessions = sessionBadgeSignal("waiting", "sessions");
+    expect(sessions).toMatchObject({
+      state: "delegated",
+      label: "waiting",
+      displayLabel: "Waiting on sessions",
+      attention: "none",
+      speaks: true,
+    });
+    const monitor = sessionBadgeSignal("waiting", "monitor");
+    expect(monitor).toMatchObject({
+      state: "monitoring",
+      label: "waiting",
+      displayLabel: "Monitoring",
+      attention: "none",
+      speaks: true,
+    });
+    // A missing reason keeps the sessions mark; waiting_on never alters another badge.
+    expect(sessionBadgeSignal("waiting").state).toBe("delegated");
+    expect(sessionBadgeSignal("done", "monitor").state).toBe("done");
+    expect(isFinishedBadge("waiting")).toBe(false);
+    expect(isNeedsYouBadge("waiting")).toBe(false);
   });
 
   it("Should render an unrecognized token as unknown rather than guessing", () => {

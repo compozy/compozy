@@ -7,6 +7,16 @@ HTTP, UDS, and CLI reads. Resolve it by id, name, or contained path. A ready wor
 session through `compozy session new --worktree <ref>`; create and bind one atomically with
 `--new-worktree [name]`. These selectors are mutually exclusive with `--cwd`.
 
+A governed child gets the same binding: `compozy spawn --worktree <ref>` or
+`--new-worktree[=name] [--base <ref>] [--branch <name>]`, native `compozy__session_spawn`
+`worktree`/`new_worktree`, and HTTP/UDS `POST /api/agent/spawn` with the same fields. The child
+starts with the worktree as its working directory and provider sandbox root. With a `workspace`
+that names another registered workspace, the cross-workspace spawn is authorized first and the
+worktree is resolved or created in that workspace. A worktree created for
+a refused spawn is removed again. The spawn result reports the worktree's `id`, `branch`, `path`,
+and `base_sha`; read live Git facts (commits ahead, dirty files, PR) with
+`compozy worktree status <ref> --refresh --forge -o json` or `compozy__worktree_inspect`.
+
 Worktree catalog reads are the profile-model exception: `compozy worktree list` always lists the
 workspace catalog across profiles, does not accept `--profile` or `--all-profiles`, and labels every
 row with its owning profile in human and structured output. Use that owner when choosing a worktree;
@@ -70,7 +80,10 @@ only the intended running operation with `compozy worktree exit-cancel <ref> --o
 finished id is a no-op and cannot cancel a later action.
 
 HTTP and UDS expose the same exit contract at `GET .../exit`, `POST .../exit/actions`, and
-`POST .../exit/cancel`. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
+`POST .../exit/cancel`. `POST .../exit/prepare` resolves forge capabilities with an eight-second
+request deadline and returns the same exit-plan payload without mutating Git. The Web PR action
+uses this explicit preparation before choosing native creation or browser fallback, including after
+a daemon restart. Ordinary `GET .../exit` reads remain provider-free. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
 `{action, message?, title?, body?, draft?, base?, include_paths?, expected_scope?, delivery_id?, expected_head?}`
 and accepted execution returns `{op_id}`. For `action: "deliver"`, `delivery_id`, `expected_head`,
 `message`, `base`, a nonempty `include_paths`, and `expected_scope` are required; the validated
@@ -134,7 +147,17 @@ combined with a ref or `--delete-branch`. A path that a live record owns, in thi
 workspace on the same repository, is refused with `worktree_registered`: remove that record by its ref. The `worktree.pre_remove` gate runs with
 `discovered: true`, an empty `worktree_id` and no `origin`.
 
-In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed refusal with a risk
+An orphaned checkout is a folder that still exists while its `.git` link is gone and Git still
+registers it (`prunable`), usually left by an interrupted removal. Git refuses to remove it even with
+force, so CompozyOS answers `409 worktree_checkout_orphaned` on both the record and the `--path` route,
+with an `error` sentence and a risk inventory: `risk.leftover_files` counts every leftover file (Git
+cannot tell which changed) and `risk.unpushed_commits` counts commits only a detached HEAD still
+holds. Nothing is removed. Retry with `--force` after review: CompozyOS deletes the leftover folder,
+then clears only that entry from Git's list; the branch is kept unless `--delete-branch` applies its
+usual rules. A daemon restart during a removal leaves such a record `ready` for this decision instead
+of failing startup.
+
+In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed/orphaned refusal with a risk
 inventory offers **Force remove…**, which opens a second confirmation listing only eligible
 worktrees and their changed files and unique commits. Confirming retries only those targets with
 force. With **Also delete local branches** selected, this also authorizes deletion of their unmerged
@@ -145,7 +168,8 @@ stale entry…**) and join **Select worktrees…**. They are removed by Git path
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and
 discovery freshness. Defaults are empty `root` (resolved under `$COMPOZY_HOME/worktrees`), `run/`,
-empty `copy_list` and `setup_command`, `10m` setup timeout, and `30s` discovery TTL. All apply live to
+empty `copy_list`, `setup_command` and `teardown_command`, `10m` setup and teardown timeouts,
+and `30s` discovery TTL. All apply live to
 later operations; existing paths and accepted decisions do not move. Read
 `references/configuration.md` in full before changing them. Task and Loop policies remain in
 `references/tasks-and-orchestration.md` and `references/loops.md`.
@@ -158,7 +182,8 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`,
 `worktree_registered`, `worktree_discovered_changed`, `worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
 `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`,
-`worktree_safety_check_failed`, `worktree_removal_failed`, `per_run_materialization_failed`,
+`worktree_safety_check_failed`, `worktree_removal_failed`, `worktree_checkout_orphaned`,
+`per_run_materialization_failed`,
 `worktree_config_invalid`, `worktree_denied_by_hook`, `worktree_not_pending`, `forge_unavailable`,
 `forge_error`, and `worktree_exit_action_invalid`.
 
@@ -206,3 +231,38 @@ cleanup remains anchored and is retried at the next daemon boot.
 Settlement fields, including `pull_request_status`, are omitted while the child is running.
 A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
 that no PR exists.
+
+### Display observations and delivery evidence
+
+Worktree and session displays share canonical PR observations keyed by workspace, normalized origin
+repository and branch. Changing origin never reuses facts from the old repository. The cache favors
+an open PR from that same repository, then the most recently updated terminal PR. Display observations
+expire after 60 seconds for open/no PR results and 10 minutes for terminal PRs. Provider errors retain
+facts, delay automatic retries and expose lookup state. These cached facts never authorize delivery
+or removal: exact delivery queries and current-HEAD cleanup checks obtain action-local evidence.
+Completed actions request a separate canonical display refresh.
+
+## Teardown on removal
+
+Set `worktrees.teardown_command` to clean up resources started by setup, for example
+`docker compose down`. The default is empty (disabled); `teardown_timeout` defaults to `10m`
+and must be positive. Both keys merge independently across user, profile, workspace and
+workspace-profile layers. Removal resolves these settings for the worktree owner profile.
+An explicit empty command disables an inherited command.
+
+Teardown runs in the managed checkout after removal safety checks and `worktree.pre_remove`
+approval, before Git removes the directory. Hook denial skips teardown, including forced removal.
+It uses the same shell and allowlisted environment as setup: `PATH`, `HOME`, `LANG`, `TMPDIR`,
+`LC_*`, `SHELL`, `COMPOZY_WORKSPACE_ROOT`, `COMPOZY_WORKTREE_PATH`, `COMPOZY_WORKTREE_ID`, and
+`COMPOZY_WORKTREE_BRANCH`. Load any project-specific environment from the checkout explicitly.
+
+Each stdout/stderr stream is captured up to 16 KiB and redacted as a whole, including multiline
+secrets. When the command finishes, the worktree event stream publishes the captured output as
+`worktree.teardown_output` with `stream` and `chunk`. A launch failure, nonzero exit or timeout emits `worktree.teardown_failed`
+with a bounded diagnostic and continues removal. A timeout terminates the command's process group.
+Removal rechecks checkout identity and unpushed-work risks after teardown; commands should be safe to retry.
+These events do not change the recorded setup result.
+
+Dismiss remains metadata-only and never runs teardown, even if a checkout reappears. Missing paths,
+already removed records and discovered, unregistered worktrees also skip teardown. Adopted records
+use the configured teardown when removed. Unset teardown preserves existing removal behavior.

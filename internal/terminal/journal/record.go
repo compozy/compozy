@@ -13,6 +13,7 @@ import (
 
 // Record appends one immutable command row.
 func (s *Service) Record(ctx context.Context, workspaceID string, row terminalpkg.CommandRow) error {
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, row.ProfileID)
 	if err := validateCommandRow(workspaceID, row); err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func (s *Service) RecordQueued(
 	info terminalpkg.Info,
 	row terminalpkg.CommandRow,
 ) error {
-	if err := validateCommandRow(info.WS, row); err != nil {
+	if err := validateCommandRow(terminalpkg.JournalWorkspaceID(info.WS, info.ProfileID), row); err != nil {
 		return err
 	}
 	lane, owned := s.ensureLane(info, nil, nil)
@@ -104,6 +105,7 @@ func (s *Service) LinkRecording(
 	terminalID terminalpkg.ID,
 	recording terminalpkg.RecordingRef,
 ) error {
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, recording.ProfileID)
 	if strings.TrimSpace(recording.ID) == "" || strings.TrimSpace(recording.ProfileID) == "" {
 		return errors.New("terminal journal: recording id and profile id are required")
 	}

@@ -46,7 +46,6 @@ vi.mock("../use-session-window-controller", () => ({
     commandCatalog: [],
     commandCatalogStatus: "ready",
     controls: mocks.controls,
-    deleteDialog: { open: false },
     inspector: { open: false },
     sessionContext: { context: { state: "unknown" } },
     sessionUsageTurns: {},
@@ -54,13 +53,13 @@ vi.mock("../use-session-window-controller", () => ({
     inspectorUsage: null,
     refreshCommandCatalog: vi.fn(),
     promptRuntimeSnapshot: null,
-    renameDialog: { open: false },
     sidebar: {
       collapsedThreadIds: [],
+      subagentThreadIds: [],
       disconnected: false,
       onNewSession: vi.fn(),
       onSelectSession: mocks.selectSession,
-      onToggleThread: vi.fn(),
+      onThreadBranchChange: vi.fn(),
       open: false,
       rowDeleteDialog: { open: false },
       rowRenameDialog: { open: false },
@@ -78,7 +77,6 @@ vi.mock("../use-session-window-derive", () => ({
     origin: null,
     originContext: null,
     onOpenOriginSource: vi.fn(),
-    onContinue: vi.fn(),
   }),
 }));
 
@@ -112,6 +110,8 @@ vi.mock("@/systems/session", async () => ({
   SessionSidebarLayout: ({ children }: { children: ReactNode }) => children,
   SessionDeriveHost: ({ children }: { children: ReactNode }) => children,
   SessionOriginContext: createContext(null),
+  SessionClearContext: (await import("@/systems/session/contexts/session-clear-context-value"))
+    .SessionClearContext,
   useCreateSession: () => mocks.forkMutation,
 }));
 
@@ -121,8 +121,13 @@ import { SessionWindowContent } from "../session-window-content";
 import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
 
 const deadSession: SessionPayload = {
+  board_column: "done",
+  pull_request: null,
+  pull_request_lookup: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   agent_name: "codex-agent",
   archived_at: null,
   attachable: false,
@@ -177,7 +182,6 @@ function renderContent(session: SessionPayload) {
       <SessionWindowContent
         agentName="codex-agent"
         liveDataEnabled={false}
-        onDeleteSuccess={vi.fn()}
         session={session}
         sessionId={session.id}
         windowId={`session:${session.id}`}
@@ -205,7 +209,6 @@ function renderUnverifiedStop() {
       <SessionWindowContent
         agentName="codex-agent"
         liveDataEnabled={false}
-        onDeleteSuccess={vi.fn()}
         session={unverifiedStopSession}
         sessionId={unverifiedStopSession.id}
         windowId={`session:${unverifiedStopSession.id}`}
@@ -244,7 +247,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={session}
           sessionId={session.id}
           windowId={`session:${session.id}`}
@@ -281,7 +283,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={session}
           sessionId={session.id}
           windowId={`session:${session.id}`}
@@ -355,7 +356,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={{ ...unverifiedStopSession, type: "system" }}
           sessionId={unverifiedStopSession.id}
           windowId={`session:${unverifiedStopSession.id}`}
@@ -393,7 +393,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={deadSession}
           sessionId="sess-dead"
           windowId="session:sess-dead"
@@ -445,7 +444,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={recoveringSession}
           sessionId={recoveringSession.id}
           windowId={`session:${recoveringSession.id}`}
@@ -481,7 +479,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={session}
           sessionId={session.id}
           windowId={`session:${session.id}`}
@@ -527,7 +524,6 @@ describe("SessionWindowContent", () => {
         <SessionWindowContent
           agentName="codex-agent"
           liveDataEnabled={false}
-          onDeleteSuccess={vi.fn()}
           session={session}
           sessionId={session.id}
           windowId={`session:${session.id}`}

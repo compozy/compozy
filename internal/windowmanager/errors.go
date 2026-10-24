@@ -6,6 +6,7 @@ import (
 )
 
 var (
+	ErrWindowBindingInvalid          = errors.New("window_binding_invalid")
 	ErrWorkspaceNotFound             = errors.New("window manager workspace not found")
 	ErrSnapshotNotFound              = errors.New("window manager snapshot not found")
 	ErrRevisionConflict              = errors.New("window manager revision conflict")

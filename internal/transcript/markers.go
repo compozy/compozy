@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/events"
+	redactpkg "github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -49,7 +50,7 @@ func NewMarker(kind string, summary string, occurredAt time.Time, evidence map[s
 		Kind:       strings.TrimSpace(kind),
 		OccurredAt: occurredAt.UTC(),
 		Summary:    diagnostics.RedactAndBound(strings.TrimSpace(summary), maxMarkerSummaryBytes),
-		Evidence:   diagnostics.RedactEvidence(evidence),
+		Evidence:   redactMarkerEvidence(evidence),
 	}
 	if marker.OccurredAt.IsZero() {
 		marker.OccurredAt = time.Now().UTC()
@@ -77,13 +78,35 @@ func (m Marker) Normalize() Marker {
 		Kind:       strings.TrimSpace(m.Kind),
 		OccurredAt: m.OccurredAt.UTC(),
 		Summary:    diagnostics.RedactAndBound(strings.TrimSpace(m.Summary), maxMarkerSummaryBytes),
-		Evidence:   diagnostics.RedactEvidence(m.Evidence),
+		Evidence:   redactMarkerEvidence(m.Evidence),
 		Diagnostic: redactRawMessage(m.Diagnostic),
 	}
 	if normalized.OccurredAt.IsZero() {
 		normalized.OccurredAt = time.Now().UTC()
 	}
 	return normalized
+}
+
+// redactMarkerEvidence redacts free-text evidence like diagnostics evidence but
+// gives identity handles (`id`, `*_id`) the exact-only structural redaction that
+// tool call ids get: the entropy heuristic would collapse distinct ULID-shaped
+// handles (`wake_01…`, `inq_01…`) into one `[REDACTED]` identity, which clients
+// bind steer provenance by. Sensitive key names stay fully redacted.
+func redactMarkerEvidence(evidence map[string]any) map[string]any {
+	redacted := diagnostics.RedactEvidence(evidence)
+	for key, value := range evidence {
+		key = strings.TrimSpace(key)
+		handle, ok := value.(string)
+		if !ok || !isMarkerIdentityKey(key) || redactpkg.IsSensitiveKey(key) {
+			continue
+		}
+		redacted[key] = redactStructuralString(handle)
+	}
+	return redacted
+}
+
+func isMarkerIdentityKey(key string) bool {
+	return key == "id" || strings.HasSuffix(key, "_id")
 }
 
 // AgentEvent converts the marker to the durable transcript marker event shape.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 func validateSchemaEnum(path string, raw json.RawMessage, value any) error {
@@ -22,7 +23,7 @@ func validateSchemaEnum(path string, raw json.RawMessage, value any) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("%s: value is not allowed", path)
+	return schemaViolation(path, "value is not allowed")
 }
 
 func (v schemaValidator) validateSchemaAllOf(path string, raw json.RawMessage, value any) error {
@@ -51,7 +52,7 @@ func (v schemaValidator) validateSchemaAnyOf(path string, raw json.RawMessage, v
 			return nil
 		}
 	}
-	return fmt.Errorf("%s: value must match at least one anyOf schema", path)
+	return schemaViolation(path, "value must match at least one anyOf schema")
 }
 
 func (v schemaValidator) validateSchemaOneOf(path string, raw json.RawMessage, value any) error {
@@ -69,7 +70,7 @@ func (v schemaValidator) validateSchemaOneOf(path string, raw json.RawMessage, v
 		}
 	}
 	if matches != 1 {
-		return fmt.Errorf("%s: value matched %d oneOf schemas, want exactly one", path, matches)
+		return schemaViolation(path, "value matched %d oneOf schemas, want exactly one", matches)
 	}
 	return nil
 }
@@ -83,7 +84,21 @@ func (v schemaValidator) validateSchemaNot(path string, raw json.RawMessage, val
 		return nil
 	}
 	if err := v.validateSchemaNode(path+".not", node, value); err == nil {
-		return fmt.Errorf("%s: value matched forbidden schema", path)
+		return schemaViolation(path, "value matched forbidden schema")
 	}
 	return nil
+}
+
+// schemaValidationError contains only declared schema paths and authored constraints.
+// Submitted values and unknown property names must never enter operator diagnostics.
+type schemaValidationError struct{ message string }
+
+func (e *schemaValidationError) Error() string { return e.message }
+
+func schemaViolation(path, format string, args ...any) error {
+	path = strings.ToValidUTF8(path, "?")
+	if runes := []rune(path); len(runes) > 128 {
+		path = string(runes[:128]) + "..."
+	}
+	return &schemaValidationError{message: fmt.Sprintf("%q: %s", path, fmt.Sprintf(format, args...))}
 }

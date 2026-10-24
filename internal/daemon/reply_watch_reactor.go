@@ -8,7 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (d *Daemon) bootReplyWatches(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootReplyWatches(_ context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
@@ -22,8 +22,5 @@ func (d *Daemon) bootReplyWatches(ctx context.Context, state *bootState) error {
 		return err
 	}
 	manager.SetReplyWatchService(service)
-	if err := service.Recover(ctx); err != nil {
-		return err
-	}
 	return nil
 }

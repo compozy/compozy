@@ -193,6 +193,7 @@ type PromptRequest struct {
 	Generation                int64
 	Message                   string
 	Maintenance               bool
+	AgentCommand              bool
 	Sections                  []PromptSection
 	Attachments               []PromptAttachment
 	SessionReferences         string               // rendered session-references block; empty when none
@@ -201,6 +202,11 @@ type PromptRequest struct {
 	Meta                      PromptMeta
 	ActivityReporter          PromptActivityReporter
 	ActivityHeartbeatInterval time.Duration
+}
+
+// BypassesContext preserves native commands without advancing ordinary prompt context delivery.
+func (r PromptRequest) BypassesContext() bool {
+	return r.Maintenance || r.AgentCommand
 }
 
 // PromptAttachment carries resolved attachment bytes into the ACP boundary.

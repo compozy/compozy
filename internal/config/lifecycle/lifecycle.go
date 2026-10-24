@@ -77,6 +77,7 @@ type Rule struct {
 // Matrix is the canonical config lifecycle matrix. Patterns use "." path
 // segments and "*" wildcards for one segment.
 var Matrix = []Rule{
+	{Pattern: "user_scope.work_dir", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "subagents.result_max_chars", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "attention.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "provider_usage.*", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -116,6 +117,7 @@ var Matrix = []Rule{
 		DiffClass: DiffClassRestartRequired,
 	},
 	{Pattern: "daemon.socket", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
+	{Pattern: "daemon.shutdown_grace", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "daemon.load.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "automation.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "loops.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},

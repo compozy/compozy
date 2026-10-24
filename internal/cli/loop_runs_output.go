@@ -52,7 +52,11 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 	return bundle
 }
 
-func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Time) outputBundle {
+func loopRunsOutputBundle(
+	response contract.LoopRunsResponse,
+	now func() time.Time,
+	projectNames ...map[string]string,
+) outputBundle {
 	items := loopRunCLIJSONItems(response.Runs)
 	jsonResponse := struct {
 		Items      []loopRunCLIJSONItem `json:"items"`
@@ -62,7 +66,7 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 		response,
 		response.Runs,
 		"Loop runs",
-		[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
+		[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", cliStartedHeader, loopDurationHeader},
 		"loop_runs",
 		[]string{
 			"id",
@@ -86,12 +90,24 @@ func loopRunsOutputBundle(response contract.LoopRunsResponse, now func() time.Ti
 	bundle.human = func() (string, error) {
 		rows := make([][]string, 0, len(response.Runs))
 		for index := range response.Runs {
-			rows = append(rows, loopRunSummaryRow(&response.Runs[index], now))
+			row := loopRunSummaryRow(&response.Runs[index], now)
+			if len(projectNames) > 0 {
+				row = append([]string{projectNames[0][response.Runs[index].WorkspaceID]}, row...)
+			}
+			rows = append(rows, row)
 		}
-		return renderLoopReadTable(
-			[]string{cliStatusHeader, cliProfileHeader, taskLoopColumn, "PROGRESS", "STARTED", loopDurationHeader},
-			rows,
-		), nil
+		headers := []string{
+			cliStatusHeader,
+			cliProfileHeader,
+			taskLoopColumn,
+			"PROGRESS",
+			cliStartedHeader,
+			loopDurationHeader,
+		}
+		if len(projectNames) > 0 {
+			headers = append([]string{cliProjectHeader}, headers...)
+		}
+		return renderLoopReadTable(headers, rows), nil
 	}
 	return bundle
 }

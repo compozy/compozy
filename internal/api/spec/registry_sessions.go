@@ -5,10 +5,13 @@ import "github.com/compozy/compozy/internal/api/contract"
 func registrySessionOperations() []OperationSpec {
 	return []OperationSpec{
 		createSessionOperationSpec(),
+		refreshSessionPullRequestOperation(),
 		getSessionByIDOperationSpec(),
 		getSessionOwnerOperationSpec(),
 		getSessionOperationSpec(),
 		renameSessionOperationSpec(),
+		setSessionParentOperationSpec(),
+		clearSessionParentOperationSpec(),
 		getSessionCommandsOperationSpec(),
 		searchSessionFilesOperationSpec(),
 		compactSessionOperationSpec(),

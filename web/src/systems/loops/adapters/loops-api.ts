@@ -7,6 +7,11 @@ export {
   resumeLoopNode,
 } from "./loop-nodes-api";
 export { getLoopRequest, listLoopRequests, respondLoopRequest } from "./loop-requests-api";
+export {
+  listLoopRequestsAggregate,
+  listLoopRunsAggregate,
+  listLoopsAggregate,
+} from "./loops-aggregate-api";
 export { getLoopRunBriefing, getLoopRunRoster, getLoopRunTimeline } from "./loop-run-reads-api";
 export { amendLoopNode, diffLoopRun, forkLoopRun, rerunLoopRun } from "./loop-timetravel-api";
 export {

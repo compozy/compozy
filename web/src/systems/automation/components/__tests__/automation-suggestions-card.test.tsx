@@ -1,5 +1,6 @@
 // Suite: automation suggestion consent card
-// Invariant: a proposal remains actionable until its server-backed action succeeds.
+// Invariant: a proposal remains actionable until its server-backed action succeeds, and an
+//   All projects proposal is accepted or dismissed in its own project.
 // Boundary IN: suggestion card rendering and operator actions.
 // Boundary OUT: TanStack mutations and HTTP adapters, covered by their canonical suites.
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -117,13 +118,40 @@ describe("AutomationSuggestionsCard", () => {
       new Error("An automation lifecycle command is already running.")
     );
 
-    render(<AutomationSuggestionsPanel workspaceID="ws_alpha" />);
+    render(<AutomationSuggestionsPanel source={{ kind: "workspace", workspaceID: "ws_alpha" }} />);
     fireEvent.click(screen.getByRole("button", { name: "Create automation" }));
 
     expect(
       await screen.findByText("An automation lifecycle command is already running.")
     ).toHaveAttribute("role", "alert");
     expect(screen.getByTestId(`automation-suggestion-${suggestion.id}`)).toBeInTheDocument();
+  });
+
+  it("acts on each All projects suggestion in its own project and names that project", async () => {
+    const other = { ...suggestion, id: "suggestion_other", workspace_id: "ws_beta" };
+    suggestionHooks.query.current = {
+      data: { suggestions: [other] },
+      isError: false,
+      isPending: false,
+      refetch: vi.fn(),
+    };
+    suggestionHooks.accept.mutateAsync.mockResolvedValueOnce({});
+
+    render(
+      <AutomationSuggestionsPanel
+        projectBadge={item => <span data-testid="suggestion-project">{item.workspace_id}</span>}
+        source={{ kind: "all", workspaceIDs: [] }}
+      />
+    );
+    expect(screen.getByTestId("suggestion-project")).toHaveTextContent("ws_beta");
+    fireEvent.click(screen.getByRole("button", { name: "Create automation" }));
+
+    await vi.waitFor(() =>
+      expect(suggestionHooks.accept.mutateAsync).toHaveBeenCalledWith({
+        workspaceID: "ws_beta",
+        suggestionID: "suggestion_other",
+      })
+    );
   });
 
   it("disables both row actions while one server action is pending", () => {

@@ -173,7 +173,7 @@ func (h *BaseHandlers) sessionStreamAttrs(
 	workspaceID, workspacePath := h.streamWorkspaceFields(info)
 	return []any{
 		"session_id", sessionID,
-		"workspace_id", workspaceID,
+		workspaceIDKey, workspaceID,
 		"workspace_path", workspacePath,
 		"frame_mode", frameMode,
 		"cursor", cursor,

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -20,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func TestWorkspaceUnknownConfigKeys(t *testing.T) {
@@ -454,6 +457,226 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 		}
 		if captured.DefaultAgent == nil || *captured.DefaultAgent != "coder" {
 			t.Fatalf("captured default agent = %#v", captured.DefaultAgent)
+		}
+	})
+}
+
+func TestUserWorkspaceReferenceGuard(t *testing.T) {
+	t.Parallel()
+	t.Run("Should admit User loops goals and terminals while rejecting worktrees", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		for _, surface := range []string{"loops", "loop-runs", "loop-requests", "terminals", "goal", "session-order"} {
+			path := "/workspaces/:workspace_id/" + surface
+			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			for _, suffix := range []string{"", "?worktree=feature"} {
+				resp := performRequest(t, router, http.MethodGet, "/workspaces/@user/"+surface+suffix, nil)
+				expected := http.StatusNoContent
+				if suffix != "" {
+					expected = http.StatusBadRequest
+				}
+				if resp.Code != expected {
+					t.Fatalf("%s%s = %d", surface, suffix, resp.Code)
+				}
+			}
+		}
+	})
+
+	t.Run("Should admit User selectors on agent, task, automation and Home reads", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		for _, path := range []string{"/agents", "/agents/:name", "/tasks", "/automation/runs", "/observe/overview"} {
+			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		}
+		for _, target := range []string{
+			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/tasks?workspace=@user",
+			"/automation/runs?workspace_id=@user", "/observe/overview?workspace=@user",
+		} {
+			if resp := performRequest(t, router, http.MethodGet, target, nil); resp.Code != http.StatusNoContent {
+				t.Fatalf("%s = %d, want the User selector admitted", target, resp.Code)
+			}
+		}
+	})
+
+	for _, tc := range []struct{ path, code string }{
+		{"/workspaces/@user", "user_scope_unsupported"},
+		{"/workspaces/@user/worktrees", "user_scope_worktree_unsupported"},
+		{"/catalog?workspace=@user", "user_scope_unsupported"},
+		{"/catalog?workspace_id=@user&worktree=feature", "user_scope_worktree_unsupported"},
+	} {
+		t.Run("Should reject unsupported User reference "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			router := gin.New()
+			router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+			for _, path := range []string{"/workspaces/:workspace_id", "/workspaces/:workspace_id/worktrees", "/catalog"} {
+				router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			}
+			resp := performRequest(t, router, http.MethodGet, tc.path, nil)
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != tc.code {
+				t.Fatalf("response = %d %#v", resp.Code, payload)
+			}
+		})
+	}
+}
+
+func TestUserSessionWorktreeReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a User worktree before resolving the workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions",
+			[]byte(`{"workspace":"@user","agent_name":"general","worktree":"feature"}`),
+		)
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusBadRequest || payload.Code != "user_scope_worktree_unsupported" {
+			t.Fatalf("response = %d %#v", resp.Code, payload)
+		}
+	})
+}
+
+func TestUserSessionScopeConflict(t *testing.T) {
+	t.Run("Should reject conflicting scope before workspace or worktree resolution", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		router := gin.New()
+		router.POST("/api/sessions", fixture.Handlers.CreateSession)
+		for _, body := range []string{`{"scope":"user","workspace":"ws-a"}`, `{"scope":"user","worktree":"wt-a"}`, `{"scope":"user","new_worktree":{}}`, `{"scope":"user","workspace_path":"/tmp"}`} {
+			resp := performRequest(t, router, http.MethodPost, "/api/sessions", []byte(body))
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != "session_create_scope_conflict" {
+				t.Fatalf("response=%d %+v", resp.Code, payload)
+			}
+		}
+	})
+}
+
+func TestUserSessionCreate(t *testing.T) {
+	t.Run("Should create a User session without resolving a registered workspace", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				if opts.Session.Scope != workspacepkg.ScopeUser || opts.Session.Workspace != "" ||
+					opts.Session.WorkspacePath != "" {
+					t.Fatalf("opts=%+v", opts)
+				}
+				return &session.Info{
+					ID:        "sess-user",
+					ProfileID: store.DefaultProfileID,
+					State:     session.StateActive,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.POST("/api/sessions", fixture.Handlers.CreateSession)
+		resp := performRequest(
+			t,
+			router,
+			http.MethodPost,
+			"/api/sessions",
+			[]byte(`{"scope":"user","agent_name":"general"}`),
+		)
+		var payload contract.SessionResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusCreated || payload.Session.Scope != "user" || payload.Session.WorkspaceID != "" {
+			t.Fatalf("response=%d %+v", resp.Code, payload)
+		}
+	})
+}
+
+func TestUserLogsReferenceGuard(t *testing.T) {
+	t.Parallel()
+	t.Run("Should admit explicit User logs and preserve the selector", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		router.GET("/logs", func(c *gin.Context) {
+			query, err := core.ParseLogsQuery(c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.JSON(http.StatusOK, gin.H{"workspace": query.WorkspaceID})
+		})
+		resp := performRequest(t, router, http.MethodGet, "/logs?workspace_id=@user", nil)
+		var payload struct {
+			Workspace string `json:"workspace"`
+		}
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Workspace != workspaceaccess.UserSelector {
+			t.Fatalf("response = %d %#v", resp.Code, payload)
+		}
+	})
+}
+
+func TestUserSessionRouteAllProfilesRead(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read one User session under the all-profiles lens through its own profile", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			if id != "sess-user" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID:        id,
+				ProfileID: store.DefaultProfileID,
+				AgentName: "coder",
+				State:     session.StateStopped,
+			}, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/@user/sessions/sess-user?all_profiles=true",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET User session (all_profiles) = %d %s, want 200", resp.Code, resp.Body.String())
 		}
 	})
 }

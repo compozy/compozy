@@ -23,7 +23,7 @@ go install github.com/compozy/compozy@{{ .Tag }}
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
-The installer downloads the configured v0.3 archive for macOS or Linux, uses local `cosign` when
+The installer downloads the release archive for macOS or Linux, uses local `cosign` when
 present or a pinned temporary verifier when absent, verifies it against `checksums.txt`, installs
 `compozy`, and starts `compozy install` when an interactive terminal is available.
 
@@ -33,5 +33,9 @@ Download the appropriate `compozy_<os>_<arch>.tar.gz` asset for your platform an
 {{- if eq .Env.HOMEBREW_SKIP_UPLOAD "true" }}
 Homebrew is intentionally unavailable for this prerelease.
 {{- else }}
-Homebrew distribution is updated for this stable release.
+
+#### Homebrew
+```bash
+brew install compozy/compozy/compozy
+```
 {{- end }}

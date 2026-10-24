@@ -2,13 +2,10 @@ package automation
 
 import (
 	"context"
-	"maps"
-
 	"errors"
 	"fmt"
-
+	"maps"
 	"strings"
-
 	"time"
 )
 
@@ -81,6 +78,7 @@ func (e *TriggerEngine) claimPersistentWebhookDelivery(
 	now := e.now()
 	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
 	run := Run{
+		WorkspaceID: new(trigger.WorkspaceID), Attribution: "recorded",
 		ProfileID: strings.TrimSpace(trigger.ProfileID),
 		ID:        runID,
 		TriggerID: strings.TrimSpace(trigger.ID),

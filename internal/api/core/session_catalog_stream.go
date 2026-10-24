@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -17,7 +19,7 @@ const sessionCatalogChangedEvent = "session_catalog_changed"
 
 // StreamSessionCatalog emits workspace-identified wake signals for catalog reconciliation.
 func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog stream") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog stream") {
 		return
 	}
 	subscriber, ok := h.Sessions.(SessionCatalogEventSubscriber)
@@ -159,6 +161,9 @@ func (h *BaseHandlers) parseSessionCatalogWorkspace(c *gin.Context) (bool, strin
 	}
 	if allWorkspaces {
 		return true, "", nil
+	}
+	if workspaceRef == workspaceaccess.UserSelector {
+		return false, workspaceaccess.UserSelector, nil
 	}
 	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
 	if err != nil {

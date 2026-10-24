@@ -22,12 +22,23 @@ task-level `needs_attention` recovery; use those only for their narrower daemon-
 
 ## Bounded worker tools
 
-`compozy__session_spawn` requires an explicit `tools` subset for a worker that uses native tools.
-Omitted or empty permissions do not inherit the parent's access. Inspect the parent's lineage
-permission budget and grant only required concrete IDs; bootstrap commonly needs `compozy__tool_search`,
-`compozy__tool_info`, `compozy__tool_artifact_read`, `compozy__skill_search`, and `compozy__skill_view`.
-The CLI equivalent repeats `compozy spawn --tool <id>`. Agent policy and parent-subset validation
-still apply. A missing required grant blocks the task rather than authorizing a filesystem/CLI bypass.
+`compozy__session_spawn` grants native tools only through its permission inputs. Without
+`inherit_permissions`, omitted or empty lists grant nothing. With `inherit_permissions: true`, every
+omitted list keeps the parent's grant, and a list you pass (including `[]`) replaces only that
+category. `toolsets` selects the parent-granted members of named toolsets such as
+`compozy__sessions`; it never widens the parent. Every result is still checked against the parent's
+grant and the child agent's policy. The explicit default is deliberate: a long-lived worker gets
+only what you hand it. The CLI equivalents are `compozy spawn --tool <id>`, `--toolset <id>`, and
+`--inherit-permissions`. A refusal names the field, the refused value, the rule, and a recovery hint.
+
+These grants govern CompozyOS-native tools (`compozy__*`) only. The provider's own shell, file-edit,
+and search tools run under the child's provider sandbox and permission mode. A missing native grant
+is not a reason to stop using the provider's own tools for ordinary work in the child's checkout.
+What a missing grant forbids is using a filesystem or CLI path to reach the CompozyOS capability that
+was withheld, such as editing daemon state or calling `compozy` verbs on the withheld surface.
+When a worker should rely on its provider shell, say so in `prompt_overlay` or the first prompt.
+
+## Ask an existing session and wait for its reply
 
 ## Ask an existing session and wait for its reply
 
@@ -56,8 +67,18 @@ the protocol in `references/native-tools.md`: capabilities → delegate async �
 `compozy__subagent_status` → answer.
 
 Use `compozy__session_spawn` for a long-lived governed worker that outlives your turn, needs an
-explicit TTL and an explicit tool subset, or is driven by repeated `session_prompt` calls. Use tasks
-when the work needs daemon-owned state, leases, review verdicts, or a scheduler.
+explicit TTL and governed permissions, or is driven by repeated `session_prompt` calls. Pass
+`worktree` or `new_worktree` to give the worker its own checkout, and `prompt` to send its first
+task with a reply watch in the same call. Use tasks when the work needs daemon-owned state, leases,
+review verdicts, or a scheduler.
+
+The two delegation paths have different limits. A spawned child counts against the parent's
+`max_children` (5 by default) and spawn depth (1 by default), and has a TTL. Only live children
+(starting, active, or stopping) hold a slot: a stopped or TTL-reaped child frees it, and subagents
+never count. An exhausted budget fails with reason `spawn_budget_exhausted`, whose cause names the
+cap, its value, and the live count; stop a finished child to free a slot. A subagent is bounded by
+the caller's active turn instead: no TTL, depth, or count cap. Pick spawn for a fleet of governed
+workers, and subagents for answers your current turn waits on.
 
 Subagents are not task authority. A subagent's result is evidence for your turn; it does not complete,
 claim, or review a task run. Subagents share your workspace and worktree by default, so concurrent
@@ -150,7 +171,11 @@ When an agent session creates a task, CompozyOS wakes that creator session on th
 Governed child sessions have the parallel session-level feedback path. `compozy spawn` and
 `compozy__session_spawn` default `notify_creator` to true, then queue one sanitized synthetic turn on
 the parent when the child completes a turn, stops, fails, or enters a needs-you state. A canceled
-child turn sends no completed wake. Use CLI
+child turn sends no completed wake. When the parent holds an open reply watch on the child (a spawn
+`prompt`, or `session_prompt` with `notify_on_complete`), the reply wake carries the child's final
+answer and the bare completed wake is skipped. Otherwise the completed wake points at
+`compozy__session_history` for the answer; pass `type: "agent_message"` and the reply's `turn_id`
+to omit tool payloads. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
 must not wake its parent. The default is fixed in v1 and has no `config.toml` key. Delivery never
 interrupts the parent's active prompt, is suppressed when the parent is not live or the child would

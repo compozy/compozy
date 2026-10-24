@@ -41,6 +41,7 @@ func (m *Manager) Supervise(ctx context.Context, now time.Time) error {
 }
 
 func (m *Manager) superviseSession(ctx context.Context, target *Session, now time.Time) error {
+	target.supervisionInspectMu.Lock()
 	target.mu.RLock()
 	progress := target.supervisionProgressAt
 	target.mu.RUnlock()
@@ -49,8 +50,10 @@ func (m *Manager) superviseSession(ctx context.Context, target *Session, now tim
 	target.mu.Lock()
 	if target.State != StateActive || target.supervisionProgressAt != progress {
 		target.mu.Unlock()
+		target.supervisionInspectMu.Unlock()
 		return nil
 	}
+	before := target.infoLocked()
 	previous := CloneSupervisionState(target.supervisionState)
 	state.QuietWarning = previous.QuietWarning
 	turnInFlight := target.turnAwaitsAgentLocked()
@@ -67,8 +70,9 @@ func (m *Manager) superviseSession(ctx context.Context, target *Session, now tim
 	stop := !target.supervisionStopAt.IsZero() && !now.Before(target.supervisionStopAt)
 	target.mu.Unlock()
 	if changed {
-		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, target.Info()))
+		m.publishLifecycleAttentionTransitionWake(ctx, before, target.Info(), true, "")
 	}
+	target.supervisionInspectMu.Unlock()
 	if attentionChanged {
 		if err := m.recordSupervisionEvent(ctx, target, events.SessionSupervisionSourceError, state); err != nil {
 			return err

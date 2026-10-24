@@ -208,14 +208,14 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, err
 	}
-	commandID, err := m.journal.ReserveCommandID(ctx, workspaceID)
+	commandID, err := m.journal.ReserveCommandID(ctx, JournalWorkspaceID(workspaceID, request.Actor.ProfileID))
 	if err != nil {
 		return nil, fmt.Errorf("terminal: reserve exec command id: %w", err)
 	}
 	releaseCommandID := true
 	defer func() {
 		if releaseCommandID {
-			m.journal.ReleaseCommandID(workspaceID, commandID)
+			m.journal.ReleaseCommandID(JournalWorkspaceID(workspaceID, request.Actor.ProfileID), commandID)
 		}
 	}()
 	nonce, err := newMarkerNonce(m.entropy)
@@ -263,7 +263,9 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		journalFinished: make(chan struct{}),
 		item:            item, key: terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id},
 		commandID: commandID, startedAt: m.now(), journaled: make(chan error, 1), decision: make(chan struct{}),
-		releaseCommandID: func() { m.journal.ReleaseCommandID(workspaceID, commandID) },
+		releaseCommandID: func() {
+			m.journal.ReleaseCommandID(JournalWorkspaceID(workspaceID, request.Actor.ProfileID), commandID)
+		},
 	}
 	releaseCommandID = false
 	transferred = true

@@ -115,6 +115,7 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 	var record taskpkg.Task
 	var fields taskScanFields
 	if err := scanner.Scan(
+		&record.GrantCeiling,
 		&record.ID,
 		&record.ProfileID,
 		&fields.identifier,

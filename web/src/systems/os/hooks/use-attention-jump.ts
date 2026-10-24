@@ -1,19 +1,17 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
 import { sessionDetailOptions, SessionNotFoundError } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { ownerDataScope, workspaceSelectorForScope } from "@/systems/workspace";
 
-import { useDesktop } from "./use-desktop";
-import { useOsShell } from "./use-os-shell";
 import type { OsOpenTarget } from "../lib/os-types";
-import type { RoutingCoordinator } from "../lib/routing-coordinator";
-import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
+import { useOpenTarget } from "./use-open-target";
 
 export interface AttentionJumpTarget {
   sessionId: string;
   agentName?: string;
+  /** The session's own `workspace_id`; empty for a User session. */
   workspaceId: string;
   /**
    * Where the session opens when it has no window yet. Omitted follows the
@@ -34,122 +32,72 @@ export interface AttentionJumpTarget {
   created?: boolean;
 }
 
-interface ResolvedAttentionJumpTarget {
-  sessionId: string;
-  agentName: string;
-  workspaceId: string;
-  placement?: OsOpenTarget["placement"];
-  desktopId?: string;
-  created?: boolean;
-}
-
 export type AttentionJump = (target: AttentionJumpTarget) => void;
 
-function openAttentionTarget(
-  coordinator: RoutingCoordinator,
-  target: ResolvedAttentionJumpTarget
-): void {
-  const open = {
-    app: "session" as const,
-    instanceKey: target.sessionId,
-    route: {
-      pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
-      search: {},
-    },
-    ...(target.placement ? { placement: target.placement } : {}),
-    ...(target.desktopId ? { desktopId: target.desktopId } : {}),
+const OPEN_FAILURE = "Couldn't open this session. Try again.";
+
+function sessionRoute(agentName: string, sessionId: string) {
+  return {
+    pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`,
+    search: {},
   };
-  void (
-    target.created ? coordinator.userOpenCreatedSession(open) : coordinator.userOpen(open)
-  ).catch(() => notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" }));
 }
 
 /**
- * One land-on-session behaviour for every attention surface.
- *
- * A foreign activation is held until the target workspace's window manager is
- * live. Agent notifications may arrive before their session is in an attention
- * list, so the canonical session detail supplies the missing agent route.
+ * One land-on-session behaviour for every attention surface, through
+ * `openTarget`: under All projects the session opens in place in the `global`
+ * desktop, bound to its scope; with a project or User focused, a foreign
+ * session focuses its destination first. Agent notifications may arrive
+ * before their session is in an attention list, so the canonical session
+ * detail supplies the missing agent route.
  */
 export function useAttentionJump(): AttentionJump {
   const queryClient = useQueryClient();
-  const { coordinator } = useOsShell();
-  const { runtimeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
-  const commandWorkspaceId = useDesktop(state =>
-    windowManagerCommandsAvailable(state) ? state.snapshot?.workspaceId.trim() || null : null
-  );
-  const pendingRef = useRef<ResolvedAttentionJumpTarget | null>(null);
+  const open = useOpenTarget();
   const activationRef = useRef(0);
-
-  const queueResolvedTarget = (target: ResolvedAttentionJumpTarget) => {
-    if (target.workspaceId !== runtimeWorkspaceId?.trim()) {
-      pendingRef.current = target;
-      setActiveWorkspaceId(target.workspaceId);
-      return;
-    }
-    if (commandWorkspaceId !== target.workspaceId) {
-      pendingRef.current = target;
-      return;
-    }
-    pendingRef.current = null;
-    openAttentionTarget(coordinator, target);
-  };
-
-  useEffect(() => {
-    const pending = pendingRef.current;
-    if (
-      pending === null ||
-      commandWorkspaceId !== pending.workspaceId ||
-      pending.workspaceId !== runtimeWorkspaceId?.trim()
-    ) {
-      return;
-    }
-    pendingRef.current = null;
-    openAttentionTarget(coordinator, pending);
-  }, [commandWorkspaceId, coordinator, runtimeWorkspaceId]);
 
   return target => {
     const sessionId = target.sessionId.trim();
-    const workspaceId = target.workspaceId.trim();
-    const agentName = target.agentName?.trim();
-    const placement = target.placement;
-    const desktopId = target.desktopId?.trim() || undefined;
-    const created = target.created;
+    const binding = ownerDataScope(target.workspaceId);
     const activation = ++activationRef.current;
-    if (sessionId === "" || workspaceId === "") {
-      notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" });
+    if (sessionId === "") {
+      notifyUser({ message: OPEN_FAILURE, tone: "error" });
       return;
     }
+    const land = (agentName: string) =>
+      open(
+        {
+          app: "session",
+          instanceKey: sessionId,
+          binding,
+          route: sessionRoute(agentName, sessionId),
+          ...(target.placement ? { placement: target.placement } : {}),
+          ...(target.desktopId?.trim() ? { desktopId: target.desktopId.trim() } : {}),
+          ...(target.created ? { created: true } : {}),
+        },
+        OPEN_FAILURE
+      );
+    const agentName = target.agentName?.trim();
     if (agentName) {
-      queueResolvedTarget({ sessionId, workspaceId, agentName, placement, desktopId, created });
+      land(agentName);
       return;
     }
 
     void queryClient
-      .ensureQueryData(sessionDetailOptions(workspaceId, sessionId))
+      .ensureQueryData(sessionDetailOptions(workspaceSelectorForScope(binding), sessionId))
       .then(session => {
         if (activation !== activationRef.current) return;
         const resolvedAgentName = session.agent_name.trim();
         if (resolvedAgentName === "") {
-          notifyUser({ message: "Couldn't open this session. Try again.", tone: "error" });
+          notifyUser({ message: OPEN_FAILURE, tone: "error" });
           return;
         }
-        queueResolvedTarget({
-          sessionId,
-          workspaceId,
-          agentName: resolvedAgentName,
-          placement,
-          desktopId,
-          created,
-        });
+        land(resolvedAgentName);
       })
       .catch(error => {
         if (activation !== activationRef.current) return;
         notifyUser({
-          message:
-            error instanceof SessionNotFoundError
-              ? "Session not found"
-              : "Couldn't open this session. Try again.",
+          message: error instanceof SessionNotFoundError ? "Session not found" : OPEN_FAILURE,
           tone: "error",
         });
       });

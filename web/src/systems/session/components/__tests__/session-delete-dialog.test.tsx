@@ -48,7 +48,7 @@ describe("SessionDeleteDialog sets", () => {
     name: `Work ${index}`,
     archived_at: null,
     state: index === 0 ? ("active" as const) : ("stopped" as const),
-    badge: index === 0 ? "running" : "stopped",
+    badge: index === 0 ? ("running" as const) : ("stopped" as const),
   }));
 
   it("uses the unchanged singular confirmation for a set of one", () => {

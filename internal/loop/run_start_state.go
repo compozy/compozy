@@ -12,6 +12,21 @@ type RunStartState struct {
 	completion          CompletionState
 	forkedFrom          *ForkRef
 	forks               []ForkRef
+	grantCeiling        string
+}
+
+// GrantCeilingSnapshot returns the workspace-access ceiling the run was authored under.
+func (r Run) GrantCeilingSnapshot() string {
+	if r.RunStartState == nil {
+		return ""
+	}
+	return r.grantCeiling
+}
+
+// SetGrantCeiling replaces the workspace-access ceiling the run was authored under.
+func (r *Run) SetGrantCeiling(ceiling string) {
+	r.ensureStartState()
+	r.grantCeiling = ceiling
 }
 
 // SetAdmission attaches one transient watch-admission identity to a start command.

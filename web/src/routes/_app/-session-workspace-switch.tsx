@@ -4,7 +4,7 @@ import { useLayoutEffect } from "react";
 import { confirmSessionWorkspaceSwitch } from "./-session-workspace-switch-action";
 import { useOsShell } from "@/systems/os";
 import { type SessionOwnerDialogState, SessionWorkspaceSwitchDialog } from "@/systems/session";
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 interface SessionWorkspaceSwitchRouteDecisionProps {
   open: boolean;
@@ -27,9 +27,8 @@ export function SessionWorkspaceSwitchRouteDecision({
   const location = useLocation();
   const pathname = location.pathname;
   const search = location.search as Record<string, unknown>;
-  // The owner projection identifies Global directly; the retired home row is
-  // absent from the project catalog after migration.
-  const ownerIsGlobal = owner.workspaceId === "";
+  // The owner projection reports User work with an empty workspace id.
+  const ownerIsUser = owner.workspaceId === "";
 
   useLayoutEffect(() => {
     coordinator.holdRoute({ pathname, search });
@@ -39,10 +38,10 @@ export function SessionWorkspaceSwitchRouteDecision({
   return (
     <SessionWorkspaceSwitchDialog
       open={open}
-      isGlobal={ownerIsGlobal}
-      workspaceName={ownerIsGlobal ? GLOBAL_SCOPE_COPY.chipLabel : owner.workspaceName}
+      isUser={ownerIsUser}
+      workspaceName={ownerIsUser ? DESTINATION_COPY.user : owner.workspaceName}
       onConfirm={() => {
-        confirmSessionWorkspaceSwitch(owner, { isGlobal: ownerIsGlobal }, onReenter);
+        confirmSessionWorkspaceSwitch(owner, onReenter);
       }}
       onCancel={onDecline}
     />

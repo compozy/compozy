@@ -81,11 +81,11 @@ func normalizeLoopRunForCreate(run looppkg.Run) (looppkg.Run, error) {
 }
 
 func normalizeLoopRunIdentity(run *looppkg.Run) error {
+	if err := validateLoopStateScope(run.WorkspaceID, run.ProfileID); err != nil {
+		return err
+	}
 	if strings.TrimSpace(string(run.ID)) == "" {
 		return fmt.Errorf("%w: loop run id is required", looppkg.ErrValidation)
-	}
-	if strings.TrimSpace(string(run.WorkspaceID)) == "" {
-		return fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 	}
 	run.LoopName = strings.TrimSpace(run.LoopName)
 	if run.LoopName == "" {

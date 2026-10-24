@@ -2,9 +2,10 @@
 // Invariant: every visible session window on the active desktop owns a live tail, while operator
 // presence additionally requires the shell window and browser document to hold focus; and the
 // window resolves a session through the profile-enforced read before deciding it is gone.
-// A document's project lens hides out-of-scope history without retiring the shared window.
+// A window's data scope (its binding, else its partition: a project, or User) hides another
+// scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
-import { act, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = {
@@ -31,7 +32,10 @@ const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
 const userRetireSession = vi.fn(() => Promise.resolve(true));
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
-const workspace = { runtimeWorkspaceId: "ws-1" as string | null };
+type TestDataScope = { kind: "project"; workspaceId: string } | { kind: "user" } | { kind: "all" };
+const workspace: { dataScope: TestDataScope | null } = {
+  dataScope: { kind: "project", workspaceId: "ws-1" },
+};
 const documentActivity = vi.hoisted(() => ({ active: true }));
 const useSessionPresenceSpy = vi.hoisted(() => vi.fn());
 const queryState: {
@@ -52,6 +56,8 @@ const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
 const profileScope = { aggregate: false };
 let deletionPending = false;
+let deletedByOperator = false;
+const toastError = vi.hoisted(() => vi.fn());
 const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
 
 vi.mock("@/systems/session/lib/query-options", () => ({
@@ -65,8 +71,11 @@ vi.mock("@/systems/session", async importOriginal => {
     sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
     useForeignProfileSession: () => foreignState.current,
     useSessionDeletionPending: () => deletionPending,
+    useSessionDeletedByOperator: () => deletedByOperator,
   };
 });
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
   useForeignProfileSession: () => foreignState.current,
@@ -86,6 +95,11 @@ vi.mock("../session-profile-owner-notice", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", ...workspace }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-window-data-workspace", () => ({
+  // The window's own data scope: its binding, else its partition.
+  useWindowDataWorkspace: () => workspace.dataScope,
 }));
 
 vi.mock("@/hooks/use-document-active", () => ({
@@ -134,7 +148,7 @@ describe("SessionWindow", () => {
     queryState.error = null;
     queryState.isLoading = false;
     queryState.isError = false;
-    workspace.runtimeWorkspaceId = "ws-1";
+    workspace.dataScope = { kind: "project", workspaceId: "ws-1" };
     documentActivity.active = true;
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
@@ -145,6 +159,8 @@ describe("SessionWindow", () => {
     foreignState.current = { status: "disabled" };
     profileScope.aggregate = false;
     deletionPending = false;
+    deletedByOperator = false;
+    toastError.mockClear();
     userRetireSession.mockClear();
     userRetireSession.mockResolvedValue(true);
     userClose.mockClear();
@@ -197,45 +213,6 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should release live-tail ownership before closing a deleted session window", async () => {
-    render(<SessionWindow windowId="session:sess-1" />);
-    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
-      | { onDeleteSuccess?: () => void }
-      | undefined;
-
-    act(() => props?.onDeleteSuccess?.());
-
-    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
-      "sess-1",
-      { profile: "marketing" },
-      expect.objectContaining({ enabled: true, liveTail: false })
-    );
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
-    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ windowId: "session:sess-1" })
-    );
-  });
-
-  it("Should retire the tab after the daemon already cleared the deleted session window", async () => {
-    userRetireSession.mockResolvedValue(false);
-    render(<SessionWindow windowId="session:sess-1" />);
-    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
-      | { onDeleteSuccess?: () => void }
-      | undefined;
-
-    act(() => props?.onDeleteSuccess?.());
-
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
-  });
-
   it("Should release operator presence when the browser document loses focus", () => {
     const view = render(<SessionWindow windowId="session:sess-1" />);
     expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", true);
@@ -249,8 +226,8 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should render a Global-scope session from its authoritative workspace", () => {
-    workspace.runtimeWorkspaceId = "";
+  it("Should render a session from its authoritative workspace under All projects", () => {
+    workspace.dataScope = { kind: "all" };
 
     render(<SessionWindow windowId="session:sess-1" />);
 
@@ -261,7 +238,7 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
-  it("Should keep Global history in the shared layout while this document views a project", async () => {
+  it("Should keep User history in the shared layout while this document views a project", async () => {
     queryState.data = { ...session, workspace_id: "" };
     documentActivity.active = false;
     const view = render(<SessionWindow windowId="session:sess-1" />);
@@ -271,11 +248,20 @@ describe("SessionWindow", () => {
     expect(sessionWindowViewSpy).not.toHaveBeenCalled();
     expect(userRetireSession).not.toHaveBeenCalled();
 
-    workspace.runtimeWorkspaceId = null;
+    workspace.dataScope = { kind: "user" };
     view.rerender(<SessionWindow windowId="session:sess-1" />);
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ session: queryState.data, workspaceId: "" })
     );
+    expect(userRetireSession).not.toHaveBeenCalled();
+  });
+
+  it("Should hide a project's session on the User desktop without retiring the window", async () => {
+    workspace.dataScope = { kind: "user" };
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() => expect(sessionWindowNoticeSpy).toHaveBeenCalled());
+    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
     expect(userRetireSession).not.toHaveBeenCalled();
   });
 
@@ -337,6 +323,24 @@ describe("SessionWindow", () => {
     deletionPending = false;
     rerender(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
+  });
+
+  // #952: rename/delete run through the session list's row lifecycle, which retires the window
+  // itself. If that retarget was refused, the window still stops reading the session and retires
+  // quietly: an operator-deleted session is never announced as missing.
+  it("Should retire a window whose session this client deleted without reporting it missing", async () => {
+    deletedByOperator = true;
+    render(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ liveTail: false })
+    );
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {

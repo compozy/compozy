@@ -1,7 +1,9 @@
 // Suite: OS window runtime component
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
 // across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
-// frame order onto visual layers where floating windows remain above tiled resize seams.
+// frame order onto visual layers where floating windows remain above tiled resize seams. On the
+// All projects desktop a bound item window names its project (or User) in the chrome; catalog
+// windows and project desktops show no badge.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +18,12 @@ import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindow } from "../os-window";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: () => ({
+    registeredWorkspaces: [{ id: "ws_beta", name: "beta" }],
+  }),
+}));
 vi.mock("../../hooks/use-os-shell", () => {
   const manager = {};
   return {
@@ -48,7 +56,10 @@ vi.mock("../../hooks/use-os-window-deck", () => ({
   })),
 }));
 
-function TasksController() {
+const controllerRenders: string[] = [];
+
+function TasksController({ windowId }: { windowId: string }) {
+  controllerRenders.push(windowId);
   const [draft, setDraft] = useState("");
   return (
     <input aria-label="Task draft" onChange={event => setDraft(event.target.value)} value={draft} />
@@ -143,11 +154,14 @@ function hookModel(frame: OsWindowFrameModel): OsWindowModel {
 }
 
 let presentation: OsDesktopRuntimeStore["presentation"];
+let partition: string;
 let windows: Record<string, OsWindowState>;
 let model: OsWindowModel;
 
 beforeEach(() => {
+  controllerRenders.length = 0;
   presentation = "floating";
+  partition = "ws_alpha";
   windows = { "window:tasks": windowState() };
   model = hookModel(frameModel());
   pendingJobsController = false;
@@ -158,12 +172,82 @@ beforeEach(() => {
     // to carry a keymap for the deck to label anything with one.
     selector({
       presentation,
+      snapshot: { workspaceId: partition },
       windows,
       windowManagerConfig: {
         effectiveShortcuts: { "window.tab.new": ["meta+KeyT"], "window.close": ["meta+KeyW"] },
       },
     } as unknown as OsDesktopRuntimeStore)
   );
+});
+
+describe("OsWindow geometry render isolation", () => {
+  it("Should retain an unchanged sibling while updating the moved frame", () => {
+    // JSDOM has no layout: start at its zero origin so react-rnd does not
+    // infer a parent offset from a nonzero initial position.
+    const primary = frameModel({ rect: { x: 0, y: 0, w: 720, h: 480 } });
+    const sibling = frameModel({
+      id: "window:other",
+      members: ["window:other"],
+      activeWindowId: "window:other",
+    });
+    windows[sibling.id] = windowState({ id: sibling.id });
+    vi.mocked(useOsWindow).mockImplementation(frame => ({ ...model, rect: frame.rect }));
+    const view = render(
+      <>
+        <OsWindow frame={primary} />
+        <OsWindow frame={sibling} />
+      </>
+    );
+    expect(screen.getAllByRole("textbox", { name: "Task draft" })).toHaveLength(2);
+    controllerRenders.length = 0;
+    const moved = { ...primary, rect: { ...primary.rect, x: 200 } };
+    view.rerender(
+      <>
+        <OsWindow frame={moved} />
+        <OsWindow frame={sibling} />
+      </>
+    );
+    expect(controllerRenders).not.toContain(sibling.id);
+    expect(screen.getByTestId(`os-window-frame-${primary.id}`).parentElement).toHaveStyle({
+      transform: "translate(200px,0px)",
+    });
+  });
+});
+
+describe("OsWindow project badge", () => {
+  it.each([
+    ["ws_beta", "beta"],
+    ["@user", "User"],
+  ])(
+    "Should name the bound scope %s in the chrome on the All projects desktop",
+    (binding, name) => {
+      partition = "global";
+      windows = {
+        "window:tasks": windowState({
+          route: { pathname: "/tasks", search: { workspace: binding } },
+        }),
+      };
+      render(<OsWindow frame={frameModel()} />);
+
+      expect(screen.getByTestId("os-window-project-window:tasks")).toHaveTextContent(name);
+    }
+  );
+
+  it("Should show no badge on a catalog window or on a project desktop", () => {
+    partition = "global";
+    const view = render(<OsWindow frame={frameModel()} />);
+    expect(screen.queryByTestId("os-window-project-window:tasks")).not.toBeInTheDocument();
+
+    partition = "ws_alpha";
+    windows = {
+      "window:tasks": windowState({
+        route: { pathname: "/tasks", search: { workspace: "ws_beta" } },
+      }),
+    };
+    view.rerender(<OsWindow frame={frameModel()} />);
+    expect(screen.queryByTestId("os-window-project-window:tasks")).not.toBeInTheDocument();
+  });
 });
 
 describe("OsWindow", () => {
@@ -266,7 +350,8 @@ describe("OsWindow", () => {
     expect(frameHost.parentElement).toHaveStyle({ display: "none" });
 
     presentation = "compact";
-    view.rerender(<OsWindow frame={minimizedFrame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...minimizedFrame }} />);
 
     frameHost = screen.getByTestId("os-window-frame-window:tasks");
     expect(frameHost.parentElement).toHaveStyle({ display: "none" });
@@ -281,12 +366,14 @@ describe("OsWindow", () => {
     fireEvent.change(draft, { target: { value: "Keep this task context" } });
 
     presentation = "compact";
-    view.rerender(<OsWindow frame={frame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...frame }} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
 
     presentation = "floating";
-    view.rerender(<OsWindow frame={frame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...frame }} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
   });

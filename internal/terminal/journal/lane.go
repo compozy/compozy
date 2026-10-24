@@ -236,13 +236,13 @@ func (l *terminalLane) failAll(command pendingCommand, recordErr, cause error) {
 	publishAudit := l.setAuditBlockedLocked(true)
 	l.mu.Unlock()
 	if abandonedAssemblyID != "" {
-		l.service.ReleaseCommandID(l.info.WS, abandonedAssemblyID)
+		l.service.ReleaseCommandID(terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID), abandonedAssemblyID)
 	}
 	if command.result != nil {
-		l.service.ReleaseCommandID(l.info.WS, command.row.ID)
+		l.service.ReleaseCommandID(terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID), command.row.ID)
 	}
 	for _, queuedCommand := range queued {
-		l.service.ReleaseCommandID(l.info.WS, queuedCommand.row.ID)
+		l.service.ReleaseCommandID(terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID), queuedCommand.row.ID)
 	}
 	if publishAudit {
 		l.publishAuditTransitions()
@@ -345,7 +345,7 @@ func (l *terminalLane) setAssembly(assembly commandAssembly) bool {
 	l.outputTail = nil
 	l.mu.Unlock()
 	if previous != nil {
-		l.service.ReleaseCommandID(l.info.WS, previous.id)
+		l.service.ReleaseCommandID(terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID), previous.id)
 	}
 	return true
 }

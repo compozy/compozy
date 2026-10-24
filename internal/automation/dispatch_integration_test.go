@@ -122,6 +122,10 @@ func TestDispatcherIntegrationRunLifecycleStateTransitionsPersist(t *testing.T) 
 	if got, want := len(scheduledRuns), 1; got != want {
 		t.Fatalf("len(scheduledRuns) = %d, want %d", got, want)
 	}
+	if scheduledRuns[0].WorkspaceID == nil || *scheduledRuns[0].WorkspaceID != job.WorkspaceID ||
+		scheduledRuns[0].Attribution != "recorded" {
+		t.Fatalf("reserved source attribution = %#v", scheduledRuns[0])
+	}
 	if got, want := scheduledRuns[0].Status, RunScheduled; got != want {
 		t.Fatalf("scheduledRuns[0].Status = %q, want %q", got, want)
 	}

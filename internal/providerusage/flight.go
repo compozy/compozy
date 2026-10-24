@@ -22,7 +22,7 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 			continue
 		}
 		s.mu.Lock()
-		follow := intent == IntentBackground && f.explicit && explicitRecovery(outcome)
+		follow := intent == IntentBackground && f.explicit && explicitRecovery(id, outcome)
 		if follow {
 			intent = IntentExplicit
 			f.intent = IntentExplicit
@@ -37,11 +37,13 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 	}
 }
 
-func explicitRecovery(e *UsageError) bool {
+func explicitRecovery(provider string, e *UsageError) bool {
 	if e == nil {
 		return false
 	}
 	switch e.Code {
+	case ErrorCodeAuthMissing:
+		return provider == claudeProviderID
 	case ErrorCodeKeychainConsentRequired,
 		ErrorCodeKeychainDenied,
 		ErrorCodeKeychainTokenExpired,

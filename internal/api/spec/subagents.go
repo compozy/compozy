@@ -72,7 +72,7 @@ func workspaceSessionCatalogListOperation() OperationSpec {
 	operation.OperationID = "listWorkspaceSessions"
 	parameters := []ParameterSpec{pathParam("workspace_id", "Workspace id")}
 	for _, parameter := range operation.Parameters {
-		if parameter.Name != "workspace_id" && parameter.Name != "all_workspaces" {
+		if parameter.Name != specWorkspaceIDKey && parameter.Name != "all_workspaces" {
 			parameters = append(parameters, parameter)
 		}
 	}

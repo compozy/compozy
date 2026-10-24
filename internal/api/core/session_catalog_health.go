@@ -33,6 +33,9 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 			return nil, err
 		}
 	}
+	if err := DecorateSessionPullRequests(ctx, h.Sessions, infos, payloads); err != nil {
+		return nil, err
+	}
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}
@@ -69,6 +72,8 @@ func SessionPayloadsWithPageHealth(
 			)
 		}
 		payload.Badge = session.BadgeForHealth(info, health)
+		payload.BoardColumn = session.BoardColumnFor(payload.Badge, "")
+		payload.WaitingOn = sessionPayloadWaitingOn(info, payload.Badge)
 		converted, err := contract.SessionHealthPayloadFromDomain(health)
 		if err != nil {
 			return nil, err

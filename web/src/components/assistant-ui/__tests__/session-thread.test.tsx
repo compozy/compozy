@@ -20,9 +20,12 @@ import userEvent from "@testing-library/user-event";
 import {
   $getRoot,
   $getSelection,
+  $isRangeSelection,
   $isTextNode,
   $setSelection,
   getNearestEditorFromDOMNode,
+  CONTROLLED_TEXT_INSERTION_COMMAND,
+  UNDO_COMMAND,
   type ElementNode,
 } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -66,6 +69,10 @@ import {
   type SessionForkRequest,
 } from "@/systems/session/contexts/session-fork-context-value";
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
+import {
+  STEER_WAKE_TURN,
+  steeredWakesTranscript,
+} from "@/systems/session/components/stories/sessions-stability-steer-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
@@ -83,7 +90,7 @@ import {
   peekPendingTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
-import { resetSessionPromptRecovery } from "@/systems/session";
+import { discardComposerDraftAttachments, resetSessionPromptRecovery } from "@/systems/session";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -568,6 +575,7 @@ function renderThreadState(
 // The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
 afterEach(() => {
   resetSessionPromptRecovery();
+  discardComposerDraftAttachments(primarySessionFixture.id);
 });
 
 describe("SessionThread transcript states", () => {
@@ -1568,6 +1576,69 @@ describe("SessionThread transcript states", () => {
     expect(metas).toHaveLength(3);
   });
 
+  // Invariant (issue #923): a turn the daemon splits around steer markers
+  // delivered mid-call reads as one turn — no empty shell for a marker whose row
+  // draws nothing, and the turn's pieces keep the inline rhythm with the turn
+  // gap only after its last piece. Owning layer: thread rendering over the real
+  // provenance provider, fed the sanitized projection of the reported turn.
+  it.each([
+    [
+      "distinct wake identities",
+      ["wake_01M5MV5SVJGJVBC5P1278DP0KA", "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E"],
+      2,
+    ],
+    ["identities persisted as [REDACTED]", ["[REDACTED]", "[REDACTED]"], 1],
+  ] as const)(
+    "Should render a turn steered mid-call by subagent wakes without empty gaps (%s)",
+    async (_label, wakeIds, steerRows) => {
+      const normalized = await normalizeTranscriptMessages(
+        steeredWakesTranscript(wakeIds) as unknown as SessionMessage[]
+      );
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId("steer-marker-notice")).toHaveLength(steerRows)
+      );
+      const pieces = screen.getAllByTestId("assistant-message");
+      // Every mounted piece draws something: the chunk, the visible steer rows, the continuation.
+      expect(pieces).toHaveLength(steerRows + 2);
+      for (const piece of pieces) expect(piece).not.toBeEmptyDOMElement();
+      for (const piece of pieces.slice(0, -1)) {
+        expect(piece).toHaveClass("pb-transcript-inline-gap");
+      }
+      for (const piece of pieces.slice(1)) expect(piece).not.toHaveClass("pt-1");
+      expect(pieces.at(-1)).toHaveClass("pb-transcript-turn-gap");
+      // The trailing whitespace-only thought is not a second thought.
+      expect(pieces.at(-1)).toHaveTextContent("5 tools · 1 thought · 1 running");
+    }
+  );
+
+  it("Should join a text-only continuation that names its turn only in message metadata", async () => {
+    // The daemon names the turn of a `-N` continuation in its metadata when no
+    // event part carries it (a reply that resumes right after the steer).
+    const transcript = [
+      ...steeredWakesTranscript([
+        "wake_01M5MV5SVJGJVBC5P1278DP0KA",
+        "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E",
+      ]).slice(0, 4),
+      {
+        id: `${STEER_WAKE_TURN}-2`,
+        role: "assistant",
+        metadata: { turn_id: STEER_WAKE_TURN },
+        parts: [{ type: "text", text: "Resumed the pending work.", state: "done" }],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    await screen.findByText("Resumed the pending work.");
+    const pieces = screen.getAllByTestId("assistant-message");
+    expect(pieces).toHaveLength(4);
+    expect(pieces.at(-2)).toHaveClass("pb-transcript-inline-gap");
+    expect(pieces.at(-1)).not.toHaveClass("pt-1");
+    expect(pieces.at(-1)).toHaveClass("pb-transcript-turn-gap");
+  });
+
   it("Should hide the pending receipt once the real message is loaded and carry the newer marker's truth", async () => {
     const pendingMarker = {
       id: "pending",
@@ -2209,6 +2280,174 @@ describe("SessionThread transcript states", () => {
 
     await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
     expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+  });
+
+  // Invariant: user prose links permit only safe external protocols and leave
+  // code literal. Owner: user-message rendering; canonical suite: SessionThread.
+  it("renders safe user links while preserving code and unsafe link labels", async () => {
+    const text =
+      "https://example.com/path?q=1#part [Email](mailto:hello@example.com) [unsafe](javascript:alert) `https://code.example`";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([
+        { id: "user-links", role: "user", parts: [{ type: "text", text }] } as SessionMessage,
+      ]),
+    });
+    const bubble = await screen.findByTestId("user-message-bubble");
+    const links = within(bubble).getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "https://example.com/path?q=1#part");
+    expect(links[1]).toHaveAttribute("href", "mailto:hello@example.com");
+    for (const link of links) {
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveAttribute("target", "_blank");
+    }
+    expect(within(bubble).getByText("https://code.example").tagName).toBe("CODE");
+    expect(bubble).toHaveTextContent("unsafe");
+  });
+
+  // Invariant (#967): what the operator typed is what the user message shows — each
+  // line break, the blank line, a pasted list, and a link — in every variant of the
+  // user message. Owner: user-message rendering; canonical suite: SessionThread.
+  describe("authored formatting across user-message variants", () => {
+    const AUTHORED = "/review first line\nsecond line see https://example.com/a\n\n- alpha\n- beta";
+    const steerMarker = (messageId: string) =>
+      ({
+        id: "ev-steered",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              session_id: "sess-1",
+              turn_id: "turn-authored",
+              timestamp: "2026-10-24T10:00:00.000Z",
+              text: "Steering delivered into the live turn.",
+              title: "transcript_marker.prompt_steered",
+              raw: {
+                kind: "transcript_marker.prompt_steered",
+                occurred_at: "2026-10-24T10:00:00.000Z",
+                summary: "Steering delivered into the live turn.",
+                evidence: {
+                  authored_text: AUTHORED,
+                  message_id: messageId,
+                  mode: "steer",
+                  queue_status: "sent",
+                  steer_delivery: "injected",
+                  target_turn_id: "turn-authored",
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      }) as SessionMessage;
+    const variants: {
+      name: string;
+      metadata: Record<string, unknown>;
+      parts?: SessionMessage["parts"];
+      after?: (id: string) => SessionMessage[];
+      expectChip?: string;
+    }[] = [
+      { name: "plain text", metadata: {} },
+      {
+        name: "skill command",
+        metadata: {
+          skill_invocations: [
+            { command_id: "skill:workspace:review", token: "/review", start: 0, end: 7 },
+          ],
+        },
+        expectChip: "session-skill-directive",
+      },
+      {
+        name: "@-mention",
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@README.md",
+              target: "README.md",
+              label: "README.md",
+              start: AUTHORED.length + 1,
+              end: AUTHORED.length + 11,
+            },
+          ],
+        },
+        expectChip: "session-mention-chip",
+      },
+      {
+        name: "attachment",
+        metadata: {
+          attachments: [
+            {
+              id: "att-notes",
+              name: "notes.pdf",
+              mime_type: "application/pdf",
+              bytes: 4096,
+              sha256: "b".repeat(64),
+              kind: "file",
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            url: "compozy://session-attachments/att-notes",
+            filename: "notes.pdf",
+          },
+        ] as SessionMessage["parts"],
+      },
+      { name: "steered entry", metadata: {}, after: id => [steerMarker(id)] },
+    ];
+
+    it.each(variants)("keeps authored formatting for $name", async variant => {
+      const id = `user-authored-${variant.name.replace(/\W+/g, "-")}`;
+      const text = variant.name === "@-mention" ? `${AUTHORED} @README.md` : AUTHORED;
+      const transcript = [
+        {
+          id,
+          role: "user",
+          metadata: { turn_id: "turn-authored", message_id: id, ...variant.metadata },
+          parts: [...(variant.parts ?? []), { type: "text", text, state: "done" }],
+        } as SessionMessage,
+        ...(variant.after?.(id) ?? []),
+      ];
+
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+      const bubble = await screen.findByTestId("user-message-bubble");
+      const paragraph = bubble.querySelector("p")!;
+      expect(paragraph.querySelectorAll("br")).toHaveLength(1);
+      expect(paragraph).toHaveTextContent("/review first line");
+      const items = within(bubble).getAllByRole("listitem");
+      expect(items.map(item => item.firstChild?.textContent?.trim())).toEqual(["alpha", "beta"]);
+      expect(within(paragraph).getByRole("link")).toHaveAttribute("href", "https://example.com/a");
+      if (variant.expectChip) expect(within(bubble).getByTestId(variant.expectChip)).toBeVisible();
+      if (variant.after) {
+        expect(screen.getByTestId("user-message-steer-meta")).toHaveAttribute(
+          "data-steer",
+          "injected"
+        );
+      }
+    });
+
+    it("keeps authored formatting after a persisted transcript is normalized (reload)", async () => {
+      const [message] = await normalizeTranscriptMessages([
+        {
+          id: "user-authored-reload",
+          role: "user",
+          metadata: { turn_id: "turn-authored", message_id: "user-authored-reload" },
+          parts: [{ type: "text", text: AUTHORED }],
+        },
+      ]);
+
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages([message!]) });
+
+      const bubble = await screen.findByTestId("user-message-bubble");
+      expect(bubble.querySelector("p")!.querySelectorAll("br")).toHaveLength(1);
+      expect(within(bubble).getAllByRole("listitem")).toHaveLength(2);
+    });
   });
 
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
@@ -4137,34 +4376,348 @@ describe("SessionThread transcript states", () => {
     viewport.scrollTop = 300;
   }
 
-  it("Should reveal the scroll-to-bottom pill when the reader scrolls away and return to the live edge on click", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+  it.each([
+    ["a wheel", (viewport: HTMLElement) => fireEvent.wheel(viewport, { deltaY: -120 })],
+    ["a navigation key", (viewport: HTMLElement) => fireEvent.keyDown(viewport, { key: "PageUp" })],
+  ])(
+    "Should reveal the scroll-to-bottom pill when the reader scrolls away with %s and return to the live edge on click",
+    async (_gesture, scrollAway) => {
+      const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+      renderThreadState({ status: "success", messages });
+
+      expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+      expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
+      expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const pill = screen.getByTestId("scroll-to-bottom-pill");
+      // Following the live edge: the pill is hidden and non-interactive.
+      expect(pill).toHaveAttribute("data-visible", "false");
+      expect(pill).toBeDisabled();
+
+      // The reader's gesture hands the viewport over; the scroll it causes keeps it there.
+      primeScrolledAwayViewport(viewport);
+      scrollAway(viewport);
+      fireEvent.scroll(viewport);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "true");
+        expect(pill).toBeEnabled();
+      });
+      expect(viewport.scrollTop).toBe(300);
+
+      // Clicking the pill returns to the live edge and hides the affordance again.
+      fireEvent.click(pill);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "false");
+      });
+    }
+  );
+
+  // Invariant (#907): only a reader gesture detaches live-follow. Opening a long
+  // transcript lands on estimated row heights; as rows measure, the virtualizer's
+  // own compensation moves the viewport off the end with no gesture. Following
+  // must hold and re-pin the true end instead of reading that as the reader.
+  it("Should hold the live edge when the viewport leaves it without a reader gesture", async () => {
+    const messages = toReadonlyThreadMessages(
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `settling-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
 
     renderThreadState({ status: "success", messages });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
 
-    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     const viewport = screen.getByTestId("chat-view");
     const pill = screen.getByTestId("scroll-to-bottom-pill");
-    // Following the live edge: the pill is hidden and non-interactive.
-    expect(pill).toHaveAttribute("data-visible", "false");
-    expect(pill).toBeDisabled();
-
-    // A viewport change away from the live edge opts out of live-follow even when
-    // the platform does not expose a preceding wheel/touch/pointer event.
     primeScrolledAwayViewport(viewport);
     fireEvent.scroll(viewport);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "true");
-      expect(pill).toBeEnabled();
+
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+
+    // Late row measurement grows the content after the first re-pin.
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 3000 });
+    fireEvent.scroll(viewport);
+
+    expect(viewport.scrollTop).toBe(2_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+  });
+
+  function settlingTranscript(prefix: string, length = 40) {
+    return toReadonlyThreadMessages(
+      Array.from({ length }, (_, index) => ({
+        id: `${prefix}-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
+  }
+
+  function primeViewportAtEnd(viewport: HTMLElement) {
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
+    viewport.scrollTop = 1_500;
+  }
+
+  function scrollViewportTo(viewport: HTMLElement, scrollTop: number) {
+    viewport.scrollTop = scrollTop;
+    fireEvent.scroll(viewport);
+  }
+
+  // Invariant (#907): opening a long transcript whose mounted rows measure
+  // differently from their estimates lands on, and stays at, the true end. jsdom has no
+  // layout, so this simulates the browser contract the virtualizer relies on:
+  // rows report a measured height, the scroller's height follows the rendered
+  // sizer, writes clamp to the scrollable range, and each move dispatches an
+  // asynchronous scroll event (no gesture behind any of them).
+  it("Should land at the true end when measured rows differ from their estimates", async () => {
+    // Real transcripts mix rows far taller than estimated with rows that render
+    // nothing (operational markers measure 0px): both move the viewport.
+    const measuredRowHeight = (index: number) => (index % 3 === 2 ? 0 : 360);
+    const viewportHeight = 500;
+    const isViewport = (element: Element) =>
+      element instanceof HTMLElement && element.dataset.testid === "chat-view";
+    const scrollHeightOf = (viewport: Element) => {
+      const sizer = viewport.querySelector<HTMLElement>('[data-testid="thread-messages"]');
+      if (!sizer) return viewportHeight;
+      const rows = [...sizer.querySelectorAll<HTMLElement>("[data-index]")].reduce(
+        (total, row) => total + measuredRowHeight(Number(row.dataset.index)),
+        0
+      );
+      const padding =
+        Number.parseFloat(sizer.style.paddingTop || "0") +
+        Number.parseFloat(sizer.style.paddingBottom || "0");
+      return Math.max(viewportHeight, padding + rows);
+    };
+    const offsets = new WeakMap<Element, number>();
+    const restore: Array<() => void> = [];
+    const patch = <T extends object>(target: T, key: string, descriptor: PropertyDescriptor) => {
+      const original = Object.getOwnPropertyDescriptor(target, key);
+      Object.defineProperty(target, key, { configurable: true, ...descriptor });
+      restore.push(() => {
+        if (original) Object.defineProperty(target, key, original);
+        else delete (target as Record<string, unknown>)[key];
+      });
+      return original;
+    };
+    const originalOffsetHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetHeight"
+    );
+    patch(HTMLElement.prototype, "offsetHeight", {
+      get(this: HTMLElement) {
+        if (this.hasAttribute("data-index")) return measuredRowHeight(Number(this.dataset.index));
+        return originalOffsetHeight?.get?.call(this) ?? 0;
+      },
+    });
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
+    patch(Element.prototype, "scrollHeight", {
+      get(this: Element) {
+        return isViewport(this)
+          ? scrollHeightOf(this)
+          : (originalScrollHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
+    patch(Element.prototype, "clientHeight", {
+      get(this: Element) {
+        return isViewport(this) ? viewportHeight : (originalClientHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    const writeScrollTop = (element: Element, value: number) => {
+      const max = Math.max(0, scrollHeightOf(element) - viewportHeight);
+      const next = Math.min(max, Math.max(0, value));
+      if (next === (offsets.get(element) ?? 0)) return;
+      offsets.set(element, next);
+      setTimeout(() => element.dispatchEvent(new Event("scroll")), 0);
+    };
+    patch(Element.prototype, "scrollTop", {
+      get(this: Element) {
+        return isViewport(this)
+          ? (offsets.get(this) ?? 0)
+          : (originalScrollTop?.get?.call(this) ?? 0);
+      },
+      set(this: Element, value: number) {
+        if (isViewport(this)) writeScrollTop(this, value);
+        else originalScrollTop?.set?.call(this, value);
+      },
+    });
+    // Layout changes notify every observer of its observed boxes, as the
+    // browser does after a size change (the setup mock never fires).
+    const observers = new Set<{ fire: () => void }>();
+    let notifyQueued = false;
+    const notifyObservers = () => {
+      if (notifyQueued) return;
+      notifyQueued = true;
+      setTimeout(() => {
+        notifyQueued = false;
+        for (const observer of observers) observer.fire();
+      }, 0);
+    };
+    class LayoutResizeObserver {
+      private readonly targets = new Set<Element>();
+      private readonly handle = {
+        fire: () => {
+          if (this.targets.size === 0) return;
+          this.callback(
+            [...this.targets].map(target => ({ target }) as ResizeObserverEntry),
+            this as unknown as ResizeObserver
+          );
+        },
+      };
+      constructor(private readonly callback: ResizeObserverCallback) {
+        observers.add(this.handle);
+      }
+      observe(target: Element) {
+        this.targets.add(target);
+        notifyObservers();
+      }
+      unobserve(target: Element) {
+        this.targets.delete(target);
+      }
+      disconnect() {
+        this.targets.clear();
+        observers.delete(this.handle);
+      }
+    }
+    patch(window, "ResizeObserver", { value: LayoutResizeObserver, writable: true });
+    const layoutChanges = new MutationObserver(notifyObservers);
+    layoutChanges.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      subtree: true,
+    });
+    restore.push(() => layoutChanges.disconnect());
+    const originalScrollTo = Element.prototype.scrollTo;
+    patch(Element.prototype, "scrollTo", {
+      value(this: Element, optionsOrX?: ScrollToOptions | number, y?: number) {
+        const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;
+        if (isViewport(this)) writeScrollTop(this, top ?? offsets.get(this) ?? 0);
+        else Reflect.apply(originalScrollTo, this, [optionsOrX, y]);
+      },
+      writable: true,
     });
 
-    // Clicking the pill returns to the live edge and hides the affordance again.
-    fireEvent.click(pill);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "false");
-    });
+    try {
+      renderThreadState({ status: "success", messages: settlingTranscript("measured", 60) });
+      expect(await screen.findByText("Message 59")).toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const distanceFromEnd = () =>
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+      await waitFor(() => {
+        expect(viewport.scrollTop).toBeGreaterThan(0);
+        expect(distanceFromEnd()).toBe(0);
+      });
+      // Let the late measurement and scroll events settle, then check again.
+      await act(() => new Promise(resolve => setTimeout(resolve, 100)));
+      expect(distanceFromEnd()).toBe(0);
+      expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+    } finally {
+      for (const undo of restore.reverse()) undo();
+    }
+  });
+
+  // Invariant: a reader gesture that starts at the end keeps the viewport through
+  // small deltas inside the 40px band (slow trackpads, the first key repeat, a
+  // scrollbar drag); following re-arms only when the reader comes back down.
+  // Chromium applies the wheel's scroll before the wheel event runs, so each step
+  // moves the viewport, then dispatches the gesture, then the scroll event.
+  it("Should let a gesture leave the end in small steps and re-arm only on the way back", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("small-steps") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.scroll(viewport);
+    for (const scrollTop of [1_490, 1_480, 1_470]) {
+      viewport.scrollTop = scrollTop;
+      fireEvent.wheel(viewport, { deltaY: -10 });
+      fireEvent.scroll(viewport);
+      expect(viewport.scrollTop).toBe(scrollTop);
+    }
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+
+    // Layout compensation moving the viewport down is not the reader coming back.
+    scrollViewportTo(viewport, 1_478);
+    expect(viewport.scrollTop).toBe(1_478);
+
+    // Heading back into the band re-arms following, which pins the true end.
+    viewport.scrollTop = 1_495;
+    fireEvent.wheel(viewport, { deltaY: 25 });
+    fireEvent.scroll(viewport);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a scrollbar drag is one held pointer; dragging back down into the
+  // band re-arms following even though no wheel or key event says "down".
+  it("Should re-arm following when a held pointer drags the viewport back to the end", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("scrollbar-drag") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.pointerDown(viewport);
+    scrollViewportTo(viewport, 1_200);
+    expect(viewport.scrollTop).toBe(1_200);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "true");
+
+    scrollViewportTo(viewport, 1_480);
+    expect(viewport.scrollTop).toBe(1_500);
+    fireEvent.pointerUp(document);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: pressing transcript content (selecting text, clicking a row
+  // control) at the end is not a scroll; following holds until the press
+  // actually drags the viewport.
+  it("Should keep following when a press on transcript content does not scroll", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("content-press") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    const row = screen.getByText("Message 0");
+    fireEvent.pointerDown(row);
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 1800 });
+    scrollViewportTo(viewport, 1_300);
+    expect(viewport.scrollTop).toBe(1_300);
+    fireEvent.pointerUp(document);
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a key a focused control consumes (Shift+Space activating "Copy")
+  // is not a scroll gesture, so following holds; the keys it does not consume
+  // (ArrowUp on that same button) still hand the viewport to the reader.
+  it("Should tell keys a focused control consumes from keys that scroll past it", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("control-key") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    const pill = screen.getByTestId("scroll-to-bottom-pill");
+    primeViewportAtEnd(viewport);
+    const control = within(viewport).getAllByRole("button")[0]!;
+    fireEvent.keyDown(control, { key: " ", shiftKey: true });
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+
+    fireEvent.keyDown(control, { key: "ArrowUp" });
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(300);
+    expect(pill).toHaveAttribute("data-visible", "true");
   });
 
   it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {
@@ -4187,6 +4740,7 @@ describe("SessionThread transcript states", () => {
 
       const viewport = screen.getByTestId("chat-view");
       primeScrolledAwayViewport(viewport);
+      fireEvent.wheel(viewport, { deltaY: -120 });
       fireEvent.scroll(viewport);
       const scrollTo = vi.fn((optionsOrX?: ScrollToOptions | number, y?: number) => {
         const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;
@@ -4382,6 +4936,15 @@ describe("SessionThread streaming render-count", () => {
             state: "done",
             turn_id: "turn-render-isolation",
           },
+          // A settled call draws a row between the blocks; adjacent prose would read as one.
+          {
+            type: "tool-Read",
+            toolCallId: "call-render-isolation",
+            state: "output-available",
+            input: { file_path: "README.md" },
+            output: "ok",
+            turn_id: "turn-render-isolation",
+          },
           {
             type: "text",
             text: liveText,
@@ -4501,15 +5064,21 @@ async function findComposerEditable(): Promise<HTMLElement> {
 async function placeComposerCursor(offset: number) {
   const editable = await findComposerEditable();
   const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
-  const textNode = walker.nextNode();
+  let textNode = walker.nextNode();
+  let localOffset = offset;
+  while (textNode && localOffset > (textNode.textContent?.length ?? 0)) {
+    localOffset -= textNode.textContent?.length ?? 0;
+    textNode = walker.nextNode();
+  }
   if (!textNode) {
     throw new Error("composer line has no rendered text node");
   }
+  const cursorNode = textNode;
   await act(async () => {
     editable.focus();
     const selection = document.getSelection();
     const range = document.createRange();
-    range.setStart(textNode, offset);
+    range.setStart(cursorNode, localOffset);
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -4584,6 +5153,68 @@ describe("SessionThread composer running semantics", () => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
+  });
+
+  // Invariant: decorating URL text never changes the authored draft, including
+  // subsequent edits. Owner: composer; canonical suite: SessionThread composer.
+  it("preserves editable URL text through composer formatting and edits", async () => {
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+    const text = "Read https://example.com/a_(b)?q=1#hash, then mailto:a@example.com";
+    await setComposerText(text);
+    const editable = await findComposerEditable();
+    await waitFor(() => expect(editable).toHaveTextContent(text));
+    expect(composerText()).toBe(text);
+    const cursor = text.indexOf("_(b)");
+    await placeComposerCursor(cursor);
+    const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
+    const readCursor = () =>
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        return $isRangeSelection(selection) ? readCursorSnapshot(selection)?.cursor : null;
+      });
+    await act(async () => {
+      editor.dispatchCommand(CONTROLLED_TEXT_INSERTION_COMMAND, " ");
+    });
+    const edited = `${text.slice(0, cursor)} ${text.slice(cursor)}`;
+    await waitFor(() => expect(composerText()).toBe(edited));
+    expect(readCursor()).toBe(cursor + 1);
+    await act(async () => {
+      editor.dispatchCommand(UNDO_COMMAND, undefined);
+    });
+    await waitFor(() => expect(composerText()).toBe(text));
+    expect(readCursor()).toBe(cursor);
+    await setComposerText(text.replace("https://", "broken://"));
+    await waitFor(() => expect(editable).toHaveTextContent("broken://example.com"));
+    expect(composerText()).toBe(text.replace("https://", "broken://"));
+
+    // A URL typed one character at a time first matches as a short prefix
+    // ("https://e"); the decoration must still cover the whole URL (#967).
+    const linkSpans = () =>
+      Array.from(
+        editable.querySelectorAll<HTMLElement>('span[style*="--compozy-composer-link"]'),
+        span => span.textContent
+      );
+    await setComposerText("see ");
+    await placeComposerCursor(4);
+    const typed = "see https://example.com/a/b now";
+    for (const char of typed.slice(4)) {
+      await act(async () => {
+        editor.dispatchCommand(CONTROLLED_TEXT_INSERTION_COMMAND, char);
+      });
+    }
+    await waitFor(() => expect(composerText()).toBe(typed));
+    expect(linkSpans()).toEqual(["https://example.com/a/b"]);
+
+    const lines = "first https://a.example/x\nthen mailto:b@example.com and https://c.example";
+    await setComposerText(lines);
+    await waitFor(() => expect(composerText()).toBe(lines));
+    expect(linkSpans()).toEqual([
+      "https://a.example/x",
+      "mailto:b@example.com",
+      "https://c.example",
+    ]);
   });
 
   it("Should restore the active session draft after the composer remounts", async () => {
@@ -6779,6 +7410,123 @@ describe("SessionThread composer attachments", () => {
     }
   });
 
+  it("Should restore unsent attachments in order after the session runtime rebuilds", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    const MockURL = class extends URL {};
+    MockURL.createObjectURL = vi.fn(() => "blob:restored-preview");
+    MockURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", MockURL);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(
+        screen.getAllByTestId("composer-attachment-tile").map(tile => tile.dataset.state)
+      ).toEqual(["ready", "ready"])
+    );
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 2, deletes: 0 });
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await waitFor(() => {
+      const tiles = screen.getAllByTestId("composer-attachment-tile");
+      expect(tiles.map(tile => tile.textContent)).toEqual([
+        expect.stringContaining("shot.png"),
+        expect.stringContaining("report.pdf"),
+      ]);
+      expect(tiles.map(tile => tile.dataset.state)).toEqual(["ready", "ready"]);
+    });
+    expect(screen.getByRole("button", { name: "Preview shot.png" })).toBeInTheDocument();
+    // The rebuilt composer reuses the daemon uploads; nothing is sent or deleted again.
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 2, deletes: 0 });
+  });
+
+  it("Should finish an upload left in flight on the restored composer without uploading again", async () => {
+    let releaseUpload!: () => void;
+    const uploadGate = new Promise<void>(resolve => {
+      releaseUpload = resolve;
+    });
+    const fetchMock = createFetchMock({ beforeAttachmentUpload: () => uploadGate });
+    vi.stubGlobal("fetch", fetchMock);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    act(() => {
+      void requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute(
+        "data-state",
+        "uploading"
+      )
+    );
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-attachment-tile");
+    await act(async () => releaseUpload());
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1);
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 1, deletes: 0 });
+  });
+
+  it("Should not restore an attachment removed from the draft", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: "Remove shot.png" }));
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1));
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1);
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("report.pdf");
+  });
+
+  it("Should not restore attachments that were sent", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument()
+    );
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {});
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
   it("Should summarize queued attachments and steer their complete queue entry", async () => {
     const user = userEvent.setup();
     const onSteerQueuedPrompt = vi.fn();
@@ -6820,6 +7568,16 @@ describe("SessionThread composer attachments", () => {
     });
   });
 });
+
+/** Daemon attachment traffic a composer caused: uploads and deletions. */
+function attachmentRequests(fetchMock: ReturnType<typeof createFetchMock>) {
+  const base = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`;
+  const paths = fetchMock.mock.calls.map(([input]) => getPathname(input));
+  return {
+    uploads: paths.filter(path => path === base).length,
+    deletes: paths.filter(path => path.startsWith(`${base}/`)).length,
+  };
+}
 
 function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof SessionThread>>) {
   const queryClient = createQueryClient();

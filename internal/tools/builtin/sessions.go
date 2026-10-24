@@ -30,6 +30,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
 	sessionRenameDescriptor(),
+	sessionReparentDescriptor(),
 	sessionFolderListDescriptor(),
 	sessionFolderCreateDescriptor(),
 	sessionFolderRenameDescriptor(),
@@ -55,7 +56,9 @@ var sessionTools = []toolspkg.Descriptor{
 		"session_history",
 		"Session History",
 		"Read one bounded page of grouped turn history for one runtime session: the newest 10 turns by default; "+
-			"continue to older turns with page.next_before_sequence, or page forward from after_sequence.",
+			"continue to older turns with page.next_before_sequence, or page forward from after_sequence. "+
+			"To read an agent's answer without tool payloads, pass type=agent_message and limit=1. "+
+			"Keep the same type filter while paging; limit counts matching turns, not bytes.",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -248,8 +251,10 @@ func sessionInputPromoteDescriptor() toolspkg.Descriptor {
 }
 
 const sessionListInputSchema = `{
-	"type":"object",
-	"properties":{
+ "type":"object",
+ "properties":{
+ "board_column":{"type":"array","items":{"type":"string","enum":["needs_you","working","in_review","done"]}},
+ "children":{"type":"string","enum":["include","exclude"]},
 		"workspace":{"type":"string"},
 		"worktree":{"type":"string"},
 		"state":{"type":"string","enum":["starting","active","stopping","stopped"]},
@@ -302,7 +307,7 @@ const sessionPromptInputSchema = `{
 			"properties":{
 				"provider":{"type":"string","minLength":1},
 				"model":{"type":"string"},
-				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 				"speed":{"type":"string","enum":["normal","fast"]}
 			},
 			"additionalProperties":false
@@ -321,7 +326,13 @@ const sessionListOutputSchema = `{
 	"type":"object",
 	"required":["sessions","page"],
 	"properties":{
-		"sessions":{"type":"array","items":{"type":"object"}},
+		"sessions":{"type":"array","items":{"type":"object","properties":{"branch":{"type":"string"},
+ "pull_request":{"type":["object","null"]},
+ "pull_request_lookup":{"type":["object","null"]},
+ "board_column":{"type":"string","enum":["needs_you","working","in_review","done"]},
+ "parent_title":{"type":"string"},
+ "waiting_on":{"type":"string","enum":["sessions","monitor"]},
+ "children":{"type":"object"}}}},
 		"page":{
 			"type":"object",
 			"required":["has_more","total","limit"],
@@ -457,7 +468,7 @@ const sessionInputPayloadSchema = `{
 			"properties":{
 				"provider":{"type":"string","minLength":1},
 				"model":{"type":"string"},
-				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 				"speed":{"type":"string","enum":["normal","fast"]}
 			},
 			"additionalProperties":false

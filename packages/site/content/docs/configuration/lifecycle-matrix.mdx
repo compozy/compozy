@@ -28,6 +28,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `daemon.memory_report_interval`                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.reload_timeouts.mcp`                       | `live`             | `live`             | `none`                                  |
 | `daemon.reload_timeouts.providers`                 | `live`             | `live`             | `none`                                  |
+| `daemon.shutdown_grace`                            | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.socket`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.subprocess_health_escalation_threshold`    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `defaults.*`                                       | `restart-required` | `restart-required` | `restart-daemon`                        |
@@ -70,6 +71,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `terminal.*`                                       | `live`             | `live`             | `none`                                  |
 | `tools.artifacts.*`                                | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `tools.clarify.*`                                  | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `user_scope.work_dir`                              | `live`             | `live`             | `none`                                  |
 | `vault.*`                                          | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `window_manager.*`                                 | `live`             | `live`             | `none`                                  |
 | `window_manager.closed_entry_limit`                | `live`             | `live`             | `none`                                  |

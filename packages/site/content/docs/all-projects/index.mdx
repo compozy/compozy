@@ -1,0 +1,67 @@
+---
+title: All projects
+description: See and open every project's sessions, Loops, Goals, tasks, automations, terminals, worktrees, and agents in one place, without switching projects.
+---
+
+If you run agents in several projects, you should not have to switch projects to follow your own work.
+**All projects** is one place where every registered project, plus your [User scope](/docs/user-scope),
+shows up together. Each row names its project, items open without leaving the mode, and new sessions
+ask which project and profile they belong to.
+
+Turn it on with the globe in the topbar (or ⇧⌘G). Turn the globe off and you are back in the project,
+or User, exactly as you left it.
+
+New here? [Work across all projects](/docs/all-projects/quickstart) walks through it in the Web app.
+Scripting? [Read every project from the CLI and HTTP](/docs/all-projects/scripts).
+
+## What it shows
+
+Under All projects, these surfaces list every project plus User, with a project badge on each row:
+
+| Surface         | Notes                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| Sessions        | Flat list by default. **Group by** Project (or Profile under All profiles) for folders and order. |
+| Tasks, Home     | Every task; Home counts every project.                                                            |
+| Loops and Goals | Definitions, runs, Goals, and pending requests.                                                   |
+| Automations     | Jobs, triggers, runs, and suggestions. A run whose project is unknown reads **Unknown project**.  |
+| Terminals       | Local daemon only.                                                                                |
+| Worktrees       | Cached status; no Git refresh across projects.                                                    |
+| Agents          | Your user agents plus each project's agents.                                                      |
+| Needs-you bell  | Always every project and every profile, in any mode.                                              |
+
+Every listing toolbar gains a **Project** filter: pick one or more projects, or **User**. It resets
+when you leave the mode.
+
+Skills, extensions, MCP, hooks, settings, and layouts are configuration, not work, so they are not
+aggregated. Under All projects they show your user layer, labeled **User**.
+
+## What it does not change
+
+- **Profiles.** All projects shows the current profile's work across projects. Seeing every profile
+  at once is the separate **All profiles** choice. See [Profiles](/docs/profiles/reads).
+- **Agents' reach.** Agent sessions still stay in their own project. Only agents you grant
+  [`workspace_access: unrestricted`](/docs/user-scope/unrestricted-agents) can read these aggregates.
+- **App tokens.** The new aggregate routes refuse app tokens. Routes an app could already read keep
+  exactly the population they had.
+
+## Its own desktop
+
+All projects has its own desktop, separate from each project's desktops, which stay untouched. A
+window opened from an All projects list remembers which project (or User) its item belongs to. If you
+later remove that project, the window falls back to its app's list and a toast names the project.
+
+Opening an item from a project's own desktop works as before: an item from another project asks
+"Switch project?" first.
+
+## In this section
+
+- [Work across all projects](/docs/all-projects/quickstart) — the Web walkthrough.
+- [Read every project from the CLI and HTTP](/docs/all-projects/scripts) — `--all-workspaces` and `all_workspaces=true`.
+
+## Related pages
+
+- [User scope](/docs/user-scope) — work that belongs to no project.
+- [`[shell.sessions]`](/docs/configuration/config-toml#shellsessions) — `group_by` and the deprecated `scope` key.
+- [Window management](/docs/workspaces/window-management) — desktops and reserved partitions.
+
+Session nesting refuses an entire subtree that has descendants in another workspace. No lineage is changed; the API and native tool return `session_reparent_cross_workspace_subtree`. Both source and parent must belong to the effective profile.

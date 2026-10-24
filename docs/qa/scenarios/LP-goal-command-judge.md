@@ -34,3 +34,11 @@ QA result 2026-08-10: Bruno ran `looprun-63a9f3bae9fa958d` in a fresh isolated w
 persisted a rejected command verdict with exit code 1, workspace stdout, stderr, blockers, criteria,
 and warnings. Turn 2 persisted an approved verdict with exit code 0, the successor node completed,
 and the Run reached `done`. The bound catalog-origin Goal session recorded `compozy__goal_report`.
+
+### User scope (U3 integration leg)
+
+Run `/goal` in a User session. Confirm the run keeps an empty workspace and the session's concrete
+profile, its checkpoint is valid, and Goal status remains visible after the command. Repeat under
+another profile and verify run/request lists and `@user&all_profiles=true` retain exact User scope
+and owner labels. Worker coverage lives in the canonical Goal command and SQLite loop suites; the
+full User-session transport journey waits for U2 integration.

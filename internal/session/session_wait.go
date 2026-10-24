@@ -282,7 +282,7 @@ func waitBadgeMatches(until map[Badge]struct{}, badge Badge) bool {
 		return true
 	}
 	_, waitsForIdle := until[BadgeIdle]
-	return badge == BadgeDone && waitsForIdle
+	return (badge == BadgeDone || badge == BadgeWaiting) && waitsForIdle
 }
 
 func (m *Manager) publishWaitBadgeEdge(info *Info, badge Badge) {

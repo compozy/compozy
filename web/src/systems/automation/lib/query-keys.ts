@@ -27,6 +27,11 @@ function profileLens(profile?: string, allProfiles?: boolean): string {
   return allProfiles === true ? PROFILE_AGGREGATE : normalizeText(profile);
 }
 
+/** All projects breadth, with the Project filter: a cache entry per selection. */
+function breadthLens(allWorkspaces?: boolean, workspaceIds?: readonly string[]): string {
+  return allWorkspaces === true ? `all:${(workspaceIds ?? []).join(",")}` : "";
+}
+
 function readScopeLens(scope: ProfileScopeParams): string {
   return "all_profiles" in scope ? PROFILE_AGGREGATE : normalizeText(scope.profile);
 }
@@ -42,6 +47,7 @@ export const automationKeys = {
       ...automationKeys.jobLists(),
       normalized.scope ?? "",
       normalizeText(normalized.workspace_id),
+      breadthLens(normalized.all_workspaces, normalized.workspace_ids),
       normalized.source ?? "",
       normalized.target ?? "",
       normalizeBoolean(normalized.enabled),
@@ -76,6 +82,7 @@ export const automationKeys = {
       ...automationKeys.triggerLists(),
       normalized.scope ?? "",
       normalizeText(normalized.workspace_id),
+      breadthLens(normalized.all_workspaces, normalized.workspace_ids),
       normalized.source ?? "",
       normalized.target ?? "",
       normalizeBoolean(normalized.enabled),
@@ -121,4 +128,7 @@ export const automationKeys = {
   suggestionLists: () => [...automationKeys.suggestions(), "list"] as const,
   suggestionList: (workspaceID: string, status: string) =>
     [...automationKeys.suggestionLists(), workspaceID, status] as const,
+  suggestionAggregates: () => [...automationKeys.suggestionLists(), "all"] as const,
+  suggestionAggregate: (workspaceIDs: readonly string[], status: string) =>
+    [...automationKeys.suggestionAggregates(), [...workspaceIDs].sort(), status] as const,
 };

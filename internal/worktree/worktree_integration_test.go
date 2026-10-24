@@ -26,6 +26,75 @@ import (
 func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should tear down external resources before removing the real checkout", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		f.settings.TeardownCommand = `test -f .setup-marker && printf '%s' "$COMPOZY_WORKTREE_ID" > "$COMPOZY_WORKSPACE_ROOT/teardown-marker"`
+		f.service = f.newService(f.runner)
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		item, err := f.service.Create(
+			t.Context(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Teardown"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		assertFileContent(t, filepath.Join(f.workspace.Root, "teardown-marker"), item.ID)
+		if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("checkout remains: %v", err)
+		}
+		if f.item(item.ID).State != StateRemoved || f.events.count(EventTeardownFailed) != 0 {
+			t.Fatal("teardown or removal failed")
+		}
+	})
+
+	t.Run("Should read exit plans locally while display refresh is in backoff", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		f.git(f.workspace.Root, "remote", "add", "origin", "https://github.com/acme/repo.git")
+		item, err := f.service.Create(
+			t.Context(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Local Plan"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := &recordingExitForge{capabilities: &ForgeCapabilities{Provider: "github"}}
+		WithForge(provider)(f.service)
+		cache := newPullRequestMemoryStore()
+		now := statusTestClock()
+		key := PullRequestKey{f.workspace.ID, "github.com/acme/repo", item.Branch}
+		if err := cache.SavePullRequest(
+			t.Context(),
+			PullRequestEntry{
+				Key:         key,
+				LookupState: "error",
+				LookupCause: "rate_limited",
+				RetryAfter:  new(now.Add(time.Hour)),
+				Facts:       &ForgeStatus{FetchedAt: new(now.Add(-time.Hour))},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		pulls := NewPullRequestService(t.Context(), cache, provider, f.service.runner, nil)
+		pulls.now = func() time.Time { return now }
+		t.Cleanup(pulls.Close)
+		f.service.pullRequests = pulls
+		plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
+		if err != nil || plan.Forge != nil {
+			t.Fatalf("plan=%#v, %v", plan, err)
+		}
+		pulls.Close()
+		if provider.capabilityCalls != 0 || provider.statusCalls != 0 {
+			t.Fatalf("provider invoked: %#v", provider)
+		}
+	})
+
 	// Invariant: replay recognizes only the authorized selected tree and parent,
 	// preserving outsiders and blocking hook-expanded commits before publication.
 	// Owner: worktree delivery; canonical real Git lifecycle integration suite.
@@ -1166,19 +1235,13 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				if scenario == "wrong head" {
 					forge.HeadSHA = f.git(f.workspace.Root, "rev-parse", "HEAD")
 				}
-				if scenario == "persisted merge" || scenario == "provider unavailable" {
+				if scenario != "no forge" {
 					live := forge
 					provider := &recordingExitForge{status: &live}
 					if scenario == "provider unavailable" {
 						provider.statusErr = ErrForgeUnavailable
 					}
 					WithForge(provider)(f.service)
-					forge.HeadSHA = ""
-				}
-				if scenario != "no forge" {
-					if err := f.store.SaveForgeStatus(t.Context(), f.workspace.ID, item.ID, forge); err != nil {
-						t.Fatal(err)
-					}
 				}
 				if scenario == "no base" {
 					item.BaseRef = ""
@@ -1192,10 +1255,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("gone status = (%#v, %v)", status, err)
 				}
 				plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
-				wantMerged := scenario == "merged" || scenario == "dirty" || scenario == "no base" ||
-					scenario == "persisted merge"
-				if err != nil || plan.Cleanup.Safe != wantMerged || (wantMerged && plan.Cleanup.Source != "forge") {
-					t.Fatalf("exit plan = (%#v, %v), want merged evidence %v", plan, err, wantMerged)
+				if err != nil || plan.Cleanup.Safe || plan.Cleanup.Source != cleanupLocalSource {
+					t.Fatalf("exit plan = (%#v, %v), want conservative local evidence", plan, err)
+				}
+				if provider, ok := f.service.forge.(*recordingExitForge); ok &&
+					(provider.capabilityCalls != 0 || provider.statusCalls != 0) {
+					t.Fatalf("plan invoked forge: %#v", provider)
 				}
 				for _, action := range plan.Actions {
 					if scenario == "dirty" && action.Action == ExitActionCommit && !action.Enabled {
@@ -1548,7 +1613,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err := os.WriteFile(lostPath, []byte("lost\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(lost) error = %v", err)
 		}
-		refusalResult, err := f.service.RemoveDiscovered(t.Context(), f.workspace.ID, liveListed, RemoveDiscoveredOptions{})
+		refusalResult, err := f.service.RemoveDiscovered(
+			t.Context(),
+			f.workspace.ID,
+			liveListed,
+			RemoveDiscoveredOptions{},
+		)
 		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil || refusalResult.Risk.ChangedFiles != 1 {
 			t.Fatalf("RemoveDiscovered(dirty) = (%#v, %v), want one-file refusal", refusalResult, err)
 		}
@@ -1627,6 +1697,324 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("RemoveDiscovered(unlisted) error = %v, want ErrNotFound", err)
 		}
+	})
+
+	// Invariant: a checkout whose .git link is gone while Git still registers it
+	// (an interrupted removal) is refused with an inventory instead of failing,
+	// and force deletes the leftover directory and clears only its Git entry.
+	t.Run("Should refuse orphaned checkouts with an inventory and force-remove them", func(t *testing.T) {
+		f := newRealGitFixture(t)
+		orphan := func(path string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(path, "leftover.txt"), []byte("left\n"), 0o600); err != nil {
+				t.Fatalf("WriteFile(leftover) error = %v", err)
+			}
+			if err := os.Remove(filepath.Join(path, ".git")); err != nil {
+				t.Fatalf("Remove(.git) error = %v", err)
+			}
+		}
+		listed := func(path string) bool {
+			t.Helper()
+			for entry := range strings.SplitSeq(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), "\n") {
+				if listedPath, ok := strings.CutPrefix(entry, "worktree "); ok &&
+					canonicalComparablePath(listedPath) == canonicalComparablePath(path) {
+					return true
+				}
+			}
+			return false
+		}
+
+		registered, err := f.service.Create(
+			t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Orphaned"},
+		)
+		if err != nil {
+			t.Fatalf("Create(orphaned) error = %v", err)
+		}
+		orphan(registered.Path)
+		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, registered.ID, false)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Code != ErrCheckoutOrphaned.Error() || refusalResult.Risk.LeftoverFiles == 0 {
+			t.Fatalf("Remove(orphaned) = (%#v, %v), want orphaned refusal with leftover files", refusalResult, err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("refused orphan state = %q, want ready", got)
+		}
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed interrupted removal: %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations(orphaned removal) error = %v, want startup to continue", err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("recovered orphan state = %q, want ready for confirmation", got)
+		}
+		// An unreadable leftover cannot be inventoried; startup still continues.
+		locked := filepath.Join(registered.Path, "locked")
+		if err := os.Mkdir(locked, 0o700); err != nil {
+			t.Fatalf("Mkdir(locked) error = %v", err)
+		}
+		if err := os.Chmod(locked, 0o000); err != nil {
+			t.Fatalf("Chmod(locked) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(locked, 0o700); err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("restore leftover permissions: %v", err)
+			}
+		})
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed unreadable interrupted removal: %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations(unreadable orphan) error = %v, want startup to continue", err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("unreadable orphan state = %q, want ready", got)
+		}
+		if err := os.Chmod(locked, 0o700); err != nil {
+			t.Fatalf("Chmod(unlock) error = %v", err)
+		}
+		if refusalResult, err = f.service.Remove(
+			t.Context(), f.workspace.ID, registered.ID, true,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("Remove(force orphaned) = (%#v, %v), want success", refusalResult, err)
+		}
+		if _, err := os.Lstat(registered.Path); !errors.Is(err, os.ErrNotExist) || listed(registered.Path) {
+			t.Fatalf("orphaned checkout after force: stat=%v listed=%t, want both gone", err, listed(registered.Path))
+		}
+		if got := f.item(registered.ID).State; got != StateRemoved {
+			t.Fatalf("force-removed orphan state = %q, want removed", got)
+		}
+
+		detachedPath := filepath.Join(t.TempDir(), "orphaned-detached")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", detachedPath, "main")
+		if err := os.WriteFile(filepath.Join(detachedPath, "unique.txt"), []byte("unique\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(unique) error = %v", err)
+		}
+		f.git(detachedPath, "add", "unique.txt")
+		f.git(detachedPath, "commit", "-m", "detached unique")
+		orphan(detachedPath)
+		var detachedListed string
+		listing, err := f.service.List(t.Context(), f.workspace.ID, true)
+		if err != nil {
+			t.Fatalf("List(refresh) error = %v", err)
+		}
+		for _, entry := range listing.Discovered {
+			if canonicalComparablePath(entry.Path) == canonicalComparablePath(detachedPath) {
+				detachedListed = entry.Path
+			}
+		}
+		if detachedListed == "" {
+			t.Fatalf("discovered = %#v, want the orphaned detached checkout", listing.Discovered)
+		}
+		refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, detachedListed, RemoveDiscoveredOptions{ExpectStale: true},
+		)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 || refusalResult.Risk.LeftoverFiles == 0 {
+			t.Fatalf(
+				"RemoveDiscovered(orphaned) = (%#v, %v), want detached commit and files at risk",
+				refusalResult,
+				err,
+			)
+		}
+		if _, err := os.Lstat(filepath.Join(detachedPath, "unique.txt")); err != nil {
+			t.Fatalf("refused orphan lost files: %v", err)
+		}
+		if refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, detachedListed, RemoveDiscoveredOptions{Force: true, ExpectStale: true},
+		); err != nil || refusalResult != nil {
+			t.Fatalf("RemoveDiscovered(force orphaned) = (%#v, %v), want success", refusalResult, err)
+		}
+		if _, err := os.Lstat(detachedPath); !errors.Is(err, os.ErrNotExist) || listed(detachedPath) {
+			t.Fatalf("discovered orphan after force: stat=%v listed=%t, want both gone", err, listed(detachedPath))
+		}
+	})
+
+	for _, registered := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should require force for a locked empty orphan registered=%t", registered),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				path := filepath.Join(t.TempDir(), "locked-orphan")
+				f.git(f.workspace.Root, "worktree", "add", "-b", "locked-orphan", path, "main")
+				var id string
+				if registered {
+					item, err := f.service.Adopt(t.Context(), testWorktreeProfileID, f.workspace.ID, path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					id = item.ID
+				}
+				admin := f.git(path, "rev-parse", "--absolute-git-dir")
+				f.git(f.workspace.Root, "worktree", "lock", path)
+				entries, err := os.ReadDir(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, entry := range entries {
+					if err := os.RemoveAll(filepath.Join(path, entry.Name())); err != nil {
+						t.Fatal(err)
+					}
+				}
+				remove := func(force bool) error {
+					t.Helper()
+					if registered {
+						_, err := f.service.Remove(t.Context(), f.workspace.ID, id, force)
+						return err
+					}
+					_, err := f.service.RemoveDiscovered(
+						t.Context(),
+						f.workspace.ID,
+						path,
+						RemoveDiscoveredOptions{Force: force},
+					)
+					return err
+				}
+				if err := remove(false); !errors.Is(err, ErrRemovalFailed) {
+					t.Fatalf("unforced locked removal = %v, want refusal", err)
+				}
+				for _, preserved := range []string{path, filepath.Join(admin, "locked")} {
+					if _, err := os.Stat(preserved); err != nil {
+						t.Fatalf("unforced removal changed %s: %v", preserved, err)
+					}
+				}
+				if err := remove(true); err != nil {
+					t.Fatalf("forced locked removal = %v", err)
+				}
+				for _, removed := range []string{path, admin} {
+					if _, err := os.Lstat(removed); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("forced removal retained %s: %v", removed, err)
+					}
+				}
+			},
+		)
+	}
+
+	for _, recovery := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should finish orphan admin cleanup before tombstoning recovery=%t", recovery),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+					ProfileID: testWorktreeProfileID, Name: "Interrupted Orphan",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				bystander := filepath.Join(t.TempDir(), "stale-bystander")
+				f.git(f.workspace.Root, "worktree", "add", "--detach", bystander, "main")
+				bystanderAdmin := f.git(bystander, "rev-parse", "--absolute-git-dir")
+				if err := os.RemoveAll(bystander); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(filepath.Join(item.Path, ".git")); err != nil {
+					t.Fatal(err)
+				}
+				f.service.runner = &interceptingGitRunner{inner: f.runner,
+					intercept: func(_ string, args []string) ([]byte, []byte, error, bool) {
+						if len(args) >= 5 && args[2] == "worktree" && args[3] == "remove" {
+							return nil, []byte("injected admin cleanup failure"), errors.New("exit 1"), true
+						}
+						return nil, nil, nil, false
+					},
+				}
+				if _, err := f.service.Remove(
+					t.Context(),
+					f.workspace.ID,
+					item.ID,
+					true,
+				); !errors.Is(
+					err,
+					ErrRemovalFailed,
+				) {
+					t.Fatalf("interrupted removal = %v, want cleanup failure", err)
+				}
+				if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("interruption did not reach admin cleanup: %v", err)
+				}
+				if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+					t.Fatal("failed cleanup completed the removal record")
+				}
+				if _, err := f.service.Remove(
+					t.Context(),
+					f.workspace.ID,
+					item.ID,
+					true,
+				); !errors.Is(
+					err,
+					ErrRemovalFailed,
+				) {
+					t.Fatalf("retry during cleanup failure = %v, want failure", err)
+				}
+				if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+					t.Fatal("failed retry completed the removal record")
+				}
+				f.service = f.newService(f.runner)
+				if recovery {
+					if err := f.store.SetState(
+						t.Context(),
+						f.workspace.ID,
+						item.ID,
+						StateRemoving,
+						item.UpdatedAt,
+					); err != nil {
+						t.Fatal(err)
+					}
+					err = f.service.RecoverCreations(t.Context())
+				} else {
+					_, err = f.service.Remove(t.Context(), f.workspace.ID, item.ID, true)
+				}
+				if err != nil || f.item(item.ID).State != StateRemoved || f.events.count(EventRemoved) != 1 {
+					t.Fatalf(
+						"retry = %v, state=%s, events=%d",
+						err,
+						f.item(item.ID).State,
+						f.events.count(EventRemoved),
+					)
+				}
+				if _, err := os.Lstat(item.GitDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("completed removal retained Git registration: %v", err)
+				}
+				if _, err := os.Stat(bystanderAdmin); err != nil {
+					t.Fatalf("cleanup touched unrelated stale registration: %v", err)
+				}
+			},
+		)
+	}
+
+	t.Run("Should preserve an absent checkout registration whose backlink changed", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Changed Backlink",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		bystander := filepath.Join(t.TempDir(), "live-bystander")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", bystander, "main")
+		backlink := filepath.Join(item.GitDir, "gitdir")
+		changed := filepath.Join(bystander, ".git") + "\n"
+		if err := os.WriteFile(backlink, []byte(changed), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.RemoveAll(item.Path); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); !errors.Is(err, ErrRemovalFailed) {
+			t.Fatalf("changed identity removal = %v, want refusal", err)
+		}
+		if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+			t.Fatal("changed identity was tombstoned")
+		}
+		assertFileContent(t, backlink, changed)
+		assertFileContent(t, filepath.Join(bystander, "README.md"), "initial\n")
 	})
 
 	// Invariant: opt-in branch deletion runs only after cleanup, keeps protected

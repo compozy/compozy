@@ -109,23 +109,7 @@ func applyLegacyRawPayload(
 	rawPayload map[string]any,
 	typedToolPayload bool,
 ) {
-	if event.Type == acp.EventTypeSystem ||
-		event.Type == acp.EventTypeCompaction ||
-		event.Type == acp.EventTypeUsage ||
-		event.Type == acp.EventTypePermission ||
-		event.Type == acp.EventTypeClarify ||
-		event.Type == events.SessionCompactionFired ||
-		event.Type == "session.compaction.requested" ||
-		event.Type == events.SessionSupervisionWarning ||
-		event.Type == events.SessionSupervisionStopped ||
-		event.Type == events.SessionSupervisionSourceError ||
-		event.Type == events.SessionTurnQuiesced ||
-		event.Type == events.SessionStopEscalated ||
-		event.Type == events.SessionStopVerificationFailed ||
-		event.Type == events.SessionQueueCleared ||
-		event.Type == events.SessionQueueClearFailed ||
-		event.Type == events.TranscriptMarkerCreated ||
-		event.Type == events.TranscriptMarkerRedacted {
+	if retainsRawPayload(event.Type) {
 		payload.Raw = acp.CloneRawMessage(event.Raw)
 	}
 	payload.ToolName = firstNonEmpty(payload.ToolName, legacyToolName(rawPayload))
@@ -147,6 +131,23 @@ func applyLegacyRawPayload(
 			rawPayload["rawOutput"],
 		)
 		payload.ToolError = effectiveToolError
+	}
+}
+
+func retainsRawPayload(eventType string) bool {
+	switch eventType {
+	case acp.EventTypeSystem, acp.EventTypeCompaction, acp.EventTypeUsage,
+		acp.EventTypePermission, acp.EventTypeClarify,
+		events.SessionCompactionFired, "session.compaction.requested",
+		events.SessionSupervisionWarning, events.SessionSupervisionStopped, events.SessionSupervisionSourceError,
+		events.SessionTurnQuiesced, events.SessionStopEscalated, events.SessionStopVerificationFailed,
+		events.SessionQueueCleared, events.SessionQueueClearFailed,
+		events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted,
+		events.SessionRestartInterrupted, events.SessionRestartAttempt,
+		events.SessionRestartResumed, events.SessionRestartSkipped:
+		return true
+	default:
+		return false
 	}
 }
 

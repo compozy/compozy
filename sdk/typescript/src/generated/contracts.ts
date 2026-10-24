@@ -853,6 +853,7 @@ export interface AutomationJobsParams {
 export type JobSource = string;
 
 export interface Job {
+  grant_ceiling: string;
   id: string;
   profile_id: string;
   scope: Scope;
@@ -1778,7 +1779,21 @@ export interface ForgeStatusRequest {
   head_sha?: string;
 }
 
+export interface ForgeChecks {
+  state: string;
+  passed: number;
+  failed: number;
+  pending: number;
+  failed_names: string[];
+}
+
 export interface ForgeStatusResponse {
+  checks?: ForgeChecks;
+  review_decision?: string;
+  mergeable?: string;
+  updated_at?: ISODateTime;
+  selection?: string;
+  retry_after?: ISODateTime;
   provider: string;
   pr_number?: number;
   pr_state?: string;
@@ -3278,6 +3293,8 @@ export interface ResourcesSnapshotParams {
 }
 
 export interface Run {
+  workspace_id?: string;
+  attribution: string;
   id: string;
   profile_id?: string;
   job_id?: string;
@@ -3891,6 +3908,7 @@ export interface SessionRuntimePayload {
   selected?: PromptRuntimeSelectionPayload;
   selection_revision: number;
   effective?: RuntimeSelectionPayload;
+  requested?: PromptRuntimeSelectionPayload;
   last_known?: RuntimeSelectionPayload;
   acp_session_id?: string;
   acp_caps?: ACPCapsPayload;
@@ -3941,7 +3959,19 @@ export interface SessionQueueSummaryPayload {
   cap: number;
 }
 
-export type Badge = string;
+export type Badge =
+  | "running"
+  | "idle"
+  | "unhealthy"
+  | "hung"
+  | "waiting-for-auth"
+  | "waiting-for-input"
+  | "done"
+  | "stopped"
+  | "failed"
+  | "unknown"
+  | "needs-attention"
+  | "waiting";
 
 export interface PendingInteractionPayload {
   interaction_id: string;
@@ -4641,6 +4671,8 @@ export interface TaskDashboard {
 }
 
 export interface TaskDashboardParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: Scope;
   workspace?: string;
   worktree?: string;
@@ -4916,6 +4948,7 @@ export type CatalogScope = string;
 export interface TaskInboxParams {
   scope?: CatalogScope;
   workspace?: string;
+  workspace_ids?: string[];
   worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
@@ -5548,6 +5581,8 @@ export interface TaskUpdateParams {
 export type CatalogSort = string;
 
 export interface TasksParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: CatalogScope;
   workspace?: string;
   status?: Status;
@@ -5845,6 +5880,7 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  reserved_workspace_partition?: boolean;
   max_result_bytes?: number;
   idempotent?: boolean;
   input_error_code?: ErrorCode;

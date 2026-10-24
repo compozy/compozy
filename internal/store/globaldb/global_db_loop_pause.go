@@ -28,7 +28,7 @@ func (g *LoopRepo) SetLoopRunPauseRequested(
 	}
 	workspaceID := strings.TrimSpace(string(ws))
 	trimmedRunID := strings.TrimSpace(string(runID))
-	if workspaceID == "" || trimmedRunID == "" {
+	if trimmedRunID == "" {
 		return fmt.Errorf("%w: workspace_id and run_id are required", looppkg.ErrValidation)
 	}
 	now := g.now()

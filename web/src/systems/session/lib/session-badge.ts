@@ -25,8 +25,9 @@
 import type { PillTone, StateGlyphState } from "@compozy/ui";
 
 import type { SessionPayload, SessionState } from "../types";
+import type { SessionWaitingOn } from "./session-pull-request";
 
-/** The daemon's eleven-token badge vocabulary, in precedence order. */
+/** The daemon's twelve-token badge vocabulary, in precedence order. */
 export const SESSION_BADGES = [
   "needs-attention",
   "failed",
@@ -36,6 +37,7 @@ export const SESSION_BADGES = [
   "hung",
   "unhealthy",
   "running",
+  "waiting",
   "done",
   "idle",
   "unknown",
@@ -116,6 +118,18 @@ export const SESSION_BADGE_SIGNAL = {
     displayLabel: "Working",
     attention: "none",
   },
+  // Idle with open work signals: never done (ADR-003). Like running, the word
+  // stays neutral; the glyph alone carries the parked state. `waiting_on` picks the
+  // parked glyph the sidebar already draws; this entry is the `sessions` reason,
+  // and `sessionBadgeSignal(badge, "monitor")` swaps in the amber radar.
+  waiting: {
+    state: "delegated",
+    tone: "neutral",
+    speaks: true,
+    label: "waiting",
+    displayLabel: "Waiting on sessions",
+    attention: "none",
+  },
   idle: {
     state: "idle",
     tone: "neutral",
@@ -170,8 +184,27 @@ export function toSessionBadge(badge: string | null | undefined): SessionBadgeTo
     : "unknown";
 }
 
-export function sessionBadgeSignal(badge: string | null | undefined): SessionBadgeSignal {
-  return SESSION_BADGE_SIGNAL[toSessionBadge(badge)];
+const WAITING_ON_MONITOR_SIGNAL: SessionBadgeSignal = {
+  state: "monitoring",
+  tone: "neutral",
+  speaks: true,
+  label: "waiting",
+  displayLabel: "Monitoring",
+  attention: "none",
+};
+
+/**
+ * The badge's rendered signal. A `waiting` badge reads its reason from the
+ * daemon's `waiting_on`: `monitor` draws the radar, anything else the
+ * delegated ring.
+ */
+export function sessionBadgeSignal(
+  badge: string | null | undefined,
+  waitingOn?: SessionWaitingOn | null
+): SessionBadgeSignal {
+  const token = toSessionBadge(badge);
+  if (token === "waiting" && waitingOn === "monitor") return WAITING_ON_MONITOR_SIGNAL;
+  return SESSION_BADGE_SIGNAL[token];
 }
 
 export function sessionAttentionClass(badge: string | null | undefined): SessionAttentionClass {

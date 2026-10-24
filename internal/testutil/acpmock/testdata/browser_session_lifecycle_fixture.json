@@ -44,6 +44,19 @@
             ],
             "turns": [
                 {
+                    "name": "browser-session-fix-pr-checks",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "The checks on pull request #932"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "I will inspect the failing PR checks."
+                        }
+                    ]
+                },
+                {
                     "name": "browser-session-created",
                     "match": {
                         "turn_source": "user",

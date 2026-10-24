@@ -20,6 +20,9 @@ type workspaceScope struct {
 	Resolved   workspacepkg.ResolvedWorkspace
 	ID         string
 	RegistryID string
+	// AllUserProfiles marks a User session route read under the all-profiles lens; the routed
+	// session's own profile becomes the concrete scope profile.
+	AllUserProfiles bool
 }
 
 func (s *workspaceScope) SessionWorkspaceID() string {
@@ -39,6 +42,9 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		return workspaceScope{}, false
 	}
 	workspaceRef := workspaceRefFromRoute(c)
+	if !h.RequireProjectReference(c, workspaceRef) {
+		return workspaceScope{}, false
+	}
 	if workspaceRef == "" {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: workspace_id path is required", h.transportName()))
 		return workspaceScope{}, false
@@ -50,6 +56,32 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 			fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable),
 		)
 		return workspaceScope{}, false
+	}
+	if workspacepkg.ParseRef(workspaceRef).Kind == workspacepkg.RefUser {
+		profile, err := h.resolveProfileReadScope(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return workspaceScope{}, false
+		}
+		if profile.AllProfiles {
+			// Reading one existing User session under the all-profiles lens is allowed; the session
+			// supplies the concrete profile (USW BR-7). Collection routes still need one profile.
+			if routeSessionID(c) == "" {
+				h.respondError(
+					c,
+					http.StatusBadRequest,
+					errors.New("session routes in the User scope require one profile"),
+				)
+				return workspaceScope{}, false
+			}
+			return workspaceScope{
+				Resolved:        workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser},
+				AllUserProfiles: true,
+			}, true
+		}
+		return workspaceScope{
+			Resolved: workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profile.ProfileID},
+		}, true
 	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
 	if err != nil {
@@ -148,6 +180,13 @@ func (h *BaseHandlers) routeSessionInWorkspace(
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return workspaceScope{}, "", nil, false
 	}
+	if scope.AllUserProfiles {
+		scope.Resolved.ProfileID = info.ProfileID
+	}
+	if scope.Resolved.Scope == workspacepkg.ScopeUser && info.ProfileID != scope.Resolved.ProfileID {
+		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
+		return workspaceScope{}, "", nil, false
+	}
 	return scope, sessionID, info, true
 }
 
@@ -156,4 +195,17 @@ func (h *BaseHandlers) routeSessionInWorkspace(
 func (h *BaseHandlers) RequireRouteSessionInWorkspace(c *gin.Context) (string, bool) {
 	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
 	return sessionID, ok
+}
+
+func routeSessionID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if sessionID := strings.TrimSpace(c.Param("session_id")); sessionID != "" {
+		return sessionID
+	}
+	if strings.Contains(c.FullPath(), "/sessions/:id") {
+		return strings.TrimSpace(c.Param("id"))
+	}
+	return ""
 }

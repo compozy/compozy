@@ -35,3 +35,12 @@ func scheduleHash(schedule *ScheduleSpec) string {
 	}, "|")))
 	return hex.EncodeToString(hash[:])
 }
+
+// Cron cursors depend on the zone; interval and timestamp schedules do not.
+func (s *Scheduler) scheduleHash(schedule *ScheduleSpec) string {
+	hash := scheduleHash(schedule)
+	if schedule != nil && schedule.Mode == ScheduleModeCron {
+		return hash + ":" + s.location.String()
+	}
+	return hash
+}

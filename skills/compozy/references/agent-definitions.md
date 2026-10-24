@@ -5,6 +5,7 @@
 - Files and precedence
 - Minimal AGENT.md
 - Fields
+- Unrestricted workspace access
 - Tool grants
 - Providers and MCP
 - Fleet reads
@@ -37,12 +38,13 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 
 - name is required. Outer whitespace is trimmed, and the result must match `^[a-z][a-z0-9_-]{0,105}$`: start with a lowercase ASCII letter, then use lowercase ASCII letters, numbers, hyphens, or underscores; the maximum length is 106 characters. Filesystem-loaded agents must also match the directory name.
 - provider, model, reasoning_effort, speed, acp_options, and command can be omitted when defaults supply them.
-- reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
+- reasoning_effort is `none|minimal|low|medium|high|xhigh|max|ultra`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
 - speed is `normal|fast`; prompt and durable session selection override AGENT.md. Each acp_options entry requires `id` and exactly one of `value_id` or `bool_value`.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as compozy\_\_catalog.
 - deny_tools narrows grants.
-- permissions must be one of deny-all, approve-reads, or approve-all. It sets both the static tool policy and the cross-workspace boundary for sessions of this agent: approve-all crosses workspaces without asking, approve-reads prompts the operator at the native-tool seam and denies at every other seam, and deny-all never crosses and never prompts. The two axes are coupled; there is no permissive-tools-with-isolated-workspace setting. Choose deny-all for an agent that must stay inside its own workspace, and see references/native-tools.md (Workspace boundary) for denial and prompt semantics.
+- permissions must be one of deny-all, approve-reads, or approve-all. It sets static tool policy and the ordinary session cross-workspace boundary; see references/native-tools.md (Workspace Boundary).
+- `workspace_access` accepts only omission (default) or `unrestricted`; see Unrestricted Workspace Access below.
 - category_path is display-only hierarchy and must be an array.
 - mcp_servers declares per-agent MCP servers.
 - session_env maps environment names to `env:NAME` or `vault:path` references, optionally expressed
@@ -52,6 +54,64 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
   This also applies to native-CLI agents and their terminals without changing provider login ownership.
 
 Do not use categories or slash strings for hierarchy. They are not runtime semantics.
+
+## Unrestricted Workspace Access
+
+`workspace_access: unrestricted` lets sessions of one agent read and act on every workspace, the
+User scope, and every profile, the way the operator does. It exists for always-on agents that live in
+the operator's home. It is the only grant vocabulary in CompozyOS (User Scope Work ADR-003, which
+supersedes cross-workspace ADR-007 §1 for this one field); there is no grants table, config section,
+or grant-management tool.
+
+    ---
+    name: companion
+    workspace_access: unrestricted
+    permissions: approve-reads
+    ---
+
+- **Operator-authored only.** Set or raise it through the Web agent editor, HTTP/UDS agent routes
+  without agent credentials, or a file edit (there is no CLI flag). Agent-authored writes (`compozy__agent_create`, agent update
+  tools, HTTP with agent headers) that set or raise it fail with `403 workspace_access_operator_only`.
+  Marketplace and extension definitions cannot ship it: the loader drops the field with diagnostic
+  `workspace_access_untrusted_source`. Never ask an agent to grant itself access.
+- **Effective per session.** The daemon resolves `effective_workspace_access` (`""` or
+  `unrestricted`) once at session start and never changes it for that session; resume keeps it.
+  Operator-originated sessions get the definition's value. Every agent-originated creation (spawn,
+  subagent, `compozy__session_create`, HTTP with agent credentials, tasks, automations, and loop runs
+  an agent authored) gets the minimum of the authenticated creator's effective grant and the
+  definition. Caller-supplied parent or provenance fields never count as the creator.
+- **Deferred execution.** Tasks, automation jobs and triggers, and Loop runs persist a
+  `grant_ceiling` when authored. An agent edit of an executable field (prompt, target, agent,
+  schedule, inputs) narrows it; restarts and retries keep it. Records created before this release have
+  no ceiling until an operator saves them again.
+- **Orthogonal to tool risk.** `permissions` still governs destructive tools and approvals. The grant
+  only removes the workspace-axis and profile-axis boundaries. Hooks (`tool.pre_call`) still run
+  first and can deny or narrow granted calls.
+- **Audit and visibility.** Every grant-authorized decision appends `workspace.access_granted` with
+  source `agent_grant`, the acting session and profile, target kind (`workspace`, `user`, or
+  `aggregate`), target workspace, and target profile. Session payloads expose
+  `effective_workspace_access`; the Web shows an **Unrestricted** badge; `compozy agent info <name>`
+  prints `workspace_access`.
+- **Soft boundary.** A process inside a session can call the daemon without agent headers, and
+  provider filesystem tools reach every file the OS user can. The grant is an authority statement for
+  CompozyOS surfaces, not a sandbox.
+
+Authority matrix (HTTP, UDS, and native tools enforce the same rules):
+
+| Surface                                                                    | Operator | Ordinary agent                       | Agent with `unrestricted`            | App token         |
+| -------------------------------------------------------------------------- | -------- | ------------------------------------ | ------------------------------------ | ----------------- |
+| Own workspace or own User scope                                            | allow    | allow                                | allow                                | per route         |
+| Another workspace, or User from a project                                  | allow    | permission mode + consent            | allow, audited                       | per route         |
+| Another profile (`profile=`, `all_profiles=true`)                          | allow    | denied                               | allow, audited                       | per route         |
+| All-projects aggregates                                                    | allow    | `403 agent_scope_denied`             | allow, audited (`aggregate`)         | new routes denied |
+| Window, desktop, layout tools on project partitions and own-profile `user` | allow    | own workspace only                   | allow, audited                       | per route         |
+| Reserved `global` partition, other profiles' partitions                    | allow    | denied                               | denied                               | denied            |
+| Presence leases, notification receipts and acknowledgements                | allow    | denied                               | denied                               | per route         |
+| Set or raise `workspace_access`                                            | allow    | `403 workspace_access_operator_only` | `403 workspace_access_operator_only` | denied            |
+| Tool-risk approvals                                                        | n/a      | per `permissions`                    | per `permissions`                    | n/a               |
+
+Work a granted agent creates in profile P is owned by P. Older daemons reject AGENT.md files that
+contain `workspace_access` (strict decode), so upgrade every daemon that reads the file first.
 
 ## Tool Grants
 

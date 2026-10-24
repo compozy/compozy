@@ -54,14 +54,31 @@ func ParseTaskStreamQuery(c *gin.Context) (contract.TaskStreamQuery, error) {
 }
 
 // ParseTaskDashboardQuery parses the shared task dashboard query parameters.
-func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error) {
+func ParseTaskDashboardQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract.TaskDashboardQuery, error) {
+	breadth, err := parseWorkspaceBreadth(
+		c,
+		c.Param("workspace_id"),
+		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true},
+		workspaces...)
+	if err != nil {
+		return contract.TaskDashboardQuery{}, err
+	}
+	explicitAll, err := ParseOptionalBool(c.Query("all_workspaces"))
+	if err != nil {
+		return contract.TaskDashboardQuery{}, err
+	}
+	if explicitAll && c.Query("scope") != "" {
+		return contract.TaskDashboardQuery{}, invalidWorkspaceBreadth("all_workspaces conflicts with scope")
+	}
 	query := contract.TaskDashboardQuery{
-		Scope:      taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
-		Workspace:  strings.TrimSpace(c.Query("workspace")),
-		Worktree:   strings.TrimSpace(c.Query("worktree")),
-		OwnerKind:  taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
-		OwnerRef:   strings.TrimSpace(c.Query("owner_ref")),
-		OriginKind: taskpkg.OriginKind(strings.TrimSpace(c.Query("origin_kind"))).Normalize(),
+		AllWorkspaces: explicitAll,
+		WorkspaceIDs:  breadth.WorkspaceIDs,
+		Scope:         taskpkg.Scope(strings.TrimSpace(c.Query("scope"))).Normalize(),
+		Workspace:     strings.TrimSpace(c.Query("workspace")),
+		Worktree:      strings.TrimSpace(c.Query("worktree")),
+		OwnerKind:     taskpkg.OwnerKind(strings.TrimSpace(c.Query("owner_kind"))).Normalize(),
+		OwnerRef:      strings.TrimSpace(c.Query("owner_ref")),
+		OriginKind:    taskpkg.OriginKind(strings.TrimSpace(c.Query("origin_kind"))).Normalize(),
 	}
 	if err := validateParsedTaskDashboardQuery(query); err != nil {
 		return contract.TaskDashboardQuery{}, err
@@ -151,6 +168,7 @@ func (h *BaseHandlers) taskDashboardDomainQuery(
 	query contract.TaskDashboardQuery,
 ) (observe.TaskDashboardQuery, error) {
 	domainQuery := observe.TaskDashboardQuery{
+		WorkspaceIDs:     query.WorkspaceIDs,
 		ReadScope:        readScope,
 		Scope:            query.Scope.Normalize(),
 		WorktreeID:       strings.TrimSpace(query.Worktree),

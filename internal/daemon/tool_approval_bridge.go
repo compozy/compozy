@@ -224,7 +224,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: acpsdk.ToolCallId(requestID),
 				Title:      new(toolApprovalTitle(descriptor)),
-				Kind:       new(toolApprovalKind(descriptor)),
+				Kind:       new(toolApprovalKind(descriptor, call.Input)),
 				RawInput:   toolApprovalRawInput(call.Input),
 				Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 			},
@@ -331,17 +331,30 @@ func toolApprovalTitle(descriptor toolspkg.Descriptor) string {
 	return descriptor.ID.String()
 }
 
-func toolApprovalKind(descriptor toolspkg.Descriptor) acpsdk.ToolKind {
+func toolApprovalKind(descriptor toolspkg.Descriptor, input json.RawMessage) acpsdk.ToolKind {
 	switch {
 	case descriptor.ReadOnly && descriptor.Risk == toolspkg.RiskRead:
 		return acpsdk.ToolKindRead
-	case descriptor.Destructive || descriptor.Risk == toolspkg.RiskDestructive:
+	case descriptor.Destructive || descriptor.Risk == toolspkg.RiskDestructive,
+		toolApprovalStopsSession(descriptor.ID, input):
 		return acpsdk.ToolKindDelete
 	case descriptor.OpenWorld || descriptor.Risk == toolspkg.RiskOpenWorld:
 		return acpsdk.ToolKindFetch
 	default:
 		return acpsdk.ToolKindExecute
 	}
+}
+
+// toolApprovalStopsSession reports a stop-first archive, which stops a live
+// session like the destructive session_stop even though plain archive does not.
+func toolApprovalStopsSession(id toolspkg.ToolID, input json.RawMessage) bool {
+	if id != toolspkg.ToolIDSessionArchive {
+		return false
+	}
+	var archive struct {
+		Stop bool `json:"stop"`
+	}
+	return json.Unmarshal(input, &archive) == nil && archive.Stop
 }
 
 func toolApprovalRawInput(input json.RawMessage) any {

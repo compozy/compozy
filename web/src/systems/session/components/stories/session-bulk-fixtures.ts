@@ -15,7 +15,7 @@ export const BULK_SESSION_FAMILY: SessionPayload[] = [
   ...primarySessionFixture,
   id: id!,
   name: name!,
-  badge: badge!,
+  badge: badge as SessionPayload["badge"],
   agent_name: "general",
   state: badge === "stopped" ? "stopped" : "active",
   archived_at: null,

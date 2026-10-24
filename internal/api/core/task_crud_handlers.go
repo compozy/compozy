@@ -2,15 +2,12 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -23,14 +20,7 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 
-	actor, err := h.taskActorContext(c, taskActionList)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	readScope := actor.ReadScope
-	transportQuery, err := ParseTaskListQuery(c)
+	transportQuery, err := ParseTaskListQuery(c, h.Workspaces)
 	if err != nil {
 		if invalidField, ok := errors.AsType[*invalidTaskQueryFieldError](err); ok {
 			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
@@ -42,6 +32,16 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
+	if transportQuery.AllWorkspaces && !h.requireOperatorOrGrantedAgent(c, "all-workspaces tasks") {
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionList)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	readScope := actor.ReadScope
 	query, err := h.taskListDomainQuery(c.Request.Context(), readScope, transportQuery)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
@@ -58,6 +58,16 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
+	}
+	if transportQuery.AllWorkspaces && h.Logger != nil {
+		h.Logger.DebugContext(
+			c.Request.Context(),
+			"task aggregate read",
+			"all_workspaces",
+			true,
+			"result_count",
+			len(page.Tasks),
+		)
 	}
 	c.JSON(http.StatusOK, response)
 }

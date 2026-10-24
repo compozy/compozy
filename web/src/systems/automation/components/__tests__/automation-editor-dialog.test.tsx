@@ -218,9 +218,7 @@ describe("AutomationEditorDialog", () => {
 
     fireEvent.click(screen.getByTestId("automation-start-webhook"));
 
-    expect(screen.getByTestId("automation-destination")).toHaveTextContent(
-      "Creates a Global automation."
-    );
+    expect(screen.getByTestId("automation-destination")).toHaveTextContent("Creates in User.");
   });
 
   it("Should show the aggregate destination for a new automation", () => {
@@ -348,7 +346,7 @@ describe("AutomationEditorDialog", () => {
     fireEvent.click(screen.getByTestId("automation-start-webhook"));
 
     expect(screen.getByTestId("automation-webhook-global-note")).toHaveTextContent(
-      "Link automations are always Global. They aren't tied to one project."
+      "Link automations always live in User. They aren't tied to one project."
     );
     fireEvent.change(screen.getByLabelText("Link name"), { target: { value: "deploy" } });
     fireEvent.change(screen.getByLabelText("Webhook id"), { target: { value: "wbh_abc123" } });

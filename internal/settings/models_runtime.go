@@ -152,7 +152,9 @@ type AttentionSection struct {
 
 // ShellSection is the operator shell-preferences read model.
 type ShellSection struct {
-	Config compozyconfig.ShellConfig
+	Warnings      []string
+	ScopeRevision uint64
+	Config        compozyconfig.ShellConfig
 }
 
 // ObservabilitySection is the observability section read model.
@@ -197,6 +199,7 @@ type DaemonRuntimeStatus struct {
 
 // AutomationRuntimeStatus summarizes automation runtime state.
 type AutomationRuntimeStatus struct {
+	HostTimezone     string
 	Available        bool
 	Running          bool
 	SchedulerRunning bool

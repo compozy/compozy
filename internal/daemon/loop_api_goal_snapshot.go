@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
@@ -52,7 +54,11 @@ func (s *daemonLoopAPIService) visibleSessionGoalProjection(
 	if s == nil || s.goalPersistence == nil {
 		return "", goalpkg.SessionProjection{}, false, errors.New("daemon: Goal read persistence is unavailable")
 	}
-	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	ref := workspaceID
+	if strings.TrimSpace(ref) == "" {
+		ref = workspaceaccess.UserSelector
+	}
+	ws, err := normalizeLoopWorkspaceID(ref)
 	if err != nil {
 		return "", goalpkg.SessionProjection{}, false, fmt.Errorf(
 			"daemon: normalize Goal workspace %q: %w", workspaceID, err,
@@ -90,7 +96,16 @@ func (s *daemonLoopAPIService) goalDefinitionProjection(
 	workspaceID looppkg.WorkspaceID,
 	projection goalpkg.SessionProjection,
 ) (dsl.GoalParams, string, string, error) {
-	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, projection.DefinitionDigest)
+	run, err := s.persistence.GetLoopRun(ctx, workspaceID, projection.RunID)
+	if err != nil {
+		return dsl.GoalParams{}, "", "", err
+	}
+	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(
+		ctx,
+		workspaceID,
+		run.ProfileID,
+		projection.DefinitionDigest,
+	)
 	if err != nil {
 		return dsl.GoalParams{}, "", "", fmt.Errorf(
 			"daemon: load Goal definition snapshot %q: %w",

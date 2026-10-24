@@ -20,6 +20,7 @@ export const TERMINAL_CATALOG_EVENTS = [
   "terminal.snapshot",
   "terminal.created",
   "terminal.closed",
+  "terminal.deleted",
   "terminal.title_changed",
   "terminal.mode_changed",
 ] as const;
@@ -45,18 +46,27 @@ export function terminalCatalogStreamPath(workspaceId: string, profile: string):
   return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
 }
 
-const snapshotSchema = z.strictObject({ terminals: z.array(terminalInfoSchema) });
+// `reset` marks the aggregate stream's fence snapshot (expired or foreign cursor).
+const snapshotSchema = z.strictObject({
+  terminals: z.array(terminalInfoSchema),
+  reset: z.boolean().optional(),
+});
 const createdSchema = z.strictObject({ terminal: terminalInfoSchema });
+// Close and delete events name the terminal's workspace and profile.
+const ownerFields = { workspace_id: z.string().optional(), profile_id: z.string().optional() };
 const closedSchema = z.strictObject({
   terminal_id: z.string(),
   exit: terminalExitSchema.nullable(),
+  ...ownerFields,
 });
+const deletedSchema = z.strictObject({ terminal_id: z.string(), ...ownerFields });
 const titleChangedSchema = z.strictObject({ terminal_id: z.string(), title: z.string() });
 const modeChangedSchema = z.strictObject({ terminal_id: z.string(), mode: terminalModeSchema });
 export type TerminalCatalogEvent =
   | { name: "terminal.snapshot"; terminals: TerminalInfo[] }
   | { name: "terminal.created"; terminal: TerminalInfo }
   | { name: "terminal.closed"; terminalId: string; exit: TerminalInfo["exit"] }
+  | { name: "terminal.deleted"; terminalId: string }
   | { name: "terminal.title_changed"; terminalId: string; title: string }
   | { name: "terminal.mode_changed"; terminalId: string; mode: TerminalInfo["mode"] };
 
@@ -77,6 +87,10 @@ export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalC
     case "terminal.closed": {
       const parsed = parseKnownCatalogEvent(closedSchema, raw);
       return { name, terminalId: parsed.terminal_id, exit: parsed.exit };
+    }
+    case "terminal.deleted": {
+      const parsed = parseKnownCatalogEvent(deletedSchema, raw);
+      return { name, terminalId: parsed.terminal_id };
     }
     case "terminal.title_changed": {
       const parsed = parseKnownCatalogEvent(titleChangedSchema, raw);
@@ -130,6 +144,9 @@ export function reconcileTerminalCatalog(
         state: "exited",
         exit: event.exit ?? terminal.exit ?? null,
       }));
+    case "terminal.deleted":
+      // Past its exit retention: the daemon no longer lists it.
+      return terminals.filter(terminal => terminal.id !== event.terminalId);
     case "terminal.title_changed":
       return patch(terminals, event.terminalId, terminal => ({
         ...terminal,

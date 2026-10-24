@@ -127,6 +127,12 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
+	case errors.Is(err, workspacepkg.ErrWorkspaceReserved),
+		errors.Is(err, workspacepkg.ErrWorkspaceNameReserved),
+		errors.Is(err, workspacepkg.ErrUserScopeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid):
+		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrOperatorHomeWorkspace):
@@ -152,6 +158,9 @@ func statusForSessionError(err error) int {
 		return http.StatusTooManyRequests
 	case errors.Is(err, session.ErrSessionMessageSelfTarget):
 		return http.StatusBadRequest
+	case errors.Is(err, session.ErrSessionArchiveStopFailed):
+		// The wrapped stop cause must not reclassify the unarchived session.
+		return http.StatusConflict
 	}
 	if status, ok := statusForDeriveError(err); ok {
 		return status
@@ -190,7 +199,9 @@ func statusForSessionLookupError(err error) (int, bool) {
 
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
+	case errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
 		errors.Is(err, session.ErrValidation),
 		errors.Is(err, store.ErrConversationRewindTargetInvalid),
@@ -215,6 +226,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 	case errors.Is(err, session.ErrCompactionUnsupported),
 		errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrSessionArchived),
+		errors.Is(err, session.ErrSessionReparentRefused),
 		errors.Is(err, session.ErrSessionArchiveRequiresStopped),
 		errors.Is(err, session.ErrSubagentArchiveFollows),
 		errors.Is(err, store.ErrSessionArchived),
@@ -254,7 +266,8 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusServiceUnavailable, true
 	case errors.Is(err, transcript.ErrProjectionCorrupt):
 		return http.StatusInternalServerError, true
-	case errors.Is(err, session.ErrSessionArchiveUnavailable):
+	case errors.Is(err, session.ErrSessionArchiveUnavailable),
+		errors.Is(err, session.ErrSessionReparentUnavailable):
 		return http.StatusServiceUnavailable, true
 	default:
 		return 0, false

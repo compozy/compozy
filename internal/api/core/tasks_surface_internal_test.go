@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
@@ -352,6 +355,47 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should narrow the All projects inbox by workspace_ids", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(nil)
+		parse := func(path string) (contract.TaskInboxQuery, error) {
+			ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ginCtx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+			return ParseTaskInboxQuery(ginCtx)
+		}
+
+		query, err := parse("/observe/tasks/inbox?all_workspaces=true&workspace_ids=ws-alpha&workspace_ids=@user")
+		if err != nil {
+			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
+		}
+		domain, err := handlers.taskInboxDomainQuery(
+			t.Context(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			query,
+		)
+		if err != nil {
+			t.Fatalf("taskInboxDomainQuery() error = %v", err)
+		}
+		if got, want := domain.WorkspaceIDs, []string{
+			"ws-alpha",
+			workspaceaccess.UserSelector,
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("domain WorkspaceIDs = %#v, want %#v", got, want)
+		}
+		for _, path := range []string{
+			"/observe/tasks/inbox?workspace_ids=ws-alpha",
+			"/observe/tasks/inbox?all_workspaces=true&scope=workspace&workspace=alpha",
+		} {
+			if _, err := parse(path); err == nil {
+				t.Fatalf("parse %q error = nil, want non-nil", path)
+			}
+		}
+	})
+
 	t.Run("Should reject an invalid inbox lane", func(t *testing.T) {
 		t.Parallel()
 
@@ -446,4 +490,44 @@ func TestTaskNormalizationHelpers(t *testing.T) {
 			t.Fatalf("normalizeApprovalPolicyPtr() = %#v", normalizedPolicy)
 		}
 	})
+}
+
+func TestTaskBreadthQuerySemantics(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, query string
+		all         bool
+		invalid     bool
+	}{
+		{name: "Should preserve omission"},
+		{name: "Should preserve false breadth", query: "all_workspaces=false"},
+		{name: "Should accept explicit all", query: "all_workspaces=true", all: true},
+		{name: "Should accept User filter", query: "all_workspaces=true&workspace_ids=@user", all: true},
+		{name: "Should reject global scope with all", query: "all_workspaces=true&scope=global", invalid: true},
+		{name: "Should reject workspace scope with all", query: "all_workspaces=true&scope=workspace", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
+			list, err := ParseTaskListQuery(c)
+			if tc.invalid {
+				if StatusForTaskError(err) != 400 {
+					t.Fatalf("list error=%v", err)
+				}
+				return
+			}
+			if err != nil || list.AllWorkspaces != tc.all {
+				t.Fatalf("list=%+v err=%v", list, err)
+			}
+			dashboard, err := ParseTaskDashboardQuery(c)
+			if err != nil || dashboard.AllWorkspaces != tc.all {
+				t.Fatalf("dashboard=%+v err=%v", dashboard, err)
+			}
+			if strings.Contains(tc.query, workspaceaccess.UserSelector) &&
+				(len(list.WorkspaceIDs) != 1 || len(dashboard.WorkspaceIDs) != 1) {
+				t.Fatal("User filter lost")
+			}
+		})
+	}
 }

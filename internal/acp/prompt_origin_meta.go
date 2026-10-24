@@ -43,7 +43,8 @@ func (m PromptOriginMeta) IsZero() bool { return m.Normalize() == (PromptOriginM
 
 func (m PromptOriginMeta) Validate() error {
 	m = m.Normalize()
-	if m.Kind != PromptOriginKindSession || m.SessionID == "" || m.WorkspaceID == "" {
+	// An empty origin workspace is a User-scope sender (USW BR-1).
+	if m.Kind != PromptOriginKindSession || m.SessionID == "" {
 		return invalidPromptMetadata("acp: session prompt origin identity is incomplete")
 	}
 	if m.Hop < 1 || m.Hop > MaxSessionMessageHops {

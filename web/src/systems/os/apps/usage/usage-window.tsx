@@ -6,9 +6,9 @@ import { ProviderUsagePanel } from "@/systems/provider-usage";
 import { useProviderUsageSurface } from "../../hooks/use-provider-usage-surface";
 
 /**
- * The Usage app: every target expanded, live from the same profile stream as
- * the tray, under a slim freshness + Refresh row (the window chrome carries
- * the title), with a link to the provider usage settings.
+ * The Usage app: every target as a collapsed row, live from the same profile
+ * stream as the tray, under a slim freshness + Refresh row (the window chrome
+ * carries the title), with a link to the provider usage settings.
  * Feature-off renders the panel's turned-off state with that same link.
  */
 export function UsageWindow() {
@@ -25,7 +25,6 @@ export function UsageWindow() {
       <ProviderUsagePanel
         chrome="window"
         title="Usage"
-        expandAll
         viewModel={usage.viewModel}
         loading={usage.loading}
         daemonUnavailable={usage.daemonUnavailable}

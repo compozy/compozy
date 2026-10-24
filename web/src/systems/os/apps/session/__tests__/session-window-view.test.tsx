@@ -1,0 +1,69 @@
+// Suite: OS session-window view runtime selection
+// Invariant: a User-scope session (no workspace, scope "user") is live work and binds the chat
+// runtime to the `@user` selector; only a legacy session without any scope falls back to the
+// read-only history.
+// Owning layer: the OS session-window view.
+import { render } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { SessionWindowView } from "../session-window-view";
+
+const runtimeProviderSpy = vi.hoisted(() => vi.fn());
+const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
+
+vi.mock("@/systems/session", () => ({
+  canPromptSession: () => true,
+  SessionPromptRuntimeProvider: ({ children }: { children: ReactNode }) => children,
+  SessionChatRuntimeProvider: (props: { workspaceId: string; children: ReactNode }) => {
+    runtimeProviderSpy(props.workspaceId);
+    return null;
+  },
+}));
+
+vi.mock("../session-read-only-transcript", () => ({
+  SessionReadOnlyTranscript: () => {
+    readOnlyTranscriptSpy();
+    return null;
+  },
+}));
+
+vi.mock("../session-window-module-loader", () => ({
+  loadSessionWindowContent: () => new Promise(() => {}),
+}));
+
+function renderView(session: Record<string, unknown>) {
+  return render(
+    <SessionWindowView
+      windowId="session:sess-1"
+      name="general"
+      id="sess-1"
+      workspaceId=""
+      session={session as never}
+      liveTailEnabled
+      isLoading={false}
+      error={null}
+    />
+  );
+}
+
+describe("SessionWindowView", () => {
+  beforeEach(() => {
+    runtimeProviderSpy.mockClear();
+    readOnlyTranscriptSpy.mockClear();
+  });
+
+  it("Should bind a User-scope session to the live runtime through @user", () => {
+    renderView({ id: "sess-1", agent_name: "general", scope: "user" });
+
+    expect(runtimeProviderSpy).toHaveBeenCalledWith("@user");
+    expect(readOnlyTranscriptSpy).not.toHaveBeenCalled();
+  });
+
+  it("Should keep a legacy session without a scope in the read-only history", () => {
+    renderView({ id: "sess-1", agent_name: "general" });
+
+    expect(readOnlyTranscriptSpy).toHaveBeenCalled();
+    expect(runtimeProviderSpy).not.toHaveBeenCalled();
+  });
+});

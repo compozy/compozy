@@ -3,14 +3,11 @@ package globaldb
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
-
-const sessionCatalogFacetSelect = "SELECT workspace_id, " + sessionCatalogBadgeExpression + ", COUNT(1) FROM sessions"
-const sessionCatalogFacetGrouping = " GROUP BY workspace_id, " +
-	sessionCatalogBadgeExpression + " ORDER BY workspace_id"
 
 // SessionCatalogFacets counts eligible durable badge and approval metadata.
 // It never scans rich rows, per-session databases, or health/transcript payloads.
@@ -25,6 +22,7 @@ func (g *SessionRepo) SessionCatalogFacets(
 		return result, err
 	}
 	query.Badges = nil
+	query.Columns = nil
 	query.AttentionOnly = false
 	query.Search = ""
 	where, args, err := sessionCatalogPageFilters(query, store.FormatTimestamp(g.now()))
@@ -33,8 +31,15 @@ func (g *SessionRepo) SessionCatalogFacets(
 	}
 	// dynamic-sql: catalog scope and exclusion slices share the owning page filters.
 	var statement strings.Builder
-	statement.WriteString(store.AppendWhere(sessionCatalogFacetSelect, where))
-	statement.WriteString(sessionCatalogFacetGrouping)
+	source, sourceArgs, err := sessionCatalogBoardSource(query.RepositoryKeys, query.DefaultBranches)
+	if err != nil {
+		return result, err
+	}
+	selection := "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression + ", " +
+		sessionCatalogBoardColumnExpression + ", COUNT(1) FROM " + source
+	statement.WriteString(store.AppendWhere(selection, where))
+	statement.WriteString(" GROUP BY workspace_id, profile_id, 3, 4 ORDER BY workspace_id")
+	args = append(sourceArgs, args...)
 
 	rows, err := g.db.QueryContext(ctx, statement.String(), args...)
 	if err != nil {
@@ -46,10 +51,11 @@ func (g *SessionRepo) SessionCatalogFacets(
 		}
 	}()
 	result.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0)
+	profiles := map[string]store.SessionCatalogFacets{}
 	for rows.Next() {
-		var workspaceID, badge string
+		var workspaceID, profileID, badge, column string
 		var count int
-		if err := rows.Scan(&workspaceID, &badge, &count); err != nil {
+		if err := rows.Scan(&workspaceID, &profileID, &badge, &column, &count); err != nil {
 			return result, fmt.Errorf("store: scan session catalog facets: %w", err)
 		}
 		if len(result.ByWorkspace) == 0 || result.ByWorkspace[len(result.ByWorkspace)-1].WorkspaceID != workspaceID {
@@ -60,11 +66,25 @@ func (g *SessionRepo) SessionCatalogFacets(
 		}
 		workspace := &result.ByWorkspace[len(result.ByWorkspace)-1]
 		addCatalogBadgeCount(&workspace.Facets, badge, count)
+		workspace.Facets.Board.Add(column, count)
 		addCatalogBadgeCount(&result.Facets, badge, count)
+		result.Facets.Board.Add(column, count)
+		facets := profiles[profileID]
+		addCatalogBadgeCount(&facets, badge, count)
+		facets.Board.Add(column, count)
+		profiles[profileID] = facets
 	}
 	if err := rows.Err(); err != nil {
 		return result, fmt.Errorf("store: iterate session catalog facets: %w", err)
 	}
+	result.ByProfile = make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
+	for id, facets := range profiles {
+		result.ByProfile = append(result.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
+	}
+	slices.SortFunc(
+		result.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
 	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
 		return result, err
 	}

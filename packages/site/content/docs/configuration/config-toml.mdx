@@ -36,7 +36,8 @@ CompozyOS archives them on load instead of failing; see
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
-| `[shell.sessions]`                   | Live operator preferences for the session list.                                        | creation order, this workspace                                                                        |
+| `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
+| `[user_scope]`                       | Working directory for work that belongs to no project (the User scope).                | `work_dir = "~"`                                                                                      |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
 | `[defaults]`                         | Default agent and session runtime (provider, model, reasoning effort) resolution.      | `agent = "general"`, `provider = ""`                                                                  |
@@ -71,7 +72,7 @@ CompozyOS archives them on load instead of failing; see
 | `[extensions.sources.*]`             | Published extension source availability and endpoints.                                 | GitHub and git enabled, `https://api.github.com`                                                      |
 | `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                              | `watch_interval = "2s"`                                                                               |
 | `[extensions.resources]`             | Resource kinds, scope ceiling, and rate limits for extension-published resources.      | unrestricted kinds and scope, rate limits off                                                         |
-| `[automation]`                       | Automation scheduler defaults.                                                         | enabled, UTC, 5 concurrent jobs                                                                       |
+| `[automation]`                       | Automation scheduler defaults.                                                         | enabled, host time zone for new configs, 5 concurrent jobs                                            |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                             | empty list                                                                                            |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                      | empty list                                                                                            |
 | `[loops]`                            | Daemon reconciliation cadence for terminal Loop execution records.                     | `reconcile_interval = "1m"`                                                                           |
@@ -211,10 +212,16 @@ max_per_daemon = 32
 max_subscribers = 16
 
 [shell.sessions]
-# Session ordering: "created", "name", "last_activity", or "attention".
+# Session ordering: "created", "name", "last_activity", "attention", or "manual".
 sort = "created"
-# Session breadth: "workspace" or "all-workspaces".
-scope = "workspace"
+# Session grouping: "none", "project" (under All projects), or "profile" (under All profiles).
+group_by = "none"
+# Deprecated in v0.4.0, removed in v0.5.0: "workspace" or "all-workspaces".
+# scope = "all-workspaces"
+
+[user_scope]
+# Working directory for User-scope work. Absolute after ~ expansion; must exist.
+work_dir = "~"
 
 [cmd_palette]
 # The current runtime accepts "agent". Use [] to disable the fallback row.
@@ -395,6 +402,8 @@ copy_list = []
 # Empty skips setup; a non-empty command runs inside the new checkout.
 setup_command = ""
 setup_timeout = "10m"
+teardown_command = ""
+teardown_timeout = "10m"
 discovery_cache_ttl = "30s"
 
 [tools]
@@ -555,7 +564,7 @@ max_scope = "workspace"
 
 [automation]
 enabled = true
-timezone = "UTC"
+timezone = "America/Sao_Paulo" # Example: choose your local IANA zone
 max_concurrent_jobs = 5
 default_fire_limit = { max = 12, window = "1h" }
 
@@ -827,6 +836,13 @@ public_dns_resolver = "1.1.1.1:853"
 
 ## `[daemon]`
 
+`shutdown_grace` defaults to `"30s"` and accepts durations from `"0s"` through `"5m"`.
+On a requested restart it gives admitted turns time to finish before CompozyOS records interruptions
+and stops provider processes concurrently. The total shutdown budget also reserves time for the
+session termination ladder and resource cleanup; the relaunch helper waits through that budget.
+Explicit daemon stop does not wait for restart continuation and never auto-resumes work.
+Changing this setting requires a restart.
+
 | Field                                    | Type        | Default                     | Valid values                               | Description                                                                                                                 |
 | ---------------------------------------- | ----------- | --------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
 | `socket`                                 | string path | `$COMPOZY_HOME/daemon.sock` | Non-empty path. `~` is expanded.           | Unix domain socket used by CLI IPC and the UDS API server.                                                                  |
@@ -947,14 +963,18 @@ start recording an existing terminal.
 
 ## `[shell.sessions]`
 
-Shell session preferences are global and live-applied as one validated candidate. The session list
-updates them through the typed Settings API; operators and agents can also use
+Shell session preferences are global and live-applied as one validated candidate. They are the
+default order and grouping of session windows: each window keeps its own **Sort by** and
+**Group by**, shared by its List and Kanban views and remembered across reloads, and a window that
+has not chosen yet follows these values. The Web never writes them, so a choice in one window
+never moves another. Operators and agents set them with
 `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 
-| Field   | Type   | Default     | Valid values                                    | Description                                                            |
-| ------- | ------ | ----------- | ----------------------------------------------- | ---------------------------------------------------------------------- |
-| `sort`  | string | `created`   | `created`, `name`, `last_activity`, `attention` | Newest created first, name A–Z, recent activity, or attention urgency. |
-| `scope` | string | `workspace` | `workspace`, `all-workspaces`                   | Chooses the breadth of sessions shown in the shell.                    |
+| Field      | Type   | Default     | Valid values                                              | Description                                                                              |
+| ---------- | ------ | ----------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `sort`     | string | `created`   | `created`, `name`, `last_activity`, `attention`, `manual` | Newest created first, name A–Z, recent activity, attention urgency, or manual order.     |
+| `group_by` | string | `none`      | `none`, `project`, `profile`                              | Groups the session list by project (under All projects) or profile (under All profiles). |
+| `scope`    | string | `workspace` | `workspace`, `all-workspaces`                             | **Deprecated.** Legacy breadth intent; kept through v0.4.0, removed in v0.5.0.           |
 
 Created keeps parent and nested child rows still while agents work. Name orders the visible title
 case-insensitively using Unicode lowercase, then creation time descending and ID descending; unnamed
@@ -963,9 +983,34 @@ When the automatic title arrives after the first turn, Name may move the row onc
 renames may move it again. Created stays in place.
 Last activity and Attention first remain opt-in choices. An unset sort uses Created; an explicitly
 persisted `last_activity` or `attention` remains unchanged, even if it matched the previous default.
-No user-state migration or rewrite is performed.
+No user-state migration or rewrite is performed. `manual` applies only where the list shows exactly
+one project and profile; elsewhere it displays as Last activity and stays stored.
 
-Both fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
+`group_by = "project"` applies only under All projects and `profile` only under All profiles. An
+inapplicable value renders as `none` and is not rewritten. Unknown values fail with
+`shell_config_invalid`. Groups come from server facets, so a group appears even when none of its
+sessions are on the loaded page.
+
+### `scope` deprecation
+
+Which projects you see is now decided by the topbar globe (**All projects**), not by a config key.
+Through v0.4.0, `scope` stays stored and is returned as written. Old clients and scripts may keep
+writing it; every write returns a deprecation warning naming `shell.sessions.group_by` and the
+globe. While `group_by` is unset, `scope = "all-workspaces"` derives `group_by = "project"`; an
+explicit `group_by` always wins. `GET /api/settings/shell` reports `warnings` and
+`legacy_scope: { value, explicit, revision }`. The Web turns on All projects only for an explicit
+`all-workspaces` written after it last looked, never from the default.
+
+In v0.5.0 the loader turns `scope = "all-workspaces"` into `group_by = "project"` when grouping is
+unset, drops `scope` with a logged notice, and the next apply removes it from `config.toml`. A
+leftover `scope` key never blocks the daemon from starting. To migrate now:
+
+```bash
+compozy config unset shell.sessions.scope
+compozy config set shell.sessions.group_by project
+```
+
+All fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and
 workspace-scoped CLI or native-tool writes are rejected.
 
@@ -1108,7 +1153,7 @@ These fields apply to `coordinator` and `auto_title`.
 | `agent`            | string                | empty         | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters) | Selects an authored agent. Empty resolves to the builtin or invoking-context behavior in the roster above.  |
 | `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                  |
 | `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                    |
-| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                                |
+| `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`          | Optional reasoning override.                                                                                |
 | `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                   | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                 |
 | `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`            | Optional provider-advertised configuration overrides, merged by option ID.                                  |
 | `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, `acp_options`, and `command`. |
@@ -1200,6 +1245,19 @@ A truncated result includes a hint to use `compozy__session_history` on `child_s
 Workspace overlays override the global value only for that workspace. The service reads the
 current value when the subagent settles; changes apply to subsequent results without a restart.
 Subagents have no depth, count, or TTL caps.
+
+## `[session.restart]`
+
+| Field           | Type     | Default | Valid values    | Description                                                        |
+| --------------- | -------- | ------- | --------------- | ------------------------------------------------------------------ |
+| `auto_continue` | boolean  | `true`  | `true`, `false` | Continue eligible interrupted turns after daemon restart or crash. |
+| `max_attempts`  | integer  | `3`     | `1`–`10`        | Maximum automatic recovery attempts per session inside the window. |
+| `window`        | duration | `"5m"`  | `"1s"`–`"1h"`   | Rolling window for the durable restart attempt budget.             |
+
+These keys are additive: omitted values receive defaults without rewriting existing files; explicit
+`auto_continue = false` is preserved. They follow the restart-required settings lifecycle and can be
+managed through CLI, HTTP/UDS, and the native config tools. See [restart recovery](/docs/sessions/resume)
+for eligibility, pending-interaction handling, and external-effect limits.
 
 ## `[session.limits]`
 
@@ -1435,7 +1493,9 @@ config scope.
 | `run_branch_namespace` | string       | `run/`                    | Lowercase slash-terminated namespace. | Prefix for per-run branches.                                             |
 | `copy_list`            | string array | empty                     | Non-empty relative Git pathspecs.     | Matching ignored, untracked files copied without overwriting files.      |
 | `setup_command`        | string       | empty                     | Shell command or empty.               | Bootstrap command run inside a new managed Worktree.                     |
+| `teardown_command`     | string       | empty                     | Shell command or empty.               | Cleanup command before removing a managed Worktree.                      |
 | `setup_timeout`        | duration     | `10m`                     | Positive Go duration.                 | Deadline for `setup_command`.                                            |
+| `teardown_timeout`     | duration     | `10m`                     | Positive Go duration.                 | Deadline for `teardown_command`.                                         |
 | `discovery_cache_ttl`  | duration     | `30s`                     | Positive Go duration.                 | Freshness window for Git discovery and cached local status.              |
 
 The section applies live. New creation and later discovery read the active generation; accepted
@@ -1644,34 +1704,34 @@ UDS, CLI, the OpenAI-compatible projection, the Host API, and the web. Active AC
 continue to govern model and reasoning controls inside a running session, so curated entries are
 metadata, never an allowlist.
 
-| Field                                           | Type    | Default                            | Valid values                                                                           | Description                                                                                                            |
-| ----------------------------------------------- | ------- | ---------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `models.default`                                | string  | Built-in default or empty.         | Any non-blank model id.                                                                | Model used when an agent omits `model`; it need not appear in `models.curated`, but the active adapter must accept it. |
-| `models.curated`                                | array   | omitted; no explicit set.          | See entry fields below.                                                                | Curated model entries projected as `config` rows. Not an allowlist; manual model ids stay valid.                       |
-| `models.curated[].id`                           | string  | required per entry.                | Unique provider model id.                                                              | Provider model identifier sent to the runtime.                                                                         |
-| `models.curated[].display_name`                 | string  | empty.                             | Any string.                                                                            | Optional human label.                                                                                                  |
-| `models.curated[].context_window`               | integer | empty.                             | Positive integer.                                                                      | Context window in tokens.                                                                                              |
-| `models.curated[].max_input_tokens`             | integer | empty.                             | Positive integer.                                                                      | Maximum input tokens.                                                                                                  |
-| `models.curated[].max_output_tokens`            | integer | empty.                             | Positive integer.                                                                      | Maximum output tokens.                                                                                                 |
-| `models.curated[].supports_tools`               | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports tool calls.                                                                                 |
-| `models.curated[].supports_reasoning`           | boolean | empty.                             | `true`, `false`.                                                                       | Whether the model supports reasoning effort.                                                                           |
-| `models.curated[].reasoning_efforts`            | array   | empty.                             | Subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blanks rejected. | Allowed reasoning levels for this model.                                                                               |
-| `models.curated[].default_reasoning_effort`     | string  | empty.                             | Member of `reasoning_efforts` when both are set.                                       | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                               |
-| `models.curated[].default_speed`                | string  | empty.                             | `normal`, `fast`.                                                                      | Per-model speed used when an agent omits `speed`.                                                                      |
-| `models.curated[].cost_input_per_million`       | number  | empty.                             | Non-negative finite number.                                                            | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                               |
-| `models.curated[].cost_output_per_million`      | number  | empty.                             | Non-negative finite number.                                                            | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                              |
-| `models.curated[].cost_cache_read_per_million`  | number  | empty.                             | Non-negative finite number.                                                            | Cache-read rate used only for the cache-read token bucket.                                                             |
-| `models.curated[].cost_cache_write_per_million` | number  | empty.                             | Non-negative finite number.                                                            | Cache-write rate used only for the cache-write token bucket.                                                           |
-| `models.curated[].cost_reasoning_per_million`   | number  | empty.                             | Non-negative finite number.                                                            | Reasoning-token rate used only for the reasoning token bucket.                                                         |
-| `models.curated[].deprecated`                   | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Marks a row deprecated; curated view excludes it. Explicit `false` clears lower-source metadata.                       |
-| `models.curated[].hidden`                       | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Operator curation flag; curated view excludes it. Explicit `false` clears a lower-source flag.                         |
-| `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                       | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
-| `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                             | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
-| `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                  | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
-| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                       | Enables model discovery for this provider. Claude, Codex, and Cursor have built-in paths.                              |
-| `models.discovery.command`                      | string  | adapter default.                   | Shell-style command string.                                                            | Discovery command. Cursor defaults to `cursor-agent models`; ACP adapters use the provider command.                    |
-| `models.discovery.endpoint`                     | string  | adapter default.                   | Absolute HTTP(S) URL.                                                                  | Discovery endpoint URL. Cursor accepts command discovery only.                                                         |
-| `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                | Per-discovery timeout.                                                                                                 |
+| Field                                           | Type    | Default                            | Valid values                                                                                    | Description                                                                                                            |
+| ----------------------------------------------- | ------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `models.default`                                | string  | Built-in default or empty.         | Any non-blank model id.                                                                         | Model used when an agent omits `model`; it need not appear in `models.curated`, but the active adapter must accept it. |
+| `models.curated`                                | array   | omitted; no explicit set.          | See entry fields below.                                                                         | Curated model entries projected as `config` rows. Not an allowlist; manual model ids stay valid.                       |
+| `models.curated[].id`                           | string  | required per entry.                | Unique provider model id.                                                                       | Provider model identifier sent to the runtime.                                                                         |
+| `models.curated[].display_name`                 | string  | empty.                             | Any string.                                                                                     | Optional human label.                                                                                                  |
+| `models.curated[].context_window`               | integer | empty.                             | Positive integer.                                                                               | Context window in tokens.                                                                                              |
+| `models.curated[].max_input_tokens`             | integer | empty.                             | Positive integer.                                                                               | Maximum input tokens.                                                                                                  |
+| `models.curated[].max_output_tokens`            | integer | empty.                             | Positive integer.                                                                               | Maximum output tokens.                                                                                                 |
+| `models.curated[].supports_tools`               | boolean | empty.                             | `true`, `false`.                                                                                | Whether the model supports tool calls.                                                                                 |
+| `models.curated[].supports_reasoning`           | boolean | empty.                             | `true`, `false`.                                                                                | Whether the model supports reasoning effort.                                                                           |
+| `models.curated[].reasoning_efforts`            | array   | empty.                             | Subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. Blanks rejected. | Allowed reasoning levels for this model.                                                                               |
+| `models.curated[].default_reasoning_effort`     | string  | empty.                             | Member of `reasoning_efforts` when both are set.                                                | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                               |
+| `models.curated[].default_speed`                | string  | empty.                             | `normal`, `fast`.                                                                               | Per-model speed used when an agent omits `speed`.                                                                      |
+| `models.curated[].cost_input_per_million`       | number  | empty.                             | Non-negative finite number.                                                                     | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                               |
+| `models.curated[].cost_output_per_million`      | number  | empty.                             | Non-negative finite number.                                                                     | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                              |
+| `models.curated[].cost_cache_read_per_million`  | number  | empty.                             | Non-negative finite number.                                                                     | Cache-read rate used only for the cache-read token bucket.                                                             |
+| `models.curated[].cost_cache_write_per_million` | number  | empty.                             | Non-negative finite number.                                                                     | Cache-write rate used only for the cache-write token bucket.                                                           |
+| `models.curated[].cost_reasoning_per_million`   | number  | empty.                             | Non-negative finite number.                                                                     | Reasoning-token rate used only for the reasoning token bucket.                                                         |
+| `models.curated[].deprecated`                   | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                                | Marks a row deprecated; curated view excludes it. Explicit `false` clears lower-source metadata.                       |
+| `models.curated[].hidden`                       | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                                | Operator curation flag; curated view excludes it. Explicit `false` clears a lower-source flag.                         |
+| `models.curated[].featured`                     | boolean | omitted; inherit lower source.     | `true`, `false`.                                                                                | Adds a current row to curated candidates. Explicit `false` clears a lower-source flag.                                 |
+| `models.curated[].release_date`                 | string  | empty.                             | `YYYY-MM` or `YYYY-MM-DD`.                                                                      | Optional release metadata used for curated ordering; unknown dates stay empty.                                         |
+| `models.reasoning.apply`                        | string  | `none` unless a built-in opts in.  | `acp_option`, `none`.                                                                           | Applies effort through an advertised ACP option or exposes no selectable strategy.                                     |
+| `models.discovery.enabled`                      | boolean | `false` unless a built-in opts in. | `true`, `false`.                                                                                | Enables model discovery for this provider. Claude, Codex, and Cursor have built-in paths.                              |
+| `models.discovery.command`                      | string  | adapter default.                   | Shell-style command string.                                                                     | Discovery command. Cursor defaults to `cursor-agent models`; ACP adapters use the provider command.                    |
+| `models.discovery.endpoint`                     | string  | adapter default.                   | Absolute HTTP(S) URL.                                                                           | Discovery endpoint URL. Cursor accepts command discovery only.                                                         |
+| `models.discovery.timeout`                      | string  | model catalog source timeout.      | Positive duration (`10s`, `45s`, `2m`).                                                         | Per-discovery timeout.                                                                                                 |
 
 Rate changes apply to subsequent usage updates and do not reprice persisted token statistics.
 Agent-reported actual cost remains authoritative over catalog estimation. Estimation requires a
@@ -1939,6 +1999,13 @@ LogSink, so operators do not need an external `logrotate` rule for the default f
 Changing any `[log]` key is `restart-required` in v1. The daemon applies the new rotation
 writer on the next start.
 
+At `info`, HTTP mutations, rejected requests, server failures, and background repairs remain
+visible. Successful HTTP reads, successful hook dispatches, and background sweeps that change
+nothing use `debug`. Enable `debug` when investigating those paths. Hook dispatch records carry
+the available session, workspace, turn, Task, run, and Loop run identifiers for correlation.
+Rotation retains whichever limit is reached first: a busy daemon can exhaust five backups long
+before the 30-day age limit. These file limits do not remove persisted session events.
+
 | Field              | Type    | Default | Valid values                     | Description                                                           |
 | ------------------ | ------- | ------- | -------------------------------- | --------------------------------------------------------------------- |
 | `level`            | string  | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level.                                          |
@@ -1978,7 +2045,7 @@ If `enabled = false`, local skill discovery and polling are disabled.
 | `sources`                   | string array | `["agents"]` | `agents`, `claude`.                                   | Folder conventions scanned besides CompozyOS's own. Applies live. An unknown name is rejected.    |
 | `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
 | `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
-| `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
+| `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Skill metadata check interval; unchanged trees reuse discovery instead of being walked again.     |
 | `allowed_marketplace_hooks` | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for hooks declared by marketplace skills.                                         |
 
 `sources` and `custom_sources` pass through all four config layers — user, personal profile,
@@ -2077,12 +2144,30 @@ requires positive `requests` and `window`, and a non-negative `queue`.
 
 ## `[automation]`
 
-| Field                 | Type    | Default                       | Valid values                                                        | Description                                                                         |
-| --------------------- | ------- | ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `enabled`             | boolean | `true`                        | `true` or `false`                                                   | Enables config-defined automation jobs and triggers.                                |
-| `timezone`            | string  | `UTC`                         | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
-| `max_concurrent_jobs` | integer | `5`                           | Positive integer.                                                   | Global automation concurrency cap.                                                  |
-| `default_fire_limit`  | object  | `{ max = 12, window = "1h" }` | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+| Field                 | Type    | Default                                   | Valid values                                                        | Description                                                                         |
+| --------------------- | ------- | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `enabled`             | boolean | `true`                                    | `true` or `false`                                                   | Enables config-defined automation jobs and triggers.                                |
+| `timezone`            | string  | Host zone for new configs; `UTC` fallback | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
+| `max_concurrent_jobs` | integer | `5`                                       | Positive integer.                                                   | Global automation concurrency cap.                                                  |
+| `default_fire_limit`  | object  | `{ max = 12, window = "1h" }`             | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+
+New user configs persist the detected IANA time zone of the machine running CompozyOS. If detection
+fails, they persist `UTC`. Existing configs without `automation.timezone` continue using `UTC`;
+upgrading or running the installer again does not shift existing schedules.
+
+Choose **Settings → Automation → Schedule time zone**, or run
+`compozy config set automation.timezone America/Sao_Paulo` with your local IANA zone. The Settings
+shortcut uses the machine running CompozyOS, including when you connect remotely; it does not use
+the browser's zone. The shortcut is absent when host detection is unavailable. Detection checks
+`TZ`, the system zone name, the `/etc/localtime` zoneinfo link, and `/etc/timezone`; unrecognized
+names fall back to UTC for new configs.
+
+Write cron in that zone's wall-clock time. Do not manually convert local schedules to a fixed UTC
+offset: daylight saving time can change that offset. Changing the shared zone affects cron schedules; review existing expressions before saving.
+Restart CompozyOS when prompted to apply the change. Existing cron cursors then recalculate in the
+new zone; intervals and absolute timestamps keep their timing. A fire already deferred for capacity
+is honored once, followed by the next cron time in the new zone. Upgrading alone preserves legacy
+cursors and catch-up work.
 
 ## `[automation.suggestions]`
 
@@ -2578,3 +2663,24 @@ steer_capability = "none"
 ```
 
 See [Session control plane](/docs/sessions/control-plane) for delivery outcomes and strict fences.
+
+## `[user_scope]`
+
+```toml
+[user_scope]
+work_dir = "~"
+```
+
+The User scope resolves its execution directory from this setting. A personal profile overlay can
+replace it. After `~` expansion the value must name an existing absolute directory; invalid values
+fail resolution with `user_scope_work_dir_invalid`. Validation happens when work starts, so a missing
+directory does not prevent existing work from being listed. Changes apply to later starts.
+
+The execution directory does not contribute workspace or workspace-profile configuration. User
+resolution has no workspace registration. Neither the operator home nor `COMPOZY_HOME` can be
+registered as a project (`workspace_home_forbidden`); new project names cannot be `user`, `global`,
+or start with `@` (`workspace_name_reserved`).
+
+`@user` is the explicit User reference; the CLI forwards it without a workspace lookup. A route that
+requires a project returns `user_scope_unsupported`, or `user_scope_worktree_unsupported` for worktrees.
+See [User scope](/docs/user-scope) for the walkthrough.

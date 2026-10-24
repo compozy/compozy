@@ -3,7 +3,7 @@ title: Run an agent every morning
 description: Create your first scheduled automation — an agent that runs every weekday at 9:00 — run it once by hand, and check its last run.
 ---
 
-At the end of this page you will have an automation that reads "Every weekday at 09:00 UTC, ask
+At the end of this page you will have an automation that reads "Every weekday at 09:00 America/Sao_Paulo, ask
 summarizer." It runs on its own every weekday morning, and you will have run it once already to see
 that it works.
 
@@ -20,6 +20,12 @@ for scripts and agents.
   ```bash
   compozy agent info summarizer --workspace checkout-api
   ```
+
+- In **Settings → Automation → Schedule time zone**, select your local IANA zone and save. This
+  example uses `America/Sao_Paulo`; your sentence will show your chosen zone. New configs use the
+  detected host zone (UTC fallback), while existing configs without the key retain UTC. The
+  one-click shortcut uses the machine running CompozyOS, which may differ from your browser.
+  Review existing schedules before changing this shared setting.
 
 - Automations are turned on (they are by default). If the Automations window says "Automations aren't
   available right now", choose **Open Settings**, turn on **Run automation**, and restart CompozyOS.
@@ -49,12 +55,13 @@ In the schedule box, keep **Repeats** and choose the quick pick **Weekdays 9am**
 reads:
 
 ```text
-Every weekday at 09:00 UTC · next in 14h · 0 9 * * 1-5
+Every weekday at 09:00 America/Sao_Paulo · next in 14h · 0 9 * * 1-5
 ```
 
 "next in" counts from now, so your number will differ. The last part is the same schedule written as
 a cron expression; you never have to type it. Times use the time zone from **Settings → Automation**
-(UTC unless you changed it).
+where you selected your local IANA zone. Keep the cron in local time instead of converting it to
+a fixed UTC offset, which can become wrong when daylight saving time changes.
 
 ## Step 3: Choose what it does
 
@@ -69,7 +76,7 @@ A scheduled automation sends the message word for word. The sentence bar at the 
 now reads:
 
 ```text
-Every weekday at 09:00 UTC, ask summarizer.   Ready
+Every weekday at 09:00 America/Sao_Paulo, ask summarizer.   Ready
 ```
 
 If it reads **Needs a fix**, the missing part is shown with a dashed underline — for example "ask an
@@ -102,7 +109,7 @@ its schedule.
 
 Choose **Back**. The listing shows one row for `morning-digest`:
 
-- the name, with the sentence "Every weekday at 09:00 UTC, ask summarizer." under it;
+- the name, with the sentence "Every weekday at 09:00 America/Sao_Paulo, ask summarizer." under it;
 - "Last run completed 2m ago" in the row details;
 - the next run ("In 14h") and the **On** switch at the end of the row.
 

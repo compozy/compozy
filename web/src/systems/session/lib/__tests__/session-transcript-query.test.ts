@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenTranscriptMessages, type SessionTranscriptData } from "../session-transcript-query";
+import {
+  flattenTranscriptMessages,
+  reconcileAdmittedPrompt,
+  type SessionTranscriptData,
+} from "../session-transcript-query";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionMessage, SessionTranscriptPage } from "../../types";
 
@@ -27,6 +31,39 @@ function transcriptData(messages: SessionMessage[]): SessionTranscriptData {
 }
 
 describe("session transcript presentation", () => {
+  // Invariant: admission reconciliation preserves pagination/cursor continuity
+  // and cannot cross a history reset. Owner: transcript cache; canonical suite: this file.
+  it("keeps the cursor and older entries while rejecting stale admission reads", () => {
+    const old = message("old", [{ type: "text", text: "Earlier answer" }]);
+    const data = transcriptData([old]);
+    data.pages[0]!.limit = 1;
+    const input: SessionMessage = {
+      id: "input",
+      role: "user",
+      parts: [{ type: "text", text: "@file" }],
+    };
+    const response = {
+      ...data.pages[0]!,
+      max_sequence: 3,
+      entries: [
+        { message: input, sequence: 2, start_sequence: 2 },
+        {
+          message: message("live", [{ type: "text", text: "Partial" }]),
+          sequence: 3,
+          start_sequence: 3,
+        },
+      ],
+    };
+    const admitted = reconcileAdmittedPrompt(data, response, "input");
+    expect(flattenTranscriptMessages(admitted)).toEqual([old, input]);
+    expect(admitted?.pages[0]?.cursor).toBe(1);
+    expect(admitted?.pages[0]?.entries).toHaveLength(1);
+    expect(admitted?.pages).toHaveLength(2);
+    expect(reconcileAdmittedPrompt(data, { ...response, epoch: 2 }, "input")).toBe(data);
+    expect(reconcileAdmittedPrompt(data, { ...response, generation: 2 }, "input")).toBe(data);
+    expect(reconcileAdmittedPrompt(data, response, "other-input")).toBe(data);
+  });
+
   // Invariant: immutable replacements, reordered history, and another session's
   // projection cannot change a view already held by a transcript consumer.
   // Owning layer: thread projection; canonical suite: transcript presentation.

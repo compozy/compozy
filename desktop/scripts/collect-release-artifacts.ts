@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { validateReleaseConfig } from "../src/release/release-config";
 import {
   parseReleaseArch,
+  parseReleaseChannel,
   parseReleasePlatform,
   parseReleaseScriptFlags,
   requiredReleaseFlag,
@@ -11,15 +12,16 @@ import {
 
 const values = parseReleaseScriptFlags(
   process.argv.slice(2),
-  ["platform", "arch", "version", "source", "output"],
-  ["platform", "arch", "version"]
+  ["platform", "arch", "channel", "version", "source", "output"],
+  ["platform", "arch", "channel", "version"]
 );
 const platform = parseReleasePlatform(values.get("platform"));
 const arch = parseReleaseArch(values.get("arch"));
 const version = requiredReleaseFlag(values, "version");
 const source = resolve(values.get("source") ?? ".artifacts/builder");
 const output = resolve(values.get("output") ?? ".artifacts/release");
-validateReleaseConfig({ arch, channel: "beta", notarize: false, platform, version });
+const channel = parseReleaseChannel(values.get("channel"));
+validateReleaseConfig({ arch, channel, notarize: false, platform, version });
 
 const packages =
   platform === "mac"

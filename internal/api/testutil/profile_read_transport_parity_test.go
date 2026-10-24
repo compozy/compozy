@@ -155,3 +155,15 @@ func newProfileReadParityUDSRouter(
 	}
 	return engine
 }
+
+func (s parityProfileService) ListIdentities(ctx context.Context) ([]profilepkg.Profile, error) {
+	items, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]profilepkg.Profile, 0, len(items))
+	for _, item := range items {
+		profiles = append(profiles, item.Profile)
+	}
+	return profiles, nil
+}

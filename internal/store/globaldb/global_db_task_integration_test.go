@@ -31,6 +31,7 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		filepath.Join(t.TempDir(), "workspace"),
 	)
 	globalTask := taskRecordForTest("task-integration-global")
+	globalTask.GrantCeiling = "unrestricted"
 	globalTask.Status = taskpkg.TaskStatusDraft
 	globalTask.Priority = taskpkg.PriorityLow
 	globalTask.MaxAttempts = 2
@@ -88,6 +89,14 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 			t.Fatalf("Close(second) error = %v", err)
 		}
 	})
+
+	persisted, err := second.GetTask(ctx, globalTask.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if persisted.GrantCeiling != "unrestricted" {
+		t.Fatalf("reopened grant ceiling = %q", persisted.GrantCeiling)
+	}
 
 	globalTasks, err := second.ListTasks(ctx, taskpkg.Query{Scope: taskpkg.ScopeGlobal})
 	if err != nil {

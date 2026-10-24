@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 type ForgeCapabilities struct {
@@ -54,9 +55,10 @@ type ForgeProvider interface {
 }
 
 type ForgeFailure struct {
-	kind  error
-	cause string
-	err   error
+	RetryAfter *time.Time
+	kind       error
+	cause      string
+	err        error
 }
 
 func NewForgeFailure(kind error, cause string, err error) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 )
@@ -37,6 +38,15 @@ func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
 		}
 		if captured.Executable == nil {
 			t.Fatal("captured.Executable = nil, want forwarded executable resolver")
+		}
+		// The replacement must wait through the entire configured shutdown ladder.
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if captured.ReleaseTimeout <= compozydaemon.GracefulShutdownTimeout(&runtime.Config) ||
+			captured.ReleaseTimeout > compozydaemon.GracefulShutdownTimeout(&runtime.Config)+5*time.Second {
+			t.Fatalf("relaunch release budget = %s", captured.ReleaseTimeout)
 		}
 	})
 }

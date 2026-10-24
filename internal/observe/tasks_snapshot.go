@@ -46,12 +46,13 @@ func (o *Observer) loadTaskSnapshotTasksAndRuns(
 		return nil, nil, err
 	}
 	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
-		ReadScope:   query.ReadScope,
-		Scope:       query.Scope,
-		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
-		OwnerKind:   query.OwnerKind.Normalize(),
-		OwnerRef:    strings.TrimSpace(query.OwnerRef),
-		Search:      strings.TrimSpace(query.Search),
+		WorkspaceIDs: query.WorkspaceIDs,
+		ReadScope:    query.ReadScope,
+		Scope:        query.Scope,
+		WorkspaceID:  strings.TrimSpace(query.WorkspaceID),
+		OwnerKind:    query.OwnerKind.Normalize(),
+		OwnerRef:     strings.TrimSpace(query.OwnerRef),
+		Search:       strings.TrimSpace(query.Search),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("observe: list tasks for summary: %w", err)

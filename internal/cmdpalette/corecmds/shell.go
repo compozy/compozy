@@ -52,7 +52,7 @@ var fixedShellCommands = []shellCommandDefinition{
 	},
 	{
 		id:                 "scope.global.toggle",
-		title:              "Global scope",
+		title:              "All projects",
 		section:            coreSectionShell,
 		icon:               coreIconGlobe,
 		availabilityExempt: true,

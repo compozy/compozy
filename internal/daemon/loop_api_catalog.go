@@ -20,6 +20,9 @@ func (s *daemonLoopAPIService) ListLoops(
 	workspaceID string,
 	query looppkg.CatalogQuery,
 ) (contract.LoopsResponse, error) {
+	if query.AllWorkspaces {
+		return s.listLoopCatalogBatch(ctx, query)
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopsResponse{}, err
@@ -48,6 +51,7 @@ func (s *daemonLoopAPIService) ListLoops(
 	}
 	summaries, err := s.catalogRuns.ListLoopCatalogRunSummaries(ctx, looppkg.CatalogRunQuery{
 		WorkspaceID:    ws,
+		ProfileID:      query.ProfileID,
 		LoopNames:      names,
 		AggregateAfter: s.now().Add(-loopCatalogAggregateWindow),
 	})
@@ -68,6 +72,7 @@ func (s *daemonLoopAPIService) ListLoops(
 		if err != nil {
 			return contract.LoopsResponse{}, err
 		}
+		payload.WorkspaceID = string(ws)
 		loops = append(loops, payload)
 	}
 	return loopCatalogResponse(loops, page), nil
@@ -77,6 +82,9 @@ func (s *daemonLoopAPIService) validateLoopCatalogWorkspace(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 ) error {
+	if workspaceID == "" {
+		return nil
+	}
 	if s == nil || s.workspaceResolver == nil {
 		return workspacepkg.ErrWorkspaceResolverUnavailable
 	}

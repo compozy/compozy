@@ -16,17 +16,17 @@ import (
 )
 
 type loopActionSessionBinder struct {
-	sessions            loopPromptSessionManager
-	bindings            goalpkg.BindingStore
-	bindingAllocator    goalpkg.BindingAttemptAllocator
-	prompts             loopGoalPromptRuntimeStore
-	creationStore       store.SessionCreationStore
-	managedInputs       loopManagedInputSessionManager
-	usageReporters      managedGoalUsageReporters
-	globalWorkspacePath string
-	policyGate          *loopSessionPolicyGate
-	worktrees           loopActionWorktrees
-	now                 func() time.Time
+	sessions         loopPromptSessionManager
+	bindings         goalpkg.BindingStore
+	bindingAllocator goalpkg.BindingAttemptAllocator
+	prompts          loopGoalPromptRuntimeStore
+	creationStore    store.SessionCreationStore
+	managedInputs    loopManagedInputSessionManager
+	usageReporters   managedGoalUsageReporters
+
+	policyGate *loopSessionPolicyGate
+	worktrees  loopActionWorktrees
+	now        func() time.Time
 }
 
 type loopManagedSessionManager interface {
@@ -117,18 +117,20 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	}
 	info := created.Info()
 	appliedRuntime := appliedRuntimeFromCreateOptions(opts)
-	if info.Speed != "" {
-		appliedRuntime.Speed = info.Speed
+	requestedRuntime := appliedRuntime
+	if info.Speed != "" || info.SpeedResolution != nil {
+		appliedRuntime.Speed = info.EffectiveRuntime().Speed
 	}
 	return looppkg.ActionSessionBinding{
-		WorkspaceID:     req.WorkspaceID,
-		LoopRunID:       req.LoopRunID,
-		SessionID:       strings.TrimSpace(info.ID),
-		Handle:          strings.TrimSpace(req.Handle),
-		SharedKey:       strings.TrimSpace(req.SharedKey),
-		Isolated:        req.Isolated,
-		AppliedRuntime:  appliedRuntime,
-		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
+		WorkspaceID:      req.WorkspaceID,
+		LoopRunID:        req.LoopRunID,
+		SessionID:        strings.TrimSpace(info.ID),
+		Handle:           strings.TrimSpace(req.Handle),
+		SharedKey:        strings.TrimSpace(req.SharedKey),
+		Isolated:         req.Isolated,
+		RequestedRuntime: requestedRuntime,
+		AppliedRuntime:   appliedRuntime,
+		SpeedResolution:  speedpkg.CloneResolution(info.SpeedResolution),
 	}, nil
 }
 

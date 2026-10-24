@@ -1,60 +1,72 @@
-import { useQueries } from "@tanstack/react-query";
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
+import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import {
-  useProfileReadScope,
-  useProfiles,
-  type ProfileOwner,
-  type ProfileOwnerLabel,
-} from "@/systems/profiles";
-import { useActiveWorkspace } from "@/systems/workspace";
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+  type DataScope,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
 
-import { sessionFoldersOptions } from "../lib/session-catalog-options";
-import type { SessionFolderPayload } from "../types";
-
-import { useSessionListPreferences } from "./use-session-list-preferences";
+import type { SessionListGroupSpec } from "../lib/session-list-groups";
+import { sessionListPair } from "../lib/session-list-groups";
 import {
-  useWorkspaceSessionGroups,
-  type WorkspaceSessionGroup,
-} from "./use-workspace-session-groups";
-import { useSessionCatalog } from "./use-session-catalog";
-import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
-import {
+  availableSessionListGroupBys,
+  effectiveSessionListGroupBy,
   sessionListSortParam,
   sessionListSubagentsParam,
-  type SessionListScope,
+  type SessionListGroupBy,
   type SessionListSort,
 } from "../lib/session-list-preferences";
+import type { SessionListFilters, SessionPayload } from "../types";
 
-export interface SessionProfileFolderGroup {
-  owner: ProfileOwner;
-  workspaceId: string;
-  folders?: SessionFolderPayload[];
-  canCreateSession: boolean;
-}
+import { useSessionCatalog } from "./use-session-catalog";
+import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
+import { useSessionListGroups } from "./use-session-list-groups";
+import { sessionSidebarStore, useSessionSidebarState } from "./use-session-sidebar-state";
+import { useSessionWindowOrder } from "./use-session-window-order";
+
+/** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
+export const SESSION_LIST_MANUAL_SORT_NOTE =
+  "Manual order applies inside one project and profile. Group the list to use it.";
+
+const SESSION_LIST_PAGE_SIZE = 100;
 
 export interface SessionListViewModel {
-  profileFolderGroups?: SessionProfileFolderGroup[];
-  profileFoldersLoading?: boolean;
-  profileFoldersError?: { retry: () => void };
+  /** The flat catalog; absent while the list is grouped (each group owns its page). */
   catalog?: ReturnType<typeof useSessionCatalog>;
   search?: string;
   setSearch?: (search: string) => void;
-  scope: SessionListScope;
+  /** The stored sort, kept even where `manual` cannot apply. */
   sort: SessionListSort;
+  /** The stored grouping; `groupBy` below is what renders. */
+  storedGroupBy: SessionListGroupBy;
+  /** The grouping that renders: an inapplicable stored value renders as `none`. */
+  groupBy: SessionListGroupBy;
+  /** Group-by options available in the current breadth and profile lens. */
+  groupByOptions: readonly SessionListGroupBy[];
+  /** Muted toolbar note while `manual` falls back to `last_activity`. */
+  sortNote: string | null;
+  /**
+   * Why the list's New folder is unavailable: a flat aggregate spans pairs, and
+   * a grouped list adds folders from each group's own `+`. `null` where it applies.
+   */
+  newFolderUnavailable: string | null;
   /** True while the list shows the archive instead of the active catalog. */
   archived: boolean;
-  saving: boolean;
-  setScope: (scope: SessionListScope) => void;
   setSort: (sort: SessionListSort) => void;
+  setGroupBy: (groupBy: SessionListGroupBy) => void;
   setArchived: (archived: boolean) => void;
-  /** Populated only in the all-workspaces scope. */
-  workspaceGroups: WorkspaceSessionGroup[];
-  collapsedWorkspaceIds: ReadonlySet<string>;
-  toggleWorkspace: (workspaceId: string) => void;
+  /** Group-by groups from server facets; empty while flat. */
+  groups: SessionListGroupSpec[];
+  groupsLoading: boolean;
+  groupsError?: { retry: () => void };
+  collapsedGroupKeys: ReadonlySet<string>;
+  toggleGroup: (key: string) => void;
+  /** Filters every group query shares; each group adds its scope, lens, and order. */
+  groupFilters: SessionListFilters;
   /** The aggregate is on — rows name their owner (US-011.AC-1). */
   aggregate: boolean;
   /**
@@ -64,33 +76,48 @@ export interface SessionListViewModel {
   scopeLabel: string | null;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
-  /**
-   * Folders and manual order of this workspace for the acting profile. Absent in
-   * the widest scope; the profile aggregate carries one layout group per owner.
-   */
+  /** Resolves a row's project badge; present only under All projects (BR-10). */
+  badgeOf?: (session: SessionPayload) => WorkspaceBadgeIdentity;
+  /** Folders and manual order of the one (workspace, profile) pair the flat list reads. */
   layout?: SessionListLayout;
   /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
   worktreeId?: string;
   /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
   layoutError?: { retry: () => void };
+  /** Identity of the list's bulk selection, shared by every group of a grouped list. */
+  selectionKey: string;
 }
 
 /**
- * View model behind every session list: the operator's persisted scope and
- * order, plus the per-workspace groups the widest scope needs.
+ * View model behind every session list: the topbar breadth and profile lens,
+ * the window's order and grouping (shared with its Kanban), and either one flat catalog or
+ * facets-driven groups (ADR-004).
  *
- * The widened queries only run in the scope that shows them, so staying in this
- * workspace costs nothing extra. Group collapse and the archive are deliberately
- * transient — they are ways of looking at the list right now, not preferences
- * worth round-tripping through config.
+ * Folders and manual order apply only where a query is exactly one
+ * (workspace, profile) pair (BR-11): the flat list of a focused project or User
+ * under one profile, or a group whose own query is one pair.
+ *
+ * Group collapse is rail state, like thread and folder collapse: it lives in
+ * the window's persisted sessions-rail entry (a new window starts from the
+ * last-used one), keyed per list lens (scope, profile, grouping). Selecting a
+ * session remounts the window's content, so state held here would reset; held
+ * in the rail, a selection, a focus change, or a reload never reopens a group
+ * the operator closed. Only the operator's toggle opens or closes one.
+ * The archive stays deliberately transient — a way of looking at the list
+ * right now, not a preference worth keeping.
  */
 export function useSessionListView(
-  options: { workspaceId?: string | null; worktreeId?: string; enabled?: boolean } = {}
+  options: {
+    /** The list's data scope; omitted follows the menubar destination. */
+    scope?: DataScope | null;
+    worktreeId?: string;
+    enabled?: boolean;
+  } = {}
 ): SessionListViewModel {
-  const preferences = useSessionListPreferences();
-  const { registeredWorkspaces: workspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const preferences = useSessionWindowOrder();
+  const { registeredWorkspaces: workspaces, dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const sidebar = useSessionSidebarState();
   const {
     draftValue: search,
     committedValue: remoteSearch,
@@ -98,109 +125,151 @@ export function useSessionListView(
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
   const [archived, setArchived] = useState(false);
   const enabled = options.enabled ?? true;
-  const workspaceScoped = enabled && preferences.scope === "workspace";
   const searchSettled = search === remoteSearch;
-  const workspaceGroups = useWorkspaceSessionGroups({
-    workspaces,
-    sort: preferences.sort,
-    archived,
-    enabled: enabled && preferences.scope === "all-workspaces",
-    search: remoteSearch,
-  });
+  const scope = options.scope === undefined ? dataScope : options.scope;
+  const breadth = { allProjects: scope?.kind === "all", allProfiles: profile.aggregate };
+  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
+  const flat = groupBy === "none";
+  const pair = sessionListPair(scope, profile.params);
 
-  const workspaceId = options.workspaceId === undefined ? runtimeWorkspaceId : options.workspaceId;
+  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, archived);
   const catalog = useSessionCatalog(
-    workspaceId,
-    {
-      include_health: true,
-      limit: 100,
-      sort: sessionListSortParam(preferences.sort),
-      q: remoteSearch,
-      search_fields: "title_agent",
-      subagents: sessionListSubagentsParam(remoteSearch),
-      worktree: options.worktreeId,
-      ...(archived ? { archive: "only" as const } : {}),
-    },
-    workspaceScoped && (scope === "global" || workspaceId !== null)
+    scope,
+    { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
+    enabled && flat
   );
-
-  const profileFolders = useProfileFolderGroups(
-    workspaceId,
-    profile.destination,
-    workspaceScoped && profile.aggregate
-  );
-
-  const folders = useSessionFolders({
-    workspaceId,
-    profile: profile.destination,
-    enabled: workspaceScoped && !profile.aggregate,
+  const grouping = useSessionListGroups({
+    groupBy,
+    scope,
+    lens: profile.params,
+    workspaces,
+    archived,
+    search: remoteSearch,
+    enabled,
   });
+  const folders = useSessionFolders({
+    workspaceId: pair?.workspaceId ?? null,
+    profile: pair?.profile ?? profile.destination,
+    enabled: enabled && flat && pair !== null,
+  });
+  const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
+  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+  const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
+  const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
+  useEffect(() => {
+    if (resolvedProfile) {
+      sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
+    }
+  }, [resolvedProfile, fallbackLens, foldLens]);
+  const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
+  const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
+  // A group with no pair of its own splits along the other axis into pairs,
+  // so only a flat aggregate leaves manual order and folders with no owner.
+  const manualBlocked = flat && pair === null;
+  const flatLayout = flat && pair !== null;
 
   return {
-    ...profileFolders,
-    layout: folders.layout,
-    layoutError: folders.loadError,
+    layout: flatLayout ? folders.layout : undefined,
+    layoutError: flatLayout ? folders.loadError : undefined,
     worktreeId: options.worktreeId,
-    catalog: {
-      ...catalog,
-      paging: catalog.paging || !searchSettled,
-      next: searchSettled && catalog.next,
-      previous: searchSettled && catalog.previous,
-    },
+    catalog: flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     search,
     setSearch,
-    scope: preferences.scope,
     sort: preferences.sort,
+    storedGroupBy: preferences.groupBy,
+    groupBy,
+    groupByOptions: availableSessionListGroupBys(breadth),
+    sortNote: manualSortNote(preferences.sort, manualBlocked),
+    newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth),
     archived,
-    saving: preferences.saving,
-    setScope: preferences.setScope,
     setSort: preferences.setSort,
+    setGroupBy: preferences.setGroupBy,
     setArchived,
-    workspaceGroups: preferences.scope === "all-workspaces" ? workspaceGroups : [],
+    groups: grouping.groups,
+    groupsLoading: grouping.loading,
+    groupsError: grouping.error,
+    collapsedGroupKeys: new Set(
+      grouping.groups.flatMap(group =>
+        collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []
+      )
+    ),
+    toggleGroup: key => sidebar.toggleGroup(groupId(key)),
+    groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     ownerOf: profile.ownerOf,
-    collapsedWorkspaceIds: collapsed,
-    toggleWorkspace: workspaceId =>
-      setCollapsed(current => {
-        const next = new Set(current);
-        if (!next.delete(workspaceId)) next.add(workspaceId);
-        return next;
-      }),
+    badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
+    selectionKey,
   };
 }
 
-function useProfileFolderGroups(
-  workspaceId: string | null,
-  destination: string,
-  enabled: boolean
-): Pick<
-  SessionListViewModel,
-  "profileFolderGroups" | "profileFoldersLoading" | "profileFoldersError"
-> {
-  const active = enabled && workspaceId !== null;
-  const profiles = useProfiles(active);
-  const owners = enabled && workspaceId ? (profiles.data ?? []) : [];
-  const folderQueries = useQueries({
-    queries: owners.map(owner =>
-      sessionFoldersOptions({ workspaceId: workspaceId ?? "", profile: owner.name })
-    ),
-  });
+function sessionListGroupFiltersFor(
+  search: string,
+  worktreeId: string | undefined,
+  archived: boolean
+): SessionListFilters {
   return {
-    profileFoldersLoading: active && profiles.isPending,
-    profileFoldersError:
-      active && profiles.isError
-        ? {
-            retry: () => {
-              void profiles.refetch();
-            },
-          }
-        : undefined,
-    profileFolderGroups: owners.map((owner, index) => ({
-      owner: { ...owner, archived: owner.archived_at != null },
-      workspaceId: workspaceId ?? "",
-      folders: folderQueries[index]?.data,
-      canCreateSession: owner.name === destination,
-    })),
+    include_health: true,
+    limit: SESSION_LIST_PAGE_SIZE,
+    q: search,
+    search_fields: "title_agent",
+    subagents: sessionListSubagentsParam(search),
+    worktree: worktreeId,
+    ...(archived ? { archive: "only" as const } : {}),
   };
+}
+
+/** While a search is still debouncing, the page is pending and paging waits for it. */
+function settledSearchCatalog<C extends { paging: boolean; next: boolean; previous: boolean }>(
+  catalog: C,
+  searchSettled: boolean
+): C {
+  return {
+    ...catalog,
+    paging: catalog.paging || !searchSettled,
+    next: searchSettled && catalog.next,
+    previous: searchSettled && catalog.previous,
+  };
+}
+
+function manualSortNote(sort: string, manualBlocked: boolean): string | null {
+  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
+}
+
+/**
+ * The profile half of a persisted fold's lens. Folds outlive the page, so they
+ * name the profile by its immutable id: a rename keeps them, and a later
+ * profile that reuses the old name does not inherit them. Until the profile
+ * list resolves the id, the name stands in.
+ */
+function profileFoldIdentity(profile: {
+  aggregate: boolean;
+  key: string;
+  destinationOwner: { id: string } | null;
+}): string {
+  if (profile.aggregate) return profile.key;
+  return profile.destinationOwner?.id ?? `name:${profile.key}`;
+}
+
+/** A group's collapse id: its key qualified by the list lens it renders under. */
+function sessionListGroupCollapseId(lens: string, groupKey: string): string {
+  return `${lens}\u0000${groupKey}`;
+}
+
+function newFolderUnavailableReason(
+  flat: boolean,
+  paired: boolean,
+  breadth: { allProjects: boolean; allProfiles: boolean }
+): string | null {
+  if (!flat) return "Add a folder from a group's +.";
+  if (paired) return null;
+  const axes = availableSessionListGroupBys(breadth).filter(option => option !== "none");
+  return axes.length === 0
+    ? "Folders live inside one project and profile."
+    : `Folders live inside one project and profile. Group by ${axes.join(" or ")} to add one.`;
+}
+
+function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  return (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, names);
 }

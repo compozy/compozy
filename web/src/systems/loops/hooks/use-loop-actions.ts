@@ -14,7 +14,7 @@ import {
   runLoop,
   validateLoop,
 } from "../adapters/loops-api";
-import { loopsKeys } from "../lib/query-keys";
+import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
 import type {
   ApproveLoopRunRequest,
   CreateLoopRequest,
@@ -78,6 +78,7 @@ function invalidateLoopDefinitionQueries(
 ) {
   const pending = [
     queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY) }),
   ];
   if (name) {
     pending.push(queryClient.invalidateQueries({ queryKey: loopsKeys.detail(workspaceId, name) }));
@@ -97,7 +98,9 @@ function invalidateLoopDefinitionQueries(
 function invalidateLoopRunQueries(queryClient: QueryClient, workspaceId: string, runId?: string) {
   const pending = [
     queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) }),
   ];
   if (runId) {
@@ -139,9 +142,12 @@ export function useDeleteLoop() {
       queryClient.removeQueries({ queryKey: loopsKeys.detail(workspaceId, name) });
       queryClient.removeQueries({ queryKey: loopsKeys.config(workspaceId, name) });
       queryClient.removeQueries({ queryKey: loopsKeys.annotations(workspaceId, name) });
-      return queryClient.invalidateQueries({
-        queryKey: loopsKeys.catalogByWorkspace(workspaceId),
-      });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
+        queryClient.invalidateQueries({
+          queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY),
+        }),
+      ]);
     },
   });
 }

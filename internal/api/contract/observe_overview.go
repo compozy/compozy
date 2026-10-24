@@ -28,15 +28,17 @@ type OverviewAttentionPayload struct {
 
 // OverviewAttentionItemPayload is one actionable attention row.
 type OverviewAttentionItemPayload struct {
-	NotificationID string    `json:"notification_id,omitempty"`
-	Kind           string    `json:"kind"`
-	Title          string    `json:"title"`
-	Detail         string    `json:"detail,omitempty"`
-	TaskID         string    `json:"task_id,omitempty"`
-	RunID          string    `json:"run_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	OccurredAt     time.Time `json:"occurred_at"`
-	Actions        []string  `json:"actions"`
+	NotificationID string `json:"notification_id,omitempty"`
+	Kind           string `json:"kind"`
+	Title          string `json:"title"`
+	Detail         string `json:"detail,omitempty"`
+	TaskID         string `json:"task_id,omitempty"`
+	RunID          string `json:"run_id,omitempty"`
+	SessionID      string `json:"session_id,omitempty"`
+	// WorkspaceID owns the item; empty is the User scope. Home opens the item bound to it.
+	WorkspaceID string    `json:"workspace_id"`
+	OccurredAt  time.Time `json:"occurred_at"`
+	Actions     []string  `json:"actions"`
 }
 
 // OverviewTodayPayload summarizes today's terminal work.

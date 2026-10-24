@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
+import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
 import {
@@ -12,6 +13,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
+import { useSessionReparent } from "./use-session-reparent";
 
 export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
 
@@ -30,6 +32,12 @@ export interface SessionLifecycleActionHandlers {
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void
   ) => void;
+  /** Nests a top-level session under `parent` (dropped onto its row); absent where unsupported. */
+  /** Loaded rows offered by the owning list as candidate parents. */
+  nestParents?: readonly SessionPayload[];
+  onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
+  /** Returns a nested child to the top level; the row menu's Make top-level. */
+  onMakeTopLevel?: (session: SessionPayload) => void;
 }
 
 export interface SessionDeleteConfirmation {
@@ -58,25 +66,52 @@ export interface UseSessionLifecycleActionsResult {
   renameDialog: SessionRenameConfirmation;
 }
 
+/**
+ * Archive always uses the daemon's stop-first operation: a live session stops
+ * first, and a stopped parent whose subagent session is still live (until the
+ * reaper stops it) archives too. A fully stopped family archives as before.
+ */
+function archiveTarget(session: SessionPayload) {
+  return { ...session, stop: true };
+}
+
 /** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
 }
 
-/** Non-delete batches report one aggregate result because they have no result dialog. */
+const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
+
+/**
+ * Non-delete batches have no result dialog, so one toast carries the outcome:
+ * the success count, and each failed session by name with its own error.
+ */
 function reportBatch(
   action: "stop" | "archive" | "unarchive",
-  results: readonly SessionBatchResult[]
+  results: readonly SessionBatchResult[],
+  sessions: readonly SessionPayload[]
 ): void {
+  const verb = action === "stop" ? "stopped" : `${action}d`;
+  const done = results.filter(result => result.status === "done").length;
   const failures = results.filter(result => result.status === "failed");
-  if (failures.length > 0) {
-    reportActionError(action, new Error(failures.map(result => result.error).join("; ")));
+  if (failures.length === 0) {
+    toast.success(`${sessionCount(done)} ${verb}`);
     return;
   }
-  const count = results.filter(result => result.status === "done").length;
-  const verb = action === "stop" ? "stopped" : `${action}d`;
-  toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const description = failures
+    .map(result => {
+      const session = byId.get(result.id);
+      const title = session ? getSessionDisplayTitle(session) : result.id;
+      return `${title}: ${result.error ?? `Failed to ${action} session.`}`;
+    })
+    .join("; ");
+  const title =
+    done > 0
+      ? `${sessionCount(done)} ${verb}, ${failures.length} failed`
+      : `Couldn't ${action} ${sessionCount(failures.length)}`;
+  toast.error(title, { description });
 }
 
 /** Report all successful deletes once, when the result dialog closes. */
@@ -97,6 +132,7 @@ export function useSessionLifecycleActions(
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(options);
   const rename = useRenameSession();
+  const reparent = useSessionReparent();
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
@@ -148,7 +184,7 @@ export function useSessionLifecycleActions(
         if (action === "delete")
           await remove.mutateAsync(sessions.find(session => session.id === id)!);
         else if (action === "archive")
-          await archive.mutateAsync(sessions.find(session => session.id === id)!);
+          await archive.mutateAsync(archiveTarget(sessions.find(session => session.id === id)!));
         else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
@@ -173,16 +209,17 @@ export function useSessionLifecycleActions(
     sessions: readonly SessionPayload[]
   ) => {
     // Subagent sessions archive with their parent (ADR-005), never on their own.
+    // Archive takes live and stopped sessions alike; the daemon stops live ones first.
     const eligible = sessions.filter(session =>
       action === "unarchive"
         ? session.archived_at !== null && !isSubagentSession(session)
         : session.archived_at === null &&
           (action === "archive"
-            ? session.state === "stopped" && !isSubagentSession(session)
+            ? !isSubagentSession(session)
             : session.state === "active" || session.state === "starting")
     );
     const results = await runBatch(action, eligible);
-    if (results) reportBatch(action, results);
+    if (results) reportBatch(action, results, eligible);
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
@@ -247,7 +284,9 @@ export function useSessionLifecycleActions(
       onStop: session =>
         stop.mutate(session, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
-        archive.mutate(session, { onError: error => reportActionError("archive", error) }),
+        archive.mutate(archiveTarget(session), {
+          onError: error => reportActionError("archive", error),
+        }),
       onUnarchive: session =>
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
@@ -265,6 +304,8 @@ export function useSessionLifecycleActions(
       onUnarchiveMany: sessions => {
         void actOnMany("unarchive", sessions);
       },
+      onAdopt: reparent.adopt,
+      onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
           setBatchResults([]);

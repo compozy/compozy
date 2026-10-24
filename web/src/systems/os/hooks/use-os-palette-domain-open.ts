@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { ownerDataScope, useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "./use-desktop";
+import { useOpenTarget } from "./use-open-target";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import { useOsShell } from "./use-os-shell";
 import { resolveAppForPath } from "../lib/app-registry";
@@ -11,6 +12,21 @@ import { windowManagerCommandsAvailable } from "../lib/window-manager-command-av
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import type { OsPaletteDomainRow } from "../lib/os-palette-domain-search";
 import type { RoutingCoordinator } from "../lib/routing-coordinator";
+import type { OsAppId } from "../lib/os-types";
+
+/**
+ * Apps whose rows open through `openTarget` (in place under All projects,
+ * bound to the row's scope); the other kinds keep the switch-project path
+ * until their slice migrates them.
+ */
+const OPEN_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["tasks", "loops"]);
+
+/**
+ * Apps whose project rows open in place only under All projects. Their rows
+ * without a project (user-layer agents) keep opening unbound, and project
+ * mode keeps the switch-project path.
+ */
+const ALL_PROJECTS_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["agents", "terminal"]);
 
 interface PendingDomainOpen {
   readonly row: OsPaletteDomainRow;
@@ -48,14 +64,15 @@ export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDo
   const { coordinator } = useOsShell();
   const {
     activeWorkspaceId,
+    dataScope,
     registeredWorkspaces,
     runtimeWorkspaceId,
-    scope,
     setActiveWorkspaceId,
   } = useActiveWorkspace();
   const commandAvailable = useDesktop(windowManagerCommandsAvailable);
   const commandWorkspaceId = useDesktop(state => state.snapshot?.workspaceId.trim() || null);
   const worktreeScopeId = useFocusedWorktreeScopeId();
+  const openItem = useOpenTarget();
   const pendingRef = useRef<PendingDomainOpen | null>(null);
 
   useEffect(() => {
@@ -82,13 +99,26 @@ export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDo
             workspaceId: row.worktreeSelection.workspaceId,
             worktree: { id: row.worktreeSelection.worktreeId },
           },
-          scope,
           setActiveWorkspaceId,
           worktreeScopeId,
         });
       } catch {
         domainOpenError(row);
       }
+      return;
+    }
+
+    if (OPEN_IN_PLACE_APPS.has(row.app)) {
+      const instanceKey = resolveAppForPath(row.route.pathname)?.instanceKey;
+      openItem(
+        {
+          app: row.app,
+          binding: ownerDataScope(row.workspaceId),
+          route: row.route,
+          ...(instanceKey ? { instanceKey } : {}),
+        },
+        `Couldn't open ${row.label}. Try again.`
+      );
       return;
     }
 
@@ -99,6 +129,19 @@ export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDo
     }
     if (!registeredWorkspaces.some(workspace => workspace.id === workspaceId)) {
       domainOpenError(row);
+      return;
+    }
+    if (dataScope?.kind === "all" && ALL_PROJECTS_IN_PLACE_APPS.has(row.app)) {
+      const instanceKey = resolveAppForPath(row.route.pathname)?.instanceKey;
+      openItem(
+        {
+          app: row.app,
+          binding: ownerDataScope(workspaceId),
+          route: row.route,
+          ...(instanceKey ? { instanceKey } : {}),
+        },
+        `Couldn't open ${row.label}. Try again.`
+      );
       return;
     }
     if (

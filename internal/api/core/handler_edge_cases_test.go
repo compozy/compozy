@@ -1026,6 +1026,49 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject invalid board and child selectors", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		for _, query := range []string{"board_column=blocked", "children=only"} {
+			resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&"+query, nil)
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != "session_list_query_invalid" {
+				t.Fatalf("selector %s: status=%d body=%s", query, resp.Code, resp.Body.String())
+			}
+		}
+	})
+	t.Run("Should pass board and child selectors to the catalog owner", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if len(query.Columns) != 2 || query.Columns[0] != "working" || query.Columns[1] != "in_review" ||
+					!query.HideChildren {
+					t.Fatalf("query=%#v", query)
+				}
+				return session.ListPage{Sessions: []*session.Info{}, Limit: 50}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions?all_workspaces=true&board_column=working&board_column=in_review&children=exclude",
+			nil,
+		)
+		var payload contract.SessionCatalogResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Page.Limit != 50 {
+			t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	workerLineage := &store.SessionLineage{
@@ -1891,4 +1934,115 @@ func dialEventStream(t *testing.T, origin, path string) *websocket.Conn {
 		t.Fatal(err)
 	}
 	return connection
+}
+
+// Invariant: explicit refresh distinguishes missing branches, unavailable providers and cached facts.
+// Owner: shared HTTP/UDS handlers; canonical session handler edge suite.
+func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
+	t.Parallel()
+	observed := time.Now().UTC()
+	for _, testCase := range []struct {
+		name   string
+		view   session.PullRequestProjection
+		err    error
+		status int
+		code   string
+	}{
+		{name: "no branch", status: http.StatusConflict, code: "session_branch_unavailable"},
+		{name: "provider failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
+		{name: "cached failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
+	} {
+		t.Run("Should return "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "session-pr", ProfileID: store.DefaultProfileID}, nil
+			}}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Sessions = &pullRequestHandlerManager{
+				StubSessionManager: manager,
+				view:               testCase.view,
+				err:                testCase.err,
+			}
+			fixture.Engine.POST(
+				"/sessions/:session_id/pull-request/refresh",
+				fixture.Handlers.RefreshSessionPullRequest,
+			)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/sessions/session-pr/pull-request/refresh",
+				nil,
+			)
+			if response.Code != testCase.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			var body map[string]any
+			testutil.DecodeJSONResponse(t, response, &body)
+			if testCase.code != "" && body["code"] != testCase.code {
+				t.Fatalf("body=%#v", body)
+			}
+			if testCase.status == 200 && body["pull_request"] == nil {
+				t.Fatalf("cached facts lost: %#v", body)
+			}
+		})
+	}
+}
+
+type pullRequestHandlerManager struct {
+	testutil.StubSessionManager
+	view session.PullRequestProjection
+	err  error
+}
+
+func (m *pullRequestHandlerManager) RefreshSessionPullRequest(
+	context.Context,
+	*session.Info,
+) (session.PullRequestProjection, error) {
+	return m.view, m.err
+}
+
+// Invariant: optional family and PR projections cannot fail a durable detail read.
+// Owner: shared API detail boundary; canonical handler edge-case suite.
+func TestSessionPayloadOptionalRelations(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name                        string
+		relationsErr, projectionErr error
+	}{
+		{name: "Should retain detail when relations fail", relationsErr: errors.New("relations unavailable")},
+		{name: "Should retain detail when PR projection fails", projectionErr: errors.New("projection unavailable")},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			reader := &detailRelationsReader{relationsErr: testCase.relationsErr, projectionErr: testCase.projectionErr}
+			payload, err := core.SessionPayloadWithQueue(
+				t.Context(),
+				reader,
+				&session.Info{ID: "detail", Name: "Detail"},
+			)
+			if err != nil || payload.ID != "detail" || payload.Name != "Detail" || payload.Queue == nil ||
+				payload.Queue.Cap != 7 {
+				t.Fatalf("detail=%#v error=%v", payload, err)
+			}
+		})
+	}
+}
+
+type detailRelationsReader struct {
+	relationsErr, projectionErr error
+}
+
+func (r *detailRelationsReader) InputQueueSummary(context.Context, string) (session.InputQueueSummary, error) {
+	return session.InputQueueSummary{Cap: 7}, nil
+}
+func (r *detailRelationsReader) PopulateSessionRelations(context.Context, *session.Info) error {
+	return r.relationsErr
+}
+
+func (r *detailRelationsReader) SessionPullRequests(
+	context.Context,
+	[]*session.Info,
+) (map[string]session.PullRequestProjection, error) {
+	return nil, r.projectionErr
 }

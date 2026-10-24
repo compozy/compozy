@@ -193,6 +193,7 @@ type SettingsDaemonRuntimePayload struct {
 }
 
 type SettingsAutomationRuntimePayload struct {
+	HostTimezone     string     `json:"host_timezone,omitempty"`
 	Available        bool       `json:"available"`
 	Running          bool       `json:"running"`
 	SchedulerRunning bool       `json:"scheduler_running"`

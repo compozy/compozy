@@ -297,32 +297,6 @@ func (q *Queries) GetWorktreeByName(ctx context.Context, arg GetWorktreeByNamePa
 	return i, err
 }
 
-const getWorktreeForgeStatus = `-- name: GetWorktreeForgeStatus :one
-SELECT fs.worktree_id, fs.provider, fs.pr_number, fs.pr_state, fs.pr_url, fs.merged, fs.fetched_at FROM worktree_forge_status fs
-JOIN worktrees w ON w.id = fs.worktree_id
-WHERE w.workspace_id = ?1 AND w.id = ?2
-`
-
-type GetWorktreeForgeStatusParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	WorktreeID  string `json:"worktree_id"`
-}
-
-func (q *Queries) GetWorktreeForgeStatus(ctx context.Context, arg GetWorktreeForgeStatusParams) (WorktreeForgeStatus, error) {
-	row := q.db.QueryRowContext(ctx, getWorktreeForgeStatus, arg.WorkspaceID, arg.WorktreeID)
-	var i WorktreeForgeStatus
-	err := row.Scan(
-		&i.WorktreeID,
-		&i.Provider,
-		&i.PrNumber,
-		&i.PrState,
-		&i.PrUrl,
-		&i.Merged,
-		&i.FetchedAt,
-	)
-	return i, err
-}
-
 const getWorktreeStatus = `-- name: GetWorktreeStatus :one
 SELECT ws.worktree_id, ws.branch, ws.detached, ws.head_sha, ws.dirty_files, ws.insertions, ws.deletions, ws.has_upstream, ws.ahead, ws.behind, ws.read_error, ws.refreshed_at FROM worktree_status ws
 JOIN worktrees w ON w.id = ws.worktree_id
@@ -585,6 +559,53 @@ func (q *Queries) ListWorktrees(ctx context.Context, workspaceID string) ([]Work
 	return items, nil
 }
 
+const listWorktreesAggregate = `-- name: ListWorktreesAggregate :many
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id
+`
+
+func (q *Queries) ListWorktreesAggregate(ctx context.Context) ([]Worktree, error) {
+	rows, err := q.db.QueryContext(ctx, listWorktreesAggregate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Worktree{}
+	for rows.Next() {
+		var i Worktree
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Branch,
+			&i.Path,
+			&i.GitDir,
+			&i.State,
+			&i.PendingPhase,
+			&i.Origin,
+			&i.SetupState,
+			&i.SetupError,
+			&i.BaseRef,
+			&i.CreatedBranch,
+			&i.RunNamespace,
+			&i.CreatedHead,
+			&i.RunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setWorktreeState = `-- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = ?1, updated_at = ?2
 WHERE workspace_id = ?3
@@ -677,51 +698,6 @@ func (q *Queries) UpdatePendingWorktree(ctx context.Context, arg UpdatePendingWo
 		arg.RunNamespace,
 		arg.CreatedHead,
 		arg.UpdatedAt,
-		arg.WorkspaceID,
-		arg.WorktreeID,
-	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const upsertWorktreeForgeStatus = `-- name: UpsertWorktreeForgeStatus :execrows
-INSERT INTO worktree_forge_status (
-  worktree_id, provider, pr_number, pr_state, pr_url, merged, fetched_at
-)
-SELECT id, ?1, ?2, ?3,
-  ?4, ?5, ?6
-FROM worktrees
-WHERE workspace_id = ?7 AND id = ?8
-ON CONFLICT(worktree_id) DO UPDATE SET
-  provider = excluded.provider,
-  pr_number = excluded.pr_number,
-  pr_state = excluded.pr_state,
-  pr_url = excluded.pr_url,
-  merged = excluded.merged,
-  fetched_at = excluded.fetched_at
-`
-
-type UpsertWorktreeForgeStatusParams struct {
-	Provider    string         `json:"provider"`
-	PrNumber    sql.NullInt64  `json:"pr_number"`
-	PrState     sql.NullString `json:"pr_state"`
-	PrUrl       string         `json:"pr_url"`
-	Merged      sql.NullInt64  `json:"merged"`
-	FetchedAt   sql.NullString `json:"fetched_at"`
-	WorkspaceID string         `json:"workspace_id"`
-	WorktreeID  string         `json:"worktree_id"`
-}
-
-func (q *Queries) UpsertWorktreeForgeStatus(ctx context.Context, arg UpsertWorktreeForgeStatusParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, upsertWorktreeForgeStatus,
-		arg.Provider,
-		arg.PrNumber,
-		arg.PrState,
-		arg.PrUrl,
-		arg.Merged,
-		arg.FetchedAt,
 		arg.WorkspaceID,
 		arg.WorktreeID,
 	)

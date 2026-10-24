@@ -12,6 +12,25 @@ import (
 
 const sessionModelConfigKey = "model"
 
+// A rollback configures the observed speed, while the session keeps its prior intent.
+// Resolve that intent against the live options instead of persisting the rollback's request.
+func (s *Session) speedResolutionForCapsLocked(caps acp.Caps) *speedpkg.Resolution {
+	resolution := caps.SpeedResolution
+	if resolution != nil && s.Speed != "" && resolution.Requested != s.Speed {
+		return acp.ResolveCurrentSpeed(s.Speed, caps.ConfigOptions)
+	}
+	return speedpkg.CloneResolution(resolution)
+}
+
+func (s *Session) captureProcessCapabilitiesLocked() {
+	if s.process == nil {
+		return
+	}
+	s.ACPCaps = s.process.CapsSnapshot()
+	s.ACPCapsKnown = true
+	s.SpeedResolution = s.speedResolutionForCapsLocked(s.ACPCaps)
+}
+
 func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -23,13 +42,16 @@ func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error
 }
 
 func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
+	if s.process != proc {
+		s.AdvertisedCommands = nil
+	}
 	s.process = proc
 	if proc != nil {
 		caps := proc.CapsSnapshot()
 		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
 		s.ACPCaps = cloneCaps(caps)
 		s.ACPCapsKnown = true
-		s.SpeedResolution = speedpkg.CloneResolution(caps.SpeedResolution)
+		s.SpeedResolution = s.speedResolutionForCapsLocked(caps)
 		if currentModel := currentACPModel(caps.ConfigOptions); adoptCurrentModel && currentModel != "" {
 			s.Model = currentModel
 		}

@@ -25,7 +25,7 @@ func (g *GoalRepo) GetSessionGoalProjection(
 	}
 	workspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(workspaceID)))
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
+	if sessionID == "" {
 		return goal.SessionProjection{}, fmt.Errorf(
 			"%w: Goal workspace_id and session_id are required",
 			looppkg.ErrValidation,

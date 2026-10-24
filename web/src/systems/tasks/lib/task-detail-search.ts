@@ -1,5 +1,7 @@
 import type { SearchSchemaInput } from "@tanstack/react-router";
 
+import { ownerDataScope, windowBindingValue } from "@/systems/workspace";
+
 export const TASK_DETAIL_TABS = ["overview", "runs", "activity"] as const;
 export type TaskDetailTab = (typeof TASK_DETAIL_TABS)[number];
 
@@ -10,6 +12,12 @@ export type TaskInspectTarget = (typeof TASK_INSPECT_TARGETS)[number];
 export interface TaskDetailSearch {
   tab?: TaskDetailTab;
   inspect?: TaskInspectTarget;
+  /**
+   * The window's data binding (`"<id>"` or `"@user"`), set by open-in-place
+   * under All projects. It only says which scope the window reads; the task
+   * itself is still read by id.
+   */
+  workspace?: string;
 }
 
 export interface ResolvedTaskDetailSearch extends TaskDetailSearch {
@@ -34,8 +42,15 @@ export function validateTaskDetailSearch(
     (TASK_INSPECT_TARGETS as readonly string[]).includes(search.inspect)
       ? (search.inspect as TaskInspectTarget)
       : undefined;
+  const workspace = typeof search.workspace === "string" ? search.workspace.trim() : "";
   return {
     tab: parseEnum(search.tab, TASK_DETAIL_TABS, "overview"),
     ...(inspect ? { inspect } : {}),
+    ...(workspace !== "" ? { workspace } : {}),
   };
+}
+
+/** The detail search that binds a task's window to its own scope (`"<id>"` or `"@user"`). */
+export function taskWindowBinding(workspaceId: string | null | undefined): { workspace: string } {
+  return { workspace: windowBindingValue(ownerDataScope(workspaceId)) };
 }

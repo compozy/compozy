@@ -192,6 +192,25 @@ describe("agent fleet projection", () => {
     expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");
   });
 
+  // W-21: under All projects same-named agents of two projects are two rows, each badged with
+  // its own project (User for the user layer, whose origin also reads "User").
+  it("Should keep same-named agents of different projects apart and badge their projects", () => {
+    const rows = projectAgentFleetRows({
+      items: [
+        catalogItem(agent({ name: "reviewer", origin: "global" })),
+        catalogItem(agent({ name: "reviewer", origin: "workspace", workspace_id: "ws_a" })),
+      ],
+      sessionsAvailable: true,
+      projectOf: definition => ({
+        kind: definition.workspace_id ? "project" : "user",
+        name: definition.workspace_id ?? "User",
+      }),
+    });
+    expect(new Set(rows.map(row => row.key)).size).toBe(2);
+    expect(rows.map(row => row.project?.name)).toEqual(["User", "ws_a"]);
+    expect(rows[0]?.cardOrigin).toBe("User");
+  });
+
   it("Should preserve the effective layer and every unique shadow layer", () => {
     const definition = agent({
       name: "profile-reviewer",

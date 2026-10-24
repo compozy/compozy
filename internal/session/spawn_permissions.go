@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/store"
@@ -21,7 +23,7 @@ func ValidatePermissionSubset(parent store.SessionPermissionPolicy, child store.
 			category.values(normalizedParent),
 			category.values(normalizedChild),
 		); err != nil {
-			return fmt.Errorf("%w: %w", ErrSpawnPermissionDenied, err)
+			return err
 		}
 	}
 	return nil
@@ -32,17 +34,22 @@ func validatePermissionAtoms(category string, parent []string, child []string) e
 	for _, atom := range parent {
 		trimmed := strings.TrimSpace(atom)
 		if trimmed == "" {
-			return fmt.Errorf("parent %s includes a blank permission atom", category)
+			return fmt.Errorf("%w: parent %s includes a blank permission atom", ErrSpawnPermissionDenied, category)
 		}
 		allowed[trimmed] = struct{}{}
 	}
 	for _, atom := range child {
 		trimmed := strings.TrimSpace(atom)
 		if trimmed == "" {
-			return fmt.Errorf("child %s includes a blank permission atom", category)
+			return &SpawnPermissionError{Field: category, Rule: SpawnPermissionRuleBlankAtom}
 		}
 		if _, ok := allowed[trimmed]; !ok {
-			return fmt.Errorf("child %s permission atom %q widens parent permissions", category, trimmed)
+			return &SpawnPermissionError{
+				Field:   category,
+				Value:   trimmed,
+				Rule:    SpawnPermissionRuleSubset,
+				Allowed: append([]string(nil), parent...),
+			}
 		}
 	}
 	return nil
@@ -94,7 +101,7 @@ func spawnWorkspaceCreateRefs(parent *Info, opts SpawnOpts) (string, string) {
 	if workspaceID := strings.TrimSpace(parent.WorkspaceID); workspaceID != "" {
 		return workspaceID, ""
 	}
-	return "", strings.TrimSpace(parent.Workspace)
+	return workspaceaccess.UserSelector, ""
 }
 
 func normalizeSpawnRole(role string) string {

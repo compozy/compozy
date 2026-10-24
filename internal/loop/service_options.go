@@ -8,10 +8,10 @@ import (
 )
 
 // DefaultsResolver resolves the `[loops.defaults.*]` layer for one workspace.
-type DefaultsResolver func(context.Context, WorkspaceID) (LoopDefaults, error)
+type DefaultsResolver func(context.Context, WorkspaceID, string) (LoopDefaults, error)
 
 // InputDefaultsResolver resolves source-preserving configured inputs for one named Loop.
-type InputDefaultsResolver func(context.Context, WorkspaceID, string) (InputDefaultLayers, error)
+type InputDefaultsResolver func(context.Context, WorkspaceID, string, string) (InputDefaultLayers, error)
 
 // Option configures a loop service.
 type Option func(*service)
@@ -132,32 +132,34 @@ func WithResponderPolicy(policy ResponderPolicy) Option {
 	}
 }
 
-func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID) (LoopDefaults, error) {
+func (s *service) resolveDefaults(ctx context.Context, ws WorkspaceID, profileID string) (LoopDefaults, error) {
 	if s.defaultsResolver == nil {
 		return s.defaults, nil
 	}
-	return s.defaultsResolver(ctx, ws)
+	return s.defaultsResolver(ctx, ws, profileID)
 }
 
 func (s *service) resolveInputDefaults(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	loopName string,
 ) (InputDefaultLayers, error) {
 	if s.inputDefaultsResolver == nil {
 		return InputDefaultLayers{}, nil
 	}
-	return s.inputDefaultsResolver(ctx, ws, loopName)
+	return s.inputDefaultsResolver(ctx, ws, profileID, loopName)
 }
 
 func (s *service) runtimeCatalogForWorkspace(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 ) (RuntimeCatalog, error) {
 	if s.runtimeCatalog == nil {
 		return nil, nil
 	}
-	catalog, err := s.runtimeCatalog.ForWorkspace(ctx, ws)
+	catalog, err := s.runtimeCatalog.ForWorkspace(ctx, ws, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace runtime catalog: %w", err)
 	}

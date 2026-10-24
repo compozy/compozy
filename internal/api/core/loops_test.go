@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -1766,6 +1768,9 @@ func newLoopHandlerFixture(
 }
 
 func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
+	engine.GET("/loop-runs", handlers.ListLoopRuns)
+	engine.GET("/loop-requests", handlers.ListLoopRequests)
+	engine.GET("/loops", handlers.ListLoops)
 	workspace := engine.Group("/workspaces/:workspace_id")
 	workspace.GET("/loops", handlers.ListLoops)
 	workspace.POST("/loops", handlers.CreateLoop)
@@ -2731,4 +2736,37 @@ func TestLoopReadProfileScope(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLoopAggregateHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate breadth and keep workspace routes pinned", func(t *testing.T) {
+		t.Parallel()
+		service := happyLoopService(t)
+		service.listLoopRunsFn = func(_ context.Context, ws string, query core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
+			if ws != "" || !query.AllWorkspaces || query.ReadScope.ProfileID != store.DefaultProfileID ||
+				len(query.WorkspaceIDs) != 2 ||
+				query.WorkspaceIDs[0] != workspaceaccess.UserSelector {
+				t.Fatalf("aggregate scope %q %+v", ws, query)
+			}
+			return contract.LoopRunsResponse{Runs: []contract.LoopRunPayload{}}, nil
+		}
+		_, engine := newLoopHandlerFixture(t, "http", service)
+		for _, path := range []string{"/loop-runs", "/loop-requests", "/loops", "/workspaces/ws-1/loop-runs?all_workspaces=true", "/workspaces/ws-1/loop-requests?all_workspaces=true", "/workspaces/ws-1/loops?all_workspaces=true", "/loop-runs?all_workspaces=true&order=operational"} {
+			response := performRequest(t, engine, http.MethodGet, path, nil)
+			if response.Code != 400 || !strings.Contains(response.Body.String(), "workspace_breadth_invalid") {
+				t.Fatalf("%s: %d %s", path, response.Code, response.Body.String())
+			}
+		}
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/loop-runs?all_workspaces=true&workspace_ids=ws-b&workspace_ids=@user&workspace_ids=ws-b",
+			nil,
+		)
+		if response.Code != 200 || !strings.Contains(response.Body.String(), "runs") {
+			t.Fatalf("aggregate: %d %s", response.Code, response.Body.String())
+		}
+	})
 }

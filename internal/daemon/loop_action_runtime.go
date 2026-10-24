@@ -126,7 +126,7 @@ func (r *loopActionRuntime) OnTaskRunEnqueued(
 		r.logError("daemon: load loop action task", err, payload)
 		return
 	}
-	r.startQueuedRun(taskRecord, run, loopActionRuntimeReasonEnqueued, payload)
+	r.startQueuedRun(ctx, taskRecord, run, loopActionRuntimeReasonEnqueued, payload)
 }
 
 func (r *loopActionRuntime) Recover(ctx context.Context) {
@@ -150,11 +150,12 @@ func (r *loopActionRuntime) Recover(ctx context.Context) {
 			r.logError("daemon: load loop action recovery task", err, loopActionPayload(run))
 			continue
 		}
-		r.startQueuedRun(taskRecord, run, loopActionRuntimeReasonRecover, loopActionPayload(run))
+		r.startQueuedRun(ctx, taskRecord, run, loopActionRuntimeReasonRecover, loopActionPayload(run))
 	}
 }
 
 func (r *loopActionRuntime) startQueuedRun(
+	ctx context.Context,
 	taskRecord taskpkg.Task,
 	run taskpkg.Run,
 	reason string,
@@ -169,7 +170,11 @@ func (r *loopActionRuntime) startQueuedRun(
 		return
 	}
 	r.wg.Go(func() {
-		if err := r.executeStartedRun(r.root, taskRecord, run, reason); err != nil &&
+		// Preserve composition-root recovery admission while the runtime owns cancellation.
+		runCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+		stop := context.AfterFunc(r.root, cancel)
+		defer func() { stop(); cancel() }()
+		if err := r.executeStartedRun(runCtx, taskRecord, run, reason); err != nil &&
 			!errors.Is(err, context.Canceled) {
 			r.logError("daemon: execute loop action run", err, payload)
 		}

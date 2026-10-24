@@ -120,7 +120,8 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,state,badge,failure_kind,workspace,health_state,health,updated_at}:",
+		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,state,badge,failure_kind,"+
+			"workspace,health_state,health,updated_at,branch,pr,checks,review}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
@@ -4145,7 +4146,6 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		automationpkg.WithWorkspaceResolver(resolver),
 		automationpkg.WithConfig(d.cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(d.homePaths.HomeDir),
 	)
 	if err != nil {
 		return fmt.Errorf("new automation manager: %w", err)

@@ -1410,7 +1410,7 @@ func assertHeartbeatStoreErrors(t *testing.T, globalDB *GlobalDB, workspaceID st
 	) {
 		t.Fatalf("MarkSessionHealthStale(invalid) error = %v, want ErrInvalidSessionHealth", err)
 	}
-	if _, err := globalDB.GetHeartbeatWakeState(ctx, "", "coder", "sess"); !errors.Is(
+	if _, err := globalDB.GetHeartbeatWakeState(ctx, "", "", "sess"); !errors.Is(
 		err,
 		heartbeat.ErrInvalidWakeState,
 	) {

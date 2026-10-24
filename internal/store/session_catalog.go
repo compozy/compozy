@@ -15,6 +15,21 @@ var (
 	ErrSessionArchiveRequiresStopped = errors.New("store: session must be stopped before archiving")
 )
 
+// SessionArchiveLiveMemberError names the archive-family session that is not
+// stopped, so a caller that may stop sessions knows which one blocks archiving.
+type SessionArchiveLiveMemberError struct {
+	SessionID string
+}
+
+func (e *SessionArchiveLiveMemberError) Error() string {
+	return ErrSessionArchiveRequiresStopped.Error() + ": " + e.SessionID
+}
+
+// Unwrap keeps the live-member refusal classified as ErrSessionArchiveRequiresStopped.
+func (e *SessionArchiveLiveMemberError) Unwrap() error {
+	return ErrSessionArchiveRequiresStopped
+}
+
 // SessionCatalog manages global session index records.
 type SessionCatalog interface {
 	RegisterSession(ctx context.Context, session SessionInfo) error
@@ -40,4 +55,19 @@ type SessionArchiveStore interface {
 type SessionTranscriptEpochStore interface {
 	SessionTranscriptEpoch(ctx context.Context, sessionID string) (int64, error)
 	EnsureSessionTranscriptEpoch(ctx context.Context, update SessionTranscriptEpochUpdate) (int64, error)
+}
+
+// SessionLineageUpdate replaces the hierarchy fields of one session's lineage:
+// parent, root, depth, kind, and auto-stop. Governance fields stay untouched.
+type SessionLineageUpdate struct {
+	SessionID string
+	Lineage   SessionLineage
+	UpdatedAt time.Time
+}
+
+// SessionLineageStore rewrites persisted session hierarchy for a reparent.
+type SessionLineageStore interface {
+	// UpdateSessionLineages applies every update in one transaction and fails
+	// when any targeted session is missing from the workspace.
+	UpdateSessionLineages(ctx context.Context, workspaceID string, updates []SessionLineageUpdate) error
 }

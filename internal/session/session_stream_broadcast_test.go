@@ -174,6 +174,25 @@ func (n *streamIdentityNotifier) OnAgentEventForSession(_ context.Context, sess 
 func TestSessionCatalogBroadcaster(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should publish PR cache wakes to all owning profiles without a session id", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			CatalogScope{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		h.manager.PublishWorkspaceCatalogChanged(h.workspaceID, []string{store.DefaultProfileID})
+		event := assertCatalogEventName(t, events, CatalogEventNameChanged)
+		if event.Kind != CatalogEventLayout || event.SessionID != "" || event.ProfileID != store.DefaultProfileID ||
+			event.WorkspaceID != h.workspaceID {
+			t.Fatalf("PR cache wake=%#v", event)
+		}
+	})
+
 	t.Run("Should publish session-less layout changes only to the owning workspace and profile", func(t *testing.T) {
 		t.Parallel()
 		catalog := openManagerInputQueueStore(t)

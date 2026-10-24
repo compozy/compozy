@@ -90,7 +90,7 @@ func (g *SessionRepo) SetSessionArchived(
 		ids := make([]string, 0, len(family))
 		for _, member := range family {
 			if archived && member.State != globalDBSessionStateStopped {
-				return fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, member.ID)
+				return &store.SessionArchiveLiveMemberError{SessionID: member.ID}
 			}
 			ids = append(ids, member.ID)
 		}

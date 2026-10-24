@@ -24,6 +24,7 @@
 - Terminal
 - Shell session preferences
 - Provider usage
+- User-scope execution directory
 
 ## Desired State And Apply Lifecycle
 
@@ -223,13 +224,18 @@ Loop-specific key or Settings control.
 ## Autonomy Scheduler
 
 `[worktrees]` controls the parent-workspace Worktree lifecycle. `root` defaults to
-`$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list` and
-`setup_command` default empty; `setup_timeout` defaults to `10m`; and `discovery_cache_ttl` defaults
-to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
-copy entries must be non-empty relative Git pathspecs, and both durations must be positive. The copy
+`$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list`,
+`setup_command` and `teardown_command` default empty; `setup_timeout` and `teardown_timeout` default
+to `10m`; and `discovery_cache_ttl` defaults to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
+copy entries must be non-empty relative Git pathspecs, and all durations must be positive. The copy
 candidate set is limited to ignored, untracked files matched by those pathspecs. Workspace overlays
-merge each field independently. `worktrees.*` applies live to later creation and discovery without
-moving existing paths or changing an accepted creation.
+merge each field independently. `worktrees.*` applies live to later creation, removal and discovery
+without moving existing paths or changing an accepted creation.
+
+Teardown runs after `worktree.pre_remove` approval and before managed checkout removal, with the
+setup environment. Failure or timeout emits a redacted `worktree.teardown_failed` event and removal
+continues; stdout/stderr use `worktree.teardown_output`. Dismiss never executes commands. See
+`references/worktrees.md` for ordering, retries and missing-checkout behavior.
 
 `task.orchestration.profile.default_worktree_mode` resolves an inherited task worktree policy before
 enqueue and accepts `inherit`, `none`, or `per_run`. It defaults to `inherit`, which has root
@@ -304,6 +310,18 @@ choice with `compozy profile use`; read `references/profiles.md` for the complet
 lifecycle contract.
 
 ## Automation Schedules
+
+Schedules use the single shared `automation.timezone`. First creation of the user config writes the
+host's detected, loadable IANA zone, or `UTC` if detection fails. Existing configs without the key
+retain UTC on upgrade and reinstall. Set a local IANA zone with
+`compozy config set automation.timezone America/Sao_Paulo` or the searchable Settings picker.
+Settings offers the daemon host zone (not the browser zone) and signals a mismatch; detection failure
+omits the shortcut. Review existing schedules before changing the shared zone. Keep cron in local
+time: manually converting it to a fixed UTC offset breaks where daylight saving time changes.
+The zone change requires a daemon restart. Cron cursors then recalculate in the new zone; interval
+and absolute-time schedules are unchanged. Already deferred fires retain their identity and run
+once before the new cron cursor continues. Legacy cursor identity upgrades preserve pending times
+and catch-up work.
 
 Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
 
@@ -516,15 +534,25 @@ governs one daemon. Workspace overlays remain valid.
 
 ## Shell Session Preferences
 
-`shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
-`attention`. `shell.sessions.scope` persists the list breadth and accepts `workspace` (default) or
-`all-workspaces`. Both keys are global, apply live, and survive browser restarts in
-`$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
-authoritative.
+`shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
+`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
+(shared by its List and Kanban views), follows these values until the operator chooses there, and never
+writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
-Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
-request replaces the complete `shell` config section, so read the current section before changing
-one field.
+Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
+(`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
+globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
+`revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
+Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
+`group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
+logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
+`group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
+an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+`shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
+the topbar globe, not a config key.
 
 ## Provider Usage
 
@@ -532,16 +560,39 @@ one field.
 sets it fails to load (`provider_usage settings are global-only`) and profile overlays reject it
 (`profile_config_key_denied`).
 
-| Key                                               | Default | Notes                                                                             |
-| ------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `provider_usage.enabled`                          | `true`  | `false` removes the tray meter, stops collection, and empties envelopes.          |
-| `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                    |
-| `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.        |
-| `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for explicit local Keychain reads; turning it off clears the token. |
+| Key                                               | Default | Notes                                                                                                |
+| ------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `provider_usage.enabled`                          | `true`  | `false` removes the tray meter, stops collection, and empties envelopes.                             |
+| `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                                       |
+| `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.                           |
+| `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for Keychain reads; only local explicit reads may prompt; revocation clears the token. |
 
 Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/settings/provider-usage`
 (the PATCH body carries the complete `config` section; the response adds read-only
 `keychain_supported`, `true` only on a macOS daemon). Agents may change `enabled`,
 `refresh_interval`, and `providers.<id>.enabled` through `compozy__config_set`, but not
-`keychain_access`: consent is operator-only. Consent alone never reads the Keychain; a read still
-needs an explicit local refresh, which agents cannot make.
+`keychain_access`: consent is operator-only. With existing consent, scheduled collection may
+silently reread the routed Keychain item. OS authorization prompts still require an explicit local
+refresh, which agents cannot make. CompozyOS never exchanges Claude Code refresh tokens.
+
+## User-scope execution directory
+
+`[user_scope] work_dir = "~"` selects the User execution directory. A personal profile overlay may
+replace it. Resolution expands `~` and requires an existing absolute directory, otherwise returning
+`user_scope_work_dir_invalid`. Validation is deferred until use; changes affect later starts.
+The execution directory contributes no workspace or workspace-profile configuration.
+
+`@user` is a public User reference, never a registered workspace id. CLI workspace resolution forwards
+it verbatim. Project-only routes refuse it with `user_scope_unsupported`; worktree routes take
+precedence with `user_scope_worktree_unsupported`. New registrations and renames reject `user`,
+`global`, and names starting with `@` (`workspace_name_reserved`). Registration also rejects both the
+operator home and `COMPOZY_HOME` (`workspace_home_forbidden`).
+
+User work upgrades from the former `COMPOZY_HOME` pseudo-project without registering a replacement.
+The daemon verifies profile journal rows and retained blobs, keeps the source journal as `.migrated`,
+and copies layouts before removing the old registration. Worktree-bearing sources and sources used
+by Loop-targeting automations remain projects. Migration collisions and workspace-only bindings are
+retained in `user_scope_migration_archive`; progress is recorded in `user_scope_migrations`.
+Do not remove retained directories or bypass a migration refusal. Reserved-name aliases warn through
+v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a migration-created alias;
+on window-manager surfaces it always means the reserved partition. `@user` always means User.

@@ -23,12 +23,14 @@ type UpdateTaskDefinitionMutation struct {
 
 // ExecutionProfileMutation commits one profile replacement and its event.
 type ExecutionProfileMutation struct {
+	Actor   ActorContext
 	Profile ExecutionProfile
 	Event   Event
 }
 
 // WorktreePolicyMutation commits one worktree block patch and its event.
 type WorktreePolicyMutation struct {
+	Actor  ActorContext
 	TaskID string
 	Policy WorktreePolicy
 	Event  Event
@@ -36,13 +38,14 @@ type WorktreePolicyMutation struct {
 
 // ExecutionProfileDeleteMutation commits one profile deletion and its event.
 type ExecutionProfileDeleteMutation struct {
+	Actor  ActorContext
 	TaskID string
 	Event  Event
 }
 
 // DefinitionStore owns atomic task-definition and profile commands.
 type DefinitionStore interface {
-	CreateTaskDefinition(ctx context.Context, mutation CreateTaskDefinitionMutation) error
+	CreateTaskDefinition(ctx context.Context, mutation *CreateTaskDefinitionMutation) error
 	UpdateTaskDefinition(ctx context.Context, mutation *UpdateTaskDefinitionMutation) (ExecutionProfile, error)
 	SetTaskExecutionProfile(ctx context.Context, mutation *ExecutionProfileMutation) (ExecutionProfile, error)
 	SetTaskWorktreePolicy(ctx context.Context, mutation *WorktreePolicyMutation) (ExecutionProfile, error)

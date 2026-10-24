@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -25,7 +27,8 @@ const sessionCatalogVerdictOnlyExpression = `(session_type = 'system' AND EXISTS
  WHERE policy.profile_ref = sessions.creation_profile_ref
  AND json_extract(policy.profile_json, '$.runtime_mode') = 'verdict-only'))`
 
-const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
+const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model,
+	reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
@@ -70,9 +73,13 @@ func (g *SessionRepo) PageSessions(
 	}()
 
 	if !query.SkipTotal {
-		countQuery := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
+		source, sourceArgs, sourceErr := sessionCatalogPageSource(query)
+		if sourceErr != nil {
+			return store.SessionCatalogPage{}, sourceErr
+		}
+		countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
 		// dynamic-sql: page filters and exclusion slices alter the count query structure.
-		if err := tx.QueryRowContext(ctx, countQuery, args...).Scan(&page.Total); err != nil {
+		if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
 			return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
 		}
 	}
@@ -109,7 +116,13 @@ func querySessionCatalogRows(
 		where = append(where, cursorClause)
 		args = append(args, cursorArgs...)
 	}
-	sqlQuery := store.AppendWhere(sessionInfoSelectQuery, where)
+	source, sourceArgs, err := sessionCatalogPageSource(query)
+	if err != nil {
+		return nil, err
+	}
+	selectQuery := strings.TrimSuffix(sessionInfoSelectQuery, "FROM sessions") + "FROM " + source
+	sqlQuery := store.AppendWhere(selectQuery, where)
+	args = append(sourceArgs, args...)
 	order, err := sessionCatalogOrderClause(query.Sort)
 	if err != nil {
 		return nil, err
@@ -149,13 +162,32 @@ func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCa
 	return appendSubagentSessionFilter(where, query.Subagents)
 }
 
+// appendSessionWorkspaceIDsFilter narrows to the All projects Project filter; @user selects User rows.
+func appendSessionWorkspaceIDsFilter(where []string, args []any, workspaceIDs []string) ([]string, []any, error) {
+	if len(workspaceIDs) == 0 {
+		return where, args, nil
+	}
+	ids := append([]string(nil), workspaceIDs...)
+	for i, id := range ids {
+		if id == workspaceaccess.UserSelector {
+			ids[i] = ""
+		}
+	}
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: encode session workspace filter: %w", err)
+	}
+	where = append(where, "workspace_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))")
+	return where, append(args, string(encoded)), nil
+}
+
 func sessionCatalogPageFilters(
 	query store.SessionCatalogPageQuery,
 	now string,
 ) ([]string, []any, error) {
 	where, args := store.BuildClauses(
 		store.ReadScopeClause("profile_id", query.ReadScope),
-		store.StringClause("workspace_id", query.WorkspaceID),
+		store.SessionWorkspaceClause(query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("state", query.State),
 		store.StringClause(sessionCatalogSessionTypeColumn, query.SessionType),
@@ -164,25 +196,11 @@ func sessionCatalogPageFilters(
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
-	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		if query.SearchFields == "title_agent" {
-			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
-			where = append(
-				where,
-				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
-					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
-			)
-			args = append(args, search, search)
-		} else {
-			where = append(where, `(instr(lower(id), ?) > 0 OR
-			instr(lower(COALESCE(name, '')), ?) > 0 OR
-			instr(lower(agent_name), ?) > 0 OR
-			instr(lower(provider), ?) > 0)`)
-			for range 4 {
-				args = append(args, search)
-			}
-		}
+	where, args, err := appendSessionWorkspaceIDsFilter(where, args, query.WorkspaceIDs)
+	if err != nil {
+		return nil, nil, err
 	}
+	where, args = appendSessionCatalogSearch(where, args, query)
 	if query.AttentionOnly {
 		where = append(
 			where,
@@ -197,14 +215,23 @@ func sessionCatalogPageFilters(
 		}
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
+	if query.HideChildren {
+		where = append(where, "(parent_session_id IS NULL OR parent_session_id = '')")
+	}
+	if len(query.Columns) > 0 {
+		placeholders := make([]string, len(query.Columns))
+		for index, column := range query.Columns {
+			placeholders[index] = "?"
+			args = append(args, column)
+		}
+		where = append(where, sessionCatalogBoardColumnExpression+" IN ("+strings.Join(placeholders, ",")+")")
+	}
 	where = appendSessionCatalogVisibilityFilters(where, query)
 	if query.Resumable {
 		where = append(where, sessionListResumableWhere)
 		args = append(args, now)
 	}
 	where, args = appendSessionArchiveFilter(where, args, query.Archive)
-
-	var err error
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
 	if err != nil {
 		return nil, nil, err
@@ -373,4 +400,27 @@ func appendSubagentSessionFilter(where []string, filter string) []string {
 	default:
 		return where
 	}
+}
+
+func appendSessionCatalogSearch(where []string, args []any, query store.SessionCatalogPageQuery) ([]string, []any) {
+	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
+		if query.SearchFields == "title_agent" {
+			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
+			where = append(
+				where,
+				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
+					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
+			)
+			args = append(args, search, search)
+		} else {
+			where = append(where, `(instr(lower(id), ?) > 0 OR
+			instr(lower(COALESCE(name, '')), ?) > 0 OR
+			instr(lower(agent_name), ?) > 0 OR
+			instr(lower(provider), ?) > 0)`)
+			for range 4 {
+				args = append(args, search)
+			}
+		}
+	}
+	return where, args
 }

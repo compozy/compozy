@@ -57,7 +57,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&id, "id", "", "Explicit child task ID")
 	cmd.Flags().
 		StringVar(&identifier, taskIdentifierKey, "", "Human-friendly child task identifier")
-	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&title, taskTitleKey, "", "Child task title")

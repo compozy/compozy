@@ -10,7 +10,7 @@ import type { Page } from "@playwright/test";
 
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { appWindow, sessionWindow, windowTitle } from "../fixtures/os-navigation";
+import { appWindow, focusUserScope, sessionWindow, windowTitle } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -172,6 +172,8 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
+    // This journey's triggers are User-scope (global), listed under the User destination.
+    await focusUserScope(appPage);
 
     await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
     await expect(ui.automationsShell).toBeVisible();
@@ -385,9 +387,7 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     if (!reenabledSessionId) {
       throw new Error("Expected the re-enabled trigger run to expose a linked session.");
     }
-    const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
-    await expect(workspaceSwitchDialog).toBeVisible();
-    await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
+    // The run's User session belongs to the focused User destination: it opens in place.
     const sessionUI = sessionWindowSelectors(sessionWindow(appPage, reenabledSessionId));
     await expect(sessionUI.chatView).toBeVisible();
     await expect(sessionUI.chatView).toContainText("Review payload deploy for main");
@@ -453,6 +453,8 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
+    // The fixture trigger is User-scope (global), listed under the User destination.
+    await focusUserScope(appPage);
     await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
     await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
@@ -547,6 +549,8 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
   await ensureProjectWorkspace(appPage, runtime);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(shellUI);
+  // The fixture trigger is User-scope (global), listed under the User destination.
+  await focusUserScope(appPage);
   await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
   await expect(ui.automationsShell).toBeVisible();
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
@@ -854,10 +858,12 @@ function workspaceListLogsPath(
   workspaceID: string | null | undefined,
   sessionID: string | null | undefined
 ): string {
-  const workspace = workspaceID?.trim();
+  // A User-scope (global) trigger runs a User session, which owns no workspace: its logs
+  // read through the `@user` selector.
+  const workspace = workspaceID?.trim() || "@user";
   const session = sessionID?.trim();
-  if (!workspace || !session) {
-    throw new Error("logs parity requires workspace_id and session_id");
+  if (!session) {
+    throw new Error("logs parity requires session_id");
   }
   return `/api/logs?workspace_id=${encodeURIComponent(workspace)}&session_id=${encodeURIComponent(session)}&limit=20`;
 }

@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type TargetKind string
+
 type Task struct {
 	ID                   string          `json:"id"`
 	ProfileID            string          `json:"profile_id"`
@@ -286,12 +288,14 @@ type TaskDashboardLatencyCardPayload struct {
 }
 
 type TaskDashboardParams struct {
-	Scope      TaskScope  `json:"scope,omitempty"`
-	Workspace  string     `json:"workspace,omitempty"`
-	Worktree   string     `json:"worktree,omitempty"`
-	OwnerKind  OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef   string     `json:"owner_ref,omitempty"`
-	OriginKind OriginKind `json:"origin_kind,omitempty"`
+	AllWorkspaces bool       `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string   `json:"workspace_ids,omitempty"`
+	Scope         TaskScope  `json:"scope,omitempty"`
+	Workspace     string     `json:"workspace,omitempty"`
+	Worktree      string     `json:"worktree,omitempty"`
+	OwnerKind     OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef      string     `json:"owner_ref,omitempty"`
+	OriginKind    OriginKind `json:"origin_kind,omitempty"`
 }
 
 type TaskDashboardQueueDepthPayload struct {
@@ -308,10 +312,4 @@ type TaskDashboardQueuePayload struct {
 	BacklogWarning        bool                             `json:"backlog_warning"`
 	BacklogStatus         string                           `json:"backlog_status"`
 	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
-}
-
-type TaskDashboardStatusBreakdownPayload struct {
-	Status       Status `json:"status"`
-	Count        int    `json:"count"`
-	SharePercent int    `json:"share_percent"`
 }

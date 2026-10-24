@@ -119,6 +119,8 @@ CREATE TABLE session_health (
 			human_ingress INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
+ branch TEXT NOT NULL DEFAULT '',
+ effective_workspace_access TEXT NOT NULL DEFAULT '',
 		id             TEXT PRIMARY KEY,
 		profile_id     TEXT NOT NULL REFERENCES profiles(id),
 		name           TEXT,
@@ -193,9 +195,11 @@ CREATE TABLE session_derivations (
 		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork')),
 		outcome_json TEXT NOT NULL CHECK (json_valid(outcome_json)),
 		created_at TEXT NOT NULL,
-		child_deleted_at TEXT,
-		PRIMARY KEY (workspace_id, idempotency_key)
+		child_deleted_at TEXT
 	);
+
+CREATE UNIQUE INDEX idx_session_derivations_project_key ON session_derivations(workspace_id, idempotency_key) WHERE workspace_id <> '';
+CREATE UNIQUE INDEX idx_session_derivations_user_key ON session_derivations(profile_id, idempotency_key) WHERE workspace_id = '';
 
 CREATE INDEX idx_session_derivations_source ON session_derivations(source_session_id);
 

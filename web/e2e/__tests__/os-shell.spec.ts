@@ -795,6 +795,8 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   const parkedScrollTop = await primaryTranscript.evaluate(element => {
     const viewport = element as HTMLElement;
     if (viewport.scrollHeight <= viewport.clientHeight) return -1;
+    // A reader gesture hands the transcript over; a bare scroll alone keeps following.
+    viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
     viewport.scrollTop = Math.max(
       1,
       Math.floor((viewport.scrollHeight - viewport.clientHeight) / 3)
@@ -2275,7 +2277,8 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
 
   // Only the owner projection resolves the session miss. The shell may read B's
   // workspace-scoped loop-request projection for the authorized cross-workspace
-  // attention feed, but no foreign session payload is read before confirmation.
+  // attention feed (the aggregate route serves it now), but nothing else of B's and
+  // no foreign session payload is read before confirmation.
   expect(new Set(apiRequests.filter(pathname => pathname.includes(session.id)))).toEqual(
     new Set([
       `/api/workspaces/${workspace.id}/sessions/${session.id}`,
@@ -2283,10 +2286,12 @@ test("E2E-016 / cross-workspace E2E-008, E2E-009, E2E-011: a foreign session dee
     ])
   );
   expect(
-    new Set(
-      apiRequests.filter(pathname => pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`))
+    apiRequests.filter(
+      pathname =>
+        pathname.startsWith(`/api/workspaces/${secondWorkspace.id}/`) &&
+        pathname !== `/api/workspaces/${secondWorkspace.id}/loop-requests`
     )
-  ).toEqual(new Set([`/api/workspaces/${secondWorkspace.id}/loop-requests`]));
+  ).toEqual([]);
 
   // Cancel keeps A active with its arrangement intact and falls back to today's not-found.
   await confirmSwitch.cancel.click();

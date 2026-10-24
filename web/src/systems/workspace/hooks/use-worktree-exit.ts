@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import {
   cancelWorktreeExitAction,
   fetchWorktreeStatus,
+  prepareWorktreeExitPlan,
   runWorktreeExitAction,
 } from "../adapters/worktree-exit-api";
 import { workspaceKeys } from "../lib/query-keys";
@@ -39,6 +40,18 @@ export function useWorktreeExitPlan(
   options: WorktreeScopeOptions = {}
 ) {
   return useQuery(worktreeExitPlanOptions(workspaceID, worktreeID, options.enabled ?? true));
+}
+
+export function usePrepareWorktreeExitPlan(workspaceID: string, worktreeID: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => prepareWorktreeExitPlan(workspaceID, worktreeID),
+    onSuccess: async plan => {
+      const queryKey = workspaceKeys.worktreeExit(workspaceID, worktreeID);
+      await queryClient.cancelQueries({ queryKey, exact: true });
+      queryClient.setQueryData(queryKey, plan);
+    },
+  });
 }
 
 /**

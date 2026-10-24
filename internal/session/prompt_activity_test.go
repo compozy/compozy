@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/heartbeat"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1282,6 +1283,53 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		}
 	}
 
+	// Idle detachment must retain the latest provider observation, not startup confirmation.
+	t.Run("Should preserve revoked Fast and reduced effort through idle release", func(t *testing.T) {
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		snapshot := target.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Speed, selection.ReasoningEffort = speedpkg.SpeedFast, "max"
+		caps := acp.Caps{
+			SupportsLoadSession: true,
+			ConfigOptions: []acp.SessionConfigOption{
+				{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "max"},
+				{
+					ID:          "fast",
+					Category:    "model_config",
+					Kind:        acp.SessionConfigOptionKindBoolean,
+					CurrentBool: new(true),
+				},
+			},
+			SpeedResolution: &speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+		}
+		snapshot.process.setCaps(caps)
+		target.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, clock())
+		revoked := acp.CloneCaps(caps)
+		revoked.ConfigOptions[0].CurrentValueID = "high"
+		revoked.ConfigOptions[1].CurrentBool = new(false)
+		revoked.SpeedResolution.Status = speedpkg.ResolutionRejected
+		revoked.SpeedResolution.Reason = speedpkg.ReasonProviderRejected
+		snapshot.process.setCaps(revoked)
+		superviseFor(t, h, clock, advance, 3)
+		info := target.Info()
+		effective := info.EffectiveRuntime()
+		if info.RuntimeStatus != RuntimeStatusUnbound || target.processHandle() != nil ||
+			!isProcessDone(snapshot.process) {
+			t.Fatal("idle release did not detach and stop the provider process")
+		}
+		if info.Speed != speedpkg.SpeedFast || info.ReasoningEffort != "max" ||
+			effective.Speed != speedpkg.SpeedNormal || effective.ReasoningEffort != "high" ||
+			info.SpeedResolution == nil || info.SpeedResolution.Status != speedpkg.ResolutionRejected {
+			t.Fatalf("idle release restored stale controls: intent=%#v effective=%#v resolution=%#v",
+				info.RequestedRuntime(), effective, info.SpeedResolution)
+		}
+		meta := readMeta(t, target.MetaPath())
+		if meta.Speed != speedpkg.SpeedFast || meta.SpeedResolution == nil ||
+			meta.SpeedResolution.Requested != speedpkg.SpeedFast || meta.SpeedResolution.Status != speedpkg.ResolutionRejected ||
+			meta.Liveness.SubprocessPID != 0 {
+			t.Fatalf("persisted idle release = %#v / %#v", meta.SpeedResolution, meta.Liveness)
+		}
+	})
 	t.Run("Should release the runtime without stopping the session", func(t *testing.T) {
 		h, target, clock, advance := idleReleaseHarness(t, nil)
 		acpSessionID := target.Info().ACPSessionID
@@ -1319,6 +1367,48 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 		}
 		if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady || info.ACPSessionID != acpSessionID {
 			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
+		}
+	})
+	t.Run("Should let the driver finish a stop that outlasts the cleanup deadline", func(t *testing.T) {
+		t.Parallel()
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		acpSessionID := target.Info().ACPSessionID
+		// Like the ACP driver, the fake forces the exit when the caller's deadline cuts it short.
+		const budget, cooperativeExit = 8 * time.Second, 6 * time.Second
+		var granted atomic.Int64
+		h.driver.mu.Lock()
+		h.driver.stopBudget = budget
+		h.driver.stopWithContextHook = func(ctx context.Context, proc *fakeProcess) error {
+			deadline, bounded := ctx.Deadline()
+			remaining := time.Until(deadline)
+			granted.Store(int64(remaining))
+			proc.exit()
+			if !bounded || remaining < cooperativeExit {
+				return context.DeadlineExceeded
+			}
+			return nil
+		}
+		h.driver.mu.Unlock()
+		if err := superviseUntilReleaseError(h, clock, advance); err != nil {
+			t.Fatalf("Supervise() error = %v, want the release to wait for the cooperative exit", err)
+		}
+		if got := time.Duration(granted.Load()); got < cooperativeExit || got > budget {
+			t.Fatalf("release stop deadline = %s, want the advertised %s stop budget", got, budget)
+		}
+		if stops, _ := driverCounts(h); stops != 1 {
+			t.Fatalf("driver stop calls = %d, want one bounded stop", stops)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.Liveness == nil || meta.Liveness.SubprocessPID != 0 {
+			t.Fatalf("released liveness = %#v, want the verified exit recorded", meta.Liveness)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after the release error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
 		}
 	})
 	t.Run("Should keep the released process identity durable until its exit is verified", func(t *testing.T) {

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -62,7 +61,7 @@ func (m *Manager) resolveCursorCatalogBinding(
 			return binding.TransportModelID, nil
 		}
 	}
-	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, selection.Model, executionContext)
 	if err != nil {
 		return "", err
 	}
@@ -101,9 +100,9 @@ func (m *Manager) resolveClaudeCatalogBinding(
 			return binding, nil
 		}
 	}
-	models, err := m.listLiveProviderModels(ctx, selection.Provider, executionContext)
+	models, err := m.listLiveProviderModels(ctx, selection.Provider, selection.Model, executionContext)
 	if err != nil {
-		if !claudeLogicalModelRequiresCatalogBinding(modelID) {
+		if !modelcatalog.RequiresLiveTransportBinding(runtimeProviderClaude, modelID) {
 			return modelID, nil
 		}
 		return "", err
@@ -116,7 +115,7 @@ func (m *Manager) resolveClaudeCatalogBinding(
 		}
 		return selectClaudeTransportModel(model)
 	}
-	if !claudeLogicalModelRequiresCatalogBinding(modelID) {
+	if !modelcatalog.RequiresLiveTransportBinding(runtimeProviderClaude, modelID) {
 		return modelID, nil
 	}
 	validationErr := acp.ValidateModelConfigValue([]acp.SessionConfigOption{{
@@ -130,20 +129,6 @@ func (m *Manager) resolveClaudeCatalogBinding(
 		selection.Model,
 		validationErr,
 	)
-}
-
-func claudeLogicalModelRequiresCatalogBinding(modelID string) bool {
-	modelID = strings.TrimSpace(modelID)
-	provider, ok := compozyconfig.BuiltinProviders()[runtimeProviderClaude]
-	if !ok {
-		return false
-	}
-	for _, model := range provider.Models.Curated {
-		if strings.TrimSpace(model.ID) == modelID {
-			return true
-		}
-	}
-	return false
 }
 
 func (m *Manager) resolveCatalogTransportModel(
@@ -165,7 +150,7 @@ func (m *Manager) resolveCatalogTransportModel(
 // listLiveProviderModels reads available bindings within the resolved provider execution context.
 func (m *Manager) listLiveProviderModels(
 	ctx context.Context,
-	providerID string,
+	providerID, modelID string,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) ([]modelcatalog.Model, error) {
 	if m == nil || m.modelCatalog == nil {
@@ -188,6 +173,16 @@ func (m *Manager) listLiveProviderModels(
 			continue
 		}
 		live = append(live, model)
+	}
+	if len(live) == 0 {
+		for _, model := range models {
+			if model.ProviderID == providerID && strings.HasPrefix(model.LastError, "live catalog unavailable:") {
+				return nil, fmt.Errorf(
+					"session: %s %s: %w",
+					providerID, model.LastError, acp.ValidateModelConfigValue(nil, modelID),
+				)
+			}
+		}
 	}
 	return live, nil
 }

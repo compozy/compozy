@@ -46,3 +46,13 @@ Record the session slice separately from this scenario's broader coverage in
 
 
 Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-grouped folders, cross-profile drop rejection, owner-bound rename and reload persistence. Real Codex QA proves runtime/agent metadata for root and child rows, including never-bound, idle-released and stopped/unbound after daemon restart. Ordering and collapsed-folder navigation are covered by the owning unit suites. Evidence and exact scope: [issue #832 report](../reports/2026-10-19-issue-832-session-list.md).
+
+QA impact 2026-10-22 (issue #904): both row menus add Copy session ID and Copy title, and a
+nested provenance child adds Make top-level. Walked in ET-web-session-list-aggregate-parity.
+
+QA impact 2026-10-24 (issue #952): the session window head no longer carries a per-session `…`
+menu. Rename, Continue, Fork, and Delete were already row verbs; Clear conversation, the only
+verb unique to the head menu, is now a row verb offered only on the row of the session that
+window has open (disabled while a turn runs or nothing is left to clear). Sessions Kanban cards
+carry the same row menu on right-click and behind a hover/focus `…`. The list toolbar splits
+Sort and Group by into two icons. Walked in ET-web-sessions-board-card-actions-group-sort.

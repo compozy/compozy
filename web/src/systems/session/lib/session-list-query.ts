@@ -14,6 +14,10 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
     : { all_workspaces: true };
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
+  // The project filter narrows the aggregate only; sorted so equal filters share a key.
+  if (!workspaceId && filters.workspace_ids?.length) {
+    normalized.workspace_ids = [...new Set(filters.workspace_ids)].sort();
+  }
   // Server-side scoping: a worktree selection filters on the bound worktree id
   // rather than trimming a loaded page client-side.
   const worktree = normalizedText(filters.worktree);
@@ -43,6 +47,11 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   // Subagent visibility (ADR-005) is a server-side population filter, so it is
   // part of the request and the key: `exclude` and `include` are two catalogs.
   if (filters.subagents !== undefined) normalized.subagents = filters.subagents;
+  // Board columns and child visibility are population filters applied before paging.
+  if (filters.board_column?.length) {
+    normalized.board_column = [...new Set(filters.board_column)].sort();
+  }
+  if (filters.children === "exclude") normalized.children = "exclude";
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
   // Profile scope is part of the request, so it is part of the key: two profiles

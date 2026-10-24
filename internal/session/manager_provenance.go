@@ -131,3 +131,52 @@ func (m *Manager) revalidateSpawnedLineageForStart(ctx context.Context, spec *se
 	spec.lineage = lineage
 	return nil
 }
+
+// refreshStartLineage runs under lifecycleMu so reparenting cannot stale an accepted start.
+func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpec) error {
+	if spec.startAction == sessionStartActionResume {
+		meta, err := m.readSessionMetaReadOnly(ctx, spec.sessionID)
+		if err != nil {
+			return fmt.Errorf("session: refresh resumed lineage: %w", err)
+		}
+		spec.lineage = store.NormalizeSessionLineage(spec.sessionID, meta.Lineage)
+		return store.ValidateSessionLineage(spec.sessionID, spec.lineage)
+	}
+	if spec.lineage == nil || spec.lineage.ParentSessionID == "" {
+		return nil
+	}
+	if spec.sessionType == SessionTypeUser {
+		lineage, err := m.prepareProvenanceLineage(ctx, spec.sessionType, spec.workspace.ID, spec.lineage)
+		if err != nil {
+			return err
+		}
+		spec.lineage = lineage
+		return store.ValidateSessionLineage(spec.sessionID, lineage)
+	}
+	if spec.sessionType == SessionTypeSystem {
+		lineage, _, err := m.prepareInternalSystemProvenance(
+			ctx, spec.sessionID, spec.sessionType, spec.workspace.ID, nil, spec.lineage.ParentSessionID,
+		)
+		if err != nil {
+			return err
+		}
+		refreshed := store.CloneSessionLineage(spec.lineage)
+		refreshed.RootSessionID = lineage.RootSessionID
+		refreshed.SpawnDepth = lineage.SpawnDepth
+		spec.lineage = refreshed
+		return store.ValidateSessionLineage(spec.sessionID, refreshed)
+	}
+	parent, err := m.Status(ctx, spec.lineage.ParentSessionID)
+	if err != nil {
+		return fmt.Errorf("session: refresh parent lineage: %w", err)
+	}
+	lineage := store.CloneSessionLineage(spec.lineage)
+	parentLineage := store.NormalizeSessionLineage(parent.ID, parent.Lineage)
+	lineage.RootSessionID = parentLineage.RootSessionID
+	lineage.SpawnDepth = parentLineage.SpawnDepth + 1
+	if err := store.ValidateSessionLineage(spec.sessionID, lineage); err != nil {
+		return err
+	}
+	spec.lineage = lineage
+	return nil
+}

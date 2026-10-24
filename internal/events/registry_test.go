@@ -398,6 +398,7 @@ func TestRegistryMetadata(t *testing.T) {
 			WorktreeRemoved: OutcomeSuccess, WorktreeMissing: OutcomeWarning,
 			WorktreeDismissed: OutcomeInfo, WorktreeCreationCanceled: OutcomeInfo,
 			WorktreeSetupFailed: OutcomeWarning, WorktreeStatusRefreshed: OutcomeInfo,
+			WorktreeTeardownOutput: OutcomeInfo, WorktreeTeardownFailed: OutcomeWarning,
 			WorktreeBranchReclaimed: OutcomeSuccess, WorktreeExitActionStarted: OutcomeInfo,
 			WorktreeExitActionStep: OutcomeInfo, WorktreeExitHookOutput: OutcomeInfo,
 			WorktreeExitActionCompleted: OutcomeSuccess,

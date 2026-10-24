@@ -1,15 +1,7 @@
 "use client";
 
-import {
-  Button,
-  MonoId,
-  Pill,
-  StateGlyph,
-  TerminalView,
-  type TerminalEngineLoader,
-} from "@compozy/ui";
-
-import { TerminalSquare } from "lucide-react";
+import { TerminalView, type TerminalEngineLoader } from "@compozy/ui";
+import { useEffect, useState } from "react";
 
 import { TerminalStoreProvider } from "../contexts/terminal-store-context";
 import {
@@ -17,20 +9,13 @@ import {
   type TerminalAttachmentSocketFactory,
 } from "../hooks/use-terminal-attachment";
 import { useTerminalReplay } from "../hooks/use-terminal-replay";
-import { terminalExitCopy, terminalReplayFailedCopy } from "../lib/terminal-copy";
+import { terminalReplayFailedCopy } from "../lib/terminal-copy";
+import { SESSION_TERMINAL_MAX_ROWS, sessionTerminalRows } from "../lib/session-terminal-rows";
 import { sessionPreviewInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalExit } from "../types";
 
-type SessionTerminalStatus =
-  | { kind: "replay-failed" }
-  | {
-      kind: "exited";
-      code: string;
-      durationLabel?: string;
-      label: string;
-      tone: "success" | "neutral";
-    }
-  | { kind: "running"; startedLabel?: string; stillRunning: boolean };
+/** Columns assumed before the emulator can measure its container. */
+const FALLBACK_COLUMNS = 80;
 
 export interface SessionTerminalBlockProps {
   terminalId: string;
@@ -43,6 +28,7 @@ export interface SessionTerminalBlockProps {
    * from one to the other and mix their bytes.
    */
   blockId: string;
+  /** Names the screen for assistive technology. */
   title: string;
   /** The last lines, or the final screen once the command ends. */
   preview: string;
@@ -53,17 +39,10 @@ export interface SessionTerminalBlockProps {
    * opens its own read-only attachment and paints from byte zero. Without it
    * there is nothing to attach to — terminals are profile-scoped, and guessing
    * the profile reads as `terminal_not_found` — so the block paints the screen
-   * the tool result recorded and says so.
+   * the tool result recorded.
    */
   scope?: { workspaceId: string; profile: string };
   exit?: TerminalExit | null;
-  /** True past the agent's wait budget: the command runs on without it. */
-  stillRunning?: boolean;
-  durationLabel?: string;
-  /** Clock from the catalog's `created_at` when that timestamp exists. */
-  startedLabel?: string;
-  /** Absent until the Terminal app is reachable; then it focuses the window. */
-  onOpenTerminal?: () => void;
   /** Test seam; the browser socket is the default. */
   socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
@@ -71,11 +50,11 @@ export interface SessionTerminalBlockProps {
 }
 
 /**
- * A window into a terminal, inside the conversation.
+ * The screen of a terminal, inside an opened transcript row.
  *
- * The terminal stays the truth; this block is a view of it. It carries one jump
- * action and nothing else — a second transcript would compete with the one that
- * already exists.
+ * The row that hosts it states the title, outcome and the jump to the
+ * terminal; this is only the screen — sized to its content while it is a
+ * record, and a fixed window while it still streams.
  */
 export function SessionTerminalBlock(props: SessionTerminalBlockProps) {
   // Its own store, not the Terminal app's. A preview in a transcript is a
@@ -95,12 +74,8 @@ function SessionTerminalBlockBody({
   preview,
   scope,
   exit,
-  stillRunning = false,
-  durationLabel,
-  startedLabel,
   socketFactory,
   engineLoader,
-  onOpenTerminal,
 }: SessionTerminalBlockProps) {
   // Scoped as fully as the caller can name it: the block, the workspace and
   // profile when known, and the terminal. Length-prefixed so no id containing a
@@ -113,7 +88,12 @@ function SessionTerminalBlockBody({
   // A run that has not ended is still producing bytes, and this is a view of
   // that terminal rather than a record of it — so while it runs, it streams.
   const live = scope !== undefined && !exit;
-  const replay = useTerminalReplay(instanceId, preview, !live);
+  // A screen that streamed here keeps what it streamed once the run ends: the
+  // recorded preview is older than those bytes, and replaying it would wipe
+  // the final screen the reader just watched.
+  const [streamed, setStreamed] = useState(false);
+
+  const replay = useTerminalReplay(instanceId, preview, !live && !streamed);
   useTerminalAttachment({
     workspaceId: scope?.workspaceId ?? "",
     terminalId,
@@ -123,89 +103,54 @@ function SessionTerminalBlockBody({
     handleRef: replay.handleRef,
     socketFactory,
     enabled: live,
+    displayRows: SESSION_TERMINAL_MAX_ROWS,
+    onOutputPainted: () => setStreamed(true),
   });
 
-  const outcome = exit ? terminalExitCopy(exit) : null;
-  const status: SessionTerminalStatus = replay.writeError
-    ? { kind: "replay-failed" }
-    : outcome
-      ? {
-          kind: "exited",
-          code: outcome.code,
-          durationLabel,
-          label: outcome.label,
-          tone: outcome.tone === "success" ? "success" : "neutral",
-        }
-      : { kind: "running", startedLabel, stillRunning };
+  // Sized once the emulator can measure its width, and again whenever the
+  // recorded output changes. A streaming screen keeps the full window.
+  const [attachedFor, setAttachedFor] = useState<string | null>(null);
+  const attached = attachedFor === instanceId;
+  useEffect(() => {
+    if (!attached) return;
+    const handle = replay.handleRef.current;
+    const columns = handle?.proposeDimensions()?.cols ?? FALLBACK_COLUMNS;
+    handle?.applyDimensions({
+      cols: columns,
+      rows: live || streamed ? SESSION_TERMINAL_MAX_ROWS : sessionTerminalRows(preview, columns),
+    });
+  }, [attached, live, streamed, preview, replay.handleRef]);
+  const onAttached = () => {
+    setAttachedFor(instanceId);
+    replay.onAttached();
+  };
 
   return (
     <div
-      className="max-w-160 overflow-hidden rounded-lg border border-line"
+      className="max-w-160 overflow-hidden rounded-lg border border-line-soft bg-terminal-bg"
+      data-live={live ? "true" : "false"}
       data-testid={`session-terminal-block-${terminalId}`}
     >
-      <div className="flex min-h-8.5 min-w-0 items-center gap-2 border-line border-b bg-sunken px-3">
-        <TerminalSquare aria-hidden="true" className="size-deck-glyph flex-none text-subtle" />
-        <span className="truncate font-medium text-fg text-transcript-body">{title}</span>
-        <MonoId size="sm" value={terminalId} />
-        <div className="ml-auto flex flex-none items-center gap-1.5">
-          {onOpenTerminal ? (
-            <Button
-              data-testid={`session-terminal-open-${terminalId}`}
-              onClick={onOpenTerminal}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              Open terminal
-            </Button>
-          ) : null}
-        </div>
-      </div>
-      <div className="flex max-h-55 flex-col bg-terminal-bg">
-        <TerminalView
-          aria-label={live ? `${title} — watching` : `${title} — final screen`}
-          className="px-3 py-2 font-mono text-transcript-meta tracking-mono"
-          {...(engineLoader ? { engineLoader } : {})}
-          handleRef={replay.handleRef}
-          // A distinct identity from the app's pane: the preview is a second
-          // view of the same terminal, never a second owner of its buffer.
-          instanceId={instanceId}
-          onAttached={replay.onAttached}
-          readOnly
-          screenReaderMode
-        />
-      </div>
-      <SessionTerminalFooter status={status} />
-    </div>
-  );
-}
-
-function SessionTerminalFooter({ status }: { status: SessionTerminalStatus }) {
-  return (
-    <div className="flex min-h-7 items-center gap-2 border-line border-t bg-sunken px-3 font-mono text-eyebrow text-subtle">
-      {status.kind === "replay-failed" ? (
-        <span role="status">{terminalReplayFailedCopy()}</span>
-      ) : status.kind === "exited" ? (
-        <>
-          <Pill form="plain" size="xs" tone={status.tone}>
-            <Pill.Dot />
-            {status.label}
-          </Pill>
-          <MonoId size="sm" value={status.code} />
-          {status.durationLabel ? <span>{status.durationLabel}</span> : null}
-        </>
-      ) : (
-        <>
-          <StateGlyph size="sm" state="running" />
-          <span>
-            {status.stillRunning
-              ? "still running — the agent continued without waiting"
-              : status.startedLabel
-                ? `running · started ${status.startedLabel}`
-                : "running"}
-          </span>
-        </>
-      )}
+      <TerminalView
+        aria-label={live ? `${title} — watching` : `${title} — final screen`}
+        className="px-2.5 py-2 font-mono text-transcript-meta tracking-mono"
+        {...(engineLoader ? { engineLoader } : {})}
+        handleRef={replay.handleRef}
+        // A distinct identity from the app's pane: the preview is a second
+        // view of the same terminal, never a second owner of its buffer.
+        instanceId={instanceId}
+        onAttached={onAttached}
+        readOnly
+        screenReaderMode
+      />
+      {replay.writeError ? (
+        <p
+          className="border-line-soft border-t px-2.5 py-1 font-mono text-eyebrow text-subtle"
+          role="status"
+        >
+          {terminalReplayFailedCopy()}
+        </p>
+      ) : null}
     </div>
   );
 }

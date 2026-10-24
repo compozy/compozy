@@ -5,6 +5,7 @@ import { StateGlyph } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { sessionBadgeSignal } from "../lib/session-badge";
+import type { SessionWaitingOn } from "../lib/session-pull-request";
 
 /**
  * The two rendered scales of the one badge dictionary
@@ -16,43 +17,40 @@ import { sessionBadgeSignal } from "../lib/session-badge";
 
 export interface SessionBadgeMarkProps extends Omit<React.ComponentProps<"span">, "children"> {
   badge: string | null | undefined;
-  /** The turn ended but subagents still work: the parent reads `delegated`, not done. */
-  delegated?: boolean;
-  /** The turn ended but a monitor still waits to wake it: the row reads `monitoring`, not done. */
-  monitoring?: boolean;
+  /** Why a `waiting` session waits (the daemon's `waiting_on`); picks the parked glyph. */
+  waitingOn?: SessionWaitingOn | null;
 }
 
 /** Row-scale mark: the state glyph + an accessible state token. */
-export function SessionBadgeMark({
-  badge,
-  delegated = false,
-  monitoring = false,
-  className,
-  ...props
-}: SessionBadgeMarkProps) {
-  const signal = sessionBadgeSignal(badge);
-  const parked = delegated ? "delegated" : monitoring ? "monitoring" : null;
-  const label = parked ?? signal.label;
+export function SessionBadgeMark({ badge, waitingOn, className, ...props }: SessionBadgeMarkProps) {
+  const signal = sessionBadgeSignal(badge, waitingOn);
   return (
     <span
       role="img"
-      aria-label={`Session badge: ${label}`}
-      data-badge={label}
+      aria-label={`Session badge: ${signal.label}`}
+      data-badge={signal.label}
+      data-waiting-on={signal.label === "waiting" ? (waitingOn ?? "sessions") : undefined}
       className={cn("grid size-3 shrink-0 place-items-center", className)}
       {...props}
     >
-      <StateGlyph size="sm" state={parked ?? signal.state} />
+      <StateGlyph size="sm" state={signal.state} />
     </span>
   );
 }
 
 export interface SessionBadgeGlyphProps extends Omit<React.ComponentProps<"span">, "children"> {
   badge: string | null | undefined;
+  waitingOn?: SessionWaitingOn | null;
 }
 
 /** 18 px footprint — the bell, toast, palette, and status-line scale. */
-export function SessionBadgeGlyph({ badge, className, ...props }: SessionBadgeGlyphProps) {
-  const signal = sessionBadgeSignal(badge);
+export function SessionBadgeGlyph({
+  badge,
+  waitingOn,
+  className,
+  ...props
+}: SessionBadgeGlyphProps) {
+  const signal = sessionBadgeSignal(badge, waitingOn);
   return (
     <span
       role="img"

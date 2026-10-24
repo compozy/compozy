@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -566,6 +568,17 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		request CreateSessionRequest
 	}{
 		{
+			name:    "Should select User with the shorthand",
+			args:    []string{"session", "new", "--user", "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
+		{
+			name:    "Should forward the User reference",
+			args:    []string{"session", "new", "--workspace", workspaceaccess.UserSelector, "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
+
+		{
 			name: "Should use a registered workspace",
 			args: []string{"session", "new", "--workspace", "ws_abc", "-o", "json"},
 			request: CreateSessionRequest{
@@ -1016,8 +1029,10 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		t.Parallel()
 
 		archivedAt := fixedTestNow.Add(time.Minute)
+		var stopRequests []bool
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			archiveSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			archiveSessionFn: func(_ context.Context, id string, stop bool) (SessionRecord, error) {
+				stopRequests = append(stopRequests, stop)
 				return SessionRecord{
 					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
 					ArchivedAt: &archivedAt, CreatedAt: fixedTestNow, UpdatedAt: archivedAt,
@@ -1041,6 +1056,21 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		}
 		if archived.ArchivedAt == nil || archived.ID != "sess-1" {
 			t.Fatalf("session archive output = %#v, want archive marker", archived)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"archive",
+			"sess-1",
+			"--stop",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session archive --stop) error = %v", err)
+		}
+		if len(stopRequests) != 2 || stopRequests[0] || !stopRequests[1] {
+			t.Fatalf("archive stop requests = %v, want [false true]", stopRequests)
 		}
 
 		unarchiveOutput, _, err := executeRootCommand(t, deps, "session", "unarchive", "sess-1", "-o", "json")
@@ -1107,6 +1137,81 @@ func TestSessionRenameCommandReturnsUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionReparentCommand(t *testing.T) {
+	t.Parallel()
+
+	record := func(id string, parent string) SessionRecord {
+		return SessionRecord{
+			ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+			Lineage:   &contract.SessionLineagePayload{ParentSessionID: parent},
+			CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+		}
+	}
+	newDeps := func(t *testing.T) commandDeps {
+		t.Helper()
+		return newWorkspaceTestDeps(t, &stubClient{
+			setSessionParentFn: func(_ context.Context, id string, request SetSessionParentRequest) (SessionRecord, error) {
+				if id != "sess-child" || request.ParentSessionID != "sess-parent" {
+					t.Fatalf("SetSessionParent() = id %q request %#v", id, request)
+				}
+				return record(id, request.ParentSessionID), nil
+			},
+			clearSessionParentFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if id != "sess-child" {
+					t.Fatalf("ClearSessionParent() id = %q", id)
+				}
+				return record(id, ""), nil
+			},
+		})
+	}
+
+	t.Run("Should adopt a session under --parent", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(
+			t, newDeps(t), "session", "reparent", "sess-child", "--parent", "sess-parent", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session reparent --parent) error = %v", err)
+		}
+		var adopted SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &adopted); err != nil {
+			t.Fatalf("json.Unmarshal(session reparent) error = %v", err)
+		}
+		if adopted.Lineage == nil || adopted.Lineage.ParentSessionID != "sess-parent" {
+			t.Fatalf("session reparent output = %#v", adopted)
+		}
+	})
+
+	t.Run("Should detach a session with --top-level", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(
+			t, newDeps(t), "session", "reparent", "sess-child", "--top-level", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session reparent --top-level) error = %v", err)
+		}
+		var detached SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &detached); err != nil {
+			t.Fatalf("json.Unmarshal(session reparent) error = %v", err)
+		}
+		if detached.Lineage == nil || detached.Lineage.ParentSessionID != "" {
+			t.Fatalf("session reparent output = %#v", detached)
+		}
+	})
+
+	t.Run("Should require exactly one of --parent or --top-level", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{
+			{"session", "reparent", "sess-child"},
+			{"session", "reparent", "sess-child", "--parent", "sess-parent", "--top-level"},
+		} {
+			if _, _, err := executeRootCommand(t, newDeps(t), args...); err == nil {
+				t.Fatalf("executeRootCommand(%v) error = nil, want flag refusal", args)
+			}
+		}
+	})
+}
+
 func TestSessionListRejectsConflictingArchiveFilters(t *testing.T) {
 	t.Run("Should reject conflicting archive filters", func(t *testing.T) {
 		t.Parallel()
@@ -1145,6 +1250,42 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 
 func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 	t.Parallel()
+	t.Run("Should forward board filters without implicit active state and reject invalid columns", func(t *testing.T) {
+		t.Parallel()
+		var seen SessionListQuery
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seen = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: 50}}, nil
+			}},
+		)
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"list",
+			"--column",
+			"in_review,done",
+			"--hide-children",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"in_review", "done"}) {
+			t.Fatalf("query = %#v", seen)
+		}
+		values := sessionListValues(seen)
+		if !slices.Equal(values["board_column"], seen.Columns) || values.Get("children") != "exclude" {
+			t.Fatalf("wire query = %#v", values)
+		}
+		_, _, err := executeRootCommand(t, deps, "session", "list", "--column", "blocked")
+		if err == nil || cliExitCodeForError(err) != 2 ||
+			err.Error() != `invalid --column "blocked" (allowed: needs_you, working, in_review, done)` {
+			t.Fatalf("invalid column = %v", err)
+		}
+	})
 
 	t.Run("Should pass needs-you filtering with attention-first ordering", func(t *testing.T) {
 		t.Parallel()
@@ -5038,4 +5179,108 @@ func TestSessionLayoutCommands(t *testing.T) {
 			t.Fatalf("folder list output = %#v", listed)
 		}
 	})
+}
+
+func TestSessionListAllProjectsColumn(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain session columns and name project and User rows", func(t *testing.T) {
+		t.Parallel()
+		page := SessionListPage{Sessions: []SessionRecord{
+			{ID: "sess-user", WorkspaceID: ""},
+			{ID: "sess-project", WorkspaceID: "ws-1", WorkspacePath: "/project"},
+		}}
+		bundle := sessionListBundle(
+			page,
+			func() time.Time { return fixedTestNow },
+			map[string]string{"": "User", "ws-1": "Example"},
+		)
+		human, err := bundle.human()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"PROJECT", "User", "Example", "sess-user", "sess-project", "/project", "Workspace"} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("output %q lacks %q", human, want)
+			}
+		}
+	})
+}
+
+// Invariant: PR reads use the cached session projection and refresh explicitly invokes the forge route.
+// Owner: CLI session commands; canonical session suite.
+func TestSessionPullRequestCommand(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"human", "json"} {
+		t.Run("Should reject a branchless cached read in "+format, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) { return SessionRecord{ID: id}, nil },
+			}
+			withWorkspaceResolution(client)
+			args := []string{"session", "pr", "sess-1"}
+			if format == "json" {
+				args = append(args, "-o", "json")
+			}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err == nil || !strings.Contains(err.Error(), "session_branch_unavailable") ||
+				cliExitCodeForError(err) != 1 ||
+				stdout != "" {
+				t.Fatalf("branchless output=%q error=%v exit=%d", stdout, err, cliExitCodeForError(err))
+			}
+		})
+	}
+
+	t.Run("Should distinguish cached and explicit refresh output", func(t *testing.T) {
+		t.Parallel()
+		client := &pullRequestCLIStub{
+			stubClient: &stubClient{getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          id,
+					Branch:      "topic",
+					PullRequest: &contract.SessionPullRequestPayload{Number: 42, State: session.PullRequestOpen},
+				}, nil
+			}},
+		}
+		withWorkspaceResolution(client.stubClient)
+		deps := newWorkspaceTestDeps(t, client)
+		stdout, _, err := executeRootCommand(t, deps, "session", "pr", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionPullRequestResponse
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 42 ||
+			client.refreshed {
+			t.Fatalf("cached=%#v refreshed=%t", result, client.refreshed)
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "pr", "sess-1", "--refresh", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !client.refreshed || result.PullRequest.Number != 43 {
+			t.Fatalf("refresh=%#v", result)
+		}
+	})
+}
+
+type pullRequestCLIStub struct {
+	*stubClient
+	refreshed bool
+}
+
+func (c *pullRequestCLIStub) RefreshSessionPullRequest(
+	_ context.Context,
+	id string,
+) (contract.SessionPullRequestResponse, error) {
+	c.refreshed = true
+	return contract.SessionPullRequestResponse{
+		SessionID:   id,
+		Branch:      "topic",
+		PullRequest: &contract.SessionPullRequestPayload{Number: 43},
+	}, nil
 }

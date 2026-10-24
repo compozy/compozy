@@ -203,6 +203,24 @@ describe("agent-settings-draft", () => {
     expect(params?.agent.acp_options).toEqual([{ id: "thinking", bool_value: false }]);
   });
 
+  // Invariant: a Web edit replaces the whole definition, so the operator's
+  // `unrestricted` grant survives an unrelated edit and Default clears it.
+  it("Should carry the workspace grant through an edit and clear it on Default", () => {
+    const agent = makeAgent({ workspace_access: "unrestricted", layer: "user" });
+    const draft = buildSettingsDraftFromAgent(agent);
+    expect(draft.workspaceAccess).toBe("unrestricted");
+    expect(isAgentSettingsDraftDirty(draft, agent)).toBe(false);
+
+    expect(
+      buildUpdateAgentParams({ ...draft, prompt: "Updated." }, "ws_alpha")?.agent.workspace_access
+    ).toBe("unrestricted");
+    const cleared = { ...draft, workspaceAccess: "" as const };
+    expect(isAgentSettingsDraftDirty(cleared, agent)).toBe(true);
+    expect(buildUpdateAgentParams(cleared, "ws_alpha")?.agent).not.toHaveProperty(
+      "workspace_access"
+    );
+  });
+
   // Invariant: a Web edit replaces the whole definition, so the authored
   // fallback chain read from the agent must reach the replacement payload
   // unchanged (minus read-only projection fields) even without route controls.

@@ -1,8 +1,6 @@
 import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
   Icon,
   Kbd,
   Logo,
@@ -18,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop topbar: CompozyOS mark, Global globe toggle, workspace chip, app
+ * The desktop topbar: CompozyOS mark, All projects globe toggle, destination chip, app
  * menus, then the tray — desktop pager dots, All desktops, Provider usage, the
  * approvals bell, and the ⌘K palette button. Flat chrome on the rail surface across the full
  * window width with no bottom hairline: topbar and rail read as one surface
@@ -41,7 +39,6 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    */
   workspace: {
     name: string;
-    monogram: string;
     worktree?: string | null;
     /** Scope problem (e.g. the worktree fell back); a warning dot marks the chip. */
     warning?: string | null;
@@ -78,7 +75,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Renders the workspace chip inside its menu owner (shell wiring). */
   workspaceMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /**
-   * Global-scope globe toggle. Lives between the mark and the workspace chip,
+   * All projects globe toggle. Lives between the mark and the destination chip,
    * outside `role="menubar"`, so compact chrome can hide app menus without
    * losing mark + toggle + chip.
    */
@@ -187,11 +184,6 @@ function ControlTooltip({
 function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }) {
   return (
     <>
-      <Avatar size="sm" className="size-5.5">
-        <AvatarFallback className="bg-rail-selected text-badge font-semibold">
-          {workspace.monogram}
-        </AvatarFallback>
-      </Avatar>
       <span className="text-item-title font-medium text-fg">{workspace.name}</span>
       {workspace.worktree ? (
         <span data-slot="os-menubar-worktree" className="max-w-42.5 truncate text-body text-muted">
@@ -249,7 +241,7 @@ export function OsMenuBar({
   const workspaceControl = (
     <MenuControl
       data-slot="os-menubar-workspace"
-      className="flex h-8.5 min-w-0 items-center gap-2.25 rounded-pill pr-3 pl-1.5 text-fg"
+      className="flex h-8.5 min-w-0 items-center gap-2.25 rounded-pill pr-3 pl-3 text-fg"
       menu={workspaceMenu}
     >
       <WorkspaceChip workspace={workspace} />

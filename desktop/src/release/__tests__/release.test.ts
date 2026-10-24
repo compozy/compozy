@@ -6,7 +6,6 @@ import { parse as parseYAML } from "yaml";
 import { describe, expect, it } from "vitest";
 
 import packageMetadata from "../../../package.json";
-import { shouldDisableDifferentialDownload } from "../cross-arch";
 import { assertMacZipSymlinks, parseZipInfoLongListing, requiredMacZipSymlinks } from "../mac-zip";
 import { appleIDNotaryArguments } from "../notary-auth";
 import {
@@ -24,9 +23,10 @@ import { resolveDesktopBuildChannel } from "../build-channel";
 // Owner: desktop release policy. Canonical suite: release.test.ts.
 describe("desktop release policy", () => {
   it("Should bind packaged builds to the explicit release channel", () => {
+    expect(resolveDesktopBuildChannel("stable")).toBe("stable");
     expect(resolveDesktopBuildChannel("beta")).toBe("beta");
     expect(resolveDesktopBuildChannel(undefined)).toBe("development");
-    expect(() => resolveDesktopBuildChannel("stable")).toThrow("COMPOZY_RELEASE_CHANNEL");
+    expect(() => resolveDesktopBuildChannel("nightly")).toThrow("COMPOZY_RELEASE_CHANNEL");
   });
 
   it("Should produce per-architecture builder targets and the raw beta channel", () => {
@@ -45,6 +45,23 @@ describe("desktop release policy", () => {
       publish: {
         provider: "generic",
         url: "https://raw.githubusercontent.com/compozy/compozy/channel-beta/desktop/",
+      },
+    });
+  });
+
+  it("Should point stable builds at the stable channel feed", () => {
+    expect(
+      buildReleaseConfig({
+        arch: "x64",
+        channel: "stable",
+        notarize: true,
+        platform: "mac",
+        version: "0.4.0",
+      })
+    ).toMatchObject({
+      publish: {
+        provider: "generic",
+        url: "https://raw.githubusercontent.com/compozy/compozy/channel-stable/desktop/",
       },
     });
   });
@@ -78,6 +95,7 @@ describe("desktop release policy", () => {
       { arch: "ia32", platform: "mac", notarize: false, version: "1.2.0" },
       { arch: "arm64", platform: "linux", notarize: false, version: "1.2.0" },
       { arch: "x64", platform: "linux", notarize: true, version: "1.2.0" },
+      { arch: "x64", platform: "mac", notarize: false, version: "1.2.0", channel: "nightly" },
     ]) {
       expect(() => validateReleaseConfig({ channel: "beta", ...input } as never)).toThrowError();
     }
@@ -301,11 +319,5 @@ releaseDate: "${date}"
         ],
       ])
     );
-  });
-
-  it("Should disable differential downloads only for an x64 app on Apple Silicon", () => {
-    expect(shouldDisableDifferentialDownload("x64", "arm64")).toBe(true);
-    expect(shouldDisableDifferentialDownload("arm64", "arm64")).toBe(false);
-    expect(shouldDisableDifferentialDownload("x64", "x64")).toBe(false);
   });
 });

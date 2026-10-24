@@ -37,10 +37,11 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}
 	})
 
-	t.Run("Should UT-002 allow same-workspace agent sessions before mode lookup", func(t *testing.T) {
+	t.Run("Should UT-002 allow same workspace and profile after facts lookup", func(t *testing.T) {
 		t.Parallel()
 		modes := &modeSourceStub{mode: ModeDenyAll}
-		policy := newPolicyForTest(t, modes, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
+		audit := &auditEmitterSpy{}
+		policy := newPolicyForTest(t, modes, &consentCacheStub{}, audit, slog.Default())
 
 		decision, err := policy.Authorize(
 			testutil.Context(t),
@@ -52,8 +53,37 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		if !decision.Allowed || decision.Source != SourceSameWorkspace {
 			t.Fatalf("Authorize() decision = %#v, want same-workspace allow", decision)
 		}
-		if modes.calls != 0 {
-			t.Fatalf("mode source calls = %d, want zero", modes.calls)
+		if modes.calls != 1 {
+			t.Fatalf("facts source calls = %d, want one", modes.calls)
+		}
+		if len(audit.records) != 0 {
+			t.Fatalf("audit records = %#v, want none: same-scope access crosses no boundary", audit.records)
+		}
+	})
+
+	t.Run("Should resolve an unnamed target profile to the agent session's own", func(t *testing.T) {
+		t.Parallel()
+		audit := &auditEmitterSpy{}
+		policy := newPolicyForTest(t, &modeSourceStub{mode: ModeApproveAll}, &consentCacheStub{}, audit, slog.Default())
+		same := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceA)
+		same.Target.ProfileID = ""
+		decision, err := policy.Authorize(testutil.Context(t), same)
+		if err != nil || !decision.Allowed || decision.Source != SourceSameWorkspace {
+			t.Fatalf("same workspace = %#v, %v; want same-workspace allow", decision, err)
+		}
+		cross := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		cross.Target.ProfileID = ""
+		decision, err = policy.Authorize(testutil.Context(t), cross)
+		if err != nil || !decision.Allowed || decision.Source != SourcePermissionMode {
+			t.Fatalf("cross workspace = %#v, %v; want permission-mode allow", decision, err)
+		}
+		if len(audit.records) != 1 || audit.records[0].Target.ProfileID == "" {
+			t.Fatalf("audit records = %#v, want one record naming the resolved profile", audit.records)
+		}
+		operator := testRequest(ActorHuman, testWorkspaceA, testWorkspaceB)
+		operator.Target.ProfileID = ""
+		if _, err := policy.Authorize(testutil.Context(t), operator); err == nil {
+			t.Fatal("operator without target profile error = nil, want validation error")
 		}
 	})
 
@@ -74,7 +104,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Run("Should UT-011 reject every nil constructor dependency", func(t *testing.T) {
 		t.Parallel()
 		valid := Deps{
-			Modes:   &modeSourceStub{},
+			Facts:   &modeSourceStub{},
 			Consent: &consentCacheStub{},
 			Audit:   &auditEmitterSpy{},
 			Log:     slog.Default(),
@@ -86,18 +116,18 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}{
 			{
 				name: "nil modes", deps: Deps{Consent: valid.Consent, Audit: valid.Audit, Log: valid.Log},
-				wantErr: "mode source is required",
+				wantErr: "session facts source is required",
 			},
 			{
-				name: "nil consent", deps: Deps{Modes: valid.Modes, Audit: valid.Audit, Log: valid.Log},
+				name: "nil consent", deps: Deps{Facts: valid.Facts, Audit: valid.Audit, Log: valid.Log},
 				wantErr: "session consent cache is required",
 			},
 			{
-				name: "nil audit", deps: Deps{Modes: valid.Modes, Consent: valid.Consent, Log: valid.Log},
+				name: "nil audit", deps: Deps{Facts: valid.Facts, Consent: valid.Consent, Log: valid.Log},
 				wantErr: "audit emitter is required",
 			},
 			{
-				name: "nil logger", deps: Deps{Modes: valid.Modes, Consent: valid.Consent, Audit: valid.Audit},
+				name: "nil logger", deps: Deps{Facts: valid.Facts, Consent: valid.Consent, Audit: valid.Audit},
 				wantErr: "logger is required",
 			},
 		}
@@ -142,7 +172,7 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		normalizedReq.Actor.SessionID = "  sess-a  "
 		normalizedReq.Actor.WorkspaceID = "  " + testWorkspaceA + "  "
 		normalizedReq.Actor.AgentName = "  coder  "
-		normalizedReq.TargetWorkspaceID = "  " + testWorkspaceB + "  "
+		normalizedReq.Target.WorkspaceID = "  " + testWorkspaceB + "  "
 		if _, err := normalizedPolicy.Authorize(testutil.Context(t), normalizedReq); err != nil {
 			t.Fatalf("Authorize(normalized audit) error = %v", err)
 		}
@@ -489,9 +519,9 @@ type modeSourceStub struct {
 	calls int
 }
 
-func (s *modeSourceStub) SessionPermissionMode(context.Context, string) (Mode, error) {
+func (s *modeSourceStub) SessionFacts(context.Context, string) (SessionFacts, error) {
 	s.calls++
-	return s.mode, s.err
+	return SessionFacts{Mode: s.mode, ProfileID: "profile-default", WorkspaceID: testWorkspaceA}, s.err
 }
 
 type consentCacheStub struct {
@@ -519,13 +549,13 @@ func (s *auditEmitterSpy) EmitWorkspaceAccess(_ context.Context, record AccessRe
 
 func newPolicyForTest(
 	t *testing.T,
-	modes ModeSource,
+	modes SessionFactsSource,
 	consent SessionConsentCache,
 	audit AuditEmitter,
 	logger *slog.Logger,
 ) *DefaultPolicy {
 	t.Helper()
-	policy, err := New(Deps{Modes: modes, Consent: consent, Audit: audit, Log: logger})
+	policy, err := New(Deps{Facts: modes, Consent: consent, Audit: audit, Log: logger})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -541,8 +571,8 @@ func testRequest(kind ActorKind, home string, target string) Request {
 			AgentName:   "coder",
 			Operator:    kind == ActorHuman,
 		},
-		TargetWorkspaceID: target,
-		Seam:              SeamTool,
+		Target: TargetRef{Kind: TargetWorkspace, WorkspaceID: target, ProfileID: "profile-default"},
+		Seam:   SeamTool,
 	}
 }
 
@@ -582,4 +612,100 @@ func assertDenied(t *testing.T, decision Decision, promptEligible bool) {
 
 func testLogger(output *bytes.Buffer) *slog.Logger {
 	return slog.New(slog.NewTextHandler(output, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
+func TestUserScopeAccessPolicy(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name                         string
+		actorWorkspace, actorProfile string
+		target                       TargetRef
+		mode                         Mode
+		allowed                      bool
+	}{
+		{"Should deny ungranted aggregate access under approve-all", testWorkspaceA, "p1", TargetRef{Kind: TargetAggregate, ProfileID: "p1", Surface: "gateway-ingress"}, ModeApproveAll, false},
+		{"Should allow User in its own profile even under deny-all", "", "p1", ScopeTarget("", "p1"), ModeDenyAll, true},
+		{"Should deny project to User under deny-all", testWorkspaceA, "p1", ScopeTarget("", "p1"), ModeDenyAll, false},
+		{"Should allow project to User under approve-all", testWorkspaceA, "p1", ScopeTarget("", "p1"), ModeApproveAll, true},
+		{"Should deny User to project under approve-reads without consent", "", "p1", ScopeTarget(testWorkspaceA, "p1"), ModeApproveReads, false},
+		{"Should allow User to project under approve-all", "", "p1", ScopeTarget(testWorkspaceA, "p1"), ModeApproveAll, true},
+		{"Should deny same workspace in another profile even under approve-all", testWorkspaceA, "p1", ScopeTarget(testWorkspaceA, "p2"), ModeApproveAll, false},
+		{"Should deny User in another profile even under approve-all", "", "p1", ScopeTarget("", "p2"), ModeApproveAll, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			facts := factsSourceFunc(func(context.Context, string) (SessionFacts, error) {
+				return SessionFacts{Mode: tc.mode, WorkspaceID: tc.actorWorkspace, ProfileID: tc.actorProfile}, nil
+			})
+			policy := newPolicyForTest(t, facts, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
+			req := testRequest(ActorAgentSession, tc.actorWorkspace, testWorkspaceA)
+			req.Target = tc.target
+			decision, err := policy.Authorize(t.Context(), req)
+			if err != nil || decision.Allowed != tc.allowed {
+				t.Fatalf("Authorize = %#v, %v; want allowed %v", decision, err, tc.allowed)
+			}
+		})
+	}
+	t.Run("Should reject all-profile mutations and incomplete typed targets", func(t *testing.T) {
+		t.Parallel()
+		policy := newPolicyForTest(t, &modeSourceStub{}, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
+		for _, target := range []TargetRef{{Kind: TargetUser}, {Kind: TargetUser, AllProfiles: true}, {Kind: TargetUser, ProfileID: "p1", WorkspaceID: testWorkspaceA}, {Kind: TargetAggregate, ProfileID: "p1"}} {
+			req := testRequest(ActorHuman, "", testWorkspaceA)
+			req.Target = target
+			if _, err := policy.Authorize(t.Context(), req); !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf("target %#v error = %v", target, err)
+			}
+		}
+	})
+}
+
+type factsSourceFunc func(context.Context, string) (SessionFacts, error)
+
+func (f factsSourceFunc) SessionFacts(ctx context.Context, id string) (SessionFacts, error) {
+	return f(ctx, id)
+}
+
+func TestUnrestrictedGrant(t *testing.T) {
+	t.Parallel()
+	for _, target := range []TargetRef{ScopeTarget(testWorkspaceB, "p1"), ScopeTarget("", "p1"), ScopeTarget(testWorkspaceA, "p2"), {Kind: TargetAggregate, Surface: "session-catalog", AllProfiles: true}} {
+		t.Run("Should authorize and audit granted "+string(target.Kind)+target.ProfileID, func(t *testing.T) {
+			t.Parallel()
+			audit := &auditEmitterSpy{}
+			facts := factsSourceFunc(func(context.Context, string) (SessionFacts, error) {
+				return SessionFacts{
+					Mode:            ModeDenyAll,
+					WorkspaceAccess: Unrestricted,
+					WorkspaceID:     testWorkspaceA,
+					ProfileID:       "p1",
+				}, nil
+			})
+			policy := newPolicyForTest(t, facts, &consentCacheStub{}, audit, slog.Default())
+			req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+			req.Target, req.ReadOnly = target, true
+			decision, err := policy.Authorize(t.Context(), req)
+			if err != nil || !decision.Allowed || decision.Source != SourceAgentGrant || decision.PromptEligible {
+				t.Fatalf("Authorize = %#v, %v", decision, err)
+			}
+			if len(audit.records) != 1 || audit.records[0].ActorProfileID != "p1" || audit.records[0].Target != target {
+				t.Fatalf("audit = %#v", audit.records)
+			}
+		})
+	}
+	t.Run("Should cap every non-operator creation at its persisted ceiling", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			origin           Origin
+			definition, want string
+		}{
+			{Origin{Kind: ActorHuman}, Unrestricted, Unrestricted},
+			{Origin{Kind: ActorAgentSession}, Unrestricted, ""},
+			{Origin{Kind: ActorAgentSession, Ceiling: Unrestricted}, "", ""},
+			{Origin{Kind: ActorAutomation, Ceiling: Unrestricted}, Unrestricted, Unrestricted},
+			{Origin{}, Unrestricted, ""},
+		} {
+			if got := tc.origin.Effective(tc.definition); got != tc.want {
+				t.Fatalf("Effective(%#v,%q)=%q want %q", tc.origin, tc.definition, got, tc.want)
+			}
+		}
+	})
 }

@@ -1,4 +1,7 @@
+import { useSessionWindowViewState } from "@/systems/session";
+
 import { useSessionWindowController } from "./hooks/use-session-window-controller";
+import { SessionBoardWindow } from "./session-board-window";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
 import { SessionProfileOwnerNotice } from "./session-profile-owner-notice";
 import { SessionWindowEmpty } from "./session-window-empty";
@@ -31,19 +34,22 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     effectiveLiveTailEnabled,
     error,
     foreign,
-    handleDeleteSuccess,
     isLoading,
     liveTailEnabled,
     session,
     sessionId,
     workspaceId,
   } = useSessionWindowController(windowId);
+  const { view } = useSessionWindowViewState();
 
+  if (view === "kanban") {
+    return <SessionBoardWindow windowId={windowId} sessionId={sessionId} />;
+  }
   if (deletedLocally || sessionId === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return <SessionWindowEmpty windowId={windowId} />;
   }
   if (agentName === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return <SessionWindowEmpty windowId={windowId} />;
   }
   if (crossesWorkspace) {
     return <SessionWindowNotice title="This session is outside the current project" />;
@@ -70,7 +76,6 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         liveTailEnabled={liveTailEnabled}
         isLoading
         error={null}
-        onDeleteSuccess={handleDeleteSuccess}
       />
     );
   }
@@ -94,7 +99,6 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         liveTailEnabled={effectiveLiveTailEnabled}
         isLoading={isLoading}
         error={error}
-        onDeleteSuccess={handleDeleteSuccess}
       />
     </div>
   );

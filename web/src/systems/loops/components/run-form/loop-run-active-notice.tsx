@@ -7,6 +7,7 @@ import { loopRunOriginLine } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";
 import { LoopStatusMark } from "../loop-status-mark";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 interface LoopRunActiveNoticeProps {
   run: LoopRun;
@@ -35,6 +36,7 @@ function concurrencyNote(concurrency: string | undefined): string | null {
  * and lifecycle truth.
  */
 export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticeProps) {
+  const bindingSearch = useWindowBindingSearch();
   const note = concurrencyNote(concurrency);
   return (
     <LoopRailSection
@@ -57,6 +59,7 @@ export function LoopRunActiveNotice({ run, concurrency }: LoopRunActiveNoticePro
           className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "ml-auto")}
           data-testid="loop-run-active-link"
           params={{ runId: run.id }}
+          search={bindingSearch}
           to="/loop-runs/$runId"
         >
           View run

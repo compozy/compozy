@@ -9,10 +9,11 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+    Link: ({ to, params, search, children, ...props }: Record<string, unknown>) => (
       <a
         href={typeof to === "string" ? to : "#"}
         data-params={JSON.stringify(params)}
+        data-search={search === undefined ? undefined : JSON.stringify(search)}
         {...(props as Record<string, unknown>)}
       >
         {children as React.ReactNode}
@@ -344,6 +345,44 @@ describe("TasksListSurface", () => {
     }
   });
 
+  // W-23 (surface half): the Project filter renders as one chip with the selected scopes, and
+  // removing it clears the filter; without the field (outside All projects) there is no chip.
+  it("Should render the Project filter chip only when the field is offered", async () => {
+    const { projectFilterField } = await import("@/systems/workspace");
+    const setValues = vi.fn();
+    const toolbar = (field: ReturnType<typeof projectFilterField> | null) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          projectFilter={{ field, values: ["ws_alpha", "@user"], setValues }}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={countTasksByStatus([])}
+          statusFilter={null}
+        />
+      </UIProvider>
+    );
+
+    const hidden = render(toolbar(null));
+    expect(screen.queryByText("Project")).toBeNull();
+    hidden.unmount();
+
+    render(toolbar(projectFilterField([{ id: "ws_alpha", name: "Alpha" }])));
+    const filters = screen.getByTestId("tasks-list-filters");
+    expect(within(filters).getByText("Project")).toBeInTheDocument();
+    fireEvent.click(within(filters).getByRole("button", { name: /remove/i }));
+    expect(setValues).toHaveBeenCalledWith([]);
+  });
+
   it("Should name the profile the list is scoped to, not the create target", () => {
     renderSurface({ tasks: [] });
     expect(screen.getByTestId("tasks-list-surface-empty")).toHaveTextContent(
@@ -387,6 +426,65 @@ describe("TasksListSurface", () => {
     );
 
     expect(screen.getByTestId(`task-card-profile-${task.id}`)).toHaveTextContent("marketing");
+  });
+
+  // All projects (BR-10, BR-4): a mixed list names each row's project, and the row opens the
+  // task in place, bound to that project (or `@user`).
+  it("Should badge each row with its project and bind its link under All projects", () => {
+    const projectTask = buildTask({ id: "task_beta", workspace_id: "ws_beta" });
+    const userTask = buildTask({ id: "task_user", title: "User chore", workspace_id: undefined });
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListSurface
+          profile={STORY_PROFILE_SCOPE}
+          projectBadgeOf={task =>
+            task.workspace_id ? { kind: "project", name: "Beta" } : { kind: "user", name: "User" }
+          }
+          searchQuery=""
+          statusCounts={countTasksByStatus([projectTask, userTask])}
+          tasks={[projectTask, userTask]}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("task-card-project-task_beta")).toHaveTextContent("Beta");
+    expect(screen.getByTestId("task-card-project-task_user")).toHaveTextContent("User");
+    expect(screen.getByRole("link", { name: "Open Generate API client" })).toHaveAttribute(
+      "data-search",
+      JSON.stringify({ workspace: "ws_beta" })
+    );
+    expect(screen.getByRole("link", { name: "Open User chore" })).toHaveAttribute(
+      "data-search",
+      JSON.stringify({ workspace: "@user" })
+    );
+  });
+
+  it("Should leave rows unbadged and unbound while one scope is listed", () => {
+    renderSurface({ tasks: [buildTask({ workspace_id: "ws_beta" })] });
+
+    expect(screen.queryByTestId("task-card-project-task_001")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open Generate API client" })).not.toHaveAttribute(
+      "data-search"
+    );
+  });
+
+  it("Should offer Clear filters when the filters emptied the list", () => {
+    const onClearFilters = vi.fn();
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListSurface
+          filterState="active"
+          onClearFilters={onClearFilters}
+          profile={STORY_PROFILE_SCOPE}
+          searchQuery=""
+          statusCounts={countTasksByStatus([])}
+          tasks={[]}
+        />
+      </UIProvider>
+    );
+
+    fireEvent.click(screen.getByTestId("tasks-list-clear-filters"));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
   });
 
   // UT-041

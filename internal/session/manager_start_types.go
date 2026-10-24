@@ -12,15 +12,18 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type sessionStartSpec struct {
-	sessionID          string
-	profileID          string
-	sessionName        string
-	agentName          string
-	provider           string
-	commandFingerprint string
+	origin                   workspaceaccess.Origin
+	effectiveWorkspaceAccess string
+	sessionID                string
+	profileID                string
+	sessionName              string
+	agentName                string
+	provider                 string
+	commandFingerprint       string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
 	sessionEnv compozyconfig.SessionEnv
@@ -28,7 +31,8 @@ type sessionStartSpec struct {
 	// fallbackAttempt is the chain index this launch attempts (0 = primary route).
 	fallbackAttempt int
 	// acceptedRoute is the persisted accepted binding a resume must match (resume affinity).
-	acceptedRoute *store.SessionAcceptedRoute
+	acceptedRoute   *store.SessionAcceptedRoute
+	restartBoundary *store.SessionRestartCheckpoint
 	// derivation, importedContext, and deriveReceipt are set only for continued or
 	// forked children; deriveReceipt selects RegisterDerivedSession at the commit.
 	derivation               *store.SessionDerivation

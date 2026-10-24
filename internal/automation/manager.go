@@ -95,23 +95,23 @@ type ManagerStatus struct {
 type Option func(*managerOptions)
 
 type managerOptions struct {
-	store               Store
-	sessions            SessionManager
-	tasks               TaskService
-	loopStarter         LoopStarter
-	workspaceResolver   workspacepkg.RuntimeResolver
-	config              compozyconfig.AutomationConfig
-	logger              *slog.Logger
-	globalWorkspacePath string
-	webhookSecrets      WebhookSecretStore
-	dispatcherOptions   []DispatcherOption
-	schedulerOptions    []SchedulerOption
-	triggerOptions      []TriggerEngineOption
-	jobResources        resources.Store[Job]
-	triggerResources    resources.Store[Trigger]
-	resourceActor       resources.MutationActor
-	resourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	now                 func() time.Time
+	store             Store
+	sessions          SessionManager
+	tasks             TaskService
+	loopStarter       LoopStarter
+	workspaceResolver workspacepkg.RuntimeResolver
+	config            compozyconfig.AutomationConfig
+	logger            *slog.Logger
+
+	webhookSecrets    WebhookSecretStore
+	dispatcherOptions []DispatcherOption
+	schedulerOptions  []SchedulerOption
+	triggerOptions    []TriggerEngineOption
+	jobResources      resources.Store[Job]
+	triggerResources  resources.Store[Trigger]
+	resourceActor     resources.MutationActor
+	resourceTrigger   func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	now               func() time.Time
 }
 
 func defaultManagerOptions() managerOptions {
@@ -183,16 +183,13 @@ func finalizeManagerOptions(options *managerOptions) error {
 			return err
 		}
 	}
-	if strings.TrimSpace(options.globalWorkspacePath) == "" {
-		return errors.New("automation: global workspace path is required")
-	}
 	return nil
 }
 
 func managerDispatcherOptions(options *managerOptions) []DispatcherOption {
 	dispatcherOpts := []DispatcherOption{
 		WithDispatcherLogger(options.logger),
-		WithDispatcherGlobalWorkspacePath(options.globalWorkspacePath),
+
 		WithDispatcherMaxConcurrent(options.config.MaxConcurrentJobs),
 	}
 	if options.tasks != nil {
@@ -207,23 +204,23 @@ func managerDispatcherOptions(options *managerOptions) []DispatcherOption {
 // Manager composes persistence, dispatch, schedules, triggers, and runtime
 // status into one daemon-owned automation subsystem.
 type Manager struct {
-	store               Store
-	sessions            SessionManager
-	tasks               TaskService
-	loopStarter         LoopStarter
-	workspaceResolver   workspacepkg.RuntimeResolver
-	config              compozyconfig.AutomationConfig
-	logger              *slog.Logger
-	globalWorkspacePath string
-	webhookSecrets      WebhookSecretStore
-	dispatcher          *Dispatcher
-	schedulerOptions    []SchedulerOption
-	triggerOptions      []TriggerEngineOption
-	jobResources        resources.Store[Job]
-	triggerResources    resources.Store[Trigger]
-	resourceActor       resources.MutationActor
-	resourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	now                 func() time.Time
+	store             Store
+	sessions          SessionManager
+	tasks             TaskService
+	loopStarter       LoopStarter
+	workspaceResolver workspacepkg.RuntimeResolver
+	config            compozyconfig.AutomationConfig
+	logger            *slog.Logger
+
+	webhookSecrets   WebhookSecretStore
+	dispatcher       *Dispatcher
+	schedulerOptions []SchedulerOption
+	triggerOptions   []TriggerEngineOption
+	jobResources     resources.Store[Job]
+	triggerResources resources.Store[Trigger]
+	resourceActor    resources.MutationActor
+	resourceTrigger  func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	now              func() time.Time
 
 	mu                sync.RWMutex
 	running           bool
@@ -284,14 +281,6 @@ func WithConfig(cfg compozyconfig.AutomationConfig) Option {
 func WithLogger(logger *slog.Logger) Option {
 	return func(opts *managerOptions) {
 		opts.logger = logger
-	}
-}
-
-// WithGlobalWorkspacePath injects the fallback workspace path used for global
-// automation sessions.
-func WithGlobalWorkspacePath(path string) Option {
-	return func(opts *managerOptions) {
-		opts.globalWorkspacePath = strings.TrimSpace(path)
 	}
 }
 
@@ -374,26 +363,26 @@ func New(opts ...Option) (*Manager, error) {
 	}
 
 	manager := &Manager{
-		store:               options.store,
-		sessions:            options.sessions,
-		tasks:               options.tasks,
-		loopStarter:         options.loopStarter,
-		workspaceResolver:   options.workspaceResolver,
-		config:              options.config,
-		logger:              options.logger,
-		globalWorkspacePath: options.globalWorkspacePath,
-		webhookSecrets:      options.webhookSecrets,
-		dispatcher:          dispatcher,
-		schedulerOptions:    append([]SchedulerOption(nil), options.schedulerOptions...),
-		triggerOptions:      append([]TriggerEngineOption(nil), options.triggerOptions...),
-		jobResources:        options.jobResources,
-		triggerResources:    options.triggerResources,
-		resourceActor:       options.resourceActor,
-		resourceTrigger:     options.resourceTrigger,
-		now:                 options.now,
-		projectedJobs:       make(map[string]Job),
-		projectedTriggers:   make(map[string]Trigger),
-		sessionTaskActors:   make(map[string]taskpkg.ActorContext),
+		store:             options.store,
+		sessions:          options.sessions,
+		tasks:             options.tasks,
+		loopStarter:       options.loopStarter,
+		workspaceResolver: options.workspaceResolver,
+		config:            options.config,
+		logger:            options.logger,
+
+		webhookSecrets:    options.webhookSecrets,
+		dispatcher:        dispatcher,
+		schedulerOptions:  append([]SchedulerOption(nil), options.schedulerOptions...),
+		triggerOptions:    append([]TriggerEngineOption(nil), options.triggerOptions...),
+		jobResources:      options.jobResources,
+		triggerResources:  options.triggerResources,
+		resourceActor:     options.resourceActor,
+		resourceTrigger:   options.resourceTrigger,
+		now:               options.now,
+		projectedJobs:     make(map[string]Job),
+		projectedTriggers: make(map[string]Trigger),
+		sessionTaskActors: make(map[string]taskpkg.ActorContext),
 	}
 	if manager.tasks != nil {
 		manager.dispatcher.taskActors = manager

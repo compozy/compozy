@@ -101,6 +101,9 @@ func (e *worktreeRemovalAPIError) Error() string {
 	if e == nil {
 		return nilToolErrorString
 	}
+	if message := strings.TrimSpace(e.payload.Error); message != "" {
+		return fmt.Sprintf("%s: %s", e.payload.Code, message)
+	}
 	return apiErrorMessage(e.payload.Code, e.status)
 }
 
@@ -372,7 +375,8 @@ func parseWorktreeRemovalAPIError(statusCode int, status string, body []byte) (b
 	var payload contract.WorktreeRemovalRefusalPayload
 	if json.Unmarshal(body, &payload) != nil ||
 		(payload.Code != "worktree_dirty_requires_force" &&
-			payload.Code != "worktree_unpushed_requires_force") {
+			payload.Code != "worktree_unpushed_requires_force" &&
+			payload.Code != "worktree_checkout_orphaned") {
 		return false, nil
 	}
 	return true, &worktreeRemovalAPIError{statusCode: statusCode, status: status, payload: payload}

@@ -1958,6 +1958,16 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		}); got != want {
 			t.Fatalf("Archive() call = %#v, want %#v", got, want)
 		}
+		if _, err := archiveManager.ArchiveWithStop(testutil.Context(t), "ws-archive", "sess-live"); err != nil {
+			t.Fatalf("ArchiveWithStop() error = %v", err)
+		}
+		if got, want := source.archiveCall, (fakeSessionArchiveCall{
+			workspaceID: "ws-archive",
+			sessionID:   "sess-live",
+			stop:        true,
+		}); got != want {
+			t.Fatalf("ArchiveWithStop() call = %#v, want %#v", got, want)
+		}
 
 		unarchived, err := archiveManager.Unarchive(testutil.Context(t), "ws-unarchive", "sess-unarchive")
 		if err != nil {
@@ -2920,9 +2930,6 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	}
 	if got, want := captured.Config.DefaultFireLimit, cfg.Automation.DefaultFireLimit; got != want {
 		t.Fatalf("captured.Config.DefaultFireLimit = %#v, want %#v", got, want)
-	}
-	if got, want := captured.GlobalWorkspacePath, homePaths.HomeDir; got != want {
-		t.Fatalf("captured.GlobalWorkspacePath = %q, want %q", got, want)
 	}
 	if manager.startCount != 1 {
 		t.Fatalf("manager start count = %d, want 1", manager.startCount)
@@ -4290,6 +4297,7 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	d.restartRequested = true
 
 	manager := &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}},
@@ -4308,8 +4316,8 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	if call.cause != session.CauseShutdown {
 		t.Fatalf("StopWithCause() cause = %v, want %v", call.cause, session.CauseShutdown)
 	}
-	if call.detail != "daemon shutdown" {
-		t.Fatalf("StopWithCause() detail = %q, want %q", call.detail, "daemon shutdown")
+	if call.detail != "Interrupted by daemon restart." {
+		t.Fatalf("StopWithCause() detail = %q, want restart attribution", call.detail)
 	}
 	if got := len(manager.stopCalls); got != 0 {
 		t.Fatalf("Stop() calls = %d, want 0 when StopWithCause is available", got)
@@ -4591,11 +4599,13 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 
 func TestGracefulShutdownTimeout(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reserve the base runtime cleanup budget", func(t *testing.T) {
+	t.Run("Should reserve drain grace and the complete parallel termination ladder", func(t *testing.T) {
 		t.Parallel()
-		d := &Daemon{}
-		if got := d.gracefulShutdownTimeout(); got != defaultShutdownTimeout {
-			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, defaultShutdownTimeout)
+		cfg := compozyconfig.DefaultWithHome(testHomePaths(t))
+		d := &Daemon{config: cfg}
+		want := defaultShutdownTimeout + cfg.Daemon.ShutdownGrace + cfg.Session.Stop.CooperativeGrace + 10*time.Second
+		if got := d.gracefulShutdownTimeout(); got != want {
+			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, want)
 		}
 	})
 }
@@ -5260,6 +5270,34 @@ args = ["-c", "printf '{}'"]
 
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject personal profile roots inside a workspace before watching skills", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		root := t.TempDir()
+		if err := os.MkdirAll(home.ProfilesDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		profileRoot := filepath.Join(home.ProfilesDir, compozyconfig.DefaultProfileDirName)
+		if err := os.Rename(profileRoot, profileRoot+".original"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(root, profileRoot); err != nil {
+			t.Fatal(err)
+		}
+		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+			"ws_containment": {ID: "ws_containment", Name: "repo", RootDir: root},
+		}}
+		for _, provider := range []func(context.Context) ([]string, error){
+			workspaceSkillWatcherRoots(home, registry, nil),
+			workspaceAgentWatcherRoots(home, registry, nil),
+		} {
+			roots, err := provider(t.Context())
+			if err == nil || !strings.Contains(err.Error(), "cannot be inside registered workspace") {
+				t.Fatalf("roots = %v, error = %v; want personal profile containment refusal", roots, err)
+			}
+		}
+	})
 
 	t.Run("Should refresh skills and stop resource watchers before sessions", func(t *testing.T) {
 		t.Parallel()
@@ -6975,8 +7013,63 @@ func (m *derivedEventReconcileManager) ReconcileDerivedSessionEvents(
 	return 0, m.err
 }
 
+type restartStateReadManager struct {
+	*fakeSessionManager
+	read func(context.Context, string) (bool, error)
+}
+
+func (m *restartStateReadManager) HasPendingRestart(ctx context.Context, id string) (bool, error) {
+	return m.read(ctx, id)
+}
+
 func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: a per-session repair eligibility failure does not hide healthy sessions;
+	// cancellation still aborts the composition-root boot repair suite.
+	for _, canceled := range []bool{false, true} {
+		name := "Should isolate unreadable restart repair state and repair the next session"
+		if canceled {
+			name = "Should stop repair when a restart state read cancels boot"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			readErr := errors.New("restart checkpoint unreadable")
+			manager := &restartStateReadManager{
+				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+					{ID: "sess-unreadable", State: session.StateStopped, StopReason: store.StopShutdown},
+					{ID: "sess-ready", State: session.StateStopped, StopReason: store.StopShutdown},
+				}},
+				read: func(_ context.Context, id string) (bool, error) {
+					if id == "sess-unreadable" {
+						if canceled {
+							cancel()
+						}
+						return false, readErr
+					}
+					return true, nil
+				},
+			}
+			var logs bytes.Buffer
+			state := &bootState{sessions: manager, logger: slog.New(slog.NewJSONHandler(&logs, nil))}
+			err := (&Daemon{}).bootSessionRepair(ctx, state)
+			if canceled {
+				if !errors.Is(err, context.Canceled) || len(manager.repairCalls) != 0 {
+					t.Fatalf("canceled repair = %v; calls = %v", err, manager.repairCalls)
+				}
+				return
+			}
+			if err != nil || len(manager.repairCalls) != 1 || manager.repairCalls[0].SessionID != "sess-ready" {
+				t.Fatalf("isolated repair = %v; calls = %v", err, manager.repairCalls)
+			}
+			if !strings.Contains(logs.String(), "sess-unreadable") ||
+				!strings.Contains(logs.String(), readErr.Error()) {
+				t.Fatalf("missing per-session diagnostic: %s", logs.String())
+			}
+		})
+	}
 
 	// Invariant: retained databases upgrade before boot reads their histories;
 	// migration failures stop boot and identity refusals stay isolated to their session.
@@ -7485,6 +7578,7 @@ type fakeAcceptingSessionManager struct {
 type fakeSessionArchiveCall struct {
 	workspaceID string
 	sessionID   string
+	stop        bool
 }
 
 type fakeArchivingSessionManager struct {
@@ -7499,6 +7593,15 @@ func (f *fakeArchivingSessionManager) Archive(
 	sessionID string,
 ) (*session.Info, error) {
 	f.archiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID}
+	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+}
+
+func (f *fakeArchivingSessionManager) ArchiveWithStop(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	f.archiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID, stop: true}
 	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
 }
 
@@ -8633,7 +8736,7 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 
 func (r *recordingRegistry) CreateTaskDefinition(
 	context.Context,
-	taskpkg.CreateTaskDefinitionMutation,
+	*taskpkg.CreateTaskDefinitionMutation,
 ) error {
 	return nil
 }

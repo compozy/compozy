@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type Section struct {
+	Title string `json:"title,omitempty"`
+	Rows  []Row  `json:"rows"`
+}
+
 type SessionActivityHealth struct {
 	SessionID          string     `json:"session_id"`
 	TurnID             string     `json:"turn_id,omitempty"`
@@ -236,8 +241,4 @@ type SessionInputReplaceParams struct {
 	Text           string `json:"text"`
 	MessageID      string `json:"message_id"`
 	IdempotencyKey string `json:"idempotency_key"`
-}
-
-type SessionInputResult struct {
-	Input SessionInput `json:"input"`
 }

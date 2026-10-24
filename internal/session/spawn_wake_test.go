@@ -172,6 +172,49 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave a completed turn to the creator's reply watch on that turn", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, &logs)
+		watches := &pendingReplyWatchStore{pending: []store.ReplyWatch{
+			{ID: "rw-other", SenderSessionID: "parent-1", TargetSessionID: "child-2", TurnID: "turn-watched"},
+			{ID: "rw-child", SenderSessionID: "parent-1", TargetSessionID: "child-1", TurnID: "turn-watched"},
+		}}
+		manager.replyWatches = &replyWatchService{store: watches, manager: manager}
+
+		manager.dispatchSpawnWakeForTurn(testutil.Context(t), spawnWakeTestInfo(true), BadgeDone, "turn-watched")
+
+		if _, events := notifier.calls(); len(events) != 0 {
+			t.Fatalf("wake events = %#v, want the reply watch to carry the completed turn", events)
+		}
+		if watches.sender != "parent-1" {
+			t.Fatalf("reply watch lookup sender = %q, want parent-1", watches.sender)
+		}
+		if got := logs.String(); !strings.Contains(got, "suppression_reason=reply_watch_covers") {
+			t.Fatalf("wake audit log = %q, want reply_watch_covers suppression", got)
+		}
+	})
+
+	t.Run("Should still wake for a completed turn a queued reply watch does not cover", func(t *testing.T) {
+		t.Parallel()
+
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, nil)
+		watches := &pendingReplyWatchStore{pending: []store.ReplyWatch{
+			{ID: "rw-queued", SenderSessionID: "parent-1", TargetSessionID: "child-1"},
+			{ID: "rw-earlier", SenderSessionID: "parent-1", TargetSessionID: "child-1", TurnID: "turn-earlier"},
+		}}
+		manager.replyWatches = &replyWatchService{store: watches, manager: manager}
+
+		manager.dispatchSpawnWakeForTurn(testutil.Context(t), spawnWakeTestInfo(true), BadgeDone, "turn-unwatched")
+
+		if _, events := notifier.calls(); len(events) != 1 || events[0].Reason != SpawnWakeReasonCompleted {
+			t.Fatalf("wake events = %#v, want the unwatched turn's completed wake", events)
+		}
+	})
+
 	tests := []struct {
 		name        string
 		notify      bool
@@ -213,6 +256,27 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 			}
 		})
 	}
+}
+
+type pendingReplyWatchStore struct {
+	store.ReplyWatchStore
+	pending []store.ReplyWatch
+	sender  string
+}
+
+func (s *pendingReplyWatchStore) ReplyWatchEvidence(
+	context.Context,
+	store.ReplyWatch,
+) (store.SessionPromptAdmission, []store.SessionInputQueueEntry, error) {
+	return store.SessionPromptAdmission{}, nil, nil
+}
+
+func (s *pendingReplyWatchStore) ListPendingReplyWatchesBySender(
+	_ context.Context,
+	sender string,
+) ([]store.ReplyWatch, error) {
+	s.sender = sender
+	return s.pending, nil
 }
 
 func spawnWakeTestManager(notifier SpawnWakeNotifier, logs *bytes.Buffer) *Manager {

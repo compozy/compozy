@@ -7,6 +7,7 @@ import (
 
 type CatalogRunQuery struct {
 	WorkspaceID    WorkspaceID
+	ProfileID      string
 	LoopNames      []string
 	AggregateAfter time.Time
 }

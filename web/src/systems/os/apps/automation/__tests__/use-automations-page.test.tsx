@@ -1,6 +1,9 @@
 // Suite: Automations listing model
 // Invariant: two list loads (minus `start`) merge into one sorted, honestly counted listing,
-//   and row actions wait for the daemon (never optimistic).
+//   and row actions wait for the daemon (never optimistic). The window's data scope sets breadth:
+//   a project lists only its own automations (8A), User only those without a project
+//   (`scope=global`), and All projects every one (`all_workspaces`), with project badges and the
+//   transient Project filter that only All projects shows.
 // Boundary IN: route search + automation HTTP adapter responses.
 // Boundary OUT: rendering (row/card suites) and editor internals (editor slice).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -22,6 +25,10 @@ const mocks = vi.hoisted(() => ({
   timeZone: undefined as string | undefined,
   aggregate: false,
   activeWorkspaceId: "ws_launch_hq" as string | null,
+  dataScope: { kind: "project", workspaceId: "ws_launch_hq" } as
+    | { kind: "project"; workspaceId: string }
+    | { kind: "user" }
+    | { kind: "all" },
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
@@ -58,9 +65,11 @@ vi.mock("@/systems/settings/hooks/use-settings-sections", () => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useDataScope: () => mocks.dataScope,
   useActiveWorkspace: () => ({
     activeWorkspace: mocks.activeWorkspaceId ? { id: "ws_launch_hq", name: "checkout-api" } : null,
     activeWorkspaceId: mocks.activeWorkspaceId,
+    dataScope: mocks.dataScope,
     isLoading: false,
     pending: false,
     workspaces: [{ id: "ws_launch_hq", name: "checkout-api", root_dir: "/tmp" }],
@@ -101,6 +110,7 @@ describe("useAutomationsPage", () => {
     mocks.timeZone = undefined;
     mocks.aggregate = false;
     mocks.activeWorkspaceId = "ws_launch_hq";
+    mocks.dataScope = { kind: "project", workspaceId: "ws_launch_hq" };
     mocks.listJobs.mockResolvedValue(page("jobs", automationStoryJobs));
     mocks.listTriggers.mockResolvedValue(page("triggers", automationStoryTriggers));
   });
@@ -187,6 +197,63 @@ describe("useAutomationsPage", () => {
     expect(tasks.result.current.counts.event).toBe(0);
   });
 
+  it("W-19 lists only the selected project's automations in project mode", async () => {
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    for (const list of [mocks.listJobs, mocks.listTriggers]) {
+      expect(list.mock.calls[0]?.[0]).toMatchObject({
+        scope: "workspace",
+        workspace_id: "ws_launch_hq",
+      });
+      expect(list.mock.calls[0]?.[0].all_workspaces).toBeUndefined();
+    }
+    expect(result.current.projectFilterField).toBeNull();
+    expect(result.current.items.every(item => item.project === undefined)).toBe(true);
+  });
+
+  it("Should list every project with badges and narrow by the Project filter under All projects", async () => {
+    mocks.activeWorkspaceId = null;
+    mocks.dataScope = { kind: "all" };
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.items).toHaveLength(7));
+
+    for (const list of [mocks.listJobs, mocks.listTriggers]) {
+      expect(list.mock.calls[0]?.[0]).toMatchObject({ all_workspaces: true });
+      expect(list.mock.calls[0]?.[0].scope).toBeUndefined();
+      expect(list.mock.calls[0]?.[0].workspace_ids).toBeUndefined();
+    }
+    expect(result.current.projectFilterField?.label).toBe("Project");
+    expect(result.current.items.every(item => item.project !== undefined)).toBe(true);
+
+    act(() => result.current.setProjectFilter(["ws_launch_hq", "@user"]));
+    await waitFor(() =>
+      expect(mocks.listJobs.mock.lastCall?.[0]).toMatchObject({
+        all_workspaces: true,
+        workspace_ids: ["@user", "ws_launch_hq"],
+      })
+    );
+    expect(result.current.hasActiveFilters).toBe(true);
+
+    // Leaving All projects resets the transient filter.
+    mocks.dataScope = { kind: "project", workspaceId: "ws_launch_hq" };
+    mocks.activeWorkspaceId = "ws_launch_hq";
+    const { result: project } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    expect(project.current.projectFilter).toEqual([]);
+  });
+
+  it("Should list only automations without a project under User focus", async () => {
+    mocks.activeWorkspaceId = null;
+    mocks.dataScope = { kind: "user" };
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    for (const list of [mocks.listJobs, mocks.listTriggers]) {
+      expect(list.mock.calls[0]?.[0]).toMatchObject({ scope: "global" });
+      expect(list.mock.calls[0]?.[0].workspace_id).toBeUndefined();
+    }
+  });
+
   it("Should load more only from the list that has more", async () => {
     mocks.listJobs.mockResolvedValueOnce(page("jobs", automationStoryJobs, true));
     mocks.listJobs.mockResolvedValueOnce(page("jobs", []));
@@ -221,7 +288,7 @@ describe("useAutomationsPage", () => {
     const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.partialFailure).toBe("schedule"));
     expect(result.current.firstRun).toBe(false);
-    expect(result.current.suggestionsWorkspaceId).toBeNull();
+    expect(result.current.suggestionsSource).toBeNull();
   });
 
   it("Should fail the listing when both lists fail and name unavailability first", async () => {
@@ -348,24 +415,32 @@ describe("useAutomationsPage", () => {
     expect(mocks.navigate.mock.calls.some(([call]) => call.replace === true)).toBe(false);
   });
 
-  it("Should offer suggestions only for an empty unfiltered workspace listing", async () => {
+  it("Should offer suggestions only for an empty unfiltered listing of a project or All projects", async () => {
     mocks.listJobs.mockResolvedValue(page("jobs", []));
     mocks.listTriggers.mockResolvedValue(page("triggers", []));
 
     const workspace = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
     await waitFor(() => expect(workspace.result.current.firstRun).toBe(true));
-    expect(workspace.result.current.suggestionsWorkspaceId).toBe("ws_launch_hq");
-
-    const global = renderHook(() => useAutomationsPage({ scope: "global" }), {
-      wrapper: wrapper(),
+    expect(workspace.result.current.suggestionsSource).toEqual({
+      kind: "workspace",
+      workspaceID: "ws_launch_hq",
     });
-    await waitFor(() => expect(global.result.current.isLoading).toBe(false));
-    expect(global.result.current.suggestionsWorkspaceId).toBeNull();
 
+    mocks.dataScope = { kind: "all" };
+    const all = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(all.result.current.firstRun).toBe(true));
+    expect(all.result.current.suggestionsSource).toEqual({ kind: "all", workspaceIDs: [] });
+
+    mocks.dataScope = { kind: "user" };
+    const user = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(user.result.current.isLoading).toBe(false));
+    expect(user.result.current.suggestionsSource).toBeNull();
+
+    mocks.dataScope = { kind: "project", workspaceId: "ws_launch_hq" };
     mocks.aggregate = true;
     const aggregate = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
     await waitFor(() => expect(aggregate.result.current.firstRun).toBe(true));
-    expect(aggregate.result.current.suggestionsWorkspaceId).toBeNull();
+    expect(aggregate.result.current.suggestionsSource).toBeNull();
   });
 
   it("UT-106 opens a Loop seed with Does fixed and strips it when the operator closes", async () => {
@@ -407,7 +482,7 @@ describe("useAutomationsPage", () => {
     expect(result.current.editorDialogProps.editor).toBeNull();
   });
 
-  it("Should open a plain create link in Global, and turn a Loop seed there into a notice", async () => {
+  it("Should open a plain create link in User, and turn a Loop seed there into a notice", async () => {
     mocks.activeWorkspaceId = null;
     const created = renderHook(() => useAutomationsPage({ create: 1, start: "schedule" }), {
       wrapper: wrapper(),
@@ -448,7 +523,6 @@ describe("useAutomationsPage", () => {
       start: undefined,
       q: undefined,
       enabled: undefined,
-      scope: undefined,
       source: undefined,
       target: undefined,
       loop: undefined,

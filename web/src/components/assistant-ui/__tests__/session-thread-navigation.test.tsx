@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { subagentRevealStore } from "@/systems/session";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import { primarySessionFixture } from "@/systems/session/mocks";
@@ -180,7 +181,11 @@ interface FetchLog {
   searchRequests: string[];
 }
 
-function createFetchMock(log: FetchLog, search: () => SessionTranscriptSearchResponse) {
+function createFetchMock(
+  log: FetchLog,
+  search: () => SessionTranscriptSearchResponse,
+  olderPage = OLDER_PAGE
+) {
   return vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(
       typeof input === "string" ? input : input instanceof URL ? input : input.url,
@@ -193,7 +198,7 @@ function createFetchMock(log: FetchLog, search: () => SessionTranscriptSearchRes
       const before = url.searchParams.get("before_sequence");
       if (before === "100") {
         log.olderPageRequests += 1;
-        return jsonResponse(OLDER_PAGE);
+        return jsonResponse(olderPage);
       }
       return jsonResponse(HEAD_PAGE);
     }
@@ -276,7 +281,65 @@ describe("SessionThread navigation host", () => {
   });
 
   afterEach(() => {
+    const request = subagentRevealStore.getSnapshot().context.request;
+    if (request) subagentRevealStore.trigger.settled({ key: request.key });
     vi.unstubAllGlobals();
+  });
+
+  // Invariant: navigation to unloaded native work opens its enclosing fold and nested
+  // disclosure, respects manual closure, and can reveal it again. Owner: viewport host.
+  it("Should page to native work and reopen its disclosures on repeated navigation", async () => {
+    const message = {
+      id: "native-turn-2",
+      role: "assistant",
+      parts: [
+        {
+          type: "data-compozy-subagent",
+          data: {
+            turn_id: "native-turn",
+            subagent_id: "native-review",
+            tool_call_id: "native-tool",
+            origin: "provider_native",
+          },
+        },
+        {
+          type: "text",
+          text: "Native review details",
+          state: "done",
+          parentToolCallId: "native-tool",
+        },
+        { type: "text", text: "Review complete", state: "done" },
+      ],
+    } as unknown as SessionMessage;
+    vi.stubGlobal(
+      "fetch",
+      createFetchMock(log, () => searchResponse, {
+        ...OLDER_PAGE,
+        entries: [entry(2, message)],
+      })
+    );
+    renderNavigationThread();
+    await screen.findByText("Ship it.");
+    const reveal = () =>
+      act(() =>
+        subagentRevealStore.trigger.requested({
+          workspaceId: WORKSPACE_ID,
+          sessionId: SESSION_ID,
+          subagentId: "native-review",
+        })
+      );
+    reveal();
+    await waitFor(() => expect(screen.getByText("Native review details")).toBeVisible());
+    await waitFor(() => expect(subagentRevealStore.getSnapshot().context.request).toBeNull());
+    expect(log.olderPageRequests).toBe(1);
+    const card = document.querySelector('[data-subagent-id="native-review"]')!;
+    const disclosure = within(card as HTMLElement).getByRole("button");
+    fireEvent.click(disclosure);
+    expect(screen.getByText("Native review details")).not.toBeVisible();
+    reveal();
+    await waitFor(() => expect(screen.getByText("Native review details")).toBeVisible());
+    await waitFor(() => expect(subagentRevealStore.getSnapshot().context.request).toBeNull());
+    expect(log.olderPageRequests).toBe(1);
   });
 
   it("Should open find for the focused window only and return focus to the composer on Esc", async () => {

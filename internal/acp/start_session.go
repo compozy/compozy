@@ -18,7 +18,12 @@ func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, no
 
 func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
 	stageStartedAt := time.Now()
-	if !process.CapsSnapshot().SupportsLoadSession {
+	method := acpsdk.AgentMethodSessionLoad
+	caps := process.CapsSnapshot()
+	if !caps.SupportsLoadSession && caps.SupportsResumeSession {
+		method = acpsdk.AgentMethodSessionResume
+	}
+	if !caps.SupportsLoadSession && !caps.SupportsResumeSession {
 		err := WrapFailure(store.FailureLoad, "ACP session/load is not supported", fmt.Errorf(
 			"%w: agent %q does not support session/load for resume %q",
 			ErrAgentDoesNotSupportSession,
@@ -41,9 +46,15 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 		SessionID:      loadRequest.SessionId,
 	}
+	var request any = loadWireRequest
+	if method == acpsdk.AgentMethodSessionResume {
+		request = wireResumeSessionRequest{Meta: loadWireRequest.Meta, Cwd: loadRequest.Cwd,
+			McpServers: loadRequest.McpServers, AdditionalDirectories: normalized.AdditionalDirs,
+			SessionID: loadRequest.SessionId}
+	}
 	loadResponse, err := process.sendControlRequest[wireSessionSetupResponse](ctx,
-		acpsdk.AgentMethodSessionLoad,
-		loadWireRequest,
+		method,
+		request,
 	)
 	d.logStartStage(normalized, process, "session_load", stageOutcome(err, false), stageStartedAt)
 	if err != nil {

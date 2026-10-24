@@ -37,8 +37,9 @@ const (
 	RepairActionAppendInterruptedToolResult = "append_interrupted_tool_result"
 	RepairActionAppendTerminalError         = "append_terminal_error"
 
-	repairInterruptedToolMessage = "Tool call interrupted before a result was persisted."
-	repairTerminalErrorMessage   = "Session interrupted before a terminal prompt event was persisted."
+	repairInterruptedToolMessage = "Tool call aborted after interruption; its outcome is unknown. " +
+		"Verify external state before retrying."
+	repairTerminalErrorMessage = "Session interrupted before a terminal prompt event was persisted."
 )
 
 // RepairOpts controls one persisted session repair pass.
@@ -127,7 +128,7 @@ func (m *Manager) RepairSession(
 	}
 	defer unlockConversation()
 
-	meta, err := m.readMetaWithContext(ctx, target)
+	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +232,7 @@ func analyzeRepairEvents(events []store.SessionEvent) repairAnalysis {
 			continue
 		}
 		turnID := firstTrimmedNonEmpty(event.TurnID, agentEvent.TurnID)
-		if turnID == "" || eventType == EventTypeSessionStopped {
+		if turnID == "" || eventType == EventTypeSessionStopped || strings.HasPrefix(eventType, "session.restart_") {
 			continue
 		}
 		turn := ensureRepairTurn(turns, turnID)

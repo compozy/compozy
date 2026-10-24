@@ -1,3 +1,9 @@
+import {
+  terminalPassedFixture,
+  terminalFailedFixture,
+  terminalStillRunningEmptyFixture,
+  terminalSignaledFixture,
+} from "./_terminal-tool-fixtures";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { HttpResponse } from "msw";
@@ -13,6 +19,7 @@ import {
   runningBashToolMessageFixture,
   searchToolMessageFixture,
 } from "@/systems/session/mocks";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { UIMessage } from "@/systems/session/types";
 
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
@@ -393,4 +400,45 @@ export const TruncatedResultUnavailable: Story = {
     ).not.toBeInTheDocument();
     unavailableMessage.scrollIntoView({ block: "nearest" });
   },
+};
+
+const STORY_SHELL = {
+  coordinator: { userOpen: () => Promise.resolve() },
+} as unknown as OsShellHandle;
+
+/**
+ * Supervised terminal calls read like every other tool row: one line with the
+ * terminal's name, a single outcome (no glyph on success, `exit 1` beside the
+ * settled ×, `signal TERM`, a spinner while it runs), the duration, and the
+ * Open terminal jump on hover. Output stays closed until asked for.
+ */
+export const TerminalRows: Story = {
+  args: {},
+  render: () => (
+    <OsShellContext.Provider value={STORY_SHELL}>
+      <SessionToolCallRowFrame>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <SessionToolCallRow message={terminalPassedFixture} />
+          <SessionToolCallRow message={terminalFailedFixture} />
+          <SessionToolCallRow message={terminalSignaledFixture} />
+          <SessionToolCallRow message={terminalStillRunningEmptyFixture} />
+        </div>
+      </SessionToolCallRowFrame>
+    </OsShellContext.Provider>
+  ),
+};
+
+/** Opened, the screen is sized to what the command printed — three lines, three rows. */
+export const TerminalRowOpened: Story = {
+  args: {},
+  render: () => (
+    <OsShellContext.Provider value={STORY_SHELL}>
+      <SessionToolCallRowFrame>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <SessionToolCallRow message={terminalPassedFixture} defaultExpanded />
+          <SessionToolCallRow message={terminalStillRunningEmptyFixture} defaultExpanded />
+        </div>
+      </SessionToolCallRowFrame>
+    </OsShellContext.Provider>
+  ),
 };

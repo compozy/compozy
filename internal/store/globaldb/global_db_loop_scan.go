@@ -20,6 +20,7 @@ type loopRunScanner interface {
 
 type loopRunScanValues struct {
 	run               looppkg.Run
+	grantCeiling      string
 	runID             string
 	workspaceID       string
 	status            string
@@ -67,6 +68,7 @@ func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
 
 func (v *loopRunScanValues) scan(row loopRunScanner) error {
 	return row.Scan(
+		&v.grantCeiling,
 		&v.runID,
 		&v.run.ProfileID,
 		&v.workspaceID,
@@ -116,6 +118,9 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 
 func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	run := v.run
+	if v.grantCeiling != "" {
+		run.SetGrantCeiling(v.grantCeiling)
+	}
 	run.ID = looppkg.RunID(v.runID)
 	run.WorkspaceID = looppkg.WorkspaceID(v.workspaceID)
 	run.Status = looppkg.Status(v.status)

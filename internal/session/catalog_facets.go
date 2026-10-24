@@ -18,6 +18,7 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	}
 	query.Search = ""
 	query.Badges = nil
+	query.Columns = nil
 	query.AttentionOnly = false
 	query.Cursor = ""
 	query.Limit = DefaultListLimit
@@ -29,14 +30,27 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	if !ok {
 		return store.SessionCatalogFacetResult{}, errors.New("session: metadata catalog facets are required")
 	}
-	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
-	durable, err := reader.SessionCatalogFacets(ctx, sessionCatalogPageQuery(normalized, nil, activeIDs))
+	activeByID, activeIDs, activeMatches, err := m.activeBoardSessionCatalogRows(ctx, normalized)
+	if err != nil {
+		return store.SessionCatalogFacetResult{}, err
+	}
+	durableQuery := sessionCatalogPageQuery(normalized, nil, activeIDs)
+	durableQuery.RepositoryKeys = m.catalogRepositoryKeys(ctx, normalized)
+	durableQuery.DefaultBranches = m.catalogDefaultBranches(ctx, normalized)
+	if err := m.refreshCatalogPullRequests(ctx, durableQuery); err != nil {
+		return store.SessionCatalogFacetResult{}, err
+	}
+	durable, err := reader.SessionCatalogFacets(ctx, durableQuery)
 	if err != nil {
 		return store.SessionCatalogFacetResult{}, fmt.Errorf("session: durable catalog facets: %w", err)
 	}
 	workspaces := make(map[string]store.SessionCatalogFacets, len(durable.ByWorkspace))
 	for _, workspace := range durable.ByWorkspace {
 		workspaces[workspace.WorkspaceID] = workspace.Facets
+	}
+	profiles := make(map[string]store.SessionCatalogFacets, len(durable.ByProfile))
+	for _, profile := range durable.ByProfile {
+		profiles[profile.ProfileID] = profile.Facets
 	}
 	for index := range activeMatches {
 		info := sessionInfoFromCatalog(&activeMatches[index])
@@ -46,8 +60,14 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		}
 		facets := workspaces[info.WorkspaceID]
 		addSessionFacet(&facets, BadgeForInfo(info))
+		facets.Board.Add(string(info.BoardColumn), 1)
 		addSessionFacet(&durable.Facets, BadgeForInfo(info))
+		durable.Facets.Board.Add(string(info.BoardColumn), 1)
 		workspaces[info.WorkspaceID] = facets
+		profile := profiles[info.ProfileID]
+		addSessionFacet(&profile, BadgeForInfo(info))
+		profile.Board.Add(string(info.BoardColumn), 1)
+		profiles[info.ProfileID] = profile
 	}
 	durable.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0, len(workspaces))
 	for workspaceID, facets := range workspaces {
@@ -59,6 +79,14 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	slices.SortFunc(
 		durable.ByWorkspace,
 		func(a, b store.WorkspaceSessionCatalogFacets) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
+	)
+	durable.ByProfile = make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
+	for id, facets := range profiles {
+		durable.ByProfile = append(durable.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
+	}
+	slices.SortFunc(
+		durable.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return cmp.Compare(a.ProfileID, b.ProfileID) },
 	)
 	return durable, nil
 }

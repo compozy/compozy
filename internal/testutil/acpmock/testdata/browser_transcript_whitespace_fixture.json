@@ -11,7 +11,7 @@
                     "name": "split-markdown-boundaries",
                     "match": {
                         "turn_source": "user",
-                        "user_text": "show the diagram\non a separate line\n\n- first item\n- second item"
+                        "user_text": "show the diagram\non a separate line, see https://example.com/docs/transcript\n\n- first item\n- second item\n  - nested item\n\nRun `printf 'a  b'` then `printf 'a b'`."
                     },
                     "steps": [
                         {

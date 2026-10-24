@@ -17,6 +17,8 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 
 	"github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -40,6 +42,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	resolvedConfig := config.DefaultWithHome(homePaths)
 	resolvedConfig.Worktrees.Root = worktreesRoot
 	resolvedConfig.Worktrees.SetupCommand = "bun install"
+	resolvedConfig.Worktrees.TeardownCommand = "global-cleanup"
 	resolved := workspacepkg.ResolvedWorkspace{
 		ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot,
 		Config: resolvedConfig,
@@ -53,7 +56,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 	resolver := daemonWorktreeWorkspaceResolver{resolver: stub, homePaths: homePaths}
 
-	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID)
+	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID, "")
 	if err != nil {
 		t.Fatalf("ResolveWorktreeWorkspace() error = %v", err)
 	}
@@ -69,8 +72,26 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 		t.Fatalf("ListWorktreeWorkspaces() = %#v, want both registered roots", listed)
 	}
 
+	for _, command := range []string{"profile-cleanup", ""} {
+		t.Run("Should resolve owner profile teardown including explicit empty command "+command, func(t *testing.T) {
+			profileConfig := config.DefaultWithHome(homePaths)
+			profileConfig.Worktrees.TeardownCommand = command
+			profileConfig.Worktrees.TeardownTimeout = 3 * time.Second
+			profileStub := &daemonWorktreeResolverStub{resolved: resolved, profiled: workspacepkg.ResolvedWorkspace{
+				ID: resolved.ID, Name: resolved.Name, RootDir: workspaceRoot, Config: profileConfig,
+			}}
+			profileResolver := daemonWorktreeWorkspaceResolver{resolver: profileStub, homePaths: homePaths,
+				profileNames: loopProfileNameResolverStub{"profile-owner": "owner"}}
+			got, err := profileResolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID, "profile-owner")
+			if err != nil || profileStub.profileName != "owner" || got.Root != workspaceRoot ||
+				got.Worktrees.TeardownCommand != command || got.Worktrees.TeardownTimeout != 3*time.Second {
+				t.Fatalf("owner profile workspace = %#v, profile = %q, error = %v", got, profileStub.profileName, err)
+			}
+		})
+	}
+
 	empty := daemonWorktreeWorkspaceResolver{homePaths: homePaths}
-	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing"); !errors.Is(
+	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing", ""); !errors.Is(
 		err, worktree.ErrNotFound,
 	) {
 		t.Fatalf("ResolveWorktreeWorkspace(nil) error = %v, want ErrNotFound", err)
@@ -113,6 +134,20 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 
 func TestDaemonForgeRuntimeErrorTranslation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the disabled provider cause from runtime selection", func(t *testing.T) {
+		t.Parallel()
+		manager := extensionpkg.NewManager(nil)
+		_, err := manager.ForgeStatus(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		mapped := mapForgeRuntimeError(err)
+		if !errors.Is(mapped, worktree.ErrForgeUnavailable) ||
+			worktree.ForgeFailureCause(mapped) != "provider_disabled" {
+			t.Fatalf("disabled provider=%v", mapped)
+		}
+	})
 
 	t.Run("Should preserve unavailable extension errors as forge unavailable", func(t *testing.T) {
 		t.Parallel()
@@ -275,8 +310,10 @@ func (f sessionWorktreeLookupFunc) Get(
 }
 
 type daemonWorktreeResolverStub struct {
-	resolved workspacepkg.ResolvedWorkspace
-	listed   []workspacepkg.Workspace
+	resolved    workspacepkg.ResolvedWorkspace
+	profiled    workspacepkg.ResolvedWorkspace
+	profileName string
+	listed      []workspacepkg.Workspace
 }
 
 func (r *daemonWorktreeResolverStub) Resolve(
@@ -284,6 +321,13 @@ func (r *daemonWorktreeResolverStub) Resolve(
 	string,
 ) (workspacepkg.ResolvedWorkspace, error) {
 	return r.resolved, nil
+}
+
+func (r *daemonWorktreeResolverStub) ResolveForProfile(
+	_ context.Context, _ string, profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	r.profileName = profileName
+	return r.profiled, nil
 }
 
 func (r *daemonWorktreeResolverStub) ResolveOrRegister(
@@ -854,12 +898,142 @@ func (s *subagentWorktreeServiceStub) CommitsAheadOf(_ context.Context, _, _, ba
 	return s.ahead, nil
 }
 
-func (s *subagentWorktreeServiceStub) StatusDetails(
-	context.Context,
-	string,
-	string,
-	bool,
-	bool,
-) (*worktree.StatusDetails, error) {
-	return &worktree.StatusDetails{ForgeStatus: s.forge}, s.forgeErr
+func (s *subagentWorktreeServiceStub) ObserveForgeStatus(
+	context.Context, string, string,
+) (*worktree.ForgeStatus, error) {
+	return s.forge, s.forgeErr
+}
+
+// Invariant: only a named non-default branch is snapshotted, and readiness fails closed.
+// Owner: daemon Git and forge adapters; canonical worktree composition suite.
+func TestSessionPullRequestAdapters(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver a workspace wake from an actual PR cache change", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		now := time.Unix(1800000000, 0).UTC()
+		const workspaceID = "ws-pr-cache"
+		if err := db.InsertWorkspace(
+			t.Context(),
+			workspacepkg.Workspace{
+				ID:        workspaceID,
+				Name:      "PR cache",
+				RootDir:   t.TempDir(),
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			session.CatalogScope{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		pulls := worktree.NewPullRequestService(t.Context(), db.Worktrees, nil, nil, func(workspace string) {
+			manager.PublishWorkspaceCatalogChanged(workspace, []string{store.DefaultProfileID})
+		})
+		t.Cleanup(pulls.Close)
+		entry, err := pulls.Refresh(
+			t.Context(),
+			worktree.PullRequestKey{WorkspaceID: workspaceID, RepoKey: "github.com/acme/repo", Branch: "topic"},
+		)
+		if err == nil || entry.LookupCause != "provider_disabled" {
+			t.Fatalf("refresh=%#v %v", entry, err)
+		}
+		select {
+		case event := <-events:
+			if event.Name != session.CatalogEventNameChanged || event.Kind != session.CatalogEventLayout ||
+				event.WorkspaceID != workspaceID ||
+				event.ProfileID != store.DefaultProfileID ||
+				event.SessionID != "" {
+				t.Fatalf("cache event=%#v", event)
+			}
+		default:
+			t.Fatal("PR cache change did not emit its workspace wake")
+		}
+	})
+
+	t.Run("Should resolve branches using real Git without reading the forge", func(t *testing.T) {
+		t.Parallel()
+		runner, err := worktree.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		if _, _, err = runner.Run(t.Context(), root, "init", "--initial-branch=main"); err != nil {
+			t.Fatal(err)
+		}
+		reader := sessionBranchAdapter{runner: runner}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "" {
+			t.Fatalf("default=%q %v", branch, err)
+		}
+		if _, _, err = runner.Run(t.Context(), root, "symbolic-ref", "HEAD", "refs/heads/topic"); err != nil {
+			t.Fatal(err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "topic" {
+			t.Fatalf("topic=%q %v", branch, err)
+		}
+		if _, _, err = runner.Run(
+			t.Context(),
+			root,
+			"symbolic-ref",
+			"refs/remotes/origin/HEAD",
+			"refs/remotes/origin/topic",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "" {
+			t.Fatalf("origin default=%q %v", branch, err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), t.TempDir()); err != nil || branch != "" {
+			t.Fatalf("nonrepo=%q %v", branch, err)
+		}
+	})
+	t.Run("Should require every known fact before declaring a PR ready", func(t *testing.T) {
+		t.Parallel()
+		entry := worktree.PullRequestEntry{
+			LookupState: "ok",
+			Facts: &worktree.ForgeStatus{
+				PRNumber:       new(1),
+				PRState:        new("open"),
+				Draft:          new(false),
+				Checks:         &worktree.ForgeChecks{State: "passing"},
+				ReviewDecision: "approved",
+				Mergeable:      "mergeable",
+			},
+		}
+		if !sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("complete facts not ready")
+		}
+		entry.Stale = true
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("stale facts ready")
+		}
+		entry.Stale = false
+		entry.LookupState = "error"
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("failed lookup ready")
+		}
+		entry.LookupState = "ok"
+		entry.Facts.Draft = nil
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("unknown draft ready")
+		}
+	})
 }

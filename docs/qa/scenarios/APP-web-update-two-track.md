@@ -39,8 +39,9 @@ Branches to walk, each against real daemon truth rather than a stubbed payload:
   "Cancel update" for the dormant operation;
 - blocked: another surface holds the lease, the row names the holder in plain words, and no
   optimistic success shows;
-- failed: the row says CompozyOS went back to the restored version, "What went wrong" shows the
-  daemon error, and the offer returns once the daemon reports a fresh available state;
+- failed app: the row retains the daemon error and offers "Retry update" when a release remains
+  eligible and no operation holds the channel; a runtime failure claims a restored version only
+  when the daemon actually reports one, and keeps its existing recovery requirements;
 - refresh failure: the section header carries the failure once while the row keeps last-known
   truth.
 
@@ -52,3 +53,7 @@ Discovery acceptance (issue #804): the Updates header shows **Last checked** wit
 upstream timestamp and a **Check for updates** action. The action refreshes daemon discovery, then
 the shared Settings/menubar query exposes any new offer. Failed checks retain the previous timestamp
 and diagnostic. A newer release remains eligible when a previous app release has an archived failure.
+
+2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
+`untested`; native fixture and owning-suite results do not replace published-release or
+cross-platform acceptance. Prior dated reports retain their historical evidence.

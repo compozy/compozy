@@ -1,5 +1,6 @@
 // Types
 export type {
+  AgentAggregateFilter,
   AgentCatalogFilter,
   AgentCatalogItem,
   AgentCatalogResponse,
@@ -46,6 +47,7 @@ export {
   deleteAgent,
   duplicateAgent,
   fetchAgent,
+  fetchAgentAggregate,
   fetchAgentCatalog,
   fetchAgents,
   isAgentDigestConflict,
@@ -75,6 +77,7 @@ export {
 // Query infrastructure
 export { agentKeys } from "./lib/query-keys";
 export {
+  agentAggregateOptions,
   agentCatalogOptions,
   agentDetailOptions,
   agentHeartbeatHistoryOptions,
@@ -197,6 +200,7 @@ export {
 
 // Hooks
 export {
+  useAgentAggregate,
   useAgentCatalog,
   useAgent,
   useAgents,
@@ -321,3 +325,4 @@ export {
 } from "./components/agent-fleet-new-session-button";
 export { AgentFleetToolbar, type AgentFleetToolbarProps } from "./components/agent-fleet-toolbar";
 export { AgentFleetList, type AgentFleetListProps } from "./components/agent-fleet-list";
+export { useAgentWindowScope } from "./hooks/use-agent-window-scope";

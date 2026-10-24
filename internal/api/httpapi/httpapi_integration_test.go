@@ -28,6 +28,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -56,8 +57,8 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 		var calls atomic.Int32
 		runtime.driver.mu.Lock()
 		runtime.driver.promptHook = func(_ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			calls.Add(1)
-			if req.Message == "hold for HTTP replay" {
+			// Hold the first dispatch even when runtime recovery prepends transcript context.
+			if calls.Add(1) == 1 {
 				return held, nil
 			}
 			done := make(chan acp.AgentEvent, 1)
@@ -69,6 +70,9 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 		active, err := runtime.manager.Prompt(t.Context(), id, "hold for HTTP replay")
 		if err != nil {
 			t.Fatal(err)
+		}
+		if !runtime.manager.IsPrompting(id) {
+			t.Fatal("held prompt must remain active before concurrent retries")
 		}
 		url := mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+id+"/prompt")
 		body := []byte(
@@ -3633,11 +3637,21 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		}
 	})
 
+	profiles, err := profilepkg.NewManager(
+		profilepkg.WithStore(registry),
+		profilepkg.WithHomePaths(homePaths),
+		profilepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
 	streamSubscriptions := newIntegrationStreamSubscriptionRecorder()
 	fanout := &integrationNotifierFanout{notifiers: []session.Notifier{streamSubscriptions}}
 	resolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithOperatorHomeDir(t.TempDir()),
+		workspacepkg.WithProfileAvailabilityChecker(profiles),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
 		workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {
@@ -3711,7 +3725,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		automationpkg.WithWorkspaceResolver(resolver),
 		automationpkg.WithConfig(cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+
 		automationpkg.WithWebhookSecretStore(vaultService),
 	)
 	if err != nil {

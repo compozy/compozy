@@ -79,14 +79,30 @@ export {
 export {
   pruneSessionSidebarScopes,
   useSessionSidebarState,
+  type SessionWindowViewMode,
   type UseSessionSidebarStateResult,
 } from "./use-session-sidebar-state";
+export {
+  setSessionWindowView,
+  useSessionWindowViewState,
+  type SessionWindowViewState,
+} from "./use-session-window-view-state";
+export { useSessionWindowOrder, type SessionWindowOrder } from "./use-session-window-order";
+export {
+  SESSION_BOARD_COLUMNS,
+  useSessionsBoard,
+  useSessionsBoardColumns,
+  type SessionsBoardColumnView,
+  type SessionsBoardLane,
+  type SessionsBoardView,
+} from "./use-sessions-board";
 export {
   useClearSessionConversation,
   useArchiveSession,
   useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,

@@ -59,7 +59,8 @@ async function ensureProjectWorkspaceID(desktop: DesktopInstance, product: Page)
   if (added) {
     await product.reload({ waitUntil: "domcontentloaded" });
     await expect(product.getByTestId("os-desktop")).toBeVisible();
-    await product.getByRole("menuitem", { name: /Global/u }).click();
+    // The switcher names the current destination (All projects, User, or a project).
+    await product.locator('[data-slot="os-menubar-workspace"]').click();
     await product.getByTestId(`os-workspace-option-${id}`).click();
     await expect
       .poll(async () => {
@@ -73,7 +74,7 @@ async function ensureProjectWorkspaceID(desktop: DesktopInstance, product: Page)
         }, id);
       })
       .toBe(true);
-    await expect(product.getByRole("button", { name: /Global scope/u })).toHaveAttribute(
+    await expect(product.getByTestId("os-global-scope-toggle")).toHaveAttribute(
       "aria-pressed",
       "false"
     );

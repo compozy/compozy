@@ -4,9 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/compozy/compozy/internal/session/contextusage"
-
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session/contextusage"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -42,6 +41,13 @@ func (h *BaseHandlers) SessionUsage(c *gin.Context) {
 			WarnContext(c.Request.Context(), "api: session context unavailable", "session_id", sessionID, "error", err)
 	}
 	payload.Context = contextUsagePayload(contextusage.Derive(input))
+	if err == nil {
+		payload.WorkTime = &contract.SessionWorkTimePayload{
+			ActiveDurationMS:    input.WorkTime.ActiveDurationMS,
+			TurnCount:           input.WorkTime.TurnCount,
+			LastCompletedTurnID: input.WorkTime.LastCompletedTurnID,
+		}
+	}
 	c.JSON(http.StatusOK, contract.SessionUsageResponse{Usage: payload})
 }
 

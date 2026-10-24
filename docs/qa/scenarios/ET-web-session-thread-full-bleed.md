@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-12
 expected: In an open Session window, the message transcript rail and the composer textbox share only horizontal inset padding (px-4/px-8) and span the full window content width; neither surface is capped by a centered max-width reading column; resizing the window wider keeps both surfaces edge-to-edge with the window body (minus inset).
 entry_points: web desktop Session window; ThreadContentRail; session composer
-qa_status: skipped
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -32,3 +32,10 @@ report's session matrix in a future QA cycle.
 2026-10-19 issue #836 impact flag: the sessions rail is resizable (200–480 px,
 pane keeps at least half the window). Full-bleed now applies to whatever width
 the rail leaves; re-check it beside a widened rail in the next QA cycle.
+
+2026-10-22 issue #897 impact: the rail was full-bleed, but `StreamMarkdown` still capped
+every Markdown message at a fixed `72ch`, so agent prose, tables, code blocks, and the
+user bubble's text stopped around 600 px on wide windows. The cap is gone: agent messages
+now fill the rail, and the user bubble grows to its existing 80% column. Re-walk at
+1440/1920/2560 px with the sessions rail and inspector open and closed, then at 390–834 px
+for page-level horizontal overflow. Wide tables and code may still scroll inside their own box.

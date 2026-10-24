@@ -126,6 +126,7 @@ export const worktreeHandlers: HttpHandler[] = [
               deletions: 18,
               unpushed_commits: 3,
               exists_on_remote: false,
+              leftover_files: 0,
             },
           },
           { status: 409 }
@@ -142,6 +143,10 @@ export const worktreeHandlers: HttpHandler[] = [
   ),
 
   compozyApiMock.get("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit", () =>
+    HttpResponse.json(exitPlanCommitFixture)
+  ),
+
+  compozyApiMock.post("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare", () =>
     HttpResponse.json(exitPlanCommitFixture)
   ),
 

@@ -15,6 +15,7 @@ const (
 	WorkSignalLoopRun       WorkSignalKind = "loop_run"
 	WorkSignalTaskLease     WorkSignalKind = "task_lease"
 	WorkSignalScheduledWait WorkSignalKind = "scheduled_wait"
+	WorkSignalActiveMonitor WorkSignalKind = "active_monitor"
 	// WorkSignalAwaitingReply keeps a sender alive while a session it asked is still working on the answer.
 	WorkSignalAwaitingReply WorkSignalKind = "awaiting_reply"
 )
@@ -78,6 +79,6 @@ func WorkSignalKindValues() []string {
 	return []string{
 		string(WorkSignalAgentProgress), string(WorkSignalToolRunning), string(WorkSignalActiveChild),
 		string(WorkSignalLoopRun), string(WorkSignalTaskLease), string(WorkSignalScheduledWait),
-		string(WorkSignalAwaitingReply),
+		string(WorkSignalAwaitingReply), string(WorkSignalActiveMonitor),
 	}
 }

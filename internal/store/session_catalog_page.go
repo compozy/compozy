@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // SessionCatalogAttentionRank is the stable attention-class component of a catalog cursor.
@@ -58,10 +60,15 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	DefaultBranches     map[string][]string
+	RepositoryKeys      map[string]string
+	Columns             []string
+	HideChildren        bool
 	ExcludeVerdictOnly  bool
 	Subagents           string
 	SkipTotal           bool
 	ReadScope           ReadScope
+	WorkspaceIDs        []string
 	WorkspaceID         string
 	WorktreeID          string
 	State               string
@@ -86,6 +93,13 @@ type SessionCatalogPageQuery struct {
 
 // Validate ensures the durable query is bounded and its anchor is usable.
 func (q SessionCatalogPageQuery) Validate() error {
+	for _, column := range q.Columns {
+		switch column {
+		case SessionBoardNeedsYou, SessionBoardWorking, SessionBoardInReview, SessionBoardDone:
+		default:
+			return fmt.Errorf("store: unsupported board column %q", column)
+		}
+	}
 	switch q.Subagents {
 	case "", "include", "exclude", "only":
 	default:
@@ -106,6 +120,10 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
+	return q.validateCursor()
+}
+
+func (q SessionCatalogPageQuery) validateCursor() error {
 	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
 		return fmt.Errorf("store: name cursor key is required")
 	}
@@ -133,4 +151,12 @@ type SessionCatalogPage struct {
 // SessionCatalogPager exposes the bounded catalog read used by public session lists.
 type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
+}
+
+// SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.
+func SessionWorkspaceClause(value string) Clause {
+	if strings.TrimSpace(value) == workspaceaccess.UserSelector {
+		return Clause{sql: "workspace_id = ?", arg: "", ok: true, hasArg: true}
+	}
+	return StringClause("workspace_id", value)
 }

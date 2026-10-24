@@ -1,7 +1,7 @@
 "use client";
 
 import { baseOptions } from "@/lib/layout.shared";
-import { Eyebrow, Logo, buttonVariants, cn } from "@compozy/ui";
+import { Logo, buttonVariants, cn } from "@compozy/ui";
 import { GithubLogo } from "@compozy/ui/logos";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
@@ -57,12 +57,6 @@ export function HomeHeader(props: ComponentProps<"header">) {
           className="inline-flex shrink-0 items-center gap-3"
         >
           <Logo variant="logo" decorative className="h-8 w-auto" />
-          <span aria-hidden className="hidden sm:inline-flex">
-            <Eyebrow className="flex items-center gap-1.5 text-muted">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              Beta
-            </Eyebrow>
-          </span>
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">

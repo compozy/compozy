@@ -111,3 +111,10 @@ returns successfully, and a terminal 404/410 does not cause recurring control po
 A failed cold roster page must stop automatic pagination until an explicit retry.
 Record the session slice separately from this scenario's broader coverage in
 `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+
+QA impact 2026-10-24 (#947): every roster/list row with a child session opens that child.
+A provider-native row instead opens its parent and reveals the matching transcript card,
+including nested activity when available. Exercise the sidebar branch, All projects modal,
+composer control, and inspector, including repeat clicks while the parent is already open.
+The waiting banner continues to list delegated work only. E2E-009 owns sidebar-to-child
+navigation; E2E-006 owns native parent revelation.

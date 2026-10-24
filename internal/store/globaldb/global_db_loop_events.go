@@ -219,9 +219,6 @@ func appendLoopRunEventWithIdentity(
 	if runID == "" {
 		return "", 0, fmt.Errorf("%w: loop event run_id is required", looppkg.ErrValidation)
 	}
-	if ws == "" {
-		return "", 0, fmt.Errorf("%w: loop event workspace_id is required", looppkg.ErrValidation)
-	}
 	if !loopRunEventKindValid(kind) {
 		return "", 0, fmt.Errorf("%w: loop run event kind is invalid: %q", looppkg.ErrValidation, kind)
 	}

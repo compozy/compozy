@@ -114,7 +114,7 @@ func (s *service) renderNodeCanceledEffects(
 	if strings.TrimSpace(run.DefinitionDigest) == "" {
 		return nil, nil
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, ws, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (s *service) renderCanceledEffects(
 	if strings.TrimSpace(run.DefinitionDigest) == "" {
 		return nil, nil
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, ws, run.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, ws, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return nil, err
 	}

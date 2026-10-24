@@ -1,5 +1,5 @@
 // Suite: session-folders
-// Invariant: the workspace list groups provenance threads by their root's folder
+// Invariant: a single-pair list groups provenance threads by their root's folder
 // in served order (children follow their parent, empty folders show unless a
 // filter or the archive narrows the list), collapsed folders drop out of the
 // visible row order (the session-cycle shortcut follows the same projection),
@@ -166,48 +166,46 @@ describe("layout order helpers", () => {
 });
 
 describe("visibleSessionOrder", () => {
-  const base = {
-    collapsedThreadIds: new Set<string>(),
-    collapsedWorkspaceIds: new Set<string>(),
-    workspaceGroups: [],
-  };
+  const base = { collapsedThreadIds: new Set<string>() };
   const order = (sessions: readonly SessionPayload[]) => sessions.map(item => item.id);
 
-  it("Should match workspace and all-workspace visible row order [UT-065]", () => {
+  it("Should match flat and grouped visible row order [UT-065]", () => {
     const rootA = session("sess-a");
     const childA = session("sess-a-child", undefined, "sess-a");
     const rootB = session("sess-b");
 
-    expect(
-      order(visibleSessionOrder([rootA, childA, rootB], { ...base, scope: "workspace" }))
-    ).toEqual(["sess-a", "sess-a-child", "sess-b"]);
+    expect(order(visibleSessionOrder([rootA, childA, rootB], base))).toEqual([
+      "sess-a",
+      "sess-a-child",
+      "sess-b",
+    ]);
     expect(
       order(
         visibleSessionOrder([rootA, childA, rootB], {
           ...base,
-          scope: "workspace",
           collapsedThreadIds: new Set(["sess-a"]),
         })
       )
     ).toEqual(["sess-a", "sess-b"]);
+    // A grouped list cycles each open group's own page; a collapsed group is skipped.
     expect(
       order(
         visibleSessionOrder([], {
           ...base,
-          scope: "all-workspaces",
-          collapsedWorkspaceIds: new Set(["ws-hidden"]),
-          workspaceGroups: [
-            { workspaceId: "ws-hidden", sessions: [rootA] },
-            { workspaceId: "ws-visible", sessions: [rootB] },
+          collapsedGroupKeys: new Set(["project:hidden"]),
+          groups: [
+            { key: "project:hidden", sessions: [rootA] },
+            { key: "project:visible", sessions: [rootB] },
+            { key: "user", sessions: [rootA, childA] },
           ],
         })
       )
-    ).toEqual(["sess-b"]);
+    ).toEqual(["sess-b", "sess-a", "sess-a-child"]);
   });
 
   it("Should follow folder sections and skip sessions inside a collapsed folder", () => {
     const page = [session("r1"), session("a1", "fa"), session("b1", "fb"), session("a2", "fa")];
-    const options = { ...base, scope: "workspace" as const, folders: [folder("fa"), folder("fb")] };
+    const options = { ...base, folders: [folder("fa"), folder("fb")] };
 
     expect(order(visibleSessionOrder(page, options))).toEqual(["a1", "a2", "b1", "r1"]);
     expect(
@@ -215,24 +213,23 @@ describe("visibleSessionOrder", () => {
     ).toEqual(["b1", "r1"]);
   });
 
-  it("Should cycle aggregate rows in owner and folder order, excluding collapsed folders", () => {
-    const page = [
-      { ...session("b-root"), profile_id: "b" },
-      { ...session("a-filed", "fa"), profile_id: "a" },
-      { ...session("b-filed", "fb"), profile_id: "b" },
-      { ...session("a-root"), profile_id: "a" },
-    ];
+  it("Should apply folders only inside the group whose page is one pair", () => {
     const options = {
       ...base,
-      scope: "workspace" as const,
-      profileFolderGroups: [
-        { owner: { id: "a" }, folders: [folder("fa")] },
-        { owner: { id: "b" }, folders: [folder("fb")] },
-      ],
       collapsedFolderIds: new Set(["fa"]),
+      groups: [
+        // A pair group: its folders apply, so the collapsed folder hides a-filed.
+        {
+          key: "a",
+          sessions: [session("a-filed", "fa"), session("a-root")],
+          folders: [folder("fa")],
+        },
+        // No pair: folder members render as plain rows in served order.
+        { key: "b", sessions: [session("b-filed", "fb"), session("b-root")] },
+      ],
     };
-    expect(order(visibleSessionOrder(page, options))).toEqual(["a-root", "b-filed", "b-root"]);
-    expect(order(visibleSessionOrder(page, { ...options, filtering: true }))).toEqual([
+    expect(order(visibleSessionOrder([], options))).toEqual(["a-root", "b-filed", "b-root"]);
+    expect(order(visibleSessionOrder([], { ...options, filtering: true }))).toEqual([
       "a-filed",
       "a-root",
       "b-filed",
@@ -240,28 +237,10 @@ describe("visibleSessionOrder", () => {
     ]);
   });
 
-  it("Should retain catalog order when a profile owner is not in the independent profile snapshot", () => {
-    const page = [
-      { ...session("new-root"), profile_id: "new" },
-      { ...session("known-filed", "fa"), profile_id: "known" },
-    ];
-    expect(
-      order(
-        visibleSessionOrder(page, {
-          ...base,
-          scope: "workspace",
-          profileFolderGroups: [{ owner: { id: "known" }, folders: [folder("fa")] }],
-          collapsedFolderIds: new Set(["fa"]),
-        })
-      )
-    ).toEqual(["new-root", "known-filed"]);
-  });
-
   it("Should keep a search match inside a collapsed folder, as the list shows it", () => {
     const results = [session("a1", "fa"), session("r1")];
     const options = {
       ...base,
-      scope: "workspace" as const,
       folders: [folder("fa"), folder("fb")],
       collapsedFolderIds: new Set(["fa"]),
     };

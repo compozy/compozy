@@ -12,6 +12,7 @@ import (
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (n *daemonNativeTools) workspaceList(
@@ -25,11 +26,11 @@ func (n *daemonNativeTools) workspaceList(
 	}
 	var workspaces []workspacepkg.Workspace
 	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
-		resolved, err := n.deps.Workspaces.Resolve(ctx, scope.WorkspaceID)
+		var err error
+		workspaces, err = n.addressableWorkspaces(ctx, scope)
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 		}
-		workspaces = []workspacepkg.Workspace{resolved.Workspace}
 	} else {
 		var err error
 		workspaces, err = n.deps.Workspaces.List(ctx)
@@ -42,6 +43,47 @@ func (n *daemonNativeTools) workspaceList(
 		payload = append(payload, core.WorkspacePayloadFromWorkspace(workspace))
 	}
 	return structuredResult(map[string]any{"workspaces": payload}, fmt.Sprintf("%d workspaces", len(payload)))
+}
+
+// addressableWorkspaces returns the bound session's own workspace plus every other
+// registered workspace the workspace-access policy already allows it to address.
+// The catalog seam never prompts, so approve-reads lists only consented workspaces.
+func (n *daemonNativeTools) addressableWorkspaces(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) ([]workspacepkg.Workspace, error) {
+	own, err := n.deps.Workspaces.Resolve(ctx, scope.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	workspaces := []workspacepkg.Workspace{own.Workspace}
+	policy := n.deps.WorkspaceAccess
+	if policy == nil || strings.TrimSpace(scope.SessionID) == "" {
+		return workspaces, nil
+	}
+	catalog, err := n.deps.Workspaces.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range catalog {
+		if candidate.ID == own.ID {
+			continue
+		}
+		decision, err := policy.Authorize(ctx, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   strings.TrimSpace(scope.SessionID),
+				WorkspaceID: own.ID,
+				AgentName:   strings.TrimSpace(scope.AgentName),
+			},
+			Target: workspaceaccess.ScopeTarget(candidate.ID, scope.ProfileID),
+			Seam:   workspaceaccess.SeamCatalog,
+		})
+		if err == nil && decision.Allowed {
+			workspaces = append(workspaces, candidate)
+		}
+	}
+	return workspaces, nil
 }
 
 func (n *daemonNativeTools) workspaceInfo(
@@ -117,6 +159,9 @@ func (n *daemonNativeTools) listLogs(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
+	}
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -161,6 +206,9 @@ func (n *daemonNativeTools) observeSearch(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
+	}
 	query.Limit = 0
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {

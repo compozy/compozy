@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -17,13 +19,21 @@ func (s *daemonLoopAPIService) ListLoopRequests(
 	workspaceID string,
 	query core.LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if query.AllWorkspaces {
+		workspaceID = workspaceaccess.UserSelector
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopRequestsResponse{}, err
 	}
 	page, err := s.aggregate.ListRequests(ctx, ws, looppkg.RequestQuery{
-		RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
-		Cursor: strings.TrimSpace(query.Cursor), Limit: query.Limit,
+		AllWorkspaces: query.AllWorkspaces,
+		WorkspaceIDs:  query.WorkspaceIDs,
+		ReadScope:     query.ReadScope,
+		RunID:         looppkg.RunID(strings.TrimSpace(query.RunID)),
+		State:         strings.TrimSpace(query.State),
+		Cursor:        strings.TrimSpace(query.Cursor),
+		Limit:         query.Limit,
 	})
 	if err != nil {
 		return contract.LoopRequestsResponse{}, err
@@ -113,14 +123,16 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 
 func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 	payload := contract.LoopRequestPayload{
-		LoopRunID:  string(request.LoopRunID),
-		LoopName:   request.LoopName,
-		Generation: request.Generation,
-		NodeID:     string(request.NodeID),
-		ItemIndex:  request.ItemIndex,
-		Kind:       request.Kind,
-		State:      request.State,
-		Prompt:     request.Prompt,
+		ProfileID:   request.ProfileID,
+		WorkspaceID: request.WorkspaceID,
+		LoopRunID:   string(request.LoopRunID),
+		LoopName:    request.LoopName,
+		Generation:  request.Generation,
+		NodeID:      string(request.NodeID),
+		ItemIndex:   request.ItemIndex,
+		Kind:        request.Kind,
+		State:       request.State,
+		Prompt:      request.Prompt,
 		Context: append(
 			json.RawMessage(nil),
 			request.Context...),

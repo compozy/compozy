@@ -12,6 +12,7 @@ import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import { describeBranchOutcome } from "@/systems/workspace/lib/worktree-branch-outcome";
 import {
   decodeWorktreeRefusal,
+  isForceableRemovalRefusal,
   WORKTREE_ERROR_CODES,
   type WorktreeRefusal,
 } from "@/systems/workspace/lib/worktree-refusal";
@@ -56,9 +57,7 @@ function canForce(result: RemovalResult) {
   return (
     result.status === "failed" &&
     (target.kind === "discovered" || target.row.state === "ready") &&
-    result.refusal?.risk != null &&
-    (result.refusal.code === WORKTREE_ERROR_CODES.dirtyRequiresForce ||
-      result.refusal.code === WORKTREE_ERROR_CODES.unpushedRequiresForce)
+    isForceableRemovalRefusal(result.refusal)
   );
 }
 
@@ -189,9 +188,11 @@ async function cleanupDiscovered(
     }
     throw error;
   }
-  return isStaleDiscovered(discovered)
-    ? "Stale Git entry cleared. Branch kept."
-    : "Worktree removed. Branch kept.";
+  if (!isStaleDiscovered(discovered)) return "Worktree removed. Branch kept.";
+  // A stale entry only needs force when its folder was left behind without Git metadata.
+  return force
+    ? "Leftover files deleted and stale Git entry cleared. Branch kept."
+    : "Stale Git entry cleared. Branch kept.";
 }
 
 /** A stale entry's checkout reappeared after confirmation; nothing was removed. */

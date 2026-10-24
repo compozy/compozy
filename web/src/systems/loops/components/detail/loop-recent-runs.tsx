@@ -8,6 +8,7 @@ import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRun } from "../../types";
 import { LoopStatusMark } from "../loop-status-mark";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 interface LoopRecentRunsProps {
   runs: readonly LoopRun[];
@@ -18,6 +19,7 @@ interface LoopRecentRunsProps {
  * long it ran. Run ids, rounds, and scores live on the run page each row opens.
  */
 export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
+  const bindingSearch = useWindowBindingSearch();
   const nowMs = useNowTick(runs.some(run => run.status === "running"));
 
   if (runs.length === 0) {
@@ -36,6 +38,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
         <Link
           key={run.id}
           aria-label={`${loopStatusLabel(run.status)} run, started ${formatRelativeTime(run.created_at)}`}
+          search={bindingSearch}
           to="/loop-runs/$runId"
           params={{ runId: run.id }}
           className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-surface-2"

@@ -34,7 +34,7 @@ func (m *Manager) publishLifecycleAttentionTransition(
 	before *Info,
 	after *Info,
 ) {
-	m.publishLifecycleAttentionTransitionWake(ctx, before, after, true)
+	m.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "")
 }
 
 // publishLifecycleAttentionTransitionWake publishes the canonical attention edge
@@ -46,6 +46,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	before *Info,
 	after *Info,
 	deliverCompletedWake bool,
+	completedTurnID string,
 ) {
 	if after == nil {
 		return
@@ -54,6 +55,10 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	from, to := BadgeForInfo(before), BadgeForInfo(after)
 	if from == to {
 		return
+	}
+	if from == BadgeWaiting || to == BadgeWaiting {
+		m.logger.InfoContext(ctx, "waiting_transition", "component", "session", "session_id", after.ID,
+			"from", from, "to", to, "signals", CloneSupervisionState(after.Supervision).WorkSignals)
 	}
 	m.publishSubagentLifecycleEdge(ctx, before, after)
 	at := m.now().UTC()
@@ -77,5 +82,5 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if !deliverCompletedWake && to == BadgeDone {
 		return
 	}
-	m.dispatchSpawnWake(ctx, after, to)
+	m.dispatchSpawnWakeForTurn(ctx, after, to, completedTurnID)
 }

@@ -58,7 +58,6 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			automationpkg.WithHooks(deps.Hooks),
 			automationpkg.WithWebhookSecretStore(deps.WebhookSecrets),
 			automationpkg.WithLogger(deps.Logger),
-			automationpkg.WithGlobalWorkspacePath(deps.GlobalWorkspacePath),
 		}
 		if loopStarter != nil {
 			managerOpts = append(managerOpts, automationpkg.WithLoopStarter(loopStarter))

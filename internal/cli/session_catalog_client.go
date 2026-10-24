@@ -8,12 +8,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 )
 
 // SessionListQuery captures the CLI filters for one session catalog page.
 type SessionListQuery struct {
+	Columns       []string
+	HideChildren  bool
 	Subagents     string
 	Workspace     string
 	Worktree      string
@@ -87,13 +91,15 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 	}
 	workspaceID := strings.TrimSpace(record.WorkspaceID)
 	if workspaceID == "" {
-		return "", fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+		// A session without a project belongs to the User scope.
+		return workspaceaccess.UserSelector, nil
 	}
 	return workspaceID, nil
 }
 
 func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
+	appendSessionBoardValues(values, query)
 	if query.Subagents != "" {
 		values.Set("subagents", query.Subagents)
 	}
@@ -152,4 +158,13 @@ func sessionListValues(query SessionListQuery) url.Values {
 		values.Set("cursor", cursor)
 	}
 	return values
+}
+
+func appendSessionBoardValues(values url.Values, query SessionListQuery) {
+	for _, column := range query.Columns {
+		values.Add("board_column", column)
+	}
+	if query.HideChildren {
+		values.Set("children", "exclude")
+	}
 }

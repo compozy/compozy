@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -43,7 +44,8 @@ func completedUpdateRecord(
 	return record
 }
 
-func finalizeUpdateRecord(
+func (r *cliUpdateRuntime) finalizeUpdateRecord(
+	ctx context.Context,
 	record updateRecord,
 	request compozyupdate.OperationRequest,
 	runErr error,
@@ -55,7 +57,19 @@ func finalizeUpdateRecord(
 	if appRunErr != nil && archived == nil {
 		record = failedUpdateRecord(record, appRunErr, compozyupdate.TargetApp)
 	}
-	return record, errors.Join(runErr, appRunErr)
+	err := errors.Join(runErr, appRunErr)
+	if err != nil || request.Runtime != nil || request.App == nil || record.App == nil ||
+		record.App.Status != compozyupdate.StatusUpdated || record.Runtime.Managed ||
+		record.Runtime.InstallMethod != string(compozyupdate.InstallMethodDesktopApp) {
+		return record, err
+	}
+	runtime, err := r.waitForBundledRuntime(ctx, request.App.ToVersion, request.Deadline)
+	if err != nil {
+		return failedUpdateRecord(record, err, compozyupdate.TargetRuntime), err
+	}
+	record.Runtime = runtime
+	record.Status = compozyupdate.AggregateTerminalStatus(runtime.Status, record.App.Status)
+	return record, nil
 }
 
 func applyArchivedAppOutcome(record updateRecord, operation *compozyupdate.Operation) updateRecord {

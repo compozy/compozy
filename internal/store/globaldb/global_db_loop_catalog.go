@@ -89,7 +89,7 @@ func readLoopCatalogRunSummaries(
 	if err := readLoopCatalogAggregates(ctx, executor, namesJSON, query, summaries); err != nil {
 		return err
 	}
-	return readLoopCatalogLatestRuns(ctx, executor, namesJSON, query.WorkspaceID, summaries)
+	return readLoopCatalogLatestRuns(ctx, executor, namesJSON, query.WorkspaceID, query.ProfileID, summaries)
 }
 
 func readLoopCatalogAggregates(
@@ -100,7 +100,7 @@ func readLoopCatalogAggregates(
 	summaries map[string]looppkg.CatalogRunSummary,
 ) (err error) {
 	rows, err := sqlcgen.New(executor).ListLoopCatalogAggregates(ctx, sqlcgen.ListLoopCatalogAggregatesParams{
-		NamesJson: namesJSON, WorkspaceID: string(query.WorkspaceID),
+		NamesJson: namesJSON, WorkspaceID: string(query.WorkspaceID), ProfileID: query.ProfileID,
 		AggregateAfter: store.FormatTimestamp(query.AggregateAfter),
 	})
 	if err != nil {
@@ -127,10 +127,11 @@ func readLoopCatalogLatestRuns(
 	executor loopCatalogQueryExecutor,
 	namesJSON string,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	summaries map[string]looppkg.CatalogRunSummary,
 ) (err error) {
 	rows, err := sqlcgen.New(executor).ListLoopCatalogLatestRuns(ctx, sqlcgen.ListLoopCatalogLatestRunsParams{
-		NamesJson: namesJSON, WorkspaceID: string(workspaceID),
+		NamesJson: namesJSON, WorkspaceID: string(workspaceID), ProfileID: profileID,
 	})
 	if err != nil {
 		return fmt.Errorf("store: query loop catalog latest runs: %w", err)
@@ -171,11 +172,11 @@ func readLoopCatalogLatestRuns(
 
 func normalizeLoopCatalogRunQuery(query looppkg.CatalogRunQuery) (looppkg.CatalogRunQuery, error) {
 	normalized := query
+	if err := validateLoopStateScope(query.WorkspaceID, query.ProfileID); err != nil {
+		return looppkg.CatalogRunQuery{}, err
+	}
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.AggregateAfter = query.AggregateAfter.UTC()
-	if normalized.WorkspaceID == "" {
-		return looppkg.CatalogRunQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if normalized.AggregateAfter.IsZero() {
 		return looppkg.CatalogRunQuery{}, fmt.Errorf("%w: aggregate_after is required", looppkg.ErrValidation)
 	}

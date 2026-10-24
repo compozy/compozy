@@ -10,6 +10,7 @@ import type { AutomationItemControls } from "./automation-row";
 import { AutomationDetailLink } from "./automation-row";
 import { AutomationSentenceText, AutomationStartGlyph } from "./automation-row-parts";
 import { ProfileOwnerTag } from "@/systems/profiles";
+import { WorkspaceBadge } from "@/systems/workspace";
 
 const START_CAPTION = {
   schedule: "Scheduled",
@@ -57,6 +58,12 @@ export function AutomationCard({
               {view.name}
             </CatalogCard.Title>
             <CatalogCard.Meta data-testid={`automation-card-caption-${view.id}`}>
+              {view.project ? (
+                <WorkspaceBadge
+                  data-testid={`automation-project-${view.id}`}
+                  identity={view.project}
+                />
+              ) : null}
               <span>{cardCaption(view)}</span>
               {view.owner ? (
                 <ProfileOwnerTag data-testid={`automation-profile-${view.id}`} owner={view.owner} />

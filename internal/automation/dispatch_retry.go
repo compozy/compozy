@@ -77,6 +77,13 @@ func automationSessionTaskActorContext(
 	if run == nil {
 		return taskpkg.ActorContext{}, errors.New("automation: run is required for session task actor context")
 	}
+	if strings.TrimSpace(workspaceID) == "" {
+		return taskpkg.DeriveAutomationLinkedUserSessionActorContext(
+			strings.TrimSpace(sessionID),
+			strings.TrimSpace(run.ProfileID),
+			automationTaskOriginRef(run.ID),
+		)
+	}
 	return taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
 		strings.TrimSpace(sessionID),
 		strings.TrimSpace(workspaceID),

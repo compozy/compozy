@@ -84,7 +84,7 @@ func promptRunIdentity(session *Session, state *promptTurnDispatchState) (Prompt
 		RunID:       strings.TrimSpace(state.runID),
 		Generation:  state.generation,
 	}
-	if identity.WorkspaceID == "" || identity.ProfileID == "" || identity.SessionID == "" ||
+	if identity.ProfileID == "" || identity.SessionID == "" ||
 		identity.RunID == "" || identity.Generation <= 0 {
 		return PromptRunIdentity{}, errors.New("session: prompt run identity is incomplete")
 	}

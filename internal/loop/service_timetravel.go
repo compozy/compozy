@@ -11,6 +11,7 @@ import (
 
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunResult, error) {
@@ -132,7 +133,7 @@ func (s *service) planRerunGeneration(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -186,7 +187,7 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if err != nil {
 		return StartResult{}, err
 	}
-	child, err := s.forkChildRun(
+	child, err := s.forkChildRun(ctx,
 		prepared.source, prepared.snapshot, prepared.values, input,
 	)
 	if err != nil {
@@ -228,6 +229,7 @@ func forkRequestDigest(source Run, input ForkInput) (string, error) {
 }
 
 func (s *service) forkChildRun(
+	ctx context.Context,
 	source Run,
 	snapshot json.RawMessage,
 	values map[string]any,
@@ -240,6 +242,10 @@ func (s *service) forkChildRun(
 	now := s.now().UTC()
 	child := source
 	child.RunStartState = nil
+	child.SetGrantCeiling(workspaceaccess.NarrowGrant(
+		source.GrantCeilingSnapshot(),
+		workspaceaccess.AuthoringCeiling(ctx, input.Actor.Scope.Operator),
+	))
 	child.ID = runID
 	child.Status = StatusRunning
 	child.SetCompletionState(CompletionComplete)
@@ -326,7 +332,7 @@ func validateRerunInput(input RerunInput) error {
 	if err := input.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" ||
+	if strings.TrimSpace(string(input.RunID)) == "" ||
 		strings.TrimSpace(string(input.FromNode)) == "" {
 		return fmt.Errorf("%w: rerun workspace_id, run_id, and from_node are required", ErrValidation)
 	}
@@ -340,7 +346,7 @@ func validateForkInput(input ForkInput) error {
 	if err := input.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" ||
+	if strings.TrimSpace(string(input.RunID)) == "" ||
 		input.Generation < 1 {
 		return fmt.Errorf("%w: fork workspace_id, run_id, and generation are required", ErrValidation)
 	}

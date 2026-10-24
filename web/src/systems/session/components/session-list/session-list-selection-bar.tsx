@@ -26,6 +26,8 @@ interface SessionListSelectionBarProps {
   allSelected: boolean;
   stoppable: number;
   archivable: number;
+  /** Archivable sessions that archiving stops first. */
+  archivableLive: number;
   unarchivable: number;
   disabled: boolean;
   onSelectAll: () => void;
@@ -39,6 +41,15 @@ interface SessionListSelectionBarProps {
   testIdPrefix: string;
 }
 
+/** Archive stops live rows first, so the verb and count say so when the selection has any. */
+function archiveSelectionCopy(archivable: number, archivableLive: number) {
+  if (archivableLive === 0) return { label: "Archive", count: `${archivable} stopped` };
+  return {
+    label: "Stop and archive",
+    count: `${archivable} ${archivable === 1 ? "session" : "sessions"}`,
+  };
+}
+
 /** The selection owns these verbs in both session list hosts. */
 export function SessionListSelectionBar({
   count,
@@ -46,6 +57,7 @@ export function SessionListSelectionBar({
   allSelected,
   stoppable,
   archivable,
+  archivableLive,
   unarchivable,
   disabled,
   onSelectAll,
@@ -59,6 +71,7 @@ export function SessionListSelectionBar({
 }: SessionListSelectionBarProps) {
   const allLabel = allSelected ? "Clear selection" : "Select all";
   const deleteLabel = `Delete ${count} ${count === 1 ? "session" : "sessions"}`;
+  const archiveCopy = archiveSelectionCopy(archivable, archivableLive);
   return (
     <div
       role="toolbar"
@@ -152,7 +165,8 @@ export function SessionListSelectionBar({
             data-testid={`${testIdPrefix}-selection-archive`}
           >
             <Archive className="size-3" />
-            Archive<DropdownMenuShortcut>{archivable} stopped</DropdownMenuShortcut>
+            {archiveCopy.label}
+            <DropdownMenuShortcut>{archiveCopy.count}</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled || unarchivable === 0 || !onUnarchive}

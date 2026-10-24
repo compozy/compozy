@@ -242,6 +242,7 @@ type Daemon struct {
 	readyClosed        bool
 	booting            bool
 	shutdown           *daemonShutdownOperation
+	restartRequested   bool
 	config             compozyconfig.Config
 	admission          admission.Gate
 	providerPreStarter *providers.PreStarter

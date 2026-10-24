@@ -23,7 +23,7 @@ func (g *GoalRepo) LoadAwaitingGoalControl(
 	if err := g.checkReady(ctx, "load awaiting Goal control"); err != nil {
 		return looppkg.GoalControlState{}, false, err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" {
+	if strings.TrimSpace(string(runID)) == "" {
 		return looppkg.GoalControlState{}, false, fmt.Errorf(
 			"%w: workspace_id and run_id are required",
 			looppkg.ErrValidation,

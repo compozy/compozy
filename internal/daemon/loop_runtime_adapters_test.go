@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -1348,6 +1350,7 @@ func TestCollectLoopPromptResultShouldNotTreatProtocolRawAsStructuredOutput(t *t
 
 type loopActionBinderSessionManager struct {
 	mu                       sync.Mutex
+	statusInfo               *session.Info
 	sessionID                string
 	createErr                error
 	returnSessionOnCreateErr bool
@@ -1374,6 +1377,9 @@ type loopActionBinderSessionManager struct {
 }
 
 func (m *loopActionBinderSessionManager) Status(context.Context, string) (*session.Info, error) {
+	if m.statusInfo != nil {
+		return m.statusInfo, nil
+	}
 	return nil, session.ErrSessionNotFound
 }
 
@@ -2034,6 +2040,26 @@ func TestCollectLoopPromptResultProviderFailures(t *testing.T) {
 	})
 }
 func TestLoopActionSessionBinderACPOptionsPropagation(t *testing.T) {
+	t.Run("Should not report requested Fast when provider support is absent", func(t *testing.T) {
+		t.Parallel()
+		resolution := &speedpkg.Resolution{
+			Requested: speedpkg.SpeedFast,
+			Status:    speedpkg.ResolutionUnsupported,
+			Reason:    speedpkg.ReasonCapabilityAbsent,
+		}
+		binder := &loopActionSessionBinder{sessions: &loopActionBinderSessionManager{
+			statusInfo: &session.Info{SpeedResolution: resolution},
+		}}
+		binding, err := binder.projectActionBindingSpeed(t.Context(), looppkg.ActionSessionBinding{
+			SessionID: "session", AppliedRuntime: looppkg.RuntimeSpec{Speed: speedpkg.SpeedFast},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if binding.AppliedRuntime.Speed != "" || binding.SpeedResolution.Status != speedpkg.ResolutionUnsupported {
+			t.Fatalf("binding = %#v, want unsupported without an applied speed", binding)
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should discard full access mode when loop permissions are restricted", func(t *testing.T) {
@@ -2299,4 +2325,20 @@ func TestSessionLoopWorkFreshness(t *testing.T) {
 			t.Fatal("quarantine lost attention")
 		}
 	})
+}
+
+func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
+	t.Parallel()
+	for _, ceiling := range []string{"", workspaceaccess.Unrestricted} {
+		t.Run("Should carry the persisted loop run ceiling "+ceiling+" into a pinned recreation", func(t *testing.T) {
+			t.Parallel()
+			opts := createOptionsFromProfile(
+				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling},
+				store.SessionCreationProfile{ProfileID: "profile-a", AgentName: "coder", WorkspaceID: "ws-a"},
+			)
+			if opts.Origin.Kind != workspaceaccess.ActorAutomation || opts.Origin.Ceiling != ceiling {
+				t.Fatalf("Origin = %#v, want automation origin with ceiling %q (USW BR-9)", opts.Origin, ceiling)
+			}
+		})
+	}
 }

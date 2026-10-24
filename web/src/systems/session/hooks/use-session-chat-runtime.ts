@@ -32,6 +32,12 @@ import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
 import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
+import { fetchSessionTranscript } from "../adapters/session-api";
+import { sessionTranscriptOptions } from "../lib/session-transcript-options";
+import {
+  reconcileAdmittedPrompt,
+  type SessionTranscriptData,
+} from "../lib/session-transcript-query";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
 
@@ -261,7 +267,36 @@ function buildSessionRuntimeConfig(
       answered = true;
       promptDispatch.trigger.promptAnswered({ status: response.status });
       await reportGatewayResponse(response);
-      if (response.ok) promptOutcome.accepted(messageId);
+      if (response.ok) {
+        promptOutcome.accepted(messageId);
+        // The POST streams the assistant, not the daemon's verified user-input
+        // metadata. Read that input once while the parallel transcript SSE is
+        // suspended, retaining its cursor and every streaming assistant message.
+        if (messageId !== null) {
+          void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal)
+            .then(async transcript => {
+              // A cold composer may send before its first history read finishes.
+              // Join that canonical read before merging, so its older snapshot
+              // cannot discard the admitted input and its verified directives.
+              await queryClient.ensureInfiniteQueryData(
+                sessionTranscriptOptions(workspaceId, sessionId)
+              );
+              if (controller.signal.aborted) return;
+              queryClient.setQueryData<SessionTranscriptData>(
+                sessionKeys.transcript(workspaceId, sessionId),
+                current => reconcileAdmittedPrompt(current, transcript, messageId)
+              );
+            })
+            .catch(error => {
+              if (!controller.signal.aborted) {
+                console.warn(
+                  "Could not reconcile the admitted prompt; the live tail will retry",
+                  error
+                );
+              }
+            });
+        }
+      }
       responseOwnsCompletion = true;
       return completeWhenResponseBodySettles(response, completeRequest);
     } catch (error) {

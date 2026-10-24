@@ -60,6 +60,7 @@ type DeletionIntent struct {
 
 // ResolvedWorkspace is the computed workspace snapshot returned by a resolver.
 type ResolvedWorkspace struct {
+	Scope ScopeKind
 	Workspace
 	WorkspaceID         string
 	ProfileID           string

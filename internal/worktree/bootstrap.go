@@ -165,19 +165,43 @@ func (s *Service) runSetup(
 	if err := s.revalidateMutationPath(ctx, workspace, item, root, explicitPath); err != nil {
 		return SetupFailed, diagnostics.RedactAndBound(err.Error(), setupDiagnosticLimit)
 	}
+	return s.runWorktreeCommand(ctx, workspace, item, command, settings.SetupTimeout, nil)
+}
+
+func (s *Service) runWorktreeCommand(
+	ctx context.Context,
+	workspace Workspace,
+	item Worktree,
+	command string,
+	timeout time.Duration,
+	onOutput GitOutputHandler,
+) (SetupState, string) {
 	shell := strings.TrimSpace(s.getenv("SHELL"))
 	if shell == "" {
 		shell = defaultPOSIXShell
 	}
-	setupCtx, cancel := context.WithTimeout(ctx, settings.SetupTimeout)
+	setupCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := execabs.CommandContext(setupCtx, shell, "-c", command)
 	cmd.Dir = item.Path
 	cmd.Stdin = nil
 	cmd.Env = setupEnvironment(s.environ(), workspace, item, shell)
 	procutil.ConfigureCommandProcessGroup(cmd)
+	// Capture each bounded stream before publishing so multiline secrets are redacted together.
 	stdout := newCappedBuffer(setupDiagnosticLimit)
 	stderr := newCappedBuffer(setupDiagnosticLimit)
+	defer func() {
+		if onOutput != nil {
+			for _, output := range []GitOutput{
+				{Stream: GitOutputStdout, Chunk: []byte(stdout.String())},
+				{Stream: GitOutputStderr, Chunk: []byte(stderr.String())},
+			} {
+				if len(output.Chunk) > 0 {
+					onOutput(output)
+				}
+			}
+		}
+	}()
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Start(); err != nil {
 		return SetupFailed, diagnostics.RedactAndBound(err.Error(), setupDiagnosticLimit)

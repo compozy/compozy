@@ -68,6 +68,23 @@ describe("useRuntimeModelCatalog", () => {
   });
   afterEach(() => vi.restoreAllMocks());
 
+  it("Should expose an unconfirmed binding diagnostic beside disabled models", async () => {
+    const diagnostic = "live catalog unavailable: context deadline exceeded";
+    mockModels([
+      payload("claude", "claude-sonnet-5", {
+        availability_state: "unknown",
+        available: false,
+        last_error: diagnostic,
+      }),
+    ]);
+    const { result } = renderHook(() => useRuntimeModelCatalog([{ id: "claude" }]), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.models[0].disabled).toBe(true);
+    expect(result.current.providerIssues.claude).toBe(diagnostic);
+  });
+
   it("Should issue one aggregate query and restrict rows to the allow-list in provider order", async () => {
     mockModels([
       payload("codex", "gpt-5.6"),

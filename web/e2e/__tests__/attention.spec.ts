@@ -3,9 +3,9 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Page, Route } from "@playwright/test";
+import type { Locator, Page, Route } from "@playwright/test";
 
-import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindow, setGlobalScope } from "../fixtures/os-navigation";
 import {
   type BrowserRuntime,
   type WorkspacePayload,
@@ -234,6 +234,51 @@ test.describe("E2E-011 coalesced completions", () => {
   });
 });
 
+test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
+  test("Should hold the finished toast while a child works, then fire it once", async ({
+    appPage: page,
+    runtime,
+  }) => {
+    const workspace = await globalWorkspace(runtime);
+    const coordinator = await createSession(runtime, workspace, attentionAgent);
+    const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        agent_name: attentionAgent,
+        workspace: workspace.id,
+        parent_session_id: coordinator.id,
+      }),
+    });
+    await waitForSeedSessionActive(runtime, created.session.id);
+
+    // The coordinator settles its turn while its child is live: waiting, not done.
+    await promptSession(runtime, coordinator, "complete turn");
+    const waiting = await waitForBadge(runtime, coordinator.id, "waiting");
+    expect((waiting as SessionPayload & { waiting_on?: string }).waiting_on).toBe("sessions");
+    const modal = await openSessionsModal(page);
+    const row = modal.getByTestId(`os-sessions-modal-session-${coordinator.id}`);
+    const mark = row.getByRole("img", { name: "Session badge: waiting" });
+    await expect(mark).toHaveAttribute("data-waiting-on", "sessions");
+    await expect(row.locator("..")).toContainText("Waiting on sessions");
+    await page.keyboard.press("Escape");
+    await expect(modal).toBeHidden();
+    // A whole coalescing window passes without a finished delivery.
+    await page.waitForTimeout(6_000);
+    await expect(page.getByTestId("os-attention-toast-finished")).toHaveCount(0);
+
+    // The last child stops: the coordinator becomes done by itself and announces it once.
+    const stopped = await fetch(
+      runtime.url(sessionAPIPath(workspace.id, created.session.id, "/stop")),
+      { method: "POST" }
+    );
+    expect(stopped.ok).toBe(true);
+    await waitForBadge(runtime, coordinator.id, "done");
+    const toast = page.getByTestId("os-attention-toast-finished");
+    await expect(toast).toHaveCount(1);
+    await expect(toast).toContainText("Finished while you were away");
+  });
+});
+
 test.describe("E2E-012 tab title count", () => {
   test("Should carry the cross-workspace needs-you total across navigation and clear at zero", async ({
     appPage: page,
@@ -304,6 +349,8 @@ test.describe("E2E-013 Settings → Attention", () => {
 });
 
 test.describe("E2E-014 All workspaces breadth", () => {
+  // All projects is the menubar globe (AP); the list is flat by default and Group by
+  // project gives each project its own independently loaded group.
   test("Should widen to every workspace, grouped and labelled, and persist breadth across reload", async ({
     appPage: page,
     runtime,
@@ -314,28 +361,19 @@ test.describe("E2E-014 All workspaces breadth", () => {
     await createSession(runtime, second, attentionAgent);
     await reloadShell(page);
 
-    let modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope").click();
-    await expect(modal.getByTestId(`os-sessions-modal-workspace-${first.id}`)).toBeVisible();
-    await expect(modal.getByTestId(`os-sessions-modal-workspace-${second.id}`)).toBeVisible();
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    await setGlobalScope(page, true);
+    const modal = await openSessionsModal(page);
+    await groupSessionsByProject(page, modal);
+    await expect(modal.getByTestId(`os-sessions-modal-group-project:${first.id}`)).toBeVisible();
+    await expect(modal.getByTestId(`os-sessions-modal-group-project:${second.id}`)).toBeVisible();
     await reloadShell(page);
 
-    modal = await openSessionsModal(page);
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
+    await expect(page.getByTestId("os-global-scope-toggle")).toHaveAttribute(
       "aria-pressed",
       "true"
     );
-    // Narrow again so the daemon-persisted breadth returns to its default for
-    // the suites that follow.
-    await modal.getByTestId("os-sessions-modal-scope").click();
-    await expect(modal.getByTestId("os-sessions-modal-scope")).toHaveAttribute(
-      "aria-pressed",
-      "false"
-    );
+    // Narrow again so the persisted breadth returns to its default for the suites that follow.
+    await setGlobalScope(page, false);
   });
 
   test("Should isolate a failing workspace instead of blanking the list", async ({
@@ -344,18 +382,22 @@ test.describe("E2E-014 All workspaces breadth", () => {
   }) => {
     const healthy = await createWorkspace(runtime, "attention-healthy");
     const project = await createWorkspace(runtime, "attention-unreachable");
-    await createSession(runtime, healthy, attentionAgent);
+    const healthySession = await createSession(runtime, healthy, attentionAgent);
     await createSession(runtime, project, attentionAgent);
     await reloadShell(page);
     await failWorkspaceSessionCatalog(page, project.id);
 
+    await setGlobalScope(page, true);
     const modal = await openSessionsModal(page);
-    await modal.getByTestId("os-sessions-modal-scope").click();
-    await expect(modal.getByText("Couldn’t load sessions")).toBeVisible();
+    await groupSessionsByProject(page, modal);
     await expect(
-      modal.getByTestId(`os-sessions-modal-workspace-${project.id}-retry`)
+      modal.getByTestId(`os-sessions-modal-group-project:${project.id}-retry`)
     ).toBeVisible();
-    await expect(modal.getByTestId(`os-sessions-modal-workspace-${healthy.id}`)).toBeVisible();
+    await expect(modal.getByText("Couldn’t load sessions")).toBeVisible();
+    await expect(modal.getByTestId(`os-sessions-modal-session-${healthySession.id}`)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(modal).toBeHidden();
+    await setGlobalScope(page, false);
   });
 });
 
@@ -514,10 +556,17 @@ async function reloadShell(page: Page): Promise<void> {
   await completeOnboardingIfPrompted(page);
 }
 
+async function groupSessionsByProject(page: Page, modal: Locator): Promise<void> {
+  await modal.getByTestId("os-sessions-modal-group-by-trigger").click();
+  await page.getByTestId("os-sessions-modal-group-by-project").click();
+  await page.keyboard.press("Escape");
+}
+
 async function failWorkspaceSessionCatalog(page: Page, workspaceID: string): Promise<void> {
-  await page.route("**/api/sessions?*", async route => {
+  await page.route("**/api/**/sessions?*", async route => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get("workspace_id") === workspaceID) {
+    const ids = [url.searchParams.get("workspace_id"), ...url.searchParams.getAll("workspace_ids")];
+    if (ids.includes(workspaceID) || url.pathname.includes(`/workspaces/${workspaceID}/sessions`)) {
       await route.fulfill({ status: 500, json: { error: "workspace unreachable" } });
       return;
     }

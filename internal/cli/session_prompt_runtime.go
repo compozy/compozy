@@ -56,7 +56,7 @@ func bindSessionPromptRuntimeFlags(cmd *cobra.Command, flags *sessionPromptRunti
 		&flags.reasoningEffort,
 		"reasoning-effort",
 		"",
-		"Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)",
+		"Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max|ultra)",
 	)
 	cmd.Flags().StringVar(&flags.speed, "speed", "", "Runtime speed for this prompt (normal|fast)")
 	bindACPOptionFlags(

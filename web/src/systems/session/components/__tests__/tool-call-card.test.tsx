@@ -3,9 +3,28 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  DEV_SERVER_TERMINAL,
+  SSH_STAGING_TERMINAL,
+} from "@/systems/terminal/mocks/terminal-fixtures";
+import { terminalCatalogQuery, terminalScope, type TerminalInfo } from "@/systems/terminal/parts";
+
+import { sessionDetailOptions } from "../../lib/query-options";
 import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
-import type { UIMessage } from "../../types";
+import type { SessionPayload, UIMessage } from "../../types";
 import { SessionToolCallRow } from "../tool-call-card";
+
+/** The catalog stream is a network boundary; a seeded cache must stay put. */
+vi.mock("@/lib/ticketed-event-source", () => ({
+  createStreamEventSource: () => ({
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    close: () => undefined,
+    onmessage: null,
+    onerror: null,
+    onopen: null,
+  }),
+}));
 
 const ARTIFACT_ID_A = `art_${"a".repeat(64)}`;
 const ARTIFACT_ID_B = `art_${"b".repeat(64)}`;
@@ -68,6 +87,49 @@ function makeToolMessage(overrides: Partial<UIMessage> = {}): UIMessage {
     timestamp: Date.now(),
     ...overrides,
   };
+}
+
+const TERMINAL_ID = DEV_SERVER_TERMINAL.id;
+
+function terminalMessage(
+  envelope: Record<string, unknown>,
+  input: Record<string, unknown> = { command: "bun run dev" },
+  terminalId = TERMINAL_ID
+): UIMessage {
+  return makeToolMessage({
+    role: "tool_result",
+    toolName: "compozy__terminal_exec",
+    toolInput: input,
+    toolResult: { rawOutput: { terminal_id: terminalId, ...envelope } },
+  });
+}
+
+/**
+ * A terminal row inside its transcript: the workspace from the render context
+ * and the profile from the session itself, with the catalog seeded for it.
+ */
+function terminalRow(
+  message: UIMessage,
+  options: { profileName?: string; catalog?: TerminalInfo[]; expanded?: boolean } = {}
+) {
+  const client = createQueryClient();
+  if (options.profileName) {
+    client.setQueryData(sessionDetailOptions("ws-atlas", "sess-77ab").queryKey, {
+      id: "sess-77ab",
+      profile_name: options.profileName,
+    } as unknown as SessionPayload);
+    client.setQueryData(
+      terminalCatalogQuery(terminalScope("ws-atlas", options.profileName)).queryKey,
+      options.catalog ?? []
+    );
+  }
+  return (
+    <QueryClientProvider client={client}>
+      <SessionRuntimeRenderProvider sessionId="sess-77ab" workspaceId="ws-atlas">
+        <SessionToolCallRow message={message} defaultExpanded={options.expanded ?? true} />
+      </SessionRuntimeRenderProvider>
+    </QueryClientProvider>
+  );
 }
 
 function queryRoot(): HTMLElement | null {
@@ -370,28 +432,28 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryBody()).not.toBeNull();
   });
 
-  it("Should render a supervised terminal as its own block, not a generic tool row", async () => {
+  it("Should render a supervised terminal as one collapsed tool row with no screen", async () => {
+    // Invariant: a finished terminal call reads like every other tool row —
+    // verb, the terminal's name, one outcome — and its screen stays closed.
     render(
-      artifactRow(
-        "ws-terminal",
-        makeToolMessage({
-          toolName: "compozy__terminal_exec",
-          toolInput: { command: "bun run dev" },
-          toolResult: {
-            rawOutput: {
-              terminal_id: "term-4f21c9a03b7e",
-              output: "VITE ready in 412 ms",
-              still_running: true,
-            },
-          },
-        })
+      terminalRow(
+        terminalMessage(
+          { exit_code: 0, duration_ms: 161_000, output: "VITE ready in 412 ms" },
+          { command: "bun run dev", title: "dev server" }
+        ),
+        { expanded: false }
       )
     );
 
-    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
-    expect(queryRoot()).toBeNull();
-    expect(screen.queryByRole("button", { name: "Copy tool details" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Output")).not.toBeInTheDocument();
+    const row = await screen.findByTestId("tool-call-row");
+    expect(row).toHaveAttribute("data-terminal-id", TERMINAL_ID);
+    expect(queryToolName()).toHaveTextContent("Used terminal");
+    expect(queryPreview()).toHaveTextContent("dev server");
+    expect(row).toHaveTextContent("2m 41s");
+    expect(queryStatusIndicator()).toBeNull();
+    expect(queryBody()).toBeNull();
+    expect(row.querySelector("[data-slot='terminal-view']")).toBeNull();
+    expect(row).not.toHaveTextContent("Succeeded");
   });
 
   it("Should intercept a hosted-MCP terminal open carrying a string envelope", async () => {
@@ -411,9 +473,133 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
       )
     );
 
-    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
-    expect(queryRoot()).toBeNull();
+    // An open without an exit is a terminal that is still there.
+    expect(await screen.findByTestId("tool-call-row")).toHaveAttribute(
+      "data-terminal-id",
+      "term-51e7b88e4515"
+    );
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "running");
   });
+
+  it("Should show an explicit empty state, never the tool envelope, when nothing was printed", async () => {
+    // The reported case: the agent stopped waiting before any output arrived.
+    // MCP serializes the envelope into `content`; it must never read as output.
+    const envelope = {
+      terminal_id: TERMINAL_ID,
+      command_id: "cmd-1",
+      duration_ms: 0,
+      exit_code: null,
+      output: "",
+      signal: null,
+      still_running: true,
+      truncated: false,
+      untrusted: true,
+    };
+    const { container } = render(
+      terminalRow(
+        makeToolMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "bun run test" },
+          toolResult: { content: JSON.stringify(envelope), rawOutput: { structured: envelope } },
+        })
+      )
+    );
+
+    expect(await screen.findByTestId("terminal-content-empty")).toHaveTextContent("No output yet");
+    expect(container).not.toHaveTextContent("command_id");
+    expect(container.querySelector("[data-slot='terminal-view']")).toBeNull();
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "running");
+  });
+
+  it("Should state a non-zero exit once, as a plain code beside the settled mark", async () => {
+    render(terminalRow(terminalMessage({ exit_code: 1, duration_ms: 4_200, output: "FAIL" })));
+
+    const row = await screen.findByTestId("tool-call-row");
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "absorbed");
+    expect(row.querySelector("[data-slot='tool-call-row-stat']")).toHaveTextContent("exit 1 · 4s");
+    expect(row).not.toHaveTextContent(/finished with errors|failed/i);
+  });
+
+  it("Should finish a still-running envelope when the catalog already exited", async () => {
+    render(
+      terminalRow(
+        terminalMessage(
+          { output: "Connection to staging closed.", still_running: true },
+          { command: "ssh staging" },
+          SSH_STAGING_TERMINAL.id
+        ),
+        {
+          profileName: "work",
+          catalog: [
+            { ...SSH_STAGING_TERMINAL, exit: { ...SSH_STAGING_TERMINAL.exit!, code: 255 } },
+          ],
+        }
+      )
+    );
+
+    // The catalog's exit is the runtime's truth: one outcome, its own span.
+    const row = await screen.findByTestId("tool-call-row");
+    await waitFor(() => expect(queryPreview()).toHaveTextContent("ssh staging"));
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "absorbed");
+    expect(row.querySelector("[data-slot='tool-call-row-stat']")).toHaveTextContent(
+      "exit 255 · 12m"
+    );
+    await waitFor(() =>
+      expect(row.querySelector("[data-live]")).toHaveAttribute("data-live", "false")
+    );
+  });
+
+  it("Should title a terminal from the catalog or a human name, never the argv", async () => {
+    render(
+      terminalRow(terminalMessage({ exit_code: 0, output: "ok" }, { command: "bun run dev" }), {
+        expanded: false,
+      })
+    );
+
+    await screen.findByTestId("tool-call-row");
+    expect(queryPreview()).toBeNull();
+    expect(screen.queryByText("bun run dev")).not.toBeInTheDocument();
+  });
+
+  it("Should stream a catalog-confirmed running PTY in the session's own profile", async () => {
+    render(
+      terminalRow(terminalMessage({ output: "VITE ready", still_running: true }), {
+        profileName: "work",
+        catalog: [DEV_SERVER_TERMINAL],
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        document.querySelector(`[data-testid='session-terminal-block-${TERMINAL_ID}']`)
+      ).toHaveAttribute("data-live", "true")
+    );
+    expect(queryPreview()).toHaveTextContent("dev server");
+    expect(queryStatusIndicator()).toHaveAttribute("data-status", "running");
+  });
+
+  it.each(["pipe", "missing", "unknown profile"])(
+    "Should keep the recorded screen without a socket for a %s terminal",
+    async mode => {
+      render(
+        terminalRow(
+          terminalMessage({ output: "retained output", still_running: true }),
+          mode === "unknown profile"
+            ? {}
+            : {
+                profileName: "work",
+                catalog: mode === "pipe" ? [{ ...DEV_SERVER_TERMINAL, mode: "pipe" }] : [],
+              }
+        )
+      );
+
+      await waitFor(() =>
+        expect(
+          document.querySelector(`[data-testid='session-terminal-block-${TERMINAL_ID}']`)
+        ).toHaveAttribute("data-live", "false")
+      );
+    }
+  );
 
   it("Should render the specialized output dispatcher inside the inline body", () => {
     render(

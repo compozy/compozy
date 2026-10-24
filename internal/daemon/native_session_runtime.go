@@ -90,7 +90,7 @@ func (n *daemonNativeTools) sessionRuntimeSelectionTarget(
 	if err != nil {
 		return nil, nil, nativeInputError(toolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, toolID, registryWorkspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, toolID, registryWorkspaceID, sessionID)
 	if err != nil {
 		return nil, nil, err
 	}

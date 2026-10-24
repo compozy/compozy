@@ -613,6 +613,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			loop.WithDefaultsResolver(func(
 				_ context.Context,
 				ws loop.WorkspaceID,
+				_ string,
 			) (loop.LoopDefaults, error) {
 				resolvedWorkspace = ws
 				return loop.LoopDefaults{
@@ -654,7 +655,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			)
 		}
 		iterationCap = 99
-		snapshot, err := store.GetLoopDefinitionSnapshot(t.Context(), "ws-config", run.DefinitionDigest)
+		snapshot, err := store.GetLoopDefinitionSnapshot(t.Context(), "ws-config", "", run.DefinitionDigest)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
@@ -683,6 +684,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			loop.WithInputDefaultsResolver(func(
 				_ context.Context,
 				ws loop.WorkspaceID,
+				_ string,
 				name string,
 			) (loop.InputDefaultLayers, error) {
 				if ws != "ws-inputs" || name != "valid-loop" {
@@ -748,6 +750,7 @@ func TestServiceStartShouldUseDefaultsResolver(t *testing.T) {
 			loop.WithInputDefaultsResolver(func(
 				context.Context,
 				loop.WorkspaceID,
+				string,
 				string,
 			) (loop.InputDefaultLayers, error) {
 				return loop.InputDefaultLayers{
@@ -1296,8 +1299,7 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		currentAttempts := 9
 		if err := store.UpsertLoopConfig(
 			t.Context(),
-			run.WorkspaceID,
-			run.LoopName,
+			run.WorkspaceID, "", run.LoopName,
 			loop.LoopConfig{Lifecycle: &loop.LifecycleConfig{WaitAdmissionAttempts: &currentAttempts}},
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
@@ -1804,8 +1806,7 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		}
 		if _, err := store.GetLoopConfig(
 			t.Context(),
-			"ws-1",
-			"missing-loop",
+			"ws-1", "", "missing-loop",
 		); !errors.Is(err, loop.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(after rejected configure) error = %v, want ErrConfigNotFound", err)
 		}
@@ -2177,6 +2178,7 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			loop.WithInputDefaultsResolver(func(
 				context.Context,
 				loop.WorkspaceID,
+				string,
 				string,
 			) (loop.InputDefaultLayers, error) {
 				return loop.InputDefaultLayers{
@@ -3458,6 +3460,7 @@ type rejectingServiceRuntimeCatalogFactory struct{}
 func (rejectingServiceRuntimeCatalogFactory) ForWorkspace(
 	context.Context,
 	loop.WorkspaceID,
+	string,
 ) (loop.RuntimeCatalog, error) {
 	return rejectingServiceRuntimeCatalog{}, nil
 }
@@ -4105,7 +4108,7 @@ func (s *fakeLoopStore) ReactivateLoopCoordinator(
 
 func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	ws loop.WorkspaceID,
+	ws loop.WorkspaceID, _ string,
 	digest string,
 ) (loop.DefinitionSnapshot, error) {
 	s.mu.Lock()
@@ -4119,7 +4122,7 @@ func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
 
 func (s *fakeLoopStore) FindActiveLoopRun(
 	_ context.Context,
-	ws loop.WorkspaceID,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 ) (*loop.Run, error) {
 	s.mu.Lock()
@@ -4238,7 +4241,7 @@ func (s *fakeLoopStore) SetLoopRunPauseRequested(
 
 func (s *fakeLoopStore) UpsertLoopConfig(
 	_ context.Context,
-	ws loop.WorkspaceID,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 	cfg loop.LoopConfig,
 ) error {
@@ -4250,7 +4253,7 @@ func (s *fakeLoopStore) UpsertLoopConfig(
 
 func (s *fakeLoopStore) GetLoopConfig(
 	_ context.Context,
-	ws loop.WorkspaceID,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 ) (*loop.LoopConfig, error) {
 	s.mu.Lock()

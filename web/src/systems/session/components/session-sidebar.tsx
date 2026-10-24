@@ -1,4 +1,6 @@
-import type { SessionPayload } from "../types";
+import type { SessionThreadBranchChange } from "../lib/session-thread-branch";
+import type { SessionCreateOpenOptions } from "../lib/session-create-target";
+import type { SessionListTarget, SessionPayload } from "../types";
 import { SESSION_SIDEBAR_MIN_WIDTH } from "../lib/session-sidebar-width";
 import { SessionList } from "./session-list/session-list";
 import type { SessionListViewModel } from "../hooks/use-session-list-view";
@@ -9,13 +11,14 @@ export interface SessionSidebarProps {
   sessions: readonly SessionPayload[];
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
+  subagentThreadIds: readonly string[];
   currentSessionId?: string;
   /** The session on screen; a subagent session is revealed under its parent row. */
   revealedSession?: SessionPayload | null;
   view: SessionListViewModel;
-  onToggleThread: (sessionId: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onThreadBranchChange: SessionThreadBranchChange;
+  onSelectSession: (session: SessionListTarget) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -30,10 +33,11 @@ export function SessionSidebar({
   sessions,
   disconnected,
   collapsedThreadIds,
+  subagentThreadIds,
   currentSessionId,
   revealedSession,
   view,
-  onToggleThread,
+  onThreadBranchChange,
   onSelectSession,
   onNewSession,
   sessionActions,
@@ -56,9 +60,10 @@ export function SessionSidebar({
           sessions={sessions}
           disconnected={disconnected}
           collapsedThreadIds={collapsedThreadIds}
+          subagentThreadIds={subagentThreadIds}
           currentSessionId={currentSessionId}
           revealedSession={revealedSession}
-          onToggleThread={onToggleThread}
+          onThreadBranchChange={onThreadBranchChange}
           onSelectSession={onSelectSession}
           onNewSession={onNewSession}
           sessionActions={sessionActions}

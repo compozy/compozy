@@ -46,11 +46,45 @@ type Story = StoryObj<typeof meta>;
 /** VC-01: the common path exposes the agent and one clear durable-start action. */
 export const Simple: Story = { args: baseArgs };
 
-/** Creating while All profiles is the read lens names the profile that will own the session. */
-export const AggregateDestination: Story = {
+/** VC-08: under All projects and All profiles the row asks "In project ▾ · as profile ▾". */
+export const AllProjectsAndProfiles: Story = {
   args: {
     ...baseArgs,
-    profileDestination: "default",
+    destinationAxes: {
+      project: {
+        options: [
+          { value: "ws_alpha", label: "alpha" },
+          { value: "@user", label: "User" },
+        ],
+        value: "ws_alpha",
+        onChange: () => undefined,
+      },
+      profile: {
+        options: [
+          { value: "default", label: "default" },
+          { value: "marketing", label: "marketing" },
+        ],
+        value: "default",
+        onChange: () => undefined,
+      },
+    },
+  },
+};
+
+/** VC-08: under All projects with one profile only the project is asked. */
+export const AllProjects: Story = {
+  args: {
+    ...baseArgs,
+    destinationAxes: {
+      project: {
+        options: [
+          { value: "ws_alpha", label: "alpha" },
+          { value: "@user", label: "User" },
+        ],
+        value: "ws_alpha",
+        onChange: () => undefined,
+      },
+    },
   },
 };
 

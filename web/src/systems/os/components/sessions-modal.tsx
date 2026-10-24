@@ -15,12 +15,15 @@ import { OsSessionsDeriveHost } from "./os-sessions-derive-host";
 import {
   type SessionLifecycleActionHandlers,
   SessionList,
+  type SessionListTarget,
   type SessionPayload,
   useSessionSidebarState,
   type SessionListViewModel,
   SessionDeleteDialog,
   SessionRenameDialog,
   type useSessionLifecycleActions,
+  type SessionCreateOpenOptions,
+  subagentRevealStore,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -31,8 +34,7 @@ export interface OsSessionsModalProps {
   disconnected: boolean;
   /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
   view: SessionListViewModel;
-  currentWorkspaceId?: string | null;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 
@@ -47,8 +49,10 @@ export function OsSessionsDialogHost({
   lifecycle,
 }: Pick<
   OsSessionsModalProps,
-  "open" | "onOpenChange" | "disconnected" | "view" | "currentWorkspaceId" | "onNewSession"
+  "open" | "onOpenChange" | "disconnected" | "view" | "onNewSession"
 > & {
+  /** The derive host's fallback workspace for a child without its own. */
+  currentWorkspaceId?: string | null;
   lifecycle: ReturnType<typeof useSessionLifecycleActions>;
 }) {
   return (
@@ -67,7 +71,6 @@ export function OsSessionsDialogHost({
             sessions={view.catalog?.sessions ?? []}
             disconnected={disconnected}
             view={view}
-            currentWorkspaceId={currentWorkspaceId}
             onNewSession={onNewSession}
             sessionActions={lifecycle.actions}
           />
@@ -110,24 +113,30 @@ export function OsSessionsModal({
   sessions,
   disconnected,
   view,
-  currentWorkspaceId,
   onNewSession,
   sessionActions,
 }: OsSessionsModalProps) {
   const jumpToSession = useAttentionJump();
-  const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
+  const { collapsedThreadIds, subagentThreadIds, setThreadBranch } = useSessionSidebarState();
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && dismissalBlocked) return;
     onOpenChange(nextOpen);
   };
 
-  const selectSession = (session: SessionPayload) => {
+  const selectSession = (session: SessionListTarget) => {
+    if (session.subagentId) {
+      subagentRevealStore.trigger.requested({
+        workspaceId: session.workspace_id ?? "",
+        sessionId: session.id,
+        subagentId: session.subagentId,
+      });
+    }
     onOpenChange(false);
     jumpToSession({
       sessionId: session.id,
       agentName: session.agent_name,
-      workspaceId: session.workspace_id ?? currentWorkspaceId ?? "",
+      workspaceId: session.workspace_id ?? "",
     });
   };
   return (
@@ -147,7 +156,8 @@ export function OsSessionsModal({
           sessions={sessions}
           disconnected={disconnected}
           collapsedThreadIds={collapsedThreadIds}
-          onToggleThread={toggleThread}
+          subagentThreadIds={subagentThreadIds}
+          onThreadBranchChange={setThreadBranch}
           onSelectSession={selectSession}
           onNewSession={onNewSession}
           sessionActions={sessionActions}
@@ -155,7 +165,10 @@ export function OsSessionsModal({
           header={visibleCount => (
             <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
               <Eyebrow className="min-w-0 flex-1 text-subtle">
-                Sessions <span className="ml-1 text-faint">{visibleCount}</span>
+                Sessions{" "}
+                {visibleCount !== null ? (
+                  <span className="ml-1 text-faint">{visibleCount}</span>
+                ) : null}
               </Eyebrow>
               <Button
                 type="button"

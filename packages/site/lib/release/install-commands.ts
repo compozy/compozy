@@ -1,5 +1,5 @@
 export const VERIFIED_INSTALLER_COMMAND = "curl -fsSL https://compozy.com/install.sh | sh";
-export const NPM_INSTALL_COMMAND = "npm install -g @compozy/cli@beta";
+export const NPM_INSTALL_COMMAND = "npm install -g @compozy/cli";
 
 export function goInstallCommand(tag: string): string {
   return `go install github.com/compozy/compozy@${tag}`;

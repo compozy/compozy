@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"log/slog"
 
 	"net/http"
 
@@ -18,7 +19,7 @@ import (
 
 func (h *BaseHandlers) soulActorForRequest() soul.AuthoringIdentity {
 	return soul.AuthoringIdentity{
-		Kind: "user",
+		Kind: userScopeValue,
 		Ref:  h.transportName(),
 	}
 }
@@ -128,6 +129,12 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 			return contract.SessionPayload{}, err
 		}
 		payload.Badge = session.BadgeForHealth(info, health)
+		var prState session.PullRequestState
+		if payload.PullRequest != nil {
+			prState = payload.PullRequest.State
+		}
+		payload.BoardColumn = session.BoardColumnFor(payload.Badge, prState)
+		payload.WaitingOn = sessionPayloadWaitingOn(info, payload.Badge)
 		converted, err := contract.SessionHealthPayloadFromDomain(health)
 		if err != nil {
 			return contract.SessionPayload{}, err
@@ -179,11 +186,23 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }, info *session.Info) (contract.SessionPayload, error) {
+	if relations, ok := reader.(interface {
+		PopulateSessionRelations(context.Context, *session.Info) error
+	}); ok {
+		if err := relations.PopulateSessionRelations(ctx, info); err != nil {
+			slog.WarnContext(ctx, "session detail relations unavailable", "session_id", info.ID, "error", err)
+		}
+	}
 	payload := SessionPayloadFromInfo(info)
 	queue, err := reader.InputQueueSummary(ctx, info.ID)
 	if err != nil {
 		return contract.SessionPayload{}, err
 	}
+	payloads := []contract.SessionPayload{payload}
+	if err := DecorateSessionPullRequests(ctx, reader, []*session.Info{info}, payloads); err != nil {
+		slog.WarnContext(ctx, "session detail pull request unavailable", "session_id", info.ID, "error", err)
+	}
+	payload = payloads[0]
 	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
 	payload.ReplyWatches, err = sessionReplyWatchPayloads(ctx, reader, info.WorkspaceID, info.ID)
 	if err != nil {

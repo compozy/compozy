@@ -315,6 +315,17 @@ func (r *staticWorkspaceResolver) Resolve(_ context.Context, id string) (workspa
 	return resolved, nil
 }
 
+func (r *staticWorkspaceResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved := r.workspace
+	resolved.ID, resolved.WorkspaceID = "", ""
+	resolved.Scope = workspacepkg.ScopeUser
+	resolved.ProfileID = profileID
+	return resolved, nil
+}
+
 func (r *staticWorkspaceResolver) ResolveForProfile(
 	_ context.Context,
 	id string,

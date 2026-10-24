@@ -9,7 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ArchiveSession removes one stopped session from default catalog listings.
+// ArchiveSession removes one session from default catalog listings. A live
+// session is refused unless the request opts into stopping it first.
 func (h *BaseHandlers) ArchiveSession(c *gin.Context) {
 	h.setSessionArchived(c, true)
 }
@@ -48,7 +49,17 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 	}
 	var info *session.Info
 	if archived {
-		info, err = archiver.Archive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
+		var stop bool
+		stop, err = parseBoolQuery(c, "stop")
+		if err != nil {
+			h.respondError(c, http.StatusBadRequest, err)
+			return
+		}
+		archive := archiver.Archive
+		if stop {
+			archive = archiver.ArchiveWithStop
+		}
+		info, err = archive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	} else {
 		info, err = archiver.Unarchive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	}

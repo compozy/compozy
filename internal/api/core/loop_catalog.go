@@ -10,6 +10,10 @@ import (
 
 // ListLoops returns one bounded workspace Loop catalog page.
 func (h *BaseHandlers) ListLoops(c *gin.Context) {
+	breadth, ok := h.loopListBreadth(c)
+	if !ok {
+		return
+	}
 	service, ok := h.requireLoopService(c)
 	if !ok {
 		return
@@ -28,10 +32,18 @@ func (h *BaseHandlers) ListLoops(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: loop catalog requires one profile", looppkg.ErrCatalogQueryInvalid))
 		return
 	}
+	query.AllWorkspaces, query.WorkspaceIDs = breadth.AllWorkspaces, breadth.WorkspaceIDs
 	query.ProfileID = readScope.ProfileID
-	response, err := service.ListLoops(c.Request.Context(), c.Param("workspace_id"), query)
+	response, err := service.ListLoops(c.Request.Context(), breadth.WorkspaceID, query)
 	if err != nil {
 		h.respondLoopError(c, err)
+		return
+	}
+	if breadth.AllWorkspaces {
+		if response.Aggregate != nil {
+			logLoopAggregate(c, len(response.Aggregate.Entries))
+		}
+		c.JSON(http.StatusOK, response.Aggregate)
 		return
 	}
 	c.JSON(http.StatusOK, response)

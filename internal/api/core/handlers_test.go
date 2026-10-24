@@ -56,11 +56,11 @@ type sessionStopManagerStub struct {
 	await   func(context.Context, string) (session.StopOutcome, error)
 }
 
-func (s sessionStopManagerStub) RequestStop(ctx context.Context, id string, cause session.StopCause) error {
+func (s *sessionStopManagerStub) RequestStop(ctx context.Context, id string, cause session.StopCause) error {
 	return s.request(ctx, id, cause)
 }
 
-func (s sessionStopManagerStub) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
+func (s *sessionStopManagerStub) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
 	return s.await(ctx, id)
 }
 
@@ -327,6 +327,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
 	var attachCalls atomic.Int32
+	var archiveWithStopCalls atomic.Int32
 	var attachResult store.SessionAttach
 	var attachTTL time.Duration
 	var repairSeen session.RepairOpts
@@ -388,6 +389,18 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 			if workspaceID != "ws-workspace" || id != "sess-a" {
 				t.Fatalf("Archive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
+			info.State = session.StateStopped
+			archivedAt := now.Add(time.Minute)
+			info.ArchivedAt = &archivedAt
+			return info, nil
+		},
+		ArchiveWithStopFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+			archiveWithStopCalls.Add(1)
+			if workspaceID != "ws-workspace" || id != "sess-a" {
+				t.Fatalf("ArchiveWithStop target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
 			}
 			info := testutil.NewSessionInfo(id)
 			info.ProfileID = store.DefaultProfileID
@@ -825,7 +838,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
 				)
-				fixture.Handlers.Sessions = sessionStopManagerStub{StubSessionManager: base,
+				fixture.Handlers.Sessions = &sessionStopManagerStub{StubSessionManager: base,
 					request: func(_ context.Context, id string, cause session.StopCause) error {
 						requests++
 						if id != "sess-a" || cause != session.CauseUserRequested {
@@ -908,6 +921,35 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if restored.Session.ArchivedAt != nil {
 			t.Fatalf("unarchive response = %#v, want archive marker cleared", restored.Session)
+		}
+		if got := archiveWithStopCalls.Load(); got != 0 {
+			t.Fatalf("archive without stop opt-in used ArchiveWithStop %d times, want 0", got)
+		}
+	})
+
+	t.Run("Should stop and archive a live session when the archive request opts in", func(t *testing.T) {
+		before := archiveWithStopCalls.Load()
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/archive?stop=true",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("archive(stop) status = %d body=%s, want %d", resp.Code, resp.Body.String(), http.StatusOK)
+		}
+		var archived contract.SessionResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &archived); err != nil {
+			t.Fatalf("json.Unmarshal(archive stop response) error = %v", err)
+		}
+		if archiveWithStopCalls.Load() != before+1 || archived.Session.ArchivedAt == nil ||
+			archived.Session.State != session.StateStopped {
+			t.Fatalf(
+				"archive(stop) = %#v, calls=%d, want one stopped archive",
+				archived.Session,
+				archiveWithStopCalls.Load(),
+			)
 		}
 	})
 
@@ -1267,7 +1309,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &owner); err != nil || response.Code != http.StatusOK {
 			t.Fatalf("Global owner status = %d body = %s (%v), want 200", response.Code, response.Body.String(), err)
 		}
-		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "Global" {
+		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "User" {
 			t.Fatalf("Global owner = %+v", owner)
 		}
 	})
@@ -1411,7 +1453,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 // TestSessionLifecycleProfileScope verifies owner access and wrong-profile mutation refusal.
 func TestSessionLifecycleProfileScope(t *testing.T) {
 	t.Parallel()
-	for _, action := range []string{"archive", "unarchive", "rename"} {
+	for _, action := range []string{"archive", "unarchive", "rename", "adopt", "detach"} {
 		for _, selector := range []string{"", "?profile=default", "?profile=marketing", "?all_profiles=true"} {
 			t.Run("Should scope "+action+" with "+selector, func(t *testing.T) {
 				t.Parallel()
@@ -1438,16 +1480,27 @@ func TestSessionLifecycleProfileScope(t *testing.T) {
 					RenameFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
 						return mutate(ctx, workspaceID, id)
 					},
+					AdoptSessionFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
+						return mutate(ctx, workspaceID, id)
+					},
+					DetachSessionFn: mutate,
 				}
 				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 				fixture.Handlers.Profiles = sessionProfileServiceStub{}
 				path := "/workspaces/ws-workspace/sessions/sess-profile/" + action
 				method := http.MethodPost
 				var body []byte
-				if action == "rename" {
+				switch action {
+				case "rename":
 					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile", http.MethodPatch, []byte(
 						`{"name":"Renamed"}`,
 					)
+				case "adopt":
+					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile/parent", http.MethodPut, []byte(
+						`{"parent_session_id":"sess-parent"}`,
+					)
+				case "detach":
+					path, method = "/workspaces/ws-workspace/sessions/sess-profile/parent", http.MethodDelete
 				}
 				response := performRequest(t, fixture.Engine, method, path+selector, body)
 				if selector != "?profile=marketing" {
@@ -1558,6 +1611,95 @@ func TestRenameSessionHandler(t *testing.T) {
 		assertAPIErrorResponse(t, response, http.StatusNotFound, "workspace-scoped resource not found")
 		if renameCalls != 1 {
 			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
+		}
+	})
+}
+
+func TestSessionParentHandlers(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-child")
+	base.ProfileID = store.DefaultProfileID
+	base.WorkspaceID = "ws-parent"
+	base.Type = session.SessionTypeUser
+	adoptCalls := 0
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		AdoptSessionFn: func(_ context.Context, workspaceID, sessionID, parentID string) (*session.Info, error) {
+			adoptCalls++
+			if workspaceID != base.WorkspaceID || sessionID != base.ID {
+				t.Fatalf("AdoptSession() target = %s/%s", workspaceID, sessionID)
+			}
+			if parentID == "sess-descendant" {
+				return nil, &session.ReparentError{
+					Reason: session.ReparentRefusalCycle, SessionID: parentID, Detail: "descendant",
+				}
+			}
+			updated := *base
+			updated.Lineage = &store.SessionLineage{
+				ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1, Kind: store.LineageKindProvenance,
+			}
+			return &updated, nil
+		},
+		DetachSessionFn: func(context.Context, string, string) (*session.Info, error) {
+			return nil, &session.ReparentError{
+				Reason: session.ReparentRefusalNotDetachable, SessionID: base.ID, Detail: "root",
+			}
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+	const path = "/workspaces/ws-parent/sessions/sess-child/parent"
+
+	t.Run("Should adopt the session and return its new lineage", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPut, path, []byte(`{"parent_session_id":"sess-top"}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.Lineage == nil || payload.Session.Lineage.ParentSessionID != "sess-top" || adoptCalls != 1 {
+			t.Fatalf("adopt response = %#v calls=%d", payload.Session, adoptCalls)
+		}
+	})
+
+	t.Run("Should map a lineage refusal to a coded conflict", func(t *testing.T) {
+		for _, test := range []struct {
+			name     string
+			method   string
+			body     []byte
+			wantCode string
+		}{
+			{
+				name: "cycle", method: http.MethodPut, body: []byte(`{"parent_session_id":"sess-descendant"}`),
+				wantCode: "session_reparent_cycle",
+			},
+			{name: "not detachable", method: http.MethodDelete, wantCode: "session_reparent_not_detachable"},
+		} {
+			t.Run("Should code "+test.name, func(t *testing.T) {
+				response := performRequest(t, fixture.Engine, test.method, path, test.body)
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if response.Code != http.StatusConflict || payload.Code != test.wantCode {
+					t.Fatalf("refusal = %d %#v, want 409 code %q", response.Code, payload, test.wantCode)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject unknown request fields before adopting", func(t *testing.T) {
+		before := adoptCalls
+		response := performRequest(
+			t, fixture.Engine, http.MethodPut, path, []byte(`{"parent_session_id":"sess-top","parent":"x"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "parent")
+		if adoptCalls != before {
+			t.Fatalf("AdoptSession() calls = %d, want %d", adoptCalls, before)
 		}
 	})
 }
@@ -1763,9 +1905,14 @@ func TestSessionUsageEndpoint(t *testing.T) {
 					t.Fatalf("context session=%q", id)
 				}
 				reads++
-				return session.ContextEvents{Usage: []session.UsageEventEnvelope{{
-					Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
-				}}}, nil
+				return session.ContextEvents{
+					WorkTime: contextusage.WorkTime{
+						ActiveDurationMS: 120000, TurnCount: 2, LastCompletedTurnID: "turn-a",
+					},
+					Usage: []session.UsageEventEnvelope{{
+						Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
+					}},
+				}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
@@ -1777,6 +1924,9 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				"/workspaces/ws-workspace/sessions/sess-a/"+suffix,
 				nil,
 			)
+			if suffix == "usage" && !strings.Contains(response.Body.String(), `"active_duration_ms":120000`) {
+				t.Fatalf("work time missing from usage: %s", response.Body.String())
+			}
 			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "42") {
 				t.Fatalf("%s status=%d, body=%s", suffix, response.Code, response.Body.String())
 			}
@@ -5285,7 +5435,7 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 	t.Run("Should project workspace-scoped redacted subprocess health", func(t *testing.T) {
 		t.Parallel()
 
-		manager := subprocessHealthSessionManager{
+		manager := &subprocessHealthSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{
 					{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
@@ -5447,7 +5597,7 @@ type subprocessHealthSessionManager struct {
 	snapshots []session.SubprocessHealthSnapshot
 }
 
-func (m subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
+func (m *subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
 	return append([]session.SubprocessHealthSnapshot(nil), m.snapshots...)
 }
 
@@ -5904,4 +6054,28 @@ func TestOpenAPIDocumentRepresentation(t *testing.T) {
 			t.Fatalf("response = %d %s", recorder.Code, recorder.Body)
 		}
 	})
+}
+
+func (s *workspaceHintProfileServiceStub) ListIdentities(ctx context.Context) ([]profilepkg.Profile, error) {
+	items, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]profilepkg.Profile, 0, len(items))
+	for _, item := range items {
+		profiles = append(profiles, item.Profile)
+	}
+	return profiles, nil
+}
+
+func (s sessionProfileServiceStub) ListIdentities(ctx context.Context) ([]profilepkg.Profile, error) {
+	items, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]profilepkg.Profile, 0, len(items))
+	for _, item := range items {
+		profiles = append(profiles, item.Profile)
+	}
+	return profiles, nil
 }

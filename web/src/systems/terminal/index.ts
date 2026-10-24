@@ -8,6 +8,7 @@ export {
   controlTerminalRecording,
   createTerminal,
   fetchTerminals,
+  fetchTerminalsAggregate,
   fetchTerminalInputRequestProjection,
   rejectTerminalInputRequest,
   signalTerminal,
@@ -50,6 +51,7 @@ export {
   terminalErrorCopy,
   terminalExitCopy,
   terminalGapCopy,
+  terminalDisplayTitle,
   terminalInputOutcomeCopy,
 } from "./lib/terminal-copy";
 export { terminalJournalActorLabel } from "./lib/terminal-journal-actor";
@@ -98,6 +100,12 @@ export {
   type TerminalProfileQueryScope,
   type TerminalQueryScope,
 } from "./lib/query-options";
+export {
+  terminalAggregateQuery,
+  terminalAggregateScope,
+  terminalAggregateStreamPath,
+  type TerminalAggregateScope,
+} from "./lib/aggregate-query";
 export { terminalAttentionLocation } from "./lib/terminal-attention-location";
 export {
   terminalInputAttentionTitle,
@@ -187,6 +195,11 @@ export {
   type TerminalCatalogEventSourceFactory,
   type UseTerminalCatalogStreamOptions,
 } from "./hooks/use-terminal-catalog-stream";
+export {
+  useTerminalAggregateStream,
+  type TerminalAggregateEventSourceFactory,
+  type UseTerminalAggregateStreamOptions,
+} from "./hooks/use-terminal-aggregate-stream";
 export { useTerminalRecordings } from "./hooks/use-terminal-recordings";
 export {
   applyRecordingStopSuccess,
