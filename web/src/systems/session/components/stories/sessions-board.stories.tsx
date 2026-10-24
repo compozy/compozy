@@ -63,7 +63,16 @@ export const Empty: Story = {
 
 export const ColumnError: Story = {
   args: {
-    board: sessionsBoardView({ in_review: { failed: true, sessions: [] } }),
+    board: sessionsBoardView({ in_review: { failure: "initial", sessions: [] } }),
+  },
+};
+
+export const ColumnReadErrorKeepsCards: Story = {
+  args: {
+    board: sessionsBoardView({
+      working: { failure: "refresh" },
+      done: { failure: "more" },
+    }),
   },
 };
 

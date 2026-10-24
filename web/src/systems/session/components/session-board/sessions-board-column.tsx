@@ -1,11 +1,19 @@
 import { ChevronRight, CircleSlash, GitPullRequest } from "lucide-react";
 import { useId } from "react";
 
-import { Button, Skeleton, Spinner, StateGlyph } from "@compozy/ui";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  Button,
+  Skeleton,
+  Spinner,
+  StateGlyph,
+} from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import type { SessionsBoardColumnView } from "../../hooks/use-sessions-board";
+import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCard } from "./session-board-card";
 
@@ -138,7 +146,7 @@ function SessionsBoardColumnBody({
   if (column.loading) {
     return SKELETON_KEYS.map(key => <SessionBoardCardSkeleton key={key} />);
   }
-  if (column.failed) {
+  if (column.failure === "initial") {
     return (
       <div
         className="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted"
@@ -153,28 +161,38 @@ function SessionsBoardColumnBody({
       </div>
     );
   }
-  if (column.sessions.length === 0) {
-    return (
-      <div
-        className="flex flex-1 items-center justify-center px-3 py-8 text-center text-small-body text-subtle"
-        data-testid={`sessions-board-column-empty-${column.id}`}
-      >
-        {EMPTY_COPY[column.id]}
-      </div>
-    );
-  }
+  const readError = (failure: RetainedFailure) =>
+    column.failure === failure ? (
+      <SessionsBoardReadError
+        failure={failure}
+        onRetry={column.retry}
+        retrying={column.retrying}
+        testId={`sessions-board-read-error-${column.id}`}
+      />
+    ) : null;
   return (
     <>
-      {column.sessions.map(session => (
-        <SessionBoardCard
-          current={session.id === currentSessionId}
-          key={session.id}
-          onOpen={onOpen}
-          session={session}
-          workspaceName={workspaceNameOf(session)}
-        />
-      ))}
-      {column.hasMore ? (
+      {readError("refresh")}
+      {column.sessions.length === 0 ? (
+        <div
+          className="flex flex-1 items-center justify-center px-3 py-8 text-center text-small-body text-subtle"
+          data-testid={`sessions-board-column-empty-${column.id}`}
+        >
+          {EMPTY_COPY[column.id]}
+        </div>
+      ) : (
+        column.sessions.map(session => (
+          <SessionBoardCard
+            current={session.id === currentSessionId}
+            key={session.id}
+            onOpen={onOpen}
+            session={session}
+            workspaceName={workspaceNameOf(session)}
+          />
+        ))
+      )}
+      {readError("more")}
+      {column.hasMore && column.failure !== "more" ? (
         <SessionsBoardLoadMore
           count={column.count}
           loaded={column.sessions.length}
@@ -184,6 +202,56 @@ function SessionsBoardColumnBody({
         />
       ) : null}
     </>
+  );
+}
+
+type RetainedFailure = Exclude<SessionsBoardFailure, "initial">;
+
+const READ_ERROR_COPY: Record<RetainedFailure, string> = {
+  more: "Couldn't load more sessions.",
+  refresh: "Couldn't refresh. Showing the last loaded sessions.",
+};
+
+/**
+ * A failed later read over cards that stay usable: the next page, or a
+ * background re-read. The retry is local to this column or bar.
+ */
+export function SessionsBoardReadError({
+  failure,
+  retrying,
+  onRetry,
+  testId,
+  className,
+}: {
+  failure: RetainedFailure;
+  retrying: boolean;
+  onRetry: () => void;
+  testId: string;
+  className?: string;
+}) {
+  return (
+    <Alert
+      className={cn("shrink-0", className)}
+      data-testid={testId}
+      role={failure === "more" ? "alert" : "status"}
+      variant="neutral"
+    >
+      <CircleSlash aria-hidden="true" />
+      <AlertDescription className="text-small-body">{READ_ERROR_COPY[failure]}</AlertDescription>
+      <AlertActions>
+        <Button
+          aria-busy={retrying || undefined}
+          disabled={retrying}
+          onClick={onRetry}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          {retrying ? <Spinner aria-hidden="true" data-icon="inline-start" /> : null}
+          Retry
+        </Button>
+      </AlertActions>
+    </Alert>
   );
 }
 

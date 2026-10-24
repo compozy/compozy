@@ -2,7 +2,9 @@
 // Invariant: the board renders the daemon's four columns as labelled regions
 // whose names carry their facet counts; a card names its parent ("↳") or its
 // child rollup, flags a child that needs you, and opens its session on click;
-// Done folds behind a disclosure button; the Archive bar is absent with no
+// Done folds behind a disclosure button; only an initial read failure replaces
+// a column, while a failed next page or background re-read keeps the loaded
+// cards with a local retry; the Archive bar is absent with no
 // archived sessions and lists archived cards once expanded.
 // Owning layer: component (systems/session/components). Card mapping rules live
 // in lib/__tests__/session-board-card.test.ts; queries and toggle in E2E-005..007.
@@ -42,7 +44,8 @@ function page(sessions: SessionPayload[] = [], overrides: Partial<SessionsBoardC
   return {
     sessions,
     loading: false,
-    failed: false,
+    failure: null,
+    retrying: false,
     hasMore: false,
     loadingMore: false,
     loadMore: vi.fn(),
@@ -124,6 +127,51 @@ describe("SessionsBoard", () => {
     expect(more).toHaveTextContent("Load more1 of 60");
     await user.click(more);
     expect(loadMore).toHaveBeenCalledOnce();
+  });
+
+  it("Should replace a column with its error only when nothing has loaded", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderBoard(board({ in_review: { failure: "initial", retry } }));
+    const error = screen.getByTestId("sessions-board-column-error-in_review");
+    expect(error).toHaveTextContent("Couldn't load in review sessions.");
+    await user.click(within(error).getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep loaded cards when the next page fails and retry it in place", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    const loaded = [card("d1", { board_column: "done" }), card("d2", { board_column: "done" })];
+    renderBoard(
+      board({ done: { sessions: loaded, count: 300, hasMore: true, failure: "more", retry } })
+    );
+    expect(screen.queryByTestId("sessions-board-column-error-done")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-board-card-d1")).toBeInTheDocument();
+    expect(screen.getByTestId("session-board-card-d2")).toBeInTheDocument();
+    expect(screen.queryByTestId("sessions-board-load-more-done")).not.toBeInTheDocument();
+    const failure = screen.getByTestId("sessions-board-read-error-done");
+    expect(failure).toHaveRole("alert");
+    expect(failure).toHaveTextContent("Couldn't load more sessions.");
+    await user.click(within(failure).getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep loaded cards when a background re-read fails", () => {
+    renderBoard(
+      board({
+        working: {
+          sessions: [card("w1")],
+          count: 1,
+          failure: "refresh",
+          retrying: true,
+        },
+      })
+    );
+    expect(screen.getByTestId("session-board-card-w1")).toBeInTheDocument();
+    const failure = screen.getByTestId("sessions-board-read-error-working");
+    expect(failure).toHaveTextContent("Couldn't refresh. Showing the last loaded sessions.");
+    expect(within(failure).getByRole("button", { name: "Retry" })).toBeDisabled();
   });
 
   it("Should fold Done behind a disclosure button", async () => {

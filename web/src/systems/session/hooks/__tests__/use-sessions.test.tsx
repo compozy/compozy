@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionPayload } from "../../types";
 import { useSessionCatalog } from "../use-session-catalog";
+import { useSessionsBoard } from "../use-sessions-board";
 import type { DataScope } from "@/systems/workspace";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions } from "../../lib/session-catalog-options";
@@ -769,6 +770,89 @@ describe("bounded session catalog", () => {
     expect(cancelled).toHaveBeenCalledTimes(1);
     expect(fetchSessionFacets).not.toHaveBeenCalled();
     unmount();
+    client.clear();
+  });
+});
+
+// Invariant (SK-FR-007): only a board read with nothing loaded fails the whole column; a
+// failed next page or background re-read keeps the loaded cards and retries that read.
+// Owner: the board read model; canonical suite: this catalog query file.
+describe("sessions board read failures", () => {
+  const FACETS = {
+    facets: {
+      terminal_approvals: 0,
+      all: 300,
+      needs_you: 0,
+      working: 0,
+      finished: 0,
+      idle: 300,
+      board: { needs_you: 0, working: 0, in_review: 0, done: 300 },
+    },
+    by_workspace: [],
+    by_profile: [],
+  };
+
+  beforeEach(() => {
+    vi.mocked(fetchSessionCatalogPage).mockReset();
+    vi.mocked(fetchSessionFacets).mockReset();
+    vi.mocked(fetchSessionFacets).mockResolvedValue(FACETS);
+  });
+
+  function renderBoard(client: QueryClient) {
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    return renderHook(() => useSessionsBoard({ scope: ALPHA, hideChildren: false }), { wrapper });
+  }
+
+  it("Should keep loaded cards when the next page or a re-read fails", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let failNext = true;
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => {
+      if (!query?.board_column?.includes("done")) {
+        return { sessions: [], page: { has_more: false, limit: 50 } };
+      }
+      if (query.cursor && failNext) throw new Error("offline");
+      return {
+        sessions: [makeSession({ id: query.cursor ? "sess-page-2" : "sess-page-1" })],
+        page: { has_more: !query.cursor, next_cursor: query.cursor ? undefined : "p2", limit: 50 },
+      };
+    });
+    const { result } = renderBoard(client);
+    const done = () => result.current.columns.find(column => column.id === "done")!;
+    await waitFor(() =>
+      expect(done().sessions.map(session => session.id)).toEqual(["sess-page-1"])
+    );
+
+    act(() => done().loadMore());
+    await waitFor(() => expect(done().failure).toBe("more"));
+    expect(done().sessions.map(session => session.id)).toEqual(["sess-page-1"]);
+
+    failNext = false;
+    act(() => done().retry());
+    await waitFor(() =>
+      expect(done().sessions.map(session => session.id)).toEqual(["sess-page-1", "sess-page-2"])
+    );
+    expect(done().failure).toBeNull();
+
+    vi.mocked(fetchSessionCatalogPage).mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: sessionKeys.workspaceLists("ws_alpha") });
+    });
+    await waitFor(() => expect(done().failure).toBe("refresh"));
+    expect(done().sessions.map(session => session.id)).toEqual(["sess-page-1", "sess-page-2"]);
+    client.clear();
+  });
+
+  it("Should fail a column only when its first read fails", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => {
+      if (query?.board_column?.includes("in_review")) throw new Error("offline");
+      return { sessions: [], page: { has_more: false, limit: 50 } };
+    });
+    const { result } = renderBoard(client);
+    const column = (id: string) => result.current.columns.find(item => item.id === id)!;
+    await waitFor(() => expect(column("in_review").failure).toBe("initial"));
+    expect(column("working").failure).toBeNull();
     client.clear();
   });
 });

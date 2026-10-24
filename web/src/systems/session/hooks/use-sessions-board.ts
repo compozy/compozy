@@ -19,11 +19,20 @@ export const SESSION_BOARD_COLUMNS: readonly { id: SessionBoardColumnId; label: 
   { id: "done", label: "Done" },
 ];
 
+/**
+ * Which read of a page failed. `initial`: nothing loaded, so the error takes
+ * the page's place. `more` (the next page) and `refresh` (a background
+ * re-read): the loaded cards stay and the failure gets a local retry.
+ */
+export type SessionsBoardFailure = "initial" | "more" | "refresh";
+
 /** One paged catalog read: a board column or the Archive bar. */
 export interface SessionsBoardPage {
   sessions: SessionBoardPayload[];
   loading: boolean;
-  failed: boolean;
+  failure: SessionsBoardFailure | null;
+  /** A retry of the failed read is in flight. */
+  retrying: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   loadMore: () => void;
@@ -48,16 +57,29 @@ export interface SessionsBoardView {
 
 function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
   const page = useInfiniteQuery({ ...sessionBoardPageOptions(filters), enabled });
+  const failure: SessionsBoardFailure | null = !page.isError
+    ? null
+    : page.data === undefined
+      ? "initial"
+      : page.isFetchNextPageError
+        ? "more"
+        : "refresh";
   return {
     sessions: (page.data?.pages ?? []).flatMap(item => item.sessions),
     loading: page.isLoading,
-    failed: page.isError,
+    failure,
+    retrying: failure !== null && page.isFetching,
     hasMore: page.hasNextPage,
     loadingMore: page.isFetchingNextPage,
     loadMore: () => {
       if (!page.isFetching) void page.fetchNextPage({ cancelRefetch: false });
     },
-    retry: () => void page.refetch(),
+    // A failed next page is fetched again; any other failure re-reads the loaded pages.
+    retry: () => {
+      if (page.isFetching) return;
+      if (failure === "more") void page.fetchNextPage();
+      else void page.refetch();
+    },
     total: page.data?.pages[0]?.page.total ?? undefined,
   };
 }
