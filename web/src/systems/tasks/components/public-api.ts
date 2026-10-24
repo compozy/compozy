@@ -83,7 +83,7 @@ export { TaskRunActivitySection } from "./task-run-activity-section";
 export type { TaskRunActivitySectionProps } from "./task-run-activity-section";
 export { TaskRunRail, TaskRunRailSkeleton } from "./task-run-rail";
 export type { TaskRunRailProps } from "./task-run-rail";
-export { TaskRunMainSkeleton, TaskReviewCardSkeleton } from "./task-loading-skeletons";
+export { TaskRunMainSkeleton } from "./task-loading-skeletons";
 export { TaskRunSubhead } from "./task-run-subhead";
 export { TaskRunOutcome } from "./task-run-outcome";
 export { TaskRunReviewCard } from "./task-run-review-card";
