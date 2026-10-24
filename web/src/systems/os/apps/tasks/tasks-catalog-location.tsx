@@ -75,7 +75,8 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
     toolbar: (
       <>
         {modeNav}
-        {mode === "list" && page.hasActiveTaskScope ? (
+        {/* The strip needs no data: it renders while the scope resolves, so it does not pop in. */}
+        {mode === "list" && !page.scopeError ? (
           <>
             <Separator className="h-4 self-center" orientation="vertical" />
             <TasksListToolbar

@@ -516,9 +516,29 @@ describe("TasksListSurface", () => {
     );
   });
 
-  it("Should render the loading skeleton when isLoading and no tasks", () => {
+  it("Should stand in with the table itself while the first page loads", () => {
     renderSurface({ tasks: [], isLoading: true });
-    expect(screen.getByTestId("tasks-list-surface-loading")).toBeInTheDocument();
+
+    // One named loading area in the container the rows will fill, not the empty-state page.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-list-surface-loading"));
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading tasks");
+    // The header is the real one already, without a total it cannot know yet.
+    for (const name of ["Task", "ID", "Status", "Priority", "Owner", "Updated"]) {
+      expect(within(region).getByRole("columnheader", { name })).toBeInTheDocument();
+    }
+    expect(within(region).queryByText(/^\(\d+\)$/)).not.toBeInTheDocument();
+    // The rows are placeholders: nothing in them can be opened.
+    expect(within(region).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface-empty")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the rows when the read reports loading but rows already exist", () => {
+    renderSurface({ tasks: [buildTask()], isLoading: true });
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
   });
 
   it("Should render the error state when errorMessage is set and no tasks", () => {

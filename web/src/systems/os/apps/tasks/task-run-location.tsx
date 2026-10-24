@@ -1,43 +1,58 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, Skeleton } from "@compozy/ui";
+import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, SkeletonRegion } from "@compozy/ui";
 
-import { TaskRunTopbar } from "./task-run-topbar";
+import { TaskRunLoadingTopbar, TaskRunTopbar } from "./task-run-topbar";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
-import { useTaskRunLocation } from "./use-task-run-location";
+import { type TaskRunLocationController, useTaskRunLocation } from "./use-task-run-location";
 import {
   TaskResultSection,
+  TaskReviewCardSkeleton,
   TaskRunActivitySection,
   TaskRunForceFailDialog,
   TaskRunInspectDrawer,
+  TaskRunMainSkeleton,
   TaskRunOutcome,
   TaskRunRail,
+  TaskRunRailSkeleton,
   TaskRunReviewCard,
   TaskRunSubhead,
+  TaskSubheadSkeleton,
   useTaskRunResult,
 } from "@/systems/tasks";
 import type { TaskRun } from "@/systems/tasks";
 
+/**
+ * The run page while its record loads: the subhead frame, then the grid (the main column and the
+ * rail) as the single loading region, in the same scroll container the run fills.
+ */
+function TaskRunLoading({ controller }: { controller: TaskRunLocationController }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <TaskRunLoadingTopbar controller={controller} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-16")}>
+          <TaskSubheadSkeleton />
+          <SkeletonRegion
+            className={TASK_DETAIL_GRID_CLASS}
+            data-testid="tasks-run-detail-loading"
+            label="Loading run"
+          >
+            <TaskRunMainSkeleton />
+            <aside className={TASK_DETAIL_RAIL_CLASS}>
+              <TaskRunRailSkeleton />
+            </aside>
+          </SkeletonRegion>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
   const controller = useTaskRunLocation(taskId, runId);
   const { page, record } = controller;
-  if (page.runLoading) {
-    return (
-      <div
-        className={cn(PAGE_CONTENT_GUTTER, "@container flex min-h-0 flex-1 flex-col gap-4 py-5")}
-        data-testid="tasks-run-detail-loading"
-      >
-        <Skeleton className="h-6 w-72" />
-        <div className={TASK_DETAIL_GRID_CLASS}>
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-24 rounded-lg" />
-            <Skeleton className="h-48 rounded-lg" />
-          </div>
-          <Skeleton className="hidden h-72 rounded-lg @min-task-detail-rail:block" />
-        </div>
-      </div>
-    );
-  }
+  if (page.runLoading) return <TaskRunLoading controller={controller} />;
 
   if (!page.notFound && page.runError) {
     return (
@@ -174,7 +189,9 @@ function TaskRunReviews({ page }: { page: ReturnType<typeof useTaskRunLocation>[
           label="Reviews"
         >
           {page.reviewsLoading ? (
-            <Skeleton className="h-20 rounded-lg" />
+            <SkeletonRegion label="Loading reviews">
+              <TaskReviewCardSkeleton />
+            </SkeletonRegion>
           ) : page.reviewsError ? (
             <p className="text-small-body text-danger" role="alert">
               {page.reviewsError.message}

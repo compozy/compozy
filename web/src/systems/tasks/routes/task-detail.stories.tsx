@@ -4,7 +4,11 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
-import { buildDetailFixture, taskDetailFixture } from "@/systems/tasks/mocks";
+import {
+  buildDetailFixture,
+  taskDetailFixture,
+  taskExecutionProfileFixture,
+} from "@/systems/tasks/mocks";
 import type { TaskRecord } from "@/systems/tasks";
 import {
   StorybookRouteCanvas,
@@ -149,6 +153,55 @@ export const Loading: Story = {
         compozyApiMock.get("/api/tasks/{id}", async () => {
           await delay("infinite");
           return HttpResponse.json({ task: taskDetailFixture });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Loading branch on the Runs tab: the location asked for it, so the runs table's own
+ * placeholder stands under the real tabs while the detail payload is still being fetched.
+ */
+export const LoadingRunsTab: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks/task_001?tab=runs"),
+    ...storybookMswParameters({
+      tasks: [
+        compozyApiMock.get("/api/tasks/{id}", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ task: taskDetailFixture });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * The task has loaded but its runs, timeline and execution profile have not: the rail's agent,
+ * model and attempts rows, the recent-activity section and the Runs tab count hold placeholders
+ * instead of appearing late and moving what is around them.
+ */
+export const SecondaryReadsLoading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks/task_001"),
+    ...storybookMswParameters({
+      tasks: [
+        compozyApiMock.get("/api/tasks/{id}/runs", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ runs: [] });
+        }),
+        compozyApiMock.get("/api/tasks/{id}/timeline", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ timeline: [] });
+        }),
+        compozyApiMock.get("/api/tasks/{id}/execution-profile", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ profile: taskExecutionProfileFixture });
         }),
       ],
     }),

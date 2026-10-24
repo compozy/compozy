@@ -166,7 +166,9 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     run,
     runError: runQuery.error ?? null,
     runId,
-    runLoading: runQuery.isLoading && !run,
+    // `isPending`, not `isLoading`: a suspended window disables the read, and a disabled read with
+    // no data yet is still waiting, not a missing run.
+    runLoading: hasRunId && runQuery.isPending && !run,
     session,
     summary,
     task,

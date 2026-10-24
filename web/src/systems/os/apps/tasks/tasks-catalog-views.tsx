@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { BlockLoading, Empty } from "@compozy/ui";
+import { Empty } from "@compozy/ui";
 
 import {
   TasksDashboardView,
@@ -23,18 +23,12 @@ export interface TasksCatalogBodyProps {
   openTask: (taskId: string) => void;
 }
 
-/** Active catalog view once the task scope resolves; scope gates lead, then the mode. */
+/**
+ * Active catalog view; a scope that cannot resolve leads, then the mode. A scope still resolving
+ * is not a gate of its own: every mode folds it into its loading flag and shows its own
+ * content-shaped skeleton in its own container.
+ */
 export function TasksCatalogBody({ mode, page, openCreate, openTask }: TasksCatalogBodyProps) {
-  if (page.scopeLoading) {
-    return (
-      <BlockLoading
-        data-testid="tasks-scope-loading"
-        label="Loading tasks…"
-        size="md"
-        surface="bare"
-      />
-    );
-  }
   if (page.scopeError) {
     return (
       <Empty

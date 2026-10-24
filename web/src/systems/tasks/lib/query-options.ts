@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions, type Query } from "@tanstack/react-query";
 
 import {
   getAgentContext,
@@ -19,8 +19,12 @@ import {
   listTasks,
 } from "../adapters/tasks-api";
 import { tasksKeys } from "./query-keys";
-import { taskInboxPageRequest, taskInboxStableFilter } from "./task-inbox-query";
-import { taskListPageRequest, taskListStableFilter } from "./task-list-query";
+import {
+  taskInboxPageRequest,
+  taskInboxPopulation,
+  taskInboxStableFilter,
+} from "./task-inbox-query";
+import { taskListPageRequest, taskListPopulation, taskListStableFilter } from "./task-list-query";
 import type {
   AgentContextIdentity,
   TaskDashboardFilter,
@@ -75,14 +79,30 @@ function taskRunDetailRefetchInterval(detail: TaskRunDetailView | undefined): nu
     : false;
 }
 
+/**
+ * Keeps the last real rows on screen while a refined read loads, so a filter, search or lane
+ * change swaps content in place instead of flashing a skeleton. The rows bridge only inside the
+ * population they were read for (`meta.population`): another workspace, worktree, profile or
+ * reveal reads from nothing, so one scope's tasks never stand in for another's.
+ */
+function keepWithinPopulation(population: string) {
+  return <TData>(
+    previousData: TData | undefined,
+    previousQuery: Pick<Query, "meta"> | undefined
+  ) => (previousQuery?.meta?.population === population ? previousData : undefined);
+}
+
 export function tasksListOptions(filters: TaskListFilter = {}, enabled = true) {
   const stableFilters = taskListStableFilter(filters);
+  const population = taskListPopulation(stableFilters);
   return infiniteQueryOptions({
     queryKey: tasksKeys.list(stableFilters),
     queryFn: ({ pageParam, signal }) =>
       listTasks(taskListPageRequest(stableFilters, pageParam), signal),
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    meta: { population },
+    placeholderData: keepWithinPopulation(population),
     staleTime: DEFAULT_STALE_TIME,
     enabled,
   });
@@ -188,12 +208,15 @@ export function taskDashboardOptions(filters: TaskDashboardFilter = {}, enabled 
 
 function taskInboxQueryOptions(filters: TaskInboxFilter, enabled: boolean, staleTime: number) {
   const stableFilters = taskInboxStableFilter(filters);
+  const population = taskInboxPopulation(stableFilters);
   return infiniteQueryOptions({
     queryKey: tasksKeys.inbox(stableFilters),
     queryFn: ({ pageParam, signal }) =>
       getTaskInbox(taskInboxPageRequest(stableFilters, pageParam), signal),
     initialPageParam: INITIAL_CURSOR,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    meta: { population },
+    placeholderData: keepWithinPopulation(population),
     staleTime,
     enabled,
   });

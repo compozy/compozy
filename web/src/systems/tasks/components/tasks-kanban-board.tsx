@@ -1,15 +1,37 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, SkeletonRegion, Spinner } from "@compozy/ui";
 
-import { TaskKanbanCard } from "./task-kanban-card";
+import { TaskKanbanCard, TaskKanbanCardSkeleton } from "./task-kanban-card";
 import { TaskKanbanColumn } from "./task-kanban-column";
 import { taskStatusFacetTotal, type KanbanColumnGroup } from "../lib/task-grouping";
 import type { TaskListItem, TaskStatus } from "../types";
 import { type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
-const KANBAN_SKELETON_KEYS = ["a", "b", "c"] as const;
+/**
+ * Placeholder cards per column while the board loads, in column order: a backlog-heavy shape that
+ * fills the first columns and thins out, with some two-line titles among the one-line ones. Ids
+ * are static; the placeholders carry no identity of their own.
+ */
+const LOADING_CARDS = [
+  [
+    { id: "a", titleLines: 2 },
+    { id: "b", titleLines: 1 },
+    { id: "c", titleLines: 1 },
+  ],
+  [
+    { id: "a", titleLines: 1 },
+    { id: "b", titleLines: 2 },
+  ],
+  [{ id: "a", titleLines: 1 }],
+  [{ id: "a", titleLines: 2 }],
+  [
+    { id: "a", titleLines: 1 },
+    { id: "b", titleLines: 1 },
+    { id: "c", titleLines: 2 },
+  ],
+] as const;
 
 export interface TasksKanbanBoardProps {
   columns: KanbanColumnGroup[];
@@ -49,52 +71,67 @@ export function TasksKanbanBoard({
   if (errorMessage && loadedTaskCount === 0) {
     return <KanbanLoadError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />;
   }
+  // Placeholders stand in for cards that are not here yet; once any card has loaded they never
+  // replace it, however the flag moves.
+  const showSkeleton = isLoading && loadedTaskCount === 0;
 
   // Derive the grid track count from the canonical column set so it can never
   // drift from `KANBAN_COLUMNS`: a new status column widens the grid instead of
   // wrapping the last column onto a broken second row.
+  const board = (
+    <ul
+      className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-6"
+      data-testid="tasks-kanban-board"
+      style={{
+        gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
+      }}
+    >
+      {columns.map((group, columnIndex) => (
+        <TaskKanbanColumn
+          column={group.column}
+          count={group.tasks.length}
+          key={group.column.id}
+          onAdd={onCreate}
+          totalCount={
+            showSkeleton ? undefined : taskStatusFacetTotal(group.column.statuses, statusCounts)
+          }
+        >
+          {showSkeleton
+            ? (LOADING_CARDS[columnIndex % LOADING_CARDS.length] ?? []).map(card => (
+                <TaskKanbanCardSkeleton
+                  key={`${group.column.id}-skeleton-${card.id}`}
+                  titleLines={card.titleLines}
+                />
+              ))
+            : group.tasks.map(task => (
+                <TaskKanbanCard
+                  key={task.id}
+                  onRetry={onRetryTask}
+                  onSelect={onSelectTask}
+                  profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
+                  projectBadge={projectBadgeOf?.(task)}
+                  selected={task.id === selectedTaskId}
+                  task={task}
+                />
+              ))}
+        </TaskKanbanColumn>
+      ))}
+    </ul>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {isLoading ? (
-        <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">
-          Loading kanban board
-        </span>
-      ) : null}
-      <ul
-        className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-6"
-        data-testid="tasks-kanban-board"
-        style={{
-          gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
-        }}
-      >
-        {columns.map(group => (
-          <TaskKanbanColumn
-            column={group.column}
-            count={group.tasks.length}
-            key={group.column.id}
-            onAdd={onCreate}
-            totalCount={
-              isLoading ? undefined : taskStatusFacetTotal(group.column.statuses, statusCounts)
-            }
-          >
-            {isLoading
-              ? KANBAN_SKELETON_KEYS.map(slot => (
-                  <KanbanCardSkeleton key={`${group.column.id}-skeleton-${slot}`} />
-                ))
-              : group.tasks.map(task => (
-                  <TaskKanbanCard
-                    key={task.id}
-                    onRetry={onRetryTask}
-                    onSelect={onSelectTask}
-                    profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
-                    projectBadge={projectBadgeOf?.(task)}
-                    selected={task.id === selectedTaskId}
-                    task={task}
-                  />
-                ))}
-          </TaskKanbanColumn>
-        ))}
-      </ul>
+      {showSkeleton ? (
+        <SkeletonRegion
+          className="flex min-h-0 flex-1 flex-col"
+          data-testid="tasks-kanban-loading"
+          label="Loading kanban board"
+        >
+          {board}
+        </SkeletonRegion>
+      ) : (
+        board
+      )}
       {errorMessage ? (
         <KanbanPaginationError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />
       ) : null}
@@ -175,23 +212,6 @@ function KanbanLoadMore({
         ) : null}
         {isLoadingMore ? "Loading more" : "Load more"}
       </Button>
-    </div>
-  );
-}
-
-function KanbanCardSkeleton() {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex w-full min-w-0 shrink-0 flex-col gap-2 rounded-lg bg-card p-3 shadow-card"
-      data-testid="tasks-kanban-card-skeleton"
-    >
-      <Skeleton className="h-3 w-4/5 rounded-xs" />
-      <Skeleton className="h-2.5 w-12 rounded-xs" />
-      <div className="flex items-center justify-between gap-2">
-        <Skeleton className="h-2.5 w-24 rounded-xs" />
-        <Skeleton className="h-2.5 w-8 rounded-xs" />
-      </div>
     </div>
   );
 }

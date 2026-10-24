@@ -59,6 +59,25 @@ export function taskInboxStableFilter(filters: TaskInboxFilter = {}): TaskInboxS
   };
 }
 
+/**
+ * Names the inbox a read belongs to before anyone refines it: its breadth, project and worktree
+ * scope, owner and profile lens. Lane, status, priority, unread, text and the Project narrowing
+ * refine the same inbox, so they stay out. Equal populations may bridge a refinement with the
+ * previous rows; a different one never inherits them.
+ */
+export function taskInboxPopulation(filters: TaskInboxStableFilter): string {
+  return JSON.stringify([
+    filters.all_workspaces ?? null,
+    filters.scope ?? null,
+    filters.workspace ?? null,
+    filters.worktree ?? null,
+    filters.owner_kind ?? null,
+    filters.owner_ref ?? null,
+    filters.profile ?? null,
+    filters.all_profiles ?? null,
+  ]);
+}
+
 export function taskInboxPageRequest(
   filters: TaskInboxStableFilter,
   cursor?: string

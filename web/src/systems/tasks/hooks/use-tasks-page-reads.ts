@@ -60,6 +60,9 @@ function taskListReadModel(tasksQuery: ReturnType<typeof useTasks>, input: Tasks
   // list does — counts stay coherent by construction (US-001.AC-3).
   const kanbanColumns: KanbanColumnGroup[] =
     input.mode === "kanban" ? groupTasksForKanban(visibleTasks) : [];
+  // A refinement bridges the previous rows while its own page loads. They no longer describe
+  // the list being read, so they never decide emptiness or offer a continuation.
+  const refining = tasksQuery.isPlaceholderData;
   // `isPending`, not `isLoading`: a suspended window disables the read, and a
   // disabled read with no data yet is still waiting, not an empty project.
   const isEmpty =
@@ -67,12 +70,13 @@ function taskListReadModel(tasksQuery: ReturnType<typeof useTasks>, input: Tasks
     !scopeLoading &&
     !scopeError &&
     !tasksQuery.isPending &&
+    !refining &&
     !tasksQuery.error &&
     tasksQuery.total === 0 &&
     !input.hasListFilters;
   return {
     effectiveSelectedTaskId: visibleTasks[0]?.id ?? null,
-    hasMoreTasks: tasksQuery.hasNextPage,
+    hasMoreTasks: tasksQuery.hasNextPage && !refining,
     isEmpty,
     isLoadingMoreTasks: tasksQuery.isFetchingNextPage,
     kanbanColumns,
@@ -95,7 +99,7 @@ function useTasksPageList(input: TasksPageListInput) {
   return {
     ...taskListReadModel(tasksQuery, input),
     loadMoreTasks: () => {
-      void tasksQuery.fetchNextPage();
+      if (!tasksQuery.isPlaceholderData) void tasksQuery.fetchNextPage();
     },
     retryTasks: () => retryPagedQuery(tasksQuery),
   };
@@ -127,7 +131,7 @@ function taskInboxReadModel(
   scopeStatus: TaskScopeStatus
 ) {
   return {
-    hasMoreInbox: inboxQuery.hasNextPage,
+    hasMoreInbox: inboxQuery.hasNextPage && !inboxQuery.isPlaceholderData,
     inbox: inboxQuery.data ?? null,
     inboxError: scopeStatus.scopeError ?? inboxQuery.error ?? null,
     inboxLoading: scopeStatus.scopeLoading || (inboxQuery.isPending && !inboxQuery.data),
@@ -148,7 +152,7 @@ function useTasksPageInbox(input: TasksPageInboxInput) {
     ...taskInboxReadModel(inboxQuery, input.scopeStatus),
     inboxUnreadCount: inboxBadgeQuery.data?.unread_total,
     loadMoreInbox: () => {
-      void inboxQuery.fetchNextPage();
+      if (!inboxQuery.isPlaceholderData) void inboxQuery.fetchNextPage();
     },
     retryInbox: () => retryPagedQuery(inboxQuery),
   };

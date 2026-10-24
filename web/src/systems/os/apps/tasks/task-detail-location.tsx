@@ -6,7 +6,7 @@ import {
   Empty,
   LaneTabs,
   PAGE_CONTENT_GUTTER,
-  Skeleton,
+  SkeletonRegion,
   TabsContent,
   type LaneTabsItem,
 } from "@compozy/ui";
@@ -17,7 +17,7 @@ import {
 } from "./hooks/use-completed-run-result";
 import { TaskDetailOverlays } from "./task-detail-overlays";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
-import { TaskDetailTopbar } from "./task-detail-topbar";
+import { TaskDetailLoadingTopbar, TaskDetailTopbar } from "./task-detail-topbar";
 import {
   type TaskDetailLocationController,
   useTaskDetailLocation,
@@ -25,15 +25,19 @@ import {
 import {
   type ResolvedTaskDetailSearch,
   TaskActivityPanel,
+  TaskDetailPanelsSkeleton,
   type TaskDetailTab,
   TaskOverviewPanel,
   TaskPropertiesRail,
+  TaskPropertiesRailSkeleton,
   type TaskRunReview,
   TaskRunsPanel,
   TasksDetailSubhead,
+  TaskSubheadSkeleton,
 } from "@/systems/tasks";
 
-function buildTabItems(runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
+/** `runCount` is absent while the runs are still being read, so the tab never claims zero. */
+function buildTabItems(runCount?: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
   return [
     { value: "overview", label: "Overview", testId: "tasks-detail-tab-overview" },
     { value: "runs", label: "Runs", count: runCount, testId: "tasks-detail-tab-runs" },
@@ -57,21 +61,42 @@ function groupReviewsByRun(
   return map;
 }
 
-function TaskDetailLoading() {
+/**
+ * The task detail while its record loads. The head, subhead frame and tabs are already the
+ * real ones, and the grid below them (the main column and the rail) is the single loading
+ * region, so the record arrives into the same places and nothing around it moves.
+ */
+function TaskDetailLoading({ controller }: { controller: TaskDetailLocationController }) {
+  const tab = controller.search.tab;
   return (
-    <div
-      className={cn(PAGE_CONTENT_GUTTER, "@container flex min-h-0 flex-1 flex-col gap-4 py-5")}
-      data-testid="tasks-detail-loading"
-    >
-      <Skeleton className="h-6 w-72" />
-      <Skeleton className="h-10 w-full max-w-md" />
-      <div className={TASK_DETAIL_GRID_CLASS}>
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-20 rounded-lg" />
-          <Skeleton className="h-32 rounded-lg" />
-          <Skeleton className="h-40 rounded-lg" />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <TaskDetailLoadingTopbar controller={controller} />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-20")}>
+          <TaskSubheadSkeleton />
+          <LaneTabs<TaskDetailTab>
+            ariaLabel="Task views"
+            className="gap-0"
+            data-testid="tasks-detail-tabs"
+            items={buildTabItems()}
+            listClassName="w-full"
+            onChange={controller.setTab}
+            value={tab}
+          >
+            <SkeletonRegion
+              className={cn(TASK_DETAIL_GRID_CLASS, "pt-5")}
+              data-testid="tasks-detail-loading"
+              label="Loading task"
+            >
+              <div className="min-w-0">
+                <TaskDetailPanelsSkeleton tab={tab} />
+              </div>
+              <aside className={TASK_DETAIL_RAIL_CLASS}>
+                <TaskPropertiesRailSkeleton />
+              </aside>
+            </SkeletonRegion>
+          </LaneTabs>
         </div>
-        <Skeleton className="hidden h-80 rounded-lg @min-task-detail-rail:block" />
       </div>
     </div>
   );
@@ -95,7 +120,7 @@ export function TaskDetailLocation({
   const completedResult = useCompletedRunResult(page.runs, record?.workspace_id);
 
   if (page.detailLoading) {
-    return <TaskDetailLoading />;
+    return <TaskDetailLoading controller={controller} />;
   }
   if (!page.notFound && page.detailError) {
     return <TaskDetailError message={page.detailError.message} onRetry={page.handleRetryDetail} />;
@@ -196,7 +221,7 @@ function TaskDetailContent({
             ariaLabel="Task views"
             className="gap-0"
             data-testid="tasks-detail-tabs"
-            items={buildTabItems(page.runs.length)}
+            items={buildTabItems(page.runsLoading ? undefined : page.runs.length)}
             listClassName="w-full"
             onChange={controller.setTab}
             value={controller.search.tab}
@@ -229,6 +254,7 @@ function TaskDetailContent({
                     onViewAllActivity={() => controller.setTab("activity")}
                     runs={page.runs}
                     timeline={page.timeline}
+                    timelineLoading={page.timelineLoading}
                   />
                 </TabsContent>
                 <TabsContent value="runs">
@@ -268,7 +294,9 @@ function TaskDetailContent({
                   onInspect={() => controller.setInspectOpen(true)}
                   onPriorityChange={priority => void controller.handlePriorityChange(priority)}
                   profile={page.profile}
+                  profileLoading={page.profileLoading}
                   runs={page.runs}
+                  runsLoading={page.runsLoading}
                   updatePending={controller.updatePending}
                 />
               </aside>

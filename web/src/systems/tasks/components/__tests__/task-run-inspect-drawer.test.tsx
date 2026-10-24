@@ -39,7 +39,7 @@ describe("TaskRunInspectDrawer", () => {
         run={buildTaskRunDetailFixture()}
       />
     );
-    expect(screen.getByRole("status", { name: "Loading run inspection" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading run inspection");
 
     rerender(
       <TaskRunInspectDrawer

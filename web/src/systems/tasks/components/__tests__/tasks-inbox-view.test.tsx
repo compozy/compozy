@@ -152,7 +152,13 @@ describe("TasksInboxView", () => {
 
   it("Should render loading, error, and empty states", () => {
     const { rerender } = render(<TasksInboxView {...makeBaseProps()} inbox={null} isLoading />);
-    expect(screen.getByTestId("tasks-inbox-loading")).toBeInTheDocument();
+    // One named loading area under a toolbar that is already the real one, so filtering is
+    // reachable while the rows load and nothing around the area moves when they arrive.
+    const region = screen.getByTestId("tasks-inbox-loading");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveTextContent("Loading inbox");
+    expect(screen.getByTestId("tasks-inbox-search")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-inbox-empty")).not.toBeInTheDocument();
 
     rerender(<TasksInboxView {...makeBaseProps()} errorMessage="oops" inbox={null} />);
     expect(screen.getByTestId("tasks-inbox-error")).toHaveTextContent("oops");

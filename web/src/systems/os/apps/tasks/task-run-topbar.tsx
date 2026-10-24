@@ -1,4 +1,4 @@
-import { useTopbarSlot } from "@compozy/ui";
+import { SkeletonText, useTopbarSlot } from "@compozy/ui";
 
 import type { TaskRunLocationController } from "./use-task-run-location";
 import { TaskRunPageActions, TaskRunPageOverflow, TaskRunPageStatus } from "@/systems/tasks";
@@ -53,6 +53,27 @@ export function TaskRunTopbar({ controller }: { controller: TaskRunLocationContr
         }
       : null
   );
+
+  return null;
+}
+
+/**
+ * The head while the run loads: the real way back to the list, and the task and attempt as
+ * blocks, so the head is already in its drill-in shape when the run arrives into it.
+ */
+export function TaskRunLoadingTopbar({
+  controller,
+}: {
+  controller: Pick<TaskRunLocationController, "backToTasks">;
+}) {
+  useTopbarSlot({
+    onBack: controller.backToTasks,
+    crumbs: [
+      { id: "tasks", label: "Tasks", onSelect: controller.backToTasks },
+      { id: "task", label: <SkeletonText className="w-32" />, onSelect: controller.backToTasks },
+    ],
+    crumb: <SkeletonText className="w-20" />,
+  });
 
   return null;
 }

@@ -1,10 +1,10 @@
-import { MetadataTile, MonoId, Sheet, SheetContent, Time } from "@compozy/ui";
+import { MetadataTile, MonoId, Sheet, SheetContent, SkeletonRegion, Time } from "@compozy/ui";
 
 import { formatTaskRunMetric } from "../lib/task-run-presentation";
 
 import type { TaskRunDetailView, TaskRunInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
-import { TaskInspectLoadingSkeleton } from "./task-loading-skeletons";
+import { TaskRunInspectSkeleton } from "./task-loading-skeletons";
 
 export interface TaskRunInspectDrawerProps {
   open: boolean;
@@ -84,7 +84,11 @@ function TaskRunInspectBody({
     return <TaskRunInspectSnapshot idempotencyKey={idempotencyKey} inspect={inspect} />;
   }
   if (isLoading) {
-    return <TaskInspectLoadingSkeleton label="Loading run inspection" />;
+    return (
+      <SkeletonRegion label="Loading run inspection">
+        <TaskRunInspectSkeleton />
+      </SkeletonRegion>
+    );
   }
   if (errorMessage) {
     return (
