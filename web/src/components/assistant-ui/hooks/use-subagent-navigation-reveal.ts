@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
+import { subagentRevealStore } from "@/systems/session";
 import type { SessionSequenceIndex } from "@/systems/session/lib/session-navigation-transcript";
 import type { SessionNavigationReveal } from "./session-navigation-target-context";
 import type { SessionNavigationHostOptions } from "./use-session-navigation-host";
@@ -25,7 +25,10 @@ function findSubagent(index: SessionSequenceIndex, subagentId: string) {
         candidate.type === "data-compozy-subagent" && candidate.data?.subagent_id === subagentId
       );
     });
-    if (partIndex !== -1) return { entry, partIndex };
+    if (partIndex !== -1) {
+      const part = entry.parts[partIndex] as { data?: { turn_id?: string } };
+      return { entry, partIndex, turnId: part.data?.turn_id ?? entry.turnId };
+    }
   }
   return null;
 }
@@ -47,7 +50,7 @@ async function revealSubagent(
     commitReveal({
       key: target.key,
       messageId: match.entry.messageId,
-      turnId: match.entry.turnId,
+      turnId: match.turnId,
       partIndex: match.partIndex,
       subagentId: target.subagentId,
       field: null,

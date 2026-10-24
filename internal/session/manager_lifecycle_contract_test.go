@@ -739,40 +739,55 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 
 func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 	t.Parallel()
-	t.Run("Should archive a recovered stop after exit classification cleared its process identity", func(t *testing.T) {
-		t.Parallel()
-		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
-		h := newHarness(t, WithSessionCatalog(catalog))
-		active := createSession(t, h)
-		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
-			t.Fatal(err)
-		}
-		meta := readMeta(t, active.MetaPath())
-		meta.State = string(StateStopping)
-		meta.StopVerificationFailed = true
-		if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness.SubprocessPID != 0 ||
-			meta.Liveness.SubprocessStartedAt != nil {
-			t.Fatalf("exit classification did not release identity: %#v", meta.Liveness)
-		}
-		if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
-			t.Fatal(err)
-		}
-		manager := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
-		cleanupTestManager(t, manager)
-		if err := manager.Stop(t.Context(), active.ID); err != nil {
-			t.Fatalf("retry recovered stop: %v", err)
-		}
-		info, err := manager.ArchiveWithStop(t.Context(), h.workspaceID, active.ID)
-		if err != nil {
-			t.Fatalf("archive recovered stop: %v", err)
-		}
-		if info.State != StateStopped || info.StopVerificationFailed || info.ArchivedAt == nil {
-			t.Fatalf("recovered stop not archived: %#v", info)
-		}
-		if info.StopReason != store.StopUserCanceled {
-			t.Fatalf("recovery changed the recorded stop cause: %s", info.StopReason)
-		}
-	})
+	for _, reason := range []store.StopReason{
+		store.StopUserCanceled, store.StopTimeout, store.StopCompleted, store.StopHookStopped,
+	} {
+		t.Run(
+			"Should preserve "+string(reason)+" when archiving a recovered stop with released identity",
+			func(t *testing.T) {
+				t.Parallel()
+				catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+				h := newHarness(t, WithSessionCatalog(catalog))
+				active := createSession(t, h)
+				if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatal(err)
+				}
+				meta := readMeta(t, active.MetaPath())
+				meta.StopReason = &reason
+				meta.StopDetail = "saved stop classification"
+				meta.Failure = &store.SessionFailure{Kind: store.FailureCanceled, Summary: "saved failure"}
+				wantFailure := store.CloneSessionFailure(meta.Failure)
+				meta.State = string(StateStopping)
+				meta.StopVerificationFailed = true
+				if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness.SubprocessPID != 0 ||
+					meta.Liveness.SubprocessStartedAt != nil {
+					t.Fatalf("exit classification did not release identity: %#v", meta.Liveness)
+				}
+				if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
+					t.Fatal(err)
+				}
+				manager := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+				cleanupTestManager(t, manager)
+				if err := manager.Stop(t.Context(), active.ID); err != nil {
+					t.Fatalf("retry recovered stop: %v", err)
+				}
+				info, err := manager.ArchiveWithStop(t.Context(), h.workspaceID, active.ID)
+				if err != nil {
+					t.Fatalf("archive recovered stop: %v", err)
+				}
+				if info.State != StateStopped || info.StopVerificationFailed || info.ArchivedAt == nil {
+					t.Fatalf("recovered stop not archived: %#v", info)
+				}
+				if info.StopReason != reason {
+					t.Fatalf("recovery changed the recorded stop cause: %s", info.StopReason)
+				}
+				persisted := readMeta(t, active.MetaPath())
+				if persisted.StopDetail != meta.StopDetail || !reflect.DeepEqual(persisted.Failure, wantFailure) {
+					t.Fatalf("recovery changed saved detail or failure: %#v", persisted)
+				}
+			},
+		)
+	}
 	t.Run("Should report a repeated verification cause once across stop phases and retries", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

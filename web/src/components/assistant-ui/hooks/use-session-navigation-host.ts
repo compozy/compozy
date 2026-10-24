@@ -409,15 +409,17 @@ export function useSessionNavigationHost({
   // of a settled agent entry. The live turn never folds, and a fold a jump is
   // holding open is not behind anything right now.
   const liveEntryId = isSessionRunning ? (index.entries.at(-1)?.messageId ?? null) : null;
+  const activeReveal = nativeNavigation.reveal ?? reveal;
+  const activeReleased = nativeNavigation.reveal ? nativeNavigation.released : released;
   const matchBehindFold = (sequence: number): boolean => {
     const entry = index.bySequence.get(sequence);
     const match = find.matches.find(candidate => candidate.sequence === sequence);
     const source = match ? findMatchSource(match, entry) : null;
     if (!entry || !match || !source?.insideFold || entry.messageId === liveEntryId) return false;
     const heldOpen =
-      reveal !== null &&
-      reveal.turnId === match.turn_id &&
-      !released.has(`turn-fold:${match.turn_id}`);
+      activeReveal !== null &&
+      activeReveal.turnId === match.turn_id &&
+      !activeReleased.has(`turn-fold:${match.turn_id}`);
     return !heldOpen;
   };
 
@@ -452,8 +454,8 @@ export function useSessionNavigationHost({
         if (nativeNavigation.reveal) nativeNavigation.releaseDisclosure(id);
         else setReleased(previous => (previous.has(id) ? previous : new Set([...previous, id])));
       },
-      released: nativeNavigation.reveal ? nativeNavigation.released : released,
-      reveal: nativeNavigation.reveal ?? reveal,
+      released: activeReleased,
+      reveal: activeReveal,
     },
     trail: {
       enabled: pane.width >= TRAIL_MIN_PANE_WIDTH_PX,

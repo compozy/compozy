@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
-import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
+import { subagentRevealStore } from "@/systems/session";
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import { primarySessionFixture } from "@/systems/session/mocks";
@@ -290,13 +290,13 @@ describe("SessionThread navigation host", () => {
   // disclosure, respects manual closure, and can reveal it again. Owner: viewport host.
   it("Should page to native work and reopen its disclosures on repeated navigation", async () => {
     const message = {
-      id: "native-message",
+      id: "native-turn-2",
       role: "assistant",
       parts: [
         {
           type: "data-compozy-subagent",
-          turn_id: "native-turn",
           data: {
+            turn_id: "native-turn",
             subagent_id: "native-review",
             tool_call_id: "native-tool",
             origin: "provider_native",
@@ -306,10 +306,9 @@ describe("SessionThread navigation host", () => {
           type: "text",
           text: "Native review details",
           state: "done",
-          turn_id: "native-turn",
           parentToolCallId: "native-tool",
         },
-        { type: "text", text: "Review complete", state: "done", turn_id: "native-turn" },
+        { type: "text", text: "Review complete", state: "done" },
       ],
     } as unknown as SessionMessage;
     vi.stubGlobal(
