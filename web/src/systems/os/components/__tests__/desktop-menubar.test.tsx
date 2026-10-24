@@ -281,10 +281,10 @@ describe("DesktopMenubar provider usage control", () => {
     ]);
   });
 
-  // Invariant: the tray control holds its place while the first usage read is pending, so the
-  // controls beside it do not move when it lands, and gives the place up once the answer says
-  // there is nothing to show.
-  it("Should hold the control's place until the first read answers, then give it up without a target", async () => {
+  // Invariant: the tray control never mounts on an unknown answer. The app route reads the usage
+  // envelope before the shell renders, so a pending read here (a profile switch) must not hold a
+  // slot that a no-target answer would then take away beside the other menubar controls.
+  it("Should mount the control only once the read answers with a target", async () => {
     let answer!: (response: Response) => void;
     vi.mocked(globalThis.fetch).mockImplementation(
       input =>
@@ -296,19 +296,12 @@ describe("DesktopMenubar provider usage control", () => {
     );
     const { container } = renderMenubar();
 
-    const control = await screen.findByRole("button", { name: "Provider usage" });
-    expect(control).toHaveAttribute("data-loading", "true");
-    expect(trayOrder(container)).toEqual([
-      "os-menubar-desktops",
-      "os-menubar-usage",
-      "os-menubar-bell",
-      "os-menubar-command",
-    ]);
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
 
     answer(jsonResponse(usageEnvelope([], { enabled: false }, NOW)));
-    await waitFor(() =>
-      expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull()
-    );
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
   });
 
   it.each([

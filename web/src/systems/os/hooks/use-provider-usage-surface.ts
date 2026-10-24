@@ -17,8 +17,9 @@ export interface ProviderUsageSurfaceModel extends ProviderUsageHost {
   profile: string;
   usage: ProviderUsageState;
   /**
-   * The tray control is mounted: while the first read is pending, so its slot is held and the
-   * controls beside it do not move when it lands, then only while the profile has a target.
+   * The tray control is mounted only while the profile has a target. The app route reads the
+   * usage envelope before the shell renders (`preloadAppRoute`), so the control lands with the
+   * shell instead of appearing or vanishing beside the menubar controls next to it.
    */
   trayVisible: boolean;
   actions: ProviderUsageActions;
@@ -51,7 +52,7 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
     ...host,
     profile,
     usage,
-    trayVisible: usage.loading || hasProviderUsageTargets(usage.viewModel),
+    trayVisible: hasProviderUsageTargets(usage.viewModel),
     actions,
     openRefresh,
     openUsage: launcher.openUsage,
