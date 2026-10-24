@@ -47,6 +47,7 @@ export interface OsWindowProps {
  * tabs never reloads a surface (US-003).
  */
 export function OsWindow({ frame }: OsWindowProps) {
+  performance.mark("peer-render-window");
   const {
     focused,
     handleDrag,
@@ -233,6 +234,7 @@ function OsWindowMember({
   zoomed: boolean;
   onTrafficLight: Parameters<typeof OsWindowSurface>[0]["onTrafficLight"];
 }) {
+  performance.mark("peer-render-member");
   const { coordinator, win, liveDataEnabled, windowBinding } = useOsWindowMember(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   // Mount layout-heavy bodies after the restored window frames commit.

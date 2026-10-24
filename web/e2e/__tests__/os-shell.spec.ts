@@ -3558,6 +3558,8 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
       await Promise.all(
         peers.map(peer =>
           peer.evaluate(() => {
+            performance.clearMeasures();
+            performance.clearMarks();
             const records: unknown[] = [];
             const observer = new PerformanceObserver(list => {
               records.push(...list.getEntries().map(entry => entry.toJSON()));
@@ -3586,7 +3588,17 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
               ).peerFrameDiagnostics;
               records.push(...observer.takeRecords().map(entry => entry.toJSON()));
               observer.disconnect();
-              return records;
+              return {
+                frames: records,
+                stages: performance
+                  .getEntriesByType("measure")
+                  .filter(entry => entry.name.startsWith("peer-"))
+                  .map(entry => ({ name: entry.name, duration: entry.duration })),
+                renders: performance
+                  .getEntriesByType("mark")
+                  .filter(entry => entry.name.startsWith("peer-"))
+                  .map(entry => entry.name),
+              };
             })
           )
         );

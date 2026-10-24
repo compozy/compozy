@@ -5,24 +5,23 @@ on:
 permissions:
   contents: read
 jobs:
-  source:
+  stages:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    env:
+      CGO_ENABLED: 0
+      CI: "true"
+      COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
+      COMPOZY_PEER_PROFILE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-bun
-      - run: bunx turbo run build --filter=./web
-      - name: Resolve attributed script offsets
-        run: |
-          python3 - <<'PYCODE'
-          import pathlib
-          for pattern,offset in [('_app-*.js',395023),('query-*.js',1646)]:
-              for path in pathlib.Path('web/dist/assets').glob(pattern):
-                  source=path.read_text()
-                  print('ATTRIBUTED_SOURCE',path.name,source[max(0,offset-1500):offset+2500])
-                  if pattern.startswith('_app'):
-                      for marker in ['os-window-overlays','os-window-frame-']:
-                          at=source.find(marker)
-                          print('COMPILED_MEMBER',marker,source[max(0,at-4000):at+1500])
-          PYCODE
+        with:
+          install-playwright: "true"
+      - run: |
+          bunx turbo run build --filter=./web
+          go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
+      - name: Attribute snapshot stages and renders
+        working-directory: web
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
