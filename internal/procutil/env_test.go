@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -86,6 +87,80 @@ func TestFilteredDaemonEnvRemovesCredentialShapedVariables(t *testing.T) {
 			if !containsEnvEntry(isolated, kept) {
 				t.Fatalf("IsolatedDaemonEnv() missing %q in %#v", kept, isolated)
 			}
+		}
+	})
+}
+
+func TestFilteredDaemonEnvAppImage(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		base []string
+		want []string
+	}{
+		{"Should remove runtime variables and current and stale mount libraries", []string{
+			"PATH=/usr/bin", "ARGV0=/apps/Compozy.AppImage", "OWD=/home/user",
+			"LD_LIBRARY_PATH=/tmp/.mount_current/usr/lib:/opt/lib:/tmp/.mount_stale/usr/lib",
+			"APPDIR=/tmp/.mount_current", "APPIMAGE=/apps/Compozy.AppImage",
+		}, []string{"PATH=/usr/bin", "LD_LIBRARY_PATH=/opt/lib"}},
+		{"Should remove an extracted AppDir without matching sibling paths", []string{
+			"APPIMAGE=/apps/Compozy.AppImage", "APPDIR=/opt/Compozy/",
+			"LD_LIBRARY_PATH=/opt/Compozy:/opt/Compozy/usr/lib;/opt/Compozy-other/lib:/usr/lib",
+		}, []string{"LD_LIBRARY_PATH=/opt/Compozy-other/lib:/usr/lib"}},
+		{"Should unset an exhausted library path", []string{
+			"APPIMAGE=/apps/Compozy.AppImage", "LD_LIBRARY_PATH=/tmp/.mount_old/usr/lib",
+		}, []string{}},
+		{"Should preserve empty search components alongside host libraries", []string{
+			"APPIMAGE=/apps/Compozy.AppImage", "LD_LIBRARY_PATH=:/usr/lib:/tmp/.mount_old/lib:",
+		}, []string{"LD_LIBRARY_PATH=:/usr/lib:"}},
+		{"Should leave non AppImage environments unchanged", []string{
+			"ARGV0=custom", "APPDIR=/opt/custom", "OWD=/work", "LD_LIBRARY_PATH=/tmp/.mount_old/lib:/usr/lib",
+		}, []string{"ARGV0=custom", "APPDIR=/opt/custom", "OWD=/work", "LD_LIBRARY_PATH=/tmp/.mount_old/lib:/usr/lib"}},
+		{"Should leave an empty AppImage marker unchanged", []string{
+			"APPIMAGE=", "ARGV0=custom", "LD_LIBRARY_PATH=/tmp/.mount_old/lib",
+		}, []string{"APPIMAGE=", "ARGV0=custom", "LD_LIBRARY_PATH=/tmp/.mount_old/lib"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			original := slices.Clone(tc.base)
+			got := FilteredDaemonEnv(tc.base)
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("FilteredDaemonEnv() = %q, want %q", got, tc.want)
+			}
+			if !slices.Equal(tc.base, original) {
+				t.Fatal("FilteredDaemonEnv mutated its input")
+			}
+		})
+	}
+}
+
+func TestFilteredDaemonEnvAppImageChild(t *testing.T) {
+	t.Run("Should launch a real child without AppImage runtime state", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix shell process check")
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", `
+for name in APPIMAGE APPDIR ARGV0 OWD; do
+ eval 'present=${'"$name"'+yes}'
+ if [ "$present" = yes ]; then exit 1; fi
+done
+[ "${LD_LIBRARY_PATH+x}" != x ] || exit 2
+printf clean
+`)
+		cmd.Env = FilteredDaemonEnv([]string{
+			"PATH=/usr/bin:/bin", "APPIMAGE=/apps/Compozy.AppImage",
+			"APPDIR=/tmp/.mount_current", "ARGV0=/apps/Compozy.AppImage", "OWD=/work",
+			"LD_LIBRARY_PATH=/tmp/.mount_current/usr/lib:/tmp/.mount_stale/usr/lib",
+		})
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("child failed: %v; output: %s", err, output)
+		}
+		if string(output) != "clean" {
+			t.Fatalf("child output = %q, want clean", output)
 		}
 	})
 }
