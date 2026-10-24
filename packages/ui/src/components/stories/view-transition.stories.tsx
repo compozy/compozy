@@ -227,9 +227,11 @@ function SuspenseDemo() {
         className="self-start"
         size="sm"
         type="button"
-        onClick={() =>
-          startTransition(() => setLoad(current => ({ id: current.id + 1, rows: loadRows() })))
-        }
+        onClick={() => {
+          // Start the read outside the updater: React may call updaters twice.
+          const rows = loadRows();
+          startTransition(() => setLoad(current => ({ id: current.id + 1, rows })));
+        }}
       >
         Reload
       </Button>
