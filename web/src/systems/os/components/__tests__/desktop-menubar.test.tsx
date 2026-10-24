@@ -281,6 +281,36 @@ describe("DesktopMenubar provider usage control", () => {
     ]);
   });
 
+  // Invariant: the tray control holds its place while the first usage read is pending, so the
+  // controls beside it do not move when it lands, and gives the place up once the answer says
+  // there is nothing to show.
+  it("Should hold the control's place until the first read answers, then give it up without a target", async () => {
+    let answer!: (response: Response) => void;
+    vi.mocked(globalThis.fetch).mockImplementation(
+      input =>
+        new Promise<Response>(resolve => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (url.includes("/api/provider-usage")) answer = resolve;
+          else resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+        })
+    );
+    const { container } = renderMenubar();
+
+    const control = await screen.findByRole("button", { name: "Provider usage" });
+    expect(control).toHaveAttribute("data-loading", "true");
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-usage",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
+
+    answer(jsonResponse(usageEnvelope([], { enabled: false }, NOW)));
+    await waitFor(() =>
+      expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull()
+    );
+  });
+
   it.each([
     ["the feature is off", usageEnvelope([], { enabled: false }, NOW)],
     ["the profile has no target", usageEnvelope([], {}, NOW)],

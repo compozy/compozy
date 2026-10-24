@@ -76,6 +76,15 @@ describe("Provider usage components", () => {
       expect(button.querySelector("[data-slot=progress]")).toHaveAttribute("data-tone", "neutral");
     });
 
+    it("Should hold the meter's shape, unmeasured, while the first read is pending", () => {
+      render(<ProviderUsageTrayMeter tray={null} loading />);
+      const button = screen.getByRole("button", { name: "Provider usage" });
+
+      expect(button).toHaveAttribute("data-loading", "true");
+      expect(button.querySelector("[data-slot=skeleton]")).not.toBeNull();
+      expect(within(button).queryByRole("progressbar")).toBeNull();
+    });
+
     it("Should map warning and exhausted to their tones and say limit reached", () => {
       const { rerender } = render(
         <ProviderUsageTrayMeter tray={usageTray({ used_percent: 88, severity: "warning" }, NOW)} />

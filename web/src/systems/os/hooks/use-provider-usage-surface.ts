@@ -1,5 +1,6 @@
 import { useProfileReadScope } from "@/systems/profiles";
 import {
+  hasProviderUsageTargets,
   useProviderUsage,
   useProviderUsageActions,
   useProviderUsageOpenRefresh,
@@ -15,6 +16,11 @@ import { useProviderUsageHost, type ProviderUsageHost } from "./use-provider-usa
 export interface ProviderUsageSurfaceModel extends ProviderUsageHost {
   profile: string;
   usage: ProviderUsageState;
+  /**
+   * The tray control is mounted: while the first read is pending, so its slot is held and the
+   * controls beside it do not move when it lands, then only while the profile has a target.
+   */
+  trayVisible: boolean;
   actions: ProviderUsageActions;
   /** Popover open: a background refresh for rows older than 60 s. */
   openRefresh: () => void;
@@ -45,6 +51,7 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
     ...host,
     profile,
     usage,
+    trayVisible: usage.loading || hasProviderUsageTargets(usage.viewModel),
     actions,
     openRefresh,
     openUsage: launcher.openUsage,

@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
-import { hasProviderUsageTargets } from "@/systems/provider-usage";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { usePaletteCommand } from "../hooks/use-palette-registry";
@@ -173,7 +172,7 @@ export function DesktopMenubar({
 
   const focusAttentionRow = useMenubarAttentionSelection(onOverlayOpenChange);
   const usage = useProviderUsageSurface();
-  const usageVisible = hasProviderUsageTargets(usage.usage.viewModel);
+  const usageVisible = usage.trayVisible;
   const usageOpen = activeOverlay === "usage";
 
   // The control leaves when its last target does (feature off, provider
