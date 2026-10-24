@@ -32,6 +32,7 @@ import {
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
+import { useCmdPaletteContext } from "../use-cmd-palette-context";
 import { usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
@@ -316,6 +317,51 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.compozyShell;
+});
+
+describe("useCmdPaletteContext store subscriptions", () => {
+  it("Should ignore geometry and publish changed command availability", () => {
+    vi.useFakeTimers();
+    const shell = createShell();
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useCmdPaletteContext({
+          shellDesktop: true,
+          scopeGlobal: false,
+          workspaceTrusted: true,
+          focusedSessionState: "",
+          attached: true,
+          debounceMs: 100,
+        });
+      },
+      { wrapper: shell.wrapper }
+    );
+    const initialRenders = renders;
+    const primary = shell.state.windows["window:primary"]!;
+    const count = result.current!["desktop.windowCount"] as number;
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+        },
+        frames: { ...shell.state.frames },
+      })
+    );
+    expect(renders).toBe(initialRenders);
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: { ...primary, minimized: true },
+        },
+      })
+    );
+    act(() => vi.advanceTimersByTime(100));
+    expect(result.current!["desktop.windowCount"]).toBe(count - 1);
+  });
 });
 
 describe("usePaletteTabs", () => {
