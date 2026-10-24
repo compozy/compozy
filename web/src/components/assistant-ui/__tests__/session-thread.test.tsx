@@ -2306,6 +2306,150 @@ describe("SessionThread transcript states", () => {
     expect(bubble).toHaveTextContent("unsafe");
   });
 
+  // Invariant (#967): what the operator typed is what the user message shows — each
+  // line break, the blank line, a pasted list, and a link — in every variant of the
+  // user message. Owner: user-message rendering; canonical suite: SessionThread.
+  describe("authored formatting across user-message variants", () => {
+    const AUTHORED = "/review first line\nsecond line see https://example.com/a\n\n- alpha\n- beta";
+    const steerMarker = (messageId: string) =>
+      ({
+        id: "ev-steered",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-compozy-event",
+            data: {
+              type: "transcript_marker.created",
+              session_id: "sess-1",
+              turn_id: "turn-authored",
+              timestamp: "2026-10-24T10:00:00.000Z",
+              text: "Steering delivered into the live turn.",
+              title: "transcript_marker.prompt_steered",
+              raw: {
+                kind: "transcript_marker.prompt_steered",
+                occurred_at: "2026-10-24T10:00:00.000Z",
+                summary: "Steering delivered into the live turn.",
+                evidence: {
+                  authored_text: AUTHORED,
+                  message_id: messageId,
+                  mode: "steer",
+                  queue_status: "sent",
+                  steer_delivery: "injected",
+                  target_turn_id: "turn-authored",
+                },
+              },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      }) as SessionMessage;
+    const variants: {
+      name: string;
+      metadata: Record<string, unknown>;
+      parts?: SessionMessage["parts"];
+      after?: (id: string) => SessionMessage[];
+      expectChip?: string;
+    }[] = [
+      { name: "plain text", metadata: {} },
+      {
+        name: "skill command",
+        metadata: {
+          skill_invocations: [
+            { command_id: "skill:workspace:review", token: "/review", start: 0, end: 7 },
+          ],
+        },
+        expectChip: "session-skill-directive",
+      },
+      {
+        name: "@-mention",
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@README.md",
+              target: "README.md",
+              label: "README.md",
+              start: AUTHORED.length + 1,
+              end: AUTHORED.length + 11,
+            },
+          ],
+        },
+        expectChip: "session-mention-chip",
+      },
+      {
+        name: "attachment",
+        metadata: {
+          attachments: [
+            {
+              id: "att-notes",
+              name: "notes.pdf",
+              mime_type: "application/pdf",
+              bytes: 4096,
+              sha256: "b".repeat(64),
+              kind: "file",
+            },
+          ],
+        },
+        parts: [
+          {
+            type: "file",
+            mediaType: "application/pdf",
+            url: "compozy://session-attachments/att-notes",
+            filename: "notes.pdf",
+          },
+        ] as SessionMessage["parts"],
+      },
+      { name: "steered entry", metadata: {}, after: id => [steerMarker(id)] },
+    ];
+
+    it.each(variants)("keeps authored formatting for $name", async variant => {
+      const id = `user-authored-${variant.name.replace(/\W+/g, "-")}`;
+      const text = variant.name === "@-mention" ? `${AUTHORED} @README.md` : AUTHORED;
+      const transcript = [
+        {
+          id,
+          role: "user",
+          metadata: { turn_id: "turn-authored", message_id: id, ...variant.metadata },
+          parts: [...(variant.parts ?? []), { type: "text", text, state: "done" }],
+        } as SessionMessage,
+        ...(variant.after?.(id) ?? []),
+      ];
+
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+      const bubble = await screen.findByTestId("user-message-bubble");
+      const paragraph = bubble.querySelector("p")!;
+      expect(paragraph.querySelectorAll("br")).toHaveLength(1);
+      expect(paragraph).toHaveTextContent("/review first line");
+      const items = within(bubble).getAllByRole("listitem");
+      expect(items.map(item => item.firstChild?.textContent?.trim())).toEqual(["alpha", "beta"]);
+      expect(within(paragraph).getByRole("link")).toHaveAttribute("href", "https://example.com/a");
+      if (variant.expectChip) expect(within(bubble).getByTestId(variant.expectChip)).toBeVisible();
+      if (variant.after) {
+        expect(screen.getByTestId("user-message-steer-meta")).toHaveAttribute(
+          "data-steer",
+          "injected"
+        );
+      }
+    });
+
+    it("keeps authored formatting after a persisted transcript is normalized (reload)", async () => {
+      const [message] = await normalizeTranscriptMessages([
+        {
+          id: "user-authored-reload",
+          role: "user",
+          metadata: { turn_id: "turn-authored", message_id: "user-authored-reload" },
+          parts: [{ type: "text", text: AUTHORED }],
+        },
+      ]);
+
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages([message!]) });
+
+      const bubble = await screen.findByTestId("user-message-bubble");
+      expect(bubble.querySelector("p")!.querySelectorAll("br")).toHaveLength(1);
+      expect(within(bubble).getAllByRole("listitem")).toHaveLength(2);
+    });
+  });
+
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
     const transcript = [
       {
@@ -5044,6 +5188,33 @@ describe("SessionThread composer running semantics", () => {
     await setComposerText(text.replace("https://", "broken://"));
     await waitFor(() => expect(editable).toHaveTextContent("broken://example.com"));
     expect(composerText()).toBe(text.replace("https://", "broken://"));
+
+    // A URL typed one character at a time first matches as a short prefix
+    // ("https://e"); the decoration must still cover the whole URL (#967).
+    const linkSpans = () =>
+      Array.from(
+        editable.querySelectorAll<HTMLElement>('span[style*="--compozy-composer-link"]'),
+        span => span.textContent
+      );
+    await setComposerText("see ");
+    await placeComposerCursor(4);
+    const typed = "see https://example.com/a/b now";
+    for (const char of typed.slice(4)) {
+      await act(async () => {
+        editor.dispatchCommand(CONTROLLED_TEXT_INSERTION_COMMAND, char);
+      });
+    }
+    await waitFor(() => expect(composerText()).toBe(typed));
+    expect(linkSpans()).toEqual(["https://example.com/a/b"]);
+
+    const lines = "first https://a.example/x\nthen mailto:b@example.com and https://c.example";
+    await setComposerText(lines);
+    await waitFor(() => expect(composerText()).toBe(lines));
+    expect(linkSpans()).toEqual([
+      "https://a.example/x",
+      "mailto:b@example.com",
+      "https://c.example",
+    ]);
   });
 
   it("Should restore the active session draft after the composer remounts", async () => {

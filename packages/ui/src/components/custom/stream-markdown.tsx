@@ -10,6 +10,8 @@ import { MarkdownMermaid } from "./markdown-mermaid";
 import { Markdown, type MarkdownProps } from "./markdown";
 import { extendSafeMarkdownPlugins } from "./markdown-plugins";
 import { INLINE_CODE_CLASS } from "./markdown-components";
+import { MarkdownAuthoredAnchor } from "./markdown-authored-anchor";
+import { remarkAuthoredLineBreaks } from "./markdown-line-breaks";
 import {
   MARKDOWN_SLOT_TAG,
   rehypeMarkdownSlots,
@@ -115,6 +117,18 @@ const SLOT_PLUGINS = extendSafeMarkdownPlugins({
   remark: [remarkMarkdownSlotLiterals],
   rehype: [rehypeMarkdownSlots],
 });
+const AUTHORED_PLUGINS = extendSafeMarkdownPlugins({ remark: [remarkAuthoredLineBreaks] });
+const AUTHORED_SLOT_PLUGINS = extendSafeMarkdownPlugins({
+  remark: [remarkMarkdownSlotLiterals, remarkAuthoredLineBreaks],
+  rehype: [rehypeMarkdownSlots],
+});
+
+function streamMarkdownPlugins(slotted: boolean, authored: boolean) {
+  if (authored) return slotted ? AUTHORED_SLOT_PLUGINS : AUTHORED_PLUGINS;
+  return slotted ? SLOT_PLUGINS : undefined;
+}
+
+const AUTHORED_COMPONENTS: Partial<Components> = { a: MarkdownAuthoredAnchor };
 
 export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "children"> {
   children: string;
@@ -123,6 +137,12 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
   compact?: MarkdownProps["compact"];
   /** Inline nodes rendered where a `composeMarkdownSlots` source places them. */
   slots?: StreamMarkdownSlots;
+  /**
+   * Typed chat input rather than model output: each authored line break
+   * renders as a line break, and links open externally behind the safe
+   * external-link affordance (`MarkdownAuthoredAnchor`).
+   */
+  authored?: boolean;
   components?: MarkdownProps["components"];
 }
 
@@ -138,6 +158,7 @@ function StreamMarkdown({
   streaming = false,
   compact = false,
   slots,
+  authored = false,
   components,
   className,
   ...props
@@ -147,8 +168,12 @@ function StreamMarkdown({
       data-slot="stream-markdown"
       streaming={streaming}
       compact={compact}
-      components={{ ...(slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS), ...components }}
-      plugins={slots ? SLOT_PLUGINS : undefined}
+      components={{
+        ...(slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS),
+        ...(authored ? AUTHORED_COMPONENTS : undefined),
+        ...components,
+      }}
+      plugins={streamMarkdownPlugins(slots !== undefined, authored)}
       className={className}
       {...props}
     >

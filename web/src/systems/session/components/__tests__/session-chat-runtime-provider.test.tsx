@@ -2940,7 +2940,13 @@ describe("SessionChatRuntimeProvider", () => {
     const gate = createDeferred<void>();
     rewindResponseGate = gate.promise;
     sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
-    transcriptMessages = sessionTranscriptFixture.slice(0, 2);
+    // A multiline prompt with a list comes back line for line (#967).
+    const draft = "Summarize the launch blockers\nbefore the cutover:\n\n- auth\n- billing";
+    const [authored, assistant] = sessionTranscriptFixture;
+    transcriptMessages = [
+      { ...authored!, parts: [{ type: "text", text: draft, state: "done" }] } as TranscriptMessage,
+      assistant!,
+    ];
 
     const view = renderSessionThread({ queryClient });
 
@@ -2960,12 +2966,13 @@ describe("SessionChatRuntimeProvider", () => {
     );
     // The draft lands from the rewind response, outside any user event: wait inside act until
     // the composer the operator sees renders it, not only until its store holds it.
-    const draft = "Summarize the launch blockers before the 18:30 UTC cutover.";
     await act(async () => {
       gate.resolve();
-      await vi.waitFor(() => expect(screen.getByTestId("composer-input")).toHaveTextContent(draft));
+      await vi.waitFor(() => expect(composerText()).toBe(draft));
     });
-    expect(composerText()).toBe(draft);
+    const editable = screen.getByTestId("composer-input");
+    await vi.waitFor(() => expect(editable).toHaveTextContent("before the cutover:"));
+    expect(editable.querySelectorAll("p")).toHaveLength(5);
     // The editor tears down asynchronously and updates its placeholder and cursor; let it
     // settle inside act so no update lands after the test.
     await act(async () => view.unmount());

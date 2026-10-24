@@ -8,7 +8,7 @@ export function SessionMessageText({
   streaming = false,
   reveal = false,
   slots,
-  userLinks = false,
+  authored = false,
 }: {
   text: string;
   streaming?: boolean;
@@ -16,7 +16,8 @@ export function SessionMessageText({
   reveal?: boolean;
   /** Inline nodes `text` places with `composeMarkdownSlots`. */
   slots?: StreamMarkdownSlots;
-  userLinks?: boolean;
+  /** Operator-typed prose (user turns): authored line breaks and safe links. */
+  authored?: boolean;
 }) {
   return (
     <MessageMarkdown
@@ -24,7 +25,7 @@ export function SessionMessageText({
       streaming={streaming}
       reveal={reveal}
       slots={slots}
-      userLinks={userLinks}
+      authored={authored}
     />
   );
 }

@@ -170,3 +170,39 @@ export const ImageReference: Story = {
     await expect(canvas.queryByRole("img")).toBeNull();
   },
 };
+
+const AUTHORED = [
+  "first line",
+  "second line, see https://example.com/docs/session-transcript/whitespace-and-links-in-authored-messages",
+  "",
+  "- alpha",
+  "- beta",
+  "  - nested",
+  "",
+  "[unsafe](javascript:alert(1)) stays text",
+].join("\n");
+
+export const AuthoredInput: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Typed chat input: each authored line break stays a line break, and only http(s)/mailto links open, externally, behind the globe with long URLs truncated.",
+      },
+    },
+  },
+  render: () => (
+    <div className="max-w-80">
+      <StreamMarkdown authored>{AUTHORED}</StreamMarkdown>
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvasElement.querySelector("p br")).not.toBeNull();
+    const link = canvas.getByRole("link");
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(canvasElement).toHaveTextContent("unsafe stays text");
+  },
+};

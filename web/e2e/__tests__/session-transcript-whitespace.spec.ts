@@ -34,32 +34,65 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
   await appPage.goto(runtime.url(`/agents/${agentName}/sessions/${sessionId}`));
   const window = sessionWindow(appPage, sessionId);
   const ui = sessionWindowSelectors(window, appPage);
-  // Invariant: authored soft breaks and lists keep their visual structure through send/reload.
+  // Invariant: authored soft breaks, lists, and links keep their visual structure through
+  // send/reload, typed the way an operator types them (#872, #967).
   // Owner: session transcript browser rendering; canonical suite: this file.
-  const prompt = "show the diagram\non a separate line\n\n- first item\n- second item";
-  await ui.composerTextarea.fill(prompt);
+  const url = "https://example.com/docs/transcript";
+  const pastedList = "- first item\n- second item\n  - nested item";
+  // The fixture answers only this exact text, so the reply proves the wire kept every break.
+  await ui.composerTextarea.click();
+  await ui.composerTextarea.pressSequentially("show the diagram");
+  await ui.composerTextarea.press("Shift+Enter");
+  // Typed one character at a time, the URL first matches as a short prefix.
+  await ui.composerTextarea.pressSequentially(`on a separate line, see ${url}`);
+  await expect(
+    window.getByTestId("composer-input").locator('span[style*="--compozy-composer-link"]')
+  ).toHaveText([url]);
+  await ui.composerTextarea.press("Shift+Enter");
+  await ui.composerTextarea.press("Shift+Enter");
+  await ui.composerTextarea.evaluate((element, text) => {
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", text);
+    element.dispatchEvent(
+      new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true })
+    );
+  }, pastedList);
+  await expect(ui.composerTextarea).toContainText("nested item");
   await ui.composerTextarea.press("Enter");
 
   const bubble = window.getByTestId("user-message-bubble");
   const assertAuthoredLayout = async () => {
-    await expect(bubble.getByRole("listitem")).toHaveText(["first item", "second item"]);
+    await expect(bubble.getByRole("listitem")).toHaveText([
+      "first item",
+      /^second item\s+nested item\s*$/,
+      "nested item",
+    ]);
+    await expect(bubble.getByRole("link", { name: url })).toHaveAttribute("target", "_blank");
+    // Markdown's whitespace between blocks never renders as blank lines inside the bubble.
+    await expect
+      .poll(() => bubble.evaluate(element => (element as HTMLElement).innerText))
+      .not.toMatch(/\n{3,}/);
     await expect
       .poll(() =>
         bubble
           .locator("p")
           .first()
           .evaluate(element => {
-            const text = element.firstChild!;
-            const source = text.textContent ?? "";
-            const nextLine = source.indexOf("on a separate line");
-            if (nextLine < 0) return false;
-            const first = document.createRange();
-            first.setStart(text, 0);
-            first.setEnd(text, 1);
-            const second = document.createRange();
-            second.setStart(text, nextLine);
-            second.setEnd(text, nextLine + 1);
-            return second.getBoundingClientRect().top > first.getBoundingClientRect().top;
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            const lines: Text[] = [];
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              lines.push(node as Text);
+            }
+            const first = lines.find(node => node.data.includes("show the diagram"));
+            const next = lines.find(node => node.data.includes("on a separate line"));
+            if (!first || !next) return false;
+            const top = (node: Text) => {
+              const range = document.createRange();
+              range.setStart(node, 0);
+              range.setEnd(node, 1);
+              return range.getBoundingClientRect().top;
+            };
+            return top(next) > top(first);
           })
       )
       .toBe(true);

@@ -80,7 +80,6 @@ export function UserMessageBubble({
         className={cn(
           "w-fit max-w-full min-w-0 rounded-xl bg-chat-fill-user px-3.5 py-2",
           "text-transcript-message leading-relaxed [overflow-wrap:anywhere]",
-          "[&_p]:whitespace-pre-wrap [&_li]:whitespace-pre-wrap",
           subdued ? "text-subtle" : "text-fg",
           clamped ? MESSAGE_CLAMPED_CLASS : null
         )}

@@ -155,7 +155,7 @@ export function SessionDirectiveText({
       ? []
       : verifiedDirectives(text, directives, mentions);
   if (ordered.length === 0) {
-    return <SessionMessageText text={text} streaming={streaming} userLinks />;
+    return <SessionMessageText text={text} streaming={streaming} authored />;
   }
 
   // Each verified token becomes an inline slot of one markdown document, so the
@@ -180,7 +180,7 @@ export function SessionDirectiveText({
 
   return (
     <div className="contents" onCopy={copySelectionWithMentionTokens}>
-      <SessionMessageText text={source} streaming={streaming} slots={slots} userLinks />
+      <SessionMessageText text={source} streaming={streaming} slots={slots} authored />
     </div>
   );
 }
