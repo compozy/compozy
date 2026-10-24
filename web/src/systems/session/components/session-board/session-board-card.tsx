@@ -229,7 +229,7 @@ function SessionBoardCardRollupMark({
         {rollup.total}
         {rollup.needsYou ? <Pill.Dot className="ml-px" tone="accent" /> : null}
       </TooltipTrigger>
-      <TooltipContent>
+      <TooltipContent className="flex-col items-stretch gap-0">
         <div>
           {rollup.total} child {rollup.total === 1 ? "session" : "sessions"}
         </div>

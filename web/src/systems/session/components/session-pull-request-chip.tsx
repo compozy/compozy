@@ -102,7 +102,7 @@ export function SessionPullRequestChip({
         </TooltipTrigger>
         <TooltipContent
           align="start"
-          className="max-w-75 min-w-60 px-2.5 py-2 text-left whitespace-normal"
+          className="max-w-75 min-w-60 flex-col items-stretch gap-0 px-2.5 py-2 text-left whitespace-normal"
           data-testid="session-pull-request-tooltip"
           side="bottom"
         >
