@@ -25,6 +25,7 @@ const PLURAL_ROWS = toProfileRows(
 );
 
 interface HarnessProps {
+  isLoading?: boolean;
   quiet?: boolean;
   aggregate?: boolean;
   archivedCount?: number;
@@ -37,6 +38,7 @@ interface HarnessProps {
 }
 
 function renderSwitcher({
+  isLoading = false,
   quiet = false,
   aggregate = false,
   archivedCount = 2,
@@ -55,6 +57,7 @@ function renderSwitcher({
         aggregate={aggregate}
         quiet={quiet}
         archivedCount={archivedCount}
+        isLoading={isLoading}
         manageable={manageable}
         onSelectProfile={onSelectProfile}
         onSelectAggregate={onSelectAggregate}
@@ -115,6 +118,16 @@ describe("ProfileSwitcher", () => {
     await user.click(screen.getByTestId("os-menubar-profile"));
     await user.click(await screen.findByTestId("profile-switcher-option-default"));
     expect(onSelectProfile).toHaveBeenCalledWith("default");
+  });
+
+  it("Should hold the list's place with a skeleton, not a spinner, while profiles load", async () => {
+    const user = userEvent.setup();
+    renderSwitcher({ isLoading: true });
+    await user.click(screen.getByTestId("os-menubar-profile"));
+
+    const loading = await screen.findByRole("status");
+    expect(loading).toHaveTextContent("Loading profiles");
+    expect(loading.querySelector('[data-slot="skeleton"]')).not.toBeNull();
   });
 
   it("Should name each profile once, not twice, for a screen reader", async () => {

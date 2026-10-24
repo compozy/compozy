@@ -12,13 +12,13 @@ import {
   FieldError,
   FieldLabel,
   Input,
-  Spinner,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import { PROFILE_PERMANENT_LINE } from "../lib/profile-copy";
 import { PERMANENT_PROFILE } from "../lib/profile-rows";
 import type { RenameProfilePlan } from "../types";
-import { ProfileRenamePlan } from "./profile-rename-plan";
+import { ProfileRenamePlan, ProfileRenamePlanSkeleton } from "./profile-rename-plan";
 
 export interface ProfileRenameDialogProps {
   open: boolean;
@@ -89,10 +89,9 @@ export function ProfileRenameDialog({
                 {error !== null ? <FieldError>{error}</FieldError> : null}
               </Field>
               {planLoading && touched ? (
-                <div className="flex items-center gap-2 text-small-body text-subtle">
-                  <Spinner className="size-3.5" />
-                  <span>Checking what this will change…</span>
-                </div>
+                <SkeletonRegion label="Checking what this will change">
+                  <ProfileRenamePlanSkeleton />
+                </SkeletonRegion>
               ) : null}
               {plan !== undefined ? (
                 <ProfileRenamePlan

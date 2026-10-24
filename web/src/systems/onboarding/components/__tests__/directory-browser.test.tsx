@@ -72,6 +72,33 @@ describe("DirectoryBrowser", () => {
     client.clear();
   });
 
+  it("holds the listing's place with row skeletons while a folder is read", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <DirectoryBrowser
+          browseError={null}
+          currentPath="/workspace"
+          entries={[]}
+          homePath="/workspace"
+          isBrowsing
+          isPicked={() => false}
+          onGoHome={() => undefined}
+          onGoParent={() => undefined}
+          onNavigate={() => undefined}
+          onPick={() => undefined}
+          parentPath={null}
+          roots={[]}
+        />
+      </UIProvider>
+    );
+
+    const loading = screen.getByTestId("directory-browser-loading");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveTextContent("Reading directory");
+    expect(loading.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(1);
+    expect(screen.queryByTestId("directory-browser-empty")).not.toBeInTheDocument();
+  });
+
   it("forwards native div attributes and navigates to an operating-system root", () => {
     const onClick = vi.fn();
     const onNavigate = vi.fn();

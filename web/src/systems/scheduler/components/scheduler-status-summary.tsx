@@ -1,10 +1,11 @@
-import { Pill, Skeleton, Time } from "@compozy/ui";
+import { Pill, SkeletonRegion, SkeletonText, Time } from "@compozy/ui";
 
 import { schedulerStatusCounts } from "../lib/scheduler-status-view";
 import type { SchedulerStatus } from "../types";
 
 interface SchedulerStatusSummaryProps {
   status: SchedulerStatus | null;
+  /** The first read of the status is pending. A refresh with a status in hand shows nothing. */
   isLoading: boolean;
 }
 
@@ -17,12 +18,6 @@ export function SchedulerStatusSummary({ status, isLoading }: SchedulerStatusSum
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
         <h2 className="text-item-title font-medium text-fg-strong">Task queue</h2>
         <SchedulerStateLabel isInitialLoading={isInitialStatusLoading} paused={status?.paused} />
-        {isLoading && status ? (
-          <Pill data-testid="scheduler-controls-loading" form="plain">
-            <Pill.Dot tone="neutral" pulse />
-            Loading
-          </Pill>
-        ) : null}
       </div>
       {isInitialStatusLoading ? (
         <SchedulerStatusMetaSkeleton />
@@ -53,24 +48,28 @@ function SchedulerStateLabel({
       className="inline-flex items-center gap-1.5 text-form-label text-muted"
       data-testid="scheduler-controls-state"
     >
-      {isInitialLoading ? null : <Pill.Dot tone={paused ? "neutral" : "success"} />}
-      {isInitialLoading ? "Loading" : paused ? "Paused" : "Running"}
+      {isInitialLoading ? (
+        <SkeletonText className="w-14" />
+      ) : (
+        <>
+          <Pill.Dot tone={paused ? "neutral" : "success"} />
+          {paused ? "Paused" : "Running"}
+        </>
+      )}
     </span>
   );
 }
 
+/** The counts line in skeleton form: one line of the line box the real counts take. */
 function SchedulerStatusMetaSkeleton() {
   return (
-    <div
-      aria-label="Loading scheduler status"
-      className="mt-2 flex items-center gap-3"
+    <SkeletonRegion
+      className="mt-2 text-form-label"
       data-testid="scheduler-controls-meta-loading"
-      role="status"
+      label="Loading scheduler status"
     >
-      <Skeleton className="h-3 w-24" />
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="h-3 w-28" />
-    </div>
+      <SkeletonText className="w-120" />
+    </SkeletonRegion>
   );
 }
 

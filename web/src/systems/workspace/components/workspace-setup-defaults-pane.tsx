@@ -11,6 +11,8 @@ import {
   FormSection,
   HelpTip,
   Input,
+  Skeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { WorkspaceSetupContent } from "../hooks/use-workspace-setup-content";
@@ -25,37 +27,20 @@ interface WorkspaceSetupDefaultsPaneProps {
   defaults: WorkspaceSetupDefaultsModel;
 }
 
-function collectionPlaceholder<T>(
-  collection: WorkspaceSetupCollection<T>,
-  loading: string,
-  empty: string,
-  error: string,
-  ready: string
-): string {
-  if (collection.state === "loading") return loading;
-  if (collection.state === "error") return error;
-  return collection.entries.length === 0 ? empty : ready;
+function agentPlaceholder(state: WorkspaceSetupCollection<unknown>["state"], count: number) {
+  if (state === "error") return "Agents unavailable";
+  return count === 0 ? "No agents available" : "No default agent";
 }
 
 function CollectionStateMessage<T>({
   collection,
-  loading,
   error,
   testId,
 }: {
   collection: WorkspaceSetupCollection<T>;
-  loading: string;
   error: string;
   testId: string;
 }) {
-  if (collection.state === "loading") {
-    return (
-      <p className="text-form-hint text-muted" data-testid={`${testId}-loading`} role="status">
-        {loading}
-      </p>
-    );
-  }
-
   if (collection.state === "error") {
     return (
       <p className="text-form-hint text-danger" data-testid={`${testId}-error`} role="alert">
@@ -87,26 +72,28 @@ export function WorkspaceSetupDefaultsPane({ setup, defaults }: WorkspaceSetupDe
       <div className="flex flex-col gap-4">
         <Field>
           <FieldLabel htmlFor="workspace-setup-default-agent">Default agent</FieldLabel>
-          <AgentCommandSelect
-            agents={agents}
-            clearLabel="No default agent"
-            disabled={disabled || agentsUnavailable}
-            onChange={next => setup.setDefaultAgent(next ?? "")}
-            placeholder={collectionPlaceholder(
-              defaults.agents,
-              "Loading agents…",
-              "No agents available",
-              "Agents unavailable",
-              "No default agent"
-            )}
-            triggerId="workspace-setup-default-agent"
-            triggerTestId="workspace-setup-default-agent-select"
-            value={setup.draft.defaultAgent || null}
-          />
+          {defaults.agents.state === "loading" ? (
+            <SkeletonRegion
+              data-testid="workspace-setup-default-agent-loading"
+              label="Loading agents"
+            >
+              <Skeleton className="h-input w-full rounded-md" />
+            </SkeletonRegion>
+          ) : (
+            <AgentCommandSelect
+              agents={agents}
+              clearLabel="No default agent"
+              disabled={disabled || agentsUnavailable}
+              onChange={next => setup.setDefaultAgent(next ?? "")}
+              placeholder={agentPlaceholder(defaults.agents.state, agents.length)}
+              triggerId="workspace-setup-default-agent"
+              triggerTestId="workspace-setup-default-agent-select"
+              value={setup.draft.defaultAgent || null}
+            />
+          )}
           <CollectionStateMessage
             collection={defaults.agents}
             error="Could not load agents"
-            loading="Loading agents…"
             testId="workspace-setup-default-agent"
           />
         </Field>

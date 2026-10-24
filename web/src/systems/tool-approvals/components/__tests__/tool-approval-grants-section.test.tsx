@@ -180,7 +180,9 @@ describe("ToolApprovalGrantsSection", () => {
     ]);
     renderSection();
 
-    await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-loading`)).toBeInTheDocument());
+    const loading = await screen.findByTestId(`${TEST_ID}-loading`);
+    expect(loading).toHaveTextContent("Loading remembered decisions");
+    expect(loading.querySelectorAll('[data-slot="listing-row"]').length).toBeGreaterThan(0);
   });
 
   it("Should render the empty state without fetching when there is no runtime workspace", async () => {

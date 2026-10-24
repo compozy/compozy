@@ -5,7 +5,8 @@ import {
   Button,
   Empty,
   ListingRow,
-  Spinner,
+  ListingRowSkeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 import { Radio } from "lucide-react";
 
@@ -62,13 +63,9 @@ export function GatewayProviderSection({
       ) : null}
 
       {isLoading ? (
-        <div
-          aria-label="Loading connectivity providers"
-          className="flex justify-center py-8"
-          role="status"
-        >
-          <Spinner aria-hidden="true" className="size-4 text-subtle" />
-        </div>
+        <SkeletonRegion label="Loading connectivity providers">
+          <ListingRowSkeleton count={1} trail="pill" />
+        </SkeletonRegion>
       ) : null}
 
       {!isLoading && !inventoryError && model.isEmpty ? (

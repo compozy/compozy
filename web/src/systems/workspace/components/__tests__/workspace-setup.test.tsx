@@ -280,7 +280,8 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.getByTestId("workspace-setup-default-agent-loading")).toHaveTextContent(
       "Loading agents"
     );
-    expect(screen.getByTestId("workspace-setup-default-agent-select")).toBeDisabled();
+    // The control is a placeholder until the catalog arrives, so nothing can be picked.
+    expect(screen.queryByTestId("workspace-setup-default-agent-select")).not.toBeInTheDocument();
   });
 
   it("derives a display name from POSIX and Windows path separators", async () => {
