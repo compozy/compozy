@@ -1,7 +1,9 @@
 package worktree
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -223,6 +225,49 @@ func TestServiceStatus(t *testing.T) {
 		if err != nil || status == nil || strings.Contains(status.ReadError, secret) ||
 			!strings.Contains(status.ReadError, "[REDACTED]") {
 			t.Fatalf("Status(secret failure) = %#v, %v, want redacted read_error", status, err)
+		}
+	})
+
+	// Invariant: detached worktrees have no display PR facts and never perform a lookup.
+	// Owner: worktree status details; canonical status suite.
+	t.Run("Should return no forge facts for detached worktrees during explicit refresh", func(t *testing.T) {
+		t.Parallel()
+		for _, enabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should handle configured forge %t", enabled), func(t *testing.T) {
+				t.Parallel()
+				store := newMemoryWorktreeStore()
+				item := statusTestWorktree()
+				item.Branch = ""
+				if err := store.Insert(t.Context(), item); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.SaveStatus(
+					t.Context(),
+					item.WorkspaceID,
+					item.ID,
+					Status{WorktreeID: item.ID},
+				); err != nil {
+					t.Fatal(err)
+				}
+				runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
+					t.Errorf("unexpected Git lookup: %v", call.args)
+					return gitResponse{err: errors.New("unexpected lookup")}
+				}}
+				service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()))
+				if enabled {
+					forge := pullRequestTestForge{
+						status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+							t.Error("unexpected forge lookup")
+							return nil, ErrForge
+						},
+					}
+					attachTestPullRequests(t, service, item, forge)
+				}
+				details, err := service.StatusDetails(t.Context(), item.WorkspaceID, item.ID, false, true)
+				if err != nil || details == nil || details.ForgeStatus != nil || details.Status == nil {
+					t.Fatalf("detached details=%#v error=%v", details, err)
+				}
+			})
 		}
 	})
 

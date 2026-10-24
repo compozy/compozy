@@ -24,11 +24,11 @@ func (s *Service) StatusDetails(
 	if err != nil {
 		return nil, err
 	}
-	if refreshForge && s.pullRequests == nil {
+	if refreshForge && item.Branch != "" && s.pullRequests == nil {
 		return nil, ErrForgeUnavailable
 	}
 	var facts *ForgeStatus
-	if refreshForge && s.pullRequests != nil {
+	if refreshForge && s.pullRequests != nil && item.Branch != "" {
 		key, keyErr := s.displayPullRequestKey(ctx, *item)
 		if keyErr != nil {
 			return nil, keyErr

@@ -56,3 +56,8 @@ commit → 409 `worktree_unpushed_requires_force` (1 commit), forced → 204; UD
 registered path → 409 `worktree_registered` with checkout intact; main checkout → 409
 `adoption_main_checkout`; unlisted → 404; blank → 400. Byte parity is owned by the transport-parity
 suite; the native-tool suite owns the `path` input.
+
+Detached-worktree regression: request status details with explicit forge refresh while the stored
+branch is empty. Return local status with no forge facts, without a Git/forge lookup or a spurious
+cancellation. Repeat with the forge display service absent. Branched worktrees retain the existing
+refresh and provider-unavailable behavior. Automated coverage: `TestServiceStatus`.
