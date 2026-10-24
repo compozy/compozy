@@ -47,6 +47,17 @@ export interface OsWindowRoute {
   search: Record<string, unknown>;
 }
 
+/** What an app's loading fallback is told about the window it stands in for. */
+export interface OsWindowFallbackProps {
+  /** The route the window is about to render. */
+  route: OsWindowRoute;
+  /**
+   * The window reads every project's data: unbound, on the All projects desktop. Apps that list
+   * one project's items there and everything's here read it to pick the shape they load into.
+   */
+  aggregate: boolean;
+}
+
 /** Client projection of one authoritative daemon window. */
 export interface OsWindow {
   id: string;

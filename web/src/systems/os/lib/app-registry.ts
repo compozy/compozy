@@ -10,15 +10,19 @@ import {
   resolveAppDescriptorForPath,
   type OsAppDescriptor,
 } from "./app-catalog";
-import type { OsAppId, OsWindowRoute } from "./os-types";
+import type { OsAppId, OsWindowFallbackProps } from "./os-types";
 import { AgentsWindowFallback } from "../apps/agents/agents-window-fallback";
 import { AutomationsWindowFallback } from "../apps/automations/automations-window-fallback";
 import { LoopsWindowFallback } from "../apps/loops/loops-window-fallback";
 import { MarketplaceWindowFallback } from "../apps/marketplace/marketplace-window-fallback";
+import { NewTabWindowSkeleton } from "../apps/new-tab/new-tab-window-skeleton";
 import { SessionWindowFallback } from "../apps/session/session-window-fallback";
 import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
 import { TasksWindowFallback } from "../apps/tasks/tasks-window-fallback";
+import { TerminalWindowFallback } from "../apps/terminal/terminal-window-fallback";
+import { UsageWindowFallback } from "../apps/usage/usage-window-fallback";
 import { VaultWindowFallback } from "../apps/vault/vault-window-fallback";
+import { DashboardWindowSkeleton } from "@/systems/dashboard/skeleton";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
@@ -27,10 +31,12 @@ export interface OsAppDefinition extends OsAppDescriptor {
   /**
    * The window body while the app's code loads, shaped like the route it is about to render. It is
    * mounted eagerly in the shell and shown before the app's own providers exist, so it stays
-   * static: no queries, stores, router or context, and no import of the app's window module.
-   * Apps without one keep the generic loading rows.
+   * static: no queries, router or app context, and no import of the app's window module. Its one
+   * live input is the window's own view preference (the session rail's width), which it may read
+   * so the frame is the one the loaded window mounts. Apps without one keep the generic loading
+   * rows.
    */
-  LoadingFallback?: ComponentType<{ route: OsWindowRoute }>;
+  LoadingFallback?: ComponentType<OsWindowFallbackProps>;
 }
 
 const DashboardWindow = lazy(() =>
@@ -109,6 +115,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.dashboard,
     preload: preloadDashboard,
     Controller: DashboardWindow,
+    LoadingFallback: DashboardWindowSkeleton,
   },
   session: {
     ...OS_APP_DESCRIPTORS.session,
@@ -118,10 +125,12 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   terminal: {
     ...OS_APP_DESCRIPTORS.terminal,
     Controller: TerminalWindow,
+    LoadingFallback: TerminalWindowFallback,
   },
   "new-tab": {
     ...OS_APP_DESCRIPTORS["new-tab"],
     Controller: NewTabWindow,
+    LoadingFallback: NewTabWindowSkeleton,
   },
   agents: {
     ...OS_APP_DESCRIPTORS.agents,
@@ -161,6 +170,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   usage: {
     ...OS_APP_DESCRIPTORS.usage,
     Controller: UsageWindow,
+    LoadingFallback: UsageWindowFallback,
   },
   settings: {
     ...OS_APP_DESCRIPTORS.settings,

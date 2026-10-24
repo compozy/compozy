@@ -90,6 +90,8 @@ interface FallbackCase {
   label: string;
   pathname: string;
   search?: Record<string, unknown>;
+  /** An unbound window on the All projects desktop; the rest read one project. */
+  aggregate?: boolean;
 }
 
 const FALLBACK_CASES: readonly FallbackCase[] = [
@@ -171,31 +173,36 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
   { app: "marketplace", label: "a path it does not own", pathname: "/marketplace/a/b" },
   { app: "vault", label: "the secrets as rows", pathname: "/vault" },
   { app: "vault", label: "the secrets as cards", pathname: "/vault", search: { view: "cards" } },
+  { app: "dashboard", label: "Home", pathname: "/" },
+  { app: "new-tab", label: "an empty tab", pathname: "/new-tab" },
+  { app: "terminal", label: "a project's terminal", pathname: "/terminal" },
+  { app: "terminal", label: "a project's terminal by id", pathname: "/terminal/term-1" },
+  { app: "terminal", label: "every project's terminals", pathname: "/terminal", aggregate: true },
+  {
+    app: "terminal",
+    label: "a terminal named without its project",
+    pathname: "/terminal/term-1",
+    aggregate: true,
+  },
+  { app: "usage", label: "Provider usage", pathname: "/usage" },
 ];
 
 describe("app loading fallbacks", () => {
-  it("Should give every app in the content-shaped rollout a fallback", () => {
-    for (const app of [
-      "session",
-      "settings",
-      "tasks",
-      "loops",
-      "agents",
-      "automations",
-      "marketplace",
-      "vault",
-    ] as const) {
-      expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
+  it("Should give every app a fallback", () => {
+    for (const [app, definition] of Object.entries(OS_APPS)) {
+      expect(definition.LoadingFallback, app).toBeTypeOf("function");
     }
   });
 
   it.each(FALLBACK_CASES)(
     "Should render $app on $label ($pathname) as one loading region with nothing focusable",
-    ({ app, pathname, search = {} }) => {
+    ({ app, pathname, search = {}, aggregate = false }) => {
       const Fallback = OS_APPS[app].LoadingFallback;
       if (!Fallback) throw new Error(`${app} has no loading fallback`);
 
-      const { container } = render(createElement(Fallback, { route: { pathname, search } }));
+      const { container } = render(
+        createElement(Fallback, { route: { pathname, search }, aggregate })
+      );
 
       const regions = screen.getAllByRole("status");
       expect(regions).toHaveLength(1);
@@ -205,6 +212,23 @@ describe("app loading fallbacks", () => {
         element => !element.closest("[inert]")
       );
       expect(focusable).toEqual([]);
+    }
+  );
+
+  it.each([
+    { aggregate: true, pathname: "/terminal", shape: "terminal-aggregate-loading" },
+    { aggregate: true, pathname: "/terminal/term-1", shape: "terminal-aggregate-loading" },
+    { aggregate: false, pathname: "/terminal", shape: "terminal-window-loading" },
+    { aggregate: false, pathname: "/terminal/term-1", shape: "terminal-window-loading" },
+  ])(
+    "Should load a terminal window at $pathname into the $shape shape its scope picks (aggregate: $aggregate)",
+    ({ aggregate, pathname, shape }) => {
+      const Fallback = OS_APPS.terminal.LoadingFallback;
+      if (!Fallback) throw new Error("terminal has no loading fallback");
+
+      render(createElement(Fallback, { route: { pathname, search: {} }, aggregate }));
+
+      expect(screen.getByTestId(shape)).toBeInTheDocument();
     }
   );
 });

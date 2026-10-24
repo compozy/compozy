@@ -26,6 +26,12 @@ import {
 
 import { ProviderUsageQuietGroup } from "./provider-usage-quiet-group";
 import { ProviderUsageRow } from "./provider-usage-row";
+import {
+  PROVIDER_USAGE_FOOTER_FRAME,
+  PROVIDER_USAGE_HEADER_FRAME,
+  PROVIDER_USAGE_HEADING_FRAME,
+  PROVIDER_USAGE_PANEL_FRAME,
+} from "./provider-usage-panel-frame";
 import { PROVIDER_USAGE_LIST_FRAME } from "./provider-usage-row-frame";
 import { ProviderUsageRowsSkeleton } from "./provider-usage-skeleton";
 
@@ -156,7 +162,7 @@ function PanelFooter({
 }: Pick<ProviderUsagePanelProps, "onOpenUsage" | "onOpenSettings">) {
   if (!onOpenUsage && !onOpenSettings) return null;
   return (
-    <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-1 pt-2">
+    <footer className={PROVIDER_USAGE_FOOTER_FRAME}>
       {onOpenUsage ? (
         <Button variant="quiet" size="sm" onClick={onOpenUsage}>
           Open Usage
@@ -199,10 +205,10 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
       data-slot="provider-usage-panel"
       data-chrome={chrome}
       aria-label={title}
-      className={cn("flex min-h-0 min-w-0 flex-col gap-2", className)}
+      className={cn(PROVIDER_USAGE_PANEL_FRAME, className)}
     >
-      <header className="flex items-start gap-2 px-2 pt-1">
-        <PopoverHeader className="min-w-0 flex-1 justify-center self-stretch">
+      <header className={PROVIDER_USAGE_HEADER_FRAME}>
+        <PopoverHeader className={PROVIDER_USAGE_HEADING_FRAME}>
           {chrome === "popover" ? <PopoverTitle>{title}</PopoverTitle> : null}
           {freshness ? (
             <p data-slot="provider-usage-freshness" className="text-meta text-muted">

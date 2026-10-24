@@ -10,20 +10,27 @@ interface AppLoadingFallbackProps {
   app: OsAppId;
   pathname: string;
   search?: Record<string, unknown>;
+  /** An unbound window on the All projects desktop. */
+  aggregate?: boolean;
 }
 
 /**
  * One window frame (the real head, strip and body) whose body is the app's registered loading
  * fallback for a route: what a cold open shows while the app's code loads. No providers, no data.
  */
-function AppLoadingFallback({ app, pathname, search = {} }: AppLoadingFallbackProps) {
+function AppLoadingFallback({
+  app,
+  pathname,
+  search = {},
+  aggregate = false,
+}: AppLoadingFallbackProps) {
   const definition = OS_APPS[app];
   const Fallback = definition.LoadingFallback;
   const AppIcon = definition.icon;
   return (
     <div className="flex h-[600px] w-[1000px] overflow-hidden rounded-lg border border-line-strong bg-canvas">
       <OsWindowSurface controls="deck" glyph={<AppIcon />} title={definition.title}>
-        {Fallback ? <Fallback route={{ pathname, search }} /> : null}
+        {Fallback ? <Fallback aggregate={aggregate} route={{ pathname, search }} /> : null}
       </OsWindowSurface>
     </div>
   );
@@ -134,3 +141,15 @@ export const MarketplaceEntry: Story = {
 };
 
 export const Vault: Story = { args: { app: "vault", pathname: "/vault" } };
+
+export const Dashboard: Story = { args: { app: "dashboard", pathname: "/" } };
+
+export const NewTab: Story = { args: { app: "new-tab", pathname: "/new-tab" } };
+
+export const Terminal: Story = { args: { app: "terminal", pathname: "/terminal" } };
+export const TerminalById: Story = { args: { app: "terminal", pathname: "/terminal/term-1" } };
+export const TerminalAcrossProjects: Story = {
+  args: { app: "terminal", pathname: "/terminal", aggregate: true },
+};
+
+export const Usage: Story = { args: { app: "usage", pathname: "/usage" } };

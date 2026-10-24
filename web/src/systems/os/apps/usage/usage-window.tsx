@@ -4,6 +4,7 @@ import { useTopbarSlot } from "@compozy/ui";
 import { ProviderUsagePanel } from "@/systems/provider-usage";
 
 import { useProviderUsageSurface } from "../../hooks/use-provider-usage-surface";
+import { USAGE_WINDOW_FRAME } from "./usage-window-frame";
 
 /**
  * The Usage app: every target as a collapsed row, live from the same profile
@@ -17,11 +18,7 @@ export function UsageWindow() {
   useTopbarSlot({ glyph: <Gauge />, crumb: "Usage" });
 
   return (
-    // The Settings content column: bars stay a readable length on wide windows.
-    <div
-      data-testid="os-usage-app"
-      className="mx-auto flex min-h-0 w-full max-w-settings-page-form flex-1 flex-col px-6 pt-4 pb-4"
-    >
+    <div data-testid="os-usage-app" className={USAGE_WINDOW_FRAME}>
       <ProviderUsagePanel
         chrome="window"
         title="Usage"

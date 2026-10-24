@@ -1,5 +1,11 @@
-import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
+import { PopoverHeader, Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
 
+import {
+  PROVIDER_USAGE_FOOTER_FRAME,
+  PROVIDER_USAGE_HEADER_FRAME,
+  PROVIDER_USAGE_HEADING_FRAME,
+  PROVIDER_USAGE_PANEL_FRAME,
+} from "./provider-usage-panel-frame";
 import {
   PROVIDER_USAGE_LIST_FRAME,
   PROVIDER_USAGE_ROW_FRAME,
@@ -47,5 +53,34 @@ export function ProviderUsageRowsSkeleton({ className }: { className?: string })
         ))}
       </ul>
     </SkeletonRegion>
+  );
+}
+
+/**
+ * The Usage app's panel before its first read, with the window chrome the app mounts it in: the
+ * freshness line and the Refresh control in the header, the provider rows, and the footer's
+ * Settings link, each held in the live panel's own frames. Nothing in it is a control, and it
+ * reads no hook or store, so the Usage window can show it before its code has loaded.
+ */
+export function ProviderUsageWindowSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      data-slot="provider-usage-panel-skeleton"
+      className={cn(PROVIDER_USAGE_PANEL_FRAME, className)}
+    >
+      <div aria-hidden="true" className={PROVIDER_USAGE_HEADER_FRAME}>
+        <PopoverHeader className={PROVIDER_USAGE_HEADING_FRAME}>
+          <p className="text-meta">
+            <SkeletonText className="w-28" />
+          </p>
+        </PopoverHeader>
+        <Skeleton className="size-button-icon-sm shrink-0 rounded-pill" />
+      </div>
+      <ProviderUsageRowsSkeleton />
+      <div aria-hidden="true" className={PROVIDER_USAGE_FOOTER_FRAME}>
+        <span />
+        <Skeleton className="h-button-sm w-16 rounded-pill" />
+      </div>
+    </div>
   );
 }
