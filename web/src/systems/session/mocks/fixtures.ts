@@ -25,7 +25,13 @@ export { sessionRuntime } from "./runtime-fixture";
 
 type SessionFixtureInput = Omit<
   SessionPayload,
-  "pending_interactions" | "supervision" | "scope" | "effective_workspace_access"
+  | "pending_interactions"
+  | "supervision"
+  | "scope"
+  | "effective_workspace_access"
+  | "board_column"
+  | "pull_request"
+  | "pull_request_lookup"
 > & {
   /** Defaults from `workspace_id`: empty is a User session. */
   scope?: SessionPayload["scope"];
@@ -34,6 +40,10 @@ type SessionFixtureInput = Omit<
   pending_interactions?: SessionPayload["pending_interactions"];
   /** Defaults to `null`: supervision has not inspected the fixture session yet. */
   supervision?: SessionPayload["supervision"];
+  /** Defaults to `done` with no PR facts: the fixture has no branch. */
+  board_column?: SessionPayload["board_column"];
+  pull_request?: SessionPayload["pull_request"];
+  pull_request_lookup?: SessionPayload["pull_request_lookup"];
 };
 
 const DEFAULT_PROFILE_LABEL = {
@@ -281,6 +291,9 @@ export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session 
   effective_workspace_access: session.effective_workspace_access ?? "",
   pending_interactions: session.pending_interactions ?? [],
   supervision: session.supervision ?? null,
+  board_column: session.board_column ?? "done",
+  pull_request: session.pull_request ?? null,
+  pull_request_lookup: session.pull_request_lookup ?? null,
 }));
 
 export const primarySessionFixture: SessionPayload = sessionFixtures[0]!;

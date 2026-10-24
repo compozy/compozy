@@ -999,6 +999,9 @@ import type {
   PrepareProfileRenameData,
   PrepareProfileRenameErrors,
   PrepareProfileRenameResponses,
+  PrepareWorktreeExitPlanData,
+  PrepareWorktreeExitPlanErrors,
+  PrepareWorktreeExitPlanResponses,
   PreviewExtensionEnableData,
   PreviewExtensionEnableErrors,
   PreviewExtensionEnableResponses,
@@ -1101,6 +1104,9 @@ import type {
   RefreshProviderUsageData,
   RefreshProviderUsageErrors,
   RefreshProviderUsageResponses,
+  RefreshSessionPullRequestData,
+  RefreshSessionPullRequestErrors,
+  RefreshSessionPullRequestResponses,
   RefreshSessionSoulData,
   RefreshSessionSoulErrors,
   RefreshSessionSoulResponses,
@@ -8547,6 +8553,29 @@ export class sessions extends HeyApiClient {
   }
 
   /**
+   * Refresh a session pull request
+   */
+  public refreshSessionPullRequest<ThrowOnError extends boolean = true>(
+    options: Options<RefreshSessionPullRequestData, ThrowOnError>
+  ): RequestResult<
+    RefreshSessionPullRequestResponses,
+    RefreshSessionPullRequestErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RefreshSessionPullRequestResponses,
+      RefreshSessionPullRequestErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/pull-request/refresh",
+      ...options,
+    });
+  }
+
+  /**
    * Read compact session status and wake eligibility for a Global session
    */
   public getGlobalSessionStatus<ThrowOnError extends boolean = true>(
@@ -11655,6 +11684,29 @@ export class worktrees extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Resolve forge capabilities and prepare the worktree exit plan
+   */
+  public prepareWorktreeExitPlan<ThrowOnError extends boolean = true>(
+    options: Options<PrepareWorktreeExitPlanData, ThrowOnError>
+  ): RequestResult<
+    PrepareWorktreeExitPlanResponses,
+    PrepareWorktreeExitPlanErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PrepareWorktreeExitPlanResponses,
+      PrepareWorktreeExitPlanErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare",
+      ...options,
     });
   }
 

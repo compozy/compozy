@@ -118,6 +118,9 @@ function createWrapper(queryClient: QueryClient) {
 }
 
 const createdSession: SessionPayload = {
+  board_column: "done",
+  pull_request: null,
+  pull_request_lookup: null,
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",

@@ -7,6 +7,93 @@ import (
 	"time"
 )
 
+// TimelineEntry is a daemon API value.
+type TimelineEntry struct {
+	Seq        int64        `json:"seq"`
+	FirstSeq   int64        `json:"first_seq,omitzero"`
+	Kind       RunEventKind `json:"kind"`
+	Generation int64        `json:"generation,omitzero"`
+	NodeID     NodeID       `json:"node_id,omitempty"`
+	Attempt    int          `json:"attempt,omitzero"`
+	Title      string       `json:"title"`
+	At         time.Time    `json:"at"`
+}
+
+// TimelineItem is a daemon API value.
+type TimelineItem struct {
+	Sequence  int64           `json:"sequence"`
+	EventID   string          `json:"event_id"`
+	Task      Reference       `json:"task"`
+	Run       *RunSummary     `json:"run,omitzero"`
+	EventType string          `json:"event_type"`
+	Reason    string          `json:"reason,omitempty"`
+	Actor     ActorIdentity   `json:"actor"`
+	Origin    Origin          `json:"origin"`
+	Payload   json.RawMessage `json:"payload,omitempty"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+// TimelinePage is a daemon API value.
+type TimelinePage struct {
+	RunID      RunID           `json:"run_id"`
+	HeadSeq    int64           `json:"head_seq"`
+	Entries    []TimelineEntry `json:"entries"`
+	NextCursor string          `json:"next_cursor,omitempty"`
+}
+
+// ToastEffect is a daemon API value.
+type ToastEffect struct {
+	Tone    string `json:"tone"`
+	Message string `json:"message"`
+}
+
+// TokenUsagePayload is a daemon API value.
+type TokenUsagePayload struct {
+	Meta             map[string]any `json:"meta,omitempty"`
+	Sequence         *int64         `json:"sequence,omitzero"`
+	TurnID           string         `json:"turn_id,omitempty"`
+	InputTokens      *int64         `json:"input_tokens,omitzero"`
+	OutputTokens     *int64         `json:"output_tokens,omitzero"`
+	TotalTokens      *int64         `json:"total_tokens,omitzero"`
+	ThoughtTokens    *int64         `json:"thought_tokens,omitzero"`
+	CacheReadTokens  *int64         `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64         `json:"cache_write_tokens,omitzero"`
+	ContextUsed      *int64         `json:"context_used,omitzero"`
+	ContextSize      *int64         `json:"context_size,omitzero"`
+	CostAmount       *float64       `json:"cost_amount,omitzero"`
+	CostCurrency     *string        `json:"cost_currency,omitzero"`
+	Timestamp        time.Time      `json:"timestamp"`
+}
+
+// ToolApprovalGrantListResponse is a daemon API value.
+type ToolApprovalGrantListResponse struct {
+	Grants []ToolApprovalGrantPayload `json:"grants"`
+	Total  int                        `json:"total"`
+}
+
+// ToolApprovalGrantPayload is a daemon API value.
+type ToolApprovalGrantPayload struct {
+	ID              string                `json:"id"`
+	ProfileID       string                `json:"profile_id"`
+	ProfileName     string                `json:"profile_name"`
+	ProfileColor    string                `json:"profile_color"`
+	ProfileIcon     string                `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived"`
+	WorkspaceID     string                `json:"workspace_id"`
+	AgentName       string                `json:"agent_name,omitempty"`
+	ToolID          ToolID                `json:"tool_id"`
+	InputDigest     string                `json:"input_digest,omitempty"`
+	Decision        ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time             `json:"created_at"`
+	LastUsedAt      time.Time             `json:"last_used_at"`
+}
+
+// ToolApprovalGrantResponse is a daemon API value.
+type ToolApprovalGrantResponse struct {
+	Grant ToolApprovalGrantPayload `json:"grant"`
+}
+
 // ToolApprovalGrantSetRequest is a daemon API value.
 type ToolApprovalGrantSetRequest struct {
 	ToolID    ToolID                       `json:"tool_id"`
@@ -360,83 +447,4 @@ type TriggersResponse struct {
 type TurnHistoryPayload struct {
 	TurnID string                `json:"turn_id"`
 	Events []SessionEventPayload `json:"events"`
-}
-
-// Type is a daemon API value.
-type Type string
-
-// UIMessage is a daemon API value.
-type UIMessage struct {
-	ID       string          `json:"id"`
-	Role     string          `json:"role"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-	Parts    []UIMessagePart `json:"parts"`
-}
-
-// UIMessagePart is a daemon API value.
-type UIMessagePart struct {
-	ParentToolCallID string          `json:"parentToolCallId,omitempty"`
-	Type             string          `json:"type"`
-	ID               string          `json:"id,omitempty"`
-	Text             string          `json:"text,omitempty"`
-	MediaType        string          `json:"mediaType,omitempty"`
-	URL              string          `json:"url,omitempty"`
-	Filename         string          `json:"filename,omitempty"`
-	State            string          `json:"state,omitempty"`
-	ToolName         string          `json:"toolName,omitempty"`
-	ToolCallID       string          `json:"toolCallId,omitempty"`
-	Title            string          `json:"title,omitempty"`
-	Input            json.RawMessage `json:"input,omitempty"`
-	RawInput         json.RawMessage `json:"rawInput,omitempty"`
-	Output           json.RawMessage `json:"output,omitempty"`
-	ErrorText        string          `json:"errorText,omitempty"`
-	Data             json.RawMessage `json:"data,omitempty"`
-	Preliminary      bool            `json:"preliminary,omitzero"`
-}
-
-// UnarchiveProfileRequest is a daemon API value.
-type UnarchiveProfileRequest struct{}
-
-// UnarchiveProfileResponse is a daemon API value.
-type UnarchiveProfileResponse struct {
-	State             string   `json:"state"`
-	PausedAutomations []string `json:"paused_automations"`
-}
-
-// UpdateAgentRequest is a daemon API value.
-type UpdateAgentRequest struct {
-	Workspace      string             `json:"workspace,omitempty"`
-	Agent          CreateAgentPayload `json:"agent"`
-	ExpectedDigest string             `json:"expected_digest"`
-}
-
-// UpdateAppTokenRequest is a daemon API value.
-type UpdateAppTokenRequest struct {
-	Name    *string   `json:"name,omitempty"`
-	Origins *[]string `json:"origins,omitempty"`
-}
-
-// UpdateExtensionRequest is a daemon API value.
-type UpdateExtensionRequest struct {
-	Scope                string           `json:"scope,omitempty"`
-	WorkspaceID          string           `json:"workspace_id,omitempty"`
-	Profile              string           `json:"profile,omitempty"`
-	Inputs               map[string]Value `json:"inputs,omitempty"`
-	Version              string           `json:"version,omitempty"`
-	CheckOnly            bool             `json:"check_only,omitzero"`
-	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
-}
-
-// UpdateExtensionsRequest is a daemon API value.
-type UpdateExtensionsRequest struct {
-	Scope           string           `json:"scope,omitempty"`
-	WorkspaceID     string           `json:"workspace_id,omitempty"`
-	Profile         string           `json:"profile,omitempty"`
-	Inputs          map[string]Value `json:"inputs,omitempty"`
-	Names           []string         `json:"names,omitempty"`
-	All             bool             `json:"all,omitzero"`
-	Version         string           `json:"version,omitempty"`
-	CheckOnly       bool             `json:"check_only,omitzero"`
-	AllowUnverified bool             `json:"allow_unverified,omitzero"`
 }

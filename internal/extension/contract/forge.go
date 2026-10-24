@@ -39,18 +39,32 @@ type ForgeStatusRequest struct {
 	HeadSHA    string   `json:"head_sha,omitempty"`
 }
 
+type ForgeChecks struct {
+	State       string   `json:"state"`
+	Passed      int      `json:"passed"`
+	Failed      int      `json:"failed"`
+	Pending     int      `json:"pending"`
+	FailedNames []string `json:"failed_names"`
+}
+
 type ForgeStatusResponse struct {
-	Provider  string    `json:"provider"`
-	PRNumber  *int      `json:"pr_number,omitempty"`
-	PRState   *string   `json:"pr_state,omitempty"`
-	PRURL     string    `json:"pr_url,omitempty"`
-	Head      string    `json:"head,omitempty"`
-	Base      string    `json:"base,omitempty"`
-	HeadSHA   string    `json:"head_sha,omitempty"`
-	Draft     *bool     `json:"draft,omitempty"`
-	Merged    *bool     `json:"merged,omitempty"`
-	FetchedAt time.Time `json:"fetched_at"`
-	Cause     string    `json:"cause,omitempty"`
+	Checks         *ForgeChecks `json:"checks,omitempty"`
+	ReviewDecision string       `json:"review_decision,omitempty"`
+	Mergeable      string       `json:"mergeable,omitempty"`
+	UpdatedAt      *time.Time   `json:"updated_at,omitempty"`
+	Selection      string       `json:"selection,omitempty"`
+	RetryAfter     *time.Time   `json:"retry_after,omitempty"`
+	Provider       string       `json:"provider"`
+	PRNumber       *int         `json:"pr_number,omitempty"`
+	PRState        *string      `json:"pr_state,omitempty"`
+	PRURL          string       `json:"pr_url,omitempty"`
+	Head           string       `json:"head,omitempty"`
+	Base           string       `json:"base,omitempty"`
+	HeadSHA        string       `json:"head_sha,omitempty"`
+	Draft          *bool        `json:"draft,omitempty"`
+	Merged         *bool        `json:"merged,omitempty"`
+	FetchedAt      time.Time    `json:"fetched_at"`
+	Cause          string       `json:"cause,omitempty"`
 }
 
 type ForgePRCreateRequest struct {

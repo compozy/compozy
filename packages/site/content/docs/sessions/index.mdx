@@ -216,6 +216,11 @@ Session badges come from one daemon-owned precedence order. `waiting-for-auth`,
 operator client was visibly focused on the session, and the result has not been seen yet. Starting a
 new turn or entering a terminal lifecycle state outranks `done`; reading a session through the CLI or
 API never clears it.
+`waiting` means the turn is over but the session still waits on work it started: child sessions,
+an awaited reply, a Loop run, or a task lease (`waiting_on: "sessions"`), otherwise a
+[monitor](/docs/sessions/monitors) (`waiting_on: "monitor"`). It never raises a finished toast;
+`done` follows once the last of that work closes. The [sessions board](/docs/sessions/board) groups
+every badge into Needs you, Working, In review, and Done.
 
 Use `compozy session list --attention` for sessions that need you, or `--badge done` for finished
 sessions with unseen results. `--all-workspaces` removes the workspace filter, while `--summary`

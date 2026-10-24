@@ -37,6 +37,9 @@ function session(
   owner: SessionOwner = DEFAULT_OWNER
 ): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     ...owner,
     scope: "workspace",

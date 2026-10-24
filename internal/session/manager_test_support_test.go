@@ -208,6 +208,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
+	installAbsentWorkSources(manager)
 	return manager
 }
 

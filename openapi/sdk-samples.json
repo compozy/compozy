@@ -2311,6 +2311,13 @@
             "resource": "profiles",
             "app_access": "denied"
         },
+        "prepareWorktreeExitPlan": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.worktrees.prepareWorktreeExitPlan({ path: { \"workspace_id\": \"workspace_id\", \"worktree_id\": \"worktree_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PrepareWorktreeExitPlan(ctx, client.PrepareWorktreeExitPlanParams{WorkspaceID: \"workspace_id\", WorktreeID: \"worktree_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "worktrees",
+            "app_access": "denied"
+        },
         "previewExtensionEnable": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.previewExtensionEnable({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.PreviewExtensionEnable(ctx, client.PreviewExtensionEnableParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2548,6 +2555,13 @@
             "kind": "json",
             "resource": "providers",
             "app_access": "denied"
+        },
+        "refreshSessionPullRequest": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.refreshSessionPullRequest({ path: { \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RefreshSessionPullRequest(ctx, client.RefreshSessionPullRequestParams{SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
         },
         "refreshSessionSoul": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.refreshSessionSoul({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",

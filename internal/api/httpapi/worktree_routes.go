@@ -13,6 +13,7 @@ func registerWorktreeRoutes(api gin.IRouter, handlers *Handlers) {
 	worktrees.GET("/:worktree_id", handlers.InspectWorktree)
 	worktrees.GET("/:worktree_id/status", handlers.GetWorktreeStatus)
 	worktrees.GET("/:worktree_id/exit", handlers.GetWorktreeExitPlan)
+	worktrees.POST("/:worktree_id/exit/prepare", handlers.PrepareWorktreeExitPlan)
 	worktrees.POST("/:worktree_id/exit/actions", handlers.RunWorktreeExitAction)
 	worktrees.POST("/:worktree_id/exit/cancel", handlers.CancelWorktreeExitAction)
 	worktrees.POST("/:worktree_id/cancel", handlers.CancelWorktreeCreate)

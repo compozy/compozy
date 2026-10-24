@@ -53,6 +53,9 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	BoardColumn              BoardColumn
+	ParentTitle              string
+	Children                 *store.SessionBoardCounts
 	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState
@@ -118,6 +121,7 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	supervisionInspectMu         sync.Mutex
 	supervisionState             *SupervisionState
 	supervisionWarningEvent      *acp.AgentEvent
 	supervisionStoppedEvent      *acp.AgentEvent

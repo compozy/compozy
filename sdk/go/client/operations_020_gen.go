@@ -415,6 +415,7 @@ type ListWorkspaceSessionsParams struct {
 	Type          *string   `url:"type"`
 	Agent         *string   `url:"agent"`
 	Subagents     *string   `url:"subagents"`
+	Children      *string   `url:"children"`
 	Parent        *string   `url:"parent"`
 	Root          *string   `url:"root"`
 	Worktree      *string   `url:"worktree"`
@@ -422,6 +423,7 @@ type ListWorkspaceSessionsParams struct {
 	SearchFields  *string   `url:"search_fields"`
 	Resumable     *bool     `url:"resumable"`
 	Attention     *bool     `url:"attention"`
+	BoardColumn   *[]string `url:"board_column"`
 	Badge         *string   `url:"badge"`
 	Archive       *string   `url:"archive"`
 	Sort          *string   `url:"sort"`

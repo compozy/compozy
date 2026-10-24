@@ -86,6 +86,9 @@ type OwnedSession = SessionPayload & { workspace_id: string };
 
 function makeSession(id: string, workspaceId: string, name: string): OwnedSession {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
     effective_workspace_access: "",

@@ -1,6 +1,4 @@
 import type { SessionPayload } from "../types";
-import { sessionBadgeSignal } from "./session-badge";
-import { isSessionRunning } from "./session-running";
 
 /** COPY.md: the lineage label once a subagent's parent session is gone. */
 export const SUBAGENT_OF_DELETED_SESSION = "Subagent of a deleted session";
@@ -31,15 +29,4 @@ export function sessionSubagentCounts(session: SessionPayload): SessionSubagentC
     failed: summary.failed,
     attention: summary.attention,
   };
-}
-
-/**
- * A parent with no running turn whose subagents still work reads `delegated`,
- * not done or idle (UT-W14). Needs-you, failure and stop marks keep priority.
- */
-export function sessionAwaitsSubagents(session: SessionPayload): boolean {
-  const live = session.subagent_summary?.live ?? 0;
-  if (live <= 0 || isSessionRunning(session)) return false;
-  const { state } = sessionBadgeSignal(session.badge);
-  return state === "done" || state === "idle";
 }

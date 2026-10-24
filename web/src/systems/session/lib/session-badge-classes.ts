@@ -1,4 +1,5 @@
 import { sessionBadgeSignal, type SessionBadgeSignal } from "./session-badge";
+import type { SessionWaitingOn } from "./session-pull-request";
 
 /**
  * Token classes for the badge dictionary's word tones, kept beside the
@@ -19,6 +20,9 @@ export const SESSION_TONE_WORD_CLASS: Record<SessionBadgeSignal["tone"], string>
 };
 
 /** Tone class for the state word beside a mark. */
-export function sessionBadgeWordClass(badge: string | null | undefined): string {
-  return SESSION_TONE_WORD_CLASS[sessionBadgeSignal(badge).tone];
+export function sessionBadgeWordClass(
+  badge: string | null | undefined,
+  waitingOn?: SessionWaitingOn | null
+): string {
+  return SESSION_TONE_WORD_CLASS[sessionBadgeSignal(badge, waitingOn).tone];
 }

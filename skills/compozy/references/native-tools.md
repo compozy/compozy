@@ -386,6 +386,13 @@ Clarification: `compozy__clarify` asks one active-session question with at most 
 zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
+`compozy__session_list` accepts `board_column: ["needs_you", "working", "in_review", "done"]`
+and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
+unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,
+independent of its spawn role. Page payloads include the derived `board_column`, direct-child
+`children` counts, and scoped `parent_title`; `waiting_on` explains the `waiting` badge. These
+filters participate in the cursor fingerprint. PR facts are display-cache reads, without forge I/O.
+
 `compozy__session_list` returns one counted catalog page and accepts workspace, exact state, exact
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
@@ -799,3 +806,12 @@ Route specifics:
 
 The needs-you bell (`GET /api/notifications/attention`) stays operator-wide across every profile and
 labels User items `"User"` (previously `"Global"`; a display string).
+
+### Session pull-request projection
+
+`compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
+nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
+complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
+branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
+remain visible during provider outages. Explicit refresh is available through
+`POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.

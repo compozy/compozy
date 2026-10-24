@@ -1,26 +1,17 @@
-import {
-  ownerDataScope,
-  sameDataScope,
-  useDataScope,
-  useScopedWorktreeFilter,
-  useWindowDataWorkspace,
-} from "@/systems/workspace";
+import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
-import { runViewTransition } from "@compozy/ui";
-
-import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
-import { useOsShell } from "../../hooks/use-os-shell";
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
-import { useAttentionJump } from "../../hooks/use-attention-jump";
-import { boundRoute } from "../../lib/open-target";
+import {
+  useSessionWindowOpenSession,
+  type SessionWindowSidebarTarget,
+} from "./use-session-window-open-session";
 import {
   type SessionLifecycleActionHandlers,
   type SessionListTarget,
   type SessionPayload,
   type SessionThreadBranchChange,
   useSessionCreateActions,
-  subagentRevealStore,
   useSessionListView,
   useSessionSidebarState,
   useSessionTransportState,
@@ -29,14 +20,7 @@ import {
   type SessionCreateOpenOptions,
 } from "@/systems/session";
 
-/** A session to open by id; the agent name lets this window retarget in place. */
-
-export interface SessionWindowSidebarTarget {
-  sessionId: string;
-  agentName: string;
-  workspaceId: string;
-  subagentId?: string;
-}
+export type { SessionWindowSidebarTarget };
 
 export interface SessionWindowSidebarModel {
   open: boolean;
@@ -75,12 +59,9 @@ export function useSessionWindowSidebar({
   sessionId?: string;
 }): SessionWindowSidebarModel {
   const scope = useDataScope();
-  const windowScope = useWindowDataWorkspace();
   const sidebar = useSessionSidebarState();
   const transport = useSessionTransportState();
   const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
-  const { coordinator } = useOsShell();
-  const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionListLifecycleActions();
   // Only a project narrows to a worktree.
@@ -95,47 +76,7 @@ export function useSessionWindowSidebar({
     enabled: sidebar.open && worktree.resolved && scope !== null,
   });
 
-  const reducedMotion = useOsReducedMotion();
-
-  const openSession = (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
-    if (target.subagentId) {
-      subagentRevealStore.trigger.requested({
-        workspaceId: target.workspaceId,
-        sessionId: target.sessionId,
-        subagentId: target.subagentId,
-      });
-    }
-    if (sessionId !== undefined && target.sessionId === sessionId) return;
-    const targetScope = ownerDataScope(target.workspaceId);
-    const allProjects = scope?.kind === "all";
-    const sameScope = windowScope !== null && sameDataScope(windowScope, targetScope);
-    if (options.newWindow || !target.agentName || (!allProjects && !sameScope)) {
-      jumpToSession({
-        sessionId: target.sessionId,
-        agentName: target.agentName || undefined,
-        workspaceId: target.workspaceId,
-        ...(options.newWindow ? { placement: "split" as const } : {}),
-      });
-      return;
-    }
-    const route = {
-      pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
-      search: {},
-    };
-    // Same window, different conversation: the pane (named per window in
-    // session-window-content) cross-fades instead of snapping to the skeleton.
-    void runViewTransition(
-      () => {
-        void coordinator.userRetarget(windowId, {
-          app: "session",
-          instanceKey: target.sessionId,
-          // Under All projects the window follows the session it now shows.
-          route: allProjects ? boundRoute({ binding: targetScope, route }) : route,
-        });
-      },
-      { reduced: reducedMotion }
-    );
-  };
+  const openSession = useSessionWindowOpenSession({ windowId, sessionId });
 
   const onSelectSession = (target: SessionListTarget) =>
     openSession(

@@ -24,6 +24,7 @@ const SIGNAL_NOUN: Record<SessionWorkSignalKind, string> = {
   loop_run: "Loop run",
   task_lease: "task lease",
   scheduled_wait: "scheduled wait",
+  active_monitor: "monitor",
   awaiting_reply: "awaited reply",
 };
 

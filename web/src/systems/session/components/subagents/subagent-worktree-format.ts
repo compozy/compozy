@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { middleTruncate as truncateMiddle } from "../../lib/middle-truncate";
 import type {
   SubagentPullRequestState,
   SubagentPullRequestView,
@@ -22,17 +23,13 @@ export const SUBAGENT_BRANCH_MAX_CHARS = 26;
 const BRANCH_TAIL_CHARS = 8;
 const SHORT_SHA_CHARS = 7;
 
-/** `run/extract-billing-client-3f9a0c12` → `run/extract-billi…3f9a0c12`. */
+/** Middle-truncates a subagent branch to the card and roster width, keeping the hash suffix. */
 export function middleTruncate(
   value: string,
   max = SUBAGENT_BRANCH_MAX_CHARS,
   tail = BRANCH_TAIL_CHARS
 ): string {
-  const chars = [...value];
-  if (chars.length <= max) return value;
-  const keepTail = Math.min(tail, max - 2);
-  const keepHead = max - 1 - keepTail;
-  return `${chars.slice(0, keepHead).join("")}…${chars.slice(chars.length - keepTail).join("")}`;
+  return truncateMiddle(value, max, tail);
 }
 
 /** The facts to draw, or `null` for a shared subagent (no facts, unchanged UI). */

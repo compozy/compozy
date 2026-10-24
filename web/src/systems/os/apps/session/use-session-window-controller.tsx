@@ -5,6 +5,7 @@ import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
+import { useSessionWindowPullRequest } from "./use-session-window-pull-request";
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import {
   getSessionPromptRuntimeSnapshot,
@@ -123,8 +124,21 @@ export function useSessionWindowController(input: {
     enabled: liveDataEnabled,
   });
 
+  const pullRequest = useSessionWindowPullRequest({
+    session,
+    workspaceId,
+    worktreeId: session.worktree_id,
+    bound: worktreeBinding.bound && worktreeBinding.worktree !== undefined,
+    liveDataEnabled,
+    running: controls.isSessionRunning,
+    queuePrompt: controls.handleQueuePrompt,
+  });
+
   useSessionTopbarSlot({
     session,
+    pullRequestExit: pullRequest.pullRequestExit,
+    pullRequestRefresh: pullRequest.pullRequestRefresh,
+    onSendPrompt: pullRequest.onSendPrompt,
     worktreeBinding: worktreeBinding.bound
       ? {
           worktreeId: worktreeBinding.worktreeId,
@@ -187,6 +201,8 @@ export function useSessionWindowController(input: {
       void sessionCommands.refetch();
     },
     worktreeBinding,
+    /** Dialogs and progress of an exit action started from the PR chip. */
+    pullRequestExitSurface: pullRequest.exitSurface,
     promptRuntimeSnapshot,
     activityGoal: goal.snapshot,
   };

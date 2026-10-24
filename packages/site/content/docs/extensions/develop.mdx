@@ -390,6 +390,12 @@ only `credential_absent`, `credential_expired`, `rate_limited`, or `unsupported_
 credential values in a result or error. Pull-request creation must be idempotent by open head branch:
 return `opened_existing` instead of creating a duplicate.
 
+A `forge/status` response may also report `checks` (state, passed/failed/pending counts and at most
+five `failed_names`), `review_decision`, `mergeable`, `updated_at`, and `selection`
+(`complete` or `incomplete`). Omitted facts remain unknown. Checks describe the reported `head_sha`.
+A failed response with `cause` may include `retry_after` as an RFC 3339 timestamp; it is invalid
+without a cause. Existing providers may omit all six fields.
+
 Managed delivery supplies `base` and `head_sha` to reconcile the exact reviewed candidate.
 For that request, return the observed `head`, `base`, `head_sha`, and `draft`; missing evidence
 prevents reuse. A `forge/pr_create` request with `head_sha` must reuse only an open request

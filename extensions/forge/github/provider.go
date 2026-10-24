@@ -38,16 +38,20 @@ type repositoryPayload struct {
 }
 
 type pullPayload struct {
-	Number   int        `json:"number"`
-	HTMLURL  string     `json:"html_url"`
-	State    string     `json:"state"`
-	MergedAt *time.Time `json:"merged_at"`
-	Head     pullRef    `json:"head"`
-	Base     pullRef    `json:"base"`
-	Draft    *bool      `json:"draft"`
+	Number    int        `json:"number"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	HTMLURL   string     `json:"html_url"`
+	State     string     `json:"state"`
+	MergedAt  *time.Time `json:"merged_at"`
+	Head      pullRef    `json:"head"`
+	Base      pullRef    `json:"base"`
+	Draft     *bool      `json:"draft"`
 }
 
 type pullRef struct {
+	Repo *struct {
+		FullName string `json:"full_name"`
+	} `json:"repo"`
 	Ref string `json:"ref"`
 	SHA string `json:"sha"`
 }
@@ -110,6 +114,15 @@ func (p *Provider) Status(
 	if credential.token == "" {
 		return extensioncontract.ForgeStatusResponse{Cause: extensioncontract.ForgeCauseCredentialAbsent}, nil
 	}
+
+	if request.Base == "" && request.HeadSHA == "" {
+		response, handled, err := p.tryGraphStatus(ctx, repo, request.Branch, credential.token)
+		if handled {
+			return response, err
+		}
+		return p.restDisplayStatus(ctx, repo, request.Branch, credential.token)
+	}
+
 	stateFilter := "all"
 	if request.Base != "" || request.HeadSHA != "" {
 		stateFilter = "open"

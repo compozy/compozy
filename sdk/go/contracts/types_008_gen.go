@@ -86,6 +86,14 @@ type ForgeCapabilitiesResponse struct {
 	Cause              string   `json:"cause,omitempty"`
 }
 
+type ForgeChecks struct {
+	State       string   `json:"state"`
+	Passed      int      `json:"passed"`
+	Failed      int      `json:"failed"`
+	Pending     int      `json:"pending"`
+	FailedNames []string `json:"failed_names"`
+}
+
 type ForgePRCreateRequest struct {
 	RemoteURLs []string `json:"remote_urls"`
 	Head       string   `json:"head"`
@@ -111,17 +119,23 @@ type ForgeStatusRequest struct {
 }
 
 type ForgeStatusResponse struct {
-	Provider  string    `json:"provider"`
-	PRNumber  *int      `json:"pr_number,omitempty"`
-	PRState   *string   `json:"pr_state,omitempty"`
-	PRURL     string    `json:"pr_url,omitempty"`
-	Head      string    `json:"head,omitempty"`
-	Base      string    `json:"base,omitempty"`
-	HeadSHA   string    `json:"head_sha,omitempty"`
-	Draft     *bool     `json:"draft,omitempty"`
-	Merged    *bool     `json:"merged,omitempty"`
-	FetchedAt time.Time `json:"fetched_at"`
-	Cause     string    `json:"cause,omitempty"`
+	Checks         *ForgeChecks `json:"checks,omitempty"`
+	ReviewDecision string       `json:"review_decision,omitempty"`
+	Mergeable      string       `json:"mergeable,omitempty"`
+	UpdatedAt      *time.Time   `json:"updated_at,omitempty"`
+	Selection      string       `json:"selection,omitempty"`
+	RetryAfter     *time.Time   `json:"retry_after,omitempty"`
+	Provider       string       `json:"provider"`
+	PRNumber       *int         `json:"pr_number,omitempty"`
+	PRState        *string      `json:"pr_state,omitempty"`
+	PRURL          string       `json:"pr_url,omitempty"`
+	Head           string       `json:"head,omitempty"`
+	Base           string       `json:"base,omitempty"`
+	HeadSHA        string       `json:"head_sha,omitempty"`
+	Draft          *bool        `json:"draft,omitempty"`
+	Merged         *bool        `json:"merged,omitempty"`
+	FetchedAt      time.Time    `json:"fetched_at"`
+	Cause          string       `json:"cause,omitempty"`
 }
 
 type FormBody struct {
@@ -190,19 +204,4 @@ type HeartbeatActorPayload struct {
 type HeartbeatConfigProvenancePayload struct {
 	Digest string                       `json:"digest"`
 	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
 }

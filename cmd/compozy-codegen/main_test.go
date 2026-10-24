@@ -807,6 +807,7 @@ func TestAppSDKArtifacts(t *testing.T) {
 		}
 		var source strings.Builder
 		source.WriteString("package client\nimport (\"context\"; \"fmt\"; \"errors\"; \"io\"; \"encoding/json\")\n")
+		source.WriteString("var _ = ReviewSpec{Decisions: []ReviewDecision{\"approve\"}}\n")
 		for id, sample := range manifest.Operations {
 			if sample.Go != "" {
 				fmt.Fprintf(

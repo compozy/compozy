@@ -1,10 +1,11 @@
 import type * as React from "react";
 
-import { cn, OwnerAvatar, Time } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
 import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import type { SessionOriginView } from "../lib/session-origin";
+import { sessionWaitingOn } from "../lib/session-pull-request";
 import { SessionBadgeGlyph } from "./session-badge-mark";
 import { SessionOriginPill } from "./session-origin-pill";
 import type { SessionPayload } from "../types";
@@ -13,23 +14,17 @@ export interface SessionStatusLineProps extends Omit<React.ComponentProps<"span"
   session: SessionPayload;
   /** The document-head variant renders state as the leading mark instead. */
   showState?: boolean;
-  /** A continued or forked session's origin, rendered as a pill after the agent chip. */
+  /** A continued or forked session's origin, rendered as a pill after the state. */
   origin?: SessionOriginView | null;
   onOpenOriginSource?: (sessionId: string) => void;
 }
 
 /**
- * Session identity for window chrome (prototype `.head` trail): the agent chip
- * — its avatar monogram, name and, once a runtime is bound, the provider it
- * runs on — then the origin pill, the archived word, and the muted time of the
- * last change. The model is not repeated here; the composer's runtime selector
- * owns it. Document windows move the state signal to the leading mark
- * (`showState={false}`), keeping the state word for assistive tech.
- *
- * The line is one clipped row of two groups that wraps, so the window title
- * keeps its width: when the head narrows, the tail (archived word and time)
- * drops off whole first, then the lead truncates in place — the provider and
- * the origin pill's subject before the agent name.
+ * Session lineage and lifecycle for window chrome: the state word (document
+ * windows move it to the leading mark, `showState={false}`, keeping it for
+ * assistive tech), the Continue/Fork origin pill and the archived word. Agent,
+ * provider and time live in the session list; the topbar status zone spends its
+ * width on the PR chip instead (`_uiux.md` S1).
  */
 export function SessionStatusLine({
   className,
@@ -40,9 +35,9 @@ export function SessionStatusLine({
   ...props
 }: SessionStatusLineProps) {
   const badge = sessionBadgeOf(session);
-  const signal = sessionBadgeSignal(badge);
-  const agentLabel = session.agent_name.trim();
-  const providerLabel = session.runtime.effective?.provider.trim();
+  const waitingOn = sessionWaitingOn(session);
+  const signal = sessionBadgeSignal(badge, waitingOn);
+  const archived = session.archived_at !== null;
 
   return (
     <span
@@ -53,62 +48,26 @@ export function SessionStatusLine({
       )}
       {...props}
     >
-      <span className="flex min-w-0 items-center gap-2.5">
-        {showState ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5">
-            <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
-            <span
-              data-testid="session-status-badge"
-              data-badge={signal.label}
-              className={cn("text-eyebrow", sessionBadgeWordClass(badge))}
-            >
-              {signal.displayLabel}
-            </span>
-          </span>
-        ) : (
-          <span className="sr-only">Session status: {signal.displayLabel}</span>
-        )}
-        {agentLabel ? (
+      {showState ? (
+        <span className="inline-flex shrink-0 items-center gap-1.5">
+          <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" waitingOn={waitingOn} />
           <span
-            data-testid="session-status-agent-chip"
-            // Holds its width while the origin pill truncates; past that it
-            // clamps to the line and the name ellipsizes.
-            className="inline-flex max-w-full min-w-0 shrink-0 items-center gap-1.5 text-eyebrow"
+            data-testid="session-status-badge"
+            data-badge={signal.label}
+            className={cn("text-eyebrow", sessionBadgeWordClass(badge, waitingOn))}
           >
-            <OwnerAvatar name={agentLabel} ownerId={agentLabel} ownerKind="agent" size="sm" />
-            <span data-testid="session-status-agent" className="truncate font-medium text-fg-2">
-              {agentLabel}
-            </span>
-            {providerLabel ? (
-              <>
-                <span aria-hidden="true" className="text-subtle">
-                  ·
-                </span>
-                <span
-                  data-testid="session-status-provider"
-                  // Yields width before the origin pill, which keeps its verb.
-                  className="min-w-0 truncate font-mono text-subtle"
-                >
-                  {providerLabel}
-                </span>
-              </>
-            ) : null}
+            {signal.displayLabel}
           </span>
-        ) : null}
-        {origin ? <SessionOriginPill onOpenSource={onOpenOriginSource} origin={origin} /> : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-2.5">
-        {session.archived_at !== null ? (
-          <span data-testid="session-status-archived" className="text-eyebrow text-subtle">
-            Archived
-          </span>
-        ) : null}
-        <Time
-          data-testid="session-status-time"
-          iso={session.updated_at}
-          className="shrink-0 text-eyebrow text-subtle"
-        />
-      </span>
+        </span>
+      ) : (
+        <span className="sr-only">Session status: {signal.displayLabel}</span>
+      )}
+      {origin ? <SessionOriginPill onOpenSource={onOpenOriginSource} origin={origin} /> : null}
+      {archived ? (
+        <span data-testid="session-status-archived" className="text-eyebrow text-subtle">
+          Archived
+        </span>
+      ) : null}
     </span>
   );
 }

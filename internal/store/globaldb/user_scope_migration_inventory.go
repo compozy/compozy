@@ -11,6 +11,9 @@ var userScopeMigrationInventory = []string{
 	"agent_soul_revisions",
 	"agent_soul_snapshots",
 	"worktrees",
+	// Migration 00152 keeps projects with worktrees; 00153 copies their display
+	// cache afterward, preserving the workspace identity rather than merging into User scope.
+	"forge_pull_requests",
 	"worktree_exit_ops",
 	"session_health",
 	"session_prompt_admissions",

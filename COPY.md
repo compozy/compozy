@@ -820,3 +820,9 @@ Update `COPY.md` when:
 - a review finds repeated copy drift across surfaces
 
 Do not use `COPY.md` as a dumping ground for campaign-specific copy. Put dated campaign drafts, competitor research, and one-off launch material in task or analysis artifacts, then distill only durable rules back into this file.
+
+### Session board accessible card names
+
+The card name retains its title, status, waiting signal and relative time. Add "Child of {parent title}"
+when a parent title is present, "{N} child sessions" ("1 child session") for a nonempty direct-child
+rollup, and "A child needs you" when any direct child needs attention. Omit absent family facts.

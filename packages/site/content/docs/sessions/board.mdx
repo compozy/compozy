@@ -1,0 +1,117 @@
+---
+title: Sessions board
+description: See every session by who owns the next step — Needs you, Working, In review, Done — and open any of them in one click.
+---
+
+The sessions board is a Kanban view of the session window. It places every session in one of four
+columns by **who owns the next step**, so with ten agents running you can tell at a glance what is
+waiting on you, what is still working, and which pull requests are ready to merge.
+
+You never move cards. The daemon derives each session's column from its badge and its pull request,
+and the board, the CLI, and the native tools all read that same value.
+
+## The four columns
+
+The daemon checks these rules in order; the first one that matches wins.
+
+| Column        | A session lands here when…                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| **Needs you** | it needs a decision from you: `waiting-for-input`, `waiting-for-auth`, `failed`, or `needs-attention`. |
+| **Working**   | it is `running`, `hung`, `unhealthy`, or `waiting` on child sessions or a monitor.                     |
+| **In review** | its branch has an open pull request, drafts included.                                                  |
+| **Done**      | anything else that is not archived.                                                                    |
+
+A session with an open PR that asks for approval sits in **Needs you**, not **In review**: your
+decision comes first. A running session with an open PR stays in **Working** until its turn settles.
+Archived sessions never appear in the columns; they live in the **Archive** bar at the bottom.
+
+## Walkthrough: open the board and act on a card
+
+1. Open a session window. In its header, right after the title and the **…** menu, you see a
+   **List | Kanban** switch with **List** selected.
+2. Select **Kanban** (or press <kbd>Tab</kbd> until the switch has focus, move to **Kanban** with
+
+   <kbd>→</kbd>, and press <kbd>Enter</kbd>).
+
+   **Expected:** the window body becomes four columns. Each header shows its name and a count, for
+   example `Needs you 2 · Working 5 · In review 3 · Done 128`. The header now reads **Sessions** and
+   offers **Hide child sessions** and **New session**.
+
+3. Read a card. Each card has three rows:
+   - the branch and PR number (`feat/forge-gql · #932`) with at most one status on the right;
+   - the session title, with a dot before it when the session finished and you have not looked yet;
+   - the agent, then either `↳ parent title` (a child session) or a children count (a parent), and
+     how long ago the session last changed.
+4. Click a card.
+
+   **Expected:** the window switches back to **List** with that session open.
+
+5. Reload the app.
+
+   **Expected:** the window keeps the view you chose last. Each session window remembers its own
+   view, and a new window always opens in **List**.
+
+## What the status on a card means
+
+A card shows one status. In **Needs you** it is the reason you are needed; everywhere else it is the
+pull request signal that most needs attention.
+
+| Status            | Meaning                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| Approval          | The agent is waiting for you to approve a tool call.                                        |
+| Input             | The agent asked you a question.                                                             |
+| Auth              | The provider needs you to sign in.                                                          |
+| Failed            | The session failed.                                                                         |
+| Checks failing    | At least one CI check failed on the PR head.                                                |
+| Changes requested | A reviewer requested changes.                                                               |
+| Conflicts         | The PR conflicts with its base branch.                                                      |
+| Ready to merge    | Open, not a draft, checks passing (or none), approved (or no review needed), and mergeable. |
+| Draft             | The PR is a draft.                                                                          |
+| Merged · Closed   | The PR is finished.                                                                         |
+
+"Ready to merge" appears only when every one of those facts is known and fresh. If GitHub has not
+answered yet, or the last lookup failed, the card shows no status rather than guessing.
+
+## Child sessions
+
+Sessions an orchestrator spawns are cards of their own, placed by their own state. A child shows
+`↳` and its parent's title; a parent shows how many direct children it has, with a dot when one of
+them needs you. Hover the count to see the children per column.
+
+1. Select **Hide child sessions** in the board header.
+
+   **Expected:** every session that has a parent leaves the columns, and the column counts drop to
+   match. The choice is remembered for this window.
+
+2. Select it again to bring them back.
+
+## Load more and the Archive bar
+
+Each column shows 50 cards at a time. When a column holds more, it ends with
+**Load more 50 of 128**; the count in the header always covers the whole column, loaded or not.
+
+The **Archive** bar at the bottom shows how many archived sessions the scope holds and stays hidden
+when there are none. Expand it to see them as cards; clicking one opens it like any other card.
+
+Collapse **Done** with the arrow in its header when you only care about live work; it folds into a
+narrow rail that still shows its count.
+
+## Scope and freshness
+
+The board follows the same scope as the session list: the current project, or every project when
+**All projects** is selected (cards then show the project name when they have no PR). It updates as
+sessions change and re-reads every 60 seconds while the window is visible, which also keeps PR
+facts current.
+
+## From the CLI and agents
+
+The same columns are available outside the window:
+
+```bash
+compozy session list --column in_review
+compozy session list --column needs_you,working --hide-children
+```
+
+Agents read the same `board_column` field through `compozy__session_list` and
+`compozy__session_status`. See [`compozy session list`](/docs/cli/session/list) and the
+[Sessions API](/docs/api/sessions) for the exact flags and fields.

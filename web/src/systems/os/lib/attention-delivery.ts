@@ -30,7 +30,20 @@ export const RESOLVE_GRACE_MS = 5_000;
 export type AttentionDeliveryTarget = Pick<
   OsSessionAttentionRow,
   "id" | "title" | "agentName" | "workspaceId" | "workspaceLabel" | "badge" | "reason"
->;
+> & {
+  /** The session's open PR, as the session read model last reported it. */
+  openPullRequestNumber?: number;
+};
+
+/**
+ * The single finished toast's body line (`_uiux.md` S7): an open PR is named
+ * as ready for review; otherwise the session simply finished.
+ */
+export function finishedDeliveryBody(target: AttentionDeliveryTarget): string {
+  return target.openPullRequestNumber === undefined
+    ? "Finished while you were away"
+    : `#${target.openPullRequestNumber} ready for review`;
+}
 
 export interface NeedsYouDelivery {
   kind: "needs-you";

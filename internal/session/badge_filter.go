@@ -18,6 +18,7 @@ var publicBadgeFilterOrder = []Badge{
 	BadgeIdle,
 	BadgeDone,
 	BadgeRunning,
+	BadgeWaiting,
 	BadgeStopped,
 	BadgeFailed,
 	BadgeHung,

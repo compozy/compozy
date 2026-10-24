@@ -557,7 +557,15 @@ and the carried context was sent instead. A failed clone request yields `seed: r
 
 ### Session attention and pending interactions
 
-Session badges have one daemon-owned precedence order. `waiting-for-auth`, `waiting-for-input`, and
+Session badges have one daemon-owned precedence order. `waiting` means the session has no active
+prompt but still owns fresh child sessions, replies, Loop runs, task leases, scheduled waits, or
+active/delivering monitors. Its `waiting_on` reason is `sessions` for child/reply/Loop/task work,
+or `monitor` for monitors and scheduled waits; session work wins when both exist. Running,
+degraded health, pending interactions, and terminal states outrank `waiting`. Unknown supervision
+sources yield `needs-attention`, never a false completion. Closing the last waiting signal emits
+the normal finished transition once when the settled turn is unseen; already-seen work becomes idle.
+
+`waiting-for-auth`, `waiting-for-input`, and
 `failed` form the `needs-you` class together with `needs-attention` for unverified stop failures. `done` means the latest settled turn has not been seen; it forms
 the `finished` class. A new turn, terminal lifecycle state, or higher-priority pending interaction
 always outranks `done`. CLI and API reads never mark a session seen.
@@ -598,11 +606,31 @@ Extension hooks use the separate async-only `session.attention.changed` event. I
 `from`, `to`, `class`, `at`, and the session/workspace context; hook failure never rolls back the
 canonical attention change.
 
+### Session board columns
+
+`compozy session list --column in_review --hide-children` filters the derived board before
+pagination and counting. Repeat `--column` or comma-separate `needs_you`, `working`, `in_review`,
+and `done`; an unknown column exits 2. The filters combine with workspace, badge and archive
+selectors. Selecting a column removes the default active-state filter. Human output includes
+BRANCH, PR, CHECKS and REVIEW.
+
+The daemon assigns needs-you badges first, then running/hung/unhealthy/waiting to `working`,
+then remaining sessions with an open PR to `in_review`, and all others to `done`. A parent's
+column is independent of its children. `children` aggregates its direct, non-archived, readable
+children across every page; `parent_title` can name an archived readable parent.
+
+HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child,
+whereas `subagents=exclude` excludes only the subagent role. Facets expose `board` counts for the
+same scope and child visibility, independent of search, badge and selected board column. Changing
+columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
+never wait on forge calls.
+
 ### Waiting for session state
 
 `compozy session wait <session-id>` blocks until the session settles or needs someone. The default
-target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` also
-satisfies `idle`. Override it with `--until`, bound the request with `--timeout` (default 5 minutes),
+target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` and `waiting` also
+satisfy `idle`; `waiting` still blocks idle runtime release while work signals remain open. Override
+it with `--until`, bound the request with `--timeout` (default 5 minutes),
 or use `--unbounded` to let the CLI transparently resume bounded server waits without a blind spot.
 Valid explicit targets also include `done`, `running`, `hung`, and `unhealthy`.
 
@@ -1402,7 +1430,8 @@ process, and old events can omit this additive object. No retry-after seconds ar
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
-active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
+active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
+monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
 (`session.messaging.reply_watch_ttl`, default `24h`). A reply wakes an idle sender once, binding its
@@ -1574,3 +1603,13 @@ reads for thirty seconds. Request logs include a validated opaque `client_id` fr
 `X-Compozy-Client-ID` so request rates can be grouped by browser instance without inspecting payloads.
 
 Verdict-only daemon-owned `system` sessions are omitted from default public catalogs and operator attention. Use explicit `type=system` / `session list --type system` for audit; add `parent` / `--parent` to inspect the bound Goal session's judges. Existing parentless judges remain discoverable by type. Direct session history reads are unchanged.
+
+### Session pull requests
+
+Use `compozy session pr <id> [-o json]` to read the branch-linked pull request and its lookup status.
+`--refresh` requests a forge observation with a 10-second response budget; ordinary reads use cached
+facts and schedule eligible stale observations in the background. A root session keeps the branch
+captured when its turn settled. A bound session uses its live pending/ready worktree branch; removed
+or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
+no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
+`pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.

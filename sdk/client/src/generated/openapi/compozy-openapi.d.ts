@@ -2689,6 +2689,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/{session_id}/pull-request/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh a session pull request */
+    post: operations["refreshSessionPullRequest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}/status": {
     parameters: {
       query?: never;
@@ -6802,6 +6819,23 @@ export interface paths {
     put?: never;
     /** Cancel a worktree exit action */
     post: operations["cancelWorktreeExitAction"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve forge capabilities and prepare the worktree exit plan */
+    post: operations["prepareWorktreeExitPlan"];
     delete?: never;
     options?: never;
     head?: never;
@@ -13156,17 +13190,49 @@ export interface components {
       /** Format: date-time */
       at: string;
       class: string;
-      from: string;
+      /** @enum {string} */
+      from:
+        | "running"
+        | "idle"
+        | "unhealthy"
+        | "hung"
+        | "waiting-for-auth"
+        | "waiting-for-input"
+        | "done"
+        | "stopped"
+        | "failed"
+        | "unknown"
+        | "needs-attention"
+        | "waiting";
       profile_id: string;
       profile_name: string;
       session_id: string;
-      to: string;
+      /** @enum {string} */
+      to:
+        | "running"
+        | "idle"
+        | "unhealthy"
+        | "hung"
+        | "waiting-for-auth"
+        | "waiting-for-input"
+        | "done"
+        | "stopped"
+        | "failed"
+        | "unknown"
+        | "needs-attention"
+        | "waiting";
       workspace_id: string;
     };
     SessionAttentionSummaryPayload: {
       by_workspace: components["schemas"]["WorkspaceAttentionSummaryPayload"][];
       finished: number;
       needs_you: number;
+    };
+    SessionBoardCountsPayload: {
+      done: number;
+      in_review: number;
+      needs_you: number;
+      working: number;
     };
     SessionCatalogEventPayload: {
       kind: string;
@@ -13177,6 +13243,7 @@ export interface components {
     };
     SessionCatalogFacetsPayload: {
       all: number;
+      board: components["schemas"]["SessionBoardCountsPayload"];
       finished: number;
       idle: number;
       needs_you: number;
@@ -13197,6 +13264,13 @@ export interface components {
     SessionCatalogResponse: {
       page: components["schemas"]["SessionCatalogPagePayload"];
       sessions: components["schemas"]["SessionPayload"][];
+    };
+    SessionChildrenPayload: {
+      done: number;
+      in_review: number;
+      needs_you: number;
+      total: number;
+      working: number;
     };
     SessionCommandPayload: {
       available: boolean;
@@ -13712,8 +13786,25 @@ export interface components {
       /** Format: date-time */
       attention_changed_at?: string | null;
       available_commands: components["schemas"]["ACPAvailableCommandPayload"][];
-      badge: string;
+      /** @enum {string} */
+      badge:
+        | "running"
+        | "idle"
+        | "unhealthy"
+        | "hung"
+        | "waiting-for-auth"
+        | "waiting-for-input"
+        | "done"
+        | "stopped"
+        | "failed"
+        | "unknown"
+        | "needs-attention"
+        | "waiting";
+      /** @enum {string} */
+      board_column: "needs_you" | "working" | "in_review" | "done";
+      branch?: string;
       busy_input?: components["schemas"]["BusyInputState"] | null;
+      children?: components["schemas"]["SessionChildrenPayload"] | null;
       /** Format: date-time */
       created_at: string;
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
@@ -13726,6 +13817,7 @@ export interface components {
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
       monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
+      parent_title?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
       profile_archived?: boolean;
       profile_color?: string;
@@ -13733,6 +13825,8 @@ export interface components {
       profile_icon?: string;
       profile_id: string;
       profile_name: string;
+      pull_request: components["schemas"]["SessionPullRequestPayload"] | null;
+      pull_request_lookup: components["schemas"]["SessionPullRequestLookupPayload"] | null;
       queue?: components["schemas"]["SessionQueueSummaryPayload"] | null;
       reply_watches?: components["schemas"]["ReplyWatchPayload"][];
       runtime: components["schemas"]["SessionRuntimePayload"];
@@ -13763,6 +13857,8 @@ export interface components {
       /** Format: date-time */
       updated_at: string;
       verified?: boolean | null;
+      /** @enum {string} */
+      waiting_on?: "sessions" | "monitor";
       workspace_id?: string;
       workspace_path?: string;
       worktree_id?: string;
@@ -13793,6 +13889,56 @@ export interface components {
       runtime_provider?: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+    };
+    SessionPullRequestChecksPayload: {
+      failed: number;
+      failed_names: string[];
+      passed: number;
+      pending: number;
+      /** @enum {string} */
+      state: "passing" | "failing" | "pending" | "none" | "unknown";
+    };
+    SessionPullRequestErrorPayload: {
+      cause?: string;
+      code?: string;
+      config_path?: string;
+      current_turn_id?: string;
+      details?: {
+        [key: string]: string;
+      };
+      diagnostic?: components["schemas"]["DiagnosticItem"] | null;
+      error: string;
+      message: string;
+      unknown_keys?: string[];
+    };
+    SessionPullRequestLookupPayload: {
+      cause: string;
+      /** Format: date-time */
+      observed_at: string | null;
+      stale: boolean;
+      /** @enum {string} */
+      state: "ok" | "pending" | "error" | "incomplete";
+    };
+    SessionPullRequestPayload: {
+      checks: components["schemas"]["SessionPullRequestChecksPayload"];
+      draft: boolean | null;
+      head_sha: string;
+      /** @enum {string} */
+      mergeable: "mergeable" | "conflicting" | "unknown";
+      number: number;
+      provider: string;
+      ready_to_merge: boolean;
+      /** @enum {string} */
+      review_decision: "approved" | "changes_requested" | "review_required" | "none" | "unknown";
+      /** @enum {string} */
+      state: "open" | "closed" | "merged";
+      url: string;
+    };
+    SessionPullRequestResponse: {
+      branch: string;
+      pull_request: components["schemas"]["SessionPullRequestPayload"] | null;
+      pull_request_lookup: components["schemas"]["SessionPullRequestLookupPayload"] | null;
+      session_id: string;
     };
     SessionQueueSummaryPayload: {
       cap: number;
@@ -13874,7 +14020,20 @@ export interface components {
       agent_name: string;
       attachable: boolean;
       attention?: string;
-      badge: string;
+      /** @enum {string} */
+      badge:
+        | "running"
+        | "idle"
+        | "unhealthy"
+        | "hung"
+        | "waiting-for-auth"
+        | "waiting-for-input"
+        | "done"
+        | "stopped"
+        | "failed"
+        | "unknown"
+        | "needs-attention"
+        | "waiting";
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
       eligible_for_wake: boolean;
       escalated?: boolean | null;
@@ -15622,7 +15781,8 @@ export interface components {
         | "loop_run"
         | "task_lease"
         | "scheduled_wait"
-        | "awaiting_reply";
+        | "awaiting_reply"
+        | "active_monitor";
       ref?: string;
       state: string;
     };
@@ -19332,7 +19492,8 @@ export interface components {
         | "loop_run"
         | "task_lease"
         | "scheduled_wait"
-        | "awaiting_reply";
+        | "awaiting_reply"
+        | "active_monitor";
       ref?: string;
       /** Format: date-time */
       since: string;
@@ -31901,6 +32062,8 @@ export interface operations {
         agent?: string;
         /** @description Subagent session visibility (default include) */
         subagents?: "include" | "exclude" | "only";
+        /** @description Managed child visibility */
+        children?: "include" | "exclude";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -31915,6 +32078,8 @@ export interface operations {
         resumable?: boolean;
         /** @description Only list sessions in the needs-you attention class */
         attention?: boolean;
+        /** @description Repeatable board column filter: needs_you, working, in_review, done */
+        board_column?: string[];
         /** @description Filter by comma-separated exact session badges */
         badge?: string;
         /** @description Archived session visibility */
@@ -32196,6 +32361,8 @@ export interface operations {
         agent?: string;
         /** @description Subagent session visibility (default include) */
         subagents?: "include" | "exclude" | "only";
+        /** @description Managed child visibility */
+        children?: "include" | "exclude";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -32498,6 +32665,59 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  refreshSessionPullRequest: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Refreshed or retained cached facts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionPullRequestResponse"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session branch unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionPullRequestErrorPayload"];
+        };
+      };
+      /** @description Forge unavailable without cached facts */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionPullRequestErrorPayload"];
         };
       };
     };
@@ -45624,6 +45844,8 @@ export interface operations {
         agent?: string;
         /** @description Subagent session visibility (default include) */
         subagents?: "include" | "exclude" | "only";
+        /** @description Managed child visibility */
+        children?: "include" | "exclude";
         /** @description Filter by exact parent session id */
         parent?: string;
         /** @description Filter by exact root session id (includes the root itself) */
@@ -45638,6 +45860,8 @@ export interface operations {
         resumable?: boolean;
         /** @description Only list sessions in the needs-you attention class */
         attention?: boolean;
+        /** @description Repeatable board column filter: needs_you, working, in_review, done */
+        board_column?: string[];
         /** @description Filter by comma-separated exact session badges */
         badge?: string;
         /** @description Archived session visibility */
@@ -53466,6 +53690,67 @@ export interface operations {
         };
       };
       /** @description Worktree or forge service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  prepareWorktreeExitPlan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreeExitPlanResponse"];
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree exit plan is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

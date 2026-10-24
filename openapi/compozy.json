@@ -22387,6 +22387,20 @@
             "type": "string"
           },
           "from": {
+            "enum": [
+              "running",
+              "idle",
+              "unhealthy",
+              "hung",
+              "waiting-for-auth",
+              "waiting-for-input",
+              "done",
+              "stopped",
+              "failed",
+              "unknown",
+              "needs-attention",
+              "waiting"
+            ],
             "type": "string"
           },
           "profile_id": {
@@ -22399,6 +22413,20 @@
             "type": "string"
           },
           "to": {
+            "enum": [
+              "running",
+              "idle",
+              "unhealthy",
+              "hung",
+              "waiting-for-auth",
+              "waiting-for-input",
+              "done",
+              "stopped",
+              "failed",
+              "unknown",
+              "needs-attention",
+              "waiting"
+            ],
             "type": "string"
           },
           "workspace_id": {
@@ -22439,6 +22467,29 @@
         ],
         "type": "object"
       },
+      "SessionBoardCountsPayload": {
+        "properties": {
+          "done": {
+            "type": "integer"
+          },
+          "in_review": {
+            "type": "integer"
+          },
+          "needs_you": {
+            "type": "integer"
+          },
+          "working": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "in_review",
+          "needs_you",
+          "working"
+        ],
+        "type": "object"
+      },
       "SessionCatalogEventPayload": {
         "properties": {
           "kind": {
@@ -22471,6 +22522,9 @@
           "all": {
             "type": "integer"
           },
+          "board": {
+            "$ref": "#/components/schemas/SessionBoardCountsPayload"
+          },
           "finished": {
             "type": "integer"
           },
@@ -22489,6 +22543,7 @@
         },
         "required": [
           "all",
+          "board",
           "finished",
           "idle",
           "needs_you",
@@ -22559,6 +22614,33 @@
         "required": [
           "page",
           "sessions"
+        ],
+        "type": "object"
+      },
+      "SessionChildrenPayload": {
+        "properties": {
+          "done": {
+            "type": "integer"
+          },
+          "in_review": {
+            "type": "integer"
+          },
+          "needs_you": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "working": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "in_review",
+          "needs_you",
+          "total",
+          "working"
         ],
         "type": "object"
       },
@@ -24481,12 +24563,51 @@
             "type": "array"
           },
           "badge": {
+            "enum": [
+              "running",
+              "idle",
+              "unhealthy",
+              "hung",
+              "waiting-for-auth",
+              "waiting-for-input",
+              "done",
+              "stopped",
+              "failed",
+              "unknown",
+              "needs-attention",
+              "waiting"
+            ],
+            "type": "string"
+          },
+          "board_column": {
+            "enum": [
+              "needs_you",
+              "working",
+              "in_review",
+              "done"
+            ],
+            "type": "string"
+          },
+          "branch": {
             "type": "string"
           },
           "busy_input": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/BusyInputState"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "children": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionChildrenPayload"
               },
               {
                 "enum": [
@@ -24581,6 +24702,9 @@
           "name": {
             "type": "string"
           },
+          "parent_title": {
+            "type": "string"
+          },
           "pending_interactions": {
             "items": {
               "$ref": "#/components/schemas/PendingInteractionPayload"
@@ -24604,6 +24728,32 @@
           },
           "profile_name": {
             "type": "string"
+          },
+          "pull_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "pull_request_lookup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestLookupPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "queue": {
             "oneOf": [
@@ -24708,6 +24858,13 @@
             "nullable": true,
             "type": "boolean"
           },
+          "waiting_on": {
+            "enum": [
+              "sessions",
+              "monitor"
+            ],
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           },
@@ -24724,12 +24881,15 @@
           "attachable",
           "available_commands",
           "badge",
+          "board_column",
           "created_at",
           "effective_workspace_access",
           "id",
           "pending_interactions",
           "profile_id",
           "profile_name",
+          "pull_request",
+          "pull_request_lookup",
           "runtime",
           "scope",
           "state",
@@ -24830,6 +24990,234 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "SessionPullRequestChecksPayload": {
+        "properties": {
+          "failed": {
+            "type": "integer"
+          },
+          "failed_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "passed": {
+            "type": "integer"
+          },
+          "pending": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "passing",
+              "failing",
+              "pending",
+              "none",
+              "unknown"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "failed",
+          "failed_names",
+          "passed",
+          "pending",
+          "state"
+        ],
+        "type": "object"
+      },
+      "SessionPullRequestErrorPayload": {
+        "properties": {
+          "cause": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "config_path": {
+            "type": "string"
+          },
+          "current_turn_id": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "diagnostic": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticItem"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "unknown_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "error",
+          "message"
+        ],
+        "type": "object"
+      },
+      "SessionPullRequestLookupPayload": {
+        "properties": {
+          "cause": {
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "pending",
+              "error",
+              "incomplete"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "cause",
+          "observed_at",
+          "stale",
+          "state"
+        ],
+        "type": "object"
+      },
+      "SessionPullRequestPayload": {
+        "properties": {
+          "checks": {
+            "$ref": "#/components/schemas/SessionPullRequestChecksPayload"
+          },
+          "draft": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "head_sha": {
+            "type": "string"
+          },
+          "mergeable": {
+            "enum": [
+              "mergeable",
+              "conflicting",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "number": {
+            "type": "integer"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "ready_to_merge": {
+            "type": "boolean"
+          },
+          "review_decision": {
+            "enum": [
+              "approved",
+              "changes_requested",
+              "review_required",
+              "none",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "open",
+              "closed",
+              "merged"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "checks",
+          "draft",
+          "head_sha",
+          "mergeable",
+          "number",
+          "provider",
+          "ready_to_merge",
+          "review_decision",
+          "state",
+          "url"
+        ],
+        "type": "object"
+      },
+      "SessionPullRequestResponse": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "pull_request": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "pull_request_lookup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionPullRequestLookupPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "pull_request",
+          "pull_request_lookup",
+          "session_id"
         ],
         "type": "object"
       },
@@ -25167,6 +25555,20 @@
             "type": "string"
           },
           "badge": {
+            "enum": [
+              "running",
+              "idle",
+              "unhealthy",
+              "hung",
+              "waiting-for-auth",
+              "waiting-for-input",
+              "done",
+              "stopped",
+              "failed",
+              "unknown",
+              "needs-attention",
+              "waiting"
+            ],
             "type": "string"
           },
           "derivation": {
@@ -30801,7 +31203,8 @@
               "loop_run",
               "task_lease",
               "scheduled_wait",
-              "awaiting_reply"
+              "awaiting_reply",
+              "active_monitor"
             ],
             "type": "string"
           },
@@ -43250,7 +43653,8 @@
               "loop_run",
               "task_lease",
               "scheduled_wait",
-              "awaiting_reply"
+              "awaiting_reply",
+              "active_monitor"
             ],
             "type": "string"
           },
@@ -62575,6 +62979,18 @@
             }
           },
           {
+            "description": "Managed child visibility",
+            "in": "query",
+            "name": "children",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by exact parent session id",
             "in": "query",
             "name": "parent",
@@ -62631,6 +63047,17 @@
             "name": "attention",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable board column filter: needs_you, working, in_review, done",
+            "in": "query",
+            "name": "board_column",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           {
@@ -63094,6 +63521,18 @@
                 "include",
                 "exclude",
                 "only"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Managed child visibility",
+            "in": "query",
+            "name": "children",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude"
               ],
               "type": "string"
             }
@@ -63675,6 +64114,81 @@
           }
         },
         "summary": "Get a session owner; Global history has an empty workspace id",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/pull-request/refresh": {
+      "post": {
+        "operationId": "refreshSessionPullRequest",
+        "parameters": [
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPullRequestResponse"
+                }
+              }
+            },
+            "description": "Refreshed or retained cached facts"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPullRequestErrorPayload"
+                }
+              }
+            },
+            "description": "Session branch unavailable"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPullRequestErrorPayload"
+                }
+              }
+            },
+            "description": "Forge unavailable without cached facts"
+          }
+        },
+        "summary": "Refresh a session pull request",
         "tags": [
           "sessions"
         ],
@@ -83064,6 +83578,18 @@
             }
           },
           {
+            "description": "Managed child visibility",
+            "in": "query",
+            "name": "children",
+            "schema": {
+              "enum": [
+                "include",
+                "exclude"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by exact parent session id",
             "in": "query",
             "name": "parent",
@@ -83120,6 +83646,17 @@
             "name": "attention",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable board column filter: needs_you, working, in_review, done",
+            "in": "query",
+            "name": "board_column",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           {
@@ -94669,6 +95206,92 @@
           }
         },
         "summary": "Cancel a worktree exit action",
+        "tags": [
+          "worktrees"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare": {
+      "post": {
+        "operationId": "prepareWorktreeExitPlan",
+        "parameters": [
+          {
+            "description": "Workspace id or path",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Worktree id, name, or path",
+            "in": "path",
+            "name": "worktree_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreeExitPlanResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree exit plan is unavailable"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree service is unavailable"
+          }
+        },
+        "summary": "Resolve forge capabilities and prepare the worktree exit plan",
         "tags": [
           "worktrees"
         ],

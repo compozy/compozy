@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
-import { sessionAwaitsSubagents } from "../../lib/session-subagent-summary";
-import { sessionAwaitsMonitors } from "../../lib/session-monitor-summary";
+import { sessionWaitingOn } from "../../lib/session-pull-request";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
@@ -113,7 +112,7 @@ function SessionListRowBody({
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
   const runtime = useSessionRowRuntimeLabel(session);
-  const signal = sessionBadgeSignal(session.badge);
+  const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
   const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
@@ -213,8 +212,7 @@ function SessionRowTarget({
     >
       <SessionBadgeMark
         badge={session.badge}
-        delegated={sessionAwaitsSubagents(session)}
-        monitoring={sessionAwaitsMonitors(session)}
+        waitingOn={sessionWaitingOn(session)}
         className={badgeMarkClass(selection)}
       />
       <span className="min-w-0 truncate">{title}</span>

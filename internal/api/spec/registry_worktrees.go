@@ -21,6 +21,7 @@ func registryWorktreeOperations() []OperationSpec {
 		inspectWorktreeOperationSpec(),
 		worktreeStatusOperationSpec(),
 		worktreeExitPlanOperationSpec(),
+		prepareWorktreeExitPlanOperationSpec(),
 		runWorktreeExitActionOperationSpec(),
 		cancelWorktreeExitActionOperationSpec(),
 		cancelWorktreeOperationSpec(),
@@ -146,6 +147,16 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func prepareWorktreeExitPlanOperationSpec() OperationSpec {
+	operation := worktreeExitPlanOperationSpec()
+	operation.Method = httpMethodPost
+	operation.Path = specAPIWorktreeExitPath + "/prepare"
+	operation.OperationID = "prepareWorktreeExitPlan"
+	operation.Summary = "Resolve forge capabilities and prepare the worktree exit plan"
+	operation.Parameters = worktreeRouteParams()
+	return operation
 }
 
 func runWorktreeExitActionOperationSpec() OperationSpec {

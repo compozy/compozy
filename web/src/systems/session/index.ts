@@ -467,6 +467,8 @@ export {
 export * from "./environment";
 // Derive surface — continue (and fork) plus origin display (./derive).
 export * from "./derive";
+// Board surface — Sessions board plus its pull-request facts (./board).
+export * from "./board";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
 export * from "./mentions";

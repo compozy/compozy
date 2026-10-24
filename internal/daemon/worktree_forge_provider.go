@@ -60,11 +60,33 @@ func (p daemonExtensionForgeProvider) Status(
 	if err != nil {
 		return nil, mapForgeRuntimeError(err)
 	}
+	var checks *worktree.ForgeChecks
+	if response.Checks != nil {
+		checks = &worktree.ForgeChecks{
+			State:       response.Checks.State,
+			Passed:      response.Checks.Passed,
+			Failed:      response.Checks.Failed,
+			Pending:     response.Checks.Pending,
+			FailedNames: response.Checks.FailedNames,
+		}
+	}
 	return &worktree.ForgeStatus{
-		WorktreeID: request.WorktreeID, Provider: response.Provider, PRNumber: response.PRNumber,
-		PRState: response.PRState, PRURL: response.PRURL, Merged: response.Merged,
-		Head: response.Head, Base: response.Base, HeadSHA: response.HeadSHA, Draft: response.Draft,
-		FetchedAt: &response.FetchedAt,
+		Checks:         checks,
+		ReviewDecision: response.ReviewDecision,
+		Mergeable:      response.Mergeable,
+		UpdatedAt:      response.UpdatedAt,
+		Selection:      response.Selection,
+		WorktreeID:     request.WorktreeID,
+		Provider:       response.Provider,
+		PRNumber:       response.PRNumber,
+		PRState:        response.PRState,
+		PRURL:          response.PRURL,
+		Merged:         response.Merged,
+		Head:           response.Head,
+		Base:           response.Base,
+		HeadSHA:        response.HeadSHA,
+		Draft:          response.Draft,
+		FetchedAt:      &response.FetchedAt,
 	}, nil
 }
 
@@ -95,10 +117,17 @@ func (p daemonExtensionForgeProvider) CreatePR(
 
 func mapForgeRuntimeError(err error) error {
 	cause := extensionpkg.ForgeProviderErrorCause(err)
+	kind := worktree.ErrForge
 	if errors.Is(err, toolspkg.ErrToolUnavailable) {
-		return worktree.NewForgeFailure(worktree.ErrForgeUnavailable, cause, err)
+		kind = worktree.ErrForgeUnavailable
 	}
-	return worktree.NewForgeFailure(worktree.ErrForge, cause, err)
+	failure := worktree.NewForgeFailure(kind, cause, err)
+	if source, ok := errors.AsType[*extensionpkg.ForgeProviderError](err); ok {
+		if target, ok := errors.AsType[*worktree.ForgeFailure](failure); ok {
+			target.RetryAfter = source.RetryAfter
+		}
+	}
+	return failure
 }
 
 func forgeFailureKind(cause string) error {
@@ -111,11 +140,11 @@ func forgeFailureKind(cause string) error {
 
 func (p daemonExtensionForgeProvider) resolve() (extensionpkg.ForgeRuntime, error) {
 	if p.runtime == nil {
-		return nil, worktree.ErrForgeUnavailable
+		return nil, worktree.NewForgeFailure(worktree.ErrForgeUnavailable, "provider_disabled", nil)
 	}
 	runtime, ok := p.runtime().(extensionpkg.ForgeRuntime)
 	if !ok || runtime == nil {
-		return nil, worktree.ErrForgeUnavailable
+		return nil, worktree.NewForgeFailure(worktree.ErrForgeUnavailable, "provider_disabled", nil)
 	}
 	return runtime, nil
 }

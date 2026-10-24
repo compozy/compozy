@@ -60,6 +60,10 @@ func (p SessionCatalogPosition) Validate() error {
 // explicit profile or the AllProfiles aggregate. Cursor decoding and
 // active-session overlay belong to the session manager.
 type SessionCatalogPageQuery struct {
+	DefaultBranches     map[string][]string
+	RepositoryKeys      map[string]string
+	Columns             []string
+	HideChildren        bool
 	ExcludeVerdictOnly  bool
 	Subagents           string
 	SkipTotal           bool
@@ -89,6 +93,13 @@ type SessionCatalogPageQuery struct {
 
 // Validate ensures the durable query is bounded and its anchor is usable.
 func (q SessionCatalogPageQuery) Validate() error {
+	for _, column := range q.Columns {
+		switch column {
+		case SessionBoardNeedsYou, SessionBoardWorking, SessionBoardInReview, SessionBoardDone:
+		default:
+			return fmt.Errorf("store: unsupported board column %q", column)
+		}
+	}
 	switch q.Subagents {
 	case "", "include", "exclude", "only":
 	default:
@@ -109,6 +120,10 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
+	return q.validateCursor()
+}
+
+func (q SessionCatalogPageQuery) validateCursor() error {
 	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
 		return fmt.Errorf("store: name cursor key is required")
 	}

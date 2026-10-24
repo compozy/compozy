@@ -46,6 +46,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	enrichOperationError(&payload, err)
+	if errors.Is(err, session.ErrBoardFilterInvalid) {
+		payload.Code = "session_list_query_invalid"
+	}
 	if code := DeriveErrorCode(err); code != "" {
 		payload.Code = code
 	}

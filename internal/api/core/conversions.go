@@ -59,6 +59,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		Type:                info.Type,
 		State:               info.State,
 		Badge:               session.BadgeForInfo(info),
+		BoardColumn:         session.BoardColumnFor(session.BadgeForInfo(info), ""),
+		WaitingOn:           sessionPayloadWaitingOn(info, session.BadgeForInfo(info)),
 		Attachable:          session.AttachableForInfo(info, now),
 		AttachedTo:          strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),
@@ -78,6 +80,29 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		CreatedAt:           info.CreatedAt,
 		UpdatedAt:           info.UpdatedAt,
 	}
+	populateSessionRuntimePayload(&payload, info)
+	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
+		payload.Activity = activity
+	}
+	payload.Derivation = sessionDerivationPayload(info.Derivation)
+	payload.ParentTitle = info.ParentTitle
+	if info.Children != nil {
+		counts := info.Children
+		payload.Children = &contract.SessionChildrenPayload{
+			Total:    counts.NeedsYou + counts.Working + counts.InReview + counts.Done,
+			NeedsYou: counts.NeedsYou,
+			Working:  counts.Working,
+			InReview: counts.InReview,
+			Done:     counts.Done,
+		}
+	}
+	if info.BoardColumn != "" {
+		payload.BoardColumn = info.BoardColumn
+	}
+	return payload
+}
+
+func populateSessionRuntimePayload(payload *contract.SessionPayload, info *session.Info) {
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
 		requested := info.RequestedRuntime()
 		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
@@ -89,11 +114,6 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
 		payload.Runtime.ACPCaps = caps
 	}
-	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
-		payload.Activity = activity
-	}
-	payload.Derivation = sessionDerivationPayload(info.Derivation)
-	return payload
 }
 
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
@@ -324,4 +344,11 @@ func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
 		payload = append(payload, SessionPayloadFromInfo(info))
 	}
 	return payload
+}
+
+func sessionPayloadWaitingOn(info *session.Info, badge session.Badge) session.WaitingOn {
+	if badge != session.BadgeWaiting || info == nil || info.Supervision == nil {
+		return ""
+	}
+	return session.WaitingOnFor(info.Supervision.WorkSignals)
 }

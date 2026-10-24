@@ -16,20 +16,22 @@ import (
 )
 
 type sessionListInput struct {
-	Workspace     string `json:"workspace,omitempty"`
-	Worktree      string `json:"worktree,omitempty"`
-	State         string `json:"state,omitempty"`
-	Type          string `json:"type,omitempty"`
-	Agent         string `json:"agent,omitempty"`
-	Parent        string `json:"parent,omitempty"`
-	Root          string `json:"root,omitempty"`
-	Query         string `json:"q,omitempty"`
-	Resumable     bool   `json:"resumable,omitzero"`
-	Archive       string `json:"archive,omitempty"`
-	IncludeHealth bool   `json:"include_health,omitzero"`
-	Sort          string `json:"sort,omitempty"`
-	Cursor        string `json:"cursor,omitempty"`
-	Limit         int    `json:"limit,omitzero"`
+	BoardColumn   []string `json:"board_column,omitempty"`
+	Children      string   `json:"children,omitempty"`
+	Workspace     string   `json:"workspace,omitempty"`
+	Worktree      string   `json:"worktree,omitempty"`
+	State         string   `json:"state,omitempty"`
+	Type          string   `json:"type,omitempty"`
+	Agent         string   `json:"agent,omitempty"`
+	Parent        string   `json:"parent,omitempty"`
+	Root          string   `json:"root,omitempty"`
+	Query         string   `json:"q,omitempty"`
+	Resumable     bool     `json:"resumable,omitzero"`
+	Archive       string   `json:"archive,omitempty"`
+	IncludeHealth bool     `json:"include_health,omitzero"`
+	Sort          string   `json:"sort,omitempty"`
+	Cursor        string   `json:"cursor,omitempty"`
+	Limit         int      `json:"limit,omitzero"`
 }
 
 // sessionList returns the authorized session page with current profile labels and placements.
@@ -61,7 +63,17 @@ func (n *daemonNativeTools) sessionList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	columns, err := session.ParseBoardColumns(input.BoardColumn)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	}
+	hideChildren, err := session.ParseChildrenFilter(input.Children)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	}
 	page, err := pager.ListPage(ctx, session.ListQuery{
+		Columns:         columns,
+		HideChildren:    hideChildren,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		WorktreeID:      strings.TrimSpace(input.Worktree),
@@ -83,8 +95,18 @@ func (n *daemonNativeTools) sessionList(
 		}
 		return toolspkg.ToolResult{}, err
 	}
+	return n.sessionListPayload(ctx, req, input.IncludeHealth, page)
+}
+
+func (n *daemonNativeTools) sessionListPayload(
+	ctx context.Context,
+	req toolspkg.CallRequest,
+	includeHealth bool,
+	page session.ListPage,
+) (toolspkg.ToolResult, error) {
+	var err error
 	payload := core.SessionPayloadsFromInfos(page.Sessions)
-	if input.IncludeHealth {
+	if includeHealth {
 		pageReader, ok := n.deps.Sessions.(core.SessionHealthPageReader)
 		if !ok {
 			return toolspkg.ToolResult{}, nativeUnavailableError(
@@ -96,6 +118,9 @@ func (n *daemonNativeTools) sessionList(
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+	}
+	if err := core.DecorateSessionPullRequests(ctx, n.deps.Sessions, page.Sessions, payload); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	payload, err = core.SessionPayloadsWithProfileOwners(ctx, payload, n.deps.Profiles)
 	if err != nil {

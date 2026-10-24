@@ -18,6 +18,9 @@ import {
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
     effective_workspace_access: "",
@@ -56,7 +59,11 @@ const CATALOG: SessionPayload[] = [
   session({ id: "s-hung", badge: "hung", name: "Stuck indexer" }),
   session({ id: "s-unhealthy", badge: "unhealthy", name: "Flaky bridge" }),
   session({ id: "s-stopped", badge: "stopped", name: "Archived sweep" }),
-  session({ id: "s-unknown", badge: "not-a-badge", name: "Mystery run" }),
+  session({
+    id: "s-unknown",
+    badge: "not-a-badge" as SessionPayload["badge"],
+    name: "Mystery run",
+  }),
 ];
 
 function idsFor(filterId: Parameters<typeof paletteSessionFilter>[0]): string[] {

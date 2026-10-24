@@ -296,9 +296,11 @@ function createSessionReadReconciler(queryClient: QueryClient) {
   return {
     wake(sessionId: string, payload?: SessionCatalogEventPayload) {
       if (closed) return;
-      // An attention edge shares the by-id read but must not erase a queued
-      // catalog upsert's workspace-detail and stopped-transcript reconciliation.
-      if (payload || !pending.has(sessionId)) pending.set(sessionId, payload);
+      // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
+      const queued = pending.get(sessionId);
+      if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {
+        pending.set(sessionId, payload);
+      }
       if (running.has(sessionId)) return;
       running.add(sessionId);
       void flush(sessionId);
@@ -353,7 +355,24 @@ function openSessionCatalogStream(
     if (!payload) return;
     markLive();
     reconciler.wake(payload.workspace_id);
-    if (payload.kind === "layout") return;
+    if (payload.kind === "layout") {
+      const ids = new Set<string>();
+      for (const query of queryClient.getQueryCache().findAll({ queryKey: sessionKeys.all })) {
+        const key = query.queryKey;
+        const data = query.state.data as SessionPayload | undefined;
+        if (
+          key[1] === "workspace" &&
+          key[2] === payload.workspace_id &&
+          key[3] === "detail" &&
+          key.length === 5
+        )
+          ids.add(key[4] as string);
+        if (key[1] === "by-id" && data?.workspace_id === payload.workspace_id)
+          ids.add(key[2] as string);
+      }
+      for (const id of ids) sessionReads.wake(id, { ...payload, session_id: id });
+      return;
+    }
     sessionReads.wake(payload.session_id, payload);
     subagentLists.wake(payload.workspace_id, payload.session_id);
     // Only an open monitor popover observes this small read; elsewhere it is just

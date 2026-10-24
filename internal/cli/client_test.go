@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -2692,6 +2693,43 @@ func TestUnixSocketClientSessionAttachmentUpload(t *testing.T) {
 		)
 		if err == nil || !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("UploadSessionAttachment() error = %v, want os.ErrNotExist", err)
+		}
+	})
+}
+
+func TestSessionPullRequestClient(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refresh through the canonical by-id HTTP route", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		mux.HandleFunc("POST /api/sessions/{id}/pull-request/refresh", func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("id") != "sess-1" {
+				t.Errorf("session id = %q", r.PathValue("id"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := io.WriteString(
+				w,
+				`{"session_id":"sess-1","branch":"topic","pull_request":{"number":43}}`,
+			); err != nil {
+				t.Error(err)
+			}
+		})
+		server := httptest.NewServer(mux)
+		t.Cleanup(server.Close)
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				target, err := url.Parse(server.URL)
+				if err != nil {
+					return nil, err
+				}
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
+		result, err := client.RefreshSessionPullRequest(t.Context(), "sess-1")
+		if err != nil || result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 43 {
+			t.Fatalf("refresh = %#v, %v", result, err)
 		}
 	})
 }

@@ -102,6 +102,29 @@ export async function fetchWorktreeExitPlan(
   return requireResponseData(data, response, "Failed to read the exit plan");
 }
 
+/** Resolve native PR support at the explicit action-preparation boundary. */
+export async function prepareWorktreeExitPlan(
+  workspaceID: string,
+  worktreeID: string,
+  signal?: AbortSignal
+): Promise<WorktreeExitPlanPayload> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare",
+    {
+      params: { path: { workspace_id: workspaceID, worktree_id: worktreeID } },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throw new WorktreeApiError(
+      defaultApiErrorMessage("Failed to prepare the exit plan", response, error),
+      response.status,
+      error
+    );
+  }
+  return requireResponseData(data, response, "Failed to prepare the exit plan");
+}
+
 /**
  * Returns the durable operation id. Execution is detached from this request, so
  * progress arrives on the per-worktree stream, never from the response body.

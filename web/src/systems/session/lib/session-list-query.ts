@@ -47,6 +47,11 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   // Subagent visibility (ADR-005) is a server-side population filter, so it is
   // part of the request and the key: `exclude` and `include` are two catalogs.
   if (filters.subagents !== undefined) normalized.subagents = filters.subagents;
+  // Board columns and child visibility are population filters applied before paging.
+  if (filters.board_column?.length) {
+    normalized.board_column = [...new Set(filters.board_column)].sort();
+  }
+  if (filters.children === "exclude") normalized.children = "exclude";
   if (filters.sort !== undefined) normalized.sort = filters.sort;
   if (filters.limit !== undefined) normalized.limit = filters.limit;
   // Profile scope is part of the request, so it is part of the key: two profiles

@@ -21,6 +21,7 @@ import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import { SessionBadgeMark } from "./session-badge-mark";
+import { sessionWaitingOn } from "../lib/session-pull-request";
 
 export interface SessionDeleteDialogSetProps {
   open: boolean;
@@ -169,10 +170,12 @@ function SessionDeleteResultRow({
       )}
       {...props}
     >
-      <SessionBadgeMark badge={session.badge} />
+      <SessionBadgeMark badge={session.badge} waitingOn={sessionWaitingOn(session)} />
       <span className="truncate">{getSessionDisplayTitle(session)}</span>
-      <span className={`text-micro ${sessionBadgeWordClass(session.badge)}`}>
-        {sessionBadgeSignal(session.badge).displayLabel}
+      <span
+        className={`text-micro ${sessionBadgeWordClass(session.badge, sessionWaitingOn(session))}`}
+      >
+        {sessionBadgeSignal(session.badge, sessionWaitingOn(session)).displayLabel}
       </span>
       <span className="grid size-3.5 place-items-center">
         {result?.status === "done" ? (

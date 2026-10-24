@@ -6,6 +6,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -56,6 +57,11 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 	for _, row := range rows {
 		// A session continued or forked from this one is not its child and keeps no work.
 		if store.HierarchyParentSessionID(row.Lineage) != id {
+			continue
+		}
+		// A daemon-owned child (auto-title) is not work the session delegated: it must
+		// not hold the parent waiting, like it stays out of catalogs and metrics.
+		if session.IsInternalSpawnRole(row.Lineage.SpawnRole) {
 			continue
 		}
 		info, err := s.manager.Status(ctx, row.ID)
@@ -214,4 +220,28 @@ func (s sessionWorkSources) replies(ctx context.Context, id string) ([]session.W
 		return nil, errors.New("reply watch service is unavailable")
 	}
 	return service.AwaitingReplySignals(ctx, id, s.now().Add(2*toolruntime.SweepInterval))
+}
+
+func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.WorkSignal, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.state.sessionMonitors == nil {
+		return nil, errors.New("monitor service is unavailable")
+	}
+	result := make([]session.WorkSignal, 0)
+	for _, item := range s.state.sessionMonitors.List(id) {
+		if item.Status != monitor.StatusActive && item.Status != monitor.StatusDelivering {
+			continue
+		}
+		validUntil := item.DeadlineAt
+		if item.Status == monitor.StatusDelivering {
+			validUntil = s.now().Add(2 * toolruntime.SweepInterval)
+		}
+		result = append(result, session.WorkSignal{
+			Kind: session.WorkSignalActiveMonitor, Since: item.CreatedAt,
+			Ref: item.ID, ValidUntil: validUntil,
+		})
+	}
+	return result, nil
 }

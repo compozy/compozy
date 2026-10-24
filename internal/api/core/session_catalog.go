@@ -118,7 +118,17 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
+	columns, err := session.ParseBoardColumns(c.QueryArray("board_column"))
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
+	hideChildren, err := session.ParseChildrenFilter(c.Query("children"))
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	query := session.ListQuery{
+		Columns:         columns,
+		HideChildren:    hideChildren,
 		Subagents:       subagents,
 		SkipTotal:       skipTotal,
 		ReadScope:       readScope,

@@ -96,6 +96,9 @@ type ChangeSet struct {
 	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
 }
 
+// ChecksState is a daemon API value.
+type ChecksState string
+
 // Chip is a daemon API value.
 type Chip struct {
 	ID       string            `json:"id"`

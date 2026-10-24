@@ -1250,6 +1250,42 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 
 func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 	t.Parallel()
+	t.Run("Should forward board filters without implicit active state and reject invalid columns", func(t *testing.T) {
+		t.Parallel()
+		var seen SessionListQuery
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seen = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: 50}}, nil
+			}},
+		)
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"list",
+			"--column",
+			"in_review,done",
+			"--hide-children",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"in_review", "done"}) {
+			t.Fatalf("query = %#v", seen)
+		}
+		values := sessionListValues(seen)
+		if !slices.Equal(values["board_column"], seen.Columns) || values.Get("children") != "exclude" {
+			t.Fatalf("wire query = %#v", values)
+		}
+		_, _, err := executeRootCommand(t, deps, "session", "list", "--column", "blocked")
+		if err == nil || cliExitCodeForError(err) != 2 ||
+			err.Error() != `invalid --column "blocked" (allowed: needs_you, working, in_review, done)` {
+			t.Fatalf("invalid column = %v", err)
+		}
+	})
 
 	t.Run("Should pass needs-you filtering with attention-first ordering", func(t *testing.T) {
 		t.Parallel()
@@ -5168,4 +5204,83 @@ func TestSessionListAllProjectsColumn(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Invariant: PR reads use the cached session projection and refresh explicitly invokes the forge route.
+// Owner: CLI session commands; canonical session suite.
+func TestSessionPullRequestCommand(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"human", "json"} {
+		t.Run("Should reject a branchless cached read in "+format, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) { return SessionRecord{ID: id}, nil },
+			}
+			withWorkspaceResolution(client)
+			args := []string{"session", "pr", "sess-1"}
+			if format == "json" {
+				args = append(args, "-o", "json")
+			}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err == nil || !strings.Contains(err.Error(), "session_branch_unavailable") ||
+				cliExitCodeForError(err) != 1 ||
+				stdout != "" {
+				t.Fatalf("branchless output=%q error=%v exit=%d", stdout, err, cliExitCodeForError(err))
+			}
+		})
+	}
+
+	t.Run("Should distinguish cached and explicit refresh output", func(t *testing.T) {
+		t.Parallel()
+		client := &pullRequestCLIStub{
+			stubClient: &stubClient{getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          id,
+					Branch:      "topic",
+					PullRequest: &contract.SessionPullRequestPayload{Number: 42, State: session.PullRequestOpen},
+				}, nil
+			}},
+		}
+		withWorkspaceResolution(client.stubClient)
+		deps := newWorkspaceTestDeps(t, client)
+		stdout, _, err := executeRootCommand(t, deps, "session", "pr", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionPullRequestResponse
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 42 ||
+			client.refreshed {
+			t.Fatalf("cached=%#v refreshed=%t", result, client.refreshed)
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "pr", "sess-1", "--refresh", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !client.refreshed || result.PullRequest.Number != 43 {
+			t.Fatalf("refresh=%#v", result)
+		}
+	})
+}
+
+type pullRequestCLIStub struct {
+	*stubClient
+	refreshed bool
+}
+
+func (c *pullRequestCLIStub) RefreshSessionPullRequest(
+	_ context.Context,
+	id string,
+) (contract.SessionPullRequestResponse, error) {
+	c.refreshed = true
+	return contract.SessionPullRequestResponse{
+		SessionID:   id,
+		Branch:      "topic",
+		PullRequest: &contract.SessionPullRequestPayload{Number: 43},
+	}, nil
 }

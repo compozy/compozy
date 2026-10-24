@@ -25,7 +25,8 @@ import {
 import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
-import type { SessionListFilters, SessionState } from "../types";
+import type { SessionListFilters, SessionPayload, SessionState } from "../types";
+import { withPullRequestReread } from "./session-pull-request";
 import { sessionKeys } from "./query-keys";
 import { EMPTY_SUBAGENT_ROSTER } from "./subagent-roster";
 import { fetchSessionSubagents, type SubagentPayload } from "../adapters/subagent-api";
@@ -80,10 +81,14 @@ export { isLiveSessionState };
 
 function sessionDetailRefetchInterval(
   sessionId: string,
-  state: SessionState | null | undefined
+  session: SessionPayload | undefined
 ): number | false {
-  if (state === "starting") return SESSION_STARTING_REFETCH_INTERVAL_MS;
-  return sessionStreamBackedRefetchInterval(sessionId, state);
+  const state = session?.state;
+  const interval =
+    state === "starting"
+      ? SESSION_STARTING_REFETCH_INTERVAL_MS
+      : sessionStreamBackedRefetchInterval(sessionId, state);
+  return withPullRequestReread(interval, session);
 }
 
 export function sessionsListOptions(filters: SessionListFilters = {}) {
@@ -117,7 +122,7 @@ export function sessionDetailOptions(workspace: string, id: string) {
     refetchInterval: query =>
       isSessionUnavailable(query.state.error)
         ? false
-        : sessionDetailRefetchInterval(id, query.state.data?.state),
+        : sessionDetailRefetchInterval(id, query.state.data),
     retry: (count, error) => !isSessionUnavailable(error) && count < 1,
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
@@ -397,7 +402,7 @@ export function sessionScopedDetailOptions(
     queryFn: ({ signal }) => fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
       if (!liveTail || isSessionUnavailable(query.state.error)) return false;
-      return sessionDetailRefetchInterval(id, query.state.data?.state);
+      return sessionDetailRefetchInterval(id, query.state.data);
     },
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,

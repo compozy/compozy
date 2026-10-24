@@ -24,21 +24,22 @@ import (
 )
 
 type worktreeServiceStub struct {
-	dismiss        func(context.Context, string, string) error
-	resolve        func(context.Context, string, string) (*worktree.Worktree, error)
-	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
-	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
-	adopt          func(context.Context, string, string, string) (*worktree.Worktree, error)
-	listDetails    func(context.Context, string, bool) (*worktree.DetailedListing, error)
-	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
-	removeFound    func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
-	deleteBranch   func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
-	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
-	exitPlan       func(context.Context, string, string) (*worktree.ExitPlan, error)
-	exitPlanPaths  func(context.Context, string, string, []string) (*worktree.ExitPlan, error)
-	runExit        func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
-	cancelExit     func(context.Context, string, string, string) error
-	catalogEvents  <-chan worktree.CatalogEvent
+	dismiss         func(context.Context, string, string) error
+	resolve         func(context.Context, string, string) (*worktree.Worktree, error)
+	create          func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	createAccepted  func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	adopt           func(context.Context, string, string, string) (*worktree.Worktree, error)
+	listDetails     func(context.Context, string, bool) (*worktree.DetailedListing, error)
+	remove          func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	removeFound     func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	deleteBranch    func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
+	inspect         func(context.Context, string, string) (*worktree.Inspection, error)
+	prepareExitPlan func(context.Context, string, string) (*worktree.ExitPlan, error)
+	exitPlan        func(context.Context, string, string) (*worktree.ExitPlan, error)
+	exitPlanPaths   func(context.Context, string, string, []string) (*worktree.ExitPlan, error)
+	runExit         func(context.Context, string, string, worktree.ExitActionRequest) (string, error)
+	cancelExit      func(context.Context, string, string, string) error
+	catalogEvents   <-chan worktree.CatalogEvent
 }
 
 func worktreeEventSummaryWithContent(summary store.EventSummary, content json.RawMessage) store.EventSummary {
@@ -409,6 +410,13 @@ func (s worktreeServiceStub) StatusDetails(
 	bool,
 ) (*worktree.StatusDetails, error) {
 	return nil, fmt.Errorf("unexpected StatusDetails call")
+}
+
+func (s worktreeServiceStub) PrepareExitPlan(ctx context.Context, workspaceID, id string) (*worktree.ExitPlan, error) {
+	if s.prepareExitPlan != nil {
+		return s.prepareExitPlan(ctx, workspaceID, id)
+	}
+	return nil, fmt.Errorf("unexpected PrepareExitPlan call")
 }
 
 func (s worktreeServiceStub) ExitPlan(
@@ -941,6 +949,16 @@ func TestWorktreeExitHandlers(t *testing.T) {
 			}, nil
 		}},
 		Worktrees: worktreeServiceStub{
+			prepareExitPlan: func(_ context.Context, workspaceID, worktreeID string) (*worktree.ExitPlan, error) {
+				if workspaceID != "registry-a" || worktreeID != "wt-a" {
+					t.Fatalf("prepare scope=%s/%s", workspaceID, worktreeID)
+				}
+				return &worktree.ExitPlan{
+					WorktreeID: worktreeID,
+					Forge:      &worktree.ForgeCapabilities{Provider: "github"},
+					PRPrefill:  &worktree.ExitPRPrefill{Title: "Prepared"},
+				}, nil
+			},
 			exitPlanPaths: func(_ context.Context, workspaceID, worktreeID string, paths []string) (*worktree.ExitPlan, error) {
 				if workspaceID != "registry-a" || worktreeID != "wt-a" ||
 					!reflect.DeepEqual(paths, []string{"src/change.go", "docs/change.md"}) {
@@ -997,8 +1015,32 @@ func TestWorktreeExitHandlers(t *testing.T) {
 	router := gin.New()
 	path := "/workspaces/:workspace_id/worktrees/:worktree_id/exit"
 	router.GET(path, handlers.GetWorktreeExitPlan)
+	router.POST(path+"/prepare", handlers.PrepareWorktreeExitPlan)
 	router.POST(path+"/actions", handlers.RunWorktreeExitAction)
 	router.POST(path+"/cancel", handlers.CancelWorktreeExitAction)
+
+	t.Run("Should prepare forge capabilities through the explicit action boundary", func(t *testing.T) {
+		t.Parallel()
+		response := httptest.NewRecorder()
+		router.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/workspaces/workspace-a/worktrees/wt-a/exit/prepare",
+				http.NoBody,
+			),
+		)
+		var payload contract.WorktreeExitPlanResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || payload.WorktreeID != "wt-a" || payload.Forge == nil ||
+			payload.PRPrefill == nil ||
+			payload.PRPrefill.Title != "Prepared" {
+			t.Fatalf("prepare=%d/%s", response.Code, response.Body.String())
+		}
+	})
 
 	t.Run("Should return the complete plan without internal remote URLs", func(t *testing.T) {
 		request := httptest.NewRequestWithContext(

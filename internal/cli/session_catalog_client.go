@@ -16,6 +16,8 @@ import (
 
 // SessionListQuery captures the CLI filters for one session catalog page.
 type SessionListQuery struct {
+	Columns       []string
+	HideChildren  bool
 	Subagents     string
 	Workspace     string
 	Worktree      string
@@ -97,6 +99,7 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 
 func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
+	appendSessionBoardValues(values, query)
 	if query.Subagents != "" {
 		values.Set("subagents", query.Subagents)
 	}
@@ -155,4 +158,13 @@ func sessionListValues(query SessionListQuery) url.Values {
 		values.Set("cursor", cursor)
 	}
 	return values
+}
+
+func appendSessionBoardValues(values url.Values, query SessionListQuery) {
+	for _, column := range query.Columns {
+		values.Add("board_column", column)
+	}
+	if query.HideChildren {
+		values.Set("children", "exclude")
+	}
 }

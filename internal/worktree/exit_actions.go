@@ -86,7 +86,7 @@ func (s *Service) RunExitAction(
 	if !request.Action.executable() {
 		return "", ErrExitActionInvalid
 	}
-	plan, err := s.ExitPlanForPaths(ctx, workspaceID, id, request.IncludePaths)
+	plan, err := s.exitPlanForPaths(ctx, workspaceID, id, request.IncludePaths, true)
 	if err != nil {
 		return "", err
 	}
@@ -375,15 +375,7 @@ func (s *Service) runExitPR(
 		return step, fmt.Errorf("%w: provider returned an invalid pull request URL", ErrForge)
 	}
 	step.PRStatus, step.PRNumber, step.URL = created.Status, created.Number, createdURL
-	state, merged := "open", false
-	fetchedAt := s.now().UTC()
-	forgeStatus := ForgeStatus{
-		WorktreeID: item.ID, Provider: plan.Forge.Provider, PRNumber: &created.Number,
-		PRState: &state, PRURL: createdURL, Merged: &merged, FetchedAt: &fetchedAt,
-	}
-	if err := s.store.SaveForgeStatus(ctx, item.WorkspaceID, item.ID, forgeStatus); err != nil {
-		return step, fmt.Errorf("worktree: persist created pull request: %w", err)
-	}
+	s.requestPullRequestRefresh(ctx, item)
 	return step, nil
 }
 

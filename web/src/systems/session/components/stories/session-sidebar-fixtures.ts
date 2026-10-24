@@ -5,7 +5,7 @@ export function sidebarSession(
   id: string,
   name: string,
   agentName: string,
-  badge: string,
+  badge: SessionPayload["badge"],
   parentId?: string
 ): SessionPayload {
   return {
@@ -25,6 +25,9 @@ export function sidebarSession(
     archived_at: null,
     available_commands: [],
     pending_interactions: [],
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     ...(parentId
       ? {
           lineage: {

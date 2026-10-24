@@ -149,7 +149,7 @@ func worktreeHookContext(item worktree.HookWorktree) hookspkg.WorktreeContext {
 	}
 }
 
-func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.workspaceResolver == nil {
 		return nil
 	}
@@ -163,6 +163,28 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		state.logger.Warn("daemon: Git unavailable for worktree operations", "error", err)
 		runner = nil
 	}
+	var pulls *worktree.PullRequestService
+	if cache, ok := registry.WorktreeStore().(worktree.PullRequestStore); ok && runner != nil {
+		pulls = worktree.NewPullRequestService(
+			ctx,
+			cache,
+			daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime},
+			runner,
+			func(workspaceID string) {
+				if publisher, ok := state.sessions.(interface{ PublishWorkspaceCatalogChanged(string, []string) }); ok {
+					if profiles, ok := state.registry.(interface {
+						SessionCatalogProfiles(context.Context, string) ([]string, error)
+					}); ok {
+						owners, err := profiles.SessionCatalogProfiles(ctx, workspaceID)
+						if err == nil {
+							publisher.PublishWorkspaceCatalogChanged(workspaceID, owners)
+						}
+					}
+				}
+			},
+		)
+		cleanup.add(func(context.Context) error { pulls.Close(); return nil })
+	}
 	root := state.cfg.Worktrees.ResolveRoot(d.homePaths)
 	service := worktree.NewService(
 		registry.WorktreeStore(),
@@ -171,6 +193,7 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 			resolver: state.workspaceResolver, homePaths: d.homePaths,
 			profileNames: bootProfileNameResolver{state: state},
 		}),
+		worktree.WithPullRequests(pulls),
 		worktree.WithConfig(state.cfg.Worktrees, root),
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),
 		worktree.WithEvents(registry),
@@ -184,6 +207,19 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 	)
 	if err := service.RecoverCreations(ctx); err != nil {
 		return fmt.Errorf("daemon: recover worktree lifecycle: %w", err)
+	}
+	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
+		adapter := sessionPullRequestAdapter{
+			service:  pulls,
+			resolver: daemonWorktreeWorkspaceResolver{resolver: state.workspaceResolver, homePaths: d.homePaths},
+		}
+		registerSessionPullRequests(
+			state.sessions,
+			branchStore,
+			adapter,
+			sessionBranchAdapter{runner: runner},
+			state.logger,
+		)
 	}
 	state.worktrees = service
 	state.deps.Worktrees = service

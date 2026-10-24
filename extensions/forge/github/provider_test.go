@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -279,6 +280,77 @@ func forgeInitializeParams() map[string]any {
 func TestProvider(t *testing.T) {
 	t.Parallel()
 
+	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
+		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
+			t.Parallel()
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/graphql" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.URL.Query().Get("sort") != "updated" || r.URL.Query().Get("direction") != "desc" {
+					t.Errorf("selection query=%s", r.URL.RawQuery)
+				}
+				if r.URL.Query().Get("state") == "open" && scenario == "terminal newest" {
+					writeJSON(t, w, http.StatusOK, []pullPayload{})
+					return
+				}
+				state := r.URL.Query().Get("state")
+				if scenario == "open first" && state != "open" {
+					t.Error("terminal population requested despite matching open PR")
+				}
+				pulls := make([]pullPayload, 0, 3)
+				for i, owner := range []string{"acme/repo", "fork/repo", "acme/repo"} {
+					pull := pullPayload{
+						Number:    i + 1,
+						State:     state,
+						HTMLURL:   fmt.Sprintf("https://github.com/acme/repo/pull/%d", i+1),
+						UpdatedAt: time.Unix(int64(i+1), 0),
+						Head:      pullRef{Ref: "topic", SHA: "abc"},
+					}
+					pull.Head.Repo = &struct {
+						FullName string `json:"full_name"`
+					}{owner}
+					if owner == "fork/repo" {
+						pull.UpdatedAt = time.Unix(100, 0)
+					}
+					pulls = append(pulls, pull)
+				}
+				if scenario == "incomplete" {
+					pulls[0].Head.Repo = nil
+				}
+				if scenario == "bounded" {
+					fork := pulls[1]
+					pulls = make([]pullPayload, 100)
+					for i := range pulls {
+						pulls[i] = fork
+					}
+				}
+				writeJSON(t, w, http.StatusOK, pulls)
+			})
+			defer closeServer()
+			got, err := provider.Status(
+				t.Context(),
+				extensioncontract.ForgeStatusRequest{
+					RemoteURLs: []string{"https://github.com/acme/repo"},
+					Branch:     "topic",
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "incomplete" || scenario == "bounded" {
+				if got.Selection != "incomplete" || got.PRNumber != nil {
+					t.Fatalf("incomplete=%#v", got)
+				}
+				return
+			}
+			if got.PRNumber == nil || *got.PRNumber != 3 || got.Selection != "complete" {
+				t.Fatalf("selection=%#v", got)
+			}
+		})
+	}
+
 	t.Run("Should expose authenticated GitHub capabilities and the default branch", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -520,8 +592,19 @@ func TestProvider(t *testing.T) {
 	t.Run("Should report merged pull request status", func(t *testing.T) {
 		t.Parallel()
 		mergedAt := time.Date(2026, time.August, 12, 10, 0, 0, 0, time.UTC)
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/graphql" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if r.URL.Query().Get("state") == "open" {
+				writeJSON(t, w, http.StatusOK, []pullPayload{})
+				return
+			}
 			writeJSON(t, w, http.StatusOK, []pullPayload{{
+				UpdatedAt: mergedAt, Head: pullRef{Ref: "feature/exit", Repo: &struct {
+					FullName string `json:"full_name"`
+				}{"acme/repo"}},
 				Number: 43, HTMLURL: "https://github.com/acme/repo/pull/43", State: "closed", MergedAt: &mergedAt,
 			}})
 		})
@@ -533,6 +616,141 @@ func TestProvider(t *testing.T) {
 			t.Fatalf("Status() = %#v, %v", got, err)
 		}
 	})
+}
+
+// Invariant: canonical selection uses origin identity and immutable-head aggregate facts.
+// Owner: GitHub provider; canonical httptest provider suite.
+func TestProviderGraphQL(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip forks and read complete checks for the selected immutable head", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct {
+				Query     string
+				Variables map[string]any
+			}
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				w.WriteHeader(400)
+				return
+			}
+			calls.Add(1)
+			if strings.Contains(input.Query, "$oid") {
+				if input.Variables["oid"] != "head-a" {
+					t.Errorf("checks oid=%v", input.Variables["oid"])
+				}
+				_, _ = w.Write(
+					[]byte(
+						`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,"checkRunCountsByState":[{"state":"SUCCESS","count":100},{"state":"FAILURE","count":1}],"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`,
+					),
+				)
+				return
+			}
+			_, _ = w.Write(
+				[]byte(
+					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`,
+				),
+			)
+		})
+		defer closeServer()
+		got, err := provider.Status(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		if err != nil || got.PRNumber == nil || *got.PRNumber != 2 || got.HeadSHA != "head-a" || got.Checks == nil ||
+			got.Checks.State != "failing" ||
+			got.Checks.Passed != 100 ||
+			got.Checks.Failed != 1 ||
+			got.Checks.Pending != 1 ||
+			got.ReviewDecision != "approved" ||
+			calls.Load() != 2 {
+			t.Fatalf("observation=%#v %v calls=%d", got, err, calls.Load())
+		}
+	})
+	t.Run("Should bound candidate pages without confirming an incomplete population", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			calls.Add(1)
+			_, _ = w.Write(
+				[]byte(
+					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`,
+				),
+			)
+		})
+		defer closeServer()
+		got, err := provider.Status(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 4 {
+			t.Fatalf("bounded=%#v %v calls=%d", got, err, calls.Load())
+		}
+	})
+	t.Run("Should reject checks returned for another head", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct{ Query string }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if strings.Contains(input.Query, "$oid") {
+				_, _ = w.Write([]byte(`{"data":{"repository":{"object":{"oid":"head-b"}}}}`))
+				return
+			}
+			_, _ = w.Write(
+				[]byte(
+					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`,
+				),
+			)
+		})
+		defer closeServer()
+		_, err := provider.Status(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		if err == nil {
+			t.Fatal("mismatched checks accepted")
+		}
+	})
+	for _, testCase := range []struct {
+		name   string
+		status int
+	}{
+		{"Should retain the HTTP rate limit reset without retrying", http.StatusForbidden},
+		{"Should retain the GraphQL rate limit reset without retrying", http.StatusOK},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", "1800000000")
+				w.WriteHeader(testCase.status)
+				if testCase.status == http.StatusOK {
+					if _, err := w.Write([]byte(`{"errors":[{"type":"RATE_LIMITED"}]}`)); err != nil {
+						t.Error(err)
+					}
+				}
+			})
+			defer closeServer()
+			got, err := provider.Status(
+				t.Context(),
+				extensioncontract.ForgeStatusRequest{
+					RemoteURLs: []string{"https://github.com/acme/repo"},
+					Branch:     "topic",
+				},
+			)
+			if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil ||
+				got.RetryAfter.Unix() != 1800000000 ||
+				calls.Load() != 1 {
+				t.Fatalf("rate limit=%#v %v", got, err)
+			}
+		})
+	}
 }
 
 func TestParseRepository(t *testing.T) {

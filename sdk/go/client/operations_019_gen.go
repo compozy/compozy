@@ -74,6 +74,7 @@ type ListSessionsParams struct {
 	Type          *string   `url:"type"`
 	Agent         *string   `url:"agent"`
 	Subagents     *string   `url:"subagents"`
+	Children      *string   `url:"children"`
 	Parent        *string   `url:"parent"`
 	Root          *string   `url:"root"`
 	Worktree      *string   `url:"worktree"`
@@ -81,6 +82,7 @@ type ListSessionsParams struct {
 	SearchFields  *string   `url:"search_fields"`
 	Resumable     *bool     `url:"resumable"`
 	Attention     *bool     `url:"attention"`
+	BoardColumn   *[]string `url:"board_column"`
 	Badge         *string   `url:"badge"`
 	Archive       *string   `url:"archive"`
 	Sort          *string   `url:"sort"`
@@ -123,6 +125,9 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	if params.Subagents != nil {
 		query.Set("subagents", *params.Subagents)
 	}
+	if params.Children != nil {
+		query.Set("children", *params.Children)
+	}
 	if params.Parent != nil {
 		query.Set("parent", *params.Parent)
 	}
@@ -143,6 +148,11 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.Attention != nil {
 		query.Set("attention", strconv.FormatBool(*params.Attention))
+	}
+	if params.BoardColumn != nil {
+		for _, value := range *params.BoardColumn {
+			query.Add("board_column", value)
+		}
 	}
 	if params.Badge != nil {
 		query.Set("badge", *params.Badge)

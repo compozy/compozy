@@ -107,6 +107,9 @@ type LogsListResponse struct {
 	Events []LogEventPayload `json:"events"`
 }
 
+// LookupState is a daemon API value.
+type LookupState string
+
 // LoopAmendmentValueSummary is a daemon API value.
 type LoopAmendmentValueSummary struct {
 	ByteSize    int    `json:"byte_size"`
@@ -440,9 +443,3 @@ type LoopGateCriterionEventPayload struct {
 
 // LoopGateDecision is a daemon API value.
 type LoopGateDecision string
-
-// LoopGateDiagnosticWarning is a daemon API value.
-type LoopGateDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}

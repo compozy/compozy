@@ -6167,8 +6167,16 @@ export type SessionAttentionSummaryPayload = {
   needs_you: number;
 };
 
+export type SessionBoardCountsPayload = {
+  done: number;
+  in_review: number;
+  needs_you: number;
+  working: number;
+};
+
 export type SessionCatalogFacetsPayload = {
   all: number;
+  board: SessionBoardCountsPayload;
   finished: number;
   idle: number;
   needs_you: number;
@@ -6192,6 +6200,14 @@ export type SessionCatalogPagePayload = {
 export type SessionCatalogResponse = {
   page: SessionCatalogPagePayload;
   sessions: Array<SessionPayload>;
+};
+
+export type SessionChildrenPayload = {
+  done: number;
+  in_review: number;
+  needs_you: number;
+  total: number;
+  working: number;
 };
 
 export type SessionCommandPayload = {
@@ -6689,8 +6705,23 @@ export type SessionPayload = {
   attention?: string;
   attention_changed_at?: string | null;
   available_commands: Array<ACPAvailableCommandPayload>;
-  badge: string;
+  badge:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
+  board_column: "needs_you" | "working" | "in_review" | "done";
+  branch?: string;
   busy_input?: BusyInputState | null;
+  children?: SessionChildrenPayload | null;
   created_at: string;
   derivation?: SessionDerivationPayload | null;
   effective_workspace_access: string;
@@ -6702,6 +6733,7 @@ export type SessionPayload = {
   lineage?: SessionLineagePayload | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
+  parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   profile_archived?: boolean;
   profile_color?: string;
@@ -6709,6 +6741,8 @@ export type SessionPayload = {
   profile_icon?: string;
   profile_id: string;
   profile_name: string;
+  pull_request: SessionPullRequestPayload | null;
+  pull_request_lookup: SessionPullRequestLookupPayload | null;
   queue?: SessionQueueSummaryPayload | null;
   reply_watches?: Array<ReplyWatchPayload>;
   runtime: SessionRuntimePayload;
@@ -6734,6 +6768,7 @@ export type SessionPayload = {
   type?: "user" | "system" | "coordinator" | "spawned";
   updated_at: string;
   verified?: boolean | null;
+  waiting_on?: "sessions" | "monitor";
   workspace_id?: string;
   workspace_path?: string;
   worktree_id?: string;
@@ -6768,6 +6803,55 @@ export type SessionProviderOptionPayload = {
   name: string;
   runtime_provider?: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+};
+
+export type SessionPullRequestChecksPayload = {
+  failed: number;
+  failed_names: Array<string>;
+  passed: number;
+  pending: number;
+  state: "passing" | "failing" | "pending" | "none" | "unknown";
+};
+
+export type SessionPullRequestErrorPayload = {
+  cause?: string;
+  code?: string;
+  config_path?: string;
+  current_turn_id?: string;
+  details?: {
+    [key: string]: string;
+  };
+  diagnostic?: DiagnosticItem | null;
+  error: string;
+  message: string;
+  unknown_keys?: Array<string>;
+};
+
+export type SessionPullRequestLookupPayload = {
+  cause: string;
+  observed_at: string | null;
+  stale: boolean;
+  state: "ok" | "pending" | "error" | "incomplete";
+};
+
+export type SessionPullRequestPayload = {
+  checks: SessionPullRequestChecksPayload;
+  draft: boolean | null;
+  head_sha: string;
+  mergeable: "mergeable" | "conflicting" | "unknown";
+  number: number;
+  provider: string;
+  ready_to_merge: boolean;
+  review_decision: "approved" | "changes_requested" | "review_required" | "none" | "unknown";
+  state: "open" | "closed" | "merged";
+  url: string;
+};
+
+export type SessionPullRequestResponse = {
+  branch: string;
+  pull_request: SessionPullRequestPayload | null;
+  pull_request_lookup: SessionPullRequestLookupPayload | null;
+  session_id: string;
 };
 
 export type SessionQueueSummaryPayload = {
@@ -6855,7 +6939,19 @@ export type SessionStatusResponse = {
   agent_name: string;
   attachable: boolean;
   attention?: string;
-  badge: string;
+  badge:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
   derivation?: SessionDerivationPayload | null;
   eligible_for_wake: boolean;
   escalated?: boolean | null;
@@ -8566,7 +8662,8 @@ export type SignalSourceState = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   state: string;
 };
@@ -11600,7 +11697,8 @@ export type WorkSignal = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   since: string;
 };
@@ -21343,6 +21441,10 @@ export type ListSessionsData = {
      */
     subagents?: "include" | "exclude" | "only";
     /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
+    /**
      * Filter by exact parent session id
      */
     parent?: string;
@@ -21370,6 +21472,10 @@ export type ListSessionsData = {
      * Only list sessions in the needs-you attention class
      */
     attention?: boolean;
+    /**
+     * Repeatable board column filter: needs_you, working, in_review, done
+     */
+    board_column?: Array<string>;
     /**
      * Filter by comma-separated exact session badges
      */
@@ -21548,6 +21654,10 @@ export type ListSessionFacetsData = {
      * Subagent session visibility (default include)
      */
     subagents?: "include" | "exclude" | "only";
+    /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
     /**
      * Filter by exact parent session id
      */
@@ -21853,6 +21963,51 @@ export type GetSessionOwnerResponses = {
 };
 
 export type GetSessionOwnerResponse = GetSessionOwnerResponses[keyof GetSessionOwnerResponses];
+
+export type RefreshSessionPullRequestData = {
+  body?: never;
+  path: {
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/sessions/{session_id}/pull-request/refresh";
+};
+
+export type RefreshSessionPullRequestErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Session branch unavailable
+   */
+  409: SessionPullRequestErrorPayload;
+  /**
+   * Forge unavailable without cached facts
+   */
+  502: SessionPullRequestErrorPayload;
+};
+
+export type RefreshSessionPullRequestError =
+  RefreshSessionPullRequestErrors[keyof RefreshSessionPullRequestErrors];
+
+export type RefreshSessionPullRequestResponses = {
+  /**
+   * Refreshed or retained cached facts
+   */
+  200: SessionPullRequestResponse;
+};
+
+export type RefreshSessionPullRequestResponse =
+  RefreshSessionPullRequestResponses[keyof RefreshSessionPullRequestResponses];
 
 export type GetGlobalSessionStatusData = {
   body?: never;
@@ -31874,6 +32029,10 @@ export type ListWorkspaceSessionsData = {
      */
     subagents?: "include" | "exclude" | "only";
     /**
+     * Managed child visibility
+     */
+    children?: "include" | "exclude";
+    /**
      * Filter by exact parent session id
      */
     parent?: string;
@@ -31901,6 +32060,10 @@ export type ListWorkspaceSessionsData = {
      * Only list sessions in the needs-you attention class
      */
     attention?: boolean;
+    /**
+     * Repeatable board column filter: needs_you, working, in_review, done
+     */
+    board_column?: Array<string>;
     /**
      * Filter by comma-separated exact session badges
      */
@@ -37566,6 +37729,54 @@ export type CancelWorktreeExitActionResponses = {
 
 export type CancelWorktreeExitActionResponse =
   CancelWorktreeExitActionResponses[keyof CancelWorktreeExitActionResponses];
+
+export type PrepareWorktreeExitPlanData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+    /**
+     * Worktree id, name, or path
+     */
+    worktree_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare";
+};
+
+export type PrepareWorktreeExitPlanErrors = {
+  /**
+   * Worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Worktree exit plan is unavailable
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PrepareWorktreeExitPlanError =
+  PrepareWorktreeExitPlanErrors[keyof PrepareWorktreeExitPlanErrors];
+
+export type PrepareWorktreeExitPlanResponses = {
+  /**
+   * OK
+   */
+  200: WorktreeExitPlanResponse;
+};
+
+export type PrepareWorktreeExitPlanResponse =
+  PrepareWorktreeExitPlanResponses[keyof PrepareWorktreeExitPlanResponses];
 
 export type GetWorktreeStatusData = {
   body?: never;

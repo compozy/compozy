@@ -38,6 +38,9 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	if params.Subagents != nil {
 		query.Set("subagents", *params.Subagents)
 	}
+	if params.Children != nil {
+		query.Set("children", *params.Children)
+	}
 	if params.Parent != nil {
 		query.Set("parent", *params.Parent)
 	}
@@ -58,6 +61,11 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	}
 	if params.Attention != nil {
 		query.Set("attention", strconv.FormatBool(*params.Attention))
+	}
+	if params.BoardColumn != nil {
+		for _, value := range *params.BoardColumn {
+			query.Add("board_column", value)
+		}
 	}
 	if params.Badge != nil {
 		query.Set("badge", *params.Badge)
@@ -439,10 +447,4 @@ func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest)
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PauseTaskParams carries the path, query, and header parameters.
-type PauseTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

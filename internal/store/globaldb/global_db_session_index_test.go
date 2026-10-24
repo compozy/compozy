@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -1521,7 +1522,8 @@ last_settled_revision = ?, attention_changed_at = ? WHERE id = ?`,
 			Limit:       3,
 		}
 		facets, err := globalDB.SessionCatalogFacets(ctx, query)
-		wantFacets := store.SessionCatalogFacets{All: 8, NeedsYou: 4, Working: 1, Finished: 1, Idle: 1}
+		wantFacets := store.SessionCatalogFacets{All: 8, NeedsYou: 4, Working: 1, Finished: 1, Idle: 1,
+			Board: store.SessionBoardCounts{NeedsYou: 4, Working: 2, Done: 2}}
 		if err != nil || facets.Facets != wantFacets {
 			t.Fatalf("canonical badge facets=%#v error=%v, want %#v", facets, err, wantFacets)
 		}
@@ -2312,4 +2314,266 @@ func sessionIDsFromInfos(infos []store.SessionInfo) []string {
 		ids = append(ids, infos[index].ID)
 	}
 	return ids
+}
+
+func TestSessionCatalogBoard(t *testing.T) {
+	t.Parallel()
+	t.Run("Should use only a pending or ready worktree branch and never its root snapshot", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "board-branch", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO worktrees(id, profile_id, workspace_id, name, branch, path, state, origin, created_at, updated_at) VALUES ('board-tree', ?, ?, 'board-tree', 'feat/tree', '/board/tree', 'ready', 'manual', ?, ?)`,
+			store.DefaultProfileID,
+			workspace,
+			store.FormatTimestamp(base),
+			store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		info := sessionInfoForWorkspaceStateIndexTest("tree-session", workspace, globalDBSessionStateStopped, base)
+		info.WorktreeID = "board-tree"
+		if err := db.RegisterSession(ctx, info); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, "UPDATE sessions SET branch='feat/root' WHERE id=?", info.ID); err != nil {
+			t.Fatal(err)
+		}
+		for _, branch := range []string{"feat/root", "feat/tree"} {
+			if _, err := db.db.ExecContext(
+				ctx,
+				"INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?,'github.com/owner/repo',?,'open')",
+				workspace,
+				branch,
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:      store.ReadScope{AllProfiles: true},
+			WorkspaceID:    workspace,
+			Archive:        store.SessionArchiveExclude,
+			Sort:           sessionCatalogSortRecent,
+			Limit:          10,
+			Columns:        []string{"in_review"},
+			RepositoryKeys: map[string]string{workspace: "github.com/owner/repo"},
+		}
+		for _, state := range []string{"ready", "pending", "failed", "missing", "removed"} {
+			if _, err := db.db.ExecContext(
+				ctx,
+				"UPDATE worktrees SET state=? WHERE id='board-tree'",
+				state,
+			); err != nil {
+				t.Fatal(err)
+			}
+			page, err := db.PageSessions(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if state == "ready" || state == "pending" {
+				want = 1
+			}
+			if page.Total != want {
+				t.Fatalf("worktree %s returned %d, want %d", state, page.Total, want)
+			}
+		}
+	})
+
+	t.Run("Should scope direct child rollups and preserve archived parent titles", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "relations", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+		const foreignProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'foreign','#8E8EB5','circle','active',?)`,
+			foreignProfile,
+			store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"parent", "needs", "working-1", "working-2", "working-3", "archived", "grandchild", "foreign"} {
+			state := globalDBSessionStateStopped
+			if strings.HasPrefix(id, "working") {
+				state = "starting"
+			}
+			info := sessionInfoForWorkspaceStateIndexTest(id, workspace, state, base)
+			if id == "foreign" {
+				info.ProfileID = foreignProfile
+			}
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			if id != "parent" {
+				parent := "parent"
+				if id == "grandchild" {
+					parent = "working-1"
+				}
+				if _, err := db.db.ExecContext(
+					ctx,
+					"UPDATE sessions SET parent_session_id=? WHERE id=?",
+					parent,
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET archived_at=? WHERE id IN ('parent','archived')",
+			store.FormatTimestamp(base),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET state='active', pending_clarify_count=1 WHERE id='needs'",
+		); err != nil {
+			t.Fatal(err)
+		}
+		query := store.SessionCatalogRelationsQuery{
+			ReadScope:  store.ReadScope{ProfileID: store.DefaultProfileID},
+			SessionIDs: []string{"parent"},
+			ParentIDs:  []string{"parent"},
+		}
+		relations, err := db.SessionCatalogRelations(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if counts := relations.Children["parent"]; counts.NeedsYou != 1 || counts.Working != 3 || counts.Done != 0 {
+			t.Fatalf("children = %#v", counts)
+		}
+		if relations.ParentTitles["parent"] == "" {
+			t.Fatal("archived parent lost title")
+		}
+		pageQuery := store.SessionCatalogPageQuery{
+			ReadScope:    query.ReadScope,
+			WorkspaceID:  workspace,
+			Archive:      store.SessionArchiveInclude,
+			HideChildren: true,
+			Sort:         sessionCatalogSortRecent,
+			Limit:        10,
+		}
+		page, err := db.PageSessions(ctx, pageQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "parent" {
+			t.Fatalf("root page = %#v", page)
+		}
+		facets, err := db.SessionCatalogFacets(ctx, pageQuery)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != 1 || facets.Facets.Board.Done != 1 {
+			t.Fatalf("root facets = %#v", facets)
+		}
+	})
+
+	t.Run("Should agree with Go for every badge and PR state", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		for _, badge := range []session.Badge{session.BadgeRunning, session.BadgeIdle, session.BadgeUnhealthy,
+			session.BadgeHung, session.BadgeWaitingForAuth, session.BadgeWaitingForInput, session.BadgeDone,
+			session.BadgeStopped, session.BadgeFailed, session.BadgeUnknown, session.BadgeNeedsAttention, session.BadgeWaiting} {
+			for _, pr := range []session.PullRequestState{"", session.PullRequestOpen, session.PullRequestClosed, session.PullRequestMerged} {
+				var got string
+				expression := sessionCatalogBoardColumnSQL("badge", "pr_state")
+				if err := db.db.QueryRowContext(t.Context(), "SELECT "+expression+" FROM (SELECT ? AS badge, ? AS pr_state)", string(badge), string(pr)).
+					Scan(&got); err != nil {
+					t.Fatal(err)
+				}
+				if want := session.BoardColumnFor(badge, pr); got != string(want) {
+					t.Fatalf("%s/%s: SQL %s, Go %s", badge, pr, got, want)
+				}
+			}
+		}
+	})
+	t.Run("Should filter before limit and count with repository isolation", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, db, "board", filepath.Join(t.TempDir(), "workspace"))
+		base := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+		for index := range 120 {
+			id := fmt.Sprintf("board-%03d", index)
+			info := sessionInfoForWorkspaceStateIndexTest(
+				id,
+				workspace,
+				globalDBSessionStateStopped,
+				base.Add(-time.Duration(index)*time.Minute),
+			)
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			if index >= 100 {
+				if _, err := db.db.ExecContext(
+					ctx,
+					"UPDATE sessions SET branch='feat/review' WHERE id=?",
+					id,
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"INSERT INTO forge_pull_requests(workspace_id, repo_key, branch, pr_state) VALUES (?, 'github.com/owner/repo', 'feat/review', 'open')",
+			workspace,
+		); err != nil {
+			t.Fatal(err)
+		}
+		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
+			Archive: store.SessionArchiveExclude, Sort: sessionCatalogSortRecent, Limit: 10,
+			Columns: []string{"in_review"}, RepositoryKeys: map[string]string{workspace: "github.com/owner/repo"}}
+		page, err := db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 20 || len(page.Sessions) != 10 || page.Sessions[0].ID != "board-100" {
+			t.Fatalf("first page = %#v", page)
+		}
+		last := page.Sessions[9]
+		query.After = &store.SessionCatalogPosition{
+			ID:          last.ID,
+			PrimaryAt:   last.UpdatedAt,
+			SecondaryAt: last.CreatedAt,
+			CreatedAt:   last.CreatedAt,
+		}
+		page, err = db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 20 || len(page.Sessions) != 10 || page.Sessions[0].ID != "board-110" {
+			t.Fatalf("second page = %#v", page)
+		}
+		query.Search = "no-match"
+		facets, err := db.SessionCatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.Board.InReview != 20 || facets.Facets.Board.Done != 100 {
+			t.Fatalf("facets = %#v", facets)
+		}
+		query.After, query.Search = nil, ""
+		query.DefaultBranches = map[string][]string{workspace: {"feat/review"}}
+		page, err = db.PageSessions(ctx, query)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("default branch cached PR returned %#v, %v", page, err)
+		}
+		query.DefaultBranches = nil
+		query.RepositoryKeys[workspace] = "github.com/owner/other"
+		page, err = db.PageSessions(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 0 {
+			t.Fatalf("foreign repository returned %d sessions", page.Total)
+		}
+	})
 }

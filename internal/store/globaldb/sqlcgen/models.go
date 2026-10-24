@@ -476,6 +476,34 @@ type ExtensionProfileMarker struct {
 	CreatedByExtension sql.NullInt64 `json:"created_by_extension"`
 }
 
+type ForgePullRequest struct {
+	WorkspaceID       string         `json:"workspace_id"`
+	RepoKey           string         `json:"repo_key"`
+	Branch            string         `json:"branch"`
+	Provider          string         `json:"provider"`
+	PrNumber          sql.NullInt64  `json:"pr_number"`
+	PrUrl             string         `json:"pr_url"`
+	PrState           sql.NullString `json:"pr_state"`
+	Merged            sql.NullInt64  `json:"merged"`
+	Draft             sql.NullInt64  `json:"draft"`
+	HeadSha           string         `json:"head_sha"`
+	BaseRef           string         `json:"base_ref"`
+	ChecksState       string         `json:"checks_state"`
+	ChecksPassed      int64          `json:"checks_passed"`
+	ChecksFailed      int64          `json:"checks_failed"`
+	ChecksPending     int64          `json:"checks_pending"`
+	ChecksFailedNames string         `json:"checks_failed_names"`
+	ReviewDecision    string         `json:"review_decision"`
+	Mergeable         string         `json:"mergeable"`
+	PrUpdatedAt       sql.NullString `json:"pr_updated_at"`
+	ObservedAt        sql.NullString `json:"observed_at"`
+	LookupState       string         `json:"lookup_state"`
+	LookupCause       string         `json:"lookup_cause"`
+	AttemptAt         sql.NullString `json:"attempt_at"`
+	FailureCount      int64          `json:"failure_count"`
+	RetryAfter        sql.NullString `json:"retry_after"`
+}
+
 type GatewayDeviceOrigin struct {
 	DeviceID  string `json:"device_id"`
 	Origin    string `json:"origin"`
@@ -1354,6 +1382,7 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	Branch                   string         `json:"branch"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
 	ProfileID                string         `json:"profile_id"`
@@ -2162,7 +2191,7 @@ type WorktreeExitOp struct {
 	FinishedAt  sql.NullString `json:"finished_at"`
 }
 
-type WorktreeForgeStatus struct {
+type WorktreeForgeStatusLegacy struct {
 	WorktreeID string         `json:"worktree_id"`
 	Provider   string         `json:"provider"`
 	PrNumber   sql.NullInt64  `json:"pr_number"`

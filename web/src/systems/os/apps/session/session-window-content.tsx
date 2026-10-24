@@ -15,6 +15,7 @@ import { viewTransitionName } from "@compozy/ui";
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
+import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerive } from "./use-session-window-derive";
 import { WorktreeDialogActionsContext } from "../../contexts/worktree-dialog-actions-context";
@@ -206,6 +207,7 @@ export function SessionWindowContent({
     refreshCommandCatalog,
     promptRuntimeSnapshot,
     worktreeBinding,
+    pullRequestExitSurface,
   } = page;
   const environmentControl = useRef<SessionEnvironmentControlHandle>(null);
   const forkSession = useCreateSession();
@@ -389,6 +391,7 @@ export function SessionWindowContent({
               />
             </Suspense>
           ) : null}
+          <SessionPullRequestExitSurface model={pullRequestExitSurface} />
           {deleteDialog.open ? (
             <Suspense fallback={null}>
               <SessionDeleteDialog

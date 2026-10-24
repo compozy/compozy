@@ -6,6 +6,9 @@ import { deriveAgentFleetSignals } from "../fleet-signals";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
     effective_workspace_access: "",

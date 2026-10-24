@@ -87,10 +87,7 @@ func (s *Service) inspectItem(ctx context.Context, item Worktree) (Inspection, e
 	if err != nil {
 		return Inspection{}, fmt.Errorf("worktree: inspect cached status: %w", err)
 	}
-	forgeStatus, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
-	if err != nil {
-		return Inspection{}, fmt.Errorf("worktree: inspect cached forge status: %w", err)
-	}
+	forgeStatus := s.readDisplayPullRequest(ctx, item)
 	activity := AgentActivityIdle
 	if s.sessions != nil {
 		active, activeErr := s.sessions.HasActiveSession(ctx, item.WorkspaceID, item.ID)

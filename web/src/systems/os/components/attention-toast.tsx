@@ -4,7 +4,7 @@ import { Button, cn, Icon } from "@compozy/ui";
 
 import { SessionBadgeGlyph } from "@/systems/session";
 
-import type { AttentionDelivery } from "../lib/attention-delivery";
+import { finishedDeliveryBody, type AttentionDelivery } from "../lib/attention-delivery";
 
 /**
  * Attention toast content. One anatomy for all three kinds: mark, what
@@ -119,7 +119,7 @@ export function AttentionToast({ delivery, onActivate }: AttentionToastProps) {
         testId="os-attention-toast-finished"
         mark={<SessionBadgeGlyph badge="done" />}
         title={single ? single.title : `${targets.length} sessions finished`}
-        {...(single ? { body: "Finished while you were away" } : {})}
+        {...(single ? { body: finishedDeliveryBody(single) } : {})}
         meta={single ? `${single.workspaceLabel} · ${single.agentName}` : workspaces}
         {...(single
           ? { onActivate }

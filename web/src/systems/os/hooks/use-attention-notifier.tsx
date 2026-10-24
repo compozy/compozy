@@ -1,10 +1,11 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@compozy/ui";
 
 import { useDocumentActive } from "@/hooks/use-document-active";
 import { notifyUser } from "@/lib/user-feedback";
-import { isNeedsYouBadge } from "@/systems/session";
+import { cachedSessionOpenPullRequestNumber, isNeedsYouBadge } from "@/systems/session";
 
 import { AttentionToast, AttentionToastOverflowLedge } from "../components/attention-toast";
 import {
@@ -135,6 +136,7 @@ export function useAttentionNotifier({
   bellOpen,
 }: UseAttentionNotifierOptions): void {
   const policy = useAttentionPolicy();
+  const queryClient = useQueryClient();
   const appActive = useDocumentActive();
   const jump = useAttentionJump();
   // Stable per-mount instances: the engine owns timers and pending state, so a
@@ -158,7 +160,12 @@ export function useAttentionNotifier({
     mutedWorkspaceIds: policy.mutedWorkspaceIds,
     focusedSessionId,
     appActive,
-    resolve: sessionId => targets.get(sessionId) ?? null,
+    resolve: sessionId => {
+      const target = targets.get(sessionId);
+      if (target === undefined) return null;
+      const openPullRequestNumber = cachedSessionOpenPullRequestNumber(queryClient, sessionId);
+      return openPullRequestNumber === null ? target : { ...target, openPullRequestNumber };
+    },
   };
 
   // The bell is the review surface; overlapping ephemeral notices must not block it.

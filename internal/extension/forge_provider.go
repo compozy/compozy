@@ -34,6 +34,7 @@ type ForgeRuntime interface {
 }
 
 type ForgeProviderError struct {
+	RetryAfter  *time.Time
 	cause       string
 	unavailable bool
 }
@@ -148,7 +149,11 @@ func (m *Manager) ForgeStatus(
 		response.Provider = name
 	}
 	if response.Cause != "" {
-		return extensioncontract.ForgeStatusResponse{}, forgeProviderFailure(response.Cause)
+		failure := forgeProviderFailure(response.Cause)
+		if typed, ok := errors.AsType[*ForgeProviderError](failure); ok {
+			typed.RetryAfter = response.RetryAfter
+		}
+		return extensioncontract.ForgeStatusResponse{}, failure
 	}
 	if err := validateForgeStatusResponse(response); err != nil {
 		return extensioncontract.ForgeStatusResponse{}, fmt.Errorf("extension: forge status via %q: %w", name, err)
@@ -250,7 +255,7 @@ func (m *Manager) forgeProviderNames(ctx context.Context) ([]string, error) {
 		names[index] = candidate.name
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("extension: no active forge provider: %w", toolspkg.ErrToolUnavailable)
+		return nil, &ForgeProviderError{cause: "provider_disabled", unavailable: true}
 	}
 	return names, nil
 }
@@ -330,6 +335,9 @@ func validForgeProviderCause(value string) bool {
 }
 
 func validateForgeStatusResponse(value extensioncontract.ForgeStatusResponse) error {
+	if err := validateForgeStatusFacts(value); err != nil {
+		return err
+	}
 	if strings.TrimSpace(value.Provider) == "" || value.FetchedAt.IsZero() {
 		return errors.New("provider and fetched_at are required")
 	}

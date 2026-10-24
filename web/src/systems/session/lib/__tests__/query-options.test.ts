@@ -1,5 +1,6 @@
 // Suite: session detail polling policy
-// Invariant: durable starting sessions converge quickly while terminal sessions stop polling.
+// Invariant: durable starting sessions converge quickly while terminal sessions stop polling, and a
+// session carrying a PR lookup is re-read at least every 60 s, only while the document is visible.
 // Boundary IN: TanStack session detail query options.
 // Boundary OUT: HTTP transport and lifecycle persistence, owned by their adapter/runtime suites.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
@@ -67,6 +68,27 @@ describe("sessionDetailOptions", () => {
     expect(pollingIntervalFor("stopping")).toBe(5_000);
     expect(pollingIntervalFor("stopped")).toBe(false);
     expect(pollingIntervalFor(undefined)).toBe(false);
+  });
+
+  it("UT-072: re-reads a session with a PR lookup every 60 s, never while hidden", () => {
+    const lookup = { state: "ok", cause: "", observed_at: null, stale: true } as const;
+    for (const options of [
+      sessionDetailOptions("ws_alpha", "sess_1"),
+      sessionScopedDetailOptions("sess_1", { profile: "default" }),
+    ]) {
+      if (typeof options.refetchInterval !== "function") throw new Error("expected interval");
+      const at = (data: Partial<SessionPayload>) =>
+        (options.refetchInterval as (query: never) => number | false)({
+          state: { data },
+        } as never);
+      // A stopped session keeps its chip fresh; a live one keeps its faster cadence.
+      expect(at({ state: "stopped", pull_request_lookup: lookup })).toBe(60_000);
+      expect(at({ state: "active", pull_request_lookup: lookup })).toBe(5_000);
+      // No branch, no lookup: no extra reads.
+      expect(at({ state: "stopped", pull_request_lookup: null })).toBe(false);
+      // The interval pauses with the document (TanStack's background default).
+      expect(options.refetchIntervalInBackground).not.toBe(true);
+    }
   });
 });
 

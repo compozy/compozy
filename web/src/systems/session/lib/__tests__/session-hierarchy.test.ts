@@ -21,7 +21,7 @@ function treeSession(
   options: {
     parent?: string;
     kind?: NonNullable<SessionPayload["lineage"]>["kind"];
-    badge?: string;
+    badge?: SessionPayload["badge"];
     sessionType?: SessionPayload["type"];
   } = {}
 ): SessionPayload {
@@ -39,6 +39,9 @@ function treeSession(
     state: "active",
     type: options.sessionType ?? "user",
     badge: options.badge ?? "running",
+    board_column: "working",
+    pull_request: null,
+    pull_request_lookup: null,
     attachable: true,
     archived_at: null,
     available_commands: [],

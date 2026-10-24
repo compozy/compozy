@@ -122,6 +122,9 @@ import { SessionWindowContent } from "../session-window-content";
 import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
 
 const deadSession: SessionPayload = {
+  board_column: "done",
+  pull_request: null,
+  pull_request_lookup: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   scope: "workspace",

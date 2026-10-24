@@ -70,6 +70,12 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 
 func sessionFacetPayload(facets store.SessionCatalogFacets) contract.SessionCatalogFacetsPayload {
 	return contract.SessionCatalogFacetsPayload{
+		Board: contract.SessionBoardCountsPayload{
+			NeedsYou: facets.Board.NeedsYou,
+			Working:  facets.Board.Working,
+			InReview: facets.Board.InReview,
+			Done:     facets.Board.Done,
+		},
 		All:               facets.All,
 		NeedsYou:          facets.NeedsYou,
 		Working:           facets.Working,

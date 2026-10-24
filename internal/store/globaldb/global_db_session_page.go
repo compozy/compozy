@@ -73,9 +73,13 @@ func (g *SessionRepo) PageSessions(
 	}()
 
 	if !query.SkipTotal {
-		countQuery := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
+		source, sourceArgs, sourceErr := sessionCatalogPageSource(query)
+		if sourceErr != nil {
+			return store.SessionCatalogPage{}, sourceErr
+		}
+		countQuery := store.AppendWhere("SELECT COUNT(1) FROM "+source, where)
 		// dynamic-sql: page filters and exclusion slices alter the count query structure.
-		if err := tx.QueryRowContext(ctx, countQuery, args...).Scan(&page.Total); err != nil {
+		if err := tx.QueryRowContext(ctx, countQuery, append(sourceArgs, args...)...).Scan(&page.Total); err != nil {
 			return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
 		}
 	}
@@ -112,7 +116,13 @@ func querySessionCatalogRows(
 		where = append(where, cursorClause)
 		args = append(args, cursorArgs...)
 	}
-	sqlQuery := store.AppendWhere(sessionInfoSelectQuery, where)
+	source, sourceArgs, err := sessionCatalogPageSource(query)
+	if err != nil {
+		return nil, err
+	}
+	selectQuery := strings.TrimSuffix(sessionInfoSelectQuery, "FROM sessions") + "FROM " + source
+	sqlQuery := store.AppendWhere(selectQuery, where)
+	args = append(sourceArgs, args...)
 	order, err := sessionCatalogOrderClause(query.Sort)
 	if err != nil {
 		return nil, err
@@ -190,25 +200,7 @@ func sessionCatalogPageFilters(
 	if err != nil {
 		return nil, nil, err
 	}
-	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
-		if query.SearchFields == "title_agent" {
-			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
-			where = append(
-				where,
-				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
-					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
-			)
-			args = append(args, search, search)
-		} else {
-			where = append(where, `(instr(lower(id), ?) > 0 OR
-			instr(lower(COALESCE(name, '')), ?) > 0 OR
-			instr(lower(agent_name), ?) > 0 OR
-			instr(lower(provider), ?) > 0)`)
-			for range 4 {
-				args = append(args, search)
-			}
-		}
-	}
+	where, args = appendSessionCatalogSearch(where, args, query)
 	if query.AttentionOnly {
 		where = append(
 			where,
@@ -222,6 +214,17 @@ func sessionCatalogPageFilters(
 			args = append(args, badge)
 		}
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
+	}
+	if query.HideChildren {
+		where = append(where, "(parent_session_id IS NULL OR parent_session_id = '')")
+	}
+	if len(query.Columns) > 0 {
+		placeholders := make([]string, len(query.Columns))
+		for index, column := range query.Columns {
+			placeholders[index] = "?"
+			args = append(args, column)
+		}
+		where = append(where, sessionCatalogBoardColumnExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
 	where = appendSessionCatalogVisibilityFilters(where, query)
 	if query.Resumable {
@@ -397,4 +400,27 @@ func appendSubagentSessionFilter(where []string, filter string) []string {
 	default:
 		return where
 	}
+}
+
+func appendSessionCatalogSearch(where []string, args []any, query store.SessionCatalogPageQuery) ([]string, []any) {
+	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
+		if query.SearchFields == "title_agent" {
+			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
+			where = append(
+				where,
+				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
+					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
+			)
+			args = append(args, search, search)
+		} else {
+			where = append(where, `(instr(lower(id), ?) > 0 OR
+			instr(lower(COALESCE(name, '')), ?) > 0 OR
+			instr(lower(agent_name), ?) > 0 OR
+			instr(lower(provider), ?) > 0)`)
+			for range 4 {
+				args = append(args, search)
+			}
+		}
+	}
+	return where, args
 }

@@ -9092,7 +9092,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				Input: json.RawMessage(
 					`{"workspace":"ws-stable","worktree":"wt-filtered","state":"active","type":"user","agent":"coder","q":"review",` +
 						`"resumable":true,"archive":"only","include_health":true,"sort":"last_activity",` +
-						`"cursor":"cursor-prev","limit":2}`,
+						`"cursor":"cursor-prev","limit":2,"board_column":["needs_you"],"children":"exclude"}`,
 				),
 			},
 		)
@@ -9106,7 +9106,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
 			!seenListQuery.Resumable || seenListQuery.Archive != session.ArchiveOnly ||
 			seenListQuery.Sort != "last_activity" ||
-			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 {
+			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 ||
+			!seenListQuery.HideChildren || !slices.Equal(seenListQuery.Columns, []string{"needs_you"}) {
 			t.Fatalf("session list query = %#v, want full paged filter parity", seenListQuery)
 		}
 		var listResponse contract.SessionCatalogResponse
@@ -9127,6 +9128,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if health := listResponse.Sessions[0].Health; health == nil ||
 			health.State != contract.SessionHealthStateIdle || health.Health != contract.SessionHealthHealthy {
 			t.Fatalf("session_list health = %#v, want nested page health", health)
+		}
+
+		_, invalidColumnErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionList,
+			Input:  json.RawMessage(`{"workspace":"ws-stable","board_column":["blocked"]}`),
+		})
+		if !errors.Is(invalidColumnErr, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("invalid board column = %v", invalidColumnErr)
 		}
 
 		t.Run("Should archive a session", func(t *testing.T) {
