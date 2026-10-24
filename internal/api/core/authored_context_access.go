@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"log/slog"
 
 	"net/http"
 
@@ -189,7 +190,7 @@ func SessionPayloadWithQueue(ctx context.Context, reader interface {
 		PopulateSessionRelations(context.Context, *session.Info) error
 	}); ok {
 		if err := relations.PopulateSessionRelations(ctx, info); err != nil {
-			return contract.SessionPayload{}, err
+			slog.WarnContext(ctx, "session detail relations unavailable", "session_id", info.ID, "error", err)
 		}
 	}
 	payload := SessionPayloadFromInfo(info)
@@ -199,7 +200,7 @@ func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	}
 	payloads := []contract.SessionPayload{payload}
 	if err := DecorateSessionPullRequests(ctx, reader, []*session.Info{info}, payloads); err != nil {
-		return contract.SessionPayload{}, err
+		slog.WarnContext(ctx, "session detail pull request unavailable", "session_id", info.ID, "error", err)
 	}
 	payload = payloads[0]
 	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}

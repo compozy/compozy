@@ -65,3 +65,8 @@ Focused review evidence: real-Git exit-plan/removal integration, CLI HTTP-client
 `TestSessionPullRequestCommand`, `TestPullRequestService`, `TestProvider`, `TestProviderGraphQL`,
 `TestManagerForgeProvider`, `TestDaemonForgeRuntimeErrorTranslation`, `TestSessionCatalogBroadcaster`,
 and the catalog-stream Vitest suite. Live GitHub and full desktop walks remain controller-owned.
+
+- Detail enrichment projects only direct active children and preserves the scoped parent title.
+  A relation-reader or PR-projection failure leaves the core detail and admission queue available;
+  optional family/PR facts are omitted. Owning checks: `TestManagerBoardCatalog` and
+  `TestSessionPayloadOptionalRelations`.

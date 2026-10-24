@@ -4057,12 +4057,14 @@ func TestSessionPullRequestProjection(t *testing.T) {
 }
 
 type pullRequestQueryBranches struct {
+	ids    []string
 	values map[string]string
 	calls  int
 }
 
-func (b *pullRequestQueryBranches) SessionBranches(context.Context, []string) (map[string]string, error) {
+func (b *pullRequestQueryBranches) SessionBranches(_ context.Context, ids []string) (map[string]string, error) {
 	b.calls++
+	b.ids = ids
 	return b.values, nil
 }
 
@@ -4265,12 +4267,29 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].ParentTitle != "Parent" {
 			t.Fatalf("child board = %#v", page)
 		}
+		// Detail projects only direct children; the parent remains a title lookup.
+		snapshots := &pullRequestQueryBranches{values: map[string]string{child.ID: "child-topic", parent.ID: "topic"}}
+		h.manager.ConfigurePullRequests(reader, snapshots)
 		detail := parent.Info()
 		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil {
 			t.Fatal(err)
 		}
+		if !slices.Equal(snapshots.ids, []string{child.ID}) {
+			t.Fatalf("detail projection IDs=%v want only direct child", snapshots.ids)
+		}
 		if detail.Children == nil || *detail.Children != *counts {
 			t.Fatalf("detail children = %#v", detail.Children)
+		}
+		childDetail := child.Info()
+		if err := h.manager.PopulateSessionRelations(
+			ctx,
+			childDetail,
+		); err != nil ||
+			childDetail.ParentTitle != "Parent" {
+			t.Fatalf("child detail parent=%q error=%v", childDetail.ParentTitle, err)
+		}
+		if len(snapshots.ids) != 0 {
+			t.Fatalf("parent title lookup projected PRs: %v", snapshots.ids)
 		}
 		h.manager.ConfigurePullRequests(nil, nil)
 		query.Columns = []string{"in_review"}

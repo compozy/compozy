@@ -54,9 +54,30 @@ func (m *Manager) PopulateSessionRelations(ctx context.Context, info *Info) erro
 		workspace = workspaceaccess.UserSelector
 	}
 	query := ListQuery{ReadScope: store.ReadScope{ProfileID: info.ProfileID}, WorkspaceID: workspace}
-	active, _, _, err := m.activeBoardSessionCatalogRows(ctx, query)
+	active := make(map[string]*Info)
+	children := make([]*Info, 0)
+	for _, candidate := range m.List() {
+		if !catalogRelationVisible(candidate, query) {
+			continue
+		}
+		if info.Lineage != nil && candidate.ID == info.Lineage.ParentSessionID {
+			active[candidate.ID] = candidate
+		}
+		if candidate.Lineage != nil && candidate.Lineage.ParentSessionID == info.ID {
+			active[candidate.ID] = candidate
+			children = append(children, candidate)
+		}
+	}
+	views, err := m.SessionPullRequests(ctx, children)
 	if err != nil {
 		return err
+	}
+	for _, child := range children {
+		var state PullRequestState
+		if pr := views[child.ID].PullRequest; pr != nil {
+			state = pr.State
+		}
+		child.BoardColumn = BoardColumnFor(BadgeForInfo(child), state)
 	}
 	return m.populateCatalogRelations(
 		ctx,

@@ -2001,3 +2001,48 @@ func (m *pullRequestHandlerManager) RefreshSessionPullRequest(
 ) (session.PullRequestProjection, error) {
 	return m.view, m.err
 }
+
+// Invariant: optional family and PR projections cannot fail a durable detail read.
+// Owner: shared API detail boundary; canonical handler edge-case suite.
+func TestSessionPayloadOptionalRelations(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name                        string
+		relationsErr, projectionErr error
+	}{
+		{name: "Should retain detail when relations fail", relationsErr: errors.New("relations unavailable")},
+		{name: "Should retain detail when PR projection fails", projectionErr: errors.New("projection unavailable")},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			reader := &detailRelationsReader{relationsErr: testCase.relationsErr, projectionErr: testCase.projectionErr}
+			payload, err := core.SessionPayloadWithQueue(
+				t.Context(),
+				reader,
+				&session.Info{ID: "detail", Name: "Detail"},
+			)
+			if err != nil || payload.ID != "detail" || payload.Name != "Detail" || payload.Queue == nil ||
+				payload.Queue.Cap != 7 {
+				t.Fatalf("detail=%#v error=%v", payload, err)
+			}
+		})
+	}
+}
+
+type detailRelationsReader struct {
+	relationsErr, projectionErr error
+}
+
+func (r *detailRelationsReader) InputQueueSummary(context.Context, string) (session.InputQueueSummary, error) {
+	return session.InputQueueSummary{Cap: 7}, nil
+}
+func (r *detailRelationsReader) PopulateSessionRelations(context.Context, *session.Info) error {
+	return r.relationsErr
+}
+
+func (r *detailRelationsReader) SessionPullRequests(
+	context.Context,
+	[]*session.Info,
+) (map[string]session.PullRequestProjection, error) {
+	return nil, r.projectionErr
+}
