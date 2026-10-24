@@ -125,7 +125,7 @@ func (p *Provider) graphStatus(
 	}
 	if pull == nil {
 		if incomplete {
-			response.Selection = "incomplete"
+			response.Selection = pullSelectionIncomplete
 		}
 		return response, nil
 	}

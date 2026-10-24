@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -279,6 +280,77 @@ func forgeInitializeParams() map[string]any {
 func TestProvider(t *testing.T) {
 	t.Parallel()
 
+	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
+		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
+			t.Parallel()
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/graphql" {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				if r.URL.Query().Get("sort") != "updated" || r.URL.Query().Get("direction") != "desc" {
+					t.Errorf("selection query=%s", r.URL.RawQuery)
+				}
+				if r.URL.Query().Get("state") == "open" && scenario == "terminal newest" {
+					writeJSON(t, w, http.StatusOK, []pullPayload{})
+					return
+				}
+				state := r.URL.Query().Get("state")
+				if scenario == "open first" && state != "open" {
+					t.Error("terminal population requested despite matching open PR")
+				}
+				pulls := make([]pullPayload, 0, 3)
+				for i, owner := range []string{"acme/repo", "fork/repo", "acme/repo"} {
+					pull := pullPayload{
+						Number:    i + 1,
+						State:     state,
+						HTMLURL:   fmt.Sprintf("https://github.com/acme/repo/pull/%d", i+1),
+						UpdatedAt: time.Unix(int64(i+1), 0),
+						Head:      pullRef{Ref: "topic", SHA: "abc"},
+					}
+					pull.Head.Repo = &struct {
+						FullName string `json:"full_name"`
+					}{owner}
+					if owner == "fork/repo" {
+						pull.UpdatedAt = time.Unix(100, 0)
+					}
+					pulls = append(pulls, pull)
+				}
+				if scenario == "incomplete" {
+					pulls[0].Head.Repo = nil
+				}
+				if scenario == "bounded" {
+					fork := pulls[1]
+					pulls = make([]pullPayload, 100)
+					for i := range pulls {
+						pulls[i] = fork
+					}
+				}
+				writeJSON(t, w, http.StatusOK, pulls)
+			})
+			defer closeServer()
+			got, err := provider.Status(
+				t.Context(),
+				extensioncontract.ForgeStatusRequest{
+					RemoteURLs: []string{"https://github.com/acme/repo"},
+					Branch:     "topic",
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if scenario == "incomplete" || scenario == "bounded" {
+				if got.Selection != "incomplete" || got.PRNumber != nil {
+					t.Fatalf("incomplete=%#v", got)
+				}
+				return
+			}
+			if got.PRNumber == nil || *got.PRNumber != 3 || got.Selection != "complete" {
+				t.Fatalf("selection=%#v", got)
+			}
+		})
+	}
+
 	t.Run("Should expose authenticated GitHub capabilities and the default branch", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -525,7 +597,14 @@ func TestProvider(t *testing.T) {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
+			if r.URL.Query().Get("state") == "open" {
+				writeJSON(t, w, http.StatusOK, []pullPayload{})
+				return
+			}
 			writeJSON(t, w, http.StatusOK, []pullPayload{{
+				UpdatedAt: mergedAt, Head: pullRef{Ref: "feature/exit", Repo: &struct {
+					FullName string `json:"full_name"`
+				}{"acme/repo"}},
 				Number: 43, HTMLURL: "https://github.com/acme/repo/pull/43", State: "closed", MergedAt: &mergedAt,
 			}})
 		})
