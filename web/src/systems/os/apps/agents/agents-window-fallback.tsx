@@ -19,7 +19,7 @@ import {
   AgentConfigurationSkeleton,
   AgentDetailHeaderSkeleton,
   AgentFleetList,
-  AgentInstructionsSkeleton,
+  AgentInstructionsPlaceholder,
   AgentOverviewSkeleton,
   AgentSessionsTabSkeleton,
   resolveAgentDetailSearch,
@@ -71,7 +71,11 @@ function AgentTabSkeleton({ search }: { search: ReturnType<typeof resolveAgentDe
         </SkeletonRegion>
       );
     case "instructions":
-      return <AgentInstructionsSkeleton file={search.file} inert onFileChange={noop} />;
+      return (
+        <SkeletonRegion label="Loading instructions">
+          <AgentInstructionsPlaceholder file={search.file} />
+        </SkeletonRegion>
+      );
     case "sessions":
       return <AgentSessionsTabSkeleton filter={search.filter} inert onFilterChange={noop} />;
   }

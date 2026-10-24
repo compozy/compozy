@@ -4,9 +4,6 @@ import {
   MetadataList,
   NativeSelect,
   NativeSelectOption,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
   Spinner,
 } from "@compozy/ui";
 
@@ -242,38 +239,5 @@ export function AgentHeartbeatOps(props: AgentHeartbeatOpsProps) {
         {waking ? "Waking…" : "Wake now"}
       </Button>
     </div>
-  );
-}
-
-const POLICY_ROWS = [
-  { label: "Enabled", width: "w-8" },
-  { label: "Schedule", width: "w-48" },
-  { label: "Recent wake", width: "w-40" },
-] as const;
-
-/** The heartbeat status card while its status loads: the real card, policy terms and wake controls. */
-export function AgentHeartbeatOpsSkeleton() {
-  return (
-    <SkeletonRegion
-      className="flex flex-col gap-4 rounded-lg bg-card p-4 shadow-card"
-      data-testid="agent-heartbeat-ops-skeleton"
-      label="Loading heartbeat status"
-    >
-      <MetadataList>
-        {POLICY_ROWS.map(row => (
-          <MetadataList.Row key={row.label}>
-            <MetadataList.Term>{row.label}</MetadataList.Term>
-            <MetadataList.Value>
-              <SkeletonText className={row.width} />
-            </MetadataList.Value>
-          </MetadataList.Row>
-        ))}
-      </MetadataList>
-      <div className="flex flex-col gap-2">
-        <p className="eyebrow text-muted">Wake target</p>
-        <Skeleton className="h-input" />
-      </div>
-      <Skeleton className="h-button-sm w-24" />
-    </SkeletonRegion>
   );
 }

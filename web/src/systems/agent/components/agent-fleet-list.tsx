@@ -1,27 +1,12 @@
 import { AlertTriangle, Users2 } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  CatalogCardSkeleton,
-  Empty,
-  ListingRowSkeleton,
-  SkeletonRegion,
-  Spinner,
-  type ListingViewMode,
-} from "@compozy/ui";
+import { Alert, AlertDescription, Button, Empty, Spinner, type ListingViewMode } from "@compozy/ui";
 
 import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetCard } from "./agent-fleet-card";
+import { FLEET_CARDS_CLASS, FLEET_ROWS_CLASS } from "./agent-fleet-classes";
 import { AgentFleetRow } from "./agent-fleet-row";
-
-// The loading skeleton sits in the same containers as the loaded fleet, so a row or card
-// changes only its content when the catalog arrives.
-const FLEET_CARDS_CLASS = "grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3";
-const FLEET_ROWS_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
-const FLEET_SKELETON_ROWS = 8;
-const FLEET_SKELETON_CARDS = 6;
+import { AgentFleetSkeleton } from "./agent-fleet-skeleton";
 
 export interface AgentFleetListProps {
   rows: readonly AgentFleetRowModel[];
@@ -51,25 +36,7 @@ function AgentFleetList({
   onOpenAgent,
   onLoadMore,
 }: AgentFleetListProps) {
-  if (status === "loading") {
-    return (
-      <SkeletonRegion
-        className="min-h-0 flex-1"
-        data-testid="agent-fleet-loading"
-        label="Loading agents"
-      >
-        {view === "cards" ? (
-          <div className={FLEET_CARDS_CLASS}>
-            <CatalogCardSkeleton count={FLEET_SKELETON_CARDS} descriptionLines={0} facts={false} />
-          </div>
-        ) : (
-          <div className={FLEET_ROWS_CLASS}>
-            <ListingRowSkeleton count={FLEET_SKELETON_ROWS} trail="pill" />
-          </div>
-        )}
-      </SkeletonRegion>
-    );
-  }
+  if (status === "loading") return <AgentFleetSkeleton view={view} />;
 
   if (status === "first-run-empty") {
     return (

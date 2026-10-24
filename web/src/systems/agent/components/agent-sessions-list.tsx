@@ -9,22 +9,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Pill,
-  SkeletonRegion,
   StateGlyph,
   Spinner,
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
-  TableRowSkeleton,
-  type TableRowSkeletonColumn,
   Time,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
+import { AgentSessionsSkeleton } from "./agent-sessions-skeleton";
+import { AgentSessionsTableHead } from "./agent-sessions-table-head";
 
 import {
   getSessionDisplayTitle,
@@ -276,51 +273,6 @@ function ArchivedSessionsSection({
         />
       </CollapsibleContent>
     </Collapsible>
-  );
-}
-
-const SESSION_SKELETON_ROWS = 5;
-const SESSION_SKELETON_COLUMNS: readonly TableRowSkeletonColumn[] = [
-  { className: "w-48" },
-  { className: "w-20" },
-  { align: "end", className: "w-12" },
-  { align: "end", className: "w-16" },
-  { align: "end", className: "w-5" },
-];
-
-function AgentSessionsTableHead() {
-  return (
-    <TableHeader>
-      <TableRow>
-        <TableHead className="w-2/5">Session</TableHead>
-        <TableHead>Status</TableHead>
-        <TableHead className="text-right">Duration</TableHead>
-        <TableHead className="text-right">Last activity</TableHead>
-        <TableHead className="w-10">
-          <span className="sr-only">Actions</span>
-        </TableHead>
-      </TableRow>
-    </TableHeader>
-  );
-}
-
-/** The sessions table while its rows load: the real header and cell grid, placeholder rows. */
-export function AgentSessionsSkeleton() {
-  return (
-    <SkeletonRegion
-      className="flex flex-col"
-      data-testid="agent-sessions-loading"
-      label="Loading sessions"
-    >
-      <div className="overflow-x-auto">
-        <Table>
-          <AgentSessionsTableHead />
-          <TableBody>
-            <TableRowSkeleton columns={SESSION_SKELETON_COLUMNS} count={SESSION_SKELETON_ROWS} />
-          </TableBody>
-        </Table>
-      </div>
-    </SkeletonRegion>
   );
 }
 

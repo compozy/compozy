@@ -12,11 +12,11 @@ import {
   AuthoredFileHistory,
   AuthoredFileLiveStatus,
   AuthoredFileLoadError,
-  AuthoredFileLoading,
   AuthoredFileMeta,
   AuthoredFileMissing,
   AuthoredFileWriteRecovery,
 } from "./agent-authored-file-parts";
+import { AuthoredFileLoading } from "./agent-authored-file-loading";
 import type {
   AgentHeartbeatHistoryResponse,
   AgentHeartbeatPayload,
