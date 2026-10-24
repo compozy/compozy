@@ -51,7 +51,7 @@ export const Loading: Story = {
         in_review: { loading: true, sessions: [], count: undefined },
         done: { loading: true, sessions: [], count: undefined },
       },
-      { count: 0, sessions: [] }
+      { loading: true, count: undefined, sessions: [] }
     ),
   },
 };
@@ -60,7 +60,7 @@ export const Loading: Story = {
 export const LoadingGroupedLanes: Story = {
   args: {
     board: {
-      ...sessionsBoardView(),
+      ...sessionsBoardView({}, { loading: true, count: undefined, sessions: [] }),
       columns: [],
       lanes: [],
       lanesLoading: true,

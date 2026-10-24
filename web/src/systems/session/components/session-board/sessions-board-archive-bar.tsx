@@ -1,7 +1,7 @@
 import { Archive, ChevronRight, CircleSlash } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCard } from "./session-board-card";
 import { SessionsBoardLoadMore, SessionsBoardReadError } from "./sessions-board-column";
+import { SESSIONS_BOARD_ARCHIVE_BAR, SESSIONS_BOARD_ARCHIVE_FRAME } from "./sessions-board-frame";
 
 export interface SessionsBoardArchiveBarProps {
   archive: SessionsBoardView["archive"];
@@ -17,8 +18,6 @@ export interface SessionsBoardArchiveBarProps {
   onOpen: (session: SessionBoardPayload) => void;
   actions?: SessionLifecycleActionHandlers;
 }
-
-const BAR_CLASS = "flex h-tabs-list w-full items-center gap-2 px-4 text-small-body text-muted";
 
 /**
  * Archived sessions stay out of the columns but reachable (US-016): a bottom
@@ -37,7 +36,9 @@ export function SessionsBoardArchiveBar({
   if (archive.loading) {
     return (
       <SessionsBoardArchiveStatus>
-        <Spinner aria-label="Loading archived sessions" className="size-3.5" />
+        <SkeletonRegion label="Loading archived sessions">
+          <SkeletonText className="w-4" />
+        </SkeletonRegion>
       </SessionsBoardArchiveStatus>
     );
   }
@@ -61,12 +62,12 @@ export function SessionsBoardArchiveBar({
   }
   if (!archive.count) return null;
   return (
-    <div className="shrink-0 border-t border-line bg-canvas" data-testid="sessions-board-archive">
+    <div className={SESSIONS_BOARD_ARCHIVE_FRAME} data-testid="sessions-board-archive">
       <button
         aria-controls={bodyId}
         aria-expanded={open}
         className={cn(
-          BAR_CLASS,
+          SESSIONS_BOARD_ARCHIVE_BAR,
           "outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-inset"
         )}
         data-testid="sessions-board-archive-toggle"
@@ -133,7 +134,10 @@ export function SessionsBoardArchiveBar({
   );
 }
 
-/** The bar while its first read is pending or failed: no disclosure yet. */
+/**
+ * The bar while its first read is pending or failed: no disclosure yet. A spacer holds the
+ * chevron's place so the label does not move when the count arrives.
+ */
 function SessionsBoardArchiveStatus({
   alert = false,
   children,
@@ -142,12 +146,13 @@ function SessionsBoardArchiveStatus({
   children: ReactNode;
 }) {
   return (
-    <div className="shrink-0 border-t border-line bg-canvas" data-testid="sessions-board-archive">
+    <div className={SESSIONS_BOARD_ARCHIVE_FRAME} data-testid="sessions-board-archive">
       <div
-        className={BAR_CLASS}
+        className={SESSIONS_BOARD_ARCHIVE_BAR}
         data-testid="sessions-board-archive-status"
         role={alert ? "alert" : undefined}
       >
+        <span aria-hidden="true" className="size-3.5 shrink-0" />
         <Archive aria-hidden="true" className="size-3.5 text-subtle" />
         <span>Archive</span>
         {children}

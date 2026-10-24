@@ -1,9 +1,14 @@
+import { Archive } from "lucide-react";
+
 import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
 
 import { SESSION_BOARD_COLUMNS, type SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import {
+  SESSIONS_BOARD_ARCHIVE_BAR,
+  SESSIONS_BOARD_ARCHIVE_FRAME,
   SESSIONS_BOARD_COLUMN_BODY,
+  SESSIONS_BOARD_COLUMN_COUNT,
   SESSIONS_BOARD_COLUMN_FRAME,
   SESSIONS_BOARD_COLUMN_HEADER,
   SESSIONS_BOARD_COLUMN_TITLE,
@@ -132,6 +137,15 @@ export function SessionsBoardColumnCardsSkeleton({ id }: { id: SessionBoardColum
   );
 }
 
+/** A column's count before the facets answer: the figure's line box as a bar, so the header keeps its height. */
+export function SessionsBoardColumnCountSkeleton() {
+  return (
+    <span className={SESSIONS_BOARD_COLUMN_COUNT}>
+      <SkeletonText className="w-4" />
+    </span>
+  );
+}
+
 /** A whole column before any of it is known: the live panel and header over placeholder cards. */
 function SessionsBoardColumnSkeleton({
   id,
@@ -151,6 +165,12 @@ function SessionsBoardColumnSkeleton({
       <div className={SESSIONS_BOARD_COLUMN_HEADER}>
         <SessionsBoardColumnGlyph id={id} />
         <span className={SESSIONS_BOARD_COLUMN_TITLE}>{label}</span>
+        <SessionsBoardColumnCountSkeleton />
+        {id === "done" ? (
+          <span className="ml-auto grid size-button-icon-xs shrink-0 place-items-center">
+            <Skeleton className="size-3.5 rounded-xs" />
+          </span>
+        ) : null}
       </div>
       <div className={SESSIONS_BOARD_COLUMN_BODY}>
         <ColumnCardsSkeleton count={count} id={id} />
@@ -233,9 +253,9 @@ export interface SessionsBoardSkeletonProps {
 
 /**
  * The whole Sessions board before anything is known, for a caller that has no board yet (the
- * Sessions window's loading fallback): the canvas and its scroller, then the four columns or the
- * swimlanes, in the geometry the loaded board mounts into, so the swap moves nothing. One status
- * region for the whole board, and no queries.
+ * Sessions window's loading fallback): the canvas and its scroller, the four columns or the
+ * swimlanes, and the Archive bar under them, in the geometry the loaded board mounts into, so the
+ * swap moves nothing. One status region for the whole board, and no queries.
  */
 export function SessionsBoardSkeleton({ layout = "columns" }: SessionsBoardSkeletonProps) {
   return (
@@ -252,6 +272,14 @@ export function SessionsBoardSkeleton({ layout = "columns" }: SessionsBoardSkele
         ) : (
           <ColumnsRowSkeleton className="animate-skeleton-reveal" layout="fill" />
         )}
+      </div>
+      <div aria-hidden="true" className={SESSIONS_BOARD_ARCHIVE_FRAME}>
+        <div className={SESSIONS_BOARD_ARCHIVE_BAR}>
+          <span className="size-3.5 shrink-0" />
+          <Archive aria-hidden="true" className="size-3.5 text-subtle" />
+          <span>Archive</span>
+          <SkeletonText className="w-4" />
+        </div>
       </div>
     </SkeletonRegion>
   );

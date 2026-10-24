@@ -269,7 +269,11 @@ describe("SessionsBoard", () => {
     renderBoard(board({}, { count: undefined, loading: true }));
     const status = screen.getByTestId("sessions-board-archive-status");
     expect(status).toHaveTextContent("Archive");
-    expect(within(status).getByRole("status", { name: "Loading archived sessions" })).toBeVisible();
+    // The count's place is a text bar under one busy region, not a spinner.
+    const loading = within(status).getByRole("status");
+    expect(loading).toHaveTextContent("Loading archived sessions");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
   });
 
   it("Should keep the Archive bar with a retry when its first read fails", async () => {
@@ -510,8 +514,11 @@ describe("SessionsBoard loading", () => {
     const region = screen.getByRole("status");
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading sessions");
-    // The four columns keep their real names, so only the cards are placeholders.
-    for (const name of Object.values(LABELS)) expect(region).toHaveTextContent(name);
+    // The four columns keep their real names, so only the cards are placeholders; the Archive
+    // bar holds its place under them.
+    for (const name of [...Object.values(LABELS), "Archive"]) {
+      expect(region).toHaveTextContent(name);
+    }
     expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(4);
     expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(4);
     expect(region.querySelector("button, a, input, [tabindex]")).toBeNull();

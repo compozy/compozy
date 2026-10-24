@@ -12,11 +12,15 @@ import { SessionBoardCard } from "./session-board-card";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import {
   SESSIONS_BOARD_COLUMN_BODY,
+  SESSIONS_BOARD_COLUMN_COUNT,
   SESSIONS_BOARD_COLUMN_FRAME,
   SESSIONS_BOARD_COLUMN_HEADER,
   SESSIONS_BOARD_COLUMN_TITLE,
 } from "./sessions-board-frame";
-import { SessionsBoardColumnCardsSkeleton } from "./sessions-board-skeleton";
+import {
+  SessionsBoardColumnCardsSkeleton,
+  SessionsBoardColumnCountSkeleton,
+} from "./sessions-board-skeleton";
 
 const EMPTY_COPY: Record<SessionBoardColumnId, string> = {
   needs_you: "Nothing needs you",
@@ -46,6 +50,23 @@ export interface SessionsBoardColumnProps {
 
 function sessionCountLabel(count: number): string {
   return `${count} ${count === 1 ? "session" : "sessions"}`;
+}
+
+/** The facet count after the title; a bar of its size until the counts load, nothing if they never do. */
+function SessionsBoardColumnCount({
+  column,
+  testId,
+}: {
+  column: SessionsBoardColumnView;
+  testId: string;
+}) {
+  if (column.loading) return <SessionsBoardColumnCountSkeleton />;
+  if (column.count === undefined) return null;
+  return (
+    <span className={SESSIONS_BOARD_COLUMN_COUNT} data-testid={testId}>
+      {column.count}
+    </span>
+  );
 }
 
 /**
@@ -83,14 +104,10 @@ export function SessionsBoardColumn({
         <h2 className={cn(SESSIONS_BOARD_COLUMN_TITLE, collapsed && "[writing-mode:vertical-rl]")}>
           {column.label}
         </h2>
-        {count !== undefined && !column.loading ? (
-          <span
-            className="text-small-body text-subtle tabular-nums"
-            data-testid={`${testIdPrefix}-column-count-${column.id}`}
-          >
-            {count}
-          </span>
-        ) : null}
+        <SessionsBoardColumnCount
+          column={column}
+          testId={`${testIdPrefix}-column-count-${column.id}`}
+        />
         {collapsible ? (
           <Button
             aria-controls={bodyId}

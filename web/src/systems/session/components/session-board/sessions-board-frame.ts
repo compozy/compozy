@@ -27,6 +27,9 @@ export const SESSIONS_BOARD_COLUMN_HEADER = "flex shrink-0 items-center gap-2 px
 
 export const SESSIONS_BOARD_COLUMN_TITLE = "text-item-title font-medium text-fg";
 
+/** The facet count after the title: its line box is the header's tallest, so a header reserves it. */
+export const SESSIONS_BOARD_COLUMN_COUNT = "text-small-body text-subtle tabular-nums";
+
 export const SESSIONS_BOARD_COLUMN_BODY =
   "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-3";
 
@@ -41,6 +44,11 @@ export const SESSIONS_BOARD_LANES = "flex w-max min-w-full flex-col gap-6";
 export const SESSIONS_BOARD_LANE = "flex flex-col gap-2";
 export const SESSIONS_BOARD_LANE_HEADER = "flex h-7 items-center gap-2 px-1";
 export const SESSIONS_BOARD_LANE_COUNT = "text-small-body text-subtle tabular-nums";
+
+/** The Archive bar under the board: its ruled frame and the 41 px row inside it. */
+export const SESSIONS_BOARD_ARCHIVE_FRAME = "shrink-0 border-t border-line bg-canvas";
+export const SESSIONS_BOARD_ARCHIVE_BAR =
+  "flex h-tabs-list w-full items-center gap-2 px-4 text-small-body text-muted";
 
 /** The board's own frame: the canvas, and the scroller the columns or lanes sit in. */
 export const SESSIONS_BOARD_FRAME = "flex min-h-0 min-w-0 flex-1 flex-col bg-canvas";
