@@ -9,7 +9,7 @@ import { MarketplaceSourceRowSkeletons } from "./marketplace-source-row";
 import { MCPServersTableSkeleton } from "./mcp-servers-table";
 import { ProviderCardGrid, ProviderCardSkeleton } from "./provider-card";
 import { ProvidersToolbarSkeleton } from "./providers-toolbar";
-import { RoleListSkeleton } from "./role-list";
+import { RoleListSkeleton } from "./role-list-skeleton";
 import { SettingsAdvancedFoldSkeleton } from "./settings-advanced-fold";
 import { SettingsChoiceGroupSkeleton } from "./settings-choice-group";
 import { SettingsDisabledSkillsSkeleton } from "./settings-disabled-skills-section";
