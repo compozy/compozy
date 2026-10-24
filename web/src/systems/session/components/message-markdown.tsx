@@ -1,5 +1,4 @@
-import { memo, type ImgHTMLAttributes, type AnchorHTMLAttributes } from "react";
-import { Globe } from "lucide-react";
+import { memo, type ImgHTMLAttributes } from "react";
 
 import { StreamMarkdown, type StreamMarkdownProps, type StreamMarkdownSlots } from "@compozy/ui";
 
@@ -31,23 +30,6 @@ function MessageImageReference({
 
 const MESSAGE_MARKDOWN_COMPONENTS = { img: MessageImageReference };
 
-function UserMessageLink({ href, children }: AnchorHTMLAttributes<HTMLAnchorElement>) {
-  if (!href || !/^(https?:\/\/|mailto:)/iu.test(href)) return <>{children}</>;
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-info hover:underline break-words"
-    >
-      <Globe aria-hidden="true" className="mr-1 inline-block size-[1em] align-middle" />
-      {children}
-    </a>
-  );
-}
-
-const USER_MESSAGE_MARKDOWN_COMPONENTS = { ...MESSAGE_MARKDOWN_COMPONENTS, a: UserMessageLink };
-
 export interface MessageMarkdownProps {
   content: string;
   streaming?: boolean;
@@ -62,7 +44,8 @@ export interface MessageMarkdownProps {
   compact?: StreamMarkdownProps["compact"];
   /** Inline nodes the content places with `composeMarkdownSlots` (transcript chips). */
   slots?: StreamMarkdownSlots;
-  userLinks?: boolean;
+  /** Operator-typed prose: authored line breaks and safe external links (`StreamMarkdown`). */
+  authored?: boolean;
 }
 
 // The reveal is presentation only: reduced motion and the client-local
@@ -98,7 +81,7 @@ export const MessageMarkdown = memo(
     reveal = false,
     compact = false,
     slots,
-    userLinks = false,
+    authored = false,
   }: MessageMarkdownProps) {
     if (reveal) {
       return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
@@ -108,7 +91,8 @@ export const MessageMarkdown = memo(
         streaming={streaming}
         compact={compact}
         slots={slots}
-        components={userLinks ? USER_MESSAGE_MARKDOWN_COMPONENTS : MESSAGE_MARKDOWN_COMPONENTS}
+        authored={authored}
+        components={MESSAGE_MARKDOWN_COMPONENTS}
       >
         {content}
       </StreamMarkdown>
@@ -120,5 +104,5 @@ export const MessageMarkdown = memo(
     prev.reveal === next.reveal &&
     prev.compact === next.compact &&
     prev.slots === next.slots &&
-    prev.userLinks === next.userLinks
+    prev.authored === next.authored
 );
