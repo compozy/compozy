@@ -14,14 +14,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        revision:
-          - d68ba8f1c009f8dc492c11cdef11ed7d4fc540f8
-          - bd23b8b0a07cccb10679aa6bf050e60acfbe41c8
-          - 271a49aaca902a2d44bb32a8c5ea60647a9b258b
+        include:
+          - revision: d68ba8f1c009f8dc492c11cdef11ed7d4fc540f8
+            profile: "0"
+          - revision: 271a49aaca902a2d44bb32a8c5ea60647a9b258b
+            profile: "0"
+          - revision: 271a49aaca902a2d44bb32a8c5ea60647a9b258b
+            profile: "1"
     env:
       CGO_ENABLED: 0
       CI: "true"
-      COMPOZY_PEER_PROFILE: "1"
+      COMPOZY_PEER_PROFILE: ${{ matrix.profile }}
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
     steps:
       - uses: actions/checkout@v7
@@ -42,11 +45,42 @@ jobs:
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
       - name: Measure ten consecutive peer convergence runs
         working-directory: web
-        run: bunx playwright test --grep E2E-023 --repeat-each 10
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
+      - name: Summarize profiles in accessible CI logs
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import collections, json, pathlib
+          for path in pathlib.Path('.tmp/playwright/report/data').glob('*.json'):
+              data = json.loads(path.read_text())
+              if not isinstance(data, dict) or 'traceEvents' not in data:
+                  continue
+              events = data['traceEvents']
+              durations = sorted((e for e in events if e.get('ph') == 'X'), key=lambda e: e.get('dur', 0), reverse=True)
+              print('TRACE', path.name)
+              for event in durations[:25]:
+                  print('DURATION', json.dumps(event))
+              nodes, counts = {}, collections.Counter()
+              for event in events:
+                  chunk = event.get('args', {}).get('data', {}).get('cpuProfile', {})
+                  for node in chunk.get('nodes', []):
+                      nodes[(event['pid'], node['id'])] = node
+                  counts.update((event['pid'], sample) for sample in chunk.get('samples', []))
+              for key, count in counts.most_common(25):
+                  node = nodes.get(key, {})
+                  print('CPU', count, json.dumps(node))
+                  frame = node.get('callFrame', {})
+                  asset = pathlib.Path('web/dist/assets') / frame.get('url', '').split('/')[-1]
+                  if asset.is_file():
+                      lines = asset.read_text().splitlines()
+                      line, col = frame.get('lineNumber', -1), frame.get('columnNumber', 0)
+                      if 0 <= line < len(lines):
+                          print('SOURCE', lines[line][max(0,col-100):col+700])
+          PY
       - name: Upload measurements and profiles
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: peer-convergence-${{ matrix.revision }}
+          name: peer-convergence-${{ matrix.revision }}-${{ matrix.profile }}
           path: .tmp/playwright
           retention-days: 7
