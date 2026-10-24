@@ -302,6 +302,14 @@ describe("AutomationCatalogShell", () => {
     expect(screen.getByTestId("automations-list-loading")).toHaveAttribute("aria-busy", "true");
     unmount();
 
+    // The cards view holds placeholder cards, not rows.
+    const cards = render(<AutomationCatalogShell {...base} isLoading itemCount={0} view="cards" />);
+    const loading = screen.getByTestId("automations-list-loading");
+    expect(loading).toHaveTextContent("Loading automations as cards");
+    expect(loading.querySelectorAll('[data-slot="catalog-card"]').length).toBeGreaterThan(0);
+    expect(loading.querySelectorAll('[data-slot="listing-row"]')).toHaveLength(0);
+    cards.unmount();
+
     const onRetry = vi.fn();
     render(
       <AutomationCatalogShell

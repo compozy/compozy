@@ -1604,11 +1604,45 @@ describe("route query preloading", () => {
       ...context(queryClient),
       params: { triggerId: "trigger-foreign" },
     });
+    // The loaders release navigation before the reads settle; the ownership check follows them.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
     expect(adapterMocks.getAutomationJob).toHaveBeenCalledTimes(1);
     expect(adapterMocks.getAutomationTrigger).toHaveBeenCalledTimes(1);
     expect(adapterMocks.listAutomationJobRuns).not.toHaveBeenCalled();
     expect(adapterMocks.listAutomationTriggerRuns).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should release navigation while an automation detail read remains in flight, then warm its runs", async () => {
+    const queryClient = createQueryClient();
+    const jobRead = createDeferred<{ id: string; scope: string }>();
+    const triggerRead = createDeferred<{ id: string; scope: string }>();
+    adapterMocks.getAutomationJob.mockReturnValueOnce(jobRead.promise);
+    adapterMocks.getAutomationTrigger.mockReturnValueOnce(triggerRead.promise);
+
+    await expect(
+      invokeLoader(JobDetailRoute, { ...context(queryClient), params: { jobId: "job-1" } })
+    ).resolves.toBeUndefined();
+    await expect(
+      invokeLoader(TriggerDetailRoute, {
+        ...context(queryClient),
+        params: { triggerId: "trigger-1" },
+      })
+    ).resolves.toBeUndefined();
+
+    // Navigation is released while both entity reads are pending: a window opening on the detail
+    // shows its own loading state instead of waiting for the daemon behind a blank desktop.
+    expect(queryClient.isFetching()).toBeGreaterThan(0);
+    expect(adapterMocks.listAutomationJobRuns).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationTriggerRuns).not.toHaveBeenCalled();
+
+    jobRead.resolve({ id: "job-1", scope: "global" });
+    triggerRead.resolve({ id: "trigger-1", scope: "global" });
+    await waitFor(() => {
+      expect(adapterMocks.listAutomationJobRuns).toHaveBeenCalledTimes(1);
+      expect(adapterMocks.listAutomationTriggerRuns).toHaveBeenCalledTimes(1);
+    });
     queryClient.clear();
   });
 
