@@ -35,6 +35,8 @@ export function useSessionWindowPullRequest(input: {
     workspaceId,
     worktreeId: worktreeId ?? "",
     enabled: bound && liveDataEnabled,
+    // The chip's exit surface has no inline error slot.
+    onPrepareError: message => toast.error(message),
   });
   // The context dialog runs its own copy of this flow; only an action started
   // from the chip shows its dialogs and progress here, so one action never

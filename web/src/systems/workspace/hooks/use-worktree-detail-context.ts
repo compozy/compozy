@@ -47,7 +47,14 @@ interface UseWorktreeDetailContextParams {
   enabled?: boolean;
   onRemove?: () => void;
   onCleanUp?: () => void;
+  /**
+   * Reports a failed PR preparation for a surface that has no inline error
+   * slot. When set, the failure is reported here instead of as the model error.
+   */
+  onPrepareError?: (message: string) => void;
 }
+
+const PREPARE_ERROR_FALLBACK = "Couldn't prepare the pull request.";
 
 const COMMIT_ACTIONS = new Set(["commit", "commit_push"]);
 
@@ -64,6 +71,7 @@ export function useWorktreeDetailContext({
   enabled = true,
   onRemove,
   onCleanUp,
+  onPrepareError,
 }: UseWorktreeDetailContextParams): WorktreeDetailModel {
   const worktrees = useWorktrees(workspaceId || null, { enabled });
   const status = useWorktreeStatus(workspaceId, worktreeId, { enabled });
@@ -76,7 +84,14 @@ export function useWorktreeDetailContext({
 
   function onAction(row: WorktreeExitLadderRow) {
     if (row.action === "open_pr") {
-      if (!prepare.isPending) prepare.mutate(undefined, { onSuccess: () => setDialog("pr") });
+      if (prepare.isPending) return;
+      prepare.mutate(undefined, {
+        onSuccess: () => setDialog("pr"),
+        onError: error =>
+          onPrepareError?.(
+            error instanceof Error && error.message ? error.message : PREPARE_ERROR_FALLBACK
+          ),
+      });
       return;
     }
     if (row.opensURL && row.url) {
@@ -102,7 +117,8 @@ export function useWorktreeDetailContext({
   const forgeFetchedAt = status.data?.forge?.fetched_at;
   const staleLabel =
     ladder?.cleanup.stale && forgeFetchedAt ? formatRelativeTime(forgeFetchedAt) : undefined;
-  const detailError = worktrees.error ?? status.error ?? exit.error ?? prepare.error;
+  const prepareError = onPrepareError ? null : prepare.error;
+  const detailError = worktrees.error ?? status.error ?? exit.error ?? prepareError;
   const detailLoading = worktrees.isPending || status.isPending || exit.isLoading;
   const state: WorktreeDetailModel["state"] = detailError
     ? "error"

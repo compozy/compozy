@@ -43,11 +43,12 @@ vi.mock("../../adapters/worktree-exit-api", async importOriginal => ({
   runWorktreeExitAction: vi.fn(),
 }));
 
-function ColdWorktreeExit() {
+function ColdWorktreeExit({ onPrepareError }: { onPrepareError?: (message: string) => void }) {
   const model = useWorktreeDetailContext({
     workspaceId: "ws_cold",
     worktreeId: "wt_cold",
     enabled: false,
+    onPrepareError,
   });
   return (
     <>
@@ -130,5 +131,43 @@ describe("PR action preparation", () => {
     view.unmount();
     queryClient.clear();
     openBrowser.mockRestore();
+  });
+
+  it("Should report a failed preparation once and keep the action retryable", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(workspaceKeys.list(), []);
+    queryClient.setQueryData(statusKeys.current(), {});
+    queryClient.setQueryData(workspaceKeys.worktrees("ws_cold"), {
+      worktrees: [buildWorktreeFixture({ id: "wt_cold", workspace_id: "ws_cold" })],
+      discovered: [],
+    });
+    queryClient.setQueryData(workspaceKeys.worktreeStatus("ws_cold", "wt_cold"), {
+      worktree_id: "wt_cold",
+      status: {},
+    });
+    queryClient.setQueryData(workspaceKeys.worktreeExit("ws_cold", "wt_cold"), {
+      ...exitPlanOpenPrFixture,
+      worktree_id: "wt_cold",
+    });
+    vi.mocked(prepareWorktreeExitPlan).mockReset();
+    vi.mocked(prepareWorktreeExitPlan).mockRejectedValue(new Error("forge request timed out"));
+    const onPrepareError = vi.fn();
+    const user = userEvent.setup();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <SessionCreateProvider store={createSessionCreateStore()}>
+          <ColdWorktreeExit onPrepareError={onPrepareError} />
+        </SessionCreateProvider>
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByRole("button", { name: "Open PR" }));
+    await waitFor(() => expect(onPrepareError).toHaveBeenCalledWith("forge request timed out"));
+    expect(onPrepareError).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Open PR" })).toBeEnabled());
+    view.unmount();
+    queryClient.clear();
   });
 });
