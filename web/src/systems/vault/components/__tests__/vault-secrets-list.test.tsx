@@ -61,10 +61,19 @@ describe("VaultSecretsList", () => {
 
   it("Should route loading, error, and empty through DataSurface slots", () => {
     const { rerender } = render(<VaultSecretsList secrets={[]} isLoading />);
-    expect(screen.getByTestId("vault-secrets-list-loading")).toHaveAttribute(
-      "data-slot",
-      "block-loading"
-    );
+    // Loading is one busy region holding placeholder rows, not a centered spinner.
+    const loading = screen.getByTestId("vault-secrets-list-loading");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading).toHaveTextContent("Loading secrets");
+    expect(loading.querySelectorAll('[data-slot="listing-row"]').length).toBeGreaterThan(0);
+
+    rerender(<VaultSecretsList secrets={[]} isLoading view="cards" />);
+    expect(
+      screen
+        .getByTestId("vault-secrets-list-loading")
+        .querySelectorAll('[data-slot="catalog-card"]').length
+    ).toBeGreaterThan(0);
 
     rerender(<VaultSecretsList secrets={[]} error={new Error("vault down")} />);
     expect(screen.getByTestId("vault-secrets-list-error")).toHaveTextContent("vault down");

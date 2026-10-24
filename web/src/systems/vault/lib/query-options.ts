@@ -7,10 +7,21 @@ import { vaultKeys } from "./query-keys";
 const VAULT_STALE_TIME = 15_000;
 const VAULT_REFETCH_INTERVAL = 45_000;
 
+/** The namespace a prefix edit leaves alone: the key without its trailing prefix. */
+function vaultListNamespace(queryKey: readonly unknown[]): string {
+  return JSON.stringify(queryKey.slice(0, -1));
+}
+
 export function vaultSecretsListOptions(filter: VaultListFilter = {}) {
+  const queryKey = vaultKeys.list(filter);
   return queryOptions({
-    queryKey: vaultKeys.list(filter),
+    queryKey,
     queryFn: ({ signal }) => listVaultSecrets(filter, signal),
+    // Typing a prefix keeps the previous rows on screen; another namespace shows nothing stale.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery && vaultListNamespace(previousQuery.queryKey) === vaultListNamespace(queryKey)
+        ? previousData
+        : undefined,
     staleTime: VAULT_STALE_TIME,
     refetchInterval: VAULT_REFETCH_INTERVAL,
   });
