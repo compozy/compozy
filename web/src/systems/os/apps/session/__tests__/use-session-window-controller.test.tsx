@@ -96,6 +96,16 @@ vi.mock("@/systems/session", () => ({
   },
 }));
 
+// The PR chip feed owns its own suite; the controller only forwards it.
+vi.mock("../use-session-window-pull-request", () => ({
+  useSessionWindowPullRequest: () => ({
+    pullRequestExit: undefined,
+    pullRequestRefresh: { mutate: vi.fn(), isPending: false },
+    exitSurface: null,
+    onSendPrompt: vi.fn(),
+  }),
+}));
+
 vi.mock("@/systems/vault", () => ({
   useSessionVaultSecrets: (...args: unknown[]) => {
     mocks.sessionVault(...args);
