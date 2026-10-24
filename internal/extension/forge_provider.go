@@ -255,7 +255,7 @@ func (m *Manager) forgeProviderNames(ctx context.Context) ([]string, error) {
 		names[index] = candidate.name
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("extension: no active forge provider: %w", toolspkg.ErrToolUnavailable)
+		return nil, &ForgeProviderError{cause: "provider_disabled", unavailable: true}
 	}
 	return names, nil
 }

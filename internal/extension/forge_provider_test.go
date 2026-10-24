@@ -19,6 +19,27 @@ import (
 func TestManagerForgeProvider(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should classify a disabled forge extension without invoking its process", func(t *testing.T) {
+		t.Parallel()
+		process := newFakeProcess(5199)
+		process.callFn = func(context.Context, string, any, any) error {
+			t.Error("disabled provider invoked")
+			return errors.New("unexpected call")
+		}
+		manager := NewManager(nil)
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		manager.mu.Lock()
+		manager.extensions["github-provider"].active = false
+		manager.mu.Unlock()
+		_, err := manager.ForgeStatus(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		if !errors.Is(err, toolspkg.ErrToolUnavailable) || ForgeProviderErrorCause(err) != "provider_disabled" {
+			t.Fatalf("disabled provider = %v, cause=%q", err, ForgeProviderErrorCause(err))
+		}
+	})
+
 	t.Run("Should validate optional display facts without requiring them", func(t *testing.T) {
 		t.Parallel()
 		base := extensioncontract.ForgeStatusResponse{Provider: "github", FetchedAt: time.Unix(1, 0)}

@@ -17,6 +17,8 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 
 	"github.com/compozy/compozy/internal/config"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
+	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -132,6 +134,20 @@ func TestDaemonExecutionWorktreesResolveServiceAfterConsumerBoot(t *testing.T) {
 
 func TestDaemonForgeRuntimeErrorTranslation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the disabled provider cause from runtime selection", func(t *testing.T) {
+		t.Parallel()
+		manager := extensionpkg.NewManager(nil)
+		_, err := manager.ForgeStatus(
+			t.Context(),
+			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
+		)
+		mapped := mapForgeRuntimeError(err)
+		if !errors.Is(mapped, worktree.ErrForgeUnavailable) ||
+			worktree.ForgeFailureCause(mapped) != "provider_disabled" {
+			t.Fatalf("disabled provider=%v", mapped)
+		}
+	})
 
 	t.Run("Should preserve unavailable extension errors as forge unavailable", func(t *testing.T) {
 		t.Parallel()
