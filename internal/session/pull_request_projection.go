@@ -114,7 +114,7 @@ func (m *Manager) RefreshSessionPullRequest(ctx context.Context, info *Info) (Pu
 	return PullRequestProjection{Branch: branch, PullRequestView: view}, err
 }
 
-// PublishWorkspaceCatalogChanged wakes every affected profile, including stopped sessions.
+// PublishWorkspaceCatalogChanged wakes catalog and session reads in every affected profile.
 func (m *Manager) PublishWorkspaceCatalogChanged(workspaceID string, profiles []string) {
 	for _, profileID := range profiles {
 		m.publishSessionCatalogEvent(

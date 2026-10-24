@@ -328,6 +328,52 @@ describe("useSessionCatalogStreams", () => {
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
   });
 
+  it("Should reconcile open detail and by-id reads from the daemon PR cache workspace wake", async () => {
+    const queryClient = createQueryClient();
+    const before = { ...primarySessionFixture, branch: "topic" };
+    const after = {
+      ...before,
+      pull_request: { ...before.pull_request, number: 42, state: "merged" },
+    };
+    const read = vi.fn().mockResolvedValue(after);
+    const keys = [
+      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+      sessionKeys.byId(SESSION_ID, "default"),
+    ];
+    const unsubscribe = keys.map(queryKey =>
+      new QueryObserver(queryClient, {
+        queryKey,
+        initialData: before,
+        staleTime: Infinity,
+        queryFn: read,
+      }).subscribe(() => {})
+    );
+    const foreign = sessionKeys.byId("foreign", "default");
+    queryClient.setQueryData(foreign, { ...before, id: "foreign", workspace_id: "other" });
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      { wrapper: wrapper(queryClient) }
+    );
+    act(() =>
+      source.emit("session_catalog_changed", {
+        kind: "layout",
+        profile_id: "default",
+        profile_name: "",
+        workspace_id: WORKSPACE_ID,
+        session_id: "",
+      })
+    );
+    await waitFor(() => {
+      for (const key of keys) expect(queryClient.getQueryData(key)).toEqual(after);
+    });
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(queryClient.getQueryState(foreign)?.isInvalidated).toBe(false);
+    unmount();
+    for (const stop of unsubscribe) stop();
+  });
+
   it("Should reconcile the workspace lists on a layout change without touching a session", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();

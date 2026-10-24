@@ -32,3 +32,27 @@ Automated slice evidence: `TestSessionBranchSnapshots`, `TestSessionPullRequestA
 real-Git `TestWorktreeLifecycleIntegration/Should_clean_up_a_gone_upstream_only_with_current_merged_HEAD_evidence`.
 The controller's final QA walk owns live-provider and UI verification; these package checks do not
 claim that walk passed.
+
+Review regression checks:
+
+- Run cached CLI reads on a default-branch, detached-HEAD, or never-settled session in human and
+  JSON formats: exit 1 with `session_branch_unavailable`. A linked-session explicit refresh uses
+  the canonical by-id route and returns the refreshed observation.
+- Open managed session topbars while the display cache is stale or rate-limited. Exit-plan reads
+  perform no inline forge capability/status requests. Cold plans use local/browser actions;
+  previously observed capabilities can supply presentation defaults. Explicit actions revalidate
+  capabilities, and removal still obtains fresh evidence against the current HEAD.
+- Occupy all four display-refresh slots, queue an automatic refresh under backoff, then join it
+  explicitly: exactly one provider call runs for that key after admission.
+- Return HTTP 200 with GraphQL `RATE_LIMITED` and `X-RateLimit-Reset`: retain the reset timestamp.
+  Disable the forge extension: retain prior facts and report `provider_disabled`.
+- Change cached PR facts while two sessions sharing a branch are open. The workspace catalog wake
+  refreshes detail and by-id reads as well as lists; unrelated workspaces stay unchanged.
+- Force the supported REST fallback. Prefer matching origin-repository open PRs, then terminal
+  PRs, by newest update. Missing identity/update evidence or an exhausted candidate bound without
+  a match produces `incomplete`, not a confirmed absence.
+
+Focused review evidence: real-Git exit-plan/removal integration, CLI HTTP-client routing,
+`TestSessionPullRequestCommand`, `TestPullRequestService`, `TestProvider`, `TestProviderGraphQL`,
+`TestManagerForgeProvider`, `TestDaemonForgeRuntimeErrorTranslation`, `TestSessionCatalogBroadcaster`,
+and the catalog-stream Vitest suite. Live GitHub and full desktop walks remain controller-owned.

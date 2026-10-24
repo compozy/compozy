@@ -912,6 +912,67 @@ func (s *subagentWorktreeServiceStub) StatusDetails(
 // Owner: daemon Git and forge adapters; canonical worktree composition suite.
 func TestSessionPullRequestAdapters(t *testing.T) {
 	t.Parallel()
+	t.Run("Should deliver a workspace wake from an actual PR cache change", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		now := time.Unix(1800000000, 0).UTC()
+		const workspaceID = "ws-pr-cache"
+		if err := db.InsertWorkspace(
+			t.Context(),
+			workspacepkg.Workspace{
+				ID:        workspaceID,
+				Name:      "PR cache",
+				RootDir:   t.TempDir(),
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		manager, err := session.NewManager(session.WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			session.CatalogScope{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer cancel()
+		pulls := worktree.NewPullRequestService(t.Context(), db.Worktrees, nil, nil, func(workspace string) {
+			manager.PublishWorkspaceCatalogChanged(workspace, []string{store.DefaultProfileID})
+		})
+		t.Cleanup(pulls.Close)
+		entry, err := pulls.Refresh(
+			t.Context(),
+			worktree.PullRequestKey{WorkspaceID: workspaceID, RepoKey: "github.com/acme/repo", Branch: "topic"},
+		)
+		if err == nil || entry.LookupCause != "provider_disabled" {
+			t.Fatalf("refresh=%#v %v", entry, err)
+		}
+		select {
+		case event := <-events:
+			if event.Name != session.CatalogEventNameChanged || event.Kind != session.CatalogEventLayout ||
+				event.WorkspaceID != workspaceID ||
+				event.ProfileID != store.DefaultProfileID ||
+				event.SessionID != "" {
+				t.Fatalf("cache event=%#v", event)
+			}
+		default:
+			t.Fatal("PR cache change did not emit its workspace wake")
+		}
+	})
+
 	t.Run("Should resolve branches using real Git without reading the forge", func(t *testing.T) {
 		t.Parallel()
 		runner, err := worktree.NewRealGitRunner(0)
