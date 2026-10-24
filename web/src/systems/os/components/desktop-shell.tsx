@@ -183,6 +183,7 @@ function DesktopShellScopedBody({
     scope: model.dataScope,
     worktreeId: worktreeSelection.activeWorktree?.id,
     enabled: worktreeSelection.resolved,
+    pending: !worktreeSelection.resolved,
   });
   const openNewSession = () => {
     sessionCreate.openForAgent("");
