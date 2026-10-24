@@ -39,6 +39,7 @@ func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string
 	return commitCatalogPublication(ctx, stage, output)
 }
 
+// stageCatalogPublication writes artifacts, the released feed, and digest-bound compatibility metadata into staging.
 func stageCatalogPublication(ctx context.Context, source, stage string, sources *publicationSources) error {
 	current := make([]publicationEntry, 0, len(sources.Entries))
 	for _, metadata := range sources.Entries {

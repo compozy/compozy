@@ -113,6 +113,7 @@ func decodePublicationJSON(raw []byte, value any) error {
 	return nil
 }
 
+// packagePublicationEntry derives version, requirements, inputs, and archive identity from the source package.
 func packagePublicationEntry(
 	sourceDir, stage string,
 	sources *publicationSources,

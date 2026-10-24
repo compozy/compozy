@@ -27,11 +27,12 @@ func ApplyCompatibility(document *Document, feed, raw []byte) error {
 	}
 	for index := range document.Entries {
 		entry := &document.Entries[index]
-		minimum := compatibility.MinimumVersions[entry.DigestSHA256]
-		if minimum == "" {
+		minimum, exists := compatibility.MinimumVersions[entry.DigestSHA256]
+		if !exists {
 			return fmt.Errorf("%w: missing compatibility requirement for %q", ErrCatalogValidation, entry.EntryID)
 		}
-		if _, err := semver.StrictNewVersion(minimum); err != nil {
+		// An explicit empty requirement represents a portable package with no native minimum.
+		if _, err := semver.StrictNewVersion(minimum); minimum != "" && err != nil {
 			return fmt.Errorf("%w: invalid minimum version for %q: %w", ErrCatalogValidation, entry.EntryID, err)
 		}
 		var payload pluginEntry

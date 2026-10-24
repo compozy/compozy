@@ -831,13 +831,13 @@ func TestCatalogSourceFetch(t *testing.T) {
 	t.Run("Should bind compatibility requirements to the complete feed", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
-			name, minimum                 string
+			name, minimum, wantMessage    string
 			wrongFeed, missing, wantError bool
 		}{
 			{name: "Should project a valid minimum", minimum: "0.5.0"},
-			{name: "Should reject metadata from another feed", minimum: "0.5.0", wrongFeed: true, wantError: true},
-			{name: "Should reject an absent archive requirement", missing: true, wantError: true},
-			{name: "Should reject a malformed minimum", minimum: "next", wantError: true},
+			{name: "Should reject metadata from another feed", minimum: "0.5.0", wrongFeed: true, wantError: true, wantMessage: "compatibility metadata does not match the extension feed"},
+			{name: "Should reject an absent archive requirement", missing: true, wantError: true, wantMessage: `missing compatibility requirement for "github-tools"`},
+			{name: "Should reject a malformed minimum", minimum: "next", wantError: true, wantMessage: `invalid minimum version for "github-tools"`},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -864,6 +864,9 @@ func TestCatalogSourceFetch(t *testing.T) {
 				if tc.wantError {
 					if !errors.Is(err, ErrCatalogValidation) {
 						t.Fatalf("metadata error = %v", err)
+					}
+					if !strings.Contains(err.Error(), tc.wantMessage) {
+						t.Fatalf("metadata error = %v, want %q", err, tc.wantMessage)
 					}
 					return
 				}

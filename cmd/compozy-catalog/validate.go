@@ -12,10 +12,12 @@ import (
 	"strings"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
+	"github.com/compozy/compozy/internal/extension/agentplugin"
 	"github.com/compozy/compozy/internal/marketplace"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 )
 
+// validateCatalogForPublication verifies feed, compatibility metadata, and archives before publication.
 func validateCatalogForPublication(ctx context.Context, directory string) (err error) {
 	if ctx == nil {
 		return errors.New("compozy-catalog: validation context is required")
@@ -64,6 +66,7 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 	return nil
 }
 
+// validateExtensionArtifact checks pinned package bytes against their feed metadata and available source manifest.
 func validateExtensionArtifact(
 	ctx context.Context,
 	catalogDir string,
@@ -179,6 +182,7 @@ func removeCatalogTemporaryDirectory(path string) error {
 	return nil
 }
 
+// validateArtifactSource rejects source/archive drift while allowing source-free publication staging.
 func validateArtifactSource(catalogDir, entryID, installedPath string) error {
 	packages := filepath.Join(catalogDir, "packages")
 	// #nosec G703 -- packages is beneath the explicit operator-selected catalog directory.
@@ -196,17 +200,36 @@ func validateArtifactSource(catalogDir, entryID, installedPath string) error {
 		if err != nil {
 			return fmt.Errorf("compozy-catalog: read source manifest for %q: %w", entryID, err)
 		}
-		packaged, err := os.ReadFile(filepath.Join(installedPath, filename))
-		if err != nil {
-			return fmt.Errorf("compozy-catalog: read packaged manifest for %q: %w", entryID, err)
-		}
-		if !bytes.Equal(source, packaged) {
-			return fmt.Errorf(
-				"compozy-catalog: extension %q packaged manifest differs from source; regenerate with publish",
-				entryID,
-			)
-		}
-		return nil
+		return compareSourceManifest(entryID, source, filepath.Join(installedPath, filename))
 	}
-	return fmt.Errorf("compozy-catalog: extension %q source manifest is missing", entryID)
+	root := filepath.Join(packages, entryID)
+	path, _, err := agentplugin.LocateManifest(root)
+	if err != nil {
+		return fmt.Errorf("compozy-catalog: locate source manifest for %q: %w", entryID, err)
+	}
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return err
+	}
+	// #nosec G703 -- LocateManifest selects a supported manifest inside the operator-selected package root.
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("compozy-catalog: read source manifest for %q: %w", entryID, err)
+	}
+	return compareSourceManifest(entryID, source, filepath.Join(installedPath, relative))
+}
+
+// compareSourceManifest requires byte-for-byte identity with the manifest selected from the source package.
+func compareSourceManifest(entryID string, source []byte, packagedPath string) error {
+	packaged, err := os.ReadFile(packagedPath)
+	if err != nil {
+		return fmt.Errorf("compozy-catalog: read packaged manifest for %q: %w", entryID, err)
+	}
+	if !bytes.Equal(source, packaged) {
+		return fmt.Errorf(
+			"compozy-catalog: extension %q packaged manifest differs from source; regenerate with publish",
+			entryID,
+		)
+	}
+	return nil
 }

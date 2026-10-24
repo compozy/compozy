@@ -140,6 +140,10 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 			var presetName atomic.Value
 			presetName.Store("original")
 			feed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/v3/extensions.json" && r.URL.Path != "/v3/marketplaces.json" {
+					http.NotFound(w, r)
+					return
+				}
 				var entries any = []any{}
 				if r.URL.Path == "/v3/marketplaces.json" {
 					entries = []marketplace.Preset{
@@ -543,6 +547,10 @@ func TestBootMarketplaceLifecycle(t *testing.T) {
 		requestStarted := make(chan struct{})
 		requestCanceled := make(chan struct{})
 		oldServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/v3/extensions.json" && request.URL.Path != "/v3/marketplaces.json" {
+				http.NotFound(writer, request)
+				return
+			}
 			if request.URL.Path != "/v3/extensions.json" {
 				if _, err := writer.Write([]byte(
 					`{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`,
@@ -612,6 +620,10 @@ func (w blockingMarketplaceEventWriter) WriteEventSummary(ctx context.Context, _
 func newMarketplaceFeedServer(t *testing.T, entryID string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v3/extensions.json" && request.URL.Path != "/v3/marketplaces.json" {
+			http.NotFound(writer, request)
+			return
+		}
 		writer.Header().Set("Content-Type", "application/json")
 		body := `{"manifest_version":3,"generated_at":"2026-07-13T12:00:00Z","entries":[]}`
 		if request.URL.Path == "/v3/extensions.json" {

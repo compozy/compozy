@@ -66,6 +66,7 @@ func (h *BaseHandlers) extensionInstallIndex(
 	return index, nil
 }
 
+// catalogMarketplaceListing joins installation identity and current daemon compatibility into the shared read model.
 func (h *BaseHandlers) catalogMarketplaceListing(
 	ctx context.Context,
 	entry marketplacepkg.Entry,

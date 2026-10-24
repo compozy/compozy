@@ -11,6 +11,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
+// catalogMarketplaceEntry keeps incompatible entries readable while preserving install blockers and inspection errors.
 func (h *BaseHandlers) catalogMarketplaceEntry(
 	ctx context.Context,
 	source, entryID string,

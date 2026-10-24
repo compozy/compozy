@@ -39,6 +39,7 @@ func validateManifestRuntime(manifest *Manifest) error {
 	)
 }
 
+// validateNativeManifestCompatibility requires a native minimum and verifies it against the running build.
 func validateNativeManifestCompatibility(manifest *Manifest) error {
 	if err := requireField(manifestMinCompozyVersionKey, manifest.MinCompozyVersion); err != nil {
 		return err
