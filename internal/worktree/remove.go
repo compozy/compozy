@@ -215,7 +215,10 @@ func (s *Service) runFencedRemoval(
 		return false, nil, err
 	}
 	if presence == checkoutOrphaned {
-		return false, nil, s.removeOrphanedCheckout(ctx, workspaceRoot, commonDir, item.Path, orphan)
+		return false, nil, s.removeOrphanedCheckout(ctx, workspaceRoot, commonDir, item.Path, orphan, force)
+	}
+	if presence == checkoutAbsent {
+		return false, nil, s.removeAbsentCheckout(ctx, workspaceRoot, commonDir, item, force)
 	}
 	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction}
 	if force {
@@ -232,7 +235,7 @@ func (s *Service) runFencedRemoval(
 	case identityErr != nil:
 		return true, nil, errors.Join(fmt.Errorf("%w: %s: %v", ErrRemovalFailed, detail, removeErr), identityErr)
 	case presence == checkoutAbsent:
-		return true, nil, nil
+		return false, nil, s.removeAbsentCheckout(ctx, workspaceRoot, commonDir, item, force)
 	case presence == checkoutOrphaned:
 		// Git stopped midway, after deleting the .git link. The record stays
 		// ready, and the refusal offers to delete what is left.
@@ -278,6 +281,9 @@ func (s *Service) evaluateFencedRemoval(
 	switch presence {
 	case checkoutAbsent:
 		if err := s.requireNoActiveSession(ctx, item); err != nil {
+			return false, RemovalRisk{}, nil, err
+		}
+		if err := s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, force); err != nil {
 			return false, RemovalRisk{}, nil, err
 		}
 		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)

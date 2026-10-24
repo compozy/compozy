@@ -31,3 +31,12 @@ active/foreign/archived/discovered exclusions, immutable targets during live upd
 partial results and failed-only retry. Metadata dismissal preserves replacements and history;
 repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
 Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).
+
+2026-10-24 removal recovery regression: a locked, empty orphan must refuse unforced removal by
+registered ID and discovered path, preserving its folder and Git lock; explicit force removes
+both. Interrupt an orphan removal after deleting its folder but before clearing its Git entry.
+Retry and boot recovery must clear only that entry before emitting `worktree.removed`, preserve an
+unrelated stale entry, and remain retryable while cleanup fails. If the saved Git backlink changes,
+even force must preserve the registration and the other checkout. These cases are owned by
+`TestWorktreeLifecycleIntegration` in `internal/worktree/worktree_integration_test.go`; validation
+uses real isolated Git repositories and the race detector.

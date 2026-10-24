@@ -210,15 +210,14 @@ func (s *Service) interruptedRemovalRefusal(
 		refusal(ErrCheckoutOrphaned, orphanedCheckoutDetail)
 }
 
-// removeOrphanedCheckout deletes the leftover directory first and only then
-// clears Git's entry, which Git accepts once the checkout is gone. Stopping in
-// between leaves another orphaned checkout, never an untracked directory.
+// Git accepts clearing an orphan's registration only after the leftover directory is gone.
 func (s *Service) removeOrphanedCheckout(
 	ctx context.Context,
 	root string,
 	commonDir string,
 	gitPath string,
 	orphan orphanedCheckout,
+	force bool,
 ) error {
 	for _, protected := range []string{commonDir, root} {
 		within, err := fileutil.PathWithinRoot(orphan.path, protected)
@@ -226,17 +225,74 @@ func (s *Service) removeOrphanedCheckout(
 			return refusal(ErrSafetyCheckFailed, "the leftover directory contains the repository")
 		}
 	}
+	args, err := checkoutRemovalArgs(commonDir, gitPath, orphan.adminGitDir, force)
+	if err != nil {
+		return err
+	}
 	if err := os.RemoveAll(orphan.path); err != nil {
 		return fmt.Errorf("%w: delete leftover checkout: %v", ErrRemovalFailed, err)
 	}
-	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction, "--force"}
-	if _, err := os.Lstat(filepath.Join(orphan.adminGitDir, "locked")); err == nil {
-		// Git documents a second --force as the override for a locked entry.
-		args = append(args, "--force")
-	}
-	args = append(args, gitPath)
 	if _, stderr, err := s.runCheckoutRemoval(ctx, root, args...); err != nil {
 		return fmt.Errorf("%w: clear orphaned Git entry: %s: %v",
+			ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
+	}
+	return nil
+}
+
+func checkoutRemovalArgs(commonDir, gitPath, adminGitDir string, force bool) ([]string, error) {
+	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction}
+	if force {
+		args = append(args, "--force")
+	}
+	if _, err := os.Lstat(filepath.Join(adminGitDir, "locked")); err == nil {
+		if !force {
+			return nil, refusal(ErrRemovalFailed, "the worktree is locked; force is required to remove it")
+		}
+		args = append(args, "--force")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("%w: inspect worktree lock: %v", ErrRemovalFailed, err)
+	}
+	return append(args, gitPath), nil
+}
+
+// A missing directory can still own a Git entry after an interrupted deletion.
+func (s *Service) removeAbsentCheckout(
+	ctx context.Context,
+	root, commonDir string,
+	item Worktree,
+	force bool,
+) error {
+	if _, err := os.Lstat(item.GitDir); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("%w: inspect saved Git identity: %v", ErrRemovalFailed, err)
+	}
+	adminGitDir, err := validateAdoptionAdminPath(item.GitDir, commonDir)
+	if err != nil || adminGitDir != filepath.Clean(item.GitDir) {
+		return refusal(ErrRemovalFailed, "worktree Git identity changed")
+	}
+	backlink, err := os.ReadFile(filepath.Join(adminGitDir, "gitdir"))
+	if err != nil {
+		return fmt.Errorf("%w: read saved Git backlink: %v", ErrRemovalFailed, err)
+	}
+	backlinkPath := strings.TrimSpace(string(backlink))
+	if !filepath.IsAbs(backlinkPath) {
+		backlinkPath = filepath.Join(adminGitDir, backlinkPath)
+	}
+	registeredPath, err := fileutil.CanonicalPathWithExistingPrefix(backlinkPath)
+	target, targetErr := fileutil.CanonicalPathWithExistingPrefix(item.Path)
+	if err != nil || targetErr != nil || registeredPath != filepath.Join(target, ".git") {
+		return refusal(ErrRemovalFailed, "worktree Git backlink changed")
+	}
+	if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+		return refusal(ErrRemovalFailed, "the checkout reappeared; refresh before removing it")
+	}
+	args, err := checkoutRemovalArgs(commonDir, filepath.Dir(backlinkPath), adminGitDir, force)
+	if err != nil {
+		return err
+	}
+	if _, stderr, err := s.runCheckoutRemoval(ctx, root, args...); err != nil {
+		return fmt.Errorf("%w: clear saved Git entry: %s: %v",
 			ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
 	}
 	return nil

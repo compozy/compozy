@@ -212,7 +212,14 @@ func (s *Service) removeDiscoveredOrphan(
 		refusalResult != nil {
 		return refusalResult, err
 	}
-	if err := s.removeOrphanedCheckout(ctx, workspace.Root, commonDir, target.entry.Path, current.orphan); err != nil {
+	if err := s.removeOrphanedCheckout(
+		ctx,
+		workspace.Root,
+		commonDir,
+		target.entry.Path,
+		current.orphan,
+		force,
+	); err != nil {
 		return nil, err
 	}
 	s.invalidateDiscovery(workspaceID)

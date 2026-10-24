@@ -1,5 +1,22 @@
 # Compozy Change Impact
 
+## Interrupted worktree removal review repairs — 2026-10-24
+
+Owner: post-merge audit of PR #964. Existing CLI/HTTP/UDS removal and
+`compozy__worktree_remove` retain their schemas and force acknowledgement. Empty orphaned
+checkouts now respect Git locks; retries and boot recovery clear the saved Git entry before
+tombstoning an absent checkout. Identity mismatch or cleanup failure remains retryable.
+
+- **Isolation and data:** validate the saved admin directory and backlink under the repository
+  lock; remove only that entry, never prune unrelated worktrees. No schema or migration change.
+- **Hooks/extensions/config:** existing hooks and configuration stay unchanged; the removed event
+  occurs only after directory and Git registration cleanup succeeds.
+- **Web and official skill:** existing removal/refusal flows and the documented force policy
+  remain valid; no Web, tool descriptor, SDK, or `skills/compozy/` contract change is required.
+- **Docs/QA:** `packages/site/content/docs/worktrees/removal-and-recovery.mdx` and
+  `docs/qa/scenarios/RT-worktree-reconcile-branch-safety.md` cover lock acknowledgement, interrupted
+  cleanup, and identity mismatch. Real-Git lifecycle regressions own these invariants.
+
 ## Sessions Kanban — session PR link, `waiting` badge, board columns — 2026-10-24
 
 **Owning spec:** `.compozy/tasks/sessions-kanban/_spec.md`. Impact Analysis is in Part II, the

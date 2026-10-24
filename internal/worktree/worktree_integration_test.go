@@ -1758,7 +1758,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err := os.Chmod(locked, 0o000); err != nil {
 			t.Fatalf("Chmod(locked) error = %v", err)
 		}
-		t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+		t.Cleanup(func() {
+			if err := os.Chmod(locked, 0o700); err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("restore leftover permissions: %v", err)
+			}
+		})
 		if err := f.store.SetState(
 			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
 		); err != nil {
@@ -1828,6 +1832,189 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if _, err := os.Lstat(detachedPath); !errors.Is(err, os.ErrNotExist) || listed(detachedPath) {
 			t.Fatalf("discovered orphan after force: stat=%v listed=%t, want both gone", err, listed(detachedPath))
 		}
+	})
+
+	for _, registered := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should require force for a locked empty orphan registered=%t", registered),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				path := filepath.Join(t.TempDir(), "locked-orphan")
+				f.git(f.workspace.Root, "worktree", "add", "-b", "locked-orphan", path, "main")
+				var id string
+				if registered {
+					item, err := f.service.Adopt(t.Context(), testWorktreeProfileID, f.workspace.ID, path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					id = item.ID
+				}
+				admin := f.git(path, "rev-parse", "--absolute-git-dir")
+				f.git(f.workspace.Root, "worktree", "lock", path)
+				entries, err := os.ReadDir(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, entry := range entries {
+					if err := os.RemoveAll(filepath.Join(path, entry.Name())); err != nil {
+						t.Fatal(err)
+					}
+				}
+				remove := func(force bool) error {
+					t.Helper()
+					if registered {
+						_, err := f.service.Remove(t.Context(), f.workspace.ID, id, force)
+						return err
+					}
+					_, err := f.service.RemoveDiscovered(
+						t.Context(),
+						f.workspace.ID,
+						path,
+						RemoveDiscoveredOptions{Force: force},
+					)
+					return err
+				}
+				if err := remove(false); !errors.Is(err, ErrRemovalFailed) {
+					t.Fatalf("unforced locked removal = %v, want refusal", err)
+				}
+				for _, preserved := range []string{path, filepath.Join(admin, "locked")} {
+					if _, err := os.Stat(preserved); err != nil {
+						t.Fatalf("unforced removal changed %s: %v", preserved, err)
+					}
+				}
+				if err := remove(true); err != nil {
+					t.Fatalf("forced locked removal = %v", err)
+				}
+				for _, removed := range []string{path, admin} {
+					if _, err := os.Lstat(removed); !errors.Is(err, os.ErrNotExist) {
+						t.Fatalf("forced removal retained %s: %v", removed, err)
+					}
+				}
+			},
+		)
+	}
+
+	for _, recovery := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should finish orphan admin cleanup before tombstoning recovery=%t", recovery),
+			func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+					ProfileID: testWorktreeProfileID, Name: "Interrupted Orphan",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				bystander := filepath.Join(t.TempDir(), "stale-bystander")
+				f.git(f.workspace.Root, "worktree", "add", "--detach", bystander, "main")
+				bystanderAdmin := f.git(bystander, "rev-parse", "--absolute-git-dir")
+				if err := os.RemoveAll(bystander); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(filepath.Join(item.Path, ".git")); err != nil {
+					t.Fatal(err)
+				}
+				f.service.runner = &interceptingGitRunner{inner: f.runner,
+					intercept: func(_ string, args []string) ([]byte, []byte, error, bool) {
+						if len(args) >= 5 && args[2] == "worktree" && args[3] == "remove" {
+							return nil, []byte("injected admin cleanup failure"), errors.New("exit 1"), true
+						}
+						return nil, nil, nil, false
+					},
+				}
+				if _, err := f.service.Remove(
+					t.Context(),
+					f.workspace.ID,
+					item.ID,
+					true,
+				); !errors.Is(
+					err,
+					ErrRemovalFailed,
+				) {
+					t.Fatalf("interrupted removal = %v, want cleanup failure", err)
+				}
+				if _, err := os.Lstat(item.Path); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("interruption did not reach admin cleanup: %v", err)
+				}
+				if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+					t.Fatal("failed cleanup completed the removal record")
+				}
+				if _, err := f.service.Remove(
+					t.Context(),
+					f.workspace.ID,
+					item.ID,
+					true,
+				); !errors.Is(
+					err,
+					ErrRemovalFailed,
+				) {
+					t.Fatalf("retry during cleanup failure = %v, want failure", err)
+				}
+				if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+					t.Fatal("failed retry completed the removal record")
+				}
+				f.service = f.newService(f.runner)
+				if recovery {
+					if err := f.store.SetState(
+						t.Context(),
+						f.workspace.ID,
+						item.ID,
+						StateRemoving,
+						item.UpdatedAt,
+					); err != nil {
+						t.Fatal(err)
+					}
+					err = f.service.RecoverCreations(t.Context())
+				} else {
+					_, err = f.service.Remove(t.Context(), f.workspace.ID, item.ID, true)
+				}
+				if err != nil || f.item(item.ID).State != StateRemoved || f.events.count(EventRemoved) != 1 {
+					t.Fatalf(
+						"retry = %v, state=%s, events=%d",
+						err,
+						f.item(item.ID).State,
+						f.events.count(EventRemoved),
+					)
+				}
+				if _, err := os.Lstat(item.GitDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("completed removal retained Git registration: %v", err)
+				}
+				if _, err := os.Stat(bystanderAdmin); err != nil {
+					t.Fatalf("cleanup touched unrelated stale registration: %v", err)
+				}
+			},
+		)
+	}
+
+	t.Run("Should preserve an absent checkout registration whose backlink changed", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+			ProfileID: testWorktreeProfileID, Name: "Changed Backlink",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		bystander := filepath.Join(t.TempDir(), "live-bystander")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", bystander, "main")
+		backlink := filepath.Join(item.GitDir, "gitdir")
+		changed := filepath.Join(bystander, ".git") + "\n"
+		if err := os.WriteFile(backlink, []byte(changed), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.RemoveAll(item.Path); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); !errors.Is(err, ErrRemovalFailed) {
+			t.Fatalf("changed identity removal = %v, want refusal", err)
+		}
+		if f.item(item.ID).State != StateReady || f.events.count(EventRemoved) != 0 {
+			t.Fatal("changed identity was tombstoned")
+		}
+		assertFileContent(t, backlink, changed)
+		assertFileContent(t, filepath.Join(bystander, "README.md"), "initial\n")
 	})
 
 	// Invariant: opt-in branch deletion runs only after cleanup, keeps protected
