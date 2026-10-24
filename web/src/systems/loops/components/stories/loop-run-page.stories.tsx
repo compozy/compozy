@@ -12,7 +12,6 @@ import {
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
-  LoopRunPageSkeleton,
   LoopStatusMark,
 } from "../../index";
 import { projectLoopRunRegisters } from "../../lib/loop-run-registers-view";
@@ -175,18 +174,6 @@ type Story = StoryObj<typeof meta>;
 export const Running: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={runningScenario()} />,
-};
-
-/** The run record has not answered: the page's own frame over placeholders. */
-export const Loading: Story = {
-  args: {},
-  render: () => (
-    <div className="flex h-dvh flex-col bg-canvas">
-      <StoryTopbarHost title="Loops">
-        <LoopRunPageSkeleton />
-      </StoryTopbarHost>
-    </div>
-  ),
 };
 
 /** The run has loaded; the briefing, progress and activity hold their place until their reads do. */

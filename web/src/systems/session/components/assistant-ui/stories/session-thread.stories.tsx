@@ -8,7 +8,6 @@ import { primarySessionFixture, sessionCommandCatalogFixture } from "@/systems/s
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScrollToBottomPill } from "@/components/assistant-ui/scroll-to-bottom-pill";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import { SessionThreadSkeleton } from "@/components/assistant-ui/session-thread-skeleton";
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { HttpResponse } from "msw";
@@ -92,29 +91,6 @@ type Story = StoryObj<typeof meta>;
 export const LoadingSkeleton: Story = {
   args: baseArgs,
   render: args => renderWithTranscriptState(args, { status: "pending" }),
-};
-
-/**
- * The thread pane before its chunk or session arrives: the transcript viewport over the composer
- * card, in the pane the live thread fills.
- */
-export const PaneLoading: Story = {
-  args: baseArgs,
-  render: () => (
-    <div className="flex h-[640px] w-full flex-col border border-line bg-background">
-      <SessionThreadSkeleton />
-    </div>
-  ),
-};
-
-/** A read-only history has no composer to hold a place for. */
-export const ReadOnlyPaneLoading: Story = {
-  args: baseArgs,
-  render: () => (
-    <div className="flex h-[640px] w-full flex-col border border-line bg-background">
-      <SessionThreadSkeleton composer={false} />
-    </div>
-  ),
 };
 
 /**

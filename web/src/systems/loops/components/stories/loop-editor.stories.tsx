@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { delay, HttpResponse } from "msw";
-import type { ComponentProps } from "react";
+import { HttpResponse } from "msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -28,6 +27,7 @@ import {
   retiredCwdDetail,
   revealNodeEnvironment,
 } from "./loop-editor-environment-story-helpers";
+import { EditorHarness } from "./loop-editor-story-harness";
 
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import {
@@ -112,19 +112,6 @@ function editorHandlers(detail: LoopDetail) {
   ];
 }
 
-function EditorHarness({
-  heightClass = "h-[880px]",
-  ...args
-}: ComponentProps<typeof LoopEditor> & { heightClass?: string }) {
-  return (
-    <StoryTopbarHost title="Editor">
-      <StorySurface className={`flex ${heightClass} p-0`}>
-        <LoopEditor {...args} />
-      </StorySurface>
-    </StoryTopbarHost>
-  );
-}
-
 const meta: Meta<typeof LoopEditor> = {
   title: "systems/loops/components/LoopEditor",
   component: LoopEditor,
@@ -137,25 +124,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Editor: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
-};
-
-/**
- * The Loop has not been read: the editor's own chrome (toolbar, node palette, validation bar),
- * inert, over a canvas of placeholders. The read never answers, so the state holds still.
- */
-export const Loading: Story = {
-  args: { workspaceId: WS, name: "implement-tasks" },
-  parameters: {
-    msw: {
-      handlers: [
-        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", async () => {
-          await delay("infinite");
-          throw new Error("unreachable");
-        }),
-        ...loopHandlers,
-      ],
-    },
-  },
 };
 
 export const DslView: Story = {
