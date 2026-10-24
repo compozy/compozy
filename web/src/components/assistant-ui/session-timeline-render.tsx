@@ -238,7 +238,9 @@ function SessionTurnFoldRowContent({ row }: { row: SessionTurnFoldRow }) {
   const expanded = expandedByReader || openedForMatch;
   const matchesInside = navigation?.foldMatchCounts.get(turnId) ?? 0;
   const note = openedForMatch
-    ? "opened for a match"
+    ? navigation?.reveal?.subagentId
+      ? "opened for subagent activity"
+      : "opened for a match"
     : !expanded && matchesInside > 0
       ? `${matchesInside} ${matchesInside === 1 ? "match" : "matches"} inside`
       : null;

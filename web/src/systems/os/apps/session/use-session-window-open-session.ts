@@ -1,3 +1,4 @@
+import { subagentRevealStore } from "@/systems/session";
 import {
   ownerDataScope,
   sameDataScope,
@@ -17,6 +18,7 @@ export interface SessionWindowSidebarTarget {
   sessionId: string;
   agentName: string;
   workspaceId: string;
+  subagentId?: string;
 }
 
 /**
@@ -38,6 +40,13 @@ export function useSessionWindowOpenSession({
   const reducedMotion = useOsReducedMotion();
 
   return (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
+    if (target.subagentId) {
+      subagentRevealStore.trigger.requested({
+        workspaceId: target.workspaceId,
+        sessionId: target.sessionId,
+        subagentId: target.subagentId,
+      });
+    }
     if (sessionId !== undefined && target.sessionId === sessionId) return;
     const targetScope = ownerDataScope(target.workspaceId);
     const allProjects = scope?.kind === "all";

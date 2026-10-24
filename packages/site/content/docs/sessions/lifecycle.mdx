@@ -671,6 +671,11 @@ The default command returns the updated session resource. `--wait` returns the s
 the outcome keeps `state: "stopping"`, `verified: false`, and `attention: "stop_verification_failed"`. The diagnostic also persists on the session resource with the nonterminal `needs-attention` badge, so reconnecting does not lose the retry action. A verified retry clears it. Compact `session status` exposes `lifecycle_state`, `verified`, `escalated`, and `attention`; its existing `state` field retains the health-state vocabulary.
 Inspect the process diagnostics and retry the stop; do not treat that outcome as termination.
 
+If a previous version left a session stopping after its runtime was released, retry Stop or
+Archive after upgrading. Recovery recognizes the unbound runtime with both process identity
+fields cleared and completes the stop without signaling another process. Partial identities
+still require proof of exit. Repeated verification causes appear once in the error message.
+
 HTTP and UDS share the same operation:
 
 ```bash

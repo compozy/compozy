@@ -84,6 +84,7 @@ export function useSessionWindowSidebar({
         sessionId: target.id,
         agentName: target.agent_name,
         workspaceId: target.workspace_id ?? "",
+        ...(target.subagentId ? { subagentId: target.subagentId } : {}),
       },
       { newWindow: false }
     );

@@ -100,8 +100,14 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 // is verified ends like a clean shutdown and its next prompt resumes the ACP session; a
 // release interrupted while its recorded process may still run is not classified here.
 func classifyUnboundMetaForRecovery(meta, next *store.SessionMeta) (store.SessionMeta, bool, bool) {
-	if meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
+	if meta.State == string(StateActive) && meta.RuntimeStatus == store.SessionRuntimeUnbound && meta.Liveness == nil {
 		return *next, false, true
+	}
+	if meta.State == string(StateStopping) && unboundRuntimeWithoutProcess(meta) {
+		next.State = string(StateStopped)
+		next.StopVerificationFailed = false
+		classified, changed := recoveredMeta(meta, next)
+		return classified, changed, true
 	}
 	if !releasedRuntimeMeta(meta) {
 		return store.SessionMeta{}, false, false
@@ -224,11 +230,20 @@ func sessionMetaOwnsLiveSubprocess(meta *store.SessionMeta) bool {
 }
 
 func inactiveProcessExitVerified(meta *store.SessionMeta) bool {
+	if unboundRuntimeWithoutProcess(meta) {
+		return true
+	}
 	if meta.Liveness == nil || meta.Liveness.SubprocessStartedAt == nil {
 		return false
 	}
 	verified, err := procutil.VerifyProcessExit(meta.Liveness.SubprocessPID, *meta.Liveness.SubprocessStartedAt)
 	return err == nil && verified
+}
+
+func unboundRuntimeWithoutProcess(meta *store.SessionMeta) bool {
+	// Unbound runtimes clear both identity fields only after releasing their process.
+	return !interruptedStartupMeta(meta) && meta.RuntimeStatus == store.SessionRuntimeUnbound &&
+		(meta.Liveness == nil || (meta.Liveness.SubprocessPID == 0 && meta.Liveness.SubprocessStartedAt == nil))
 }
 
 func sessionMetaChanged(before *store.SessionMeta, after *store.SessionMeta) bool {

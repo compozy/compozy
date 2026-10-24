@@ -8,6 +8,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { subagentRevealStore } from "@/systems/session/lib/subagent-navigation";
 import type { SessionPayload } from "@/systems/session";
 
 const {
@@ -48,6 +49,8 @@ vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget } }),
 }));
 vi.mock("@/systems/session", async () => ({
+  subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
+    .subagentRevealStore,
   useSessionTransportState: () => transport,
   useTransportGraceElapsed: (await import("@/systems/session/hooks/use-transport-grace-elapsed"))
     .useTransportGraceElapsed,
@@ -160,6 +163,34 @@ describe("useSessionWindowSidebar", () => {
       workspaceId: "workspace-2",
     });
     expect(userRetarget).toHaveBeenCalledTimes(1);
+  });
+
+  // Invariant: selecting native work in the current session still issues a reveal.
+  // Owner: sidebar navigation; canonical suite: this file.
+  it("Should reveal native work without retargeting the already open parent", () => {
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({
+        windowId: "window-session",
+        sessionId: "session-current",
+      })
+    );
+    act(() =>
+      result.current.onSelectSession({
+        id: "session-current",
+        agent_name: "claude",
+        workspace_id: "workspace-1",
+        subagentId: "native-review",
+      })
+    );
+    const request = subagentRevealStore.getSnapshot().context.request;
+    expect(request).toMatchObject({
+      sessionId: "session-current",
+      workspaceId: "workspace-1",
+      subagentId: "native-review",
+    });
+    expect(userRetarget).not.toHaveBeenCalled();
+    expect(jumpToSession).not.toHaveBeenCalled();
+    subagentRevealStore.trigger.settled({ key: request!.key });
   });
 
   it("Should list User sessions under User focus without a worktree filter", () => {

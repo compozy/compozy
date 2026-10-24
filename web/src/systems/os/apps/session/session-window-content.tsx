@@ -2,6 +2,7 @@ import {
   SessionComposerMonitors,
   SessionComposerSubagents,
   SessionContextControl,
+  subagentNavigationTarget,
   useSessionContextActivity,
   type SessionContextActivitySource,
   type SessionInspectorProps,
@@ -80,15 +81,8 @@ function subagentOpener(
   workspaceId: string
 ): NonNullable<SessionInspectorProps["onOpenSubagent"]> {
   return (subagent, options) => {
-    if (subagent.child_session_id === null) return;
-    openSession(
-      {
-        sessionId: subagent.child_session_id,
-        agentName: subagent.runtime.agent ?? "",
-        workspaceId,
-      },
-      options
-    );
+    const target = subagentNavigationTarget(subagent, workspaceId);
+    if (target) openSession(target, options);
   };
 }
 

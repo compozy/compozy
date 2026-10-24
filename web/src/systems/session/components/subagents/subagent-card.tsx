@@ -32,6 +32,8 @@ export interface SubagentCardProps {
    */
   nested?: ReactNode;
   defaultExpanded?: boolean;
+  revealOpen?: boolean;
+  onRevealClose?: () => void;
   /** The stream has not confirmed this row since a reconnect: no ticking, no pulse. */
   stale?: boolean;
   /** `flush` drops the frame inside a group panel. */
@@ -61,7 +63,8 @@ function subagentCardMode(
   hasNested: boolean
 ): SubagentCardMode {
   if (subagent.child_session_id !== null) return canOpen ? "drill" : "static";
-  return hasNested ? "disclosure" : "static";
+  if (hasNested) return "disclosure";
+  return subagent.origin === "provider_native" && canOpen ? "drill" : "static";
 }
 
 /**
@@ -161,6 +164,8 @@ export function SubagentCard({
   onOpen,
   nested,
   defaultExpanded = false,
+  revealOpen = false,
+  onRevealClose,
   stale = false,
   variant = "framed",
   location,
@@ -170,7 +175,7 @@ export function SubagentCard({
   const [expanded, setExpanded] = useState(defaultExpanded);
   const panelId = useId();
   const mode = subagentCardMode(subagent, onOpen !== undefined, nested != null);
-  const open = mode === "disclosure" && expanded;
+  const open = mode === "disclosure" && (expanded || revealOpen);
   const word = SUBAGENT_STATUS_WORD[subagent.status];
   const pullRequest = subagentPullRequest(subagent);
   const chevron = mode === "static" ? null : open ? "open" : "closed";
@@ -191,10 +196,13 @@ export function SubagentCard({
     ) : mode === "disclosure" ? (
       <button
         type="button"
-        aria-expanded={expanded}
+        aria-expanded={open}
         aria-controls={panelId}
         aria-description={word}
-        onClick={() => setExpanded(current => !current)}
+        onClick={() => {
+          if (revealOpen) onRevealClose?.();
+          setExpanded(!open);
+        }}
         {...OPEN_CONTROL}
       />
     ) : (
@@ -210,6 +218,7 @@ export function SubagentCard({
       <HoverCard key={mode}>
         <div
           data-slot="subagent-card"
+          data-subagent-id={subagent.id}
           data-status={subagent.status}
           data-origin={subagent.origin}
           data-settled={isSubagentLive(subagent.status) ? undefined : "true"}
@@ -246,7 +255,7 @@ export function SubagentCard({
       {mode === "disclosure" ? (
         <div
           id={panelId}
-          hidden={!expanded}
+          hidden={!open}
           data-slot="subagent-card-nested"
           className="relative flex flex-col gap-px rounded-b-md border border-t-0 border-line-soft bg-canvas py-1.5 pr-2 pl-10.5 before:absolute before:top-1 before:bottom-2.5 before:left-5.25 before:w-px before:bg-line-strong"
         >

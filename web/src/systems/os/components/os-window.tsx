@@ -6,7 +6,7 @@ import {
   type TopbarSlotStore,
 } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
-import { Suspense, useDeferredValue, useState } from "react";
+import { memo, Suspense, useDeferredValue, useState } from "react";
 import { Rnd } from "react-rnd";
 
 import { cn } from "@/lib/utils";
@@ -46,7 +46,9 @@ export interface OsWindowProps {
  * member's surface — inactive members stay mounted but hidden, so switching
  * tabs never reloads a surface (US-003).
  */
-export function OsWindow({ frame }: OsWindowProps) {
+// A changed frame array recreates every mapped element. Keep unchanged frames
+// outside the render path, including their uncompiled react-rnd descendants.
+export const OsWindow = memo(function OsWindow({ frame }: OsWindowProps) {
   const {
     focused,
     handleDrag,
@@ -155,7 +157,7 @@ export function OsWindow({ frame }: OsWindowProps) {
       </OsWindowChrome>
     </Rnd>
   );
-}
+});
 
 /**
  * Rnd geometry for one frame. Compact fills the desk and never resizes;

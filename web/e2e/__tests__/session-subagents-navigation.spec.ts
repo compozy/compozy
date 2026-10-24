@@ -158,8 +158,18 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await branch.getByRole("button", { name: "Show 2 more" }).click();
     await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
     await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
-    await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
-    await expect(branch).toHaveCount(0);
+    // Invariant: a listed child opens its session, not merely a callback.
+    // Owner: browser/daemon navigation; canonical suite: E2E-009.
+    const opened = branch.getByRole("button", { name: /^Open Nav subagent/ }).first();
+    const title = ((await opened.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
+    const target = subagents.find(row => row.title === title);
+    expect(target?.child_session_id).toBeTruthy();
+    await opened.click();
+    const childWin = sessionWindow(appPage, target!.child_session_id!);
+    await expect(childWin).toBeVisible();
+    await browserArtifacts.captureScreenshot("subagents-sidebar-open-child", appPage);
+    await childWin.getByTestId(`session-sidebar-session-${parent.id}`).click();
+    await expect(parentWin).toBeVisible();
   });
 
   const roster = parentWin.getByTestId("session-inspector-subagents");
