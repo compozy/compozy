@@ -86373,6 +86373,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -86385,6 +86401,16 @@
               }
             },
             "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
           },
           "404": {
             "content": {
@@ -86458,6 +86484,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -86470,6 +86504,16 @@
               }
             },
             "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
           },
           "404": {
             "content": {

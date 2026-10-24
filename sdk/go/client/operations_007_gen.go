@@ -10,6 +10,24 @@ import (
 	"strings"
 )
 
+// FanOutTaskRuns Enqueue designated sibling runs for one task
+func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams, body FanOutTaskRunsRequest) (*FanOutTaskRunsResponse, error) {
+	path := "/api/tasks/{id}/runs/fan-out"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FanOutTaskRunsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ForceFailTaskRunParams carries the path, query, and header parameters.
 type ForceFailTaskRunParams struct {
 	ID      string  `url:"id"`
@@ -414,34 +432,6 @@ func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationT
 
 // GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
 type GetCmdPalettePersonalizationParams struct {
-	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPalettePersonalization Get command palette personalization summary
-func (c *Client) GetCmdPalettePersonalization(ctx context.Context, params GetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResponse, error) {
-	path := "/api/cmd-palette/personalization"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePersonalizationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPaletteRankSignalsParams carries the path, query, and header parameters.
-type GetCmdPaletteRankSignalsParams struct {
 	Workspace   string  `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`

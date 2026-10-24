@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+// DeleteSessionFolderParams carries the path, query, and header parameters.
+type DeleteSessionFolderParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	FolderID    string  `url:"folder_id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteSessionFolder Delete a session folder; its sessions return to the workspace root
 func (c *Client) DeleteSessionFolder(ctx context.Context, params DeleteSessionFolderParams) (*SessionFoldersResponse, error) {
 	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
@@ -435,10 +442,4 @@ func (c *Client) DismissAutomationSuggestion(ctx context.Context, params Dismiss
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DismissTaskParams carries the path, query, and header parameters.
-type DismissTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

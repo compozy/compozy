@@ -4,7 +4,6 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -270,9 +269,10 @@ func (c *Client) CancelQueuedSessionPrompt(ctx context.Context, params CancelQue
 
 // CancelSessionMonitorParams carries the path, query, and header parameters.
 type CancelSessionMonitorParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-	MonitorID   string `url:"monitor_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	MonitorID   string  `url:"monitor_id"`
+	Profile     *string `url:"profile"`
 }
 
 // CancelSessionMonitor Cancel a session monitor without waking the session
@@ -281,6 +281,13 @@ func (c *Client) CancelSessionMonitor(ctx context.Context, params CancelSessionM
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	path = strings.ReplaceAll(path, "{monitor_id}", url.PathEscape(params.MonitorID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionMonitorResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -432,17 +439,4 @@ func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateRespon
 type ClaimNextAgentTaskParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
-func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
-	path := "/api/agent/tasks/claim-next"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentTaskClaimResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

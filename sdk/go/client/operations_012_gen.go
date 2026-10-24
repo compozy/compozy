@@ -9,6 +9,34 @@ import (
 	"strings"
 )
 
+// GetSettingsPersona Read profile-layerable persona defaults
+func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
+	path := "/api/settings/persona"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsPersonaResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderParams carries the path, query, and header parameters.
+type GetSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
 // GetSettingsProvider Read one settings-backed provider
 func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
 	path := "/api/settings/providers/{name}"

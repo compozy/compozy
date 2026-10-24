@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// GetHookEventsParams carries the path, query, and header parameters.
+type GetHookEventsParams struct {
+	Family   *string `url:"family"`
+	SyncOnly *bool   `url:"sync_only"`
+}
+
+// GetHookEvents List supported hook taxonomy metadata
+func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
+	path := "/api/hooks/events"
+	query := url.Values{}
+	if params.Family != nil {
+		query.Set("family", *params.Family)
+	}
+	if params.SyncOnly != nil {
+		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetHookRunsParams carries the path, query, and header parameters.
 type GetHookRunsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -415,14 +441,4 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetObserveOverviewParams carries the path, query, and header parameters.
-type GetObserveOverviewParams struct {
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	UsageWindow    *string `url:"usage_window"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

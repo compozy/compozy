@@ -26,6 +26,8 @@ export interface MonitorComposerControlProps {
   monitors: readonly SessionMonitorPayload[];
   loading?: boolean;
   failed?: boolean;
+  /** The list read found no such session; shown without a retry. */
+  missing?: boolean;
   onRetry?: () => void;
   onCancel?: (monitorId: string) => void;
   cancelingId?: string | null;
@@ -101,6 +103,7 @@ function MonitorComposerBody({
   monitors,
   loading = false,
   failed = false,
+  missing = false,
   onRetry,
   onCancel,
   cancelingId = null,
@@ -123,6 +126,9 @@ function MonitorComposerBody({
         ) : null}
       </div>
     );
+  }
+  if (missing) {
+    return <MonitorLoadError message="This session is no longer available." />;
   }
   if (failed) {
     return <MonitorLoadError message="Couldn't load monitors." onRetry={onRetry} />;

@@ -8,7 +8,7 @@ export type SessionMonitorsResponse = OperationResponse<"listSessionMonitors", 2
 export type SessionMonitorPayload = SessionMonitorsResponse["monitors"][number];
 export type SessionMonitorCancelResponse = OperationResponse<"cancelSessionMonitor", 200>;
 
-/** Reads the session's monitors, active first, newest first. */
+/** Reads the session's monitors across authorized profiles, active first, newest first. */
 export async function fetchSessionMonitors(
   workspaceId: string,
   sessionId: string,
@@ -17,7 +17,10 @@ export async function fetchSessionMonitors(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
     {
-      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId },
+        query: { all_profiles: true },
+      },
       signal,
     }
   );
@@ -27,10 +30,11 @@ export async function fetchSessionMonitors(
   return requireResponseData(data, response, "Failed to fetch monitors");
 }
 
-/** Cancels one monitor; the session is not woken. */
+/** Cancels one monitor in its session's owner profile; the session is not woken. */
 export async function cancelSessionMonitor(
   workspaceId: string,
   sessionId: string,
+  profile: string,
   monitorId: string
 ): Promise<SessionMonitorCancelResponse> {
   const { data, error, response } = await apiClient.POST(
@@ -42,6 +46,7 @@ export async function cancelSessionMonitor(
           session_id: sessionId,
           monitor_id: monitorId,
         },
+        query: { profile },
       },
     }
   );
