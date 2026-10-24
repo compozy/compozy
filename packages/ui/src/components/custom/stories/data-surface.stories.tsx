@@ -19,7 +19,12 @@ type Story = StoryObj<typeof meta>;
 function Surface({ state }: { state: DataSurfaceState }) {
   return (
     <DataSurface state={state} className="w-full max-w-3xl">
-      <DataSurface.Loading label="Loading records" />
+      <DataSurface.Loading
+        label="Loading records"
+        className="overflow-hidden rounded-lg border border-line"
+      >
+        <ListingRowSkeleton count={4} />
+      </DataSurface.Loading>
       <DataSurface.Error
         icon={KeyRound}
         title="Unable to load records"
@@ -50,33 +55,15 @@ function Surface({ state }: { state: DataSurfaceState }) {
   );
 }
 
-/** Transitional spinner fallback: `DataSurface.Loading` with no children. */
+/**
+ * The loading slot with a content-shaped skeleton as children: it renders inside a busy status
+ * region named by `label`, and the skeleton shapes stay presentational.
+ */
 export const Loading: Story = {
   args: {
     state: "loading",
   },
   render: args => <Surface state={args.state} />,
-};
-
-/**
- * The loading slot with a content-shaped skeleton as children: it renders inside a busy status
- * region named by `label`, and the skeleton shapes stay presentational.
- */
-export const LoadingSkeleton: Story = {
-  args: {
-    state: "loading",
-  },
-  render: args => (
-    <DataSurface state={args.state} className="w-full max-w-3xl">
-      <DataSurface.Loading
-        label="Loading records"
-        className="overflow-hidden rounded-lg border border-line"
-      >
-        <ListingRowSkeleton count={4} />
-      </DataSurface.Loading>
-      <DataSurface.Content>Records</DataSurface.Content>
-    </DataSurface>
-  ),
 };
 
 export const Error: Story = {
