@@ -23,6 +23,7 @@ import { SessionListGroups } from "./session-list-groups";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListSelectionFolders } from "./session-list-selection-folders";
+import { SessionListSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 import { SessionListToolbar } from "./session-list-toolbar";
 
@@ -278,6 +279,8 @@ function SessionListFolderBody({
   testIdPrefix: string;
 }) {
   const { dnd } = folders;
+  // Nothing has answered yet: placeholder rows, never the empty state.
+  if (view.catalog?.loading) return <SessionListSkeleton />;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
@@ -380,6 +383,8 @@ function SessionListBody({
   selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
 }) {
   const ownerOf = view.aggregate ? view.ownerOf : undefined;
+  // Nothing has answered yet: placeholder rows, never the empty state.
+  if (view.catalog?.loading) return <SessionListSkeleton />;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"

@@ -150,6 +150,7 @@ export interface SessionContextTiersView {
 }
 
 export type SessionContextMeterView =
+  | { kind: "loading" }
   | { kind: "empty"; title: string; description?: string }
   | { kind: "unknown"; sentence: string }
   | {
@@ -161,7 +162,7 @@ export type SessionContextMeterView =
     };
 
 function meterEmpty(context: SessionContextView, unavailable: boolean): SessionContextMeterView {
-  if (context.loading) return { kind: "empty", title: "Loading context" };
+  if (context.loading) return { kind: "loading" };
   if (unavailable) return { kind: "empty", title: "Usage unavailable" };
   // Rows without a report, or a compaction that cleared the reading: the agent
   // has not said how full its window is.

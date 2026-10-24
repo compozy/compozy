@@ -4,11 +4,11 @@ import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
 import {
   GroupLoadFailure,
-  GroupNote,
   SessionListGroupBody,
   type GroupRowProps,
 } from "./session-list-group-body";
 import { SessionListGroupHeader } from "./session-list-group-header";
+import { SessionGroupsSkeleton } from "./session-list-skeleton";
 
 /**
  * One collapsible group: its header (toggle and `+`) and, while open, its
@@ -79,7 +79,7 @@ export function SessionListGroups(props: GroupRowProps) {
       />
     );
   }
-  if (view.groupsLoading) return <GroupNote>Loading sessions…</GroupNote>;
+  if (view.groupsLoading) return <SessionGroupsSkeleton />;
   if (view.groups.length === 0) {
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted">

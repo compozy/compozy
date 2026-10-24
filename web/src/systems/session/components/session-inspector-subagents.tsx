@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { useSessionInspectorFocus } from "../hooks/use-session-inspector-focus";
 import { useSessionSubagents } from "../hooks/use-session-subagents";
+import { sessionSubagentCounts } from "../lib/session-subagent-summary";
 import type { SessionPayload } from "../types";
 import { SessionInspectorSubagentsSection } from "./subagents/session-inspector-subagents-section";
 import type { SubagentOpenOptions } from "./subagents/subagent-card";
@@ -24,6 +25,9 @@ export function SessionInspectorSubagents({ session, onOpen }: SessionInspectorS
   const anchor = useRef<HTMLDivElement>(null);
   const ready = roster.subagents.length > 0;
   const { requested, land } = focus;
+  // The summary already says how many there are, so the section keeps its place while they load.
+  const summary = sessionSubagentCounts(session);
+  const loading = !ready && !roster.complete && !roster.failed && summary !== null;
 
   useEffect(() => {
     if (!requested || !ready) return;
@@ -35,6 +39,7 @@ export function SessionInspectorSubagents({ session, onOpen }: SessionInspectorS
     <div ref={anchor}>
       <SessionInspectorSubagentsSection
         subagents={roster.subagents}
+        pending={loading ? summary : undefined}
         onOpen={onOpen}
         onStop={roster.stop}
       />

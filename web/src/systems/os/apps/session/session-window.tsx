@@ -67,16 +67,18 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   }
   if (foreign.status === "loading") {
     return (
-      <SessionWindowView
-        windowId={windowId}
-        name={agentName}
-        id={sessionId}
-        workspaceId={workspaceId ?? ""}
-        session={undefined}
-        liveTailEnabled={liveTailEnabled}
-        isLoading
-        error={null}
-      />
+      <SessionWindowBody>
+        <SessionWindowView
+          windowId={windowId}
+          name={agentName}
+          id={sessionId}
+          workspaceId={workspaceId ?? ""}
+          session={undefined}
+          liveTailEnabled={liveTailEnabled}
+          isLoading
+          error={null}
+        />
+      </SessionWindowBody>
     );
   }
   if (foreign.status === "error") {
@@ -89,7 +91,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   }
 
   return (
-    <div className="flex min-h-full min-w-0 flex-col">
+    <SessionWindowBody>
       <SessionWindowView
         windowId={windowId}
         name={agentName}
@@ -100,6 +102,11 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         isLoading={isLoading}
         error={error}
       />
-    </div>
+    </SessionWindowBody>
   );
+}
+
+/** The frame every session view fills, loading or loaded, so the two share one geometry. */
+function SessionWindowBody({ children }: { children: React.ReactNode }) {
+  return <div className="flex min-h-full min-w-0 flex-col">{children}</div>;
 }

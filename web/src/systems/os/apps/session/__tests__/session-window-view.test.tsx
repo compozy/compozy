@@ -1,9 +1,10 @@
 // Suite: OS session-window view runtime selection
 // Invariant: a User-scope session (no workspace, scope "user") is live work and binds the chat
 // runtime to the `@user` selector; only a legacy session without any scope falls back to the
-// read-only history.
+// read-only history. A window whose session has not loaded holds the frames the loaded window
+// fills (rail, transcript, composer) under one busy status, never a bare spinner.
 // Owning layer: the OS session-window view.
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +15,13 @@ const readOnlyTranscriptSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@/systems/session", () => ({
   canPromptSession: () => true,
+  SessionSidebarLayout: ({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) => (
+    <>
+      {sidebar}
+      {children}
+    </>
+  ),
+  SessionSidebarSkeleton: () => <aside data-testid="session-sidebar-skeleton" />,
   SessionPromptRuntimeProvider: ({ children }: { children: ReactNode }) => children,
   SessionChatRuntimeProvider: (props: { workspaceId: string; children: ReactNode }) => {
     runtimeProviderSpy(props.workspaceId);
@@ -32,7 +40,7 @@ vi.mock("../session-window-module-loader", () => ({
   loadSessionWindowContent: () => new Promise(() => {}),
 }));
 
-function renderView(session: Record<string, unknown>) {
+function renderView(session: Record<string, unknown> | undefined, isLoading = false) {
   return render(
     <SessionWindowView
       windowId="session:sess-1"
@@ -41,7 +49,7 @@ function renderView(session: Record<string, unknown>) {
       workspaceId=""
       session={session as never}
       liveTailEnabled
-      isLoading={false}
+      isLoading={isLoading}
       error={null}
     />
   );
@@ -64,6 +72,22 @@ describe("SessionWindowView", () => {
     renderView({ id: "sess-1", agent_name: "general" });
 
     expect(readOnlyTranscriptSpy).toHaveBeenCalled();
+    expect(runtimeProviderSpy).not.toHaveBeenCalled();
+  });
+
+  it("Should hold the window's frames under one busy status while its session loads", () => {
+    renderView(undefined, true);
+
+    const region = screen.getByTestId("session-route-loading");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading session");
+    // The rail, the transcript rows and the composer card are each in the place they will fill.
+    expect(screen.getByTestId("session-sidebar-skeleton")).toBeInTheDocument();
+    expect(region.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
+    expect(screen.getByTestId("composer-skeleton")).toBeInTheDocument();
+    // One announcement for the whole window: the placeholders are never statuses of their own.
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(runtimeProviderSpy).not.toHaveBeenCalled();
   });
 });

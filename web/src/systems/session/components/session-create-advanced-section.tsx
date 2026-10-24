@@ -1,4 +1,4 @@
-import { Field, FieldError, FieldLabel, Input, Spinner } from "@compozy/ui";
+import { Field, FieldError, FieldLabel, Input, Skeleton, SkeletonRegion } from "@compozy/ui";
 
 import { SessionEnvironmentField } from "./session-environment-field";
 
@@ -25,9 +25,11 @@ function SessionCreateAdvancedSection({
       {environment ? (
         <SessionEnvironmentField {...environment} />
       ) : environmentListingState === "loading" ? (
-        <Field aria-busy="true">
+        <Field>
           <FieldLabel>Environment</FieldLabel>
-          <Spinner className="size-4" />
+          <SkeletonRegion label="Loading environments">
+            <Skeleton className="h-input w-full rounded-md" />
+          </SkeletonRegion>
         </Field>
       ) : environmentListingState === "error" ? (
         <Field data-invalid="">

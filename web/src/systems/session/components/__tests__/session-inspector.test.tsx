@@ -649,6 +649,45 @@ describe("Fable context surface corrections", () => {
     expect(button).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
   });
 
+  // Loading is not an answer: while the reads are in flight each section holds its place with
+  // placeholders of its own shape, and never claims there is no usage, report or turn yet.
+  it("Should show placeholders, not empty states, while the context, usage and turns reads load", async () => {
+    const user = userEvent.setup();
+    const loaded = {
+      context: deriveSessionContext(sessionContextFixture),
+      usage: { turnCount: 2 },
+      turns: { turns: [], compactions: [] } as unknown as SessionUsageTurnsResponse,
+    };
+    const { rerender } = render(
+      <SessionInspector
+        context={deriveSessionContext(undefined, { loading: true })}
+        usage={null}
+        turnsLoading
+      />
+    );
+
+    expect(screen.getByTestId("session-context-meter-skeleton")).toHaveTextContent(
+      "Loading context"
+    );
+    expect(screen.getByTestId("session-inspector-usage-skeleton")).toHaveTextContent(
+      "Loading usage"
+    );
+    await user.click(screen.getByRole("button", { name: /^Turns/ }));
+    expect(screen.getByTestId("session-context-turns-skeleton")).toHaveTextContent("Loading turns");
+    expect(screen.getByTestId("session-inspector")).not.toHaveTextContent(
+      /No context report yet|No usage yet|No turns yet/
+    );
+    // Each loading area is its own status; none is nested in another.
+    expect(screen.getAllByRole("status")).toHaveLength(3);
+
+    rerender(<SessionInspector {...loaded} />);
+
+    expect(screen.queryByTestId("session-context-meter-skeleton")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-inspector-usage-skeleton")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-context-turns-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-context-turns")).toHaveTextContent("No turns yet");
+  });
+
   it("Should use the meter empty copy and keep a nearly full window free of warning copy", () => {
     const { rerender } = render(<SessionInspector />);
     expect(screen.getByTestId("session-context-meter")).toHaveTextContent("No context report yet");
@@ -1038,10 +1077,14 @@ describe("SessionInspector — Subagents", () => {
     });
     const { onOpenSubagent } = renderInspector(parent);
 
+    // The section keeps its slot while the list loads: the summary's head over placeholder rows,
+    // never an absent section that appears and pushes the rail down.
     const section = await screen.findByTestId("session-inspector-subagents");
     expect(within(section).getByText("Subagents · 1 running")).toBeInTheDocument();
+    expect(within(section).getByRole("status")).toHaveTextContent("Loading subagents");
     await expectFetchRequest({ path: `${listPath}?all_profiles=true&limit=200` });
-    const rows = within(section).getAllByRole("button", { name: /^Open / });
+    const rows = await within(section).findAllByRole("button", { name: /^Open / });
+    expect(within(section).queryByRole("status")).not.toBeInTheDocument();
     expect(rows.map(row => row.getAttribute("aria-label"))).toEqual([
       "Open Audit tokens",
       "Open Draft the diff panel",

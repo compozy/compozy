@@ -3,7 +3,8 @@
 // focused project or User otherwise (never a worktree filter outside a project) — and an
 // unsettled destination stays idle. A selection in the window's own scope retargets the window;
 // under All projects every selection retargets in place, rebinding the window to the session's
-// scope; otherwise a foreign session goes through the jump coordinator.
+// scope; otherwise a foreign session goes through the jump coordinator. An open rail that is still
+// waiting on its destination or worktree filter reads as loading, never as an empty list.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -246,9 +247,30 @@ describe("useSessionWindowSidebar", () => {
     scopes.destination = null;
     renderHook(() => useSessionWindowSidebar({ windowId: "window-session" }));
 
+    // Idle reads nothing, yet an open rail is still on its way to rows: it reads as loading.
     expect(useSessionListView).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: null, enabled: false })
+      expect.objectContaining({ scope: null, enabled: false, pending: true })
     );
+  });
+
+  it("Should read an open rail as loading while its worktree filter resolves, then as settled", () => {
+    useScopedWorktreeFilter.mockReturnValue({ resolved: false, worktreeId: undefined });
+    try {
+      const { rerender } = renderHook(() =>
+        useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+      );
+      expect(useSessionListView).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: false, pending: true })
+      );
+
+      useScopedWorktreeFilter.mockReturnValue({ resolved: true, worktreeId: undefined });
+      rerender();
+      expect(useSessionListView).toHaveBeenLastCalledWith(
+        expect.objectContaining({ enabled: true, pending: false })
+      );
+    } finally {
+      useScopedWorktreeFilter.mockReturnValue({ resolved: true, worktreeId: undefined });
+    }
   });
 });
 

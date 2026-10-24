@@ -1,10 +1,11 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Empty, Spinner } from "@compozy/ui";
+import { Empty } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
+import { SessionWindowSkeleton } from "./session-window-skeleton";
 import {
   canPromptSession,
   SessionChatRuntimeProvider,
@@ -38,16 +39,7 @@ export function SessionWindowView({
 }) {
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
-  if (isLoading) {
-    return (
-      <div
-        className="flex min-h-full items-center justify-center"
-        data-testid="session-route-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
+  if (isLoading) return <SessionWindowSkeleton />;
   if (!session || sessionWorkspaceId !== workspaceId) {
     return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
   }
@@ -66,22 +58,28 @@ export function SessionWindowView({
     );
   }
   return (
-    <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
-      <SessionChatRuntimeProvider
-        sessionId={id}
-        workspaceId={runtimeWorkspaceId}
-        liveTailEnabled={liveTailEnabled}
+    <Suspense fallback={<SessionWindowSkeleton />}>
+      <SessionPromptRuntimeProvider
+        key={id}
+        canPrompt={canPromptSession(session)}
+        session={session}
       >
-        <SessionWindowContent
-          liveDataEnabled={liveTailEnabled}
-          windowId={windowId}
-          agentName={resolvedAgentName}
+        <SessionChatRuntimeProvider
           sessionId={id}
-          session={session}
           workspaceId={runtimeWorkspaceId}
-        />
-      </SessionChatRuntimeProvider>
-    </SessionPromptRuntimeProvider>
+          liveTailEnabled={liveTailEnabled}
+        >
+          <SessionWindowContent
+            liveDataEnabled={liveTailEnabled}
+            windowId={windowId}
+            agentName={resolvedAgentName}
+            sessionId={id}
+            session={session}
+            workspaceId={runtimeWorkspaceId}
+          />
+        </SessionChatRuntimeProvider>
+      </SessionPromptRuntimeProvider>
+    </Suspense>
   );
 }
 

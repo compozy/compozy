@@ -1,9 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, WifiOff } from "lucide-react";
 
-import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, Spinner } from "@compozy/ui";
 
-import { cn } from "@/lib/utils";
 import type {
   SessionFailurePayload,
   SessionState,
@@ -11,6 +10,7 @@ import type {
 } from "@/systems/session";
 
 import { formatMessageError } from "./session-thread-error";
+import { SessionTranscriptSkeleton } from "./session-thread-skeleton";
 import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
 
 const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
@@ -20,61 +20,6 @@ const RUNTIME_RECOVERY_FAILURE_KINDS = new Set<SessionFailurePayload["kind"]>([
   "transport_failure",
   "timeout",
 ]);
-
-/**
- * Placeholder assistant row — mirrors `AssistantMessage`'s full-width column so the
- * skeleton reads as an in-progress transcript rather than generic loading chrome.
- */
-function SkeletonAssistantRow() {
-  return (
-    <div className="flex w-full min-w-0 pb-4 pt-1" aria-hidden="true">
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <Skeleton className="h-3.5 w-4/5" />
-        <Skeleton className="h-3.5 w-full" />
-        <Skeleton className="h-3.5 w-2/3" />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Placeholder user row — mirrors `UserMessage`'s right-aligned bubble silhouette.
- */
-function SkeletonUserRow() {
-  return (
-    <div className="flex w-full min-w-0 justify-end pb-4 pt-1" aria-hidden="true">
-      <div
-        className={cn(
-          "flex w-[min(60%,28rem)] flex-col gap-2 rounded-lg px-3 py-transcript-message-y",
-          "bg-chat-fill-user"
-        )}
-      >
-        <Skeleton className="h-3.5 w-full" />
-        <Skeleton className="h-3.5 w-3/4" />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Lightweight message skeleton shown while the transcript fetch is in flight. Built
- * from the `@compozy/ui` `Skeleton` primitive (`animate-shimmer` over neutral surfaces) so
- * a loading session is never mistaken for an empty one.
- */
-function ThreadMessageSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-label="Loading transcript"
-      data-testid="thread-transcript-skeleton"
-      className="flex w-full min-w-0 flex-col py-6"
-    >
-      <SkeletonAssistantRow />
-      <SkeletonUserRow />
-      <SkeletonAssistantRow />
-    </div>
-  );
-}
 
 /**
  * Empty transcript pane — shown ONLY when the fetch succeeded and nothing has been said
@@ -212,7 +157,8 @@ function ThreadSyncFailed({ attempts, onRetry }: { attempts: number; onRetry: ()
 }
 
 /**
- * State branch for an empty-count transcript: `pending` → skeleton, `error` → retryable
+ * State branch for an empty-count transcript: `pending` → transcript skeleton (message rows, so
+ * a loading session is never mistaken for an empty one), `error` → retryable
  * pane, a dead live stream → sync-failed pane, `success` → empty-state copy. Extracted so
  * the states are unit-testable in isolation from the assistant-ui runtime that wraps the
  * message rows.
@@ -246,7 +192,7 @@ export function ThreadStatePane({
     return <ThreadStartupFailure agentName={agentName} failure={failure} />;
   }
   if (status === "pending") {
-    return <ThreadMessageSkeleton />;
+    return <SessionTranscriptSkeleton />;
   }
   if (status === "error") {
     return <ThreadError error={error} onRetry={onRetry} />;

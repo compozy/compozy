@@ -8,8 +8,6 @@ import {
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
-  Skeleton,
-  SkeletonRows,
   StatusDot,
   cn,
 } from "@compozy/ui";
@@ -21,6 +19,7 @@ import {
   type SubagentCounts,
 } from "./subagent-format";
 import { SubagentRoster, type SubagentRosterProps } from "./subagent-roster";
+import { SubagentRosterSkeleton } from "./subagent-roster-skeleton";
 import type { SubagentView } from "./types";
 
 export interface SubagentComposerControlProps {
@@ -81,14 +80,9 @@ function SubagentComposerFailure({ onRetry }: { onRetry?: () => void }) {
 }
 
 /** No rows: a placeholder while they load, or the empty state. */
-function SubagentComposerPlaceholder({ loading }: { loading: boolean }) {
-  if (loading) {
-    return (
-      <SkeletonRows count={2} className="gap-2 px-0.5" rowClassName="h-7.5 justify-center">
-        <Skeleton className="h-3.5 w-2/3" />
-      </SkeletonRows>
-    );
-  }
+function SubagentComposerPlaceholder({ loading, count }: { loading: boolean; count: number }) {
+  // The summary sizes the placeholder; with none, a couple of rows hold the place.
+  if (loading) return <SubagentRosterSkeleton count={count > 0 ? count : 2} />;
   return (
     <div className="flex flex-col gap-0.5 px-0.5 pb-0.5">
       <p className="text-small-body text-fg">Nothing delegated yet.</p>
@@ -139,7 +133,9 @@ function SubagentComposerPanel({
         />
       ) : null}
       {failed ? <SubagentComposerFailure onRetry={onRetry} /> : null}
-      {hasRows || failed ? null : <SubagentComposerPlaceholder loading={loading} />}
+      {hasRows || failed ? null : (
+        <SubagentComposerPlaceholder loading={loading} count={counts.total} />
+      )}
     </>
   );
 }

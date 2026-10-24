@@ -13,6 +13,7 @@ import {
   SessionInspectorEmpty,
   SessionInspectorSection,
 } from "./session-inspector-section";
+import { SessionContextTurnsSkeleton } from "./session-inspector-skeleton";
 
 const VISIBLE_TURNS = 50;
 
@@ -121,10 +122,13 @@ function turnsMeta(count: number, unavailable: boolean): string | undefined {
 export function SessionContextTurnsSection({
   data,
   unavailable = false,
+  loading = false,
   defaultOpen = false,
 }: {
   data?: SessionUsageTurnsResponse;
   unavailable?: boolean;
+  /** The first read is in flight: placeholder turns, not "No turns yet". */
+  loading?: boolean;
   defaultOpen?: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
@@ -159,7 +163,9 @@ export function SessionContextTurnsSection({
           {unavailable ? (
             <p className="text-micro leading-4 text-faint">Turn usage unavailable</p>
           ) : null}
-          {rows.length ? (
+          {loading && rows.length === 0 ? (
+            <SessionContextTurnsSkeleton />
+          ) : rows.length ? (
             <div className="flex flex-col overflow-hidden rounded-lg bg-sunken py-1">
               <ul>
                 {rows.map(row => (

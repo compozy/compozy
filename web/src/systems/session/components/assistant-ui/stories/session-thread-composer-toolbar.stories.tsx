@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -75,5 +76,28 @@ export const Busy: Story = {
     onQueuePrompt: () => undefined,
     onInterruptPrompt: () => undefined,
     onSteerPrompt: () => undefined,
+  },
+};
+
+/**
+ * The subagents popover while its roster loads: placeholder rows in the roster's own frame, one
+ * per row the session's summary reports, under the real heading and count.
+ */
+export const SubagentsLoading: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    subagentControl: (
+      <SubagentComposerControl
+        subagents={[]}
+        counts={{ live: 0, total: 3, failed: 0, attention: 0 }}
+        loading
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-subagents-button"));
+    await expect(await screen.findByText("Loading subagents")).toBeInTheDocument();
   },
 };
