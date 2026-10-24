@@ -405,9 +405,6 @@ export { SessionRowActions, type SessionRowActionsProps } from "./components/ses
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
-export { SessionViewToggle } from "./components/session-board/session-view-toggle";
-export { SessionsBoard } from "./components/session-board/sessions-board";
-export type { SessionBoardColumnId, SessionBoardPayload } from "./lib/session-board-contract";
 export {
   buildSessionTree,
   childSessionSignalState,
@@ -470,6 +467,8 @@ export {
 export * from "./environment";
 // Derive surface — continue (and fork) plus origin display (./derive).
 export * from "./derive";
+// Board surface — Sessions board plus its pull-request facts (./board).
+export * from "./board";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export * from "./quote";
 export * from "./mentions";
@@ -499,7 +498,3 @@ export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
-export { sessionWaitingOn, type SessionWaitingOn } from "./lib/session-pull-request";
-export { pullRequestPill, type PullRequestPill } from "./lib/pull-request-signal";
-export { cachedSessionOpenPullRequestNumber } from "./lib/session-pull-request-cache";
-export { useSessionPullRequestRefresh } from "./hooks/use-session-pull-request-refresh";
