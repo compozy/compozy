@@ -8,9 +8,6 @@ import {
   DETAIL_INSPECTOR_INLINE_BREAKPOINT,
   Table,
   TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
   useInlineLayout,
   type Filter,
 } from "@compozy/ui";
@@ -24,10 +21,12 @@ import {
   type TerminalJournalActions,
   type TerminalJournalState,
 } from "../hooks/use-terminal-journal-context";
+import { TerminalJournalColumns } from "./terminal-journal-columns";
 import { TerminalJournalDetail } from "./terminal-journal-detail";
 import { TerminalJournalEmpty } from "./terminal-journal-empty";
 import { TerminalJournalFooter } from "./terminal-journal-footer";
 import { TerminalJournalRow } from "./terminal-journal-row";
+import { TerminalJournalTableSkeleton } from "./terminal-journal-skeleton";
 import { TerminalJournalToolbar } from "./terminal-journal-toolbar";
 
 /**
@@ -77,6 +76,11 @@ export interface TerminalJournalPanelProps {
   /** True while another page is available behind the cursor. */
   hasMore: boolean;
   isLoadingMore?: boolean;
+  /**
+   * The rows have not been read yet (the first read, or a changed filter): the table waits in its
+   * loading shape under the live toolbar instead of claiming an empty journal.
+   */
+  loading?: boolean;
   /** Set only in the read-only all-profiles view. */
   showOwner?: boolean;
   /** Rows this query examined. Omit until the host has counted them. */
@@ -122,6 +126,7 @@ function TerminalJournalProvider({
   chips,
   hasMore,
   isLoadingMore = false,
+  loading = false,
   showOwner = false,
   examinedCount,
   loadedCount,
@@ -159,6 +164,7 @@ function TerminalJournalProvider({
     inline,
     isLoadingMore,
     loaded,
+    loading,
     replay,
     selected,
     selectedId,
@@ -188,7 +194,7 @@ function TerminalJournalFilters() {
 }
 
 function TerminalJournalContent() {
-  const { entries, examinedCount, filtered, hasMore, replay, showOwner } =
+  const { entries, examinedCount, filtered, hasMore, loading, replay, showOwner } =
     useTerminalJournalState();
   const { onFiltersChange, onLoadMore, onOpenNewTerminal } = useTerminalJournalActions();
   return (
@@ -201,7 +207,9 @@ function TerminalJournalContent() {
           {replay}
         </div>
       ) : null}
-      {entries.length === 0 ? (
+      {loading ? (
+        <TerminalJournalTableSkeleton />
+      ) : entries.length === 0 ? (
         <TerminalJournalEmpty
           examinedCount={examinedCount}
           filtered={filtered}
@@ -230,21 +238,7 @@ function TerminalJournalTable() {
     <div className="flex min-h-0 min-w-0 flex-1">
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
         <Table aria-label="Command journal" className="table-fixed" overflowX="hidden">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-18">When</TableHead>
-              <TableHead className="w-35">Who</TableHead>
-              <TableHead>Command</TableHead>
-              <TableHead className="w-43">Result</TableHead>
-              {compact ? null : (
-                <>
-                  <TableHead className="w-30">Permission</TableHead>
-                  <TableHead className="w-29">Confidence</TableHead>
-                  <TableHead aria-label="Recording" className="w-13" />
-                </>
-              )}
-            </TableRow>
-          </TableHeader>
+          <TerminalJournalColumns compact={compact} />
           <TableBody>
             {entries.map((entry, index) => {
               const recordingId = entry.recording;
@@ -280,10 +274,11 @@ function TerminalJournalTable() {
 }
 
 function TerminalJournalPaging() {
-  const { chips, emptyMatch, entries, filtered, hasMore, isLoadingMore, loaded } =
+  const { chips, emptyMatch, entries, filtered, hasMore, isLoadingMore, loaded, loading } =
     useTerminalJournalState();
   const { onLoadMore } = useTerminalJournalActions();
-  if (entries.length === 0 && !filtered) return null;
+  // Rows loaded is a count of what arrived: while they are being read there is none to state.
+  if (loading || (entries.length === 0 && !filtered)) return null;
   return (
     <TerminalJournalFooter
       emptyMatch={emptyMatch}

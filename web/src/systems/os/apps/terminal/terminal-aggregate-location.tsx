@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ListFilter, TerminalSquare } from "lucide-react";
 
 import {
-  BlockLoading,
   Button,
   Empty,
   FiltersWithSearch,
@@ -14,6 +13,7 @@ import {
 } from "@compozy/ui";
 import {
   createTerminal,
+  TerminalAggregateSkeleton,
   terminalDisplayTitle,
   type TerminalInfo,
   type TerminalViewerIdentity,
@@ -146,32 +146,6 @@ export function TerminalAggregateLocation({
       .then(() => setCreating(false));
   };
 
-  if (catalog.isPending || requested) {
-    return <BlockLoading className="flex-1" label="Loading terminals" surface="bare" />;
-  }
-  if (catalog.error && terminals.length === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          action={
-            <Button
-              onClick={() => void catalog.refetch()}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              Retry
-            </Button>
-          }
-          className="max-w-md"
-          description={catalog.error.message}
-          icon={AlertCircle}
-          title="Couldn't load Terminal"
-        />
-      </div>
-    );
-  }
-
   const newTerminal = readOnly ? null : (
     <div
       className="flex flex-wrap items-center gap-2 text-small-body text-muted"
@@ -198,6 +172,39 @@ export function TerminalAggregateLocation({
       </Button>
     </div>
   );
+
+  if (catalog.isPending || requested) {
+    // The filter and the new-terminal row do not depend on the list, so they stay live and in
+    // place (a filter edit re-reads the list without closing its own editor).
+    return (
+      <TerminalAggregateSkeleton
+        filter={<TerminalAggregateProjectFilter projectFilter={projectFilter} />}
+        footer={newTerminal}
+      />
+    );
+  }
+  if (catalog.error && terminals.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => void catalog.refetch()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={catalog.error.message}
+          icon={AlertCircle}
+          title="Couldn't load Terminal"
+        />
+      </div>
+    );
+  }
 
   const filtered = projectFilter.values.length > 0;
   if (terminals.length === 0) {

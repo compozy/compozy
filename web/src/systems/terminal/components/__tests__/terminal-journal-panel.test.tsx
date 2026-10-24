@@ -64,6 +64,25 @@ describe("TerminalJournalPanel", () => {
     });
   });
 
+  it("Should wait under the live toolbar instead of claiming an empty journal while rows load", () => {
+    renderPanel({ entries: [], hasMore: false, loading: true });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading the journal");
+    expect(screen.getByTestId("terminal-journal-filters-add")).toBeEnabled();
+    expect(screen.queryByTestId("terminal-journal-empty")).not.toBeInTheDocument();
+    // Rows loaded counts what arrived; nothing has yet.
+    expect(screen.queryByTestId("terminal-journal-loaded")).not.toBeInTheDocument();
+  });
+
+  it("Should swap the loading shape for the rows once they arrive", () => {
+    const { rerender, props } = renderPanel({ entries: [], loading: true });
+
+    rerender(<TerminalJournalPanel {...props} entries={JOURNAL_FIXTURES} loading={false} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-row-cmd-5f0a1e")).toBeInTheDocument();
+  });
+
   it("Should read each command as the row, with where it ran demoted beneath", () => {
     renderPanel();
 
