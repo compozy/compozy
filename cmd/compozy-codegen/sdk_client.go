@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/spec"
 	"github.com/compozy/compozy/internal/codegen/sdkgo"
+	"github.com/compozy/compozy/internal/loop/dsl"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -37,7 +38,10 @@ func generateSDKClient() (sdkgo.Result, error) {
 	}
 	return sdkgo.GenerateClient(ops, sdkgo.ClientOptions{
 		PackageName: sdkClientPackage,
-		Types:       []sdkgo.ClientType{{Name: "SendPromptResultPayload", Value: contract.SendPromptResultPayload{}}},
+		Types: []sdkgo.ClientType{
+			{Name: "SendPromptResultPayload", Value: contract.SendPromptResultPayload{}},
+			{Name: "ReviewDecision", Value: dsl.ReviewDecision("")},
+		},
 		StringTypes: map[reflect.Type]bool{
 			reflect.TypeFor[taskpkg.RunStatus](): true,
 			reflect.TypeFor[taskpkg.RunKind]():   true,

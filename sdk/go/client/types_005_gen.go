@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-// Effect is a daemon API value.
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
-}
-
 // EffectResult is a daemon API value.
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
@@ -445,3 +435,15 @@ type FireLimitConfig struct {
 
 // FocusPolicy is a daemon API value.
 type FocusPolicy string
+
+// ForceFailTaskRunRequest is a daemon API value.
+type ForceFailTaskRunRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceReleaseTaskRunRequest is a daemon API value.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}

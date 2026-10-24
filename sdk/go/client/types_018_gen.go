@@ -4,9 +4,6 @@ package client
 
 import "time"
 
-// SettingsApplyTargetName is a daemon API value.
-type SettingsApplyTargetName string
-
 // SettingsAttentionPayload is a daemon API value.
 type SettingsAttentionPayload struct {
 	Toasts          bool     `json:"toasts"`

@@ -4,13 +4,6 @@ package client
 
 import "time"
 
-// SessionOwner is a daemon API value.
-type SessionOwner struct {
-	SessionID     string `json:"session_id"`
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace_name"`
-}
-
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
 	Branch                   string                           `json:"branch,omitempty"`
@@ -130,7 +123,7 @@ type SessionPullRequestPayload struct {
 	Draft          *bool                           `json:"draft"`
 	HeadSHA        string                          `json:"head_sha"`
 	Checks         SessionPullRequestChecksPayload `json:"checks"`
-	ReviewDecision ReviewDecision                  `json:"review_decision"`
+	ReviewDecision SessionReviewDecision           `json:"review_decision"`
 	Mergeable      Mergeable                       `json:"mergeable"`
 	ReadyToMerge   bool                            `json:"ready_to_merge"`
 }
@@ -190,6 +183,9 @@ type SessionRepairResponse struct {
 type SessionResponse struct {
 	Session SessionPayload `json:"session"`
 }
+
+// SessionReviewDecision is a daemon API value.
+type SessionReviewDecision string
 
 // SessionRuntimePayload is a daemon API value.
 type SessionRuntimePayload struct {
@@ -448,3 +444,6 @@ type SettingsApplyResponse struct {
 	Skipped          bool                          `json:"skipped,omitzero"`
 	SkippedReason    string                        `json:"skipped_reason,omitempty"`
 }
+
+// SettingsApplyTargetName is a daemon API value.
+type SettingsApplyTargetName string
