@@ -3,6 +3,7 @@ package worktree
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -64,6 +65,48 @@ func TestPullRequestService(t *testing.T) {
 				got,
 				explicit.err,
 			)
+		}
+	})
+
+	// Invariant: explicit requests take the next free slot, including promoted automatic flights.
+	t.Run("Should prioritize explicit refreshes over automatic backlog", func(t *testing.T) {
+		t.Parallel()
+		for _, promote := range []bool{false, true} {
+			t.Run(fmt.Sprintf("Should prioritize with promotion %t", promote), func(t *testing.T) {
+				t.Parallel()
+				entered := make(chan string, 32)
+				release := make(chan struct{})
+				provider := pullRequestTestForge{
+					status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+						entered <- request.Branch
+						select {
+						case <-release:
+							return &ForgeStatus{}, nil
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						}
+					},
+				}
+				service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+				t.Cleanup(service.Close)
+				for i := range 20 {
+					service.RequestRefresh(PullRequestKey{"ws", "github.com/acme/repo", fmt.Sprintf("auto-%d", i)})
+				}
+				for range 4 {
+					<-entered
+				}
+				key := PullRequestKey{"ws", "github.com/acme/repo", "explicit"}
+				if promote {
+					key.Branch = "auto-19"
+				}
+				flight := service.start(key, true)
+				release <- struct{}{}
+				if branch := <-entered; branch != key.Branch {
+					t.Fatalf("next admitted branch=%q want %q", branch, key.Branch)
+				}
+				service.Close()
+				<-flight.done
+			})
 		}
 	})
 

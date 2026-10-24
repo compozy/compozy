@@ -4101,6 +4101,10 @@ func TestManagerBoardCatalog(t *testing.T) {
 		ctx := t.Context()
 		manager := newWorkspaceSessionReadFixture(t, 122, 2)
 		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		tracked := &catalogBranchReadCounter{GlobalDB: catalog}
+		manager.sessionCatalog = tracked
+		now := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
+		manager.now = func() time.Time { return now }
 		for _, value := range []struct{ workspace, id, branch string }{
 			{"ws-read-00", "sess-read-000", "old-topic"},
 			{"ws-read-00", "sess-read-002", "main"},
@@ -4144,8 +4148,16 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if _, err := manager.CatalogFacets(ctx, query); err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
-			t.Fatalf("facet refresh keys = %#v", reader.keys)
+		if len(reader.keys) != 0 || tracked.calls != 1 {
+			t.Fatalf("repeated discovery: keys=%#v calls=%d", reader.keys, tracked.calls)
+		}
+		now = now.Add(time.Minute)
+		if _, err := manager.CatalogFacets(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+		if tracked.calls != 2 ||
+			!slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
+			t.Fatalf("expired discovery: keys=%#v calls=%d", reader.keys, tracked.calls)
 		}
 	})
 	t.Run("Should overlay active PR columns and direct children before filtering and counting", func(t *testing.T) {
@@ -4275,4 +4287,18 @@ func (r *pullRequestQueryReader) DefaultBranchNames(context.Context, store.ReadS
 		result[workspace] = []string{"main", "master"}
 	}
 	return result
+}
+
+// The database remains real; only discovery calls are counted at its I/O boundary.
+type catalogBranchReadCounter struct {
+	*globaldb.GlobalDB
+	calls int
+}
+
+func (r *catalogBranchReadCounter) SessionCatalogBranches(
+	ctx context.Context,
+	query store.SessionCatalogPageQuery,
+) ([]store.SessionBranchKey, error) {
+	r.calls++
+	return r.GlobalDB.SessionCatalogBranches(ctx, query)
 }

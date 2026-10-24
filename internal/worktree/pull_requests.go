@@ -30,6 +30,7 @@ type PullRequestStore interface {
 type pullRequestFlight struct {
 	explicit atomic.Bool
 	skipped  bool
+	started  bool
 	done     chan struct{}
 	entry    PullRequestEntry
 	err      error
@@ -42,20 +43,22 @@ type repoKeyCache struct {
 // PullRequestService is the sole writer of canonical display observations. Exact
 // delivery evidence never enters this cache.
 type PullRequestService struct {
-	store    PullRequestStore
-	forge    ForgeProvider
-	runner   GitRunner
-	ctx      context.Context
-	cancel   context.CancelFunc
-	now      func() time.Time
-	changed  func(string)
-	mu       sync.Mutex
-	flights  map[PullRequestKey]*pullRequestFlight
-	repos    map[string]repoKeyCache
-	defaults map[string]repoKeyCache
-	slots    chan struct{}
-	wg       sync.WaitGroup
-	closed   bool
+	store          PullRequestStore
+	forge          ForgeProvider
+	runner         GitRunner
+	ctx            context.Context
+	cancel         context.CancelFunc
+	now            func() time.Time
+	changed        func(string)
+	mu             sync.Mutex
+	flights        map[PullRequestKey]*pullRequestFlight
+	repos          map[string]repoKeyCache
+	defaults       map[string]repoKeyCache
+	running        int
+	explicitQueue  []PullRequestKey
+	automaticQueue []PullRequestKey
+	wg             sync.WaitGroup
+	closed         bool
 }
 
 func NewPullRequestService(
@@ -77,7 +80,6 @@ func NewPullRequestService(
 		flights:  make(map[PullRequestKey]*pullRequestFlight),
 		repos:    make(map[string]repoKeyCache),
 		defaults: make(map[string]repoKeyCache),
-		slots:    make(chan struct{}, 4),
 	}
 }
 
@@ -85,6 +87,14 @@ func (s *PullRequestService) Close() {
 	s.mu.Lock()
 	s.closed = true
 	s.cancel()
+	for key, flight := range s.flights {
+		if !flight.started {
+			flight.err = s.ctx.Err()
+			close(flight.done)
+			delete(s.flights, key)
+		}
+	}
+	s.explicitQueue, s.automaticQueue = nil, nil
 	s.mu.Unlock()
 	s.wg.Wait()
 }
@@ -145,41 +155,65 @@ func (s *PullRequestService) start(key PullRequestKey, explicit bool) *pullReque
 		return nil
 	}
 	if flight := s.flights[key]; flight != nil {
-		if explicit {
-			flight.explicit.Store(true)
+		if explicit && !flight.explicit.Swap(true) && !flight.started {
+			s.explicitQueue = append(s.explicitQueue, key)
 		}
 		return flight
 	}
 	flight := &pullRequestFlight{done: make(chan struct{})}
 	flight.explicit.Store(explicit)
 	s.flights[key] = flight
-	s.wg.Go(func() {
-		for {
-			entry, err := s.refresh(key, flight)
-			s.mu.Lock()
-			if flight.skipped && flight.explicit.Load() {
-				s.mu.Unlock()
-				continue
-			}
-			flight.entry, flight.err = entry, err
-			delete(s.flights, key)
-			close(flight.done)
-			s.mu.Unlock()
+	if explicit {
+		s.explicitQueue = append(s.explicitQueue, key)
+	} else {
+		s.automaticQueue = append(s.automaticQueue, key)
+	}
+	s.admitLocked()
+	return flight
+}
+
+func (s *PullRequestService) admitLocked() {
+	for !s.closed && s.running < 4 {
+		queue := &s.explicitQueue
+		if len(*queue) == 0 {
+			queue = &s.automaticQueue
+		}
+		if len(*queue) == 0 {
 			return
 		}
-	})
-	return flight
+		key := (*queue)[0]
+		(*queue)[0] = PullRequestKey{}
+		*queue = (*queue)[1:]
+		flight := s.flights[key]
+		if flight == nil || flight.started {
+			continue
+		}
+		flight.started = true
+		s.running++
+		s.wg.Go(func() { s.runRefresh(key, flight) })
+	}
+}
+
+func (s *PullRequestService) runRefresh(key PullRequestKey, flight *pullRequestFlight) {
+	for {
+		entry, err := s.refresh(key, flight)
+		s.mu.Lock()
+		if flight.skipped && flight.explicit.Load() {
+			s.mu.Unlock()
+			continue
+		}
+		flight.entry, flight.err = entry, err
+		delete(s.flights, key)
+		close(flight.done)
+		s.running--
+		s.admitLocked()
+		s.mu.Unlock()
+		return
+	}
 }
 
 func (s *PullRequestService) refresh(key PullRequestKey, flight *pullRequestFlight) (PullRequestEntry, error) {
 	flight.skipped = false
-	// Admission is bounded before the provider is invoked, including explicit calls.
-	select {
-	case s.slots <- struct{}{}:
-		defer func() { <-s.slots }()
-	case <-s.ctx.Done():
-		return PullRequestEntry{}, s.ctx.Err()
-	}
 	entries, err := s.store.ReadPullRequests(s.ctx, []PullRequestKey{key})
 	if err != nil {
 		return PullRequestEntry{}, err

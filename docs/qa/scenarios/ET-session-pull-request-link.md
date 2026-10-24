@@ -45,7 +45,10 @@ Review regression checks:
   opens while preparation is pending. Previously observed capabilities supply presentation defaults. Explicit actions revalidate
   capabilities, and removal still obtains fresh evidence against the current HEAD.
 - Occupy all four display-refresh slots, queue an automatic refresh under backoff, then join it
-  explicitly: exactly one provider call runs for that key after admission.
+  explicitly: exactly one provider call runs for that key after admission. With a backlog of other
+  automatic keys, a new explicit key and a promoted automatic key each take the next free slot.
+  Repeated list pages and facet reads within 60 seconds discover historical keys only once per
+  normalized query, including branches outside the selected page and board column.
 - Return HTTP 200 with GraphQL `RATE_LIMITED` and `X-RateLimit-Reset`: retain the reset timestamp.
   Disable the forge extension: retain prior facts and report `provider_disabled`.
 - Change cached PR facts while two sessions sharing a branch are open. The workspace catalog wake
