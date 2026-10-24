@@ -4360,3 +4360,21 @@ Owner: `fix/harness-dogfood-2026-10-22`;
   native-call, reply and observation scenarios link the focused automated verification record.
   No new live-provider/browser verdict or measured model/latency improvement is claimed. Final
   local gate and exact-head CI are PR delivery requirements.
+
+## Merge train CI fixture and readiness repairs (2026-10-24)
+
+Main CI exposed two test-support defects. The marketplace HTTP projection fixture treated
+the optional `compatibility.json` request as another catalog fetch and panicked by closing
+its start channel twice. It now serves only its declared catalog paths and returns the
+contractual 404 for absent metadata. Existing source isolation and no-retry assertions remain.
+
+The runtime harness considered any successful status response ready, including the daemon's
+intentional `draining` state during boot. It now requires `daemon.status = running` from HTTP,
+UDS, and CLI before running scenarios, using the same readiness timeout and polling cadence.
+The owning lifecycle suite covers draining, missing, and unknown status on each surface.
+The failed automation scenario and its task assertions are unchanged.
+
+Native tools, public contracts, hooks, extensions, config, workspace data, Web, and the
+official skill are unaffected. Fixtures use isolated HTTP servers and subprocesses. Focused
+race tests verify these support contracts; the unchanged daemon scenario and complete
+integration shards remain CI-owned under the user's local-validation override.

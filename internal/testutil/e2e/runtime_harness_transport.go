@@ -23,6 +23,8 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
+const runtimeHarnessReadyStatus = "running"
+
 // RunInDir executes one CLI command against the isolated daemon runtime using the provided working directory.
 func (c *CLIClient) RunInDir(ctx context.Context, workdir string, args ...string) (string, string, error) {
 	return c.runInDir(ctx, workdir, nil, nil, args...)
@@ -209,16 +211,25 @@ func (h *RuntimeHarness) probeReady(ctx context.Context) error {
 		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/status", nil, &httpStatus); err != nil {
 			return err
 		}
+		if httpStatus.Daemon.Status != runtimeHarnessReadyStatus {
+			return fmt.Errorf("HTTP daemon is not ready: status %q", httpStatus.Daemon.Status)
+		}
 	}
 
 	var udsStatus compozycontract.StatusPayload
 	if err := h.UDSJSON(ctx, http.MethodGet, "/api/status", nil, &udsStatus); err != nil {
 		return err
 	}
+	if udsStatus.Daemon.Status != runtimeHarnessReadyStatus {
+		return fmt.Errorf("UDS daemon is not ready: status %q", udsStatus.Daemon.Status)
+	}
 
 	var cliStatus compozycontract.StatusPayload
 	if err := h.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
 		return err
+	}
+	if cliStatus.Daemon.Status != runtimeHarnessReadyStatus {
+		return fmt.Errorf("CLI daemon is not ready: status %q", cliStatus.Daemon.Status)
 	}
 
 	return nil

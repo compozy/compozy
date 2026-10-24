@@ -25,39 +25,92 @@ import (
 
 func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
 	t.Parallel()
+	t.Run("Should accept running status from HTTP UDS and CLI", func(t *testing.T) {
+		t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if err := writeJSONResponse(w, compozycontract.StatusPayload{
-			Daemon: compozycontract.DaemonStatusPayload{
-				Status:   "running",
-				Socket:   "/tmp/compozy.sock",
-				HTTPHost: "127.0.0.1",
-				HTTPPort: 2123,
-			},
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}))
-	defer server.Close()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if err := writeJSONResponse(w, compozycontract.StatusPayload{
+				Daemon: compozycontract.DaemonStatusPayload{
+					Status:   "running",
+					Socket:   "/tmp/compozy.sock",
+					HTTPHost: "127.0.0.1",
+					HTTPPort: 2123,
+				},
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}))
+		defer server.Close()
 
-	harness := &RuntimeHarness{
-		HTTPBaseURL: server.URL,
-		HTTPClient:  server.Client(),
-		UDSBaseURL:  server.URL,
-		UDSClient:   server.Client(),
-		CLI: &CLIClient{
-			binaryPath: writeCLIScript(t, `#!/bin/sh
-printf '%s\n' '{"status":"running","socket":"/tmp/compozy.sock","http_host":"127.0.0.1","http_port":2123}'
+		harness := &RuntimeHarness{
+			HTTPBaseURL: server.URL,
+			HTTPClient:  server.Client(),
+			UDSBaseURL:  server.URL,
+			UDSClient:   server.Client(),
+			CLI: &CLIClient{
+				binaryPath: writeCLIScript(t, `#!/bin/sh
+printf '%s\n' '{"daemon":{"status":"running","socket":"/tmp/compozy.sock","http_host":"127.0.0.1","http_port":2123}}'
 `),
-			workdir: t.TempDir(),
-		},
-		waitCh: make(chan error),
-	}
+				workdir: t.TempDir(),
+			},
+			waitCh: make(chan error),
+		}
 
-	ctx, cancel := context.WithTimeout(t.Context(), defaultStartTimeout)
-	defer cancel()
-	if err := harness.waitForReady(ctx, time.Millisecond); err != nil {
-		t.Fatalf("waitForReady() error = %v", err)
+		ctx, cancel := context.WithTimeout(t.Context(), defaultStartTimeout)
+		defer cancel()
+		if err := harness.waitForReady(ctx, time.Millisecond); err != nil {
+			t.Fatalf("waitForReady() error = %v", err)
+		}
+	})
+}
+
+// Invariant: responding transports cannot declare readiness while any surface refuses new work.
+// Owner: runtime harness readiness; canonical lifecycle suite with HTTP and CLI I/O fixtures.
+func TestRuntimeHarnessProbeReadyRequiresRunningDaemon(t *testing.T) {
+	t.Parallel()
+
+	for _, surface := range []string{"HTTP", "UDS", "CLI"} {
+		t.Run("Should reject unavailable state from "+surface, func(t *testing.T) {
+			t.Parallel()
+			for _, status := range []string{"draining", "", "unknown"} {
+				t.Run("Should reject status "+fmt.Sprintf("%q", status), func(t *testing.T) {
+					t.Parallel()
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						state := "running"
+						if strings.HasPrefix(r.URL.Path, "/"+surface+"/") {
+							state = status
+						}
+						if err := writeJSONResponse(w, compozycontract.StatusPayload{
+							Daemon: compozycontract.DaemonStatusPayload{Status: state},
+						}); err != nil {
+							http.Error(w, err.Error(), http.StatusInternalServerError)
+						}
+					}))
+					t.Cleanup(server.Close)
+					cliStatus := "running"
+					if surface == "CLI" {
+						cliStatus = status
+					}
+					harness := &RuntimeHarness{
+						HTTPBaseURL: server.URL + "/HTTP",
+						HTTPClient:  server.Client(),
+						UDSBaseURL:  server.URL + "/UDS",
+						UDSClient:   server.Client(),
+						CLI: &CLIClient{
+							binaryPath: writeCLIScript(t, fmt.Sprintf(
+								"#!/bin/sh\nprintf '%%s\\n' '{\"daemon\":{\"status\":%q}}'\n", cliStatus,
+							)),
+							workdir: t.TempDir(),
+						},
+					}
+					err := harness.probeReady(t.Context())
+					if err == nil || !strings.Contains(err.Error(), surface) ||
+						!strings.Contains(err.Error(), fmt.Sprintf("%q", status)) {
+						t.Fatalf("probeReady() = %v, want %s refusing daemon status %q", err, surface, status)
+					}
+				})
+			}
+		})
 	}
 }
 

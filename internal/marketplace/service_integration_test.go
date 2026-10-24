@@ -30,6 +30,10 @@ func TestCatalogServiceHTTPProjectionIntegration(t *testing.T) {
 				http.NotFound(w, r)
 				return
 			}
+			if r.URL.Path != "/healthy/v3/extensions.json" {
+				http.NotFound(w, r)
+				return
+			}
 			healthyCalls.Add(1)
 			close(started)
 			select {
