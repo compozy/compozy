@@ -1,11 +1,12 @@
 /**
  * Pure view model for one board card (`_uiux.md` S5, US-013/US-014). The card
- * shows at most one status: the needs-you reason first, else the most
- * actionable PR signal (reason › failing › changes › conflicts › ready ›
- * draft › merged › closed). Color marks only a decision or readiness.
+ * shows at most one status: the needs-you reason first, else the shared PR
+ * pill (`pullRequestPill`, the same mapping behind the topbar chip). Color
+ * marks only a decision or readiness.
  */
 import type { PillTone, StateGlyphState } from "@compozy/ui";
 
+import { pullRequestPill, pullRequestShape, type PullRequestShape } from "./pull-request-signal";
 import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-contract";
 import { sessionBadgeSignal } from "./session-badge";
 import { pendingPermissionCount } from "./session-pending-interactions";
@@ -15,7 +16,7 @@ export interface SessionBoardCardStatus {
   tone: PillTone;
 }
 
-export type SessionBoardPrShape = "open" | "draft" | "merged" | "closed";
+export type SessionBoardPrShape = PullRequestShape;
 
 export interface SessionBoardCardMeta {
   /** PR shape when the card names a PR; a bare branch otherwise. */
@@ -55,29 +56,8 @@ function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | 
   }
 }
 
-/** Ready only when the daemon says so and every fact is current (Business Rule 9). */
-function readyToMerge(session: SessionBoardPayload): boolean {
-  const lookup = session.pull_request_lookup;
-  return (
-    session.pull_request?.ready_to_merge === true &&
-    lookup?.state === "ok" &&
-    lookup.stale === false
-  );
-}
-
 function pullRequestStatus(session: SessionBoardPayload): SessionBoardCardStatus | null {
-  const pr = session.pull_request;
-  if (!pr) return null;
-  if (pr.state === "merged") return { label: "Merged", tone: "info" };
-  if (pr.state === "closed") return { label: "Closed", tone: "neutral" };
-  if (pr.checks.state === "failing") return { label: "Checks failing", tone: "danger" };
-  if (pr.review_decision === "changes_requested") {
-    return { label: "Changes requested", tone: "danger" };
-  }
-  if (pr.mergeable === "conflicting") return { label: "Conflicts", tone: "danger" };
-  if (readyToMerge(session)) return { label: "Ready to merge", tone: "success" };
-  if (pr.draft === true) return { label: "Draft", tone: "neutral" };
-  return null;
+  return pullRequestPill(session.pull_request, session.pull_request_lookup);
 }
 
 export function sessionBoardCardStatus(
@@ -88,18 +68,11 @@ export function sessionBoardCardStatus(
   return pullRequestStatus(session);
 }
 
-function pullRequestShape(session: SessionBoardPayload): SessionBoardPrShape | null {
-  const pr = session.pull_request;
-  if (!pr) return null;
-  if (pr.state === "merged" || pr.state === "closed") return pr.state;
-  return pr.draft === true ? "draft" : "open";
-}
-
 export function sessionBoardCardMeta(
   session: SessionBoardPayload,
   workspaceName: string | null
 ): SessionBoardCardMeta {
-  const shape = pullRequestShape(session);
+  const shape = session.pull_request ? pullRequestShape(session.pull_request) : null;
   const branch = session.branch?.trim() || null;
   if (workspaceName !== null && shape === null) {
     return { shape: null, branch: null, number: null, workspaceName };
