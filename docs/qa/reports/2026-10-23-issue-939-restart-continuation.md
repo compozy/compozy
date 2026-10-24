@@ -2,17 +2,18 @@
 
 - **Scope:** interrupted sessions, shutdown admission, subagent result delivery, and Loop recovery ownership.
 - **Cadence tier:** targeted.
-- **Build:** PR #942, rebased onto main including #940; first-review remediation checks run before their commit. Current-head CI is recorded separately.
+- **Build:** PR #942, rebased onto main including #940. The recorded probe includes the review fix and public-readback assertions committed with this report, on top of `6eb8e4ab7`. Current-head CI is recorded on the PR.
 - **Environment:** disposable homes, sockets, ports, and real daemon subprocesses using the repository's ACP mock agent. No operator runtime was restarted.
-- **Status:** in-progress.
+- **Status:** targeted automated verification complete; PR delivery gates pending.
 
 ## Session Matrix & Results
 
 | Charter | Journey / Scenario | Persona | Tour | Status | Coverage note |
 |---|---|---|---|---|---|
-| CH-daemon-restart-continuation | J-daemon-restart-continuation / RT-daemon-restart-continuation | Dora | Interrupt | Pending | Fresh structured reads after final rebase; Web interaction remains separate from the subprocess probe. |
-| CH-daemon-restart-continuation | RT-daemon-drain-admission | Dora | Interrupt | Pending | Boot admission and shutdown budget owning tests passed; final composition-root rerun pending. |
-| CH-daemon-restart-continuation | RT-subagent-restart | Dora | Interrupt | Pending | Rebased real subprocess SIGKILL probe passed; fixture provider homes and discovery are isolated. |
+| CH-daemon-restart-continuation | RT-daemon-restart-continuation: restart/stop and public readback | Dora | Interrupt | Pass | Three concurrent sessions, normal restart, SIGKILL, explicit stop, third boot; fresh HTTP and UDS detail/events agree. Automated scope. |
+| CH-daemon-restart-continuation | RT-daemon-drain-admission: changed admission/shutdown contracts | Dora | Interrupt | Pass | Boot fence, public undrain isolation, shutdown budget/order, cancellation and real replacement probe passed. Automated scope. |
+| CH-daemon-restart-continuation | RT-subagent-restart: crash and exactly-once result/wake | Dora | Interrupt | Pass | Rebased real subprocess SIGKILL probe passed; fixture provider homes and discovery are isolated. Automated scope. |
+| CH-daemon-restart-continuation | Full Web/CLI persona walkthroughs of the three scenarios | Dora | Interrupt | Skipped | This implementation run uses the operator-authorized focused ACP mock probes; full local builds/E2E are prohibited. Browser usability and live-provider behavior are not certified. |
 
 ## Automated Evidence Collected During Implementation
 
@@ -50,8 +51,49 @@ into the helper. The final probe passed including cleanup; no retries or weakene
 were added. One failed setup's isolated temporary directory was removed after confirming no owned
 process remained.
 
+## Public Readback and Final Focused Probe
+
+Evidence: [public-readback.txt](../evidence/2026-10-23-issue-939-restart-continuation/public-readback.txt).
+The composition-root probe passed in **22.288s**, including subprocess and temporary-directory cleanup.
+`TestBootSessionRepair` passed in **1.961s**, and changed-package lint reported **0 issues**.
+
+For each of three sessions, each boot performs fresh GETs to
+`/api/workspaces/{workspace}/sessions/{session}` and its `/events` route over both HTTP and UDS.
+The two projections agree with the preserved conversation and with each other:
+
+| Interruption | After replacement | Continuations per session | After another boot |
+|---|---|---|---|
+| Requested restart | `active`, badge `done`, partial and finished text retained, no failure | 1 | Same retained text and one continuation |
+| SIGKILL | `active`, badge `done`, partial and finished text retained, no failure | 1 | Same retained text and one continuation |
+| Explicit stop | `stopped`, badge `stopped`, cancellation diagnostic, partial text retained | 0 | Still stopped, zero continuations |
+
+The test explicitly stops each replacement before the third boot; that boot therefore correctly
+shows `stopped` while preserving completed work. Independent ACP diagnostic records confirm the
+continuation counts. Queue order, pending decisions, policy changes and the durable breaker remain
+owned by the session manager suite described above; this probe does not duplicate those unit seams.
+
+The first public-readback run exposed an incorrect new test expectation: explicit cancellation
+already carries a `cancellation` diagnostic without a failed badge. The assertion now checks that
+existing contract explicitly. It also exposed unrelated auto-title/discovery activity in the fixture;
+the probe now persists the same background-service isolation as the subagent fixture. No production
+assertion or cleanup check was weakened.
+
+The second CodeRabbit round identified one outside-diff finding: a session-specific checkpoint-read
+error aborted the repair loop. The fix logs that session's error and repairs later eligible sessions;
+cancellation still aborts immediately. Durable interruption capture remains fatal on error, before
+decision expiration, because proceeding could discard the safety evidence needed for continuation.
+Both error-isolation and cancellation cases passed in the canonical boot repair suite.
+
+## Session Debrief
+
+The bounded automated walk reached its restart/stop end states and independently confirmed them
+through the two public transports after replacement. No restart failure badge, duplicate continuation,
+or lost partial text remained in those probes. The full persona scenarios keep `qa_status: untested`:
+the evidence above establishes the targeted runtime/API contracts, not every Web/CLI interaction or
+side-effect branch in the broader charter. No browser paper-cut assessment was performed.
+
 ## Limits and Remaining Work
 
-No full local build, full suite, E2E, race/coverage, or `make gate` ran: the operator explicitly reserved those gates for CI because the shared machine was overloaded. The ACP mock is an authorized lab boundary; this is not evidence of live-provider availability or a browser usability walkthrough. Current-head CI, final rebased lab evidence, CodeRabbit, and Greptile remain required before PR delivery.
+No full local build, full suite, E2E, race/coverage, or `make gate` ran: the operator explicitly reserved those gates for CI because the shared machine was overloaded. The ACP mock is an authorized lab boundary; this is not evidence of live-provider availability or a browser usability walkthrough. Final-head CI and reviewer coverage remain required before PR delivery. At `6eb8e4ab7`, CodeRabbit approved and Greptile confirmed all four prior findings addressed (5/5); all eight inline threads were resolved. The outside-diff fix still needs coverage on the next head.
 
-No human-only verification or product decision is currently required. This report remains open until the remaining scoped checks and scenario write-back are complete.
+No human-only verification or product decision is required for the authorized automated scope. There are no pending matrix rows. This report does not promote the broader persona scenarios to pass or claim PR readiness before final-head CI and reviews finish.

@@ -68,7 +68,11 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 		}
 		needed, err := bootSessionNeedsRepair(ctx, state.sessions, info)
 		if err != nil {
-			return fmt.Errorf("daemon: inspect restart repair for %s: %w", info.ID, err)
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
+			}
+			state.logger.Warn("daemon: inspect restart repair failed", "session_id", info.ID, "error", err)
+			continue
 		}
 		if !needed {
 			continue

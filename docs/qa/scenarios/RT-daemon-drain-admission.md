@@ -46,3 +46,10 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
 - The idempotent second drain (no-op, same status) and the post-restart active state.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-006-graceful-drain
+
+Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
+canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted
+events were independently read over HTTP and UDS after replacement and a third boot; no false failed
+badge or duplicate continuation was observed. See
+[the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
+The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.

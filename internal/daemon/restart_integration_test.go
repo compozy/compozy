@@ -6,6 +6,8 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -18,12 +20,14 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
@@ -33,6 +37,8 @@ type restartLabSession struct {
 	Failure                      *store.SessionFailure
 	Partial, Finished            bool
 	Continuations                int
+	Badge                        string
+	PublicReads                  int
 }
 
 type restartLabProcess struct {
@@ -42,7 +48,8 @@ type restartLabProcess struct {
 }
 
 // Invariant: real daemon replacement preserves three in-flight conversations, resumes each once,
-// reaps their old processes, and never continues explicit stops. Owner: composition-root restart suite.
+// reaps their old processes, and never continues explicit stops. Fresh HTTP/UDS reads retain the
+// transcript and never project failed. Owner: composition-root restart suite.
 func TestDaemonRestartContinuesSessions(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("subprocess signal scenario requires Unix")
@@ -67,6 +74,7 @@ func TestDaemonRestartContinuesSessions(t *testing.T) {
 			}
 			for _, phase := range []string{"second", "third"} {
 				next, restored := startRestartLabDaemon(t, root, driver, "stop", phase)
+				t.Logf("%s public HTTP/UDS state: %+v", phase, restored)
 				if len(restored) != len(original) {
 					t.Fatalf("restored sessions = %#v", restored)
 				}
@@ -236,9 +244,6 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	home.DaemonSocket = shortSocketPath(t)
-	cfg := testConfig(t, home)
-	cfg.Daemon.ShutdownGrace = time.Millisecond
-	cfg.Session.Stop.CooperativeGrace = 100 * time.Millisecond
 	registration, err := acpmock.Register(home, acpmock.RegisterOptions{
 		FixturePath: filepath.Join(root, "fixture.json"), FixtureAgent: "restart-lab",
 		DriverPath: os.Getenv("COMPOZY_TEST_ACPMOCK_DRIVER_BIN"),
@@ -246,8 +251,25 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(registration.DriverPath)
-	writeDaemonIntegrationProviderConfig(t, home, acpmock.ProviderName, registration.DriverPath)
+	cfg := e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{
+		SocketPath: home.DaemonSocket, DefaultAgent: "restart-lab", DefaultProvider: acpmock.ProviderName,
+		Providers: map[string]compozyconfig.ProviderConfig{
+			acpmock.ProviderName: acpmock.ProviderConfig(registration.DriverPath),
+		},
+		PermissionMode: compozyconfig.PermissionModeApproveAll,
+		Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Daemon.ShutdownGrace = time.Millisecond
+			cfg.Session.Stop.CooperativeGrace = 100 * time.Millisecond
+			cfg.Automation.Enabled = false
+			cfg.Roles.AutoTitle.Enabled = false
+			cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+			cfg.ProviderUsage.Enabled = false
+			for name, provider := range compozyconfig.BuiltinProviders() {
+				provider.Models.Discovery.Enabled = new(false)
+				cfg.Providers[name] = provider
+			}
+		},
+	})
 	d, err := New(WithHomePaths(home), WithConfig(&cfg), WithLogger(discardLogger()))
 	if err != nil {
 		t.Fatal(err)
@@ -282,6 +304,7 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 		}
 	}
 	report := awaitRestartLabReport(t, d, phase)
+	verifyRestartLabPublicState(t, d, report)
 	data, err := json.Marshal(report)
 	if err != nil {
 		t.Fatal(err)
@@ -354,6 +377,75 @@ func awaitRestartLabReport(t *testing.T, d *Daemon, phase string) []restartLabSe
 		case <-ticker.C:
 		case <-deadline.C:
 			t.Fatalf("restart work did not settle: %#v", report)
+		}
+	}
+}
+
+// verifyRestartLabPublicState checks the projections consumed by the Web and CLI after each boot.
+func verifyRestartLabPublicState(t *testing.T, d *Daemon, report []restartLabSession) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	httpClient := &http.Client{Transport: &http.Transport{}}
+	udsClient := &http.Client{Transport: &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", d.homePaths.DaemonSocket)
+		},
+	}}
+	defer httpClient.CloseIdleConnections()
+	defer udsClient.CloseIdleConnections()
+	harness := &e2etest.RuntimeHarness{
+		HTTPBaseURL: fmt.Sprintf("http://%s:%d", d.config.HTTP.Host, d.config.HTTP.Port),
+		HTTPClient:  httpClient, UDSBaseURL: "http://unix", UDSClient: udsClient,
+	}
+	for i := range report {
+		item := &report[i]
+		info, err := d.sessions.Status(ctx, item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := "/api/workspaces/" + info.WorkspaceID + "/sessions/" + item.ID
+		for _, read := range []func(context.Context, string, string, any, any) error{
+			harness.HTTPJSON, harness.UDSJSON,
+		} {
+			var detail compozycontract.SessionResponse
+			if err := read(ctx, http.MethodGet, path, nil, &detail); err != nil {
+				t.Fatal(err)
+			}
+			got := detail.Session
+			if got.ID != item.ID || string(got.State) != item.State ||
+				string(got.StopReason) != item.StopReason || got.Badge == session.BadgeFailed {
+				t.Fatalf("public state differs: got=%+v internal=%+v", got, item)
+			}
+			if got.StopReason == store.StopUserCanceled {
+				if got.Failure == nil || got.Failure.Kind != store.FailureCanceled {
+					t.Fatalf("explicit stop lost cancellation diagnostic: %+v", got.Failure)
+				}
+			} else if got.Failure != nil {
+				t.Fatalf("restart projected a failure: %+v", got.Failure)
+			}
+			if item.Badge != "" && item.Badge != string(got.Badge) {
+				t.Fatalf("public transports disagree: got=%s previous=%s", got.Badge, item.Badge)
+			}
+			item.Badge = string(got.Badge)
+			var history compozycontract.SessionEventsResponse
+			if err := read(ctx, http.MethodGet, path+"/events", nil, &history); err != nil {
+				t.Fatal(err)
+			}
+			partial, finished, continuations := false, false, 0
+			for _, row := range history.Events {
+				if row.Type == events.SessionRestartResumed {
+					continuations++
+				}
+				partial = partial || strings.Contains(string(row.Content), "Partial work preserved.")
+				finished = finished || strings.Contains(string(row.Content), "Restart work finished.")
+			}
+			if partial != item.Partial || finished != item.Finished || continuations != item.Continuations {
+				t.Fatalf("public history differs: partial=%t finished=%t continuations=%d expected=%+v",
+					partial, finished, continuations, item)
+			}
+			item.PublicReads++
 		}
 	}
 }

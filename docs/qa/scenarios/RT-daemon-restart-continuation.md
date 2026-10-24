@@ -37,3 +37,10 @@ The canonical composition-root test is `TestDaemonRestartContinuesSessions` in
 `internal/daemon/restart_integration_test.go`; qualification, durable attempt limits and admission
 identities belong to the session manager resume suite. Focused integration evidence does not by
 itself certify all Web/CLI interaction branches above.
+
+Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
+canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted
+events were independently read over HTTP and UDS after replacement and a third boot; no false failed
+badge or duplicate continuation was observed. See
+[the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
+The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.

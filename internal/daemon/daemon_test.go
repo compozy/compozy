@@ -7013,8 +7013,63 @@ func (m *derivedEventReconcileManager) ReconcileDerivedSessionEvents(
 	return 0, m.err
 }
 
+type restartStateReadManager struct {
+	*fakeSessionManager
+	read func(context.Context, string) (bool, error)
+}
+
+func (m *restartStateReadManager) HasPendingRestart(ctx context.Context, id string) (bool, error) {
+	return m.read(ctx, id)
+}
+
 func TestBootSessionRepair(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: a per-session repair eligibility failure does not hide healthy sessions;
+	// cancellation still aborts the composition-root boot repair suite.
+	for _, canceled := range []bool{false, true} {
+		name := "Should isolate unreadable restart repair state and repair the next session"
+		if canceled {
+			name = "Should stop repair when a restart state read cancels boot"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			readErr := errors.New("restart checkpoint unreadable")
+			manager := &restartStateReadManager{
+				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{
+					{ID: "sess-unreadable", State: session.StateStopped, StopReason: store.StopShutdown},
+					{ID: "sess-ready", State: session.StateStopped, StopReason: store.StopShutdown},
+				}},
+				read: func(_ context.Context, id string) (bool, error) {
+					if id == "sess-unreadable" {
+						if canceled {
+							cancel()
+						}
+						return false, readErr
+					}
+					return true, nil
+				},
+			}
+			var logs bytes.Buffer
+			state := &bootState{sessions: manager, logger: slog.New(slog.NewJSONHandler(&logs, nil))}
+			err := (&Daemon{}).bootSessionRepair(ctx, state)
+			if canceled {
+				if !errors.Is(err, context.Canceled) || len(manager.repairCalls) != 0 {
+					t.Fatalf("canceled repair = %v; calls = %v", err, manager.repairCalls)
+				}
+				return
+			}
+			if err != nil || len(manager.repairCalls) != 1 || manager.repairCalls[0].SessionID != "sess-ready" {
+				t.Fatalf("isolated repair = %v; calls = %v", err, manager.repairCalls)
+			}
+			if !strings.Contains(logs.String(), "sess-unreadable") ||
+				!strings.Contains(logs.String(), readErr.Error()) {
+				t.Fatalf("missing per-session diagnostic: %s", logs.String())
+			}
+		})
+	}
 
 	// Invariant: retained databases upgrade before boot reads their histories;
 	// migration failures stop boot and identity refusals stay isolated to their session.

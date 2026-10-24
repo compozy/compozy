@@ -66,3 +66,10 @@ for exact verification and limits. These backend checks do not replace or promot
 scenario's historical browser/provider verdict.
 
 QA impact 2026-10-23 (#939): requested restart and SIGKILL now share safe continuation; explicit daemon stop is cancellation. Earlier verdicts below describe the previous contract and are historical. Re-walk before delivery.
+
+Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
+canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted
+events were independently read over HTTP and UDS after replacement and a third boot; no false failed
+badge or duplicate continuation was observed. See
+[the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
+The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.
