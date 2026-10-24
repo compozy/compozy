@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: reports/2026-10-24-issue-955.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -87,3 +87,12 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   scheduler context cancels that resolution and shutdown joins it without timing out.
 - Create a profile after the scheduler's startup tick. Its eligible providers receive their first
   background collection promptly; repeated profile reconciliation joins existing flights.
+
+## Targeted verification — 2026-10-24
+
+The issue-955 isolated macOS walk verified startup collection for two profiles, missing-login
+guidance, and browser Refresh targeting with real OAuth usage and independent API readback.
+The profile mismatch was reproduced through the real HTTP middleware and repaired, then re-walked.
+See [the run report](../reports/2026-10-24-issue-955.md) for evidence and limits. The broader scenario
+remains untested because packaged desktop, all transport/security variants, and forced native-token
+expiry were not part of this targeted walk.

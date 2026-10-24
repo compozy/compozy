@@ -39,11 +39,18 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 	c *gin.Context,
 	workspaceID string,
 ) (resolvedProfileReadScope, error) {
+	return h.resolveProfileReadSelectionWithSelector(c, workspaceID, c.Query("profile"))
+}
+
+func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
+	c *gin.Context,
+	workspaceID, requested string,
+) (resolvedProfileReadScope, error) {
 	allProfiles, err := parseBoolQuery(c, "all_profiles")
 	if err != nil {
 		return resolvedProfileReadScope{}, fmt.Errorf("%w: %v", profilepkg.ErrInvalidInput, err)
 	}
-	requested := strings.TrimSpace(c.Query("profile"))
+	requested = strings.TrimSpace(requested)
 	if allProfiles && requested != "" {
 		return resolvedProfileReadScope{}, &profilepkg.Error{
 			Code:    profileSelectionConflictCode,

@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: reports/2026-10-24-issue-955.md
 overlaps: ET-provider-usage-surfaces
 ---
 
@@ -54,7 +54,7 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
 - **Deny** shows `Keychain access denied` with **Try again**; background retries are silent and never
   prompt, including when OS access is later granted outside CompozyOS;
 - with Claude Code signed out of the Keychain (no `Claude Code-credentials` item), **Allow** ends in
-  `Signed out · Sign in with Claude to read usage`, not a denial;
+  `Signed out · Sign in with claude /login to read usage`, not a denial;
 - while the loaded token is valid, background refreshes keep the row fresh without a prompt; once
   it expires the daemon silently rereads the exact routed item. If Claude Code has renewed it, usage
   recovers automatically; an actually expired credential directs the operator to `claude /login`;
@@ -121,3 +121,12 @@ status stays `untested`.
   the busy indicator appears, and an unsuccessful collection ends with a precise visible result.
 - From a gateway client, a cached-login refresh warning explains that OS authorization must happen
   on the host Mac. Refresh never opens an OS prompt remotely.
+
+## Targeted verification — 2026-10-24
+
+The issue-955 isolated macOS walk verified startup collection for two profiles, missing-login
+guidance, and browser Refresh targeting with real OAuth usage and independent API readback.
+The profile mismatch was reproduced through the real HTTP middleware and repaired, then re-walked.
+See [the run report](../reports/2026-10-24-issue-955.md) for evidence and limits. The broader scenario
+remains untested because packaged desktop, all transport/security variants, and forced native-token
+expiry were not part of this targeted walk.

@@ -58,14 +58,8 @@ func (h *BaseHandlers) RefreshProviderUsage(c *gin.Context) {
 		h.respondProviderUsageError(c, err)
 		return
 	}
-	// The body is authoritative; the shared profile resolver still enforces session binding.
-	query := c.Request.URL.Query()
-	query.Del("profile")
-	if input.Profile != "" {
-		query.Set("profile", input.Profile)
-	}
-	c.Request.URL.RawQuery = query.Encode()
-	profile, ok := h.providerUsageProfile(c)
+	// Resolve the body directly: middleware may already have cached Gin's query values.
+	profile, ok := h.providerUsageProfileFor(c, input.Profile)
 	if !ok || !h.requireProviderUsage(c) {
 		return
 	}
@@ -125,6 +119,10 @@ func providerUsageIntent(c *gin.Context, requested providerusage.Intent) provide
 }
 
 func (h *BaseHandlers) providerUsageProfile(c *gin.Context) (string, bool) {
+	return h.providerUsageProfileFor(c, c.Query("profile"))
+}
+
+func (h *BaseHandlers) providerUsageProfileFor(c *gin.Context, selector string) (string, bool) {
 	all, err := parseBoolQuery(c, "all_profiles")
 	if err != nil || all {
 		h.respondProviderUsageError(c, invalidProviderUsageRequest(
@@ -132,7 +130,7 @@ func (h *BaseHandlers) providerUsageProfile(c *gin.Context) (string, bool) {
 		))
 		return "", false
 	}
-	scope, err := h.resolveProfileReadScope(c)
+	selection, err := h.resolveProfileReadSelectionWithSelector(c, "", selector)
 	if err != nil {
 		if domain, ok := errors.AsType[*profilepkg.Error](err); ok {
 			mapped := *domain
@@ -140,7 +138,7 @@ func (h *BaseHandlers) providerUsageProfile(c *gin.Context) (string, bool) {
 			case "profile_session_conflict":
 				mapped.Message, mapped.Action = "profile does not match the session's profile", "omit profile"
 			case string(providerusage.ErrorCodeProfileNotFound):
-				mapped.Message = fmt.Sprintf("profile %q not found", strings.TrimSpace(c.Query("profile")))
+				mapped.Message = fmt.Sprintf("profile %q not found", strings.TrimSpace(selector))
 				mapped.Action = "choose an existing profile"
 			}
 			err = &mapped
@@ -148,7 +146,7 @@ func (h *BaseHandlers) providerUsageProfile(c *gin.Context) (string, bool) {
 		h.respondProfileReadScopeError(c, err)
 		return "", false
 	}
-	return scope.ProfileID, true
+	return selection.Scope.ProfileID, true
 }
 
 func (h *BaseHandlers) requireProviderUsage(c *gin.Context) bool {
