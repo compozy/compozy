@@ -65,6 +65,7 @@ func WithPluginRefreshBudget(budget time.Duration) PluginProjectorOption {
 	}
 }
 
+// NewPluginProjector combines source resolution and install inspection within the source refresh budget.
 func NewPluginProjector(
 	resolver PluginResolver,
 	inspect PluginInspector,

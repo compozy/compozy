@@ -19,6 +19,7 @@ func validateManifestIdentity(manifest *Manifest) error {
 	return validateSemanticVersionField(manifestVersionKey, manifest.Version)
 }
 
+// validateManifestRuntime checks native compatibility and subprocess declarations before resource loading.
 func validateManifestRuntime(manifest *Manifest) error {
 	if err := validateManifestProfiles(manifest); err != nil {
 		return err

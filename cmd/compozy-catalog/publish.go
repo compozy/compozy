@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/marketplace"
 )
 
+// publishCatalog stages and validates one publication before replacing its public files.
 func publishCatalog(ctx context.Context, sourceDirectory, outputDirectory string) (err error) {
 	sources, err := readPublicationSources(sourceDirectory)
 	if err != nil {

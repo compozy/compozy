@@ -62,3 +62,17 @@ failed Marketplace render. Current-head CI and review remediation remain separat
 The re-walk teardown reported `clean: true`, with no surviving owned processes. The strict targeted
 QA evidence audit passed with zero blockers and warnings; its local validation record explicitly
 uses the user's focused-check override rather than claiming a full local gate.
+
+## Published evidence
+
+The orchestrator published all three inspected captures to the permanent evidence host and verified
+HTTP 200 with `Content-Type: image/png`. They are embedded in PR #957; its GitHub-rendered HTML has
+zero `private-user-images` references. No PNG is committed to this branch. This resolves the upload
+limitation recorded above.
+
+- [Marketplace list](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-917/a1da5180/01-marketplace-blocked.png)
+- [Linear detail](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-917/a1da5180/02-linear-blocked.png)
+- [Linear detail at 320px](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-917/a1da5180/03-linear-blocked-narrow.png)
+
+Captures identify a1da5180. Subsequent portable-package and test-fixture fixes preserve the native
+minimum-version projection and unchanged Web UI shown here.

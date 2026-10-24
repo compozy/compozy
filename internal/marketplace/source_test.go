@@ -825,6 +825,7 @@ func TestDigestFile(t *testing.T) {
 	})
 }
 
+// TestCatalogSourceFetch verifies bounded catalog acquisition, compatibility binding, and legacy source behavior.
 func TestCatalogSourceFetch(t *testing.T) {
 	// Invariant: requirements apply only to their exact feed and archive; malformed metadata fails closed.
 	// Owner: catalog ingestion. Canonical suite: TestCatalogSourceFetch.

@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 )
 
+// TestBootMarketplaceLifecycle verifies refresh, source reconciliation, rollback, and runtime shutdown.
 func TestBootMarketplaceLifecycle(t *testing.T) {
 	t.Parallel()
 	for _, operation := range []string{"add", "disable", "remove"} {
@@ -617,6 +618,7 @@ func (w blockingMarketplaceEventWriter) WriteEventSummary(ctx context.Context, _
 	return ctx.Err()
 }
 
+// newMarketplaceFeedServer serves the two legacy feed endpoints and rejects unpublished paths.
 func newMarketplaceFeedServer(t *testing.T, entryID string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
+// TestDaemonE2EExtensionDistributionAcrossIsolatedHomes exercises real distribution flows without shared runtime state.
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	// Share only the immutable catalog executable; publication and package outputs stay isolated.
 	catalogPath := filepath.Join(t.TempDir(), "compozy-catalog")

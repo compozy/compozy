@@ -39,6 +39,7 @@ func newMarketplaceInstallIndex() marketplaceInstallIndex {
 	}
 }
 
+// extensionInstallIndex indexes only installations visible within the requested scope.
 func (h *BaseHandlers) extensionInstallIndex(
 	ctx context.Context,
 	scope marketplaceReadScope,

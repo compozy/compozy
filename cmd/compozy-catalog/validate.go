@@ -175,6 +175,7 @@ func (d *catalogFileDownloader) Download(
 	}, nil
 }
 
+// removeCatalogTemporaryDirectory reports cleanup failures alongside publication validation errors.
 func removeCatalogTemporaryDirectory(path string) error {
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("compozy-catalog: remove catalog temporary directory: %w", err)

@@ -100,6 +100,7 @@ func validatePublicationEntries(entries []publicationEntry) error {
 	return nil
 }
 
+// decodePublicationJSON accepts exactly one source document and rejects unknown fields.
 func decodePublicationJSON(raw []byte, value any) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
