@@ -67,6 +67,16 @@ func newSessionPRCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if result.Branch == "" {
+				return withCommandExitCode(1, &daemonAPIError{
+					statusCode: http.StatusConflict,
+					payload: contract.ErrorPayload{
+						Code:  "session_branch_unavailable",
+						Error: "session_branch_unavailable: session has no branch (default branch, detached HEAD, or no git repository)",
+					},
+				})
+			}
+
 			return writeCommandOutput(
 				cmd,
 				outputBundle{

@@ -5210,6 +5210,26 @@ func TestSessionListAllProjectsColumn(t *testing.T) {
 // Owner: CLI session commands; canonical session suite.
 func TestSessionPullRequestCommand(t *testing.T) {
 	t.Parallel()
+	for _, format := range []string{"human", "json"} {
+		t.Run("Should reject a branchless cached read in "+format, func(t *testing.T) {
+			t.Parallel()
+			client := &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) { return SessionRecord{ID: id}, nil },
+			}
+			withWorkspaceResolution(client)
+			args := []string{"session", "pr", "sess-1"}
+			if format == "json" {
+				args = append(args, "-o", "json")
+			}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err == nil || !strings.Contains(err.Error(), "session_branch_unavailable") ||
+				cliExitCodeForError(err) != 1 ||
+				stdout != "" {
+				t.Fatalf("branchless output=%q error=%v exit=%d", stdout, err, cliExitCodeForError(err))
+			}
+		})
+	}
+
 	t.Run("Should distinguish cached and explicit refresh output", func(t *testing.T) {
 		t.Parallel()
 		client := &pullRequestCLIStub{
