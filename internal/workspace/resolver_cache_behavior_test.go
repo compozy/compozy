@@ -35,6 +35,43 @@ func BenchmarkResolveWarmWorkspace(b *testing.B) {
 
 func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	t.Parallel()
+	t.Run("Should refresh configuration changes within the discovery TTL", func(t *testing.T) {
+		for _, layer := range []string{"user", "workspace", "profile", "workspace-profile"} {
+			t.Run("Should refresh "+layer, func(t *testing.T) {
+				home := newTestHomePaths(t)
+				ws := Workspace{ID: "ws_config_ttl", Name: "repo", RootDir: t.TempDir()}
+				paths := map[string]string{
+					"user":              home.ConfigFile,
+					"workspace":         filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
+					"profile":           filepath.Join(home.ProfilesDir, "design", compozyconfig.ConfigName),
+					"workspace-profile": filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, "design", compozyconfig.ConfigName),
+				}
+				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home), WithSnapshotTTL(time.Minute))
+				resolve := func() string {
+					t.Helper()
+					got, err := r.resolve(t.Context(), ws.ID, "design", "profile-design")
+					if err != nil {
+						t.Fatal(err)
+					}
+					return got.Config.Defaults.Agent
+				}
+				baseline := resolve()
+				for _, agent := range []string{"designer", "reviewer"} {
+					writeFile(t, paths[layer], "[defaults]\nagent = \""+agent+"\"\n")
+					if got := resolve(); got != agent {
+						t.Fatalf("agent = %q, want %q", got, agent)
+					}
+				}
+				if err := os.Remove(paths[layer]); err != nil {
+					t.Fatal(err)
+				}
+				if got := resolve(); got != baseline {
+					t.Fatalf("agent after deletion = %q, want %q", got, baseline)
+				}
+			})
+		}
+	})
+
 	t.Run("Should bound cached discovery age without extending it on cache hits", func(t *testing.T) {
 		t.Parallel()
 		home := newTestHomePaths(t)

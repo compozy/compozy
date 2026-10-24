@@ -136,7 +136,7 @@ func (r *Resolver) resolve(
 	workspaceID = identity.WorkspaceID
 
 	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
-	if cached, ok := r.freshSnapshot(cacheKey, ws, identity.WorkspaceID, profileID); ok {
+	if cached, ok := r.freshSnapshot(cacheKey, ws, identity.WorkspaceID, profileName, profileID); ok {
 		cacheHit = true
 		return cached, nil
 	}
