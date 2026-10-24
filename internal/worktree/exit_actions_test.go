@@ -641,18 +641,20 @@ func TestExitActions(t *testing.T) {
 }
 
 type recordingExitForge struct {
-	capabilities *ForgeCapabilities
-	status       *ForgeStatus
-	statusErr    error
-	statusCalls  int
-	lastStatus   ForgeStatusRequest
-	create       *ForgePRResult
-	createErr    error
-	createCalls  int
-	lastCreate   ForgePRRequest
+	capabilities    *ForgeCapabilities
+	capabilityCalls int
+	status          *ForgeStatus
+	statusErr       error
+	statusCalls     int
+	lastStatus      ForgeStatusRequest
+	create          *ForgePRResult
+	createErr       error
+	createCalls     int
+	lastCreate      ForgePRRequest
 }
 
 func (f *recordingExitForge) Capabilities(context.Context, []string) (*ForgeCapabilities, error) {
+	f.capabilityCalls++
 	return f.capabilities, nil
 }
 

@@ -86,7 +86,7 @@ func (s *Service) RunExitAction(
 	if !request.Action.executable() {
 		return "", ErrExitActionInvalid
 	}
-	plan, err := s.ExitPlanForPaths(ctx, workspaceID, id, request.IncludePaths)
+	plan, err := s.exitPlanForPaths(ctx, workspaceID, id, request.IncludePaths, true)
 	if err != nil {
 		return "", err
 	}

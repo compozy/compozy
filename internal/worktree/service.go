@@ -28,35 +28,37 @@ type SessionGuard interface {
 }
 
 type Service struct {
-	pullRequests     *PullRequestService
-	store            Store
-	runner           GitRunner
-	capability       *CapabilityGate
-	resolver         WorkspaceResolver
-	sessions         SessionGuard
-	deliverySessions ManagedDeliverySessions
-	locks            *RepositoryLocks
-	usage            *worktreeUsageLocks
-	hooks            HookDispatcher
-	events           EventSink
-	forge            ForgeProvider
-	config           config.WorktreesConfig
-	root             string
-	now              func() time.Time
-	newID            func(string) (string, error)
-	getenv           func(string) string
-	environ          func() []string
-	logger           *slog.Logger
-	configMu         sync.RWMutex
-	cacheMu          sync.Mutex
-	discovery        map[string]discoveryCacheEntry
-	cacheEpoch       uint64
-	catalogMu        sync.Mutex
-	catalog          *catalogBroadcaster
-	createMu         sync.Mutex
-	creates          map[string]*createOperation
-	exitMu           sync.Mutex
-	exits            map[string]*exitOperationControl
+	pullRequests        *PullRequestService
+	store               Store
+	runner              GitRunner
+	capability          *CapabilityGate
+	resolver            WorkspaceResolver
+	sessions            SessionGuard
+	deliverySessions    ManagedDeliverySessions
+	locks               *RepositoryLocks
+	usage               *worktreeUsageLocks
+	hooks               HookDispatcher
+	events              EventSink
+	forge               ForgeProvider
+	forgeCapabilitiesMu sync.Mutex
+	forgeCapabilities   map[string]*ForgeCapabilities
+	config              config.WorktreesConfig
+	root                string
+	now                 func() time.Time
+	newID               func(string) (string, error)
+	getenv              func(string) string
+	environ             func() []string
+	logger              *slog.Logger
+	configMu            sync.RWMutex
+	cacheMu             sync.Mutex
+	discovery           map[string]discoveryCacheEntry
+	cacheEpoch          uint64
+	catalogMu           sync.Mutex
+	catalog             *catalogBroadcaster
+	createMu            sync.Mutex
+	creates             map[string]*createOperation
+	exitMu              sync.Mutex
+	exits               map[string]*exitOperationControl
 }
 
 type Option func(*Service)

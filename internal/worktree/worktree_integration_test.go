@@ -52,6 +52,49 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read exit plans locally while display refresh is in backoff", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		f.git(f.workspace.Root, "remote", "add", "origin", "https://github.com/acme/repo.git")
+		item, err := f.service.Create(
+			t.Context(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Local Plan"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := &recordingExitForge{capabilities: &ForgeCapabilities{Provider: "github"}}
+		WithForge(provider)(f.service)
+		cache := newPullRequestMemoryStore()
+		now := statusTestClock()
+		key := PullRequestKey{f.workspace.ID, "github.com/acme/repo", item.Branch}
+		if err := cache.SavePullRequest(
+			t.Context(),
+			PullRequestEntry{
+				Key:         key,
+				LookupState: "error",
+				LookupCause: "rate_limited",
+				RetryAfter:  new(now.Add(time.Hour)),
+				Facts:       &ForgeStatus{FetchedAt: new(now.Add(-time.Hour))},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		pulls := NewPullRequestService(t.Context(), cache, provider, f.service.runner, nil)
+		pulls.now = func() time.Time { return now }
+		t.Cleanup(pulls.Close)
+		f.service.pullRequests = pulls
+		plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
+		if err != nil || plan.Forge != nil {
+			t.Fatalf("plan=%#v, %v", plan, err)
+		}
+		pulls.Close()
+		if provider.capabilityCalls != 0 || provider.statusCalls != 0 {
+			t.Fatalf("provider invoked: %#v", provider)
+		}
+	})
+
 	// Invariant: replay recognizes only the authorized selected tree and parent,
 	// preserving outsiders and blocking hook-expanded commits before publication.
 	// Owner: worktree delivery; canonical real Git lifecycle integration suite.
@@ -1212,10 +1255,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("gone status = (%#v, %v)", status, err)
 				}
 				plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
-				wantMerged := scenario == "merged" || scenario == "dirty" || scenario == "no base" ||
-					scenario == "persisted merge"
-				if err != nil || plan.Cleanup.Safe != wantMerged || (wantMerged && plan.Cleanup.Source != "forge") {
-					t.Fatalf("exit plan = (%#v, %v), want merged evidence %v", plan, err, wantMerged)
+				if err != nil || plan.Cleanup.Safe || plan.Cleanup.Source != cleanupLocalSource {
+					t.Fatalf("exit plan = (%#v, %v), want conservative local evidence", plan, err)
+				}
+				if provider, ok := f.service.forge.(*recordingExitForge); ok &&
+					(provider.capabilityCalls != 0 || provider.statusCalls != 0) {
+					t.Fatalf("plan invoked forge: %#v", provider)
 				}
 				for _, action := range plan.Actions {
 					if scenario == "dirty" && action.Action == ExitActionCommit && !action.Enabled {

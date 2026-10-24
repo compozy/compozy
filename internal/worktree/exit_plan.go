@@ -30,6 +30,10 @@ const (
 )
 
 func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPlan, error) {
+	return s.exitPlan(ctx, workspaceID, id, false)
+}
+
+func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action bool) (*ExitPlan, error) {
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if errors.Is(err, ErrNotFound) || item == nil {
 		return nil, ErrNotFound
@@ -55,7 +59,10 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 	if err != nil {
 		return s.remoteUnreadableExitPlan(ctx, *item, status, scope)
 	}
-	forge := s.exitForgeCapabilities(ctx, remoteURLs)
+	forge := s.cachedExitForgeCapabilities(remoteURLs)
+	if action {
+		forge = s.exitForgeCapabilities(ctx, remoteURLs)
+	}
 	forgeStatus := s.readDisplayPullRequest(ctx, *item)
 	base := s.resolveExitBase(ctx, *item, status, forge)
 	baseAhead := s.countCommitsAhead(ctx, item.Path, base)
@@ -81,7 +88,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		status, forge, forgeStatus, baseAhead, len(remoteURLs) > 0, plan.BrowserURL, paused,
 	)
 	plan.Primary = selectExitPrimary(plan.Actions, status)
-	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, s.cleanupForgeStatus(ctx, *item))
+	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, nil)
 	return plan, nil
 }
 
@@ -152,7 +159,19 @@ func (s *Service) exitForgeCapabilities(ctx context.Context, remotes []string) *
 	if err != nil || capabilities == nil || strings.TrimSpace(capabilities.Provider) == "" {
 		return nil
 	}
+	s.forgeCapabilitiesMu.Lock()
+	if s.forgeCapabilities == nil {
+		s.forgeCapabilities = make(map[string]*ForgeCapabilities)
+	}
+	s.forgeCapabilities[strings.Join(remotes, "\n")] = capabilities
+	s.forgeCapabilitiesMu.Unlock()
 	return capabilities
+}
+
+func (s *Service) cachedExitForgeCapabilities(remotes []string) *ForgeCapabilities {
+	s.forgeCapabilitiesMu.Lock()
+	defer s.forgeCapabilitiesMu.Unlock()
+	return s.forgeCapabilities[strings.Join(remotes, "\n")]
 }
 
 func buildExitActions(
