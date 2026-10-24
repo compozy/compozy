@@ -187,11 +187,8 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.textContent)).toEqual([
-      "Fix failing checks",
-      "Open PR",
-      "Refresh",
-    ]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["fix", "open", "refresh"]);
+    expect(items[0]).toHaveTextContent("Fix failing checks");
 
     fireEvent.click(items[0]!);
     expect(onSendPrompt).toHaveBeenCalledTimes(1);
@@ -213,7 +210,7 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByTestId("session-pull-request-chip"));
     const menu = await screen.findByTestId("session-pull-request-menu");
     const items = within(menu).getAllByRole("menuitem");
-    expect(items.map(item => item.textContent)).toEqual(["Open PR", "Refresh"]);
+    expect(items.map(item => item.getAttribute("data-action"))).toEqual(["open", "refresh"]);
     fireEvent.click(items[1]!);
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });

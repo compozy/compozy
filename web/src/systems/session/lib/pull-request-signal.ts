@@ -28,12 +28,16 @@ export const PULL_REQUEST_SHAPE_WORD: Record<PullRequestShape, string> = {
 export const PULL_REQUEST_BRANCH_MAX_CHARS = 32;
 const PULL_REQUEST_BRANCH_TAIL_CHARS = 12;
 
-export function pullRequestShape(pr: Pick<SessionPullRequest, "state" | "draft">): PullRequestShape {
+export function pullRequestShape(
+  pr: Pick<SessionPullRequest, "state" | "draft">
+): PullRequestShape {
   return pr.state === "open" && pr.draft === true ? "draft" : pr.state;
 }
 
 /** The facts are current: the last lookup succeeded and the entry is not stale. */
-export function pullRequestFactsFresh(lookup: SessionPullRequestLookup | null | undefined): boolean {
+export function pullRequestFactsFresh(
+  lookup: SessionPullRequestLookup | null | undefined
+): boolean {
   return lookup?.state === "ok" && !lookup.stale;
 }
 
@@ -42,7 +46,9 @@ export function pullRequestIsReady(
   pr: SessionPullRequest,
   lookup: SessionPullRequestLookup | null | undefined
 ): boolean {
-  return pr.ready_to_merge && pr.state === "open" && pr.draft === false && pullRequestFactsFresh(lookup);
+  return (
+    pr.ready_to_merge && pr.state === "open" && pr.draft === false && pullRequestFactsFresh(lookup)
+  );
 }
 
 export interface PullRequestSignalPart {
@@ -199,7 +205,11 @@ export function pullRequestChipModel(facts: SessionPullRequestFacts): PullReques
     return {
       kind: "branch",
       branch,
-      branchLabel: middleTruncate(branch, PULL_REQUEST_BRANCH_MAX_CHARS, PULL_REQUEST_BRANCH_TAIL_CHARS),
+      branchLabel: middleTruncate(
+        branch,
+        PULL_REQUEST_BRANCH_MAX_CHARS,
+        PULL_REQUEST_BRANCH_TAIL_CHARS
+      ),
       ...branchDetail(lookup),
       ariaLabel: `Branch ${branch}`,
     };

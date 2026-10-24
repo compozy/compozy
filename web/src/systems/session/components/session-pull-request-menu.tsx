@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   Eyebrow,
   Spinner,
+  Time,
 } from "@compozy/ui";
 
 import {
@@ -50,6 +51,8 @@ const ITEM_ICON: Record<Exclude<PullRequestMenuItem["id"], "exit">, LucideIcon> 
 
 interface SessionPullRequestMenuProps {
   pullRequest: SessionPullRequest | null | undefined;
+  /** Last successful observation; the Refresh item's hint. */
+  observedAt?: string | null;
   controllable: boolean;
   exitPlan?: PullRequestExitPlanView;
   exitRunning: boolean;
@@ -65,6 +68,7 @@ interface SessionPullRequestMenuProps {
  */
 export function SessionPullRequestMenu({
   pullRequest,
+  observedAt,
   controllable,
   exitPlan,
   exitRunning,
@@ -104,6 +108,7 @@ export function SessionPullRequestMenu({
   const renderItem = (item: PullRequestMenuItem, title?: string) => (
     <MenuItem
       busy={busy(item)}
+      hint={item.id === "refresh" ? observedAt : null}
       item={item}
       key={item.id}
       onSelect={() => run(item)}
@@ -139,11 +144,13 @@ export function SessionPullRequestMenu({
 function MenuItem({
   item,
   busy,
+  hint,
   title,
   onSelect,
 }: {
   item: PullRequestMenuItem;
   busy: boolean;
+  hint?: string | null;
   title?: string;
   onSelect: () => void;
 }) {
@@ -161,6 +168,7 @@ function MenuItem({
     >
       {busy ? <Spinner aria-hidden="true" role={undefined} /> : <Icon aria-hidden="true" />}
       {busy ? busyLabel : item.label}
+      {hint && !busy ? <Time className="ml-auto text-eyebrow text-subtle" iso={hint} /> : null}
     </DropdownMenuItem>
   );
 }

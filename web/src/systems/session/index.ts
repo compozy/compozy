@@ -499,24 +499,7 @@ export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
-export {
-  PULL_REQUEST_REREAD_INTERVAL_MS,
-  sessionOpenPullRequestNumber,
-  sessionPullRequestFacts,
-  sessionWaitingOn,
-  withPullRequestReread,
-  type SessionPullRequest,
-  type SessionPullRequestFacts,
-  type SessionPullRequestLookup,
-  type SessionWaitingOn,
-} from "./lib/session-pull-request";
-export {
-  pullRequestChipModel,
-  pullRequestPill,
-  pullRequestShape,
-  type PullRequestPill,
-  type PullRequestShape,
-} from "./lib/pull-request-signal";
-export { SessionPullRequestChip } from "./components/session-pull-request-chip";
+export { sessionWaitingOn, type SessionWaitingOn } from "./lib/session-pull-request";
+export { pullRequestPill, type PullRequestPill } from "./lib/pull-request-signal";
 export { cachedSessionOpenPullRequestNumber } from "./lib/session-pull-request-cache";
 export { useSessionPullRequestRefresh } from "./hooks/use-session-pull-request-refresh";

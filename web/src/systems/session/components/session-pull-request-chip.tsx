@@ -113,6 +113,7 @@ export function SessionPullRequestChip({
         controllable={controllable}
         exitPlan={exitPlan}
         exitRunning={exitRunning}
+        observedAt={facts.pull_request_lookup?.observed_at}
         onExitAction={onExitAction}
         onPrompt={onPrompt}
         onRefresh={onRefresh}
@@ -176,7 +177,11 @@ function ChipBody({ model, refreshing }: { model: PullRequestChipModel; refreshi
 function BranchMarker({ marker }: { marker: "pending" | "unavailable" | "incomplete" | null }) {
   if (marker === null) return null;
   return (
-    <span className="grid place-items-center text-subtle" data-marker={marker} data-slot="chip-marker">
+    <span
+      className="grid place-items-center text-subtle"
+      data-marker={marker}
+      data-slot="chip-marker"
+    >
       {marker === "pending" ? (
         <StateGlyph label="Looking up" size="sm" state="queued" />
       ) : marker === "unavailable" ? (
@@ -251,7 +256,11 @@ function ChipTooltip({ model }: { model: PullRequestChipModel }) {
   );
 }
 
-function ObservedFoot({ model }: { model: Extract<PullRequestChipModel, { kind: "pull-request" }> }) {
+function ObservedFoot({
+  model,
+}: {
+  model: Extract<PullRequestChipModel, { kind: "pull-request" }>;
+}) {
   const prefix = model.causeText ? `${model.causeText} · ` : "";
   return (
     <div

@@ -72,8 +72,7 @@ export function pullRequestMenuModel(input: PullRequestMenuInput): PullRequestMe
   const address: PullRequestMenuItem = { id: "address", label: "Address review comments" };
 
   const exit = exitItem(input);
-  const primary =
-    exit.item ?? (canFix ? fix : canAddress ? address : openItem);
+  const primary = exit.item ?? (canFix ? fix : canAddress ? address : openItem);
   const rest: PullRequestMenuItem[] = [];
   if (openItem && primary !== openItem) rest.push(openItem);
   rest.push({ id: "refresh", label: "Refresh" });

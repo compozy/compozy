@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { createClientId } from "@/lib/client-id";
 import {
+  useSendSessionPrompt,
   useSessionPullRequestRefresh,
   type SessionBusyInputHandler,
   type SessionPayload,
@@ -11,8 +13,9 @@ import { useWorktreeDetailContext, type WorktreeDetailModel } from "@/systems/wo
 /**
  * Feeds the topbar PR chip (`_uiux.md` S2) from the window's own reads: the
  * bound managed worktree's exit plan through the existing exit flow, and the
- * agent prompts through the normal busy-aware send, which queues while a turn
- * runs and resumes a stopped session.
+ * agent prompts as normal user prompts: queued behind a running turn through the
+ * busy-input gate, otherwise sent like the composer's idle prompt, which also
+ * resumes a stopped session.
  */
 export function useSessionWindowPullRequest(input: {
   session: SessionPayload;
@@ -21,9 +24,12 @@ export function useSessionWindowPullRequest(input: {
   /** The binding resolves to a managed worktree record. */
   bound: boolean;
   liveDataEnabled: boolean;
-  sendPrompt: SessionBusyInputHandler;
+  /** A turn is in flight, so a new prompt queues behind it. */
+  running: boolean;
+  queuePrompt: SessionBusyInputHandler;
 }) {
-  const { session, workspaceId, worktreeId, bound, liveDataEnabled, sendPrompt } = input;
+  const { session, workspaceId, worktreeId, bound, liveDataEnabled, running, queuePrompt } = input;
+  const sendIdlePrompt = useSendSessionPrompt({ workspaceId });
   const pullRequestRefresh = useSessionPullRequestRefresh(session);
   const exit = useWorktreeDetailContext({
     workspaceId,
@@ -65,7 +71,15 @@ export function useSessionWindowPullRequest(input: {
       : null;
 
   const onSendPrompt = (text: string) => {
-    void Promise.resolve(sendPrompt({ message: text, attachments: [] })).catch((error: unknown) => {
+    const sent = running
+      ? queuePrompt({ message: text, attachments: [] })
+      : sendIdlePrompt.mutateAsync({
+          id: session.id,
+          idempotencyKey: createClientId(),
+          messageId: createClientId(),
+          message: text,
+        });
+    void Promise.resolve(sent).catch((error: unknown) => {
       toast.error(error instanceof Error ? error.message : "Couldn't send the prompt.");
     });
   };

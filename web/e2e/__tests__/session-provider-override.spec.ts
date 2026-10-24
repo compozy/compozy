@@ -283,7 +283,10 @@ test("operator can create a provider/model override session and attach without l
     runtime: { model: "qa-browser-model", provider: overrideProvider },
   });
   await waitForSeedSessionActive(runtime, createdSession.session.id);
-  await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
+  // The window topbar spends its status zone on the PR chip; the row mark names the provider.
+  await expect(
+    sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
+  ).toHaveAttribute("data-kind", overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
 
   await assertSessionParity(
@@ -303,7 +306,9 @@ test("operator can create a provider/model override session and attach without l
   });
 
   await expect(sessionUi.stopButton).toBeVisible();
-  await expect(sessionWin.getByTestId("session-status-provider")).toHaveText(overrideProvider);
+  await expect(
+    sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
+  ).toHaveAttribute("data-kind", overrideProvider);
   await assertSessionParity(
     runtime,
     createdSession.session.workspace_id,
@@ -444,10 +449,9 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     });
 
     await waitForSeedSessionActive(runtime, createdSession.session.id);
-    await expect(sessionWin.getByTestId("session-status-provider")).toHaveText("agy");
     await expect(
       sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
-    ).toBeVisible();
+    ).toHaveAttribute("data-kind", "agy");
     await assertSessionParity(
       runtime,
       createdSession.session.workspace_id,
@@ -988,8 +992,13 @@ async function assertSessionParity(
   expectedProvider: string
 ): Promise<void> {
   const path = sessionAPIPath(workspaceID, sessionID);
-  const httpRecord = await runtime.requestJSON<SessionEnvelope>(path);
-  expect(httpRecord.session.runtime.effective?.provider).toBe(expectedProvider);
+  // The runtime binds after the first prompt is admitted; wait for the daemon's effective truth.
+  await expect
+    .poll(async () => {
+      const httpRecord = await runtime.requestJSON<SessionEnvelope>(path);
+      return httpRecord.session.runtime.effective?.provider;
+    })
+    .toBe(expectedProvider);
 
   if (!runtime.requestOperatorJSON) {
     throw new Error("provider override parity check requires operator UDS access");

@@ -5,6 +5,7 @@ import { cn } from "@compozy/ui";
 import { sessionBadgeOf, sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import type { SessionOriginView } from "../lib/session-origin";
+import { sessionWaitingOn } from "../lib/session-pull-request";
 import { SessionBadgeGlyph } from "./session-badge-mark";
 import { SessionOriginPill } from "./session-origin-pill";
 import type { SessionPayload } from "../types";
@@ -34,7 +35,8 @@ export function SessionStatusLine({
   ...props
 }: SessionStatusLineProps) {
   const badge = sessionBadgeOf(session);
-  const signal = sessionBadgeSignal(badge);
+  const waitingOn = sessionWaitingOn(session);
+  const signal = sessionBadgeSignal(badge, waitingOn);
   const archived = session.archived_at !== null;
 
   return (
@@ -48,11 +50,11 @@ export function SessionStatusLine({
     >
       {showState ? (
         <span className="inline-flex shrink-0 items-center gap-1.5">
-          <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" />
+          <SessionBadgeGlyph badge={badge} data-testid="agent-status-dot" waitingOn={waitingOn} />
           <span
             data-testid="session-status-badge"
             data-badge={signal.label}
-            className={cn("text-eyebrow", sessionBadgeWordClass(badge))}
+            className={cn("text-eyebrow", sessionBadgeWordClass(badge, waitingOn))}
           >
             {signal.displayLabel}
           </span>

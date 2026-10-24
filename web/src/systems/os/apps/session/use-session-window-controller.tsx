@@ -130,7 +130,8 @@ export function useSessionWindowController(input: {
     worktreeId: session.worktree_id,
     bound: worktreeBinding.bound && worktreeBinding.worktree !== undefined,
     liveDataEnabled,
-    sendPrompt: controls.handleQueuePrompt,
+    running: controls.isSessionRunning,
+    queuePrompt: controls.handleQueuePrompt,
   });
 
   useSessionTopbarSlot({

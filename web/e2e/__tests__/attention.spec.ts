@@ -234,6 +234,51 @@ test.describe("E2E-011 coalesced completions", () => {
   });
 });
 
+test.describe("Sessions Kanban E2E-004 waiting is not done", () => {
+  test("Should hold the finished toast while a child works, then fire it once", async ({
+    appPage: page,
+    runtime,
+  }) => {
+    const workspace = await globalWorkspace(runtime);
+    const coordinator = await createSession(runtime, workspace, attentionAgent);
+    const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        agent_name: attentionAgent,
+        workspace: workspace.id,
+        parent_session_id: coordinator.id,
+      }),
+    });
+    await waitForSeedSessionActive(runtime, created.session.id);
+
+    // The coordinator settles its turn while its child is live: waiting, not done.
+    await promptSession(runtime, coordinator, "complete turn");
+    const waiting = await waitForBadge(runtime, coordinator.id, "waiting");
+    expect((waiting as SessionPayload & { waiting_on?: string }).waiting_on).toBe("sessions");
+    const modal = await openSessionsModal(page);
+    const row = modal.getByTestId(`os-sessions-modal-session-${coordinator.id}`);
+    const mark = row.getByRole("img", { name: "Session badge: waiting" });
+    await expect(mark).toHaveAttribute("data-waiting-on", "sessions");
+    await expect(row.locator("..")).toContainText("Waiting on sessions");
+    await page.keyboard.press("Escape");
+    await expect(modal).toBeHidden();
+    // A whole coalescing window passes without a finished delivery.
+    await page.waitForTimeout(6_000);
+    await expect(page.getByTestId("os-attention-toast-finished")).toHaveCount(0);
+
+    // The last child stops: the coordinator becomes done by itself and announces it once.
+    const stopped = await fetch(
+      runtime.url(sessionAPIPath(workspace.id, created.session.id, "/stop")),
+      { method: "POST" }
+    );
+    expect(stopped.ok).toBe(true);
+    await waitForBadge(runtime, coordinator.id, "done");
+    const toast = page.getByTestId("os-attention-toast-finished");
+    await expect(toast).toHaveCount(1);
+    await expect(toast).toContainText("Finished while you were away");
+  });
+});
+
 test.describe("E2E-012 tab title count", () => {
   test("Should carry the cross-workspace needs-you total across navigation and clear at zero", async ({
     appPage: page,
