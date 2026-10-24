@@ -2,6 +2,7 @@ package procutil
 
 import (
 	"os"
+	"path"
 	"strings"
 )
 
@@ -12,6 +13,16 @@ func FilteredDaemonEnv(base []string) []string {
 		env = os.Environ()
 	}
 
+	appImage, appDir := "", ""
+	for _, entry := range env {
+		name, value, _ := strings.Cut(entry, "=")
+		switch name {
+		case "APPIMAGE":
+			appImage = value
+		case "APPDIR":
+			appDir = value
+		}
+	}
 	filtered := make([]string, 0, len(env))
 	for _, entry := range env {
 		parts := strings.SplitN(entry, "=", 2)
@@ -21,9 +32,47 @@ func FilteredDaemonEnv(base []string) []string {
 		if SensitiveEnvName(parts[0]) {
 			continue
 		}
+		if appImage != "" {
+			switch parts[0] {
+			case "APPIMAGE", "APPDIR", "ARGV0", "OWD":
+				continue
+			case "LD_LIBRARY_PATH":
+				value := appImageLibraryPath(parts[1], appDir)
+				if value == "" {
+					continue
+				}
+				entry = "LD_LIBRARY_PATH=" + value
+			}
+		}
 		filtered = append(filtered, entry)
 	}
 	return filtered
+}
+
+func appImageLibraryPath(value, appDir string) string {
+	appDir = path.Clean(appDir)
+	kept := make([]string, 0)
+	for entry := range strings.SplitSeq(strings.ReplaceAll(value, ";", ":"), ":") {
+		cleaned := path.Clean(entry)
+		if path.IsAbs(appDir) && appDir != "/" &&
+			(cleaned == appDir || strings.HasPrefix(cleaned, appDir+"/")) {
+			continue
+		}
+		mounted := false
+		// Old AppImage mounts can survive in the inherited library search path.
+		if path.IsAbs(cleaned) {
+			for component := range strings.SplitSeq(cleaned, "/") {
+				if strings.HasPrefix(component, ".mount_") {
+					mounted = true
+					break
+				}
+			}
+		}
+		if !mounted {
+			kept = append(kept, entry)
+		}
+	}
+	return strings.Join(kept, ":")
 }
 
 // IsolatedDaemonEnv returns only the fixed operational environment allowlist
