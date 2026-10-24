@@ -4,6 +4,7 @@ import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
+import { SkeletonText } from "./skeleton";
 
 function Tabs({ className, orientation = "horizontal", ...props }: TabsPrimitive.Root.Props) {
   return (
@@ -31,8 +32,16 @@ function TabsList({ activateOnFocus = true, className, ...props }: TabsPrimitive
   );
 }
 
+/** A tab's count: the number once it is known, or `"pending"` while it is still being read. */
+export type TabsTriggerCount = number | "pending";
+
 export interface TabsTriggerProps extends TabsPrimitive.Tab.Props {
-  count?: number;
+  /**
+   * The count after the label. `"pending"` holds the slot with a placeholder two digits wide, so
+   * the tab and the tabs after it do not move when the number arrives; absent shows no count at
+   * all. Use `"pending"` only for a count that has not been read yet, never for a refetch.
+   */
+  count?: TabsTriggerCount;
   liveLabel?: React.ReactNode;
 }
 
@@ -54,9 +63,10 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
       {count !== undefined ? (
         <span
           data-slot="tabs-trigger-count"
+          data-pending={count === "pending" || undefined}
           className="inline-flex items-center font-normal tabular-nums text-subtle"
         >
-          {count}
+          {count === "pending" ? <SkeletonText className="w-[2ch]" /> : count}
         </span>
       ) : null}
       {liveLabel ? (

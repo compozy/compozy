@@ -2,12 +2,17 @@
 
 import * as React from "react";
 
-import { Tabs, TabsList, TabsTrigger } from "../tabs";
+import { Tabs, TabsList, TabsTrigger, type TabsTriggerCount } from "../tabs";
 
 export interface LaneTabsItem<T extends string> {
   value: T;
   label: React.ReactNode;
-  count?: number;
+  /**
+   * The number after the label. Pass `"pending"` while the count is being read for the first
+   * time: the slot is held by a placeholder, so the tab does not widen and push its siblings when
+   * the number arrives. Leave it out only for a tab that never shows a count.
+   */
+  count?: TabsTriggerCount;
   liveLabel?: React.ReactNode;
   testId?: string;
 }

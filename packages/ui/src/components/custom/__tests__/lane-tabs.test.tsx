@@ -27,6 +27,31 @@ describe("LaneTabs", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
   });
 
+  // Invariant: a lane whose count is still being read keeps its count slot (so the tab strip does
+  // not widen when the number arrives), while a lane without a count never gets one.
+  it("Should hold a count slot only for the lane whose count is pending", () => {
+    const { container } = render(
+      <LaneTabs
+        items={[
+          { value: "all", label: "All" },
+          { value: "active", label: "Active", count: "pending" },
+          { value: "done", label: "Done", count: 8 },
+        ]}
+        value="all"
+        onChange={vi.fn()}
+        ariaLabel="Lanes"
+      />
+    );
+
+    const slots = container.querySelectorAll('[data-slot="tabs-trigger-count"]');
+    expect(slots).toHaveLength(2);
+    expect(screen.getByRole("tab", { name: "All" }).querySelector("[data-pending]")).toBeNull();
+    expect(
+      screen.getByRole("tab", { name: "Active" }).querySelector('[data-slot="tabs-trigger-count"]')
+    ).toHaveAttribute("data-pending");
+    expect(screen.getByRole("tab", { name: /Done/ })).toHaveTextContent("Done8");
+  });
+
   it("Should advance the selection on ArrowRight and wrap on End", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

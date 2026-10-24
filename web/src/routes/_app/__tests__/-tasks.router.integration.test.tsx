@@ -167,10 +167,16 @@ describe("production task detail route (integration)", () => {
     expect(within(region).getByText("Attempt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tasks" })).toBeInTheDocument();
     expect(screen.queryByTestId("tasks-detail-content")).not.toBeInTheDocument();
+    // The Runs tab already holds its count's slot, so the strip is the width it will be.
+    const runsCount = () =>
+      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="tabs-trigger-count"]');
+    expect(runsCount()).toHaveAttribute("data-pending");
 
     record.resolve(detail);
     await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
     expect(screen.queryByTestId("tasks-detail-loading")).not.toBeInTheDocument();
+    await waitFor(() => expect(runsCount()).toHaveTextContent("0"));
+    expect(runsCount()).not.toHaveAttribute("data-pending");
 
     // A later refetch has data to show: the record stays and no loading area comes back.
     const refetch = deferred<TaskDetailView>();

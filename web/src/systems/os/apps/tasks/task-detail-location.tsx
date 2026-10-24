@@ -38,8 +38,11 @@ import {
   TaskSubheadSkeleton,
 } from "@/systems/tasks";
 
-/** `runCount` is absent while the runs are still being read, so the tab never claims zero. */
-function buildTabItems(runCount?: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
+/**
+ * `runCount` is `"pending"` while the runs are still being read: the tab holds the count's slot, so
+ * it never claims zero and the tabs after it do not move when the number arrives.
+ */
+function buildTabItems(runCount: number | "pending"): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
   return [
     { value: "overview", label: "Overview", testId: "tasks-detail-tab-overview" },
     { value: "runs", label: "Runs", count: runCount, testId: "tasks-detail-tab-runs" },
@@ -80,7 +83,7 @@ function TaskDetailLoading({ controller }: { controller: TaskDetailLocationContr
             ariaLabel="Task views"
             className="gap-0"
             data-testid="tasks-detail-tabs"
-            items={buildTabItems()}
+            items={buildTabItems("pending")}
             listClassName="w-full"
             onChange={controller.setTab}
             value={tab}
@@ -227,7 +230,7 @@ function TaskDetailContent({
             ariaLabel="Task views"
             className="gap-0"
             data-testid="tasks-detail-tabs"
-            items={buildTabItems(page.runsLoading ? undefined : page.runs.length)}
+            items={buildTabItems(page.runsLoading ? "pending" : page.runs.length)}
             listClassName="w-full"
             onChange={controller.setTab}
             value={tab}

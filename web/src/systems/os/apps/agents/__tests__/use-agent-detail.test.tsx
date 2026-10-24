@@ -82,7 +82,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useDataScope: () => mockDataScope,
 }));
 
-import { agentStatusSlot } from "@/systems/os/apps/agents/agent-detail-view";
+import { agentDetailTabItems, agentStatusSlot } from "@/systems/os/apps/agents/agent-detail-view";
 import {
   useAgentDetailPage,
   type UseAgentDetailResult,
@@ -316,5 +316,45 @@ describe("agentStatusSlot", () => {
     },
   ] as const)("Should resolve the status slot when $name", ({ overrides, expected }) => {
     expect(agentStatusSlot(page(overrides as Partial<UseAgentDetailResult>))).toBe(expected);
+  });
+});
+
+describe("agentDetailTabItems", () => {
+  const page = (overrides: Partial<UseAgentDetailResult>) =>
+    ({
+      agent: { name: "fraud-ops" },
+      metricsLoading: false,
+      metricsUnavailable: false,
+      metricsError: false,
+      sessionsTotal: 12,
+      activeSessionsTotal: 0,
+      ...overrides,
+    }) as UseAgentDetailResult;
+  const sessionsCount = (overrides: Partial<UseAgentDetailResult>) =>
+    agentDetailTabItems(page(overrides)).find(item => item.value === "sessions")?.count;
+
+  // Invariant: the Sessions tab holds its count's slot for as long as the status slot holds its
+  // placeholder, shows the exact total once the metrics are in, and never prints an inferred zero
+  // when they never will be.
+  it.each([
+    { name: "metrics loaded", overrides: {}, expected: 12 },
+    { name: "metrics loading", overrides: { metricsLoading: true }, expected: "pending" },
+    {
+      name: "agent scope still resolving (metrics disabled)",
+      overrides: { agent: undefined, metricsUnavailable: true },
+      expected: "pending",
+    },
+    {
+      name: "metrics failed",
+      overrides: { metricsError: true, metricsUnavailable: true },
+      expected: undefined,
+    },
+    {
+      name: "loaded agent without session metrics",
+      overrides: { metricsUnavailable: true },
+      expected: undefined,
+    },
+  ] as const)("Should resolve the Sessions tab count when $name", ({ overrides, expected }) => {
+    expect(sessionsCount(overrides as Partial<UseAgentDetailResult>)).toBe(expected);
   });
 });
