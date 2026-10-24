@@ -159,16 +159,16 @@
   animation-timing-function: var(--ease-out);
 }
 
-html:active-view-transition-type(drill-in) ::view-transition-new(os-window-body) {
+html:active-view-transition-type(drill-in)::view-transition-new(os-window-body) {
   animation-name: vt-slide-in-from-end;
 }
 
-html:active-view-transition-type(drill-in) ::view-transition-old(os-window-body),
-html:active-view-transition-type(drill-out) ::view-transition-old(os-window-body) {
+html:active-view-transition-type(drill-in)::view-transition-old(os-window-body),
+html:active-view-transition-type(drill-out)::view-transition-old(os-window-body) {
   animation-name: vt-fade-out;
 }
 
-html:active-view-transition-type(drill-out) ::view-transition-new(os-window-body) {
+html:active-view-transition-type(drill-out)::view-transition-new(os-window-body) {
   animation-name: vt-slide-in-from-start;
 }
 
