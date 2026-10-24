@@ -49,7 +49,11 @@ Review regression checks:
 - Return HTTP 200 with GraphQL `RATE_LIMITED` and `X-RateLimit-Reset`: retain the reset timestamp.
   Disable the forge extension: retain prior facts and report `provider_disabled`.
 - Change cached PR facts while two sessions sharing a branch are open. The workspace catalog wake
-  refreshes detail and by-id reads as well as lists; unrelated workspaces stay unchanged.
+  refreshes detail and by-id reads as well as lists; unrelated workspaces stay unchanged. With a
+  detail read already in flight, stop a session and append its discard marker, then deliver the
+  session upsert followed by a PR layout wake before the old read settles. The mounted transcript
+  must receive the marker after the trailing detail read, without remount or polling. A layout wake
+  alone must not refresh a stopped transcript.
 - Force the supported REST fallback. Prefer matching origin-repository open PRs, then terminal
   PRs, by newest update. Missing identity/update evidence or an exhausted candidate bound without
   a match produces `incomplete`, not a confirmed absence.

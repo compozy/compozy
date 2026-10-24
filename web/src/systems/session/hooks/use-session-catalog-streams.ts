@@ -296,9 +296,11 @@ function createSessionReadReconciler(queryClient: QueryClient) {
   return {
     wake(sessionId: string, payload?: SessionCatalogEventPayload) {
       if (closed) return;
-      // An attention edge shares the by-id read but must not erase a queued
-      // catalog upsert's workspace-detail and stopped-transcript reconciliation.
-      if (payload || !pending.has(sessionId)) pending.set(sessionId, payload);
+      // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
+      const queued = pending.get(sessionId);
+      if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {
+        pending.set(sessionId, payload);
+      }
       if (running.has(sessionId)) return;
       running.add(sessionId);
       void flush(sessionId);
