@@ -35,8 +35,8 @@ import {
 } from "../stores/cmd-palette-view-program-store";
 import {
   contentForEnvelope,
-  emptyFrame,
   hostFiltersLocally,
+  loadingFrame,
   viewDefinition,
   type CmdPaletteDeclarativeViewModel,
 } from "./use-cmd-palette-declarative-view";
@@ -379,7 +379,7 @@ export function useCmdPaletteProgramView({
         filterLocally: hostFiltersLocally(envelope.payload.chrome),
         runHandler: sendEvent,
       })
-    : emptyFrame("Opening view…");
+    : loadingFrame("Opening view");
   return {
     declarative,
     definition: viewDefinition(viewId, envelope ?? undefined),

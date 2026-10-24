@@ -132,7 +132,7 @@ export function useCmdPaletteDeclarativeView({
         filterLocally: hostFiltersLocally(envelope.payload.chrome),
       })
     : request.isPending
-      ? loadingFrame()
+      ? loadingFrame("Loading view")
       : emptyFrame("View unavailable");
 
   return {
@@ -308,10 +308,10 @@ function bodyContent(
 }
 
 /** A view whose first read is out: rows' shape under one busy region, never a sentence. */
-function loadingFrame(): PaletteViewContent {
+export function loadingFrame(label: string): PaletteViewContent {
   return {
-    ...emptyFrame("Loading view"),
-    empty: <OsPaletteRowsSkeleton count={5} label="Loading view" />,
+    ...emptyFrame(label),
+    empty: <OsPaletteRowsSkeleton count={5} label={label} />,
   };
 }
 
