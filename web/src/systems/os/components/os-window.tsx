@@ -49,7 +49,6 @@ export interface OsWindowProps {
 // A changed frame array recreates every mapped element. Keep unchanged frames
 // outside the render path, including their uncompiled react-rnd descendants.
 export const OsWindow = memo(function OsWindow({ frame }: OsWindowProps) {
-  performance.mark("peer-render-window");
   const {
     focused,
     handleDrag,
@@ -236,7 +235,6 @@ function OsWindowMember({
   zoomed: boolean;
   onTrafficLight: Parameters<typeof OsWindowSurface>[0]["onTrafficLight"];
 }) {
-  performance.mark("peer-render-member");
   const { coordinator, win, liveDataEnabled, windowBinding } = useOsWindowMember(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   // Mount layout-heavy bodies after the restored window frames commit.

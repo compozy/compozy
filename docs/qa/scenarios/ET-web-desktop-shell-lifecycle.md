@@ -128,7 +128,8 @@ QA impact 2026-10-07 (memory removal): the daemon reconciles every loaded window
 QA impact 2026-10-23 (#941): Repeat E2E-023 with eleven retained windows in each peer.
 A geometry-only authority update must converge without a peer long task above 50 ms;
 keep the existing 500 ms restore and drag budgets. Retained app surfaces subscribe
-to their own surface metadata, while the outer frame owns position and size. Verify
+to their own surface metadata, while the outer frame owns position and size. Unchanged
+frames must remain outside the render path when a sibling moves. Verify
 that minimize/restore, app retargeting, placement changes, and window removal still
 propagate. The existing OS interaction hook suite covers metadata propagation and
 geometry render isolation. CI owns the browser measurements and delivery gates.

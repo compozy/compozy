@@ -43,7 +43,6 @@ export interface OsZoomMenuModel {
  * palette/chords surface, which remains the guaranteed keyboard path.
  */
 export function useOsZoomMenu(windowId: string): OsZoomMenuModel {
-  performance.mark("peer-render-zoom");
   const { manager } = useOsShell();
   const store = useStore(osZoomMenuLogic);
   const phase = useSelector(store, snapshot => snapshot.context.phase);

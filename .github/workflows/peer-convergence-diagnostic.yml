@@ -7,12 +7,11 @@ permissions:
 jobs:
   stages:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       CGO_ENABLED: 0
       CI: "true"
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
-      COMPOZY_PEER_PROFILE: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
@@ -25,7 +24,7 @@ jobs:
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
       - name: Check window component behavior
         run: bunx turbo run test --filter=./web -- src/systems/os/components/__tests__/os-window.test.tsx
-      - name: Attribute snapshot stages and renders
+      - name: Validate thirty uninstrumented repetitions
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         working-directory: web
-        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 20
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 30
