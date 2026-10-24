@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { seedSessionsBoard } from "../fixtures/sessions-board";
 import { expect, test } from "../fixtures/test";
@@ -22,7 +22,13 @@ const fixturePath = path.resolve(
   "../../../internal/testutil/acpmock/testdata/browser_session_lifecycle_fixture.json"
 );
 
-test.use({ runtimeOptions: { seed: { mockAgents: [{ fixturePath, fixtureAgent: agentName }] } } });
+// Floating windows keep the board window in its own frame, on top, instead of a background tab.
+test.use({
+  runtimeOptions: {
+    newWindowPolicy: "floating",
+    seed: { mockAgents: [{ fixturePath, fixtureAgent: agentName }] },
+  },
+});
 
 type BoardColumn = "needs_you" | "working" | "in_review" | "done";
 const COLUMN_LABELS: Record<BoardColumn, string> = {
@@ -87,14 +93,35 @@ async function openSessionWindow(
   });
 }
 
+/**
+ * A live session the window can show: seeded rows are catalog-only, so the
+ * by-id read a session window resolves would retire a window pointed at one.
+ */
+async function createLiveSession(runtime: BrowserRuntime, workspaceId: string, name: string) {
+  const { session } = await runtime.requestJSON<{ session: { id: string } }>("/api/sessions", {
+    method: "POST",
+    body: JSON.stringify({ agent_name: agentName, name, workspace: workspaceId }),
+  });
+  await expect
+    .poll(async () => {
+      const result = await runtime.requestJSON<{ session: { state: string } }>(
+        `/api/workspaces/${workspaceId}/sessions/${session.id}`
+      );
+      return result.session.state;
+    })
+    .toBe("active");
+  return session.id;
+}
+
 async function openBoardPage(page: Page, runtime: BrowserRuntime, sessionId: string) {
   const workspace = await resolveWorkspace(runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await ensureProjectWorkspace(page, runtime);
   await openSessionWindow(runtime, workspace.id, sessionId);
-  const win = sessionWindow(page, sessionId);
-  await expect(win).toBeVisible();
-  return { workspace, win, frame: windowFrame(win) };
+  // The window surface holds both its head (topbar) and its body.
+  const frame = sessionWindow(page, sessionId);
+  await expect(frame).toBeVisible();
+  return { workspace, frame };
 }
 
 async function switchToKanban(frame: Locator) {
@@ -127,11 +154,14 @@ test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the 
     done: 2,
     family: true,
   });
-  const { frame } = await openBoardPage(appPage, runtime, seeded.done[0]!);
+  const host = await createLiveSession(runtime, workspace.id, "Board host session");
+  const target = await createLiveSession(runtime, workspace.id, "Board target session");
+  const { frame } = await openBoardPage(appPage, runtime, host);
   const toggle = frame.getByRole("group", { name: "View" });
   const list = toggle.getByRole("button", { name: "List" });
   const kanban = toggle.getByRole("button", { name: "Kanban" });
   await expect(list).toHaveAttribute("aria-pressed", "true");
+  await browserArtifacts.captureScreenshot("sessions-board-list-head", appPage);
 
   // Keyboard: focus the selected item, move with ArrowRight, select with Enter.
   await list.focus();
@@ -153,22 +183,22 @@ test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the 
   );
   await browserArtifacts.captureScreenshot("sessions-board-kanban", appPage);
 
-  await childCard.click();
-  const opened = sessionWindow(appPage, failedChild);
-  await expect(opened).toBeVisible();
-  const openedFrame = windowFrame(opened);
+  // The view belongs to the window: a reload keeps the board.
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(frame.getByTestId("sessions-board")).toBeVisible();
+
+  await frame.getByTestId(`session-board-card-${target}`).click();
+  const openedFrame = sessionWindow(appPage, target);
+  await expect(openedFrame).toBeVisible();
   await expect(openedFrame.getByTestId("sessions-board")).toHaveCount(0);
-  await expect(
-    openedFrame.getByRole("group", { name: "View" }).getByRole("button", { name: "List" })
-  ).toHaveAttribute("aria-pressed", "true");
+  const openedList = openedFrame
+    .getByRole("group", { name: "View" })
+    .getByRole("button", { name: "List" });
+  await expect(openedList).toHaveAttribute("aria-pressed", "true");
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(sessionWindow(appPage, failedChild)).toBeVisible();
-  await expect(
-    windowFrame(sessionWindow(appPage, failedChild))
-      .getByRole("group", { name: "View" })
-      .getByRole("button", { name: "List" })
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(sessionWindow(appPage, target)).toBeVisible();
+  await expect(openedList).toHaveAttribute("aria-pressed", "true");
 });
 
 test("E2E-006: Done pages 50 cards with Load more and archived sessions stay in the Archive bar", async ({
@@ -184,19 +214,23 @@ test("E2E-006: Done pages 50 cards with Load more and archived sessions stay in 
     done: 60,
     archived: 3,
   });
-  const { frame } = await openBoardPage(appPage, runtime, seeded.done[0]!);
+  const host = await createLiveSession(runtime, workspace.id, "Board host session");
+  const { frame } = await openBoardPage(appPage, runtime, host);
   await switchToKanban(frame);
 
   const done = column(frame, "done");
-  await expect(frame.getByRole("region", { name: "Done, 60 sessions" })).toBeVisible();
+  // The runtime fixture owns a few sessions of its own; counts come from the daemon.
+  const doneCount = (await boardFacets(runtime, workspace.id)).done;
+  expect(doneCount).toBeGreaterThanOrEqual(60);
+  await expect(frame.getByRole("region", { name: `Done, ${doneCount} sessions` })).toBeVisible();
   await expect(done.locator('[data-testid^="session-board-card-"][data-board-column]')).toHaveCount(
     50
   );
   const more = frame.getByTestId("sessions-board-load-more-done");
-  await expect(more).toContainText("50 of 60");
+  await expect(more).toContainText(`50 of ${doneCount}`);
   await more.click();
   await expect(done.locator('[data-testid^="session-board-card-"][data-board-column]')).toHaveCount(
-    60
+    Math.min(doneCount, 100)
   );
   await expect(more).toHaveCount(0);
 
@@ -226,7 +260,8 @@ test("E2E-007: a parent shows its highlighted rollup and hiding child sessions d
   });
   const parent = seeded.parent!;
   const children = seeded.children!;
-  const { frame } = await openBoardPage(appPage, runtime, parent);
+  const host = await createLiveSession(runtime, workspace.id, "Board host session");
+  const { frame } = await openBoardPage(appPage, runtime, host);
   await switchToKanban(frame);
 
   const rollup = frame.getByTestId(`session-board-card-children-${parent}`);

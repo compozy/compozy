@@ -1,7 +1,9 @@
-// Command sessions-board-seeder writes durable session rows for the Sessions
-// board browser journeys (E2E-005..E2E-007) into a stopped isolated daemon home.
-// Rows are stopped sessions, so their board column comes from the daemon's own
-// derivation: plain rows land in Done, a failed child lands in Needs you.
+// Command sessions-board-seeder writes stopped sessions for the Sessions board
+// browser journeys (E2E-005..E2E-007) into a stopped isolated daemon home. Each
+// one gets what a real stopped session leaves behind — its catalog row and its
+// on-disk metadata — so boot reconciliation keeps it instead of orphaning it.
+// Their board column comes from the daemon's own derivation: plain rows land in
+// Done, a failed child lands in Needs you.
 package main
 
 import (
@@ -11,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -53,7 +56,7 @@ func run(ctx context.Context, args []string) (err error) {
 	}
 	defer func() { err = errors.Join(err, database.Close(ctx)) }()
 
-	result, err := seedRows(ctx, database, parsed)
+	result, err := seedRows(ctx, database, home.SessionsDir, parsed)
 	if err != nil {
 		return err
 	}
@@ -67,27 +70,34 @@ func run(ctx context.Context, args []string) (err error) {
 	return nil
 }
 
-func seedRows(ctx context.Context, database *globaldb.GlobalDB, parsed options) (seeded, error) {
+func seedRows(
+	ctx context.Context,
+	database *globaldb.GlobalDB,
+	sessionsDir string,
+	parsed options,
+) (seeded, error) {
 	base := time.Now().UTC().Add(-time.Hour)
 	result := seeded{Done: []string{}, Archived: []string{}}
 	register := func(info store.SessionInfo) error {
 		if err := database.RegisterSession(ctx, info); err != nil {
 			return fmt.Errorf("register seeded session %q: %w", info.ID, err)
 		}
-		return nil
+		return writeMeta(sessionsDir, &info)
 	}
 	row := func(id, name string, at time.Time) store.SessionInfo {
 		return store.SessionInfo{
-			ID:          id,
-			ProfileID:   store.DefaultProfileID,
-			Name:        name,
-			AgentName:   parsed.agentName,
-			WorkspaceID: parsed.workspaceID,
-			SessionType: "user",
-			State:       "stopped",
-			StopReason:  store.StopCompleted,
-			CreatedAt:   at,
-			UpdatedAt:   at,
+			ID:            id,
+			ProfileID:     store.DefaultProfileID,
+			Name:          name,
+			AgentName:     parsed.agentName,
+			Provider:      "claude",
+			WorkspaceID:   parsed.workspaceID,
+			SessionType:   "user",
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			StopReason:    store.StopCompleted,
+			CreatedAt:     at,
+			UpdatedAt:     at,
 		}
 	}
 	for index := range parsed.done {
@@ -101,16 +111,30 @@ func seedRows(ctx context.Context, database *globaldb.GlobalDB, parsed options) 
 	for index := range parsed.archived {
 		id := fmt.Sprintf("%s-archived-%d", parsed.prefix, index)
 		at := base.Add(time.Duration(index) * time.Second)
-		info := row(id, fmt.Sprintf("Archived session %d", index), at)
-		archivedAt := at.Add(time.Minute)
-		info.ArchivedAt = &archivedAt
-		if err := register(info); err != nil {
+		if err := register(row(id, fmt.Sprintf("Archived session %d", index), at)); err != nil {
 			return seeded{}, err
+		}
+		// Registration does not write archive state; the archive owner does.
+		if _, err := database.SetSessionArchived(ctx, parsed.workspaceID, id, true); err != nil {
+			return seeded{}, fmt.Errorf("archive seeded session %q: %w", id, err)
 		}
 		result.Archived = append(result.Archived, id)
 	}
 	if parsed.family {
-		parent, children, err := seedFamily(base, parsed.prefix, row, register)
+		fail := func(id string) error {
+			// Registration does not write failure facts; the state update does.
+			if err := database.UpdateSessionState(ctx, store.SessionStateUpdate{
+				ID:            id,
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				FailureSet:    true,
+				Failure:       &store.SessionFailure{Kind: store.FailurePrompt, Summary: "seeded failure"},
+			}); err != nil {
+				return fmt.Errorf("fail seeded session %q: %w", id, err)
+			}
+			return nil
+		}
+		parent, children, err := seedFamily(base, parsed.prefix, row, register, fail)
 		if err != nil {
 			return seeded{}, err
 		}
@@ -126,6 +150,7 @@ func seedFamily(
 	prefix string,
 	row func(id, name string, at time.Time) store.SessionInfo,
 	register func(store.SessionInfo) error,
+	fail func(id string) error,
 ) (string, []string, error) {
 	parentID := prefix + "-parent"
 	if err := register(row(parentID, "Board coordinator", base.Add(time.Hour))); err != nil {
@@ -149,6 +174,11 @@ func seedFamily(
 		if err := register(info); err != nil {
 			return "", nil, err
 		}
+		if index == 0 {
+			if err := fail(id); err != nil {
+				return "", nil, err
+			}
+		}
 		children = append(children, id)
 	}
 	return parentID, children, nil
@@ -171,4 +201,30 @@ func parseOptions(args []string) (options, error) {
 		return options{}, errors.New("--home, --workspace and --agent are required")
 	}
 	return parsed, nil
+}
+
+// writeMeta records the session directory boot reconciliation recovers from.
+func writeMeta(sessionsDir string, info *store.SessionInfo) error {
+	stopReason := info.StopReason
+	meta := store.SessionMeta{
+		ID:            info.ID,
+		Name:          info.Name,
+		AgentName:     info.AgentName,
+		Provider:      info.Provider,
+		RuntimeStatus: info.RuntimeStatus,
+		ProfileID:     info.ProfileID,
+		WorkspaceID:   info.WorkspaceID,
+		SessionType:   info.SessionType,
+		Lineage:       info.Lineage,
+		State:         info.State,
+		StopReason:    &stopReason,
+		Failure:       info.Failure,
+		CreatedAt:     info.CreatedAt,
+		UpdatedAt:     info.UpdatedAt,
+	}
+	path := store.SessionMetaFile(filepath.Join(sessionsDir, info.ID))
+	if err := store.WriteSessionMeta(path, &meta); err != nil {
+		return fmt.Errorf("write seeded session metadata %q: %w", info.ID, err)
+	}
+	return nil
 }
