@@ -37,6 +37,9 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	durableQuery := sessionCatalogPageQuery(normalized, nil, activeIDs)
 	durableQuery.RepositoryKeys = m.catalogRepositoryKeys(ctx, normalized)
 	durableQuery.DefaultBranches = m.catalogDefaultBranches(ctx, normalized)
+	if err := m.refreshCatalogPullRequests(ctx, durableQuery); err != nil {
+		return store.SessionCatalogFacetResult{}, err
+	}
 	durable, err := reader.SessionCatalogFacets(ctx, durableQuery)
 	if err != nil {
 		return store.SessionCatalogFacetResult{}, fmt.Errorf("session: durable catalog facets: %w", err)

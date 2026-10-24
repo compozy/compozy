@@ -21,3 +21,10 @@ Introduced by the Sessions Kanban spec (`.compozy/tasks/sessions-kanban`, US-011
 Walk: in a workspace with sessions in each column (one waiting for input, one running, one idle with an open PR, one done), open a session window. The switch sits after "…" with List selected. Tab to it, press ArrowRight and Enter: four columns render with counts matching `GET /api/sessions/facets` → `facets.board`. Click the In review card; the window shows that session in List. Switch to Kanban again and reload; the window is still on the board. Open a second session window; it opens in List. Switch the topbar scope to All projects; cards without a PR show their project name in row 1 and counts follow the aggregate.
 
 Owning automated coverage: E2E-005 (`web/e2e`), `use-session-sidebar-state.test.ts` (UT-067: per-window view restored, never seeded into new windows), `use-session-topbar-slot.test.tsx` (switch after the overflow, present without it), `session-board-card.test.ts` (UT-068/UT-069 row-1 status and meta).
+
+Regression walk: seed more than 50 stopped sessions in one project, with an open PR on the
+oldest session's non-default branch and no cached PR facts. Open In review without loading
+Done history. The asynchronous refresh must discover the old branch and move that session
+into In review on the next catalog read. Repeat with another project/profile in the database;
+its branches must not enter the selected scope's refresh batch. Facet-only reads must also
+schedule discovery. Backend coverage: `TestManagerBoardCatalog` with real SQLite.

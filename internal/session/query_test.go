@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -4095,6 +4096,58 @@ func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope
 
 func TestManagerBoardCatalog(t *testing.T) {
 	t.Parallel()
+	t.Run("Should discover old stopped PR branches outside the selected column and page", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		manager := newWorkspaceSessionReadFixture(t, 122, 2)
+		catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+		for _, value := range []struct{ workspace, id, branch string }{
+			{"ws-read-00", "sess-read-000", "old-topic"},
+			{"ws-read-00", "sess-read-002", "main"},
+			{"ws-read-01", "sess-read-001", "foreign-topic"},
+		} {
+			if err := catalog.SaveSessionBranch(ctx, value.workspace, value.id, value.branch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const repo = "github.com/owner/repo"
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws-read-00": repo}}
+		manager.ConfigurePullRequests(reader, catalog)
+		query := ListQuery{
+			ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: "ws-read-00",
+			Columns:     []string{"in_review"},
+			Limit:       DefaultListLimit,
+		}
+		page, err := manager.ListPage(ctx, query)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("cold page = %#v, %v", page, err)
+		}
+		if !slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
+			t.Fatalf("refresh keys = %#v", reader.keys)
+		}
+		if err := catalog.Worktrees.SavePullRequest(
+			ctx,
+			worktreepkg.PullRequestEntry{
+				Key:         worktreepkg.PullRequestKey{WorkspaceID: "ws-read-00", RepoKey: repo, Branch: "old-topic"},
+				LookupState: "ok",
+				Facts:       &worktreepkg.ForgeStatus{PRState: new("open"), PRNumber: new(42)},
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		page, err = manager.ListPage(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != "sess-read-000" {
+			t.Fatalf("refreshed page = %#v, %v", page, err)
+		}
+		reader.keys = nil
+		if _, err := manager.CatalogFacets(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(reader.keys, []BranchKey{{WorkspaceID: "ws-read-00", Branch: "old-topic"}}) {
+			t.Fatalf("facet refresh keys = %#v", reader.keys)
+		}
+	})
 	t.Run("Should overlay active PR columns and direct children before filtering and counting", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -4214,4 +4267,12 @@ func TestManagerBoardCatalog(t *testing.T) {
 			t.Fatalf("unconfigured reader = %#v, %v", page, err)
 		}
 	})
+}
+
+func (r *pullRequestQueryReader) DefaultBranchNames(context.Context, store.ReadScope, []string) map[string][]string {
+	result := make(map[string][]string)
+	for workspace := range r.repositories {
+		result[workspace] = []string{"main", "master"}
+	}
+	return result
 }
