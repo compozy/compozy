@@ -300,13 +300,12 @@ export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
 export { LoopCatalogSkeleton } from "./components/catalog/loop-catalog-skeleton";
 export { LoopDetailView } from "./components/detail/loop-detail";
-export {
-  LoopDetailSkeleton,
-  LoopDetailSkeletonBody,
-} from "./components/detail/loop-detail-skeleton";
+export { LoopDetailSkeleton } from "./components/detail/loop-detail-skeleton";
+export { LoopDetailSkeletonBody } from "./components/detail/loop-detail-skeleton-body";
 export { LoopEditorStaticSkeleton } from "./components/editor/loop-editor-skeleton-parts";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
-export { LoopRunsSkeleton, LoopRunsView } from "./components/runs/loop-runs-view";
+export { LoopRunsView } from "./components/runs/loop-runs-view";
+export { LoopRunsSkeleton } from "./components/runs/loop-runs-skeleton";
 export { LoopRunsFilters } from "./components/runs/loop-runs-filters";
 export { LoopNodeInventoryView } from "./components/runs/loop-node-inventory-view";
 export { LoopNodeInventorySkeleton } from "./components/runs/loop-node-inventory-skeleton";

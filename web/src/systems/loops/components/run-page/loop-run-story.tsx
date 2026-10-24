@@ -3,13 +3,13 @@ import { ChevronDown, History, PlugZap, TriangleAlert } from "lucide-react";
 
 import { Link } from "@tanstack/react-router";
 
-import { Button, cn, Pill, Skeleton, SkeletonRegion, SkeletonText, Time } from "@compozy/ui";
+import { Button, cn, Pill, SkeletonRegion, Time } from "@compozy/ui";
 
 import type { LoopStoryBeat } from "../../lib/loop-run-story-beats";
 import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
-import { placeholderSlots } from "../../lib/placeholder-slots";
 import { LoopSection } from "../loop-section";
 import { BEAT_ROW_CLASS, STORY_CARD_CLASS } from "./loop-run-page-classes";
+import { LoopRunStoryRowsSkeleton } from "./loop-run-story-rows-skeleton";
 import { useWindowBindingSearch } from "@/systems/workspace";
 
 /**
@@ -192,23 +192,6 @@ const EMPTY_STORY_LINE = {
   error: "This run's activity could not be loaded. The run itself is unaffected.",
   empty: "Nothing has happened in this run yet.",
 } as const;
-
-/** The activity beats before the timeline has answered: rows in the story's own card. */
-export function LoopRunStoryRowsSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <ul aria-hidden="true" className="flex flex-col divide-y divide-line-soft">
-      {placeholderSlots("beat", count).map(slot => (
-        <li className={BEAT_ROW_CLASS} key={slot.id}>
-          <Skeleton className="mt-0.5 size-6 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1">
-            <SkeletonText className="w-3/5 text-small-body" />
-          </div>
-          <SkeletonText className="w-12 shrink-0 text-form-hint" />
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 function LoopRunStoryEmpty({ isError, isLoading }: { isError: boolean; isLoading: boolean }) {
   if (!isError && isLoading) {

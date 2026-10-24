@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { StorySurface } from "@/storybook/story-layout";
 
-import { LoopRunsSkeleton, LoopRunsView } from "../runs/loop-runs-view";
+import { LoopRunsSkeleton } from "../runs/loop-runs-skeleton";
+import { LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";

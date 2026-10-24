@@ -21,8 +21,8 @@ import {
   STORY_CARD_CLASS,
   WEIGHT_CLASS,
 } from "./loop-run-page-classes";
-import { LoopRunStepRowsSkeleton } from "./loop-run-step-row";
-import { LoopRunStoryRowsSkeleton } from "./loop-run-story";
+import { LoopRunStepRowsSkeleton } from "./loop-run-step-rows-skeleton";
+import { LoopRunStoryRowsSkeleton } from "./loop-run-story-rows-skeleton";
 
 /**
  * The briefing strip before the run's verdict has been read: the calm strip's frame with a glyph,

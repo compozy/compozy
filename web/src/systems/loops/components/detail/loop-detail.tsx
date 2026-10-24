@@ -52,7 +52,8 @@ import { LoopDeleteAction } from "./loop-delete-action";
 import { LoopDetailFrame } from "./loop-detail-frame";
 import { loopDetailTopbarIdentity } from "./loop-detail-topbar";
 import { LoopLimitsPanel } from "./loop-limits-panel";
-import { LoopRecentRuns, LoopRecentRunsSkeleton } from "./loop-recent-runs";
+import { LoopRecentRuns } from "./loop-recent-runs";
+import { LoopRecentRunsSkeleton } from "./loop-recent-runs-skeleton";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
 
 interface LoopDetailProps {

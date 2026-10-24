@@ -1,20 +1,15 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { formatRelativeTime, SkeletonText, Time } from "@compozy/ui";
+import { formatRelativeTime, Time } from "@compozy/ui";
 
 import { useNowTick } from "../../hooks/use-now-tick";
-import { placeholderSlots } from "../../lib/placeholder-slots";
 import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRun } from "../../types";
 import { LoopStatusMark } from "../loop-status-mark";
+import { RECENT_RUN_ROW_CLASS, RECENT_RUNS_CLASS } from "./loop-recent-runs-classes";
 import { useWindowBindingSearch } from "@/systems/workspace";
-
-// Shared by the real rows and their skeleton so a run row is the same height either way.
-const RECENT_RUNS_CLASS = "flex flex-col rounded-lg bg-card shadow-card";
-const RECENT_RUN_ROW_CLASS =
-  "grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 first:border-t-0";
 
 interface LoopRecentRunsProps {
   runs: readonly LoopRun[];
@@ -63,25 +58,6 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           </span>
           <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
         </Link>
-      ))}
-    </div>
-  );
-}
-
-/**
- * The recent runs while they are being read: `count` rows in the list's own card. Presentational,
- * so the caller wraps it in the `SkeletonRegion` for the area it stands in for.
- */
-export function LoopRecentRunsSkeleton({ count = 3 }: { count?: number }) {
-  return (
-    <div aria-hidden="true" className={RECENT_RUNS_CLASS} data-testid="loop-recent-runs-loading">
-      {placeholderSlots("recent-run", count).map(slot => (
-        <div className={RECENT_RUN_ROW_CLASS} key={slot.id}>
-          <SkeletonText className="w-16 text-small-body" />
-          <SkeletonText className="w-24 text-form-hint" />
-          <SkeletonText className="w-10 font-mono text-mono-id" />
-          <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
-        </div>
       ))}
     </div>
   );

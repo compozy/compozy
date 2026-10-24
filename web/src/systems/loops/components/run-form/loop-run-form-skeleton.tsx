@@ -5,7 +5,7 @@ import { PageContent, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui
 import { placeholderSlots } from "../../lib/placeholder-slots";
 import { LoopPageLedeSkeleton } from "../loop-page-lede";
 import { LoopRailSectionSkeleton } from "../loop-rail-section";
-import { LoopRunFormActions } from "./loop-run-form";
+import { LoopRunFormActions } from "./loop-run-form-actions";
 import {
   IDLE_ACTION_NOTE,
   RUN_FORM_PAGE_CLASS,
