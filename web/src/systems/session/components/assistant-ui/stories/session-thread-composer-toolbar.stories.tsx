@@ -6,6 +6,7 @@ import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { MonitorComposerControl } from "@/systems/session/components/monitor-composer-control";
 import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
 import { primarySessionFixture } from "@/systems/session/mocks";
 
@@ -99,5 +100,22 @@ export const SubagentsLoading: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(await within(canvasElement).findByTestId("composer-subagents-button"));
     await expect(await screen.findByText("Loading subagents")).toBeInTheDocument();
+  },
+};
+
+/**
+ * The monitors popover while its list loads: one placeholder row per active monitor the session's
+ * summary reports, in the live row's own frame, under the real heading.
+ */
+export const MonitorsLoading: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    monitorControl: <MonitorComposerControl active={3} monitors={[]} loading />,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-monitors-button"));
+    await expect(await screen.findByText("Loading monitors")).toBeInTheDocument();
   },
 };

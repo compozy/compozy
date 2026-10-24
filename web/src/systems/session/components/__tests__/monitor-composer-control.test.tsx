@@ -88,6 +88,28 @@ describe("MonitorComposerControl", () => {
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   });
 
+  // Invariant: a list that has not been read yet holds its place with one placeholder row per
+  // active monitor the session reports (a few at most), named as one loading area, and never
+  // claims that nothing is being monitored.
+  it.each([
+    { active: 1, rows: 1 },
+    { active: 3, rows: 3 },
+    { active: 9, rows: 4 },
+  ])(
+    "Should hold $rows placeholder rows for $active active monitors while loading",
+    async ({ active, rows }) => {
+      const user = userEvent.setup();
+      renderControl({ active, loading: true });
+      await user.click(screen.getByRole("button", { name: `Monitors, ${active} active` }));
+
+      const region = screen.getByRole("status");
+      expect(region).toHaveAttribute("aria-busy", "true");
+      expect(region).toHaveTextContent("Loading monitors");
+      expect(region.querySelectorAll("li")).toHaveLength(rows);
+      expect(screen.queryByText("Nothing is being monitored.")).not.toBeInTheDocument();
+    }
+  );
+
   it("Should offer a retry when the list cannot be read", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
