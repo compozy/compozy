@@ -286,13 +286,15 @@ function projectPaletteSessions(
   return sessionRows;
 }
 
-function usePaletteTabs(
+export function usePaletteTabs(
   open: boolean,
   destinationWindowId: string | null,
   sessions: readonly SessionPayload[]
 ) {
+  // A closed palette has no tab rows. Do not wake its entity/query tree for
+  // geometry publications; opening reads the current projection immediately.
   const desktopData = useDesktop(
-    state => ({ desktops: state.desktops, windows: state.windows }),
+    state => (open ? { desktops: state.desktops, windows: state.windows } : null),
     shallowEqual
   );
   useSyncExternalStore(
@@ -300,15 +302,18 @@ function usePaletteTabs(
     windowSlotRegistryVersion,
     windowSlotRegistryVersion
   );
-  const liveWindowIds = Object.keys(desktopData.windows).join("\0");
+  const liveWindowIds = Object.keys(desktopData?.windows ?? {}).join("\0");
   useEffect(() => {
     if (open) pruneWindowSlotStores(new Set(liveWindowIds.split("\0")));
   }, [open, liveWindowIds]);
 
-  const slots = open
-    ? new Map(Object.values(desktopData.windows).map(win => [win.id, windowSlotSnapshot(win.id)]))
-    : new Map<string, ReturnType<typeof windowSlotSnapshot>>();
-  return projectPaletteTabs(open, destinationWindowId, sessions, desktopData, slots);
+  const slots =
+    desktopData !== null
+      ? new Map(Object.values(desktopData.windows).map(win => [win.id, windowSlotSnapshot(win.id)]))
+      : new Map<string, ReturnType<typeof windowSlotSnapshot>>();
+  return desktopData === null
+    ? []
+    : projectPaletteTabs(open, destinationWindowId, sessions, desktopData, slots);
 }
 
 function projectPaletteTabs(

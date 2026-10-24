@@ -5,35 +5,49 @@ on:
 permissions:
   contents: read
 jobs:
-  stages:
+  compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       CGO_ENABLED: 0
       CI: "true"
-      COMPOZY_PEER_PROFILE: "1"
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-bun
         with:
           install-playwright: "true"
-      - id: build
+      - name: Prepare uninstrumented baseline
         run: |
+          cp web/src/systems/os/hooks/use-os-palette-entities.ts /tmp/candidate-hook.ts
+          git show 5e1e49e49e1b048b2b76ce5f1631d14bacdde317:web/src/systems/os/hooks/use-os-palette-entities.ts > web/src/systems/os/hooks/use-os-palette-entities.ts
+          git show 5e1e49e49e1b048b2b76ce5f1631d14bacdde317:web/e2e/__tests__/os-shell.spec.ts > web/e2e/__tests__/os-shell.spec.ts
           bunx turbo run build --filter=./web
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
-      - name: Check window component behavior
-        run: bunx turbo run test --filter=./web -- src/systems/os/components/__tests__/os-window.test.tsx
-      - name: Attribute residual convergence work
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+      - name: Baseline ten repetitions
+        continue-on-error: true
         working-directory: web
         run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: residual-peer-profile
-          path: |
-            .tmp/playwright
-            web/dist
+          name: baseline-peer-envelope
+          path: .tmp/playwright
+          retention-days: 7
+      - name: Build candidate and test owning suites
+        run: |
+          cp /tmp/candidate-hook.ts web/src/systems/os/hooks/use-os-palette-entities.ts
+          bunx turbo run test --filter=./web -- src/systems/os/hooks/__tests__/os-interaction-hooks.test.tsx src/systems/os/hooks/__tests__/use-os-palette-root.test.tsx
+          bunx turbo run build --filter=./web
+      - name: Candidate thirty repetitions
+        working-directory: web
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 30
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: candidate-peer-envelope
+          path: .tmp/playwright
           retention-days: 7
