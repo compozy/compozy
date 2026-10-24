@@ -25,7 +25,8 @@ func (g *SessionRepo) SessionCatalogBranches(
 	}
 	where = append(where, "refresh_branch <> ''", "workspace_id <> ''")
 	source := `(SELECT sessions.*, CASE WHEN COALESCE(sessions.worktree_id, '') <> '' THEN
- CASE WHEN w.state IN ('pending','ready') THEN CASE WHEN ws.detached = 1 THEN '' ELSE COALESCE(ws.branch,w.branch,'') END ELSE '' END
+ CASE WHEN w.state IN ('pending','ready')
+ THEN CASE WHEN ws.detached = 1 THEN '' ELSE COALESCE(ws.branch,w.branch,'') END ELSE '' END
  ELSE sessions.branch END AS refresh_branch FROM sessions
  LEFT JOIN worktrees w ON w.workspace_id = sessions.workspace_id AND w.id = sessions.worktree_id
  LEFT JOIN worktree_status ws ON ws.worktree_id = w.id) AS sessions`
