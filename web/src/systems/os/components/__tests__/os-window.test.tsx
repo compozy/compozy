@@ -31,10 +31,12 @@ vi.mock("@/systems/workspace", async importOriginal => ({
     registeredWorkspaces: [{ id: "ws_beta", name: "beta" }],
   }),
 }));
+const navigation = vi.hoisted(() => ({ noteNavigateMode: vi.fn() }));
+
 vi.mock("../../hooks/use-os-shell", () => {
   const manager = {};
   return {
-    useOsShell: () => ({ coordinator: { noteNavigateMode: vi.fn() }, manager }),
+    useOsShell: () => ({ coordinator: navigation, manager }),
   };
 });
 vi.mock("../../hooks/use-os-window", () => ({
@@ -73,6 +75,23 @@ function TasksController({ windowId }: { windowId: string }) {
   );
 }
 
+/**
+ * Two body links: a plain one (a drill) and one inside content that owns its own in-window
+ * transitions (Settings sections). Both are pushes; ownership only changes the animation.
+ */
+function LinksController() {
+  return (
+    <div>
+      <a href="/tasks/task-1">Open task</a>
+      <div data-owns-view-transition="">
+        <a href="/settings/terminal">Terminal section</a>
+      </div>
+    </div>
+  );
+}
+
+let linksController = false;
+
 const pendingController = new Promise<never>(() => undefined);
 
 function PendingController(): never {
@@ -99,8 +118,11 @@ vi.mock("../../lib/app-registry", () => ({
   getOsApp: (app: string) => ({
     title: app === "automations" ? "Automations" : "Tasks",
     icon: () => null,
-    Controller:
-      pendingJobsController && app === "automations" ? PendingController : TasksController,
+    Controller: linksController
+      ? LinksController
+      : pendingJobsController && app === "automations"
+        ? PendingController
+        : TasksController,
     LoadingFallback: jobsLoadingFallback && app === "automations" ? JobsLoadingFallback : undefined,
   }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
@@ -185,6 +207,8 @@ beforeEach(() => {
   windows = { "window:tasks": windowState() };
   model = hookModel(frameModel());
   pendingJobsController = false;
+  linksController = false;
+  navigation.noteNavigateMode.mockReset();
   jobsLoadingFallback = false;
   deckOpenNewTab = vi.fn();
   vi.mocked(useOsWindow).mockImplementation(() => model);
@@ -499,5 +523,22 @@ describe("OsWindow", () => {
     // Hosted in its own window's scope, like the surface it stands in for.
     expect(fallback).toHaveAttribute("data-scope", "window:jobs");
     expect(within(body).queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+  });
+});
+
+// History semantics of in-window navigation: a link inside the window body is a push (the window's
+// back stack keeps it), including links in content that owns its own view transition; ownership
+// only exempts the body from the drill's snapshot (tokens-runtime.css), never from history.
+describe("OsWindow navigation classification", () => {
+  it.each([
+    ["a plain body link", "Open task"],
+    ["a link inside content that owns its view transition", "Terminal section"],
+  ])("Should record %s as a push", (_case, linkName) => {
+    linksController = true;
+    render(<OsWindow frame={frameModel()} />);
+
+    fireEvent.click(screen.getByRole("link", { name: linkName }));
+
+    expect(navigation.noteNavigateMode).toHaveBeenCalledExactlyOnceWith("push");
   });
 });
