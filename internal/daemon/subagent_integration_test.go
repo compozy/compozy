@@ -566,18 +566,24 @@ func newSubagentDaemonWithSetup(
 	}
 	if len(steer) > 1 && steer[1] == "wake-approval" {
 		fixture.Agents[0].Permissions = "approve-reads"
-		fixture.Agents[0].Turns[2].Steps = append(
-			[]acpmock.Step{
-				{
-					Kind:           acpmock.StepKindPermission,
-					ToolCallID:     "wake-approval",
-					Title:          "Read wake",
-					ToolKind:       "edit",
-					Path:           "wake.txt",
-					ExpectDecision: "allow-once",
+		for i := range fixture.Agents[0].Turns {
+			turn := &fixture.Agents[0].Turns[i]
+			if turn.Name != "wake" {
+				continue
+			}
+			turn.Steps = append(
+				[]acpmock.Step{
+					{
+						Kind:           acpmock.StepKindPermission,
+						ToolCallID:     "wake-approval",
+						Title:          "Read wake",
+						ToolKind:       "edit",
+						Path:           "wake.txt",
+						ExpectDecision: "allow-once",
+					},
 				},
-			},
-			fixture.Agents[0].Turns[2].Steps...)
+				turn.Steps...)
+		}
 	}
 	if len(steer) > 0 {
 		fixture.Agents[0].SteerOutcome = steer[0]
