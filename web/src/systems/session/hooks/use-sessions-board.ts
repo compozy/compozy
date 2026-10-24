@@ -50,7 +50,11 @@ export interface SessionsBoardColumnView extends SessionsBoardPage {
 
 export interface SessionsBoardView {
   columns: SessionsBoardColumnView[];
-  archive: SessionsBoardPage & { count: number };
+  /**
+   * `count` is the archive's total, `undefined` until a read succeeds, so a
+   * failed or pending read is never mistaken for zero archived sessions.
+   */
+  archive: SessionsBoardPage & { count: number | undefined };
   /** All projects: each card's workspace name; `null` while one scope is listed. */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
 }
@@ -136,7 +140,7 @@ export function useSessionsBoard({
       label,
       count: counts?.[id],
     })),
-    archive: { ...archive, count: archive.total ?? 0 },
+    archive: { ...archive, count: archive.total },
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
   };

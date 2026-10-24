@@ -4,8 +4,9 @@
 // child rollup, flags a child that needs you, and opens its session on click;
 // Done folds behind a disclosure button; only an initial read failure replaces
 // a column, while a failed next page or background re-read keeps the loaded
-// cards with a local retry; the Archive bar is absent with no
-// archived sessions and lists archived cards once expanded.
+// cards with a local retry; the Archive bar is absent only after a read
+// confirms zero archived sessions — a pending or failed read keeps the bar with
+// its state and a retry — and lists archived cards once expanded.
 // Owning layer: component (systems/session/components). Card mapping rules live
 // in lib/__tests__/session-board-card.test.ts; queries and toggle in E2E-005..007.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -193,6 +194,37 @@ describe("SessionsBoard", () => {
   it("UT-071: Should hide the Archive bar with no archived sessions", () => {
     renderBoard(board());
     expect(screen.queryByTestId("sessions-board-archive")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the Archive bar while its first read is pending", () => {
+    renderBoard(board({}, { count: undefined, loading: true }));
+    const status = screen.getByTestId("sessions-board-archive-status");
+    expect(status).toHaveTextContent("Archive");
+    expect(within(status).getByRole("status", { name: "Loading archived sessions" })).toBeVisible();
+  });
+
+  it("Should keep the Archive bar with a retry when its first read fails", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderBoard(board({}, { count: undefined, failure: "initial", retry }));
+    const status = screen.getByTestId("sessions-board-archive-status");
+    expect(status).toHaveRole("alert");
+    expect(status).toHaveTextContent("Couldn't load archived sessions.");
+    await user.click(within(status).getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep archived cards when the next archive page fails", async () => {
+    const user = userEvent.setup();
+    const archived = card("a1", { archived_at: "2026-10-21T10:00:00Z", board_column: "done" });
+    renderBoard(board({}, { sessions: [archived], count: 40, hasMore: true, failure: "more" }));
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    const body = screen.getByTestId("sessions-board-archive-body");
+    expect(within(body).getByTestId("session-board-card-a1")).toBeInTheDocument();
+    expect(within(body).getByTestId("sessions-board-read-error-archive")).toHaveTextContent(
+      "Couldn't load more sessions."
+    );
+    expect(screen.queryByTestId("sessions-board-load-more-archive")).not.toBeInTheDocument();
   });
 
   it("Should list archived cards once the Archive bar is expanded", async () => {

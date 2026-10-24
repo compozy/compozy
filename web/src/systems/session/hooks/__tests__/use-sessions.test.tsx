@@ -847,12 +847,26 @@ describe("sessions board read failures", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => {
       if (query?.board_column?.includes("in_review")) throw new Error("offline");
-      return { sessions: [], page: { has_more: false, limit: 50 } };
+      return { sessions: [], page: { has_more: false, limit: 50, total: 0 } };
     });
     const { result } = renderBoard(client);
     const column = (id: string) => result.current.columns.find(item => item.id === id)!;
     await waitFor(() => expect(column("in_review").failure).toBe("initial"));
     expect(column("working").failure).toBeNull();
+    expect(result.current.archive.count).toBe(0);
+    client.clear();
+  });
+
+  // Invariant (SK-FR-008): a failed archive read is unknown, never a confirmed zero.
+  it("Should leave the archive count unknown when its first read fails", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => {
+      if (query?.archive === "only") throw new Error("offline");
+      return { sessions: [], page: { has_more: false, limit: 50 } };
+    });
+    const { result } = renderBoard(client);
+    await waitFor(() => expect(result.current.archive.failure).toBe("initial"));
+    expect(result.current.archive.count).toBeUndefined();
     client.clear();
   });
 });

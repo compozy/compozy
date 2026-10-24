@@ -76,6 +76,12 @@ export const ColumnReadErrorKeepsCards: Story = {
   },
 };
 
+export const ArchiveReadError: Story = {
+  args: {
+    board: sessionsBoardView({}, { count: undefined, sessions: [], failure: "initial" }),
+  },
+};
+
 export const ArchiveOpenDoneCollapsed: Story = {
   tags: ["play-fn"],
   args: { board: sessionsBoardView() },
