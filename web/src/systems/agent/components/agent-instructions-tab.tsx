@@ -160,15 +160,31 @@ export function AgentInstructionsTab({
 export type AgentInstructionsSkeletonProps = Pick<
   AgentInstructionsTabProps,
   "file" | "onFileChange"
->;
+> & {
+  /** Takes the file pills out of reach, for a frame shown before the window mounts. */
+  inert?: boolean;
+};
 
 /** The tab while the agent loads: the real file pills over the panel skeleton for that file. */
-export function AgentInstructionsSkeleton({ file, onFileChange }: AgentInstructionsSkeletonProps) {
+export function AgentInstructionsSkeleton({
+  file,
+  onFileChange,
+  inert = false,
+}: AgentInstructionsSkeletonProps) {
+  const files = (
+    <InstructionsFileRow file={file} onFileChange={onFileChange}>
+      {file === "agent" ? <Skeleton className="h-button-sm w-12" /> : null}
+    </InstructionsFileRow>
+  );
   return (
     <div className="flex flex-col gap-3.5" data-testid="agent-instructions-skeleton">
-      <InstructionsFileRow file={file} onFileChange={onFileChange}>
-        {file === "agent" ? <Skeleton className="h-button-sm w-12" /> : null}
-      </InstructionsFileRow>
+      {inert ? (
+        <div className="contents" inert>
+          {files}
+        </div>
+      ) : (
+        files
+      )}
       {file === "agent" ? (
         <SkeletonRegion label="Loading AGENT.md">
           <Panel bodyClassName="p-0">

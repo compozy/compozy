@@ -180,7 +180,8 @@ function AutomationCatalogLoadMore({ pagination }: { pagination: AutomationCatal
   );
 }
 
-function AutomationCatalogSkeleton({ view }: { view: ListingViewMode }) {
+/** The listing before its first read, in the containers the loaded rows or cards fill. */
+export function AutomationCatalogSkeleton({ view }: { view: ListingViewMode }) {
   return (
     <SkeletonRegion data-testid="automations-list-loading" label={`Loading automations as ${view}`}>
       {view === "cards" ? (

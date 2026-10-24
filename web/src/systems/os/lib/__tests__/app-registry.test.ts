@@ -128,11 +128,42 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
     pathname: "/loop-runs/r1/diff",
     search: { against_run: "r0" },
   },
+  { app: "agents", label: "the fleet", pathname: "/agents" },
+  { app: "agents", label: "the fleet as cards", pathname: "/agents", search: { view: "cards" } },
+  { app: "agents", label: "an agent", pathname: "/agents/webgen" },
+  {
+    app: "agents",
+    label: "an agent's instructions",
+    pathname: "/agents/webgen",
+    search: { tab: "instructions", file: "soul" },
+  },
+  {
+    app: "agents",
+    label: "an agent's sessions",
+    pathname: "/agents/webgen",
+    search: { tab: "sessions", filter: "failed" },
+  },
+  {
+    app: "agents",
+    label: "an agent's configuration",
+    pathname: "/agents/webgen",
+    search: { tab: "configuration" },
+  },
+  { app: "agents", label: "an agent's settings dialog", pathname: "/agents/webgen/settings" },
+  { app: "automations", label: "the listing", pathname: "/automations" },
+  {
+    app: "automations",
+    label: "the listing as cards",
+    pathname: "/automations",
+    search: { view: "cards" },
+  },
+  { app: "automations", label: "a job", pathname: "/automations/jobs/morning-digest" },
+  { app: "automations", label: "a trigger", pathname: "/automations/triggers/rerun-delivery" },
 ];
 
 describe("app loading fallbacks", () => {
   it("Should give every app in the content-shaped rollout a fallback", () => {
-    for (const app of ["session", "settings", "tasks", "loops"] as const) {
+    for (const app of ["session", "settings", "tasks", "loops", "agents", "automations"] as const) {
       expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
     }
   });

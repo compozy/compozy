@@ -13,6 +13,13 @@ import {
   type LaneTabsItem,
 } from "@compozy/ui";
 
+import {
+  AGENT_DETAIL_BODY_CLASS,
+  AGENT_DETAIL_PAGE_CLASS,
+  AGENT_DETAIL_ROOT_CLASS,
+  AGENT_DETAIL_TABS_CLASS,
+  AGENT_TAB_PANEL_CLASS,
+} from "./agent-detail-frame-classes";
 import { agentDetailTabItems, agentSessionsStatus } from "./agent-detail-view";
 import { listPaginationStatus } from "./list-pagination-status";
 import { useAgentDetail, type UseAgentDetailResult } from "./use-agent-detail";
@@ -103,13 +110,13 @@ function AgentDetailFrame({
   // cross-fades into the new one while the tab list stays put.
   const activeTab = useDeferredValue(tab);
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-testid={testId}>
-      <div className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}>
+    <div className={AGENT_DETAIL_ROOT_CLASS} data-testid={testId}>
+      <div className={AGENT_DETAIL_PAGE_CLASS}>
         {diagnostics}
         {header}
         <LaneTabs
           ariaLabel="Agent detail panels"
-          className="min-h-0 flex-1 gap-0"
+          className={AGENT_DETAIL_TABS_CLASS}
           items={tabItems}
           listClassName="w-full"
           onChange={onTabChange}
@@ -117,11 +124,7 @@ function AgentDetailFrame({
           data-testid="agent-detail-tabs"
         >
           <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
-            <div
-              // The inline 4px pad keeps card hairlines (shadow rings) clear of the scroll clip.
-              className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-5"
-              data-testid="agent-detail-body"
-            >
+            <div className={AGENT_DETAIL_BODY_CLASS} data-testid="agent-detail-body">
               {children}
             </div>
           </ViewTransition>
@@ -142,20 +145,20 @@ function AgentDetailLoading({ page }: { page: UseAgentDetailResult }) {
       tabItems={agentDetailTabItems(page)}
       testId="agent-detail-loading"
     >
-      <TabsContent value="overview" className="flex flex-col gap-6">
+      <TabsContent value="overview" className={AGENT_TAB_PANEL_CLASS}>
         <SkeletonRegion label="Loading agent">
           <AgentOverviewSkeleton />
         </SkeletonRegion>
       </TabsContent>
-      <TabsContent value="instructions" className="flex flex-col gap-6">
+      <TabsContent value="instructions" className={AGENT_TAB_PANEL_CLASS}>
         <AgentInstructionsSkeleton file={file} onFileChange={page.setFile} />
       </TabsContent>
-      <TabsContent value="configuration" className="flex flex-col gap-6">
+      <TabsContent value="configuration" className={AGENT_TAB_PANEL_CLASS}>
         <SkeletonRegion label="Loading configuration">
           <AgentConfigurationSkeleton />
         </SkeletonRegion>
       </TabsContent>
-      <TabsContent value="sessions" className="flex flex-col gap-6">
+      <TabsContent value="sessions" className={AGENT_TAB_PANEL_CLASS}>
         <AgentSessionsTabSkeleton filter={filter} onFilterChange={page.setFilter} />
       </TabsContent>
     </AgentDetailFrame>
@@ -305,7 +308,7 @@ function AgentDetailLoadedFrame({ agent, name, page, workspaceId }: AgentDetailB
       tabItems={agentDetailTabItems(page)}
       testId="agent-detail-page"
     >
-      <TabsContent value="overview" className="flex flex-col gap-6">
+      <TabsContent value="overview" className={AGENT_TAB_PANEL_CLASS}>
         <AgentOverviewTab
           agent={agent}
           sessions={page.sessions}
@@ -330,7 +333,7 @@ function AgentDetailLoadedFrame({ agent, name, page, workspaceId }: AgentDetailB
         />
       </TabsContent>
 
-      <TabsContent value="instructions" className="flex flex-col gap-6">
+      <TabsContent value="instructions" className={AGENT_TAB_PANEL_CLASS}>
         <AgentInstructionsSection
           agent={agent}
           file={page.search.file}
@@ -342,14 +345,14 @@ function AgentDetailLoadedFrame({ agent, name, page, workspaceId }: AgentDetailB
         />
       </TabsContent>
 
-      <TabsContent value="configuration" className="flex flex-col gap-6">
+      <TabsContent value="configuration" className={AGENT_TAB_PANEL_CLASS}>
         <AgentConfigurationTab
           agent={agent}
           onEditSection={section => page.onEditSettings(section)}
         />
       </TabsContent>
 
-      <TabsContent value="sessions" className="flex flex-col gap-6">
+      <TabsContent value="sessions" className={AGENT_TAB_PANEL_CLASS}>
         <AgentSessionsPanel page={page} name={name} workspaceId={workspaceId} />
       </TabsContent>
     </AgentDetailFrame>

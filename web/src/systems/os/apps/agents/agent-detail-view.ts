@@ -35,7 +35,14 @@ function agentSessionsCount(page: UseAgentDetailResult): LaneTabsItem<AgentDetai
   }
 }
 
-export function agentDetailTabItems(page: UseAgentDetailResult): LaneTabsItem<AgentDetailTab>[] {
+/**
+ * The agent page's tabs. `sessionsCount` is the Sessions tab's count (`"pending"` holds its slot);
+ * a frame shown before any read passes `"pending"`, exactly what the page shows while it loads.
+ */
+export function agentDetailTabs(
+  sessionsCount: LaneTabsItem<AgentDetailTab>["count"],
+  live = false
+): LaneTabsItem<AgentDetailTab>[] {
   return [
     { value: "overview", label: "Overview", testId: "agent-tab-overview" },
     { value: "instructions", label: "Instructions", testId: "agent-tab-instructions" },
@@ -43,11 +50,18 @@ export function agentDetailTabItems(page: UseAgentDetailResult): LaneTabsItem<Ag
     {
       value: "sessions",
       label: "Sessions",
-      count: agentSessionsCount(page),
-      liveLabel: agentMetricsReady(page) && page.activeSessionsTotal > 0 ? "Live" : undefined,
+      count: sessionsCount,
+      liveLabel: live ? "Live" : undefined,
       testId: "agent-tab-sessions",
     },
   ];
+}
+
+export function agentDetailTabItems(page: UseAgentDetailResult): LaneTabsItem<AgentDetailTab>[] {
+  return agentDetailTabs(
+    agentSessionsCount(page),
+    agentMetricsReady(page) && page.activeSessionsTotal > 0
+  );
 }
 
 export function agentSessionsStatus(page: UseAgentDetailResult): "loading" | "error" | "ready" {
