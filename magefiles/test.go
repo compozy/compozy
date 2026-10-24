@@ -122,7 +122,7 @@ func TestIntegration() error {
 	}
 	for index, invocation := range invocations {
 		args := gotestsumInvocationArgs(jsonFileDir, index)
-		args = append(args, goTestSafetyArgs(true, false)...)
+		args = append(args, goIntegrationTestSafetyArgs(invocation.packages)...)
 		args = append(args, "-p", packageLimit,
 			"-timeout", goIntegrationTestTimeout, "-tags", "integration")
 		if len(invocation.tests) > 0 {
@@ -141,16 +141,16 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		"--format",
 		"pkgname",
 		"--",
-	}
-	args = append(args, goTestSafetyArgs(true, true)...)
-	args = append(args,
+		"-race",
 		"-p",
 		goIntegrationPackageLimit,
+		"-parallel=4",
 		"-timeout",
 		goIntegrationTestTimeout,
+		"-count=1",
 		"-tags",
 		"integration",
-	)
+	}
 	if strings.TrimSpace(suite.Run) != "" {
 		args = append(args, "-run", suite.Run)
 	}

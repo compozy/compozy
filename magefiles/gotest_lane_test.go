@@ -69,15 +69,6 @@ func TestGoTestSafetyArgs(t *testing.T) {
 		}
 	})
 
-	t.Run("Should serialize integration checks while preserving result caching", func(t *testing.T) {
-		t.Parallel()
-		got := goTestSafetyArgs(true, false)
-		want := []string{"-race", "-parallel=1"}
-		if !slices.Equal(got, want) {
-			t.Fatalf("goTestSafetyArgs(true, false) = %v, want %v", got, want)
-		}
-	})
-
 	t.Run("Should bypass the SDK result cache in the audit lane", func(t *testing.T) {
 		t.Parallel()
 		want := []string{"test", "-race", "-parallel=4", "-count=1", "./..."}
@@ -468,6 +459,45 @@ func TestMergeEnvOverrides(t *testing.T) {
 		got := mergeEnvOverrides(base, nil)
 		if len(got) != 1 || got[0] != "A=1" {
 			t.Fatalf("mergeEnvOverrides() = %v, want [A=1]", got)
+		}
+	})
+}
+
+func TestGlobalDBIntegrationConcurrency(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name     string
+		packages []string
+	}{
+		{name: "Should retain a regular-only selection", packages: []string{"example/api"}},
+		{name: "Should retain a GlobalDB-only selection", packages: []string{goSplitTestPackage}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isolateGlobalDBIntegrationTests(tt.packages)
+			if len(got) != 1 || !slices.Equal(got[0].packages, tt.packages) {
+				t.Fatalf("partition = %v, want one invocation of %v", got, tt.packages)
+			}
+		})
+	}
+	t.Run("Should isolate GlobalDB without dropping or duplicating packages", func(t *testing.T) {
+		t.Parallel()
+		packages := []string{"example/api", goSplitTestPackage, "example/daemon"}
+		invocations := isolateGlobalDBIntegrationTests(packages)
+		if len(invocations) != 2 {
+			t.Fatalf("invocations = %v, want two", invocations)
+		}
+		if !slices.Equal(invocations[0].packages, []string{"example/api", "example/daemon"}) ||
+			!slices.Equal(invocations[1].packages, []string{goSplitTestPackage}) {
+			t.Fatalf("unexpected partition: %v", invocations)
+		}
+		if !slices.Equal(packages, []string{"example/api", goSplitTestPackage, "example/daemon"}) {
+			t.Fatalf("input packages were mutated: %v", packages)
+		}
+		for index, want := range [][]string{{"-race", "-parallel=4"}, {"-race", "-parallel=1"}} {
+			if got := goIntegrationTestSafetyArgs(invocations[index].packages); !slices.Equal(got, want) {
+				t.Fatalf("invocation %d safety args = %v, want %v", index, got, want)
+			}
 		}
 	})
 }
