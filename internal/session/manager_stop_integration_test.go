@@ -617,7 +617,7 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
 	// Invariant: a stopped process with a healthy, partially checkpointed WAL can settle or be removed.
 	// Owner: manager recovery integration; the storage suite owns owner/sidecar isolation.
-	for _, action := range []string{"stop", "boot", "remove"} {
+	for _, action := range []string{"stop", "boot", "remove", "cleared-identity"} {
 		t.Run("Should recover partial checkpoint through "+action, func(t *testing.T) {
 			h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
 			active := createSession(t, h)
@@ -627,6 +627,10 @@ func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
 			}
 			before := readStoredEvents(t, active)
 			leavePartialCheckpointFixture(t, active.DBPath())
+			if action == "cleared-identity" {
+				meta = readMeta(t, active.MetaPath())
+				meta.StopVerificationFailed = true
+			}
 			meta.State = string(StateStopping)
 			meta.StopReason = new(store.StopAgentCrashed)
 			meta.StopDetail = "agent process exited"
@@ -637,7 +641,7 @@ func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
 			cleanupTestManager(t, restarted)
 			var err error
 			switch action {
-			case "stop":
+			case "stop", "cleared-identity":
 				err = restarted.Stop(t.Context(), active.ID)
 			case "boot":
 				err = restarted.RecoverPendingStops(t.Context())
