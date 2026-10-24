@@ -71,6 +71,13 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		until := s.now().Add(2 * toolruntime.SweepInterval)
 		switch info.State {
 		case session.StateStarting, session.StateActive:
+			finished, err := s.childDelegationFinished(ctx, row.ID, row.Lineage.SpawnRole)
+			if err != nil {
+				return nil, err
+			}
+			if finished {
+				continue
+			}
 		case session.StateStopping:
 			child, ok := s.manager.Get(info.ID)
 			if !ok {
@@ -88,6 +95,25 @@ func (s sessionWorkSources) children(ctx context.Context, id string) ([]session.
 		})
 	}
 	return result, nil
+}
+
+// A completed delegation can keep its ACP session alive without keeping its parent waiting.
+func (s sessionWorkSources) childDelegationFinished(ctx context.Context, id, role string) (bool, error) {
+	if role != store.SubagentSpawnRole {
+		return false, nil
+	}
+	db, ok := s.state.registry.(store.SubagentStore)
+	if !ok {
+		return false, errors.New("subagent store is unavailable")
+	}
+	row, err := db.GetSubagentByChild(ctx, id)
+	if errors.Is(err, store.ErrSubagentNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return store.IsSubagentStatusTerminal(row.Status), nil
 }
 
 func (s sessionWorkSources) leases(ctx context.Context, id string) ([]session.WorkSignal, error) {

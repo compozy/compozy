@@ -81,3 +81,10 @@ non-archived children. An archived readable parent retains its title. Exercise a
 parity with waiting work and cached PRs, and ensure a changed repository origin cannot reuse facts
 from the previous repo key. Package-scoped SQLite and CLI suites cover the backend contracts;
 these checks do not claim the public-surface/UI journey has been re-walked.
+
+Release regression 2026-10-24: after delegated subagents finish and their single
+prioritized wake settles, the root is the only unseen-done item. Keeping a completed
+subagent's ACP session alive must not leave the root in Waiting or hide it from the
+Finished count. The unchanged prioritized-wake case in
+`TestSubagentDaemonIntegration` verifies this against the real daemon/store;
+see the merge-train v0.4.0 report for the scoped result.
