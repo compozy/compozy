@@ -6,139 +6,59 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          github-token: ${{ github.token }}
-          run-id: 40044731322
-          name: peer-convergence-271a49aaca902a2d44bb32a8c5ea60647a9b258b-1
-          path: profiles
-      - name: Extract embedded trace attachments
-        run: |
-          python3 - <<'PY'
-          import base64, collections, io, json, pathlib, re, zipfile
-          def summarize(events):
-              durations = sorted((e for e in events if e.get('ph') == 'X'), key=lambda e: e.get('dur', 0), reverse=True)
-              for event in durations[:20]:
-                  print('DURATION', json.dumps(event))
-              nodes, counts = {}, collections.Counter()
-              for event in events:
-                  chunk = event.get('args', {}).get('data', {}).get('cpuProfile', {})
-                  for node in chunk.get('nodes', []):
-                      nodes[(event['pid'], node['id'])] = node
-                  counts.update((event['pid'], sample) for sample in chunk.get('samples', []))
-              for key, count in counts.most_common(20):
-                  node = nodes.get(key, {})
-                  stack = []
-                  while node:
-                      stack.append(node.get('callFrame'))
-                      node = nodes.get((key[0], node.get('parent')), {})
-                  print('CPU', count, json.dumps(stack))
-          def walk(value):
-              if isinstance(value, dict):
-                  if value.get('name') in ('peer-convergence-trace', 'perf-envelope'):
-                      print('ATTACHMENT', value['name'], list(value))
-                      body = value.get('body')
-                      if body:
-                          parsed = json.loads(body)
-                          if 'traceEvents' in parsed:
-                              summarize(parsed['traceEvents'])
-                          else:
-                              print('ENVELOPE', parsed)
-                  for item in value.values():
-                      walk(item)
-              elif isinstance(value, list):
-                  for item in value:
-                      walk(item)
-          for path in pathlib.Path('profiles').rglob('index.html'):
-              html = path.read_text()
-              matches = re.findall(r'data:application/zip;base64,([A-Za-z0-9+/=]+)', html)
-              print('REPORT', str(path), 'archives', len(matches))
-              for encoded in matches:
-                  archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(encoded)))
-                  for name in archive.namelist():
-                      if name.endswith('.json'):
-                          walk(json.loads(archive.read(name)))
-          PY
-  measure:
-    if: false
+  compare:
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - revision: d68ba8f1c009f8dc492c11cdef11ed7d4fc540f8
-            profile: "0"
-          - revision: 271a49aaca902a2d44bb32a8c5ea60647a9b258b
-            profile: "0"
-          - revision: 271a49aaca902a2d44bb32a8c5ea60647a9b258b
-            profile: "1"
     env:
       CGO_ENABLED: 0
       CI: "true"
-      COMPOZY_PEER_PROFILE: ${{ matrix.profile }}
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
     steps:
       - uses: actions/checkout@v7
-      - name: Retain identical measurement instrumentation
-        run: cp web/e2e/__tests__/os-shell.spec.ts /tmp/peer-spec.ts
-      - uses: actions/checkout@v7
         with:
-          ref: ${{ matrix.revision }}
-      - name: Apply identical measurement instrumentation
-        run: cp /tmp/peer-spec.ts web/e2e/__tests__/os-shell.spec.ts
+          fetch-depth: 20
       - uses: ./.github/actions/setup-go
       - uses: ./.github/actions/setup-bun
         with:
           install-playwright: "true"
-      - name: Build production web and daemon
+      - name: Prepare baseline on the same runner
         run: |
+          cp web/src/systems/os/hooks/use-os-window-member.ts /tmp/candidate-member.ts
+          git show 271a49aac:web/src/systems/os/hooks/use-os-window-member.ts > web/src/systems/os/hooks/use-os-window-member.ts
           bunx turbo run build --filter=./web
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
-      - name: Measure ten consecutive peer convergence runs
+      - name: Identify sampled production functions
+        run: |
+          python3 - <<'PYCODE'
+          import pathlib
+          for glob, line, col in [('native-select-*.js',0,61495),('use-initial-state-*.js',0,16889),('use-window-live-data-enabled-*.js',40,44601),('_app-*.js',6,35297)]:
+              for path in pathlib.Path('web/dist/assets').glob(glob):
+                  lines=path.read_text().splitlines()
+                  if line < len(lines):
+                      print('SAMPLED_SOURCE',path.name,lines[line][max(0,col-100):col+1500])
+          PYCODE
+      - name: Baseline ten repetitions
+        continue-on-error: true
         working-directory: web
         run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
-      - name: Summarize profiles in accessible CI logs
+      - name: Preserve baseline report
         if: always()
+        run: cp -R .tmp/playwright /tmp/baseline-peer-report
+      - name: Build candidate on the same runner
         run: |
-          python3 - <<'PY'
-          import collections, json, pathlib
-          for path in pathlib.Path('.tmp/playwright/report/data').glob('*.json'):
-              data = json.loads(path.read_text())
-              if not isinstance(data, dict) or 'traceEvents' not in data:
-                  continue
-              events = data['traceEvents']
-              durations = sorted((e for e in events if e.get('ph') == 'X'), key=lambda e: e.get('dur', 0), reverse=True)
-              print('TRACE', path.name)
-              for event in durations[:25]:
-                  print('DURATION', json.dumps(event))
-              nodes, counts = {}, collections.Counter()
-              for event in events:
-                  chunk = event.get('args', {}).get('data', {}).get('cpuProfile', {})
-                  for node in chunk.get('nodes', []):
-                      nodes[(event['pid'], node['id'])] = node
-                  counts.update((event['pid'], sample) for sample in chunk.get('samples', []))
-              for key, count in counts.most_common(25):
-                  node = nodes.get(key, {})
-                  print('CPU', count, json.dumps(node))
-                  frame = node.get('callFrame', {})
-                  asset = pathlib.Path('web/dist/assets') / frame.get('url', '').split('/')[-1]
-                  if asset.is_file():
-                      lines = asset.read_text().splitlines()
-                      line, col = frame.get('lineNumber', -1), frame.get('columnNumber', 0)
-                      if 0 <= line < len(lines):
-                          print('SOURCE', lines[line][max(0,col-100):col+700])
-          PY
-      - name: Upload measurements and profiles
+          cp /tmp/candidate-member.ts web/src/systems/os/hooks/use-os-window-member.ts
+          bunx turbo run build --filter=./web
+      - name: Candidate ten repetitions
+        working-directory: web
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
+      - name: Upload measurements
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: peer-convergence-${{ matrix.revision }}-${{ matrix.profile }}
-          path: .tmp/playwright
+          name: peer-convergence-comparison
+          path: |
+            .tmp/playwright
+            /tmp/baseline-peer-report
           retention-days: 7
