@@ -4,7 +4,7 @@ import { ListChecks, Plus } from "lucide-react";
 import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
-import { TasksCatalogBody } from "./tasks-catalog-views";
+import { TasksCatalogContent } from "./tasks-catalog-views";
 import { useTasksCatalogNavigation } from "./use-tasks-catalog-navigation";
 import {
   taskModeSearchFor,
@@ -75,7 +75,8 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
     toolbar: (
       <>
         {modeNav}
-        {mode === "list" && page.hasActiveTaskScope ? (
+        {/* The strip needs no data: it renders while the scope resolves, so it does not pop in. */}
+        {mode === "list" && !page.scopeError ? (
           <>
             <Separator className="h-4 self-center" orientation="vertical" />
             <TasksListToolbar
@@ -93,6 +94,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
               searchQuery={page.searchQuery}
               sortBy={page.sortBy}
               statusCounts={page.statusCounts}
+              statusCountsLoading={page.listLoading}
               statusFilter={page.statusFilter}
             />
           </>
@@ -107,7 +109,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       data-density="route"
       data-testid="tasks-shell"
     >
-      <TasksCatalogBody mode={mode} openCreate={openCreate} openTask={openTask} page={page} />
+      <TasksCatalogContent mode={mode} openCreate={openCreate} openTask={openTask} page={page} />
     </div>
   );
 }

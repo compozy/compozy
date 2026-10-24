@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { CenteredSurface } from "@/storybook/story-layout";
@@ -145,4 +145,25 @@ export const EmptySources: Story = {
       </div>
     </CenteredSurface>
   ),
+};
+
+/**
+ * Loading — the status read is still pending: two source rows and the refresh action hold their
+ * place instead of a spinner.
+ */
+export const Loading: Story = {
+  args: {
+    providerId: "claude",
+    testId: "settings-page-providers-card-claude-catalog",
+  },
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.get("/api/model-catalog/providers/{provider_id}/models/status", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ sources: [] });
+        }),
+      ],
+    },
+  },
 };

@@ -87,15 +87,6 @@ export const FullInstalledShelf: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** First page skeleton rows in the real grid; the shelf waits for the inventory. */
-export const Loading: Story = {
-  parameters: {
-    ...appRouteParameters("/marketplace"),
-    ...marketplaceStoryHandlers({ catalogDelay: "infinite", extensions: [] }),
-  },
-  render: () => <StorybookWorkspaceSetup />,
-};
-
 /** The daemon serves the last projection it could load under one stale line. */
 export const Stale: Story = {
   parameters: {

@@ -6,7 +6,15 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { createElement, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 
+import { Skeleton, SkeletonText } from "@compozy/ui";
+
 import { cn } from "@/lib/utils";
+
+import {
+  TRIGGER_MENU_ROW_GEOMETRY,
+  TRIGGER_MENU_ROW_ICON_WELL,
+  TRIGGER_MENU_ROW_LABEL,
+} from "./session-composer-trigger-menu-classes";
 
 /**
  * Rows, headers and messages shared by the composer's trigger popovers — the
@@ -56,8 +64,9 @@ export function TriggerMenuRow({
       item={item}
       index={flatIndex}
       className={cn(
-        "group/trigger-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
-        "text-small-body text-fg outline-none select-none",
+        TRIGGER_MENU_ROW_GEOMETRY,
+        "group/trigger-row text-left",
+        "text-fg outline-none select-none",
         "transition-colors duration-fast ease-out",
         "data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg",
         className
@@ -67,13 +76,14 @@ export function TriggerMenuRow({
     >
       <span
         className={cn(
-          "flex size-4 shrink-0 items-center justify-center text-muted",
+          TRIGGER_MENU_ROW_ICON_WELL,
+          "text-muted",
           "group-data-[highlighted]/trigger-row:text-fg"
         )}
       >
         {createElement(icon, { className: "size-3.5", "aria-hidden": "true" })}
       </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">{children}</span>
+      <span className={TRIGGER_MENU_ROW_LABEL}>{children}</span>
       {trailing ? (
         <span className="ml-auto flex shrink-0 items-center gap-1.5">{trailing}</span>
       ) : null}
@@ -107,6 +117,38 @@ export function TriggerMenuDivider() {
 export function TriggerMenuMessage({ className, ...props }: ComponentProps<"p">) {
   return (
     <p className={cn("px-2 py-4 text-center text-small-body text-muted", className)} {...props} />
+  );
+}
+
+const LOADING_ROW_POSITIONS = [0, 1, 2] as const;
+const LOADING_TITLE_WIDTHS = ["w-28", "w-20", "w-24"] as const;
+
+/**
+ * Placeholder rows for a trigger menu, or one of its groups, whose first answer is on its way:
+ * the live row's frame with a title and a secondary line of text. The enclosing popover is
+ * already the polite status surface, so the rows stay silent and `children` is the one thing
+ * announced, in the words the empty and error rows speak ("Loading files…").
+ */
+export function TriggerMenuLoading({
+  children,
+  rows = 3,
+  ...props
+}: { rows?: number } & ComponentProps<"div">) {
+  return (
+    <div {...props}>
+      <span className="sr-only">{children}</span>
+      {LOADING_ROW_POSITIONS.slice(0, rows).map(position => (
+        <div key={position} aria-hidden="true" className={TRIGGER_MENU_ROW_GEOMETRY}>
+          <span className={TRIGGER_MENU_ROW_ICON_WELL}>
+            <Skeleton className="size-3.5 rounded-xs" />
+          </span>
+          <span className={cn(TRIGGER_MENU_ROW_LABEL, "min-h-5 items-center")}>
+            <SkeletonText className={cn("font-medium", LOADING_TITLE_WIDTHS[position])} />
+            <SkeletonText className="w-32 text-transcript-caption" />
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

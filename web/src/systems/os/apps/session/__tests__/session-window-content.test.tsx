@@ -234,6 +234,16 @@ describe("SessionWindowContent", () => {
     mocks.toastError.mockReset();
   });
 
+  // Invariant (#958): the window names no element for view transitions. A permanently named
+  // pane is captured by every transition anywhere on the desktop; the session switch animates
+  // through the keyed boundary in `SessionWindowView` instead.
+  it("Should not carry a permanent view-transition name on any element", async () => {
+    const { container } = render(renderContent(deadSession));
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+
+    expect(container.querySelector('[style*="view-transition-name"]')).toBeNull();
+  });
+
   it("Should land the waiting banner's show-all on the inspector's Subagents section (m19)", async () => {
     const session = {
       ...deadSession,

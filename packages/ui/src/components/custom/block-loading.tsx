@@ -30,6 +30,11 @@ const SURFACE_CLASSES: Record<BlockLoadingSurface, string> = {
   panel: "rounded-lg bg-sunken",
 };
 
+/**
+ * A centered spinner for a short, unshaped wait. Content areas that stand in for a list, a card
+ * grid, a table or a detail rail show a content-shaped skeleton instead (`DataSurface.Loading`
+ * takes one as `children`), so the layout is already in place when the data arrives.
+ */
 function BlockLoading({
   size = "md",
   surface = "panel",

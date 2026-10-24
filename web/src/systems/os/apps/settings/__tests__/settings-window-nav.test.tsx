@@ -2,8 +2,10 @@
 // Invariant: a plain click on a section link is window navigation handed to the shell (the router
 // ignores a navigation to the current location), while modified clicks keep native link behavior.
 // The active window's search shortcut also works from desktop focus, without taking a keystroke
-// owned by a field, dialog, modified chord or another handler. Owner: Settings window navigation.
-import { act, fireEvent, render, screen } from "@testing-library/react";
+// owned by a field, dialog, modified chord or another handler. The section area shows the
+// section's own skeleton while its code loads, and keeps the page on screen while the next
+// section's code loads. Owner: Settings window navigation.
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -40,9 +42,9 @@ afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
 
-async function renderSettingsWindow() {
+async function renderSettingsWindow(path = "/settings/appearance") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const snapshot = parseWindowManagerSnapshot(windowManagerStorySnapshot("/settings/appearance"));
+  const snapshot = parseWindowManagerSnapshot(windowManagerStorySnapshot(path));
   const client = parseWindowManagerClientView(
     windowManagerClientFixture("client:settings-search", snapshot.workspaceId)
   );
@@ -89,11 +91,10 @@ async function renderSettingsWindow() {
   });
   const router = createRouter({
     routeTree: rootRoute,
-    history: createMemoryHistory({ initialEntries: ["/settings/appearance"] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   });
   render(<RouterProvider router={router} />);
   const search = await screen.findByRole("searchbox", { name: "Search settings" });
-  await screen.findByRole("radiogroup", { name: "Wallpaper" });
   return {
     search,
     desktop: screen.getByTestId("desktop"),
@@ -103,6 +104,12 @@ async function renderSettingsWindow() {
     snapshotKey,
     snapshot,
   };
+}
+
+async function renderLoadedSettingsWindow() {
+  const view = await renderSettingsWindow();
+  await screen.findByRole("radiogroup", { name: "Wallpaper" });
+  return view;
 }
 
 async function renderNav(initialPath: string) {
@@ -166,7 +173,7 @@ describe("SettingsWindowNav", () => {
 describe("Settings window search shortcut", () => {
   it.each(["body", "desktop"])("Should focus search from %s focus", async target => {
     const user = userEvent.setup();
-    const { search, desktop } = await renderSettingsWindow();
+    const { search, desktop } = await renderLoadedSettingsWindow();
     if (target === "desktop") desktop.focus();
     else expect(document.body).toHaveFocus();
 
@@ -178,7 +185,7 @@ describe("Settings window search shortcut", () => {
 
   it("Should leave search typing, dialog actions and handled keys alone", async () => {
     const user = userEvent.setup();
-    const { search } = await renderSettingsWindow();
+    const { search } = await renderLoadedSettingsWindow();
     await user.type(search, "/");
     expect(search).toHaveFocus();
     expect(search).toHaveValue("/");
@@ -192,7 +199,7 @@ describe("Settings window search shortcut", () => {
   });
 
   it("Should preserve modifier chords", async () => {
-    await renderSettingsWindow();
+    await renderLoadedSettingsWindow();
     const control = screen.getByRole("radio", { name: "Flat" });
     control.focus();
 
@@ -205,7 +212,7 @@ describe("Settings window search shortcut", () => {
   it("Should enable the shortcut only while its window is active", async () => {
     const user = userEvent.setup();
     const { desktop, search, manager, client, queryClient, snapshotKey, snapshot } =
-      await renderSettingsWindow();
+      await renderLoadedSettingsWindow();
     desktop.focus();
     act(() =>
       manager.setClient({
@@ -239,4 +246,38 @@ describe("Settings window search shortcut", () => {
     await user.keyboard("/");
     expect(desktop).toHaveFocus();
   });
+});
+
+describe("Settings window section area", () => {
+  it("Should show the section's own skeleton, not a spinner, while its code loads", async () => {
+    await renderSettingsWindow("/settings/hooks");
+
+    const loading = screen.getByTestId("settings-page-hooks-loading");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveTextContent("Loading Hooks");
+    expect(loading.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+  });
+
+  it("Should keep the current page, not a loading frame, while the next section's code loads", async () => {
+    const { queryClient, snapshotKey } = await renderLoadedSettingsWindow();
+    const outlet = screen.getByTestId("settings-shell-outlet");
+    const wallpaper = screen.getByRole("radiogroup", { name: "Wallpaper" });
+    expect(outlet).not.toHaveAttribute("aria-busy");
+
+    act(() => {
+      queryClient.setQueryData(
+        snapshotKey,
+        parseWindowManagerSnapshot(windowManagerStorySnapshot("/settings/terminal"))
+      );
+    });
+
+    // The nav follows the route at once; the page the user was on stays until the next is ready.
+    expect(screen.getByTestId("settings-section-terminal")).toHaveAttribute("aria-current", "page");
+    expect(outlet).toHaveAttribute("aria-busy", "true");
+    expect(outlet).toContainElement(wallpaper);
+    expect(outlet.querySelector('[data-slot="skeleton"]')).toBeNull();
+
+    await waitFor(() => expect(outlet).not.toContainElement(wallpaper), { timeout: 20_000 });
+    expect(outlet).not.toHaveAttribute("aria-busy");
+  }, 30_000);
 });

@@ -1,6 +1,6 @@
 import { CornerDownRight } from "lucide-react";
 
-import { Skeleton, StateGlyph } from "@compozy/ui";
+import { SkeletonText, StateGlyph } from "@compozy/ui";
 
 import { useLoopChildRun } from "../../../hooks/use-loop-child-run";
 import { formatClockDuration } from "../../../lib/loop-run-usage";
@@ -17,7 +17,7 @@ import { loopStatusGlyph, loopStatusLabel } from "../../../lib/loop-formatters";
 export function LoopDagChildLine({ runId }: { runId: string }) {
   const { summary, isLoading } = useLoopChildRun(runId);
   if (!summary) {
-    return isLoading ? <Skeleton className="h-3 w-24" /> : null;
+    return isLoading ? <SkeletonText className="w-24 text-form-hint" /> : null;
   }
   const step = summary.currentStep;
   const onStep = step?.onStepSeconds == null ? null : formatClockDuration(step.onStepSeconds);

@@ -85,7 +85,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
- * Transcript loading state — shimmer message skeleton, never the empty-state copy.
+ * Transcript loading state — a user turn, an agent turn with its work line, a follow-up and a
+ * short answer, in the live rows' own frames and type, never the empty-state copy.
  */
 export const LoadingSkeleton: Story = {
   args: baseArgs,

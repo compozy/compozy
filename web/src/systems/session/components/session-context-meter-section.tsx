@@ -11,6 +11,7 @@ import {
 } from "../lib/session-context-view";
 import { SessionContextCompactAction } from "./session-context-compact-action";
 import { SessionInspectorEmpty, SessionInspectorSection } from "./session-inspector-section";
+import { SessionContextMeterSkeleton } from "./session-inspector-skeleton";
 
 type StatusBreakdownItem = ComponentProps<typeof StatusBreakdown>["items"][number];
 
@@ -101,6 +102,7 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
 }
 
 function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
+  if (view.kind === "loading") return <SessionContextMeterSkeleton />;
   if (view.kind === "empty") {
     return <SessionInspectorEmpty icon={Gauge} title={view.title} description={view.description} />;
   }

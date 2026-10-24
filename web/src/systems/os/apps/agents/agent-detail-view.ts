@@ -8,6 +8,17 @@ export function agentMetricsReady(page: UseAgentDetailResult): boolean {
   return !page.metricsLoading && !page.metricsUnavailable;
 }
 
+/**
+ * What the window head shows in the status slot. Metrics stay disabled until the agent's scope
+ * resolves, so an agent that has not arrived yet still holds the placeholder; dropping the slot
+ * would cost the trail its right alignment and make it jump when the pill lands.
+ */
+export function agentStatusSlot(page: UseAgentDetailResult): "pill" | "placeholder" | "none" {
+  if (agentMetricsReady(page)) return "pill";
+  if (page.metricsLoading || (!page.agent && !page.metricsError)) return "placeholder";
+  return "none";
+}
+
 export function agentDetailTabItems(page: UseAgentDetailResult): LaneTabsItem<AgentDetailTab>[] {
   const metricsReady = agentMetricsReady(page);
   return [

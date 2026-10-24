@@ -109,3 +109,15 @@ export function flattenAutomationTriggerPages(
 ): AutomationTrigger[] {
   return flattenUnique(data?.pages.map(page => page.triggers) ?? []);
 }
+
+/**
+ * The filters a search edit leaves alone, as the placeholder rule compares them: while an edited
+ * search loads, the previous rows stay on screen, but only within the same scope, profile and
+ * facets. Stored in the query `meta` so the rule never depends on where `q` sits in the key.
+ */
+export function automationListPopulation(
+  filters: AutomationJobStableFilter | AutomationTriggerStableFilter
+): string {
+  const { q: _search, ...population } = filters;
+  return JSON.stringify(population);
+}

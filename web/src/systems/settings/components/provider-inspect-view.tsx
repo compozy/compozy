@@ -10,6 +10,9 @@ import {
   MonoId,
   Pill,
   type PillTone,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Spinner,
   Time,
 } from "@compozy/ui";
@@ -29,6 +32,10 @@ import {
   useProviderModelStatus,
   useRefreshProviderModels,
 } from "@/systems/model-catalog";
+
+const CATALOG_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md bg-sunken px-3 py-2";
+const CATALOG_SKELETON_ROWS = ["first", "second"] as const;
 
 interface ProviderInspectViewProps {
   provider: SettingsProviderEntry;
@@ -337,10 +344,23 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 
   if (statusQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-form-hint text-subtle">
-        <Spinner className="size-3" />
-        <span>Loading model list…</span>
-      </div>
+      <SkeletonRegion className="flex flex-col gap-2.5" label="Loading model list">
+        <ul className="flex flex-col gap-1.5">
+          {CATALOG_SKELETON_ROWS.map(row => (
+            <li aria-hidden="true" className={CATALOG_ROW_CLASS} key={row}>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <SkeletonText className="w-40 text-mono-id" />
+                <SkeletonText className="w-28 text-form-hint" />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Skeleton className="h-pill-sm w-16 rounded-pill" />
+                <SkeletonText className="w-16 text-form-hint" />
+              </div>
+            </li>
+          ))}
+        </ul>
+        <Skeleton className="h-button-sm w-36 rounded-pill" />
+      </SkeletonRegion>
     );
   }
 
@@ -394,7 +414,7 @@ function CatalogList({ providerId, enabled }: { providerId: string; enabled: boo
 function CatalogRow({ source }: { source: ProviderModelSourceStatus }) {
   const timestamp = source.last_success?.trim() || source.last_refresh?.trim() || undefined;
   return (
-    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-md bg-sunken px-3 py-2">
+    <li className={CATALOG_ROW_CLASS}>
       <div className="flex min-w-0 flex-col gap-0.5">
         <MonoId preserveCase value={source.source_id} />
         {modelSourceFailureMessage(source) ? (

@@ -1,4 +1,4 @@
-import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
+import { Button, MonoId, OwnerAvatar, Pill, Skeleton, SkeletonText, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,13 @@ export interface TaskKanbanCardProps {
   projectBadge?: WorkspaceBadgeIdentity;
 }
 
+/**
+ * A card on the sunken column: `card` plus shadow-card (its hairline). The real card and its
+ * skeleton share this surface, so the placeholder measures the same box.
+ */
+const CARD_SURFACE_CLASS =
+  "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card";
+
 export function TaskKanbanCard({
   task,
   selected = false,
@@ -41,9 +48,9 @@ export function TaskKanbanCard({
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
       className={cn(
-        // A card on the sunken column: `card` plus shadow-card (its hairline),
-        // stepping to surface-2 on hover and to the selected plate when chosen.
-        "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out",
+        // Steps to surface-2 on hover and to the selected plate when chosen.
+        CARD_SURFACE_CLASS,
+        "transition-colors duration-base ease-out",
         clickable &&
           "cursor-pointer hover:bg-surface-2 has-[[data-card-open]:focus-visible]:shadow-focus-ring",
         selected && "bg-selected inset-ring-1 inset-ring-line-strong"
@@ -206,5 +213,39 @@ function TaskKanbanCardRetry({
     >
       Retry
     </Button>
+  );
+}
+
+export interface TaskKanbanCardSkeletonProps {
+  /** Title lines the placeholder stands in for: the real title clamps at two. */
+  titleLines?: 1 | 2;
+}
+
+/**
+ * The placeholder twin of `TaskKanbanCard`: the same card surface and rows (title, identifier,
+ * owner and recency) with each content slot a block of text, so the data arrives into a card of
+ * the same box. Place inside a `TaskKanbanColumn` and wrap the board in a `SkeletonRegion`.
+ */
+export function TaskKanbanCardSkeleton({ titleLines = 1 }: TaskKanbanCardSkeletonProps) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(CARD_SURFACE_CLASS, "animate-skeleton-reveal")}
+      data-testid="tasks-kanban-card-skeleton"
+    >
+      <div className="min-w-0 text-small-body leading-snug">
+        <SkeletonText lastLineWidth={0.55} lines={titleLines} />
+      </div>
+      <div className="flex min-w-0 items-center gap-2">
+        <SkeletonText className="w-14 font-mono text-mono-id leading-3" />
+      </div>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Skeleton className="size-avatar-sm shrink-0 rounded-full" />
+          <SkeletonText className="w-20 text-eyebrow" />
+        </div>
+        <SkeletonText className="w-8 font-mono text-badge" />
+      </div>
+    </div>
   );
 }

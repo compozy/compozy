@@ -199,6 +199,20 @@ describe("useTaskDetailPage", () => {
 
     expect(getTaskTimeline).not.toHaveBeenCalled();
     expect(listTaskRuns).not.toHaveBeenCalled();
+    // A read nobody asked for waits on nothing; it is not a list still on its way.
+    expect(result.current.timelineLoading).toBe(false);
+    expect(result.current.runsLoading).toBe(false);
+  });
+
+  it("Should keep each secondary read waiting, not empty, while its window is suspended", () => {
+    const { result } = renderHook(() => useTaskDetailPage("task_001", { liveDataEnabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.runsLoading).toBe(true);
+    expect(result.current.timelineLoading).toBe(true);
+    expect(result.current.profileLoading).toBe(true);
+    expect(result.current.reviewsLoading).toBe(true);
   });
 
   it("Should expose a profile load error through the detail view model", async () => {

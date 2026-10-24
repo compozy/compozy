@@ -1,4 +1,4 @@
-import { Button, Skeleton, StatusDot, cn } from "@compozy/ui";
+import { Button, StatusDot, cn } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
@@ -8,6 +8,8 @@ import { SUBAGENT_STATUS_WORD, subagentDot } from "../subagents/subagent-format"
 import { SubagentRowTrail } from "../subagents/subagent-row-trail";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
+import { SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
+import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
 
 export interface SessionListSubagentBranchProps {
   workspaceId: string;
@@ -46,23 +48,21 @@ export function SessionListSubagentBranch({
 
   return (
     <div data-testid={`${testIdPrefix}-subagents-${sessionId}`}>
-      {branch.loading
-        ? // Placeholders hold the rows' height, so the list does not jump when they land.
-          Array.from({ length: Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE) }, (_, index) => (
-            <div key={index} className={cn(BRANCH_NODE, "px-2 py-1.5")} aria-hidden="true">
-              <Skeleton className="h-5 w-3/4" />
-            </div>
-          ))
-        : branch.rows.map(subagent => (
-            <SubagentBranchRow
-              key={subagent.id}
-              subagent={subagent}
-              current={
-                subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
-              }
-              onOpen={() => open(subagent)}
-            />
-          ))}
+      {branch.loading ? (
+        // Placeholders are the live rows' own frame, so the list does not jump when they land.
+        <SessionSubagentRowsSkeleton count={Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE)} />
+      ) : (
+        branch.rows.map(subagent => (
+          <SubagentBranchRow
+            key={subagent.id}
+            subagent={subagent}
+            current={
+              subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
+            }
+            onOpen={() => open(subagent)}
+          />
+        ))
+      )}
       {branch.failed ? (
         <div className={cn(BRANCH_NODE, "flex items-center gap-2 px-2 py-1.5")}>
           <span className="text-transcript-caption text-subtle">Couldn't load subagents.</span>
@@ -112,10 +112,7 @@ function SubagentBranchRow({
       <SubagentRowTrail subagent={subagent} />
     </>
   );
-  const rowClass = cn(
-    "grid w-full grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2 rounded-md px-2 py-1.5 text-left text-body text-fg outline-none",
-    current && "bg-selected"
-  );
+  const rowClass = cn(SUBAGENT_ROW_FRAME, current && "bg-selected");
 
   return (
     <div className={BRANCH_NODE} data-slot="session-subagent-row" data-status={subagent.status}>

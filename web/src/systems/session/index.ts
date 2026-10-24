@@ -405,6 +405,7 @@ export {
 } from "./components/session-rename-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
+export { SessionSidebarSkeleton } from "./components/session-list/session-list-skeleton";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export {

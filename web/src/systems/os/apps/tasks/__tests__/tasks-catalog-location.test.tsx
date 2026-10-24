@@ -86,7 +86,7 @@ const mocks = vi.hoisted(() => ({
     schedulerStatus: null,
     schedulerStatusError: null,
     schedulerStatusLoading: false,
-    scopeError: null,
+    scopeError: null as Error | null,
     scopeLoading: false,
     searchQuery: "",
     setInboxSearchQuery: vi.fn(),
@@ -201,6 +201,9 @@ describe("TasksCatalogLocation", () => {
     mocks.userOpen.mockReset();
     mocks.openTarget.mockReset();
     mocks.page.visibleTasks = [];
+    mocks.page.scopeLoading = false;
+    mocks.page.scopeError = null;
+    mocks.page.hasActiveTaskScope = true;
   });
 
   it("Should lead the strip with List and Kanban views while keeping them out of the head [UT-130]", () => {
@@ -229,6 +232,46 @@ describe("TasksCatalogLocation", () => {
     expect(toolbar).toContainElement(views);
     expect(screen.queryByTestId("tasks-list-toolbar")).not.toBeInTheDocument();
     expect(toolbar?.children).toHaveLength(1);
+  });
+
+  it("Should keep the strip and the mode's own surface in place while the scope resolves", () => {
+    mocks.page.scopeLoading = true;
+    mocks.page.hasActiveTaskScope = false;
+
+    renderCatalog();
+
+    // The strip needs no data, so its filters do not pop in when the scope settles; the mode's
+    // surface renders its own loading state in its own container instead of a spinner gate.
+    expect(screen.getByTestId("tasks-list-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-scope-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-open-create")).toBeDisabled();
+  });
+
+  it("Should drop the filters and say so when the scope cannot resolve", () => {
+    mocks.page.hasActiveTaskScope = false;
+    mocks.page.scopeError = new Error("No active workspace is available for task scope.");
+
+    renderCatalog();
+
+    expect(screen.queryByTestId("tasks-list-toolbar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-scope-error")).toHaveTextContent(
+      "No active workspace is available for task scope."
+    );
+  });
+
+  it("Should swap the body to the new mode while the strip follows at once", async () => {
+    const { rerender } = renderCatalog();
+    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
+
+    rerender(<TasksCatalogLocation search={{ mode: "dashboard" }} />);
+
+    // The body renders the new mode as a deferred swap, so it settles rather than lands in the
+    // same pass; nothing of the old view stays mounted once it has.
+    expect(await screen.findByTestId("tasks-dashboard-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-dashboard")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("tasks-mode-list")).not.toHaveAttribute("aria-current");
   });
 
   it("Should show the head count only for the unfiltered list", () => {

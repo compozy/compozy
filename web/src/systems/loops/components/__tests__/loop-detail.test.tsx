@@ -21,6 +21,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopDetailView } = await import("../detail/loop-detail");
+const { LoopDetailSkeleton } = await import("../detail/loop-detail-skeleton");
 const { loopCatalogFixtures, loopDetailByName, loopEffectiveConfigFixture, loopRunFixtures } =
   await import("../../mocks/fixtures");
 const { readLoopGraph } = await import("../../lib/loop-graph");
@@ -228,5 +229,87 @@ describe("LoopDetailView", () => {
     expect(limits.queryByText("50")).not.toBeInTheDocument();
     expect(limits.getByText("Pause and ask me")).toBeInTheDocument();
     expect(limits.queryByText("escalate")).not.toBeInTheDocument();
+  });
+});
+
+// A read still in flight is not an answer. The page holds the place of what is coming, in one
+// named status region per area, and never says "has not run yet" or "Manual only" about a read
+// that has not returned.
+describe("LoopDetailView pending reads", () => {
+  function renderPending(pending: { recentRunsLoading?: boolean; bindingsLoading?: boolean }) {
+    const noop = vi.fn();
+    renderWithTopbar(
+      <LoopDetailView
+        loop={loop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...savedConfig }}
+        graph={readLoopGraph(loop.definition)}
+        recentRuns={[]}
+        recentRunsLoading={pending.recentRunsLoading}
+        bindings={[]}
+        bindingsLoading={pending.bindingsLoading ?? false}
+        successRate={catalogEntry.success_rate_30d}
+        aggregate={catalogEntry.aggregate_30d}
+        deleteError={null}
+        deletePending={false}
+        onRun={noop}
+        onConfigure={noop}
+        onOpenEditor={noop}
+        onDelete={noop}
+        onDeleteReset={noop}
+        onAutomate={noop}
+      />
+    );
+  }
+
+  it("Should not call recent runs that are still being read a Loop that has not run", () => {
+    renderPending({ recentRunsLoading: true });
+
+    const region = screen.getByText("Loading recent runs").closest('[role="status"]');
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("loop-recent-runs-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-recent-runs-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-recent-runs")).not.toBeInTheDocument();
+  });
+
+  it("Should not say a Loop is manual-only while its automations are still being read", () => {
+    renderPending({ bindingsLoading: true });
+
+    const trigger = screen.getByRole("button", { name: /Automations/ });
+    expect(trigger).not.toHaveTextContent("Manual only");
+    openRail(/Automations/);
+    expect(screen.getByText("Loading automations")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-bindings-empty")).not.toBeInTheDocument();
+  });
+});
+
+describe("LoopDetailSkeleton", () => {
+  // Invariant: before the definition and settings arrive the page already names the Loop (from the
+  // route), prints its static headings and publishes the window head's way back, with everything
+  // the reads supply held as placeholders in one named status region.
+  it("Should name the Loop and hold the page's frame while its reads are pending", () => {
+    renderWithTopbar(<LoopDetailSkeleton name="implement-tasks" />);
+
+    const page = screen.getByTestId("loop-detail-loading");
+    expect(page).toHaveAttribute("role", "status");
+    expect(page).toHaveAttribute("aria-busy", "true");
+    expect(within(page).getByText("Loading Loop")).toBeInTheDocument();
+    expect(within(page).getByRole("heading", { level: 1 })).toHaveTextContent("implement-tasks");
+    for (const heading of [
+      "Goal and finish line",
+      "Steps",
+      "Recent runs",
+      "Inputs",
+      "Automations",
+      "Limits",
+    ]) {
+      expect(within(page).getByText(heading)).toBeInTheDocument();
+    }
+    // Nothing is claimed about a Loop that has not been read.
+    expect(within(page).queryByText(/has not run yet/)).not.toBeInTheDocument();
+    expect(within(page).queryByText("Manual only")).not.toBeInTheDocument();
+
+    const trail = screen.getByRole("navigation", { name: "Window path" });
+    expect(within(trail).getByRole("button", { name: "Loops" })).toBeInTheDocument();
+    expect(within(trail).getByText("implement-tasks")).toBeInTheDocument();
   });
 });

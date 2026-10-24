@@ -1,6 +1,14 @@
 import { AlertTriangle, Check } from "lucide-react";
 
-import { MetadataList, MetadataListRow, Panel, Pill, type PillTone } from "@compozy/ui";
+import {
+  MetadataList,
+  MetadataListRow,
+  Panel,
+  Pill,
+  type PillTone,
+  Skeleton,
+  SkeletonText,
+} from "@compozy/ui";
 
 import { formatDurationMs } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -77,6 +85,43 @@ export function TasksDashboardQueueHealth({ dashboard }: TasksDashboardQueueHeal
           <span>Queue is healthy.</span>
         </div>
       )}
+    </Panel>
+  );
+}
+
+/**
+ * The placeholder twin of the queue-health panel: the same panel head and snapshot rows with
+ * their real labels, and the status, figures and verdict left as blocks. Wrap the dashboard
+ * area in a `SkeletonRegion`.
+ */
+export function TasksDashboardQueueHealthSkeleton() {
+  return (
+    <Panel
+      aria-hidden="true"
+      className="animate-skeleton-reveal"
+      right={<Skeleton className="h-pill-sm w-16 rounded-pill" />}
+      title="Queue health"
+    >
+      <p className="text-form-label text-muted">
+        <SkeletonText className="w-48" />
+      </p>
+
+      <MetadataList className="mt-4">
+        <MetadataListRow label="Waiting now">
+          <SkeletonText className="w-8" />
+        </MetadataListRow>
+        <MetadataListRow label="Oldest wait">
+          <SkeletonText className="w-12" />
+        </MetadataListRow>
+        <MetadataListRow label="Alert after">
+          <SkeletonText className="w-12" />
+        </MetadataListRow>
+      </MetadataList>
+
+      <div className="mt-4 flex items-center gap-2 text-form-label">
+        <Skeleton className="size-3.5 shrink-0 rounded-full" />
+        <SkeletonText className="w-32" />
+      </div>
     </Panel>
   );
 }

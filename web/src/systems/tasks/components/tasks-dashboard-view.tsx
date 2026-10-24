@@ -1,22 +1,42 @@
 import { useState, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Disclosure, Empty, Eyebrow } from "@compozy/ui";
+import {
+  cn,
+  Disclosure,
+  Empty,
+  Eyebrow,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
+} from "@compozy/ui";
 
 import type { TaskDashboardView } from "../types";
 import {
   TasksDashboardActiveRuns,
+  TasksDashboardActiveRunsSkeleton,
   type TasksDashboardActiveRunsProps,
 } from "./tasks-dashboard-active-runs";
-import { TasksDashboardCards } from "./tasks-dashboard-cards";
-import { TasksDashboardQueueHealth } from "./tasks-dashboard-queue-health";
-import { TasksDashboardStatusBreakdown } from "./tasks-dashboard-status-breakdown";
-import { TasksDashboardLoadingSkeleton } from "./task-loading-skeletons";
+import { TasksDashboardCards, TasksDashboardCardsSkeleton } from "./tasks-dashboard-cards";
+import {
+  TasksDashboardQueueHealth,
+  TasksDashboardQueueHealthSkeleton,
+} from "./tasks-dashboard-queue-health";
+import {
+  TasksDashboardStatusBreakdown,
+  TasksDashboardStatusBreakdownSkeleton,
+} from "./tasks-dashboard-status-breakdown";
 import {
   type SchedulerBacklog,
   SchedulerControlsPanel,
   type SchedulerStatus,
 } from "@/systems/scheduler";
+
+/** The dashboard's frame, shared by the live view and its skeleton so the sections stay put. */
+const BODY_CLASS = "@container flex min-h-0 flex-1 flex-col gap-4 p-5";
+const PANEL_PAIR_CLASS = "grid grid-cols-1 gap-4 @5xl:grid-cols-[2fr_1fr]";
+const QUEUE_CONTROLS_CLASS = "border-t border-line-soft pt-1";
+const TOTALS_CLASS = "flex items-center justify-end gap-2 border-t border-line-soft pt-3";
 
 export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;
@@ -55,7 +75,7 @@ function DashboardQueueControls({ forceOpen, panel }: { forceOpen: boolean; pane
   const isOpen = open || forceOpen;
   return (
     <Disclosure
-      className="border-t border-line-soft pt-1"
+      className={QUEUE_CONTROLS_CLASS}
       data-testid="tasks-dashboard-queue-controls"
       label="Queue controls"
       size="md"
@@ -95,7 +115,7 @@ export function TasksDashboardView({
   projectBadgeOf,
 }: TasksDashboardViewProps) {
   if (dashboardStatus === "loading" && !dashboard) {
-    return <TasksDashboardLoadingSkeleton />;
+    return <TasksDashboardLoading />;
   }
 
   if (errorMessage && !dashboard) {
@@ -121,15 +141,12 @@ export function TasksDashboardView({
   }
 
   return (
-    <div
-      className="@container flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5"
-      data-testid="tasks-dashboard-view"
-    >
+    <div className={cn(BODY_CLASS, "overflow-y-auto")} data-testid="tasks-dashboard-view">
       <TasksDashboardCards dashboard={dashboard} />
 
       <TasksDashboardActiveRuns dashboard={dashboard} projectBadgeOf={projectBadgeOf} />
 
-      <div className="grid grid-cols-1 gap-4 @5xl:grid-cols-[2fr_1fr]">
+      <div className={PANEL_PAIR_CLASS}>
         <TasksDashboardQueueHealth dashboard={dashboard} />
         <TasksDashboardStatusBreakdown dashboard={dashboard} />
       </div>
@@ -156,14 +173,42 @@ export function TasksDashboardView({
         }
       />
 
-      <div
-        className="flex items-center justify-end gap-2 border-t border-line-soft pt-3"
-        data-testid="tasks-dashboard-totals"
-      >
+      <div className={TOTALS_CLASS} data-testid="tasks-dashboard-totals">
         <Eyebrow className="text-muted">
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
         </Eyebrow>
       </div>
     </div>
+  );
+}
+
+/**
+ * The dashboard while its read is out: every section in its place with its real heading, and
+ * the figures left as blocks. The scheduler fold and the totals line are placeholders too, so
+ * nothing interactive sits inside the loading region.
+ */
+function TasksDashboardLoading() {
+  return (
+    <SkeletonRegion
+      className={cn(BODY_CLASS, "overflow-hidden")}
+      data-testid="tasks-dashboard-loading"
+      label="Loading tasks dashboard"
+    >
+      <TasksDashboardCardsSkeleton />
+      <TasksDashboardActiveRunsSkeleton />
+      <div className={PANEL_PAIR_CLASS}>
+        <TasksDashboardQueueHealthSkeleton />
+        <TasksDashboardStatusBreakdownSkeleton />
+      </div>
+      <div aria-hidden="true" className={QUEUE_CONTROLS_CLASS}>
+        <div className="flex items-center gap-2 py-2.5 text-small-body">
+          <Skeleton className="size-3.5 shrink-0 rounded-full" />
+          <SkeletonText className="w-24" />
+        </div>
+      </div>
+      <div aria-hidden="true" className={TOTALS_CLASS}>
+        <SkeletonText className="w-32 eyebrow" />
+      </div>
+    </SkeletonRegion>
   );
 }

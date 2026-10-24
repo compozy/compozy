@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
 
-import { cn, Disclosure, Pill } from "@compozy/ui";
+import { cn, Disclosure, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 
 /**
  * The one Advanced fold per page (design system §08): the settings defaults
@@ -56,6 +56,21 @@ export function SettingsAdvancedFold({
     >
       {children}
     </Disclosure>
+  );
+}
+
+/**
+ * A closed `SettingsAdvancedFold` in skeleton form: the same framed row, with a placeholder where
+ * the chevron and label go. The fold stays closed on load, so this is all that shows of it.
+ */
+export function SettingsAdvancedFoldSkeleton() {
+  return (
+    <div aria-hidden="true" className="overflow-hidden rounded-lg bg-sunken">
+      <div className="flex min-h-11 items-center gap-2 px-4 py-3 text-small-body">
+        <Skeleton className="size-3.5 rounded-xs" />
+        <SkeletonText className="w-32" />
+      </div>
+    </div>
   );
 }
 

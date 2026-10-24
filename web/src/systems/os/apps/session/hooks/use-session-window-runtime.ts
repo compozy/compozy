@@ -1,3 +1,5 @@
+import { useDeferredValue } from "react";
+
 import { useDesktop } from "../../../hooks/use-desktop";
 import { matchSessionInstance } from "../../../lib/app-catalog";
 import { useSessionWindowDesktopState } from "./use-session-window-desktop-state";
@@ -22,9 +24,16 @@ export interface SessionWindowRuntime {
  * visible. That pairing is the whole definition of "being viewed": a focused
  * window on a hidden tab or a background desktop is not someone watching, and
  * claiming otherwise would silently stop `done` from ever appearing.
+ *
+ * The session identity follows the route one deferred render behind it. The route comes from
+ * the shell's store, whose updates are always urgent, and an urgent update can never animate
+ * (`<ViewTransition>` only plays for transitions). Deferring the path turns the switch to
+ * another session into one: the window keeps showing the current session until the next is
+ * ready, then swaps under the keyed boundary in `SessionWindowView`.
  */
 export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime {
-  const { liveTailEnabled, pathname } = useSessionWindowDesktopState(windowId);
+  const { liveTailEnabled, pathname: livePathname } = useSessionWindowDesktopState(windowId);
+  const pathname = useDeferredValue(livePathname);
   const focused = useDesktop(state => state.focusedId === windowId);
   const documentActive = useDocumentActive();
   const sessionId = matchSessionInstance(pathname);

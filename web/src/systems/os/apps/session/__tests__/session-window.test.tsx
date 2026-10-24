@@ -144,6 +144,7 @@ describe("SessionWindow", () => {
     desktop.windows["session:sess-1"].desktopId = "desktop-1";
     desktop.windows["session:sess-1"].minimized = false;
     desktop.windows["session:sess-1"].stackActive = true;
+    desktop.windows["session:sess-1"].route.pathname = "/agents/qa-agent/sessions/sess-1";
     queryState.data = session;
     queryState.error = null;
     queryState.isLoading = false;
@@ -200,6 +201,22 @@ describe("SessionWindow", () => {
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: false })
     );
+  });
+
+  // Invariant: an in-place retarget reaches the view one deferred render behind the shell's
+  // route, so it is a transition the keyed boundary can animate. The view never sees a mix of
+  // two sessions: it keeps the current one until the next is the only thing it is given.
+  it("Should hand the view the retargeted session only on the deferred render", () => {
+    const view = render(<SessionWindow windowId="session:sess-1" />);
+    sessionWindowViewSpy.mockClear();
+
+    desktop.windows["session:sess-1"].route.pathname = "/agents/qa-agent/sessions/sess-2";
+    view.rerender(<SessionWindow windowId="session:sess-1" />);
+
+    const viewedIds = sessionWindowViewSpy.mock.calls.map(([props]) => props.id);
+    expect(viewedIds[0]).toBe("sess-1");
+    expect(viewedIds.at(-1)).toBe("sess-2");
+    expect(viewedIds).not.toContain(undefined);
   });
 
   it("Should retain live-tail ownership when another visible window gains focus", () => {

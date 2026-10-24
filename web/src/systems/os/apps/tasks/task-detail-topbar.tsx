@@ -1,4 +1,4 @@
-import { useTopbarSlot } from "@compozy/ui";
+import { SkeletonText, useTopbarSlot } from "@compozy/ui";
 
 import type { TaskDetailLocationController } from "./use-task-detail-location";
 import { TaskPageActions, TaskPageOverflow, TaskPageStatus } from "@/systems/tasks";
@@ -73,6 +73,24 @@ export function TaskDetailTopbar({ controller }: { controller: TaskDetailLocatio
         }
       : null
   );
+
+  return null;
+}
+
+/**
+ * The head while the task loads: the real way back to the list, and the title as a block, so
+ * the head is already in its drill-in shape when the task arrives into it.
+ */
+export function TaskDetailLoadingTopbar({
+  controller,
+}: {
+  controller: Pick<TaskDetailLocationController, "backToTasks">;
+}) {
+  useTopbarSlot({
+    onBack: controller.backToTasks,
+    crumbs: [{ id: "tasks", label: "Tasks", onSelect: controller.backToTasks }],
+    crumb: <SkeletonText className="w-40" />,
+  });
 
   return null;
 }

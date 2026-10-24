@@ -10,11 +10,10 @@ import {
 import { lazy, Suspense, use, useRef } from "react";
 import { toast } from "sonner";
 
-import { viewTransitionName } from "@compozy/ui";
-
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";
 import { SessionThread } from "./session-thread-lazy";
+import { loadSessionInspector } from "./session-window-module-loader";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
 import { useSessionWindowController } from "./use-session-window-controller";
 import { useSessionWindowDerive } from "./use-session-window-derive";
@@ -52,9 +51,7 @@ const SessionRenameDialog = lazy(() =>
   }))
 );
 const SessionInspector = lazy(() =>
-  import("@/systems/session/components/session-inspector").then(module => ({
-    default: module.SessionInspector,
-  }))
+  loadSessionInspector().then(module => ({ default: module.SessionInspector }))
 );
 
 function SessionWindowInspector({
@@ -265,10 +262,7 @@ export function SessionWindowContent({
                 />
               }
             >
-              <div
-                className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-                style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
-              >
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
                 <SessionWindowNotice
                   agentName={agentName}
                   controls={controls}
@@ -378,6 +372,7 @@ export function SessionWindowContent({
                   onOpenSubagent={openSubagent}
                   turns={sessionUsageTurns.data}
                   turnsUnavailable={sessionUsageTurns.isError}
+                  turnsLoading={sessionUsageTurns.isLoading}
                   usage={inspectorUsage}
                   drawerOpen
                   onDrawerOpenChange={open => {

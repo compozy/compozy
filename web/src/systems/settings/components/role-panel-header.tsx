@@ -1,8 +1,12 @@
 import { ChevronRight, TriangleAlert } from "lucide-react";
 
-import { cn, CollapsibleTrigger, Switch } from "@compozy/ui";
+import { cn, CollapsibleTrigger, Skeleton, SkeletonText, Switch } from "@compozy/ui";
 
 import type { RoleViewModel } from "../lib/roles-view-model";
+
+const HEADER_ROW_CLASS = "flex items-center gap-2 pr-4";
+const TRIGGER_LAYOUT_CLASS = "flex min-w-0 flex-1 items-start gap-2.5 py-3 pl-4 text-left";
+const TEXT_STACK_CLASS = "flex min-w-0 flex-1 flex-col gap-0.5";
 
 export interface RolePanelHeaderProps {
   vm: RoleViewModel;
@@ -25,11 +29,12 @@ export function RolePanelHeader({
   onEnabledChange,
 }: RolePanelHeaderProps) {
   return (
-    <div className="flex items-center gap-2 pr-4">
+    <div className={HEADER_ROW_CLASS}>
       <CollapsibleTrigger
         aria-controls={bodyId}
         className={cn(
-          "group/role flex min-w-0 flex-1 items-start gap-2.5 py-3 pl-4 text-left",
+          "group/role",
+          TRIGGER_LAYOUT_CLASS,
           "transition-colors duration-base hover:bg-surface-2",
           "focus-visible:outline-none focus-visible:shadow-focus-inset"
         )}
@@ -40,7 +45,7 @@ export function RolePanelHeader({
           aria-hidden="true"
           className="mt-0.5 size-3.5 shrink-0 text-faint transition-transform duration-base group-data-panel-open/role:rotate-90"
         />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className={TEXT_STACK_CLASS}>
           <span className="text-body font-medium text-fg">{vm.label}</span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-form-label text-muted">
             <span>{vm.description}</span>
@@ -75,6 +80,22 @@ export function RolePanelHeader({
         data-testid={`${testId}-enabled-switch`}
         onCheckedChange={onEnabledChange}
       />
+    </div>
+  );
+}
+
+/** The collapsed read of one role in skeleton form: chevron, name, one-line summary and switch. */
+export function RolePanelHeaderSkeleton() {
+  return (
+    <div aria-hidden="true" className={HEADER_ROW_CLASS}>
+      <div className={TRIGGER_LAYOUT_CLASS}>
+        <Skeleton className="mt-0.5 size-3.5 shrink-0 rounded-xs" />
+        <span className={TEXT_STACK_CLASS}>
+          <SkeletonText className="w-32 text-body font-medium" />
+          <SkeletonText className="w-80 text-form-label" />
+        </span>
+      </div>
+      <Skeleton className="h-switch-default w-switch-default rounded-pill" />
     </div>
   );
 }

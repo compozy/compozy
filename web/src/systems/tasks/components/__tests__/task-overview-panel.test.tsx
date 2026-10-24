@@ -200,6 +200,30 @@ describe("TaskOverviewPanel", () => {
     );
   });
 
+  it("Should hold a recent-activity placeholder only while the timeline is unanswered", () => {
+    const props = {
+      detail: buildDetailFixture(),
+      isLive: false,
+      nowHandlers: buildHandlers(),
+      onViewAllActivity: vi.fn(),
+      runs: [],
+      timeline: [],
+    };
+    const { rerender } = render(<TaskOverviewPanel {...props} timelineLoading />);
+
+    // The section is already in place under its heading, as one named loading area.
+    expect(screen.getByRole("status")).toBe(
+      screen.getByTestId("tasks-detail-recent-activity-loading")
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading recent activity");
+    expect(screen.getByText("Recent activity")).toBeInTheDocument();
+
+    // Answered with nothing to show, the section leaves instead of lingering as a placeholder.
+    rerender(<TaskOverviewPanel {...props} />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Recent activity")).not.toBeInTheDocument();
+  });
+
   it("Should render the route-owned active-run elapsed value", () => {
     const baseline = buildDetailFixture();
     const detail = buildDetailFixture({

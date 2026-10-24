@@ -263,9 +263,7 @@ function useAgentCreateProviders(
     draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
 
   const providersLoading =
-    draft.scope === "workspace"
-      ? workspaceProvidersLoading
-      : settingsProviders.isLoading || settingsProviders.isFetching;
+    draft.scope === "workspace" ? workspaceProvidersLoading : settingsProviders.isLoading;
   const providersError =
     draft.scope === "workspace"
       ? workspaceProvidersError

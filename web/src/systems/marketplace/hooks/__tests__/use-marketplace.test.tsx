@@ -179,6 +179,59 @@ describe("one catalog query lifecycle", () => {
     client.clear();
   });
 
+  it("Should keep the previous snapshot while an edited search loads, never across a scope change", async () => {
+    const searched = page("searched");
+    const edited = page("edited");
+    const otherWorkspace = page("other-workspace");
+    let resolveEdited!: (value: unknown) => void;
+    let resolveOther!: (value: unknown) => void;
+    mocks.catalog
+      .mockResolvedValueOnce(searched)
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveEdited = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveOther = resolve;
+          })
+      );
+    const { client, wrapper } = setup();
+    const { result, rerender, unmount } = renderHook(
+      ({ q, workspaceId }: { q: string; workspaceId: string }) =>
+        useMarketplaceCatalog({ q, workspaceId }),
+      { initialProps: { q: "aud", workspaceId: "ws-a" }, wrapper }
+    );
+    await waitFor(() => expect(result.current.data?.pages).toEqual([searched]));
+
+    // An edited search keeps the previous snapshot on screen, flagged as a placeholder.
+    rerender({ q: "audit", workspaceId: "ws-a" });
+    await waitFor(() => expect(mocks.catalog).toHaveBeenCalledTimes(2));
+    expect(result.current.data?.pages).toEqual([searched]);
+    expect(result.current.isPlaceholderData).toBe(true);
+    expect(result.current.isPending).toBe(false);
+    await act(async () => {
+      resolveEdited(edited);
+    });
+    await waitFor(() => expect(result.current.data?.pages).toEqual([edited]));
+    expect(result.current.isPlaceholderData).toBe(false);
+
+    // Another workspace is another scope: the previous workspace's entries never show for it.
+    rerender({ q: "audit", workspaceId: "ws-b" });
+    await waitFor(() => expect(mocks.catalog).toHaveBeenCalledTimes(3));
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.isPending).toBe(true);
+    await act(async () => {
+      resolveOther(otherWorkspace);
+    });
+    await waitFor(() => expect(result.current.data?.pages).toEqual([otherWorkspace]));
+    unmount();
+    client.clear();
+  });
+
   it("Should stop after a fourth stale cursor and preserve the last fully drained snapshot until Retry", async () => {
     const previous = page("previous");
     mocks.catalog.mockResolvedValueOnce(previous);

@@ -1,10 +1,11 @@
-import { lazy } from "react";
+import { lazy, Suspense, ViewTransition } from "react";
 import { AlertCircle } from "lucide-react";
 
-import { Empty, Spinner } from "@compozy/ui";
+import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import { loadSessionWindowContent } from "./session-window-module-loader";
 import { SessionReadOnlyTranscript } from "./session-read-only-transcript";
+import { SessionWindowSkeleton } from "./session-window-skeleton";
 import {
   canPromptSession,
   SessionChatRuntimeProvider,
@@ -38,16 +39,7 @@ export function SessionWindowView({
 }) {
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
-  if (isLoading) {
-    return (
-      <div
-        className="flex min-h-full items-center justify-center"
-        data-testid="session-route-loading"
-      >
-        <Spinner className="size-5 text-subtle" />
-      </div>
-    );
-  }
+  if (isLoading) return <SessionWindowSkeleton />;
   if (!session || sessionWorkspaceId !== workspaceId) {
     return <SessionWindowNotice title="Couldn't find this session" detail={error?.message} />;
   }
@@ -65,23 +57,37 @@ export function SessionWindowView({
       />
     );
   }
+  // The one animated seam of this window: switching to another session in place. The
+  // boundary is keyed by the session, so the switch cross-fades the departing window body
+  // with the arriving one and nothing else does (`default="none"`: a Suspense reveal, a
+  // live update or a tab swap elsewhere never snapshots it). The caller defers the session
+  // identity (`useSessionWindowRuntime`), which is what makes the switch a transition.
   return (
-    <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
-      <SessionChatRuntimeProvider
-        sessionId={id}
-        workspaceId={runtimeWorkspaceId}
-        liveTailEnabled={liveTailEnabled}
-      >
-        <SessionWindowContent
-          liveDataEnabled={liveTailEnabled}
-          windowId={windowId}
-          agentName={resolvedAgentName}
-          sessionId={id}
-          session={session}
-          workspaceId={runtimeWorkspaceId}
-        />
-      </SessionChatRuntimeProvider>
-    </SessionPromptRuntimeProvider>
+    <ViewTransition
+      key={id}
+      default="none"
+      enter={VIEW_TRANSITION_CLASS.fade}
+      exit={VIEW_TRANSITION_CLASS.fade}
+    >
+      <Suspense fallback={<SessionWindowSkeleton />}>
+        <SessionPromptRuntimeProvider canPrompt={canPromptSession(session)} session={session}>
+          <SessionChatRuntimeProvider
+            sessionId={id}
+            workspaceId={runtimeWorkspaceId}
+            liveTailEnabled={liveTailEnabled}
+          >
+            <SessionWindowContent
+              liveDataEnabled={liveTailEnabled}
+              windowId={windowId}
+              agentName={resolvedAgentName}
+              sessionId={id}
+              session={session}
+              workspaceId={runtimeWorkspaceId}
+            />
+          </SessionChatRuntimeProvider>
+        </SessionPromptRuntimeProvider>
+      </Suspense>
+    </ViewTransition>
   );
 }
 

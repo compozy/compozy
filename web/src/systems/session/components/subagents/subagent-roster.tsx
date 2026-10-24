@@ -22,6 +22,13 @@ import {
   subagentRosterGroups,
 } from "./subagent-format";
 import { SubagentHoverContent } from "./subagent-hover-content";
+import {
+  SUBAGENT_ROSTER_LIST_FRAME,
+  SUBAGENT_ROSTER_MAIN_BRANCH,
+  SUBAGENT_ROSTER_MAIN_FRAME,
+  SUBAGENT_ROSTER_MAIN_PLAIN,
+  SUBAGENT_ROSTER_ROW_FRAME,
+} from "./subagent-roster-frame";
 import { SubagentPullRequestLink, SubagentRowTrail } from "./subagent-row-trail";
 import { subagentPullRequest, subagentWorktree } from "./subagent-worktree-format";
 import type { SubagentView } from "./types";
@@ -118,8 +125,8 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
   const branch = subagentWorktree(subagent)?.branch;
   const pullRequest = subagentPullRequest(subagent);
   const mainClass = cn(
-    "grid min-w-0 grid-cols-[20px_minmax(0,1fr)] gap-2 rounded-sm pl-1.5 text-left outline-none focus-visible:shadow-focus-inset",
-    branch ? "min-h-10 items-start py-1.25" : "min-h-7.5 items-center py-1"
+    SUBAGENT_ROSTER_MAIN_FRAME,
+    branch ? SUBAGENT_ROSTER_MAIN_BRANCH : SUBAGENT_ROSTER_MAIN_PLAIN
   );
 
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
@@ -131,7 +138,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
       data-slot="subagent-roster-row"
       data-status={subagent.status}
       data-stopping={pending ? "true" : undefined}
-      className="group/roster-row grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1 rounded-sm pr-1.5 text-fg hover:bg-surface-2 has-focus-visible:bg-surface-2"
+      className={SUBAGENT_ROSTER_ROW_FRAME}
     >
       {/* Remount when the trigger switches between button and group row, so the
           hover listeners bind to the live element. */}
@@ -218,7 +225,7 @@ export function SubagentRoster({
 
   return (
     <>
-      <div className={cn("-mx-1.5 flex max-h-79 flex-col gap-px overflow-auto pb-0.5", className)}>
+      <div className={cn(SUBAGENT_ROSTER_LIST_FRAME, className)}>
         {shownPinned.length > 0 ? (
           <ul className="flex flex-col gap-px">{shownPinned.map(row)}</ul>
         ) : null}

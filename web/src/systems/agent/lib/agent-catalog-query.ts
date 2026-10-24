@@ -74,3 +74,23 @@ export function flattenAgentAggregatePages(
     ) ?? []
   );
 }
+
+/** The key without its search text: the scope and filters a search edit does not change. */
+function catalogPopulation(queryKey: readonly unknown[]): string {
+  const { q: _search, ...population } = (queryKey.at(-1) ?? {}) as Record<string, unknown>;
+  return JSON.stringify([...queryKey.slice(0, -1), population]);
+}
+
+/**
+ * Placeholder rule for the catalog queries: while an edited search loads, the rows of the previous
+ * search stay on screen instead of blanking into a skeleton. Only the search text may differ: a new
+ * workspace, profile, project selection, category or status shows nothing stale.
+ */
+export function keepCatalogAcrossSearch<TData>(
+  previousData: TData | undefined,
+  previousKey: readonly unknown[] | undefined,
+  nextKey: readonly unknown[]
+): TData | undefined {
+  if (!previousKey) return undefined;
+  return catalogPopulation(previousKey) === catalogPopulation(nextKey) ? previousData : undefined;
+}

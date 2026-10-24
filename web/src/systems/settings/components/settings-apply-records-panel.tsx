@@ -9,6 +9,8 @@ import {
   Pill,
   Section,
   Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Spinner,
   Time,
 } from "@compozy/ui";
@@ -25,6 +27,11 @@ interface SettingsApplyRecordsPanelProps {
   onRefresh: () => void;
   onReload: () => void;
 }
+
+const RECORD_LIST_CLASS = "divide-y divide-line border-y border-line";
+const RECORD_ROW_CLASS =
+  "grid min-w-0 gap-4 py-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)]";
+const SKELETON_RECORDS = ["first", "second", "third"] as const;
 
 const STATUS_TONE: Record<ConfigApplyRecord["status"], PillTone> = {
   pending_apply: "info",
@@ -70,6 +77,30 @@ function latestDiagnostic(record: ConfigApplyRecord): string | null {
   return `${diagnostic.title}: ${diagnostic.message}`;
 }
 
+/** One apply record in skeleton form: the status, hashes and timing columns of the real row. */
+function ApplyRecordRowSkeleton() {
+  return (
+    <div aria-hidden="true" className={RECORD_ROW_CLASS}>
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="eyebrow text-muted">Status</span>
+        <Skeleton className="h-pill-sm w-36 rounded-pill" />
+        <SkeletonText className="w-40 text-small-body" />
+      </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="eyebrow text-muted">Hashes</span>
+        <div className="grid min-w-0 gap-1 font-mono text-mono-id text-muted">
+          <SkeletonText className="w-36" />
+          <SkeletonText className="w-36" />
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <SkeletonText className="w-48 text-small-body" />
+        <SkeletonText className="w-full text-small-body leading-relaxed" />
+      </div>
+    </div>
+  );
+}
+
 function SettingsApplyRecordsPanel({
   records,
   isLoading,
@@ -86,7 +117,7 @@ function SettingsApplyRecordsPanel({
       divided
       label="Settings file changes"
       note="Changes you've made to the settings file and whether they're in effect."
-      count={records.length}
+      count={isLoading ? undefined : records.length}
       right={
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -141,22 +172,11 @@ function SettingsApplyRecordsPanel({
         ) : null}
 
         {isLoading ? (
-          <div
-            aria-label="Loading apply records"
-            className="flex flex-col divide-y divide-line border-y border-line"
-            role="status"
-          >
-            {[0, 1, 2].map(row => (
-              <div
-                className="grid min-w-0 gap-4 py-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
-                key={row}
-              >
-                <Skeleton className="h-8 w-full rounded-xs" />
-                <Skeleton className="h-8 w-full rounded-xs" />
-                <Skeleton className="h-8 w-full rounded-xs" />
-              </div>
+          <SkeletonRegion className={RECORD_LIST_CLASS} label="Loading apply records">
+            {SKELETON_RECORDS.map(row => (
+              <ApplyRecordRowSkeleton key={row} />
             ))}
-          </div>
+          </SkeletonRegion>
         ) : records.length === 0 ? (
           <Empty
             title="No changes yet"
@@ -164,14 +184,11 @@ function SettingsApplyRecordsPanel({
             data-testid="settings-apply-records-empty"
           />
         ) : (
-          <div
-            className="divide-y divide-line border-y border-line"
-            data-testid="settings-apply-records-list"
-          >
+          <div className={RECORD_LIST_CLASS} data-testid="settings-apply-records-list">
             {records.map(record => (
               <div
                 key={record.id}
-                className="grid min-w-0 gap-4 py-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
+                className={RECORD_ROW_CLASS}
                 data-testid="settings-apply-records-row"
               >
                 <div className="flex min-w-0 flex-col gap-2">

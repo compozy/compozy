@@ -79,19 +79,21 @@ function InventoryStoryHost({
   hasMore = false,
   loopFilter = "",
   view = "rows",
+  isLoading = false,
 }: {
   state: LoopNodeInventoryState;
   items: LoopNodeInventoryItem[];
   hasMore?: boolean;
   loopFilter?: string;
   view?: "rows" | "cards";
+  isLoading?: boolean;
 }) {
   return (
     <div className="min-h-dvh bg-canvas p-6">
       <LoopNodeInventoryView
         hasMore={hasMore}
         isFetchingNextPage={false}
-        isLoading={false}
+        isLoading={isLoading}
         items={items}
         loadedCount={items.length}
         loopFilter={loopFilter}
@@ -124,6 +126,17 @@ type Story = StoryObj<typeof meta>;
 export const Waiting: Story = {
   args: {},
   render: () => <InventoryStoryHost items={WAITING_ITEMS} state="waiting" />,
+};
+
+/** The first read has not answered: the rows card with its real header, placeholder rows below. */
+export const Loading: Story = {
+  args: {},
+  render: () => <InventoryStoryHost isLoading items={[]} state="waiting" />,
+};
+
+export const LoadingCards: Story = {
+  args: {},
+  render: () => <InventoryStoryHost isLoading items={[]} state="waiting" view="cards" />,
 };
 
 /** Cards view of the same waiting inventory — state glyph, one pill, clamped reason. */

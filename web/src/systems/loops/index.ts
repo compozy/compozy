@@ -298,9 +298,11 @@ export type { LoopCatalogProjectError } from "./components/catalog/loop-catalog-
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";
+export { LoopCatalogSkeleton } from "./components/catalog/loop-catalog-skeleton";
 export { LoopDetailView } from "./components/detail/loop-detail";
+export { LoopDetailSkeleton } from "./components/detail/loop-detail-skeleton";
 export { LoopStartBindingsPanel } from "./components/detail/loop-start-bindings-panel";
-export { LoopRunsView } from "./components/runs/loop-runs-view";
+export { LoopRunsSkeleton, LoopRunsView } from "./components/runs/loop-runs-view";
 export { LoopRunsFilters } from "./components/runs/loop-runs-filters";
 export { LoopNodeInventoryView } from "./components/runs/loop-node-inventory-view";
 export type { LoopNodeInventoryViewProps } from "./components/runs/loop-node-inventory-view";
@@ -309,6 +311,7 @@ export { LoopTargetFields } from "./components/target/loop-target-fields";
 
 // Run form
 export { LoopRunForm } from "./components/run-form/loop-run-form";
+export { LoopRunFormSkeleton } from "./components/run-form/loop-run-form-skeleton";
 export { LoopRunActiveNotice } from "./components/run-form/loop-run-active-notice";
 export { LoopRunInputField } from "./components/run-form/loop-run-input-field";
 export { LoopRunOverrides } from "./components/run-form/loop-run-overrides";
@@ -347,6 +350,7 @@ export { LoopForkDialog, type LoopForkDialogProps } from "./components/run-page/
 export type { LoopGateDecision } from "./lib/loop-events";
 export { LoopRunOverflowMenu } from "./components/run-page/loop-run-overflow-menu";
 export { LoopRunPageBody } from "./components/run-page/loop-run-page-body";
+export { LoopRunPageSkeleton } from "./components/run-page/loop-run-page-skeleton";
 export type { LoopRunPageBodyProps } from "./components/run-page/loop-run-page-body";
 export { LoopRunUsageRail } from "./components/run-page/loop-run-usage-rail";
 export { LoopRunBriefing } from "./components/run-page/loop-run-briefing";
@@ -372,6 +376,7 @@ export {
 export type { LoopDiffView } from "./lib/loop-run-diff-model";
 export { comparableGenerations, projectLoopDiff } from "./lib/loop-run-diff-model";
 export {
+  LoopRunDiffPageSkeleton,
   LoopRunDiffPickers,
   LoopRunDiffView,
   type LoopRunDiffInputsProps,

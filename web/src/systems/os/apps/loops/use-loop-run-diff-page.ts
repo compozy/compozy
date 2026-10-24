@@ -180,7 +180,8 @@ function comparisonView(
     diffError: diffRefusal(diffQuery.error) ?? diffRefusal(siblingsError),
     diffView: diffQuery.data ? projectLoopDiff(diffQuery.data) : null,
     hasComparison,
-    isDiffLoading: diffQuery.isLoading,
+    // "No comparison yet", not "fetching": a suspended window has not started the read.
+    isDiffLoading: diffQuery.isPending,
   };
 }
 

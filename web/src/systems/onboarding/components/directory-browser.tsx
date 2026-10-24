@@ -1,9 +1,12 @@
 import { ChevronUp, Folder, FolderPlus, HardDrive, House, Plus, Spline } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { Button, Spinner, cn } from "@compozy/ui";
+import { Button, Skeleton, SkeletonRegion, SkeletonText, Spinner, cn } from "@compozy/ui";
 
 import type { FSEntry } from "../types";
+
+/** One placeholder row per entry a first screen of folders shows. */
+const SKELETON_ENTRIES = ["first", "second", "third", "fourth", "fifth", "sixth"] as const;
 
 interface DirectoryBrowserProps extends ComponentProps<"div"> {
   currentPath: string;
@@ -130,12 +133,18 @@ export function DirectoryBrowser({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         {isBrowsing ? (
-          <div
-            className="flex items-center gap-2 px-2.5 py-6 text-small-body text-muted"
-            data-testid={`${testIdPrefix}-loading`}
-          >
-            <Spinner /> Reading directory…
-          </div>
+          <SkeletonRegion data-testid={`${testIdPrefix}-loading`} label="Reading directory">
+            {SKELETON_ENTRIES.map(entry => (
+              <div
+                aria-hidden="true"
+                className="flex h-setup-row items-center gap-2.5 rounded-md px-2"
+                key={entry}
+              >
+                <Skeleton className="size-4 flex-none rounded-xs" />
+                <SkeletonText className="w-40 text-body" />
+              </div>
+            ))}
+          </SkeletonRegion>
         ) : browseError ? (
           <p
             className="px-2.5 py-6 text-small-body text-danger"

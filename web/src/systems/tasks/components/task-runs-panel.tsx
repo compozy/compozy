@@ -13,15 +13,16 @@ import {
   LinkedRecordTableTitle,
   OwnerAvatar,
   Pill,
+  SkeletonRegion,
   Spinner,
   StateGlyph,
+  TableRowSkeleton,
   Time,
 } from "@compozy/ui";
 
 import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunReview } from "../types";
-import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 
 export interface TaskRunsPanelProps {
   taskId: string;
@@ -38,6 +39,37 @@ export interface TaskRunsPanelProps {
 }
 
 const RUN_COLUMNS = ["Attempt", "Status", "Agent", "Started", "Duration", "Result"] as const;
+
+/**
+ * One placeholder per real cell: the empty leading gutter and the open-chevron cell stay blank
+ * (zero-width), the rest take the width of the data they stand in for.
+ */
+const RUN_SKELETON_COLUMNS = [
+  { className: "w-0" },
+  { className: "w-20" },
+  { className: "w-20" },
+  { className: "w-24" },
+  { className: "w-16" },
+  { className: "w-12" },
+  { className: "w-24" },
+  { className: "w-0" },
+] as const;
+
+const RUNS_CARD_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
+
+/**
+ * The placeholder twin of the runs table: the same card and column headers with a few
+ * attempt-shaped rows. The call site owns the `SkeletonRegion` around it.
+ */
+export function TaskRunsTableSkeleton() {
+  return (
+    <LinkedRecordTableRoot aria-hidden="true" className={RUNS_CARD_CLASS} columns={RUN_COLUMNS}>
+      <LinkedRecordTableBody>
+        <TableRowSkeleton columns={RUN_SKELETON_COLUMNS} count={3} />
+      </LinkedRecordTableBody>
+    </LinkedRecordTableRoot>
+  );
+}
 
 function RunRow({
   taskId,
@@ -224,7 +256,11 @@ export function TaskRunsPanel({
   emptyDescription,
 }: TaskRunsPanelProps) {
   if (isLoading && runs.length === 0) {
-    return <TaskRowsLoadingSkeleton label="Loading runs" testId="tasks-runs-loading" />;
+    return (
+      <SkeletonRegion className="w-full" data-testid="tasks-runs-loading" label="Loading runs">
+        <TaskRunsTableSkeleton />
+      </SkeletonRegion>
+    );
   }
 
   if (errorMessage && runs.length === 0) {
@@ -264,7 +300,7 @@ export function TaskRunsPanel({
       ) : null}
       <LinkedRecordTableRoot
         aria-busy={isLoading || undefined}
-        className="overflow-hidden rounded-lg bg-card shadow-card"
+        className={RUNS_CARD_CLASS}
         columns={RUN_COLUMNS}
         data-testid="tasks-runs-panel"
       >

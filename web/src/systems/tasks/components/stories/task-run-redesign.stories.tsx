@@ -4,7 +4,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 
 import { buildTaskRunDetailFixture, buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import { TaskRunOutcome } from "../task-run-outcome";
-import { TaskRunRail } from "../task-run-rail";
+import { TaskRunRail, TaskRunRailSkeleton } from "../task-run-rail";
 import { TaskRunSubhead } from "../task-run-subhead";
 
 const meta: Meta<typeof TaskRunRail> = {
@@ -118,6 +118,38 @@ export const UnknownCost: Story = {
         taskId="task_001"
         taskRuns={[]}
       />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * The rail while the sibling attempts load: the lineage section holds a row placeholder in its
+ * own frame instead of a line of text.
+ */
+export const LineageLoading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[360px] p-5">
+      <TaskRunRail
+        onInspect={() => undefined}
+        run={failedRun}
+        taskId="task_001"
+        taskRuns={[]}
+        taskRunsLoading
+      />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * The rail as a whole while the run record loads: the three real section labels over row
+ * placeholders.
+ */
+export const RailSkeleton: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[360px] p-5">
+      <TaskRunRailSkeleton />
     </PanelSurface>
   ),
 };

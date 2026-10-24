@@ -104,6 +104,22 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+export const LoadingCards: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/agents?view=cards"),
+    ...storybookMswParameters({
+      agent: [
+        compozyApiMock.get("/api/agents/catalog", async ({ request }) => {
+          await delay("infinite");
+          return HttpResponse.json(agentCatalogMockResponse(request, []));
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const FirstRunEmpty: Story = {
   args: {},
   parameters: {

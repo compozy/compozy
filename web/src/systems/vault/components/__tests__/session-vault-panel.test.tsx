@@ -39,10 +39,11 @@ describe("SessionVaultPanel", () => {
 
   it("Should render loading, empty, and error states through DataSurface slots", () => {
     const { rerender } = render(<SessionVaultPanel secrets={[]} isLoading />);
-    expect(screen.getByTestId("session-inspector-vault-loading")).toHaveAttribute(
-      "data-slot",
-      "block-loading"
-    );
+    const loading = screen.getByTestId("session-inspector-vault-loading");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading).toHaveTextContent("Loading session vault metadata");
+    expect(loading.querySelectorAll('[data-slot="item"]').length).toBeGreaterThan(0);
 
     rerender(<SessionVaultPanel secrets={[]} />);
     expect(screen.getByTestId("session-inspector-vault-empty")).toHaveTextContent(

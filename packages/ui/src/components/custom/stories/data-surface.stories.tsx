@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { KeyRound } from "lucide-react";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../table";
+import { ListingRowSkeleton } from "../content-skeleton";
 import { DataSurface, type DataSurfaceState } from "../data-surface";
 
 const meta: Meta<typeof DataSurface> = {
@@ -49,11 +50,33 @@ function Surface({ state }: { state: DataSurfaceState }) {
   );
 }
 
+/** Transitional spinner fallback: `DataSurface.Loading` with no children. */
 export const Loading: Story = {
   args: {
     state: "loading",
   },
   render: args => <Surface state={args.state} />,
+};
+
+/**
+ * The loading slot with a content-shaped skeleton as children: it renders inside a busy status
+ * region named by `label`, and the skeleton shapes stay presentational.
+ */
+export const LoadingSkeleton: Story = {
+  args: {
+    state: "loading",
+  },
+  render: args => (
+    <DataSurface state={args.state} className="w-full max-w-3xl">
+      <DataSurface.Loading
+        label="Loading records"
+        className="overflow-hidden rounded-lg border border-line"
+      >
+        <ListingRowSkeleton count={4} />
+      </DataSurface.Loading>
+      <DataSurface.Content>Records</DataSurface.Content>
+    </DataSurface>
+  ),
 };
 
 export const Error: Story = {

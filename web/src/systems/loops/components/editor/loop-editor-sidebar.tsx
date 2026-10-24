@@ -1,4 +1,4 @@
-import { LaneTabs, TabsContent, type LaneTabsItem } from "@compozy/ui";
+import { LaneTabs, TabsContent } from "@compozy/ui";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -13,13 +13,14 @@ import type {
   LoopEnvironmentSpec,
   LoopValidationIssue,
 } from "../../types";
+import {
+  SIDEBAR_CLASS,
+  SIDEBAR_TABS,
+  SIDEBAR_TABS_CLASS,
+  SIDEBAR_TABS_LIST_CLASS,
+} from "./loop-editor-chrome-parts";
 import { LoopEditorContract } from "./loop-editor-contract";
 import { LoopEditorInspector } from "./loop-editor-inspector";
-
-const SIDEBAR_TABS: ReadonlyArray<LaneTabsItem<LoopEditorSidebarTab>> = [
-  { value: "contract", label: "Contract", testId: "loop-editor-tab-contract" },
-  { value: "node", label: "Node", testId: "loop-editor-tab-node" },
-];
 
 interface LoopEditorSidebarProps {
   contract: LoopContract;
@@ -66,15 +67,12 @@ export function LoopEditorSidebar({
   lintByNode,
 }: LoopEditorSidebarProps) {
   return (
-    <aside
-      className="flex min-h-0 flex-col border-l border-line bg-canvas"
-      data-testid="loop-editor-sidebar"
-    >
+    <aside className={SIDEBAR_CLASS} data-testid="loop-editor-sidebar">
       <LaneTabs<LoopEditorSidebarTab>
         ariaLabel="Loop editor inspector"
-        className="flex min-h-0 flex-1 flex-col gap-0"
+        className={SIDEBAR_TABS_CLASS}
         items={SIDEBAR_TABS}
-        listClassName="w-full shrink-0 border-b border-line px-4"
+        listClassName={SIDEBAR_TABS_LIST_CLASS}
         onChange={onSidebarTabChange}
         value={sidebarTab}
       >

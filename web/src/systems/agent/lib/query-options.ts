@@ -14,19 +14,26 @@ import {
 } from "../adapters/agent-heartbeat-api";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
 import { agentKeys } from "./query-keys";
-import { agentCatalogRequest, normalizeAgentCatalogFilter } from "./agent-catalog-query";
+import {
+  agentCatalogRequest,
+  keepCatalogAcrossSearch,
+  normalizeAgentCatalogFilter,
+} from "./agent-catalog-query";
 import type { AgentCatalogStableFilter } from "../types";
 
 const HEARTBEAT_STATUS_FRESHNESS_MS = 5_000;
 
 export function agentCatalogOptions(workspace: string, filters: AgentCatalogStableFilter = {}) {
   const normalizedFilters = normalizeAgentCatalogFilter(filters);
+  const queryKey = agentKeys.catalog(workspace, normalizedFilters);
   return infiniteQueryOptions({
-    queryKey: agentKeys.catalog(workspace, normalizedFilters),
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       fetchAgentCatalog(agentCatalogRequest(workspace, normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    placeholderData: (previousData, previousQuery) =>
+      keepCatalogAcrossSearch(previousData, previousQuery?.queryKey, queryKey),
     staleTime: 5_000,
   });
 }
@@ -38,8 +45,9 @@ export function agentAggregateOptions(
 ) {
   const normalizedFilters = normalizeAgentCatalogFilter(filters);
   const ids = [...new Set(workspaceIds)].sort();
+  const queryKey = agentKeys.aggregate(ids, normalizedFilters);
   return infiniteQueryOptions({
-    queryKey: agentKeys.aggregate(ids, normalizedFilters),
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       fetchAgentAggregate(
         {
@@ -51,6 +59,8 @@ export function agentAggregateOptions(
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    placeholderData: (previousData, previousQuery) =>
+      keepCatalogAcrossSearch(previousData, previousQuery?.queryKey, queryKey),
     staleTime: 5_000,
   });
 }

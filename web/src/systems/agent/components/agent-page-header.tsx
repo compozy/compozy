@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Pill,
+  Skeleton,
   StateGlyph,
   TopbarOverflowIcon,
 } from "@compozy/ui";
@@ -90,4 +91,21 @@ export function AgentPageOverflow({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/**
+ * The status pill's place in the window head while the metrics load. A head with a status gives
+ * its trail the room to right-align it, so holding the place keeps the trail's layout from
+ * flipping when the pill arrives.
+ */
+export function AgentPageStatusSkeleton() {
+  return <Skeleton aria-hidden="true" className="h-4 w-12 rounded-pill" />;
+}
+
+/**
+ * The overflow's place in the window head while the agent loads: its actions act on the agent, so
+ * the trigger waits for it, but the head does not grow when it arrives.
+ */
+export function AgentPageOverflowSkeleton() {
+  return <Skeleton aria-hidden="true" className="size-button-icon-sm" />;
 }

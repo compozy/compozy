@@ -17,8 +17,11 @@ import { useWorktrees } from "@/systems/workspace";
 import { LoopRunEnvironment } from "./loop-run-environment";
 import { loopInputCatalogNeeds } from "../../lib/loop-input-catalogs";
 import { LoopInputCatalogBoundary } from "../input/loop-input-catalogs";
-
-const DRY_RUN_SENTENCE = "Dry run checks your inputs without starting anything.";
+import {
+  IDLE_ACTION_NOTE,
+  RUN_FORM_PAGE_CLASS,
+  RUN_FORM_STACK_CLASS,
+} from "./loop-run-form-layout";
 
 interface LoopRunFormProps {
   workspaceId: string;
@@ -44,7 +47,7 @@ function actionBarNote(form: {
     }
     return { kind: "missing", text: "Fill the required inputs, then run." };
   }
-  return { kind: "idle", text: DRY_RUN_SENTENCE };
+  return IDLE_ACTION_NOTE;
 }
 
 function requiredMessage(
@@ -54,7 +57,7 @@ function requiredMessage(
   return `${loopInputLabel(name, field)} is required to run this Loop.`;
 }
 
-function LoopRunFormActions({
+export function LoopRunFormActions({
   busy,
   note,
   onDryRun,
@@ -146,9 +149,9 @@ export function LoopRunForm({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loop-run-form">
-      <PageContent className="flex max-w-2xl min-w-0 flex-col gap-6" density="route">
+      <PageContent className={RUN_FORM_PAGE_CLASS} density="route">
         <form
-          className="flex min-w-0 flex-col gap-6"
+          className={RUN_FORM_STACK_CLASS}
           onSubmit={event => {
             event.preventDefault();
             form.handleRun();

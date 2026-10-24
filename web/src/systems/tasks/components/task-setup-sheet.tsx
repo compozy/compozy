@@ -12,10 +12,12 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { TaskProfileEditor } from "../hooks/use-profile-editor";
 import type { TaskExecutionProfile } from "../types";
+import { TaskSetupProfileSkeleton } from "./task-loading-skeletons";
 import { TaskSetupForm, type TaskSetupFormProps } from "./task-setup-form";
 import { TaskSetupProfileView } from "./task-setup-profile-view";
 
@@ -161,7 +163,9 @@ function TaskSetupSummary({
   return (
     <>
       {profileLoading && !profile ? (
-        <p className="text-small-body text-muted">Loading setup…</p>
+        <SkeletonRegion data-testid="tasks-setup-loading" label="Loading setup">
+          <TaskSetupProfileSkeleton />
+        </SkeletonRegion>
       ) : profileErrorMessage && !profile ? (
         <p className="text-small-body text-danger">{profileErrorMessage}</p>
       ) : profile ? (

@@ -1,7 +1,7 @@
-import { useId, type ReactNode } from "react";
+import { ViewTransition, type ReactNode } from "react";
 import { PlugZap, Search } from "lucide-react";
 
-import { LaneTabs, LiveBadge, Pill, viewTransitionName } from "@compozy/ui";
+import { LaneTabs, LiveBadge, Pill, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import type { LoopRosterReach } from "../../../lib/loop-run-registers-view";
 import { LoopSection } from "../../loop-section";
@@ -62,8 +62,6 @@ export function LoopRunInspectRegister({
   children,
   foot,
 }: LoopRunInspectRegisterProps) {
-  // Unique per register so two run windows never share a transition name.
-  const laneTransitionName = viewTransitionName("loop-inspect-lane", useId());
   // The gist is the only line a reader sees before deciding whether to open
   // this, so it is where the loaded counts have to admit what they are. A
   // truncated roster reads `200+ steps`; one still arriving says so in words.
@@ -125,13 +123,14 @@ export function LoopRunInspectRegister({
           onChange={onLaneChange}
           value={lane}
         />
-        <div
-          data-lane={lane}
-          data-testid={`loop-run-inspect-lane-${lane}`}
-          style={{ viewTransitionName: laneTransitionName }}
-        >
-          {children}
-        </div>
+        {/* Only a lane switch (a transition) cross-fades the lane. Live updates inside it are
+          urgent and never animate, and nothing else is named, so no other transition in the
+          document ever captures this subtree. */}
+        <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
+          <div data-lane={lane} data-testid={`loop-run-inspect-lane-${lane}`}>
+            {children}
+          </div>
+        </ViewTransition>
         {foot ? (
           <div
             className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-soft px-4 py-2.5 text-form-hint text-subtle"

@@ -175,6 +175,30 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** list VC-06 — loading skeleton cards. */
+export const LoadingCards: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/automations?view=cards"),
+    ...storybookMswParameters({
+      automation: [
+        compozyApiMock.get("/api/automation/jobs", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ jobs: [], page: { has_more: false, limit: 50, total: 0 } });
+        }),
+        compozyApiMock.get("/api/automation/triggers", async () => {
+          await delay("infinite");
+          return HttpResponse.json({
+            triggers: [],
+            page: { has_more: false, limit: 50, total: 0 },
+          });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 /** list VC-06 — both lists failed. */
 export const LoadError: Story = {
   args: {},

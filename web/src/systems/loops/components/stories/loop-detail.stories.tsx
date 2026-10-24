@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { LoopDetailView } from "../detail/loop-detail";
+import { LoopDetailSkeleton } from "../detail/loop-detail-skeleton";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import { readLoopGraph } from "../../lib/loop-graph";
 import { releaseTrainDetail } from "../../mocks";
@@ -140,6 +141,38 @@ export const GraphCompletionGlyphs: Story = {
       onRun={noop}
       recentRuns={[]}
       successRate={catalogEntry.success_rate_30d}
+    />
+  ),
+};
+
+/** The definition and settings are still being read: the page's own frame over placeholders. */
+export const Loading: Story = {
+  args: {},
+  render: () => <LoopDetailSkeleton name="implement-tasks" />,
+};
+
+/** The page has loaded; the recent-runs read has not, so that list holds its place. */
+export const RecentRunsLoading: Story = {
+  args: {},
+  render: () => (
+    <LoopDetailView
+      loop={loop}
+      effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
+      graph={readLoopGraph(loop.definition)}
+      recentRuns={[]}
+      recentRunsLoading
+      bindings={BINDINGS}
+      bindingsLoading
+      successRate={catalogEntry.success_rate_30d}
+      aggregate={catalogEntry.aggregate_30d}
+      onRun={noop}
+      onConfigure={noop}
+      onOpenEditor={noop}
+      onDelete={async () => undefined}
+      onDeleteReset={noop}
+      deletePending={false}
+      deleteError={null}
+      onAutomate={noop}
     />
   ),
 };

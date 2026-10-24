@@ -8,15 +8,18 @@ import {
   Empty,
   ListGroupHeader,
   Pill,
-  SkeletonRows,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { LoopDiffGroupView, LoopDiffView } from "../../lib/loop-run-diff-model";
 import { LoopRunDiffInputs } from "./loop-run-diff-inputs";
 import { LoopRunDiffRow } from "./loop-run-diff-row";
+import { DIFF_GROUP_CLASS, DIFF_VIEW_CLASS } from "./loop-run-diff-parts";
+import { LoopRunDiffBodySkeleton } from "./loop-run-diff-skeleton";
 
 export interface LoopRunDiffViewProps {
   view: LoopDiffView | null;
+  /** The comparison has not answered: its body shows the diff's skeleton. */
   isLoading?: boolean;
 
   error?: string;
@@ -42,7 +45,7 @@ function DiffGroup({ group }: DiffGroupProps) {
   return (
     <section
       aria-labelledby={headingId}
-      className="overflow-hidden rounded-lg bg-card shadow-card"
+      className={DIFF_GROUP_CLASS}
       data-testid={`loop-diff-group-${group.change}`}
     >
       <ListGroupHeader
@@ -106,7 +109,7 @@ function DiffBody({ view }: DiffBodyProps) {
 
 export function LoopRunDiffView({ view, isLoading, error, pickers }: LoopRunDiffViewProps) {
   return (
-    <section className="flex min-w-0 flex-col gap-4" data-testid="loop-run-diff-view">
+    <section className={DIFF_VIEW_CLASS} data-testid="loop-run-diff-view">
       {pickers}
       {error ? (
         <Alert role="status" variant="neutral">
@@ -117,7 +120,11 @@ export function LoopRunDiffView({ view, isLoading, error, pickers }: LoopRunDiff
           </AlertDescription>
         </Alert>
       ) : null}
-      {!error && isLoading ? <SkeletonRows className="gap-4" count={3} /> : null}
+      {!error && isLoading ? (
+        <SkeletonRegion label="Loading comparison">
+          <LoopRunDiffBodySkeleton />
+        </SkeletonRegion>
+      ) : null}
       {!error && !isLoading && view ? <DiffBody view={view} /> : null}
     </section>
   );

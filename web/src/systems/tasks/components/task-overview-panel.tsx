@@ -1,11 +1,13 @@
 import { ChevronRight } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, DescriptionCard, Section } from "@compozy/ui";
+import { Button, cn, DescriptionCard, Section, Skeleton, SkeletonRegion } from "@compozy/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
 import { TaskActivityItem } from "./task-activity-item";
 import { TaskDependenciesSection } from "./task-dependencies-section";
+import { TaskTimelineSkeleton } from "./task-loading-skeletons";
+import { TASK_TIMELINE_CARD_CLASS } from "./task-surface-classes";
 import { TaskNowStrip, type TaskNowStripHandlers } from "./task-now-strip";
 import { TaskResultSection, type TaskResultPageController } from "./task-result-section";
 import { TaskSubtasksSection } from "./task-subtasks-section";
@@ -17,6 +19,8 @@ export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> 
   detail: TaskDetailView;
   runs: readonly TaskRun[];
   timeline: readonly TaskTimelineItem[];
+  /** The timeline is still being read: recent activity shows a placeholder, not nothing. */
+  timelineLoading?: boolean;
   isLive: boolean;
   nowHandlers: TaskNowStripHandlers;
   nowPending?: Parameters<typeof TaskNowStrip>[0]["pending"];
@@ -60,6 +64,7 @@ export function TaskOverviewPanel({
   detail,
   runs,
   timeline,
+  timelineLoading = false,
   isLive,
   nowHandlers,
   nowPending,
@@ -108,7 +113,20 @@ export function TaskOverviewPanel({
       <TaskSubtasksSection items={children} />
       <TaskDependenciesSection dependencies={dependencies} />
 
-      {recent.length > 0 ? (
+      {timelineLoading && recent.length === 0 ? (
+        <Section
+          label="Recent activity"
+          right={<Skeleton className="h-button-sm w-16 rounded-pill" />}
+        >
+          <SkeletonRegion
+            className={TASK_TIMELINE_CARD_CLASS}
+            data-testid="tasks-detail-recent-activity-loading"
+            label="Loading recent activity"
+          >
+            <TaskTimelineSkeleton events={3} markers={false} />
+          </SkeletonRegion>
+        </Section>
+      ) : recent.length > 0 ? (
         <Section
           data-testid="tasks-detail-recent-activity"
           label="Recent activity"

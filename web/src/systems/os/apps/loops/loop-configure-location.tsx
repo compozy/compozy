@@ -1,6 +1,6 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
-import { Empty, Spinner } from "@compozy/ui";
+import { Empty } from "@compozy/ui";
 
 import { useLoopConfigureLocation } from "./hooks/use-loop-configure-location";
 import { LoopUnboundState } from "./loop-unbound-state";
@@ -24,14 +24,19 @@ export function LoopConfigureLocation({ name }: { name: string }) {
       />
     );
   }
-  if (loopQuery.isLoading || configQuery.isLoading) {
+  // The dialog opens at once with its chrome over placeholders, and the form takes its place in
+  // the same dialog when the reads answer. Pending covers a window whose reads have not started.
+  if (loopQuery.isPending || configQuery.isPending) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="loop-configure-loading"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
+      <LoopConfigureDialog
+        key={name}
+        name={name}
+        onOpenChange={next => {
+          if (!next) close();
+        }}
+        open
+        workspaceId={workspaceId}
+      />
     );
   }
   // Gate on the config load failing too: `getLoopConfig` returns null only on 404 (an

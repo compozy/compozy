@@ -1,6 +1,6 @@
 import { ArrowRight, CircleSlash, HardDrive, Moon } from "lucide-react";
 
-import { Checkbox, cn } from "@compozy/ui";
+import { Checkbox, cn, Skeleton, SkeletonText } from "@compozy/ui";
 
 import type { RenameProfilePlan } from "../types";
 
@@ -109,6 +109,29 @@ export function ProfileRenamePlan({
           </div>
         </Tier>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The plan in skeleton form while the daemon works out what the rename touches: the real bordered
+ * frame and one tier with a title, its tag and one row.
+ */
+export function ProfileRenamePlanSkeleton() {
+  return (
+    <div aria-hidden="true" className="overflow-hidden rounded-md border border-line">
+      <div className="px-3 py-2.5">
+        <div className="flex items-baseline gap-2">
+          <SkeletonText className="w-32 text-small-body font-medium" />
+          <SkeletonText className="ml-auto w-16 text-micro" />
+        </div>
+        <div className="mt-1 flex flex-col gap-1">
+          <div className={ROW_CLASS}>
+            <Skeleton className="size-3.5 shrink-0 rounded-xs" />
+            <SkeletonText className="w-64" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

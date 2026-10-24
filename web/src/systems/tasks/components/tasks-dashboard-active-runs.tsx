@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Activity, AlertCircle, ChevronRight } from "lucide-react";
 
-import { Empty, Eyebrow, Panel, Pill, StateGlyph } from "@compozy/ui";
+import { Empty, Eyebrow, Panel, Pill, Skeleton, SkeletonText, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
@@ -14,6 +14,10 @@ import {
 } from "../lib/task-formatters";
 import { taskWindowBinding } from "../lib/task-detail-search";
 import type { TaskDashboardView } from "../types";
+
+/** The row's frame and its single line, shared by the live rows and their skeleton. */
+const RUN_ROW_CLASS = "flex flex-col gap-1.5 px-5 py-2.5";
+const RUN_LINE_CLASS = "flex min-w-0 items-center gap-3 text-form-label";
 
 export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
@@ -59,13 +63,14 @@ export function TasksDashboardActiveRuns({
             const projectBadge = projectBadgeOf?.(run);
             return (
               <li
-                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-surface-2"
+                className={cn(RUN_ROW_CLASS, "transition-colors hover:bg-surface-2")}
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
                 <Link
                   className={cn(
-                    "group flex min-w-0 items-center gap-3 text-form-label outline-none",
+                    "group outline-none",
+                    RUN_LINE_CLASS,
                     "focus-visible:rounded-xs focus-visible:shadow-focus-ring"
                   )}
                   data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
@@ -139,6 +144,45 @@ export function TasksDashboardActiveRuns({
           +{hidden} more active runs
         </p>
       ) : null}
+    </Panel>
+  );
+}
+
+/** Rows a loading panel stands in with; ids are static, the placeholders carry no identity. */
+const LOADING_RUNS = [
+  { id: "a", titleWidth: "w-56" },
+  { id: "b", titleWidth: "w-44" },
+  { id: "c", titleWidth: "w-60" },
+] as const;
+
+/**
+ * The placeholder twin of the active-runs panel: the same panel head, rows and trailing status,
+ * with the counts, titles and times left as blocks. Wrap the dashboard area in a `SkeletonRegion`.
+ */
+export function TasksDashboardActiveRunsSkeleton() {
+  return (
+    <Panel
+      aria-hidden="true"
+      bodyClassName="p-0"
+      className="animate-skeleton-reveal"
+      right={<SkeletonText className="w-40 eyebrow" />}
+      title="Active runs"
+    >
+      <ul className="divide-y divide-line-soft">
+        {LOADING_RUNS.map(run => (
+          <li className={RUN_ROW_CLASS} key={run.id}>
+            <div className={RUN_LINE_CLASS}>
+              <Skeleton className="size-3.5 shrink-0 rounded-full" />
+              <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                <SkeletonText className={cn("text-small-body", run.titleWidth)} />
+                <SkeletonText className="w-16 font-mono text-mono-id" />
+              </div>
+              <SkeletonText className="w-16 shrink-0" />
+              <Skeleton className="size-3.5 shrink-0 rounded-xs" />
+            </div>
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

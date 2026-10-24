@@ -1,7 +1,7 @@
 import { ArrowRight, Plus, Zap } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, buttonVariants, Pill, Spinner, StatusDot } from "@compozy/ui";
+import { Button, buttonVariants, Pill, SkeletonRegion, SkeletonText, StatusDot } from "@compozy/ui";
 
 import {
   bindingKindLabel,
@@ -10,6 +10,7 @@ import {
   loopAutomateStarts,
   type LoopBindingRow,
 } from "../../lib/loop-bindings";
+import { placeholderSlots } from "../../lib/placeholder-slots";
 import { LoopRailSection } from "../loop-rail-section";
 
 interface LoopStartBindingsPanelProps {
@@ -45,7 +46,8 @@ export function LoopStartBindingsPanel({
   return (
     <LoopRailSection
       data-testid="loop-start-bindings"
-      gist={bindingsGist(counts.total)}
+      // "Manual only" would be a claim about a read that has not answered yet.
+      gist={isLoading ? <SkeletonText className="ml-auto w-24" /> : bindingsGist(counts.total)}
       icon={<Zap aria-hidden="true" className="size-3.5" />}
       title="Automations"
     >
@@ -81,10 +83,18 @@ function LoopBindingsList({
 }) {
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 border-t border-line-soft px-4 py-3 text-form-hint text-subtle">
-        <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-        Loading attached automations…
-      </div>
+      <SkeletonRegion label="Loading automations">
+        {placeholderSlots("binding", 2).map(slot => (
+          <div
+            aria-hidden="true"
+            className="border-t border-line-soft px-4 py-2.5 first-of-type:border-t-0"
+            key={slot.id}
+          >
+            <SkeletonText className="w-32 text-form-label" />
+            <SkeletonText className="mt-1 ml-3.5 w-40 text-form-hint" />
+          </div>
+        ))}
+      </SkeletonRegion>
     );
   }
   if (bindings.length === 0) {

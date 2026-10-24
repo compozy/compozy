@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
-import { HelpTip, Switch } from "@compozy/ui";
+import { HelpTip, Skeleton, SkeletonText, Switch } from "@compozy/ui";
+
+const SWITCH_ROW_CLASS = "flex flex-col gap-2 border-t border-line-soft px-4 py-3 first:border-t-0";
 
 interface LoopConfigureSwitchRowProps {
   title: string;
@@ -35,7 +37,7 @@ export function LoopConfigureSwitchRow({
 }: LoopConfigureSwitchRowProps) {
   return (
     <div
-      className="flex flex-col gap-2 border-t border-line-soft px-4 py-3 first:border-t-0"
+      className={SWITCH_ROW_CLASS}
       data-testid={testId}
       data-locked={disabled ? "true" : undefined}
     >
@@ -61,6 +63,35 @@ export function LoopConfigureSwitchRow({
         />
       </div>
       {children}
+    </div>
+  );
+}
+
+/**
+ * A switch row while the settings are being read: the row's frame with a title, a description
+ * and a switch-sized placeholder. Presentational; the caller owns the `SkeletonRegion`.
+ */
+export function LoopConfigureSwitchRowSkeleton({
+  title,
+  description = true,
+}: {
+  /** The row's title when it is static (the approval row); a placeholder otherwise. */
+  title?: string;
+  description?: boolean;
+}) {
+  return (
+    <div aria-hidden="true" className={SWITCH_ROW_CLASS}>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          {title ? (
+            <p className="text-small-body font-medium text-fg-strong">{title}</p>
+          ) : (
+            <SkeletonText className="w-32 text-small-body font-medium" />
+          )}
+          {description ? <SkeletonText className="mt-0.5 w-3/4 text-form-hint" /> : null}
+        </div>
+        <Skeleton className="h-switch-sm w-switch-sm rounded-full" />
+      </div>
     </div>
   );
 }

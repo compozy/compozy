@@ -9,13 +9,12 @@ import {
   cn,
   Empty,
   formatRelativeTime,
-  Skeleton,
-  SkeletonRows,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import { buildRunsRoster, type LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
-import { LoopRunsTable } from "./loop-runs-table";
+import { LoopRunsTable, LoopRunsTableSkeleton } from "./loop-runs-table";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
@@ -226,14 +225,9 @@ function RosterBody({
   // what is coming rather than claiming the workspace is empty.
   if (degraded) {
     return (
-      <SkeletonRows
-        aria-hidden="true"
-        className="gap-3 rounded-lg bg-card shadow-card px-4 py-3"
-        count={3}
-        data-testid="loop-runs-skeleton"
-      >
-        <Skeleton className="h-3.5 w-1/2" />
-      </SkeletonRows>
+      <div aria-hidden="true" className="flex flex-col gap-3" data-testid="loop-runs-skeleton">
+        <LoopRunsTableSkeleton withProject={projectOf !== undefined} />
+      </div>
     );
   }
   if (!roster.emptyState) return null;
@@ -259,5 +253,23 @@ function RosterBody({
         hasActiveFilters ? roster.emptyState.title : emptyForScope("runs", profileScope.scopeLabel)
       }
     />
+  );
+}
+
+/**
+ * The runs roster before its first read: the group table in the roster's own frame, with its real
+ * column header. It sits inside the same `ListingPage` the loaded roster does.
+ */
+export function LoopRunsSkeleton({ withProject }: { withProject: boolean }) {
+  return (
+    <SkeletonRegion
+      className="flex flex-col gap-2.5"
+      data-testid="loop-runs-loading"
+      label="Loading runs"
+    >
+      <div className="flex flex-col gap-3">
+        <LoopRunsTableSkeleton withProject={withProject} />
+      </div>
+    </SkeletonRegion>
   );
 }

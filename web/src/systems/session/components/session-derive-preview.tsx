@@ -1,6 +1,6 @@
 import { CircleAlert, Copy, FileText } from "lucide-react";
 
-import { FieldError, Spinner } from "@compozy/ui";
+import { FieldError, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import type { SessionDerivePreviewView } from "../lib/session-derive-view";
 
@@ -44,17 +44,17 @@ export function SessionDerivePreviewLine({
     );
   }
   if (view.state === "measuring") {
+    // The measurement's own line, in its place: the glyph well and one line of the sentence.
     return (
-      <p
-        aria-live="polite"
-        className="flex items-center gap-2 text-form-hint text-subtle"
+      <SkeletonRegion
+        label="Measuring…"
+        className="flex items-start gap-2 text-form-hint"
         data-state="measuring"
         data-testid="session-derive-preview"
-        role="status"
       >
-        <Spinner aria-hidden="true" className="size-3 shrink-0" />
-        <span>Measuring…</span>
-      </p>
+        <Skeleton className="mt-0.5 size-3 shrink-0 rounded-xs" />
+        <SkeletonText className="w-56" />
+      </SkeletonRegion>
     );
   }
   const Glyph = nativeClone ? Copy : FileText;

@@ -1,4 +1,4 @@
-import { Button, cn, Pill } from "@compozy/ui";
+import { Button, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 import { Pencil, Plug } from "lucide-react";
 
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
@@ -16,6 +16,20 @@ const HEADER_COLUMNS = ["Server", "Status", "Actions"];
 // Desktop grid: server (flex) | status | actions. On mobile the row collapses to a
 // 2-up card (server + actions span both columns).
 const ROW_GRID = "md:grid-cols-[minmax(0,1fr)_auto_auto]";
+const TABLE_CLASS =
+  "overflow-hidden rounded-lg bg-card shadow-card max-md:bg-transparent max-md:shadow-none";
+const HEADER_CLASS = cn(
+  "hidden min-h-9 items-center gap-x-3.5 border-b border-line px-3.5 md:grid",
+  ROW_GRID
+);
+const ROW_CLASS = cn(
+  "grid grid-cols-2 gap-x-3.5 gap-y-3 border-t border-line-soft p-3.5 transition-colors",
+  ROW_GRID,
+  "md:min-h-setting-row md:items-center md:gap-y-0",
+  "max-md:rounded-lg max-md:bg-card max-md:shadow-card"
+);
+const SERVER_CELL_CLASS = "col-span-2 flex min-w-0 items-center gap-2.5 md:col-span-1";
+const SKELETON_ROWS = ["first", "second", "third", "fourth"] as const;
 
 export interface MCPServersTableProps {
   servers: SettingsMCPServerEntry[];
@@ -37,27 +51,9 @@ export function MCPServersTable({
     <section
       aria-label="MCP servers"
       data-testid="settings-page-mcp-servers-list"
-      className="overflow-hidden rounded-lg bg-card shadow-card max-md:bg-transparent max-md:shadow-none"
+      className={TABLE_CLASS}
     >
-      <div
-        aria-hidden="true"
-        className={cn(
-          "hidden min-h-9 items-center gap-x-3.5 border-b border-line px-3.5 md:grid",
-          ROW_GRID
-        )}
-      >
-        {HEADER_COLUMNS.map((column, index) => (
-          <span
-            key={column}
-            className={cn(
-              "eyebrow text-muted",
-              index === HEADER_COLUMNS.length - 1 && "text-right"
-            )}
-          >
-            {column}
-          </span>
-        ))}
-      </div>
+      <MCPServersTableHeader />
       <div className="max-md:flex max-md:flex-col max-md:gap-2">
         {servers.map(server => (
           <MCPServerRow
@@ -68,6 +64,52 @@ export function MCPServersTable({
             onEdit={onEdit}
             onAuthorize={onAuthorize}
           />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MCPServersTableHeader() {
+  return (
+    <div aria-hidden="true" className={HEADER_CLASS}>
+      {HEADER_COLUMNS.map((column, index) => (
+        <span
+          key={column}
+          className={cn("eyebrow text-muted", index === HEADER_COLUMNS.length - 1 && "text-right")}
+        >
+          {column}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The table in skeleton form: the real header columns over placeholder rows with the same grid,
+ * icon well, name and source lines, status and action slots.
+ */
+export function MCPServersTableSkeleton() {
+  return (
+    <section aria-hidden="true" className={TABLE_CLASS}>
+      <MCPServersTableHeader />
+      <div className="max-md:flex max-md:flex-col max-md:gap-2">
+        {SKELETON_ROWS.map(row => (
+          <div className={ROW_CLASS} key={row}>
+            <div className={SERVER_CELL_CLASS}>
+              <Skeleton className="size-8 shrink-0 rounded-md" />
+              <div className="min-w-0">
+                <SkeletonText className="w-40 text-small-body font-medium" />
+                <SkeletonText className="mt-0.5 w-56 text-eyebrow" />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <Skeleton className="h-4 w-20 rounded-pill" />
+            </div>
+            <div className="flex items-center justify-end gap-1.5">
+              <Skeleton className="size-button-icon-sm rounded-pill" />
+            </div>
+          </div>
         ))}
       </div>
     </section>
@@ -102,15 +144,9 @@ function MCPServerRow({
     <div
       data-testid={rowTestId}
       data-owner={server.owner ?? "manual"}
-      className={cn(
-        "grid grid-cols-2 gap-x-3.5 gap-y-3 border-t border-line-soft p-3.5 transition-colors",
-        ROW_GRID,
-        "md:min-h-setting-row md:items-center md:gap-y-0",
-        "max-md:rounded-lg max-md:bg-card max-md:shadow-card",
-        selected ? "bg-selected" : "hover:bg-surface-2"
-      )}
+      className={cn(ROW_CLASS, selected ? "bg-selected" : "hover:bg-surface-2")}
     >
-      <div className="col-span-2 flex min-w-0 items-center gap-2.5 md:col-span-1">
+      <div className={SERVER_CELL_CLASS}>
         <span
           aria-hidden="true"
           className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"

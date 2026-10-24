@@ -6,13 +6,17 @@ import {
   Empty,
   ListingPage,
   ListingToolbar,
-  SkeletonRows,
   buttonVariants,
   useTopbarSlot,
 } from "@compozy/ui";
 import { type LoopsRouteSearch, useLoopsCatalog } from "./use-loops-catalog";
 
-import { LoopCatalog, LoopCatalogFilters, LoopCatalogLede } from "@/systems/loops";
+import {
+  LoopCatalog,
+  LoopCatalogFilters,
+  LoopCatalogLede,
+  LoopCatalogSkeleton,
+} from "@/systems/loops";
 
 export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   const page = useLoopsCatalog(search);
@@ -69,11 +73,12 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
   if (!page.ready) {
     return <div className="min-h-0 flex-1" data-testid="loops-no-workspace" aria-busy="true" />;
   }
-  if (catalogQuery.isLoading) {
+  // No rows yet and no failure: the catalog's own shape, inside the page it will fill.
+  if (catalogQuery.isPending) {
     return (
-      <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loops-loading">
-        <SkeletonRows count={6} rowClassName="border-b border-line-soft py-3" />
-      </div>
+      <ListingPage data-testid="loops-loading">
+        <LoopCatalogSkeleton view={page.view} workspaceLabel={page.workspaceLabel} />
+      </ListingPage>
     );
   }
   // One read: a failure with nothing to keep is one error with Retry.

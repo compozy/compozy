@@ -53,3 +53,27 @@ export function AutomationDetailSection({
     </Collapsible>
   );
 }
+
+/**
+ * A section while the page loads: the real label and icon on a non-interactive head, over the
+ * placeholder body. `AutomationDetailSection` is a disclosure; a loading one has nothing to fold.
+ */
+export function AutomationDetailSectionSkeleton({
+  icon: Icon,
+  label,
+  children,
+}: Pick<AutomationDetailSectionProps, "icon" | "label" | "children">) {
+  return (
+    <div>
+      <div className="flex w-full items-center gap-2 pb-2.5">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+        <Eyebrow className="shrink-0 text-subtle">{label}</Eyebrow>
+        <ChevronDown
+          aria-hidden="true"
+          className="ml-auto size-3.5 shrink-0 -rotate-90 text-subtle"
+        />
+      </div>
+      {children}
+    </div>
+  );
+}

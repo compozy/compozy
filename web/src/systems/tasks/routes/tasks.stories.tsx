@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
+import { buildInboxFixture, taskDashboardFixture } from "@/systems/tasks/mocks";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
@@ -120,6 +121,69 @@ export const Loading: Story = {
             page: { has_more: false, limit: 50, total: 0 },
             tasks: [],
           });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Kanban loading: every column in place under its heading with card placeholders, while the tasks
+ * collection request is pending.
+ */
+export const LoadingKanban: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks?mode=kanban"),
+    ...storybookMswParameters({
+      tasks: [
+        compozyApiMock.get("/api/tasks", async () => {
+          await delay("infinite");
+          return HttpResponse.json({
+            facets: { owners: [], statuses: [] },
+            page: { has_more: false, limit: 50, total: 0 },
+            tasks: [],
+          });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Inbox loading: the real toolbar over grouped row placeholders, while the inbox request is pending.
+ */
+export const LoadingInbox: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks?mode=inbox"),
+    ...storybookMswParameters({
+      tasks: [
+        compozyApiMock.get("/api/observe/tasks/inbox", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ inbox: buildInboxFixture() });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * Dashboard loading: every panel under its heading with figure placeholders, while the aggregate
+ * request is pending.
+ */
+export const LoadingDashboard: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/tasks?mode=dashboard"),
+    ...storybookMswParameters({
+      tasks: [
+        compozyApiMock.get("/api/observe/tasks/dashboard", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ dashboard: taskDashboardFixture });
         }),
       ],
     }),

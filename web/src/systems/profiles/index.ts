@@ -192,7 +192,10 @@ export {
   type WorkspaceProfilesHintProps,
 } from "./components/workspace-profiles-hint";
 export { ProfileSwitcherSlot } from "./components/profile-switcher-slot";
-export { ProfileSettingsList } from "./components/profile-settings-list";
+export {
+  ProfileSettingsList,
+  ProfileSettingsListSkeleton,
+} from "./components/profile-settings-list";
 export { ProfilePaletteRow } from "./components/profile-palette-row";
 export { ProfileOwnerTag, type ProfileOwnerTagProps } from "./components/profile-owner-tag";
 export {

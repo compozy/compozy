@@ -11,7 +11,7 @@ export { MCPServerEditor } from "./mcp-server-editor";
 export type { MCPServerEditorProps } from "./mcp-server-editor";
 export { MCPOverrideEditor } from "./mcp-override-editor";
 export type { MCPOverrideEditorProps } from "./mcp-override-editor";
-export { MCPServersTable } from "./mcp-servers-table";
+export { MCPServersTable, MCPServersTableSkeleton } from "./mcp-servers-table";
 export type { MCPServersTableProps } from "./mcp-servers-table";
 export {
   isExtensionOwnedMCPServer,
@@ -20,7 +20,7 @@ export {
   mcpServerProvenanceLine,
   mcpServerRowTestId,
 } from "./mcp-server-labels";
-export { ProviderCard } from "./provider-card";
+export { ProviderCard, ProviderCardGrid } from "./provider-card";
 export { ProvidersToolbar } from "./providers-toolbar";
 export type { ProvidersToolbarProps } from "./providers-toolbar";
 export { ProviderEditForm } from "./provider-edit-form";
