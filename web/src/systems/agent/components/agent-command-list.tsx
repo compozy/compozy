@@ -74,15 +74,22 @@ export function AgentCommandList({
   loading = false,
 }: AgentCommandListProps) {
   const groups = collectGroups(buildAgentCategoryTree(agents));
-  const awaitingCatalog = loading && groups.length === 0;
+
+  if (loading && groups.length === 0) {
+    // A listbox may hold only options, so the busy region follows the list instead of sitting in
+    // it. The list stays mounted, empty or not: the search field's `aria-controls` points at it.
+    return (
+      <>
+        <CommandList aria-busy="true">{leadingItems}</CommandList>
+        <AgentCommandListSkeleton />
+      </>
+    );
+  }
 
   return (
     <CommandList>
-      {awaitingCatalog ? null : (
-        <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
-      )}
+      <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
       {leadingItems}
-      {awaitingCatalog ? <AgentCommandListSkeleton /> : null}
       {groups.map(group => (
         <CommandSelectGroup
           key={group.key}

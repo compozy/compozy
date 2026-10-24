@@ -260,11 +260,12 @@ describe("AgentCommandSelect loading", () => {
 
   it("Should fill an open popup with row placeholders, not a sentence, until the catalog lands", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(select({ agents: [writer] }));
+    const clearLabel = "Role default";
+    const { rerender } = render(select({ agents: [writer], clearLabel }));
     await user.click(screen.getByTestId("trigger"));
     expect(await screen.findByTestId("agent-command-item-writer")).toBeInTheDocument();
 
-    rerender(select({ agents: [], loading: true }));
+    rerender(select({ agents: [], clearLabel, loading: true }));
 
     const region = await screen.findByTestId("agent-command-loading");
     expect(region).toHaveAttribute("role", "status");
@@ -272,10 +273,15 @@ describe("AgentCommandSelect loading", () => {
     expect(
       region.querySelectorAll('[data-slot="agent-command-row-skeleton"]').length
     ).toBeGreaterThan(3);
+    // The leading choice stays real, and a listbox holds only options, so the region sits beside it.
+    expect(screen.getByRole("listbox")).toContainElement(
+      screen.getByTestId("agent-command-item-clear")
+    );
+    expect(screen.getByRole("listbox")).not.toContainElement(region);
     expect(screen.queryByTestId("agent-command-empty")).not.toBeInTheDocument();
     expect(screen.queryByText(/Loading agents…/)).not.toBeInTheDocument();
 
-    rerender(select({ agents: [writer, coder] }));
+    rerender(select({ agents: [writer, coder], clearLabel }));
 
     expect(screen.queryByTestId("agent-command-loading")).not.toBeInTheDocument();
     expect(await screen.findByTestId("agent-command-item-coder")).toBeInTheDocument();
