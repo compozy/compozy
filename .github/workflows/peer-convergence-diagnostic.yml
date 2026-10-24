@@ -14,7 +14,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        revision: [d68ba8f1c, bd23b8b0a, 271a49aac]
+        revision:
+          - d68ba8f1c009f8dc492c11cdef11ed7d4fc540f8
+          - bd23b8b0a07cccb10679aa6bf050e60acfbe41c8
+          - 271a49aaca902a2d44bb32a8c5ea60647a9b258b
     env:
       CGO_ENABLED: 0
       CI: "true"
