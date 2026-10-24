@@ -159,11 +159,26 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
   },
   { app: "automations", label: "a job", pathname: "/automations/jobs/morning-digest" },
   { app: "automations", label: "a trigger", pathname: "/automations/triggers/rerun-delivery" },
+  { app: "marketplace", label: "Browse", pathname: "/marketplace" },
+  { app: "marketplace", label: "Installed", pathname: "/marketplace/installed" },
+  { app: "marketplace", label: "an entry", pathname: "/marketplace/compozy-catalog%2Fskills" },
+  { app: "marketplace", label: "a path it does not own", pathname: "/marketplace/a/b" },
+  { app: "vault", label: "the secrets as rows", pathname: "/vault" },
+  { app: "vault", label: "the secrets as cards", pathname: "/vault", search: { view: "cards" } },
 ];
 
 describe("app loading fallbacks", () => {
   it("Should give every app in the content-shaped rollout a fallback", () => {
-    for (const app of ["session", "settings", "tasks", "loops", "agents", "automations"] as const) {
+    for (const app of [
+      "session",
+      "settings",
+      "tasks",
+      "loops",
+      "agents",
+      "automations",
+      "marketplace",
+      "vault",
+    ] as const) {
       expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
     }
   });

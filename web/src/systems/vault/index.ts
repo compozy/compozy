@@ -40,6 +40,7 @@ export {
   VaultSecretsCard,
   VaultSecretsList,
   VaultSecretsRow,
+  VaultSecurityNote,
   type VaultListFiltersProps,
   type VaultSecretSheetProps,
   type VaultSecretsCardProps,

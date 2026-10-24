@@ -14,9 +14,11 @@ import type { OsAppId, OsWindowRoute } from "./os-types";
 import { AgentsWindowFallback } from "../apps/agents/agents-window-fallback";
 import { AutomationsWindowFallback } from "../apps/automations/automations-window-fallback";
 import { LoopsWindowFallback } from "../apps/loops/loops-window-fallback";
+import { MarketplaceWindowFallback } from "../apps/marketplace/marketplace-window-fallback";
 import { SessionWindowFallback } from "../apps/session/session-window-fallback";
 import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
 import { TasksWindowFallback } from "../apps/tasks/tasks-window-fallback";
+import { VaultWindowFallback } from "../apps/vault/vault-window-fallback";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
@@ -148,11 +150,13 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   marketplace: {
     ...OS_APP_DESCRIPTORS.marketplace,
     Controller: MarketplaceWindow,
+    LoadingFallback: MarketplaceWindowFallback,
   },
   vault: {
     ...OS_APP_DESCRIPTORS.vault,
     preload: preloadVault,
     Controller: VaultWindow,
+    LoadingFallback: VaultWindowFallback,
   },
   usage: {
     ...OS_APP_DESCRIPTORS.usage,
