@@ -3554,33 +3554,11 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
       width: 0.38,
       height: 0.46,
     };
-    // Temporary issue-941 CI diagnostic; removed after the causal experiment.
-    const profile = process.env.COMPOZY_PEER_PROFILE === "1"
-      ? await peerA.context().newCDPSession(peerA)
-      : null;
-    const traceEvents: unknown[] = [];
-    if (profile) {
-      profile.on("Tracing.dataCollected", event => traceEvents.push(...event.value));
-      await profile.send("Tracing.start", {
-        categories: "devtools.timeline,v8,disabled-by-default-v8.cpu_profiler",
-        transferMode: "ReportEvents",
-      });
-    }
     await Promise.all(
       peers.map(peer => installPeerConvergenceProbe(peer, settingsID, measuredRect))
     );
     await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", measuredRect);
     const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
-    if (profile) {
-      const complete = new Promise<void>(resolve => profile.once("Tracing.tracingComplete", () => resolve()));
-      await profile.send("Tracing.end");
-      await complete;
-      await testInfo.attach("peer-convergence-trace", {
-        body: JSON.stringify({ traceEvents }),
-        contentType: "application/json",
-      });
-      await profile.detach();
-    }
     for (const peer of peers) {
       expect(
         await windowMatchesAuthority(
