@@ -34,14 +34,12 @@ vi.mock("@/systems/session/adapters/session-catalog-api", async importOriginal =
 
 vi.mock("@/systems/profiles", () => ({ useProfileReadScope: vi.fn() }));
 vi.mock("@/systems/session/hooks/use-session-catalog", () => ({ useSessionCatalog: vi.fn() }));
-// The list preference decides the order the modal query asks for; its own
-// round-trip is covered where it lives.
+// The daemon seed decides the order the modal query asks for while the followed window has
+// no choice of its own; the per-window state is covered where it lives.
 vi.mock("@/systems/session/hooks/use-session-list-preferences", () => ({
   useSessionListPreferences: vi.fn(() => ({
     sort: "last_activity",
-    scope: "workspace",
-    setSort: vi.fn(),
-    setScope: vi.fn(),
+    groupBy: "none",
     loading: false,
   })),
 }));

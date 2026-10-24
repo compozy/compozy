@@ -13,7 +13,7 @@ import {
   sessionListSortParam,
   type SessionCatalogStreamStatus,
   type SessionPayload,
-  useSessionListPreferences,
+  useSessionWindowOrder,
   useSessionCatalog,
   sessionFacetsOptions,
 } from "@/systems/session";
@@ -138,8 +138,8 @@ function useSessionAttentionSources({
   const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
     enabled: enabled && dataScope.kind === "project",
   });
-  // The modal renders the same order the operator chose everywhere else.
-  const listPreferences = useSessionListPreferences();
+  // The modal renders the order of the window it follows (the focused one).
+  const listPreferences = useSessionWindowOrder();
   const summary = useAttentionSummary(sessionCatalogStreamStatus);
   // Sessions-modal content: a shell surface, so it follows the focused window's
   // scope exactly like the menubar chip. Distinct query key, no shared snapshot.

@@ -235,9 +235,10 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     const sourceWin = sessionWindow(appPage, source.id);
     await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
 
-    // A frame can retain sibling tabs from the fork step; the session surface owns its head.
-    await sessionWindowSelectors(sourceWin, appPage).topbarOverflow.click();
-    await appPage.getByTestId("continue-menu-item").click();
+    // A frame can retain sibling tabs from the fork step; the session's own row menu owns Continue.
+    const sourceUi = sessionWindowSelectors(sourceWin, appPage);
+    await sourceUi.sessionRowActions(source.id).click();
+    await sourceUi.sessionRowMenuItem("continue", source.id).click();
     const dialog = appPage.getByTestId("session-continue-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");

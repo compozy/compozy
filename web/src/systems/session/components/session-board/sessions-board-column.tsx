@@ -13,6 +13,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
+import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCard } from "./session-board-card";
@@ -33,6 +34,16 @@ export interface SessionsBoardColumnProps {
   onOpen: (session: SessionBoardPayload) => void;
   /** Done only: the column folds into a 44 px rail behind a disclosure button. */
   collapsible?: { collapsed: boolean; onToggle: () => void };
+  /** Session list verbs every card offers (context menu and `…`). */
+  actions?: SessionLifecycleActionHandlers;
+  /**
+   * `fill`: the ungrouped board, columns stretch to the canvas. `lane`: a
+   * swimlane row, columns size to their cards and scroll past a cap.
+   */
+  layout?: "fill" | "lane";
+  /** Swimlanes repeat the columns: the lane names the region and prefixes test ids. */
+  regionPrefix?: string;
+  testIdPrefix?: string;
 }
 
 function ColumnGlyph({ id }: { id: SessionBoardColumnId }) {
@@ -58,12 +69,16 @@ export function SessionsBoardColumn({
   workspaceNameOf,
   onOpen,
   collapsible,
+  actions,
+  layout = "fill",
+  regionPrefix,
+  testIdPrefix = "sessions-board",
 }: SessionsBoardColumnProps) {
   const bodyId = useId();
   const collapsed = collapsible?.collapsed === true;
   const count = column.count;
-  const regionLabel =
-    count === undefined ? column.label : `${column.label}, ${sessionCountLabel(count)}`;
+  const label = regionPrefix ? `${regionPrefix}, ${column.label}` : column.label;
+  const regionLabel = count === undefined ? label : `${label}, ${sessionCountLabel(count)}`;
   return (
     <section
       aria-label={regionLabel}
@@ -72,7 +87,7 @@ export function SessionsBoardColumn({
         collapsed && "w-11"
       )}
       data-collapsed={collapsed ? "true" : undefined}
-      data-testid={`sessions-board-column-${column.id}`}
+      data-testid={`${testIdPrefix}-column-${column.id}`}
     >
       <header
         className={cn(
@@ -92,7 +107,7 @@ export function SessionsBoardColumn({
         {count !== undefined && !column.loading ? (
           <span
             className="text-small-body text-subtle tabular-nums"
-            data-testid={`sessions-board-column-count-${column.id}`}
+            data-testid={`${testIdPrefix}-column-count-${column.id}`}
           >
             {count}
           </span>
@@ -103,7 +118,7 @@ export function SessionsBoardColumn({
             aria-expanded={!collapsed}
             aria-label={`${collapsed ? "Expand" : "Collapse"} ${column.label}`}
             className={cn("ml-auto aria-expanded:bg-transparent", collapsed && "order-first m-0")}
-            data-testid={`sessions-board-column-toggle-${column.id}`}
+            data-testid={`${testIdPrefix}-column-toggle-${column.id}`}
             onClick={collapsible.onToggle}
             size="icon-xs"
             type="button"
@@ -121,15 +136,18 @@ export function SessionsBoardColumn({
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-3",
+          layout === "lane" && "max-h-96",
           collapsed && "hidden"
         )}
-        data-testid={`sessions-board-column-body-${column.id}`}
+        data-testid={`${testIdPrefix}-column-body-${column.id}`}
         id={bodyId}
       >
         <SessionsBoardColumnBody
+          actions={actions}
           column={column}
           currentSessionId={currentSessionId}
           onOpen={onOpen}
+          testIdPrefix={testIdPrefix}
           workspaceNameOf={workspaceNameOf}
         />
       </div>
@@ -142,7 +160,11 @@ function SessionsBoardColumnBody({
   currentSessionId,
   workspaceNameOf,
   onOpen,
-}: Omit<SessionsBoardColumnProps, "collapsible">) {
+  actions,
+  testIdPrefix,
+}: Omit<SessionsBoardColumnProps, "collapsible" | "layout" | "regionPrefix"> & {
+  testIdPrefix: string;
+}) {
   if (column.loading) {
     return SKELETON_KEYS.map(key => <SessionBoardCardSkeleton key={key} />);
   }
@@ -150,7 +172,7 @@ function SessionsBoardColumnBody({
     return (
       <div
         className="flex flex-1 flex-col items-center justify-center gap-2.5 px-3 py-8 text-center text-small-body text-muted"
-        data-testid={`sessions-board-column-error-${column.id}`}
+        data-testid={`${testIdPrefix}-column-error-${column.id}`}
         role="alert"
       >
         <CircleSlash aria-hidden="true" className="size-4 text-subtle" />
@@ -167,7 +189,7 @@ function SessionsBoardColumnBody({
         failure={failure}
         onRetry={column.retry}
         retrying={column.retrying}
-        testId={`sessions-board-read-error-${column.id}`}
+        testId={`${testIdPrefix}-read-error-${column.id}`}
       />
     ) : null;
   return (
@@ -176,13 +198,14 @@ function SessionsBoardColumnBody({
       {column.sessions.length === 0 ? (
         <div
           className="flex flex-1 items-center justify-center px-3 py-8 text-center text-small-body text-subtle"
-          data-testid={`sessions-board-column-empty-${column.id}`}
+          data-testid={`${testIdPrefix}-column-empty-${column.id}`}
         >
           {EMPTY_COPY[column.id]}
         </div>
       ) : (
         column.sessions.map(session => (
           <SessionBoardCard
+            actions={actions}
             current={session.id === currentSessionId}
             key={session.id}
             onOpen={onOpen}
@@ -198,7 +221,7 @@ function SessionsBoardColumnBody({
           loaded={column.sessions.length}
           loadingMore={column.loadingMore}
           onLoadMore={column.loadMore}
-          testId={`sessions-board-load-more-${column.id}`}
+          testId={`${testIdPrefix}-load-more-${column.id}`}
         />
       ) : null}
     </>

@@ -15,6 +15,7 @@ import {
   useArchiveSession,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
@@ -452,7 +453,8 @@ describe("session actions", () => {
     );
   });
 
-  // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID.
+  // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID, and
+  // a settled deletion stays attributed to the operator so its window retires quietly (#952).
   // Owner: session mutation cache; canonical suite: session actions.
   it("tracks deletion until the host finishes retiring its windows", async () => {
     let retire!: () => void;
@@ -467,6 +469,8 @@ describe("session actions", () => {
         remove: useDeleteSession({ onDeleteSuccess }),
         pending: useSessionDeletionPending(createdSession.id),
         otherPending: useSessionDeletionPending("another-session"),
+        deleted: useSessionDeletedByOperator(createdSession.id),
+        otherDeleted: useSessionDeletedByOperator("another-session"),
       }),
       { wrapper: createWrapper(client) }
     );
@@ -474,8 +478,11 @@ describe("session actions", () => {
     await waitFor(() => expect(retire).toBeTypeOf("function"));
     expect(result.current.pending).toBe(true);
     expect(result.current.otherPending).toBe(false);
+    expect(result.current.deleted).toBe(false);
     act(() => retire());
     await waitFor(() => expect(result.current.pending).toBe(false));
+    expect(result.current.deleted).toBe(true);
+    expect(result.current.otherDeleted).toBe(false);
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {

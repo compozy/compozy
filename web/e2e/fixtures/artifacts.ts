@@ -78,10 +78,7 @@ export interface BrowserRouteState {
   automation_run_now_visible?: boolean;
   automation_view_visible?: boolean;
   chat_view_visible: boolean;
-  composer_clear_button_enabled?: boolean;
-  composer_clear_button_visible?: boolean;
-  delete_button_visible?: boolean;
-  session_topbar_overflow_visible?: boolean;
+  session_view_toggle_visible?: boolean;
   home_activity_count?: number;
   home_agent_count?: number;
   home_completed_today_value?: string;

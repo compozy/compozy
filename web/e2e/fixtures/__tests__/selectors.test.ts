@@ -14,7 +14,7 @@ import {
 } from "../selectors";
 
 describe("session window selectors", () => {
-  it("scopes in-window controls and resolves overflow actions from the owning portal", () => {
+  it("scopes in-window controls and resolves row-menu verbs from the owning portal", () => {
     const getByTestId = vi.fn((testId: string) => `win-locator:${testId}` as unknown as Locator);
     const portalGetByTestId = vi.fn(
       (testId: string) => `portal-locator:${testId}` as unknown as Locator
@@ -32,15 +32,11 @@ describe("session window selectors", () => {
     );
 
     expect(selectors.chatView).toBe(`win-locator:${sessionWindowTestIds.chatView}`);
-    expect(selectors.composerClearButton).toBe(
-      `portal-locator:${sessionWindowTestIds.composerClearButton}`
-    );
     expect(selectors.composerSendButton).toBe("win-role:button:Send message");
     expect(selectors.composerStopButton).toBe(
       `win-locator:${sessionWindowTestIds.composerStopButton}`
     );
     expect(selectors.composerTextarea).toBe("win-role:textbox:Session prompt");
-    expect(selectors.deleteButton).toBe(`portal-locator:${sessionWindowTestIds.deleteButton}`);
     expect(selectors.permissionAllowAlways).toBe(
       `win-locator:${sessionWindowTestIds.permissionAllowAlways}`
     );
@@ -52,7 +48,11 @@ describe("session window selectors", () => {
       `win-locator:${sessionWindowTestIds.processingIndicator}`
     );
     expect(selectors.stopButton).toBe(`win-locator:${sessionWindowTestIds.stopButton}`);
-    expect(selectors.topbarOverflow).toBe(`win-locator:${sessionWindowTestIds.topbarOverflow}`);
+    expect(selectors.viewToggle).toBe(`win-locator:${sessionWindowTestIds.viewToggle}`);
+    expect(selectors.sessionRowActions("sess-1")).toBe("win-locator:session-row-actions-sess-1");
+    expect(selectors.sessionRowMenuItem("clear", "sess-1")).toBe(
+      "portal-locator:session-row-clear-sess-1"
+    );
   });
 });
 

@@ -87,10 +87,13 @@ export {
   useSessionWindowViewState,
   type SessionWindowViewState,
 } from "./use-session-window-view-state";
+export { useSessionWindowOrder, type SessionWindowOrder } from "./use-session-window-order";
 export {
   SESSION_BOARD_COLUMNS,
   useSessionsBoard,
+  useSessionsBoardColumns,
   type SessionsBoardColumnView,
+  type SessionsBoardLane,
   type SessionsBoardView,
 } from "./use-sessions-board";
 export {
@@ -99,6 +102,7 @@ export {
   useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,

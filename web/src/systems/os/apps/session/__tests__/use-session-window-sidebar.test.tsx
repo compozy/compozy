@@ -73,6 +73,7 @@ vi.mock("@/systems/session", async () => ({
   setSessionWindowView,
   useSessionsBoard: () => ({}),
   useSessionWindowViewState: () => ({ hideChildren: false, setView: vi.fn() }),
+  useSessionWindowOrder: () => ({ sort: "created", groupBy: "none" }),
   useSessionListView,
   useSessions: () => ({ data: [], isError: false }),
   useSessionSidebarState: () => ({

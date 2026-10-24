@@ -4,6 +4,7 @@ import {
   Copy,
   CornerLeftUp,
   CornerDownRight,
+  Eraser,
   GitFork,
   Hash,
   Pencil,
@@ -14,6 +15,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { use } from "react";
 
+import { SessionClearContext } from "../contexts/session-clear-context-value";
 import { SessionDeriveContext } from "../contexts/session-derive-context-value";
 import { SessionForkContext } from "../contexts/session-fork-context-value";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
@@ -38,10 +40,13 @@ export interface SessionRowMenuItem {
     | "stop"
     | "unarchive"
     | "archive"
+    | "clear"
     | "delete";
   label: string;
   icon: LucideIcon;
   destructive?: boolean;
+  /** Shown but unavailable right now, independent of a pending lifecycle action. */
+  disabled?: boolean;
   onSelect?: () => void;
   choices?: Array<{ id: string; label: string; onSelect: () => void }>;
 }
@@ -80,6 +85,7 @@ export function useSessionRowMenuItems(
 ): SessionRowMenuItem[] {
   const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
+  const clear = use(SessionClearContext);
   const isArchived = session.archived_at !== null;
   const userSession = isUserControllableSession(session);
   const items: SessionRowMenuItem[] = [];
@@ -141,6 +147,15 @@ export function useSessionRowMenuItems(
   }
   const archiveItem = sessionArchiveMenuItem(session, actions);
   if (archiveItem) items.push(archiveItem);
+  if (userSession && clear?.sessionId === session.id) {
+    items.push({
+      id: "clear",
+      label: "Clear conversation",
+      icon: Eraser,
+      disabled: !clear.canClear,
+      onSelect: clear.request,
+    });
+  }
   items.push({
     id: "delete",
     label: "Delete session",

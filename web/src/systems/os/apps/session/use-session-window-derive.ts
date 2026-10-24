@@ -48,7 +48,5 @@ export function useSessionWindowDerive({
     originContext,
     onOpenOriginSource,
     subagentOrigin,
-    onContinue: () => deriveHost.request(),
-    onFork: () => deriveHost.requestFork(),
   };
 }

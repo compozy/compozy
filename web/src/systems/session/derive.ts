@@ -12,6 +12,10 @@ export {
 } from "./components/session-continue-divider";
 export { SessionOriginPill } from "./components/session-origin-pill";
 export {
+  SessionClearContext,
+  type SessionClearRequest,
+} from "./contexts/session-clear-context-value";
+export {
   SessionDeriveContext,
   type SessionContinueRequest,
 } from "./contexts/session-derive-context-value";

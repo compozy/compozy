@@ -12,6 +12,10 @@
 // and a stored blob without subagent flags reads as every subagent list closed.
 // The List | Kanban view and the board's "Hide child sessions" filter are
 // window-only (UT-067): they survive a reload but never seed another window.
+// Sort and Group by (#952) are one per-window choice shared by that window's
+// List and Kanban: they survive the view toggle and a reload, two windows stay
+// independent, and a window that never chose follows the daemon's
+// `shell.sessions` value, which the web never writes.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -28,12 +32,21 @@ const PARTITION_B = "ws_b\u0000default";
 /** A reload: fresh store and fresh scope context from the same module graph. */
 async function loadFreshSidebarState() {
   vi.resetModules();
-  const [sidebar, view, { WindowScopeContext }] = await Promise.all([
+  const [sidebar, view, order, { WindowScopeContext }, query] = await Promise.all([
     import("../use-session-sidebar-state"),
     import("../use-session-window-view-state"),
+    import("../use-session-window-order"),
     import("@/hooks/use-window-scope"),
+    import("@tanstack/react-query"),
   ]);
-  return { ...sidebar, ...view, WindowScopeContext };
+  return {
+    ...sidebar,
+    ...view,
+    ...order,
+    WindowScopeContext,
+    QueryClient: query.QueryClient,
+    QueryClientProvider: query.QueryClientProvider,
+  };
 }
 
 type SidebarModule = Awaited<ReturnType<typeof loadFreshSidebarState>>;
@@ -209,6 +222,85 @@ describe("useSessionSidebarState", () => {
       })
     );
     expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
+  });
+
+  describe("per-window Sort and Group by", () => {
+    let daemonSessions: { sort?: string; group_by?: string } = {};
+    let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+
+    beforeEach(() => {
+      daemonSessions = {};
+      fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+        const request = input as Request;
+        if (new URL(request.url).pathname !== "/api/settings/shell") {
+          return new Response(null, { status: 404 });
+        }
+        return new Response(JSON.stringify({ config: { sessions: { ...daemonSessions } } }), {
+          headers: { "content-type": "application/json" },
+        });
+      });
+    });
+
+    afterEach(() => {
+      fetcher.mockRestore();
+    });
+
+    /** One window's view toggle and order, as its List and its Kanban read them. */
+    function renderWindow(module: SidebarModule, scopeId: string) {
+      const client = new module.QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return renderHook(
+        () => ({ view: module.useSessionWindowViewState(), order: module.useSessionWindowOrder() }),
+        {
+          wrapper: ({ children }: { children: ReactNode }) =>
+            createElement(
+              module.QueryClientProvider,
+              { client },
+              createElement(module.WindowScopeContext, { value: scopeId }, children)
+            ),
+        }
+      ).result;
+    }
+
+    it("Should keep a window's choice across the List | Kanban toggle and a reload", async () => {
+      const before = await loadFreshSidebarState();
+      const one = renderWindow(before, WINDOW_ONE);
+      act(() => {
+        one.current.order.setSort("name");
+        one.current.order.setGroupBy("project");
+      });
+      act(() => one.current.view.setView("kanban"));
+      expect(one.current.order).toMatchObject({ sort: "name", groupBy: "project" });
+      act(() => one.current.view.setView("list"));
+      expect(one.current.order).toMatchObject({ sort: "name", groupBy: "project" });
+
+      const after = await loadFreshSidebarState();
+      expect(renderWindow(after, WINDOW_ONE).current.order).toMatchObject({
+        sort: "name",
+        groupBy: "project",
+      });
+    });
+
+    it("Should seed a window that never chose from the daemon and keep windows independent", async () => {
+      daemonSessions = { sort: "attention", group_by: "profile" };
+      const sidebar = await loadFreshSidebarState();
+      const one = renderWindow(sidebar, WINDOW_ONE);
+      const two = renderWindow(sidebar, WINDOW_TWO);
+      await waitFor(() =>
+        expect(one.current.order).toMatchObject({ sort: "attention", groupBy: "profile" })
+      );
+
+      act(() => one.current.order.setSort("name"));
+      expect(one.current.order.sort).toBe("name");
+      await waitFor(() => expect(two.current.order.sort).toBe("attention"));
+      // A window opened after another chose still starts from the daemon, not the last choice.
+      const three = renderWindow(sidebar, "win_three");
+      await waitFor(() =>
+        expect(three.current.order).toMatchObject({ sort: "attention", groupBy: "profile" })
+      );
+      expect(
+        fetcher.mock.calls.filter(([input]) => (input as Request).method === "PATCH")
+      ).toHaveLength(0);
+    });
   });
 
   it("Should prune closed windows and keep live windows and the shell", async () => {

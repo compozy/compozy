@@ -199,8 +199,12 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();
     expect((await stopResponse).ok()).toBe(true);
-    await sessionUI.topbarOverflow.click();
-    await expect(sessionUI.composerClearButton).toBeEnabled({ timeout: 60_000 });
+    await sessionUI.sessionRowActions(sessionId).click();
+    await expect(sessionUI.sessionRowMenuItem("clear", sessionId)).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+      { timeout: 60_000 }
+    );
   } finally {
     await teardownHostedMcp(connection, toolCall);
   }

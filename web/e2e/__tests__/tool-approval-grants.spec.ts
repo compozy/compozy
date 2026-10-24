@@ -173,8 +173,12 @@ test("operator remembers a native-tool decision and revokes it end to end", asyn
     await expect(sessionUI.stopButton).toBeVisible();
     await sessionUI.stopButton.click();
     expect((await stopResponse).ok()).toBe(true);
-    await sessionUI.topbarOverflow.click();
-    await expect(sessionUI.composerClearButton).toBeEnabled({ timeout: 60_000 });
+    await sessionUI.sessionRowActions(sessionId).click();
+    await expect(sessionUI.sessionRowMenuItem("clear", sessionId)).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+      { timeout: 60_000 }
+    );
     await appPage.keyboard.press("Escape");
 
     // Daemon truth: exactly one remembered decision, exact agent + exact sha256 input.

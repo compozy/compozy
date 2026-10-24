@@ -277,6 +277,16 @@ export const SortMenu: Story = {
   },
 };
 
+/** Group by is its own control beside Sort, offered only where a grouping applies (#952). */
+export const GroupByMenu: Story = {
+  args: { state: "sort" },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement.ownerDocument.body).getByTestId("contract-catalog-group-by-trigger")
+    );
+  },
+};
+
 /** All projects, flat: one query, every row names its project before agent and provider. */
 export const AllProjectsFlat: Story = {
   args: { state: "all-projects" },

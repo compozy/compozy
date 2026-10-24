@@ -1,19 +1,18 @@
 // Suite: session document topbar publisher
-// Invariant: one session publisher exposes self-title, state mark, overflow and the List | Kanban
-// toggle (present even without the overflow), then the PR chip first in the status zone (no agent,
-// provider or time there), then lifecycle controls and the sidebar and inspector toggles; the chip
-// menu offers only the actions the session allows.
+// Invariant: one session publisher exposes self-title, state mark and the List | Kanban toggle
+// (no per-session `…` menu: those verbs live in the session list row menus), then the PR chip
+// first in the status zone (no agent, provider or time there), then lifecycle controls and the
+// sidebar and inspector toggles; the chip menu offers only the actions the session allows.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { type ReactNode, useState } from "react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { SessionPayload } from "../../types";
 
-import { SessionRenameDialog } from "../../components/session-rename-dialog";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 import { SessionTransportChip } from "../../components/session-transport-chip";
@@ -25,24 +24,18 @@ import {
 
 function SessionPublisher({
   onStop,
-  onRename = vi.fn(),
   session = primarySessionFixture,
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
   sidebarOpen = false,
   onSidebarToggle = vi.fn(),
   transportChip,
-  onContinue,
-  onFork,
   onSendPrompt,
   onRefresh,
 }: {
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
-  onContinue?: () => void;
-  onFork?: () => void;
   onStop: () => void;
-  onRename?: () => void;
   session?: SessionPayload;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
@@ -53,23 +46,14 @@ function SessionPublisher({
   useSessionTopbarSlot({
     session,
     transportChip,
-    isDeleting: false,
-    isRenaming: false,
     isStopping: false,
     isUnarchiving: false,
-    isClearing: false,
-    canClear: true,
     inspectorOpen,
     sidebarOpen,
     onInspectorToggle,
     onSidebarToggle,
-    onDelete: vi.fn(),
-    onRename,
     onStop,
     onUnarchive: vi.fn(),
-    onClear: vi.fn(),
-    onContinue,
-    onFork,
     onSendPrompt,
     pullRequestRefresh: onRefresh ? { refreshing: false, refresh: onRefresh } : undefined,
   });
@@ -232,41 +216,38 @@ describe("useSessionTopbarSlot", () => {
     }
   );
 
-  it("Should keep overflow beside the title, ahead of the inspector toggle, and report pressed state", () => {
+  it("Should keep the view toggle beside the title, ahead of the inspector toggle, and report pressed state", () => {
     const onInspectorToggle = vi.fn();
     renderWithTopbar(
       <SessionPublisher onStop={vi.fn()} inspectorOpen onInspectorToggle={onInspectorToggle} />
     );
 
     const toggle = screen.getByTestId("session-inspector-toggle");
-    const overflow = screen.getByTestId("session-topbar-overflow");
+    const viewToggle = screen.getByRole("group", { name: "View" });
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toHaveAttribute("aria-label", "Close context sidebar");
-    // Shell-rail head: title + ⋯ lead, the panel toggles trail (prototype `.head`).
+    // Shell-rail head: title + view toggle lead, the panel toggles trail (prototype `.head`).
     expect(
-      overflow.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
+      viewToggle.compareDocumentPosition(toggle) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
 
     fireEvent.click(toggle);
     expect(onInspectorToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("Should follow the overflow with the List | Kanban toggle, kept for sessions without one", () => {
-    const { unmount } = renderWithTopbar(<SessionPublisher onStop={vi.fn()} />);
-    const overflow = screen.getByTestId("session-topbar-overflow");
-    const viewToggle = screen.getByRole("group", { name: "View" });
-    expect(
-      overflow.compareDocumentPosition(viewToggle) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
-    unmount();
-
-    renderWithTopbar(
-      <SessionPublisher onStop={vi.fn()} session={{ ...primarySessionFixture, type: "spawned" }} />
-    );
-    expect(screen.queryByTestId("session-topbar-overflow")).toBeNull();
-    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
-  });
+  // #952: the per-session `…` menu left the head; its verbs live in the session
+  // list row menus, so no session type gets one and the view toggle always shows.
+  it.each(["user", "spawned"] as const)(
+    "Should publish the List | Kanban toggle without a session overflow menu for a %s session",
+    type => {
+      renderWithTopbar(
+        <SessionPublisher onStop={vi.fn()} session={{ ...primarySessionFixture, type }} />
+      );
+      expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
+    }
+  );
 
   it.each([
     { sidebarOpen: false, pressed: "false", label: "Open sessions sidebar" },
@@ -288,27 +269,20 @@ describe("useSessionTopbarSlot", () => {
     expect(onSidebarToggle).toHaveBeenCalledTimes(1);
   });
 
-  it("Should keep an idle session to Stop as its one immediate action plus overflow", () => {
+  it("Should keep an idle session to Stop as its one immediate action", () => {
     const onStop = vi.fn();
 
     function IdlePublisher() {
       useSessionTopbarSlot({
         session: { ...primarySessionFixture, badge: "idle" },
-        isDeleting: false,
-        isRenaming: false,
         isStopping: false,
         isUnarchiving: false,
-        isClearing: false,
-        canClear: true,
         inspectorOpen: false,
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
-        onDelete: vi.fn(),
-        onRename: vi.fn(),
         onStop,
         onUnarchive: vi.fn(),
-        onClear: vi.fn(),
       });
       return null;
     }
@@ -318,8 +292,6 @@ describe("useSessionTopbarSlot", () => {
     expect(screen.getByRole("button", { name: "Open context sidebar" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    expect(screen.queryByRole("menuitem", { name: "Stop session" })).not.toBeInTheDocument();
   });
 
   // Invariant: an idle session whose agent process the daemon released
@@ -344,8 +316,6 @@ describe("useSessionTopbarSlot", () => {
 
       expect(screen.getByText("Session status: Idle")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Stop session" })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-      expect(screen.queryByRole("menuitem", { name: "Stop session" })).not.toBeInTheDocument();
     }
   );
 
@@ -361,21 +331,14 @@ describe("useSessionTopbarSlot", () => {
           attachable: true,
           archived_at: "2026-08-04T12:00:00Z",
         },
-        isDeleting: false,
-        isRenaming: false,
         isStopping: false,
         isUnarchiving: false,
-        isClearing: false,
-        canClear: true,
         inspectorOpen: false,
         sidebarOpen: false,
         onSidebarToggle: vi.fn(),
         onInspectorToggle: vi.fn(),
-        onDelete: vi.fn(),
-        onRename: vi.fn(),
         onStop: vi.fn(),
         onUnarchive,
-        onClear: vi.fn(),
       });
       return null;
     }
@@ -385,79 +348,6 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByRole("button", { name: "Unarchive session" }));
     expect(onUnarchive).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("button", { name: "Stop session" })).toBeNull();
-  });
-
-  it("Should close overflow before opening rename so one Escape dismisses the dialog", async () => {
-    function RenameDialogPublisher() {
-      const [dialogOpen, setDialogOpen] = useState(false);
-      return (
-        <>
-          <SessionPublisher onStop={vi.fn()} onRename={() => setDialogOpen(true)} />
-          <SessionRenameDialog
-            open={dialogOpen}
-            onOpenChange={setDialogOpen}
-            session={primarySessionFixture}
-            isRenaming={false}
-            onConfirm={vi.fn()}
-          />
-        </>
-      );
-    }
-
-    renderWithTopbar(<RenameDialogPublisher />);
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Rename session" }));
-
-    await screen.findByRole("heading", { name: "Rename session" });
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: "Rename session" })).toBeNull();
-    });
-  });
-
-  it("Should offer Continue after Rename and open it once the overflow has closed", async () => {
-    const onContinue = vi.fn();
-    renderWithTopbar(<SessionPublisher onStop={vi.fn()} onContinue={onContinue} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    const items = screen.getAllByRole("menuitem").map(item => item.textContent);
-    expect(items.indexOf("Continue with another agent…")).toBe(items.indexOf("Rename session") + 1);
-    fireEvent.click(screen.getByTestId("continue-menu-item"));
-
-    await waitFor(() => expect(onContinue).toHaveBeenCalledOnce());
-    expect(screen.queryByTestId("session-topbar-overflow-menu")).toBeNull();
-  });
-
-  it("Should not offer Continue or Fork for an archived session", () => {
-    renderWithTopbar(
-      <SessionPublisher
-        onStop={vi.fn()}
-        onContinue={vi.fn()}
-        onFork={vi.fn()}
-        session={{ ...primarySessionFixture, archived_at: "2026-09-01T00:00:00Z" }}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    expect(screen.queryByTestId("continue-menu-item")).toBeNull();
-    expect(screen.queryByTestId("fork-menu-item")).toBeNull();
-  });
-
-  // UT-074: Fork session… follows Continue (S2) and opens the whole-session
-  // Fork dialog once the overflow has closed, so focus lands in the dialog.
-  it("Should offer Fork after Continue and open it once the overflow has closed", async () => {
-    const onFork = vi.fn();
-    renderWithTopbar(<SessionPublisher onStop={vi.fn()} onContinue={vi.fn()} onFork={onFork} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
-    const items = screen.getAllByRole("menuitem").map(item => item.textContent);
-    expect(items.indexOf("Fork session…")).toBe(items.indexOf("Continue with another agent…") + 1);
-    fireEvent.click(screen.getByTestId("fork-menu-item"));
-
-    await waitFor(() => expect(onFork).toHaveBeenCalledOnce());
-    expect(screen.queryByTestId("session-topbar-overflow-menu")).toBeNull();
   });
 
   // Invariant (task_06 VC-01..05, integration): the transport chip the window

@@ -335,7 +335,6 @@ function SessionListControls({
         sort={view.sort}
         groupBy={view.groupBy}
         groupByOptions={view.groupByOptions}
-        disabled={view.saving}
         onArchivedChange={view.setArchived}
         onSortChange={view.setSort}
         onGroupByChange={view.setGroupBy}

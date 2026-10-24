@@ -4,6 +4,7 @@ import { useProfiles, type ProfileOwner, type ProfileScopeParams } from "@/syste
 import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/systems/workspace";
 
 import { sessionFacetsOptions } from "../lib/session-catalog-options";
+import type { SessionListFilters } from "../types";
 import {
   profileSessionGroups,
   projectSessionGroups,
@@ -23,6 +24,12 @@ export interface SessionListGroupsInput {
   archived: boolean;
   search?: string;
   enabled: boolean;
+  /**
+   * The population filters of a surface that reads its own rows differently from
+   * the list (the board: every subagent, children per "Hide child sessions"), so
+   * group membership and totals count exactly the rows that surface shows.
+   */
+  population?: Pick<SessionListFilters, "children" | "subagents">;
 }
 
 export interface SessionListGroupsModel {
@@ -46,15 +53,11 @@ export function useSessionListGroups({
   archived,
   search,
   enabled,
+  population,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
-    ...sessionFacetsOptions({
-      ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
-      subagents: sessionListSubagentsParam(search),
-      ...(archived ? { archive: "only" as const } : {}),
-      ...lens,
-    }),
+    ...sessionFacetsOptions(groupFacetFilters({ scope, lens, archived, search, population })),
     enabled: grouped,
   });
   const byProfile = grouped && groupBy === "profile";
@@ -72,6 +75,25 @@ export function useSessionListGroups({
     groups,
     loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
     error: groupsFailure(grouped, facets, byProfile ? profiles : null),
+  };
+}
+
+/** The one facets query membership reads: the list's breadth and lens over its population. */
+function groupFacetFilters({
+  scope,
+  lens,
+  archived,
+  search,
+  population,
+}: Pick<
+  SessionListGroupsInput,
+  "scope" | "lens" | "archived" | "search" | "population"
+>): SessionListFilters {
+  return {
+    ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
+    ...(population ?? { subagents: sessionListSubagentsParam(search) }),
+    ...(archived ? { archive: "only" as const } : {}),
+    ...lens,
   };
 }
 

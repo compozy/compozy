@@ -557,7 +557,7 @@ async function reloadShell(page: Page): Promise<void> {
 }
 
 async function groupSessionsByProject(page: Page, modal: Locator): Promise<void> {
-  await modal.getByTestId("os-sessions-modal-sort-trigger").click();
+  await modal.getByTestId("os-sessions-modal-group-by-trigger").click();
   await page.getByTestId("os-sessions-modal-group-by-project").click();
   await page.keyboard.press("Escape");
 }

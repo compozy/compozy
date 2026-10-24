@@ -25,8 +25,8 @@ import type { SessionListFilters, SessionPayload } from "../types";
 import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import { useSessionListGroups } from "./use-session-list-groups";
-import { useSessionListPreferences } from "./use-session-list-preferences";
 import { sessionSidebarStore, useSessionSidebarState } from "./use-session-sidebar-state";
+import { useSessionWindowOrder } from "./use-session-window-order";
 
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
 export const SESSION_LIST_MANUAL_SORT_NOTE =
@@ -56,7 +56,6 @@ export interface SessionListViewModel {
   newFolderUnavailable: string | null;
   /** True while the list shows the archive instead of the active catalog. */
   archived: boolean;
-  saving: boolean;
   setSort: (sort: SessionListSort) => void;
   setGroupBy: (groupBy: SessionListGroupBy) => void;
   setArchived: (archived: boolean) => void;
@@ -91,7 +90,7 @@ export interface SessionListViewModel {
 
 /**
  * View model behind every session list: the topbar breadth and profile lens,
- * the operator's persisted order and grouping, and either one flat catalog or
+ * the window's order and grouping (shared with its Kanban), and either one flat catalog or
  * facets-driven groups (ADR-004).
  *
  * Folders and manual order apply only where a query is exactly one
@@ -115,7 +114,7 @@ export function useSessionListView(
     enabled?: boolean;
   } = {}
 ): SessionListViewModel {
-  const preferences = useSessionListPreferences();
+  const preferences = useSessionWindowOrder();
   const { registeredWorkspaces: workspaces, dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const sidebar = useSessionSidebarState();
@@ -183,7 +182,6 @@ export function useSessionListView(
     sortNote: manualSortNote(preferences.sort, manualBlocked),
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth),
     archived,
-    saving: preferences.saving,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
     setArchived,

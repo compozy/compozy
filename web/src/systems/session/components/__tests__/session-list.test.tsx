@@ -29,6 +29,10 @@ import {
   sessionListCatalogFixture,
   sessionListViewFixture,
 } from "../../mocks/session-list-view-fixtures";
+import {
+  SessionClearContext,
+  type SessionClearRequest,
+} from "../../contexts/session-clear-context-value";
 import type { SessionThreadSegment } from "../../lib/session-thread-branch";
 import type { SessionPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
@@ -119,6 +123,8 @@ function renderList(
     subagentThreadIds?: string[];
     view?: SessionListViewModel;
     actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
+    /** The session window's clear request for the session it has open. */
+    clear?: SessionClearRequest;
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -180,7 +186,9 @@ function renderList(
     );
   }
   const tree = (node: React.ReactNode) => (
-    <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionClearContext value={overrides.clear ?? null}>{node}</SessionClearContext>
+    </QueryClientProvider>
   );
   const rendered = render(tree(<BranchHost {...props} />));
   return {
@@ -227,7 +235,7 @@ describe("SessionList selection", () => {
     const user = userEvent.setup();
     const setSort = vi.fn();
     renderList({ view: { ...view, sort: "created", setSort } });
-    await user.click(screen.getByRole("button", { name: "Sort sessions" }));
+    await user.click(screen.getByRole("button", { name: "Sort by: Created" }));
     const choices = await screen.findAllByRole("menuitemradio");
     expect(choices.map(choice => choice.textContent)).toEqual([
       "Created",
@@ -408,6 +416,33 @@ describe("SessionList selection", () => {
     expect(archive).toHaveTextContent("Stop and archive session");
     await user.click(archive);
     expect(actions.onArchive).toHaveBeenCalledExactlyOnceWith(sessions[0]);
+  });
+
+  // #952: Clear conversation left the window head; the window offers it on its own session's row
+  // only (clearing resets that window's runtime thread), unavailable while nothing can be cleared.
+  it("offers Clear conversation only on the row of the window's own session", async () => {
+    const user = userEvent.setup();
+    const request = vi.fn();
+    renderList({ clear: { sessionId: "running", canClear: true, request } });
+
+    await user.click(screen.getByTestId("session-row-actions-other"));
+    expect(await screen.findByTestId("session-row-delete-other")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-clear-other")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await user.click(await screen.findByTestId("session-row-clear-running"));
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("shows Clear conversation unavailable while the conversation cannot be cleared", async () => {
+    const user = userEvent.setup();
+    renderList({ clear: { sessionId: "running", canClear: false, request: vi.fn() } });
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    expect(await screen.findByTestId("session-row-clear-running")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
   });
 });
 
@@ -1955,17 +1990,22 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
   });
 
-  it("Should offer Group by in the sort menu only where a grouping applies", async () => {
+  // #952: Sort and Group by are two explicit controls; Group by exists only where a grouping applies.
+  it("Should offer Group by as its own control only where a grouping applies", async () => {
     const user = userEvent.setup();
     const setGroupBy = vi.fn();
-    renderList({ view: { ...view, groupByOptions: ["none", "project"], setGroupBy } });
-    await user.click(screen.getByRole("button", { name: "Sort sessions" }));
-    expect(await screen.findByText("Group by")).toBeVisible();
-    expect(screen.getByTestId("session-sidebar-group-by-none")).toHaveAttribute(
+    const flat = renderList({ view: { ...view, groupByOptions: ["none"], setGroupBy } });
+    expect(screen.getByRole("button", { name: /^Sort by/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Group by/ })).not.toBeInTheDocument();
+    flat.update(sessions, { ...view, groupByOptions: ["none", "project"], setGroupBy });
+    await user.click(screen.getByRole("button", { name: "Group by: None" }));
+    expect(await screen.findByTestId("session-sidebar-group-by-none")).toHaveAttribute(
       "aria-checked",
       "true"
     );
     expect(screen.queryByTestId("session-sidebar-group-by-profile")).not.toBeInTheDocument();
+    // The Group by menu holds only groupings; sorts live behind their own icon.
+    expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-group-by-project"));
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });

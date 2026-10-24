@@ -5,7 +5,7 @@
 // A window's data scope (its binding, else its partition: a project, or User) hides another
 // scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
-import { act, render, waitFor } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const session = {
@@ -56,6 +56,8 @@ const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
 const profileScope = { aggregate: false };
 let deletionPending = false;
+let deletedByOperator = false;
+const toastError = vi.hoisted(() => vi.fn());
 const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
 
 vi.mock("@/systems/session/lib/query-options", () => ({
@@ -69,8 +71,11 @@ vi.mock("@/systems/session", async importOriginal => {
     sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
     useForeignProfileSession: () => foreignState.current,
     useSessionDeletionPending: () => deletionPending,
+    useSessionDeletedByOperator: () => deletedByOperator,
   };
 });
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
   useForeignProfileSession: () => foreignState.current,
@@ -154,6 +159,8 @@ describe("SessionWindow", () => {
     foreignState.current = { status: "disabled" };
     profileScope.aggregate = false;
     deletionPending = false;
+    deletedByOperator = false;
+    toastError.mockClear();
     userRetireSession.mockClear();
     userRetireSession.mockResolvedValue(true);
     userClose.mockClear();
@@ -204,45 +211,6 @@ describe("SessionWindow", () => {
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ liveTailEnabled: true })
     );
-  });
-
-  it("Should release live-tail ownership before closing a deleted session window", async () => {
-    render(<SessionWindow windowId="session:sess-1" />);
-    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
-      | { onDeleteSuccess?: () => void }
-      | undefined;
-
-    act(() => props?.onDeleteSuccess?.());
-
-    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
-      "sess-1",
-      { profile: "marketing" },
-      expect.objectContaining({ enabled: true, liveTail: false })
-    );
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
-    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ windowId: "session:sess-1" })
-    );
-  });
-
-  it("Should retire the tab after the daemon already cleared the deleted session window", async () => {
-    userRetireSession.mockResolvedValue(false);
-    render(<SessionWindow windowId="session:sess-1" />);
-    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
-      | { onDeleteSuccess?: () => void }
-      | undefined;
-
-    act(() => props?.onDeleteSuccess?.());
-
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
   });
 
   it("Should release operator presence when the browser document loses focus", () => {
@@ -355,6 +323,24 @@ describe("SessionWindow", () => {
     deletionPending = false;
     rerender(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
+  });
+
+  // #952: rename/delete run through the session list's row lifecycle, which retires the window
+  // itself. If that retarget was refused, the window still stops reading the session and retires
+  // quietly: an operator-deleted session is never announced as missing.
+  it("Should retire a window whose session this client deleted without reporting it missing", async () => {
+    deletedByOperator = true;
+    render(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ liveTail: false })
+    );
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {
