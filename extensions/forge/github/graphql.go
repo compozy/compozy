@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,20 +75,28 @@ func (p *Provider) graphRequest(
 	variables map[string]any,
 ) (graphResponse, error) {
 	var result graphResponse
-	if err := p.api.request(
+	var headers http.Header
+	if err := p.api.requestWithHeaders(
 		ctx,
 		http.MethodPost,
 		"/graphql",
 		token,
 		map[string]any{"query": query, "variables": variables},
-		&result,
+		&result, &headers,
 	); err != nil {
 		return result, err
 	}
 	if len(result.Errors) > 0 {
 		for _, e := range result.Errors {
 			if e.Type == "RATE_LIMITED" {
-				return result, &githubAPIError{cause: extensioncontract.ForgeCauseRateLimited, status: 429}
+				failure := &githubAPIError{
+					cause:  extensioncontract.ForgeCauseRateLimited,
+					status: http.StatusTooManyRequests,
+				}
+				if reset, err := strconv.ParseInt(headers.Get("X-RateLimit-Reset"), 10, 64); err == nil && reset > 0 {
+					failure.retryAfter = new(time.Unix(reset, 0).UTC())
+				}
+				return result, failure
 			}
 		}
 		return result, errors.New("github forge: GraphQL observation failed")

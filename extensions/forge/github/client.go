@@ -56,6 +56,12 @@ func (c githubClient) request(
 	token string,
 	requestBody any,
 	responseBody any,
+) error {
+	return c.requestWithHeaders(ctx, method, path, token, requestBody, responseBody, nil)
+}
+
+func (c githubClient) requestWithHeaders(
+	ctx context.Context, method, path, token string, requestBody, responseBody any, headers *http.Header,
 ) (resultErr error) {
 	var body io.Reader
 	if requestBody != nil {
@@ -85,6 +91,9 @@ func (c githubClient) request(
 			resultErr = errors.Join(resultErr, fmt.Errorf("github forge: close response: %w", closeErr))
 		}
 	}()
+	if headers != nil {
+		*headers = response.Header.Clone()
+	}
 	limited := io.LimitReader(response.Body, githubResponseLimit+1)
 	payload, err := io.ReadAll(limited)
 	if err != nil {

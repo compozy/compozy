@@ -636,26 +636,42 @@ func TestProviderGraphQL(t *testing.T) {
 			t.Fatal("mismatched checks accepted")
 		}
 	})
-	t.Run("Should retain the rate limit reset without retrying", func(t *testing.T) {
-		t.Parallel()
-		var calls atomic.Int32
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
-			calls.Add(1)
-			w.Header().Set("X-RateLimit-Remaining", "0")
-			w.Header().Set("X-RateLimit-Reset", "1800000000")
-			w.WriteHeader(403)
+	for _, testCase := range []struct {
+		name   string
+		status int
+	}{
+		{"Should retain the HTTP rate limit reset without retrying", http.StatusForbidden},
+		{"Should retain the GraphQL rate limit reset without retrying", http.StatusOK},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", "1800000000")
+				w.WriteHeader(testCase.status)
+				if testCase.status == http.StatusOK {
+					if _, err := w.Write([]byte(`{"errors":[{"type":"RATE_LIMITED"}]}`)); err != nil {
+						t.Error(err)
+					}
+				}
+			})
+			defer closeServer()
+			got, err := provider.Status(
+				t.Context(),
+				extensioncontract.ForgeStatusRequest{
+					RemoteURLs: []string{"https://github.com/acme/repo"},
+					Branch:     "topic",
+				},
+			)
+			if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil ||
+				got.RetryAfter.Unix() != 1800000000 ||
+				calls.Load() != 1 {
+				t.Fatalf("rate limit=%#v %v", got, err)
+			}
 		})
-		defer closeServer()
-		got, err := provider.Status(
-			t.Context(),
-			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
-		)
-		if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil ||
-			got.RetryAfter.Unix() != 1800000000 ||
-			calls.Load() != 1 {
-			t.Fatalf("rate limit=%#v %v", got, err)
-		}
-	})
+	}
 }
 
 func TestParseRepository(t *testing.T) {
