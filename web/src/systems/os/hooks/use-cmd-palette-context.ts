@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { shallowEqual } from "@xstate/store";
 
 import {
   CMD_PALETTE_CONTEXT_KEYS,
@@ -42,23 +41,20 @@ export function useCmdPaletteContext({
   attached,
   debounceMs = CMD_PALETTE_CONTEXT_DEBOUNCE_MS,
 }: UseCmdPaletteContextOptions): CmdPaletteContextSnapshot | null {
-  const topology = useDesktop(
-    state => ({
-      activeDesktopId: state.activeDesktopId,
-      focusedId: state.focusedId,
-      frames: state.frames,
-      windows: state.windows,
-    }),
-    shallowEqual
+  // Geometry is not a command predicate. Compare the derived context before
+  // notifying the registry owner so peer moves cannot wake its palette tree.
+  const live = useDesktop(
+    state =>
+      attached
+        ? buildCmdPaletteContextSnapshot(state, {
+            shellDesktop,
+            scopeGlobal,
+            workspaceTrusted,
+            focusedSessionState,
+          })
+        : null,
+    (left, right) => left !== undefined && sameContextSnapshot(left, right)
   );
-  const live = attached
-    ? buildCmdPaletteContextSnapshot(topology, {
-        shellDesktop,
-        scopeGlobal,
-        workspaceTrusted,
-        focusedSessionState,
-      })
-    : null;
   const [settled, setSettled] = useState<CmdPaletteContextSnapshot | null>(live);
   const commitLive = useEffectEvent(() => {
     setSettled(current => (sameContextSnapshot(current, live) ? current : live));
