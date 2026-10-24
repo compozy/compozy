@@ -18,7 +18,15 @@ export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator, type SeparatorProps } from "./components/separator";
 export { Slider, type SliderTone } from "./components/slider";
-export { Skeleton, SkeletonRows, type SkeletonRowsProps } from "./components/skeleton";
+export {
+  Skeleton,
+  SkeletonRegion,
+  SkeletonRows,
+  SkeletonText,
+  type SkeletonRegionProps,
+  type SkeletonRowsProps,
+  type SkeletonTextProps,
+} from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export {
   Alert,

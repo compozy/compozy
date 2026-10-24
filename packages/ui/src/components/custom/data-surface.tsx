@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { Empty, type EmptyProps } from "../empty";
+import { SkeletonRegion } from "../skeleton";
 import { BlockLoading, type BlockLoadingProps } from "./block-loading";
 import type { DataSurfaceState } from "./data-surface-state";
 
@@ -51,8 +52,41 @@ function DataSurfaceRoot({ state, children, className, ...props }: DataSurfacePr
   );
 }
 
-function DataSurfaceLoading(props: DataSurfaceLoadingProps) {
-  return <BlockLoading data-surface-state="loading" {...props} />;
+/**
+ * The loading slot. Pass a content-shaped skeleton as `children` (`ListingRowSkeleton`,
+ * `CatalogCardSkeleton`, a `Table` with `TableRowSkeleton`, …): it renders inside a
+ * `SkeletonRegion`, which carries the status role, the busy flag and the visually hidden `label`,
+ * so the skeleton shapes stay presentational. With no children it falls back to the centered
+ * `BlockLoading` spinner; that fallback is transitional, content areas should show a skeleton.
+ */
+function DataSurfaceLoading({
+  children,
+  label = "Loading",
+  size,
+  surface,
+  showLabel,
+  className,
+  ...props
+}: DataSurfaceLoadingProps) {
+  if (React.Children.toArray(children).length === 0) {
+    return (
+      <BlockLoading
+        data-surface-state="loading"
+        label={label}
+        size={size}
+        surface={surface}
+        showLabel={showLabel}
+        className={className}
+        {...props}
+      />
+    );
+  }
+
+  return (
+    <SkeletonRegion data-surface-state="loading" label={label} className={className} {...props}>
+      {children}
+    </SkeletonRegion>
+  );
 }
 
 function DataSurfaceEmpty(props: DataSurfaceEmptyProps) {
