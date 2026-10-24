@@ -10,7 +10,7 @@ permissions:
 jobs:
   compare:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       CGO_ENABLED: 0
       CI: "true"
@@ -29,16 +29,12 @@ jobs:
           git show 271a49aac:web/src/systems/os/hooks/use-os-window-member.ts > web/src/systems/os/hooks/use-os-window-member.ts
           bunx turbo run build --filter=./web
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
-      - name: Identify sampled production functions
+      - name: Baseline must reproduce the retained surface regression
         run: |
-          python3 - <<'PYCODE'
-          import pathlib
-          for glob, line, col in [('native-select-*.js',0,61495),('use-initial-state-*.js',0,16889),('use-window-live-data-enabled-*.js',40,44601),('_app-*.js',6,35297)]:
-              for path in pathlib.Path('web/dist/assets').glob(glob):
-                  lines=path.read_text().splitlines()
-                  if line < len(lines):
-                      print('SAMPLED_SOURCE',path.name,lines[line][max(0,col-100):col+1500])
-          PYCODE
+          if bunx turbo run test --filter=./web -- src/systems/os/hooks/__tests__/os-interaction-hooks.test.tsx -t useOsWindowMember; then
+            echo "Expected the baseline to fail the geometry render invariant"
+            exit 1
+          fi
       - name: Baseline ten repetitions
         continue-on-error: true
         working-directory: web
@@ -50,9 +46,11 @@ jobs:
         run: |
           cp /tmp/candidate-member.ts web/src/systems/os/hooks/use-os-window-member.ts
           bunx turbo run build --filter=./web
-      - name: Candidate ten repetitions
+      - name: Candidate retained surface regression
+        run: bunx turbo run test --filter=./web -- src/systems/os/hooks/__tests__/os-interaction-hooks.test.tsx -t useOsWindowMember
+      - name: Candidate twenty repetitions
         working-directory: web
-        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 20
       - name: Upload measurements
         if: always()
         uses: actions/upload-artifact@v7

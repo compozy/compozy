@@ -1,6 +1,7 @@
 // Suite: OS interaction hooks
 // Invariant: OS hooks translate keyboard, pointer, and viewport changes into current shell actions and geometry.
 // Owning layer: the browser-to-OS-hook interaction boundary.
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -28,6 +29,9 @@ import {
   OS_ZOOM_MENU_OPEN_DELAY_MS,
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
+import { statusKeys } from "@/systems/status/lib/query-keys";
+import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
+import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
 import { useOsWindowCommands } from "../use-os-window-commands";
@@ -310,6 +314,65 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.compozyShell;
+});
+
+describe("useOsWindowMember", () => {
+  it("Should retain the app surface on geometry changes and publish member changes", () => {
+    const shell = createShell();
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(workspaceKeys.list(), []);
+    queryClient.setQueryData(statusKeys.current(), { daemon: {} });
+    const ShellProvider = shell.wrapper;
+    let renders = 0;
+    const { result, unmount } = renderHook(
+      () => {
+        renders += 1;
+        return useOsWindowMember("window:primary");
+      },
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>
+            <ShellProvider>{children}</ShellProvider>
+          </QueryClientProvider>
+        ),
+      }
+    );
+    const initialRenders = renders;
+    const primary = shell.state.windows["window:primary"]!;
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+        },
+      })
+    );
+    expect(renders).toBe(initialRenders);
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: {
+            ...primary,
+            app: "settings",
+            instanceKey: "settings:secondary",
+            minimized: true,
+            placement: "tiled",
+          },
+        },
+      })
+    );
+    expect(result.current.win).toMatchObject({
+      app: "settings",
+      instanceKey: "settings:secondary",
+      minimized: true,
+      placement: "tiled",
+    });
+    act(() => shell.setRuntimeState({ windows: {} }));
+    expect(result.current.win).toBeUndefined();
+    unmount();
+    queryClient.clear();
+  });
 });
 
 describe("useGlobalShortcutReconciliation", () => {
