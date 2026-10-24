@@ -36,12 +36,11 @@ import { MarketplaceAddMenu } from "./marketplace-add-menu";
 import { MarketplaceEntryCard } from "./marketplace-entry-card";
 import { MarketplaceInstalledTrail } from "./marketplace-entry-trail";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
+import { formatMarketplaceVersion, marketplaceErrorMessage } from "./marketplace-ui";
 import {
-  formatMarketplaceVersion,
   MARKETPLACE_INSTALLED_GRID_CLASS,
   MARKETPLACE_PAGE_BODY_CLASS,
-  marketplaceErrorMessage,
-} from "./marketplace-ui";
+} from "./marketplace-classes";
 import type { useMarketplaceActionController } from "./use-marketplace-action-controller";
 import { useMarketplaceInstalled } from "./use-marketplace-installed";
 

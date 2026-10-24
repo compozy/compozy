@@ -13,7 +13,7 @@ import {
 import type { MarketplaceSearch } from "../lib/marketplace-search";
 import { MarketplaceAddMenu } from "./marketplace-add-menu";
 import { MarketplaceResults } from "./marketplace-results";
-import { MARKETPLACE_PAGE_BODY_CLASS } from "./marketplace-ui";
+import { MARKETPLACE_PAGE_BODY_CLASS } from "./marketplace-classes";
 import { useMarketplaceBrowse } from "./use-marketplace-browse";
 
 interface MarketplacePageProps {

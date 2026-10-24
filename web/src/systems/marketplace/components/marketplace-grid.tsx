@@ -9,7 +9,7 @@ import {
   SkeletonText,
 } from "@compozy/ui";
 
-import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-ui";
+import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-classes";
 
 interface MarketplaceGridProps {
   children: ReactNode;

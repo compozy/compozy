@@ -23,11 +23,8 @@ export { MarketplaceAddMenu } from "./marketplace-add-menu";
 export type { MarketplaceAddMenuProps } from "./marketplace-add-menu";
 export { MarketplaceCatalogSection } from "./marketplace-catalog-section";
 export type { MarketplaceCatalogSectionProps } from "./marketplace-catalog-section";
-export {
-  MarketplaceDetail,
-  MarketplaceDetailNotFound,
-  MarketplaceDetailSkeleton,
-} from "./marketplace-detail";
+export { MarketplaceDetail, MarketplaceDetailNotFound } from "./marketplace-detail";
+export { MarketplaceDetailSkeleton } from "./marketplace-detail-skeleton";
 export type { MarketplaceDetailProps } from "./marketplace-detail";
 export {
   MarketplaceBrowseSkeleton,

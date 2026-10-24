@@ -1,8 +1,11 @@
 import { ListingPage, SkeletonRegion } from "@compozy/ui";
 
 import { MarketplaceGridPlaceholder, MarketplaceGridSkeleton } from "./marketplace-grid";
-import { MarketplaceInstalledShelfPlaceholder } from "./marketplace-installed-shelf";
-import { MARKETPLACE_INSTALLED_GRID_CLASS, MARKETPLACE_PAGE_BODY_CLASS } from "./marketplace-ui";
+import { MarketplaceInstalledShelfPlaceholder } from "./marketplace-installed-shelf-skeleton";
+import {
+  MARKETPLACE_INSTALLED_GRID_CLASS,
+  MARKETPLACE_PAGE_BODY_CLASS,
+} from "./marketplace-classes";
 
 // Loading shapes of the two catalog pages in their listing page, for a window that shows them
 // before the page's code has loaded. Each is one status region.
