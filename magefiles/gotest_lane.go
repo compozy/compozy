@@ -42,7 +42,7 @@ type goUnitTestInvocation struct {
 	tests    []string
 }
 
-func goUnitTestSafetyArgs(fullCheckptr, uncached bool) []string {
+func goTestSafetyArgs(fullCheckptr, uncached bool) []string {
 	args := []string{"-race"}
 	if fullCheckptr {
 		// Instrumented SQLite migrations are CPU-heavy; concurrent migration tests

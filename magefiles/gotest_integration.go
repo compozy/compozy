@@ -17,14 +17,14 @@ func goIntegrationTestInvocations(ctx context.Context) ([]goUnitTestInvocation, 
 	if err != nil {
 		return nil, err
 	}
-	if !enabled {
-		return []goUnitTestInvocation{{packages: []string{goAllPackagesPattern}}}, nil
-	}
 	cmd := exec.CommandContext(ctx, "go", "list", "-tags=integration", goAllPackagesPattern)
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(nil))
 	packages, err := goListPackagePaths(cmd)
 	if err != nil {
 		return nil, err
+	}
+	if !enabled {
+		return isolateGlobalDBIntegrationTests(packages), nil
 	}
 	census, err := loadGoTestCensus(goTestCensusPath)
 	if err != nil {
@@ -62,4 +62,23 @@ func goIntegrationTestInvocations(ctx context.Context) ([]goUnitTestInvocation, 
 	}
 	fmt.Printf("Go integration shard %d/%d selected %d invocations\n", shard.index+1, shard.total, len(invocations))
 	return invocations, nil
+}
+
+func isolateGlobalDBIntegrationTests(packages []string) []goUnitTestInvocation {
+	regular := slices.DeleteFunc(slices.Clone(packages), func(path string) bool { return path == goSplitTestPackage })
+	var invocations []goUnitTestInvocation
+	if len(regular) > 0 {
+		invocations = append(invocations, goUnitTestInvocation{packages: regular})
+	}
+	if slices.Contains(packages, goSplitTestPackage) {
+		invocations = append(invocations, goUnitTestInvocation{packages: []string{goSplitTestPackage}})
+	}
+	return invocations
+}
+
+func goIntegrationTestSafetyArgs(packages []string) []string {
+	if slices.Contains(packages, goSplitTestPackage) {
+		return goTestSafetyArgs(true, false)
+	}
+	return []string{"-race", "-parallel=4"}
 }

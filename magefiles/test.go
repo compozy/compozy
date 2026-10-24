@@ -24,7 +24,7 @@ func Test() error {
 	if err != nil {
 		return err
 	}
-	testArgs := goUnitTestSafetyArgs(
+	testArgs := goTestSafetyArgs(
 		os.Getenv(goTestFullCheckptrEnvVar) == "1",
 		os.Getenv(goTestUncachedEnvVar) == "1",
 	)
@@ -122,7 +122,8 @@ func TestIntegration() error {
 	}
 	for index, invocation := range invocations {
 		args := gotestsumInvocationArgs(jsonFileDir, index)
-		args = append(args, "-race", "-p", packageLimit, "-parallel=4",
+		args = append(args, goIntegrationTestSafetyArgs(invocation.packages)...)
+		args = append(args, "-p", packageLimit,
 			"-timeout", goIntegrationTestTimeout, "-tags", "integration")
 		if len(invocation.tests) > 0 {
 			args = append(args, "-run", exactGoTestRunPattern(invocation.tests))
