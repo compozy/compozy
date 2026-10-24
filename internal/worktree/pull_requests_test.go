@@ -13,6 +13,60 @@ import (
 // Owner: PullRequestService; this is its canonical suite (new subsystem).
 func TestPullRequestService(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bypass backoff when joining a queued automatic flight", func(t *testing.T) {
+		t.Parallel()
+		cache := newPullRequestMemoryStore()
+		now := statusTestClock()
+		retry := now.Add(time.Hour)
+		key := PullRequestKey{"ws", "github.com/acme/repo", "backoff"}
+		if err := cache.SavePullRequest(t.Context(), PullRequestEntry{
+			Key: key, LookupState: "error", LookupCause: "rate_limited", RetryAfter: &retry,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		entered := make(chan struct{}, 4)
+		release := make(chan struct{})
+		var targetCalls atomic.Int32
+		provider := pullRequestTestForge{
+			status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+				if request.Branch == key.Branch {
+					targetCalls.Add(1)
+					return &ForgeStatus{}, nil
+				}
+				entered <- struct{}{}
+				select {
+				case <-release:
+					return &ForgeStatus{}, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			},
+		}
+		service := NewPullRequestService(t.Context(), cache, provider, nil, nil)
+		t.Cleanup(service.Close)
+		service.now = func() time.Time { return now }
+		for _, branch := range []string{"busy-a", "busy-b", "busy-c", "busy-d"} {
+			service.start(PullRequestKey{key.WorkspaceID, key.RepoKey, branch}, true)
+		}
+		for range 4 {
+			<-entered
+		}
+		automatic := service.start(key, false)
+		explicit := service.start(key, true)
+		close(release)
+		<-explicit.done
+		if explicit != automatic {
+			t.Fatal("expected single flight")
+		}
+		if got := targetCalls.Load(); got != 1 {
+			t.Fatalf(
+				"explicit refresh made %d provider calls; want 1 despite automatic backoff (error=%v)",
+				got,
+				explicit.err,
+			)
+		}
+	})
+
 	// Invariant: SQL names and display filtering share origin HEAD and its TTL.
 	// Owner: PullRequestService; canonical service suite, exercised with real Git.
 	t.Run("Should share cached default branch names with display filtering", func(t *testing.T) {

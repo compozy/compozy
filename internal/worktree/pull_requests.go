@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,9 +28,11 @@ type PullRequestStore interface {
 }
 
 type pullRequestFlight struct {
-	done  chan struct{}
-	entry PullRequestEntry
-	err   error
+	explicit atomic.Bool
+	skipped  bool
+	done     chan struct{}
+	entry    PullRequestEntry
+	err      error
 }
 type repoKeyCache struct {
 	key   string
@@ -142,18 +145,34 @@ func (s *PullRequestService) start(key PullRequestKey, explicit bool) *pullReque
 		return nil
 	}
 	if flight := s.flights[key]; flight != nil {
+		if explicit {
+			flight.explicit.Store(true)
+		}
 		return flight
 	}
 	flight := &pullRequestFlight{done: make(chan struct{})}
+	flight.explicit.Store(explicit)
 	s.flights[key] = flight
 	s.wg.Go(func() {
-		defer func() { s.mu.Lock(); delete(s.flights, key); close(flight.done); s.mu.Unlock() }()
-		flight.entry, flight.err = s.refresh(key, explicit)
+		for {
+			entry, err := s.refresh(key, flight)
+			s.mu.Lock()
+			if flight.skipped && flight.explicit.Load() {
+				s.mu.Unlock()
+				continue
+			}
+			flight.entry, flight.err = entry, err
+			delete(s.flights, key)
+			close(flight.done)
+			s.mu.Unlock()
+			return
+		}
 	})
 	return flight
 }
 
-func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullRequestEntry, error) {
+func (s *PullRequestService) refresh(key PullRequestKey, flight *pullRequestFlight) (PullRequestEntry, error) {
+	flight.skipped = false
 	// Admission is bounded before the provider is invoked, including explicit calls.
 	select {
 	case s.slots <- struct{}{}:
@@ -170,7 +189,8 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 		before = PullRequestEntry{Key: key, LookupState: "pending"}
 	}
 	now := s.now().UTC()
-	if !explicit && before.RetryAfter != nil && now.Before(*before.RetryAfter) {
+	if !flight.explicit.Load() && before.RetryAfter != nil && now.Before(*before.RetryAfter) {
+		flight.skipped = true
 		return before, nil
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 8*time.Second)
