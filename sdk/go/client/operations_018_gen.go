@@ -406,8 +406,10 @@ func (c *Client) ListSessionInteractions(ctx context.Context, params ListSession
 
 // ListSessionMonitorsParams carries the path, query, and header parameters.
 type ListSessionMonitorsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // ListSessionMonitors List a session's monitors
@@ -415,6 +417,16 @@ func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMoni
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionMonitorsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err

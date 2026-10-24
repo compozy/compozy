@@ -26,6 +26,8 @@ export interface MonitorComposerControlProps {
   monitors: readonly SessionMonitorPayload[];
   loading?: boolean;
   failed?: boolean;
+  /** The list read found no such session; shown without a retry. */
+  missing?: boolean;
   onRetry?: () => void;
   onCancel?: (monitorId: string) => void;
   cancelingId?: string | null;
@@ -101,10 +103,15 @@ function MonitorComposerBody({
   monitors,
   loading = false,
   failed = false,
+  missing = false,
   onRetry,
   onCancel,
   cancelingId = null,
 }: Omit<MonitorComposerControlProps, "active" | "onOpenChange">) {
+  // A gone session outranks rows cached from an earlier read.
+  if (missing) {
+    return <MonitorLoadError message="This session is no longer available." />;
+  }
   if (monitors.length > 0) {
     return (
       <div className="flex flex-col gap-1">

@@ -33490,11 +33490,24 @@ export type ListSessionMonitorsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors";
 };
 
 export type ListSessionMonitorsErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Session or monitor not found
    */
@@ -33537,11 +33550,20 @@ export type CancelSessionMonitorData = {
      */
     monitor_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel";
 };
 
 export type CancelSessionMonitorErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Session or monitor not found
    */

@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
@@ -4037,6 +4038,20 @@ type discardMonitorWaker struct{}
 
 func (discardMonitorWaker) WakeSession(context.Context, monitorpkg.Notification) error { return nil }
 
+// marketingProfileService resolves the "marketing" profile by name.
+type marketingProfileService struct {
+	core.ProfileService
+}
+
+func (marketingProfileService) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.Flag != "marketing" {
+		return profilepkg.Resolution{}, profilepkg.ErrNotFound
+	}
+	return profilepkg.Resolution{Profile: profilepkg.Profile{
+		ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+	}}, nil
+}
+
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
 func TestSessionMonitorHandlers(t *testing.T) {
@@ -4136,6 +4151,63 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		}
 		if counts := monitors.ActiveCounts([]string{"sess-foreign"}); counts["sess-foreign"] != 1 {
 			t.Fatalf("active after denied cancel=%v, want the monitor kept", counts)
+		}
+	})
+
+	// #956: the operator reaches another profile's session through the owner selector.
+	t.Run("Should list and cancel another profile's monitor through the profile selector", func(t *testing.T) {
+		owned, err := monitors.Create(t.Context(), monitorpkg.Spec{
+			WorkspaceID: "ws-workspace", SessionID: "sess-marketing", Kind: monitorpkg.KindTimer,
+			Description: "marketing wake", Delay: time.Hour,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		ownerHandlers := newTestHandlers(t, stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, WorkspaceID: "ws-workspace", ProfileID: "profile-marketing",
+					State: session.StateActive,
+				}, nil
+			},
+		}, stubObserver{}, newTestHomePaths(t))
+		ownerHandlers.SessionMonitors = monitors
+		ownerHandlers.Profiles = marketingProfileService{}
+		ownerEngine := newTestRouter(t, ownerHandlers)
+		ownerBase := "/api/workspaces/ws-workspace/sessions/sess-marketing/monitors"
+
+		for _, query := range []string{"?all_profiles=true", "?profile=marketing"} {
+			response := performRequest(t, ownerEngine, http.MethodGet, ownerBase+query, nil)
+			if response.Code != http.StatusOK {
+				t.Fatalf("list%s status=%d body=%s", query, response.Code, response.Body.String())
+			}
+			var listed contract.SessionMonitorsResponse
+			decodeJSONResponse(t, response, &listed)
+			if len(listed.Monitors) != 1 || listed.Monitors[0].MonitorID != owned.ID {
+				t.Fatalf("list%s monitors=%#v", query, listed.Monitors)
+			}
+		}
+
+		cancelPath := ownerBase + "/" + owned.ID + "/cancel"
+		response := performRequest(t, ownerEngine, http.MethodPost, cancelPath+"?all_profiles=true", []byte("{}"))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("aggregate cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		var refused contract.ProfileErrorPayload
+		decodeJSONResponse(t, response, &refused)
+		if refused.Error.Code != "profile_selection_conflict" ||
+			refused.Error.Message != "all_profiles is only available for reads" {
+			t.Fatalf("aggregate cancel error=%#v", refused.Error)
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-marketing"}); counts["sess-marketing"] != 1 {
+			t.Fatalf("active after refused cancel=%v, want the monitor kept", counts)
+		}
+		response = performRequest(t, ownerEngine, http.MethodPost, cancelPath+"?profile=marketing", []byte("{}"))
+		if response.Code != http.StatusOK {
+			t.Fatalf("owner cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-marketing"}); len(counts) != 0 {
+			t.Fatalf("active after owner cancel=%v", counts)
 		}
 	})
 }

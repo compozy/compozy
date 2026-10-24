@@ -11,6 +11,16 @@ import (
 	"strings"
 )
 
+// GetObserveOverviewParams carries the path, query, and header parameters.
+type GetObserveOverviewParams struct {
+	AllWorkspaces  *bool   `url:"all_workspaces"`
+	ReceiptProfile *string `url:"receipt_profile"`
+	Workspace      *string `url:"workspace"`
+	UsageWindow    *string `url:"usage_window"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
 // GetObserveOverview Get the observer-backed home overview
 func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
 	path := "/api/observe/overview"
@@ -424,24 +434,6 @@ func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams
 
 // GetSessionCommandsParams carries the path, query, and header parameters.
 type GetSessionCommandsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// GetSessionCommands List commands available to a session
-func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionGoalParams carries the path, query, and header parameters.
-type GetSessionGoalParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
 }

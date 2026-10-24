@@ -37,6 +37,7 @@ import {
   unarchiveSession,
 } from "../session-api";
 import { fetchSessionCommands } from "../session-command-api";
+import { cancelSessionMonitor, fetchSessionMonitors } from "../session-monitor-api";
 import { searchSessionFiles } from "../session-files-api";
 import { createMswFetch } from "@/test/msw-fetch";
 import { sessionContextHandlers } from "../../mocks/context-handlers";
@@ -1349,6 +1350,35 @@ describe("searchSessionFiles", () => {
     await expectFetchRequest({
       path: "/api/workspaces/ws_alpha/sessions/sess-001/files?q=main&limit=50&all_profiles=true",
     });
+  });
+});
+
+describe("profile-bound session monitors", () => {
+  // Without a selector the daemon reads only the default profile, so other-profile sessions 404.
+  it("reads the session's monitors across profiles and cancels in its owner's profile", async () => {
+    mockJsonResponse({ monitors: [] });
+    await fetchSessionMonitors(WORKSPACE_ID, "sess-001");
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/monitors?all_profiles=true",
+    });
+    mockJsonResponse({ monitor: { monitor_id: "mon-1", status: "canceled" } });
+    await cancelSessionMonitor(WORKSPACE_ID, "sess-001", "design", "mon-1");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/monitors/mon-1/cancel?profile=design",
+      callIndex: 1,
+    });
+  });
+
+  it("reports a missing session on the list and a settled monitor on cancel", async () => {
+    mockJsonResponse({ error: "session not found" }, { status: 404 });
+    await expect(fetchSessionMonitors(WORKSPACE_ID, "sess-001")).rejects.toBeInstanceOf(
+      SessionNotFoundError
+    );
+    mockJsonResponse({ error: "monitor not found" }, { status: 404 });
+    const canceled = cancelSessionMonitor(WORKSPACE_ID, "sess-001", "design", "mon-1");
+    await expect(canceled).rejects.toBeInstanceOf(SessionApiError);
+    await expect(canceled).rejects.not.toBeInstanceOf(SessionNotFoundError);
   });
 });
 

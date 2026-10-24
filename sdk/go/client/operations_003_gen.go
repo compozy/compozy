@@ -10,6 +10,19 @@ import (
 	"strings"
 )
 
+// ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
+func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
+	path := "/api/agent/tasks/claim-next"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentTaskClaimResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ClearSessionConversationParams carries the path, query, and header parameters.
 type ClearSessionConversationParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -423,27 +436,4 @@ func (c *Client) CreateProfile(ctx context.Context, body CreateProfileRequest) (
 // CreateSessionParams carries the path, query, and header parameters.
 type CreateSessionParams struct {
 	Profile *string `url:"profile"`
-}
-
-// CreateSession Create a session
-func (c *Client) CreateSession(ctx context.Context, params CreateSessionParams, body CreateSessionRequest) (*SessionResponse, error) {
-	path := "/api/sessions"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSessionFolderParams carries the path, query, and header parameters.
-type CreateSessionFolderParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

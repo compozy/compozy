@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// GetSessionCommands List commands available to a session
+func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionCommandsParams) (*SessionCommandsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/commands"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionCommandsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionGoalParams carries the path, query, and header parameters.
+type GetSessionGoalParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // GetSessionGoal Get the newest visible session Goal
 func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
@@ -414,32 +432,4 @@ type GetSettingsPersonaParams struct {
 	Scope       *string `url:"scope"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// GetSettingsPersona Read profile-layerable persona defaults
-func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
-	path := "/api/settings/persona"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsPersonaResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderParams carries the path, query, and header parameters.
-type GetSettingsProviderParams struct {
-	Name string `url:"name"`
 }

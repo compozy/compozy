@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// DismissTaskParams carries the path, query, and header parameters.
+type DismissTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // DismissTask Dismiss one task inbox item
 func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
 	path := "/api/tasks/{id}/triage/dismiss"
@@ -429,22 +435,4 @@ func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body
 type FanOutTaskRunsParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// FanOutTaskRuns Enqueue designated sibling runs for one task
-func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams, body FanOutTaskRunsRequest) (*FanOutTaskRunsResponse, error) {
-	path := "/api/tasks/{id}/runs/fan-out"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FanOutTaskRunsResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -47619,7 +47619,12 @@ export interface operations {
   };
   listSessionMonitors: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -47638,6 +47643,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SessionMonitorsResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Session or monitor not found */
@@ -47671,7 +47685,10 @@ export interface operations {
   };
   cancelSessionMonitor: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -47692,6 +47709,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SessionMonitorResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Session or monitor not found */
