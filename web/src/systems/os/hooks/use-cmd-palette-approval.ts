@@ -8,8 +8,9 @@ import type {
 } from "../lib/cmd-palette-types";
 import type { CmdPaletteApprovalIntent } from "../stores/cmd-palette-execution-store";
 
-function approvalMessage(status: CmdPaletteApprovalStatus | undefined): string {
-  if (!status) return "Loading approval…";
+/** The note's sentence for a status; `null` while there is no status to speak of. */
+function approvalMessage(status: CmdPaletteApprovalStatus | undefined): string | null {
+  if (!status) return null;
   switch (status.approval_status) {
     case "denied":
       return "Command denied. The command did not run.";
@@ -56,6 +57,11 @@ export function useCmdPaletteApproval(approval: CmdPaletteApprovalIntent) {
   return {
     canDecide,
     isPending: decision.isPending || query.isPending || isRunning,
+    /**
+     * The status has not been read yet, so there is no sentence to show: the surface holds the
+     * note's place with a placeholder. A failed read is not loading; it has the `error` instead.
+     */
+    loading: query.isPending,
     message: approvalMessage(status),
     error:
       error?.message ??

@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { CommandDialog, ConfirmDialog } from "@compozy/ui";
+import { CommandDialog, ConfirmDialog, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import type { useCmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
 import { useCmdPaletteApproval } from "../hooks/use-cmd-palette-approval";
@@ -194,7 +194,16 @@ export function OsCommandPalette({
   );
 }
 
-function PaletteApprovalDialog({
+/** The note's one line before the approval's status is read: a text bar under one busy region. */
+function ApprovalNoteSkeleton() {
+  return (
+    <SkeletonRegion label="Loading approval">
+      <SkeletonText className="w-52" />
+    </SkeletonRegion>
+  );
+}
+
+export function PaletteApprovalDialog({
   approval,
   title,
   description,
@@ -224,7 +233,7 @@ function PaletteApprovalDialog({
       title={title}
       description={description}
       footNote={`Profile: ${approval.profile}`}
-      note={model.message}
+      note={model.loading ? <ApprovalNoteSkeleton /> : model.message}
       error={model.error}
       tone={destructive && model.canDecide ? "danger" : "neutral"}
       confirmLabel="Approve"

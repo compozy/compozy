@@ -2,7 +2,9 @@
 // Invariant: daemon invokes carry the bound client, navigation preserves route
 // intent, a stale runById target is announced, and host-target copy writes the
 // clipboard after seam policy gates. Pending approvals keep the decision surface
-// open, preserve its recorded profile, and require a server result before success.
+// open, preserve its recorded profile, and require a server result before success;
+// until the approval's status is read they report loading with no sentence to show,
+// and a failed read is an error, not loading.
 // Owning layer: OS dispatch and approval hooks; this is their canonical suite.
 // Boundary IN: resolveInvokeClientId and useCmdPaletteDispatch.run.
 // Boundary OUT: OpenAPI invoke transport, app navigation, catalog cache, and
@@ -201,6 +203,47 @@ describe("command palette dispatch targeting", () => {
     await waitFor(() => expect(result.current.error).toBe("Tool backend failed"));
     expect(result.current.canDecide).toBe(false);
     expect(result.current.isPending).toBe(false);
+  });
+
+  it("Should report the approval as loading, with no sentence, until its status is read", async () => {
+    let answer!: (status: CmdPaletteApprovalStatus) => void;
+    vi.mocked(getPendingToolApproval)
+      .mockReset()
+      .mockImplementation(
+        () =>
+          new Promise<CmdPaletteApprovalStatus>(resolve => {
+            answer = resolve;
+          })
+      );
+    const { result } = renderHook(
+      () => useCmdPaletteApproval({ id: "apr_owner", profile: "editorial" }),
+      { wrapper: wrapper() }
+    );
+
+    expect(result.current.loading).toBe(true);
+    expect(result.current.message).toBeNull();
+    expect(result.current.canDecide).toBe(false);
+
+    act(() => answer({ approval_status: "pending", expires_at: "2026-10-04T15:00:00Z" }));
+
+    await waitFor(() => expect(result.current.message).toBe("This command needs your approval."));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.canDecide).toBe(true);
+  });
+
+  it("Should not call a failed status read loading or pose a sentence for it", async () => {
+    vi.mocked(getPendingToolApproval)
+      .mockReset()
+      .mockRejectedValue(new Error("Approval not found"));
+    const { result } = renderHook(
+      () => useCmdPaletteApproval({ id: "apr_owner", profile: "editorial" }),
+      { wrapper: wrapper() }
+    );
+
+    await waitFor(() => expect(result.current.error).toBe("Approval not found"));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.message).toBeNull();
+    expect(result.current.canDecide).toBe(false);
   });
 
   it("Should prefer an explicit client id over the bound window-manager client [RD0082]", () => {

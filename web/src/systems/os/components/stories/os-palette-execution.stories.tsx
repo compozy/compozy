@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient } from "@tanstack/react-query";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { fn, userEvent, within } from "storybook/test";
 
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
@@ -8,7 +8,7 @@ import { sessionFixtures } from "@/systems/session/mocks";
 import { rehydrateActiveWorkspaceStore, setActiveWorkspaceId } from "@/systems/workspace";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
-import { storybookMswParameters } from "@/storybook/msw";
+import { storybookMswParameters, type StorybookHandlerOverrides } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
@@ -25,6 +25,7 @@ import {
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import {
   cmdPaletteExecutionStore,
+  requestPaletteApproval,
   requestPaletteArgs,
   requestPaletteConfirmation,
   resetPaletteExecutionEntry,
@@ -83,7 +84,7 @@ function createStoryShell(): OsShellHandle {
 const STORY_SHELL = createStoryShell();
 const STORY_SESSION_CREATE_STORE = createSessionCreateStore();
 
-function paletteHandlers() {
+function paletteHandlers(overrides: StorybookHandlerOverrides = {}) {
   return storybookMswParameters({
     workspace: [
       compozyApiMock.get("/api/workspaces", () =>
@@ -98,6 +99,7 @@ function paletteHandlers() {
         })
       ),
     ],
+    ...overrides,
   });
 }
 
@@ -316,5 +318,42 @@ export const PendingInvocation: Story = {
       return {};
     },
   ],
+  render: renderPalette,
+};
+
+const STORY_APPROVAL = { id: "apr_story", profile: "default" } as const;
+
+function approvalStatus(read: () => Promise<void>) {
+  return paletteHandlers({
+    "tool-approvals": [
+      compozyApiMock.get("/api/tools/approvals/{id}", async () => {
+        await read();
+        return HttpResponse.json({
+          approval_status: "pending",
+          expires_at: "2026-10-24T18:00:00Z",
+        });
+      }),
+    ],
+  });
+}
+
+const openApproval = async () => {
+  requestPaletteApproval(executionCommand(cmdPaletteDestructiveCommand.id), STORY_APPROVAL);
+  return {};
+};
+
+/** A tool approval whose status is still being read: the note is a text bar, Approve waits. */
+export const ApprovalLoading: Story = {
+  args: OPEN_ARGS,
+  parameters: approvalStatus(() => delay("infinite")),
+  loaders: [openApproval],
+  render: renderPalette,
+};
+
+/** The same approval once its status is read: the note's sentence, with Deny and Approve open. */
+export const ApprovalPending: Story = {
+  args: OPEN_ARGS,
+  parameters: approvalStatus(async () => undefined),
+  loaders: [openApproval],
   render: renderPalette,
 };
