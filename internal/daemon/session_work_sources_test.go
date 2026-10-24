@@ -2,8 +2,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/monitor"
@@ -133,6 +135,50 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 			t.Fatalf("canceled signals = %#v, %v", signals, err)
 		}
 	})
+	t.Run("Should retain waiting while an expired timer retries wake delivery", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			service, err := monitor.NewService(t.Context(), nil, retryMonitorWaker{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := service.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			sources := sessionWorkSources{state: &bootState{sessionMonitors: service}, now: time.Now}
+			item, err := service.Create(
+				t.Context(),
+				monitor.Spec{
+					WorkspaceID: "ws",
+					SessionID:   "owner",
+					Kind:        monitor.KindTimer,
+					Description: "wait",
+					Delay:       time.Minute,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute + time.Second)
+			synctest.Wait()
+			if current := service.List("owner"); len(current) != 1 || current[0].Status != monitor.StatusDelivering {
+				t.Fatalf("monitors = %#v", current)
+			}
+			signals, err := sources.monitors(t.Context(), "owner")
+			if err != nil || len(signals) != 1 || !signals[0].ValidUntil.After(time.Now()) ||
+				signals[0].Ref != item.ID {
+				t.Fatalf("delivering signals = %#v, %v", signals, err)
+			}
+			if _, err := service.Cancel("owner", item.ID); err != nil {
+				t.Fatal(err)
+			}
+			if signals, err := sources.monitors(t.Context(), "owner"); err != nil || len(signals) != 0 {
+				t.Fatalf("canceled signals = %#v, %v", signals, err)
+			}
+		})
+	})
 	t.Run("Should fail closed when the monitor service is unavailable", func(t *testing.T) {
 		t.Parallel()
 		sources := sessionWorkSources{state: &bootState{}}
@@ -140,4 +186,10 @@ func TestSessionWorkSourcesMonitors(t *testing.T) {
 			t.Fatal("missing monitor service was reported as no work")
 		}
 	})
+}
+
+type retryMonitorWaker struct{}
+
+func (retryMonitorWaker) WakeSession(context.Context, monitor.Notification) error {
+	return errors.New("input queue full")
 }

@@ -229,9 +229,13 @@ func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.
 		if item.Status != monitor.StatusActive && item.Status != monitor.StatusDelivering {
 			continue
 		}
+		validUntil := item.DeadlineAt
+		if item.Status == monitor.StatusDelivering {
+			validUntil = s.now().Add(2 * toolruntime.SweepInterval)
+		}
 		result = append(result, session.WorkSignal{
 			Kind: session.WorkSignalActiveMonitor, Since: item.CreatedAt,
-			Ref: item.ID, ValidUntil: item.DeadlineAt,
+			Ref: item.ID, ValidUntil: validUntil,
 		})
 	}
 	return result, nil

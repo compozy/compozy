@@ -28,3 +28,9 @@ QA 2026-08-16 Herdr parity: The isolated browser journey, focused attention Play
 Bug 2026-08-18 (operator report, live run): attention toasts rendered transparent — sonner `toast.custom` applies no chrome and `ToastFrame` carried no surface, so window content behind (a run's Done status pill) bled through the toast text. The story masked it by wrapping the toast in its own surface div. Fixed: `ToastFrame` and the overflow ledge now self-carry the floating surface (`border-line` + `bg-canvas-soft` + `shadow-overlay`), and the story renders the bare component. Evidence: attention-toast-single/stacked captures. qa_status reset to blocked-verify — the /qa-execution walk is operator-invoked and pending re-walk over real window content.
 
 QA impact 2026-10-23 (Sessions Kanban, sk-web-chip; walk pending): an idle session that still waits on children, a reply, a Loop run, a task lease or a monitor now reads `waiting` and fires no finished toast; the toast fires once when its last waiting signal closes. A single finished toast for a session with an open PR reads "#N ready for review" in its body line (title, meta and click-to-open unchanged); grouped toasts are unchanged. The PR number comes from the session read model the client already holds, so a session never read by this client keeps "Finished while you were away". Automated: `attention.spec.ts` Sessions Kanban E2E-004 (child live → no toast; child stopped → one toast) and `attention-delivery.test.ts` (UT-065, UT-066).
+
+Monitor retry regression: let a timer expire while wake admission temporarily fails. The
+session must remain waiting while the monitor is delivering, even after its original watch
+deadline; no finished transition is justified by that expired deadline. Cancel or finish the
+delivery and verify the signal disappears. Backend coverage: `TestSessionWorkSourcesMonitors`
+exercises the real monitor service with deterministic time and a refusing wake boundary.
