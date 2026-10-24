@@ -487,10 +487,6 @@ export {
   type SessionContextActivitySource,
 } from "./hooks/use-session-context-activity";
 
-export { useSessionCatalog } from "./hooks/use-session-catalog";
-export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catalog-options";
-export { fetchSessionFacets } from "./adapters/session-catalog-api";
-
 export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
 
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
