@@ -18,6 +18,10 @@ interface LoopRunInspectRegisterProps {
    */
   loadedNodeCount: number;
   loadedEventCount: number;
+  /** The roster has not answered yet: Steps and Rounds hold their count slot instead of reading 0. */
+  rosterPending?: boolean;
+  /** The events read has not answered yet: Events holds its count slot instead of reading 0. */
+  eventsPending?: boolean;
   /** Generations arrive whole with the run detail, so this one is a total. */
   generationCount: number;
   /** How much of the roster these counts were drawn from. */
@@ -54,6 +58,8 @@ export function LoopRunInspectRegister({
   loadedNodeCount,
   generationCount,
   loadedEventCount,
+  rosterPending = false,
+  eventsPending = false,
   reach,
   isLive,
   isReconnecting,
@@ -105,17 +111,23 @@ export function LoopRunInspectRegister({
           ariaLabel="Run details"
           items={[
             { value: "graph", label: "Graph", testId: "loop-lane-graph" },
-            { value: "nodes", label: "Steps", count: loadedNodeCount, testId: "loop-lane-nodes" },
+            {
+              value: "nodes",
+              label: "Steps",
+              count: rosterPending ? "pending" : loadedNodeCount,
+              testId: "loop-lane-nodes",
+            },
             {
               value: "generations",
               label: "Rounds",
-              count: generationCount,
+              count: rosterPending ? "pending" : generationCount,
+              pendingCountDigits: 1,
               testId: "loop-lane-generations",
             },
             {
               value: "events",
               label: "Events",
-              count: loadedEventCount,
+              count: eventsPending ? "pending" : loadedEventCount,
               testId: "loop-lane-events",
             },
           ]}

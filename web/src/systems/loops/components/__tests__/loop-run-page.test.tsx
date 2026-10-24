@@ -1621,6 +1621,44 @@ describe("run-page reads that are still pending", () => {
     expect(screen.queryByTestId("loop-run-progress-loading")).toBeNull();
   });
 
+  it("Should hold the Inspect lane counts until the roster and events reads answer", () => {
+    const base = buildScenarioProps(registerPartialOutputsScenario());
+    const pendingEvents = { ...pagingProps, beats: [], isError: false, isLoading: true };
+    const count = (testId: string) =>
+      screen.getByTestId(testId).querySelector('[data-slot="tabs-trigger-count"]');
+    const { rerender } = render(
+      <LoopRunPageBody
+        {...base}
+        registers={emptyRegisters()}
+        rosterRead={{ isLoading: true, isError: false }}
+        events={pendingEvents}
+        inspect={{ open: true, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+
+    // Unread counts hold their slot instead of claiming the run has no steps, rounds or events.
+    for (const lane of ["loop-lane-nodes", "loop-lane-generations", "loop-lane-events"]) {
+      expect(count(lane)).toHaveAttribute("data-pending", "true");
+      expect(count(lane)).not.toHaveTextContent("0");
+    }
+
+    rerender(
+      <LoopRunPageBody
+        {...base}
+        rosterRead={{ isLoading: false, isError: false }}
+        events={{ ...pendingEvents, isLoading: false }}
+        inspect={{ open: true, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+    for (const lane of ["loop-lane-nodes", "loop-lane-generations", "loop-lane-events"]) {
+      expect(count(lane)).not.toHaveAttribute("data-pending");
+    }
+  });
+
   // A refresh behind rows the page already has is not a loading state: the pending flag only
   // means something while there is nothing yet to show.
   it("Should keep showing the briefing it has while that read refreshes", () => {
