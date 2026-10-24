@@ -18,6 +18,7 @@ export interface PullRequestExitCandidate {
 
 export interface PullRequestExitPlanView {
   primary?: PullRequestExitCandidate;
+  rows?: readonly PullRequestExitCandidate[];
   /** One cause blocks every exit action (status unreadable, bound session running). */
   blocked: boolean;
   blockedReason?: string;
@@ -51,7 +52,10 @@ function exitItem(input: PullRequestMenuInput): {
   reason?: string;
 } {
   const plan = input.exitPlan;
-  const primary = plan?.primary;
+  const primary =
+    plan?.primary?.action === "commit"
+      ? plan.rows?.find(row => row.action === "commit_push" && row.enabled)
+      : plan?.primary;
   if (!input.controllable || !plan || !primary || !CHIP_EXIT_ACTIONS.has(primary.action)) {
     return { item: null };
   }

@@ -13,6 +13,8 @@ import type { SessionPayload } from "@/systems/session";
 
 const {
   jumpToSession,
+  getState,
+  setSessionWindowView,
   userRetarget,
   transport,
   useSessionListView,
@@ -24,6 +26,13 @@ const {
     window: { kind: "project", workspaceId: "workspace-1" } as unknown,
   },
   transport: { degradedAt: null as number | null },
+  getState: vi.fn<
+    () => {
+      windows: Record<string, { id: string; app: string; instanceKey: string }>;
+      client: { focusOrder: string[] };
+    }
+  >(() => ({ windows: {}, client: { focusOrder: [] } })),
+  setSessionWindowView: vi.fn(),
   jumpToSession: vi.fn(),
   userRetarget: vi.fn(),
   useSessionListView: vi.fn(() => ({ sort: "last_activity", scope: "workspace" })),
@@ -46,7 +55,7 @@ vi.mock("../../../hooks/use-attention-jump", () => ({
 }));
 vi.mock("../../../hooks/use-os-reduced-motion", () => ({ useOsReducedMotion: () => true }));
 vi.mock("../../../hooks/use-os-shell", () => ({
-  useOsShell: () => ({ coordinator: { userRetarget } }),
+  useOsShell: () => ({ coordinator: { userRetarget }, manager: { getState } }),
 }));
 vi.mock("@/systems/session", async () => ({
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
@@ -61,6 +70,9 @@ vi.mock("@/systems/session", async () => ({
     deleteDialog: { open: false },
     renameDialog: { open: false },
   }),
+  setSessionWindowView,
+  useSessionsBoard: () => ({}),
+  useSessionWindowViewState: () => ({ hideChildren: false, setView: vi.fn() }),
   useSessionListView,
   useSessions: () => ({ data: [], isError: false }),
   useSessionSidebarState: () => ({
@@ -72,6 +84,7 @@ vi.mock("@/systems/session", async () => ({
   }),
 }));
 
+import { useSessionBoardWindow } from "../hooks/use-session-board-window";
 import { useSessionWindowSidebar } from "../use-session-window-sidebar";
 
 function session(workspaceId: string): SessionPayload {
@@ -234,6 +247,25 @@ describe("useSessionWindowSidebar", () => {
 
     expect(useSessionListView).toHaveBeenLastCalledWith(
       expect.objectContaining({ scope: null, enabled: false })
+    );
+  });
+});
+
+// Invariant: a board card opens List in the actual destination window.
+// Owning layer: session-window navigation; this suite owns selection routing.
+describe("useSessionBoardWindow", () => {
+  it("Should switch the existing destination window to List before focusing it", () => {
+    const target = session("workspace-1");
+    getState.mockReturnValue({
+      windows: { destination: { id: "destination", app: "session", instanceKey: target.id } },
+      client: { focusOrder: ["destination"] },
+    });
+    const { result } = renderHook(() => useSessionBoardWindow("source", null));
+    act(() => result.current.onOpen(target));
+    expect(setSessionWindowView).toHaveBeenCalledWith("destination", "list");
+    expect(userRetarget).toHaveBeenCalledWith(
+      "source",
+      expect.objectContaining({ instanceKey: target.id })
     );
   });
 });

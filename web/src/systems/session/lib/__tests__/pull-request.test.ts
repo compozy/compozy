@@ -245,6 +245,27 @@ describe("pullRequestMenuModel", () => {
     expect(ready.prompts).toEqual([]);
   });
 
+  it("Should offer enabled commit and push when the worktree primary only commits", () => {
+    const rows = [{ action: "commit_push", label: "Commit & push", enabled: true }];
+    const input = {
+      pullRequest: READY_PR,
+      controllable: true,
+      exitPlan: exitPlan("commit", { rows }),
+    };
+    expect(pullRequestMenuModel(input).primary).toMatchObject({
+      id: "exit",
+      action: "commit_push",
+    });
+    expect(
+      pullRequestMenuModel({
+        ...input,
+        exitPlan: exitPlan("commit", {
+          rows: [{ ...rows[0]!, enabled: false }],
+        }),
+      }).primary?.id
+    ).toBe("open");
+  });
+
   it("UT-063: drops a blocked exit action and keeps the plan's reason for the next primary", () => {
     const model = pullRequestMenuModel({
       pullRequest: DX_PR,

@@ -83,6 +83,7 @@ export {
   type UseSessionSidebarStateResult,
 } from "./use-session-sidebar-state";
 export {
+  setSessionWindowView,
   useSessionWindowViewState,
   type SessionWindowViewState,
 } from "./use-session-window-view-state";

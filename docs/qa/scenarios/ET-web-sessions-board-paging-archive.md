@@ -21,3 +21,9 @@ Introduced by the Sessions Kanban spec (US-012.EC-4, US-016, E2E-006, visual con
 Walk: seed 60 done sessions and 3 archived ones in one workspace and open the board. Done reads 60 in its header, shows 50 cards and "Load more 50 of 60"; Load more shows all 60 and the button disappears. Collapse Done and expand it again. The bottom bar reads "Archive 3"; expand it and see 3 cards; click one and the window opens it in List. Archive a done session from the list, switch back to Kanban: Done reads 59 and the bar reads "Archive 4". In a workspace with no archived sessions the bar is absent.
 
 Owning automated coverage: E2E-006 (`web/e2e`), `sessions-board.test.tsx` (UT-071 bar absent at zero, Load more progress, Done disclosure, archive expansion).
+
+QA impact 2026-10-24 (review remediation; integrated re-walk pending): open a
+session in a second window, switch that window to Kanban, then click its card
+from the first window. The existing destination must receive focus in List mode.
+Focused evidence: the existing session-window navigation suite covers the
+destination-window presentation change before retargeting.

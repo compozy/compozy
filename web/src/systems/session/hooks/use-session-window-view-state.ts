@@ -16,6 +16,10 @@ export interface SessionWindowViewState {
   setHideChildren: (hideChildren: boolean) => void;
 }
 
+export function setSessionWindowView(scopeId: string, view: SessionWindowViewMode): void {
+  sessionSidebarStore.trigger.viewChanged({ scopeId, view });
+}
+
 /**
  * List | Kanban for the session window rendering this hook, persisted per
  * window with the rest of its sessions presentation (US-011.AC-4).
@@ -27,7 +31,7 @@ export function useSessionWindowViewState(): SessionWindowViewState {
   );
   return {
     view: state.view,
-    setView: view => sessionSidebarStore.trigger.viewChanged({ scopeId, view }),
+    setView: view => setSessionWindowView(scopeId, view),
     hideChildren: state.hideChildren,
     setHideChildren: hideChildren =>
       sessionSidebarStore.trigger.hideChildrenChanged({ scopeId, hideChildren }),

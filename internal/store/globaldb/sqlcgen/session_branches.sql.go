@@ -11,10 +11,11 @@ import (
 
 const readSessionBranches = `-- name: ReadSessionBranches :many
 SELECT s.id, CAST(CASE WHEN COALESCE(s.worktree_id, '') <> '' THEN
- CASE WHEN w.state IN ('pending','ready') THEN COALESCE(w.branch,'') ELSE '' END
+ CASE WHEN w.state IN ('pending','ready') THEN CASE WHEN ws.detached = 1 THEN '' ELSE COALESCE(ws.branch,w.branch,'') END ELSE '' END
  ELSE s.branch END AS TEXT) AS branch
 FROM sessions s JOIN json_each(?1) i ON s.id = i.value
 LEFT JOIN worktrees w ON w.workspace_id = s.workspace_id AND w.id = s.worktree_id
+LEFT JOIN worktree_status ws ON ws.worktree_id = w.id
 `
 
 type ReadSessionBranchesRow struct {

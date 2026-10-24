@@ -48,6 +48,7 @@ export function useSessionWindowPullRequest(input: {
     ? {
         plan: ladder && {
           primary: ladder.primary,
+          rows: ladder.rows,
           blocked: ladder.blocked,
           blockedReason: ladder.blockedReason,
         },

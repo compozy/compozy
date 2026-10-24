@@ -21,3 +21,9 @@ Introduced by the Sessions Kanban spec (`.compozy/tasks/sessions-kanban`, US-004
 Walk (real GitHub credential, disposable repository): open a session working on a fresh feature branch; the topbar shows `⎇ <branch>` with the pending marker, then the bare branch once the lookup confirms no PR. Ask the agent to open a draft PR; after the turn settles the chip reads `#N · Draft` with the pending-checks spinner. Let CI fail: the chip shows "N failing" in danger and its menu leads with "Fix failing checks"; send it and confirm one user message naming `#N`, the URL, the head SHA and the failing checks. Mark the PR ready and approve it with green checks: the chip shows "Ready to merge" only after a fresh read. Disconnect GitHub and press Refresh: cached facts stay, a toast names the cause, and the chip gains the stale clock. In a managed worktree with uncommitted changes the menu leads with the exit plan's action and runs it through the existing commit/PR dialogs. A spawned (non-controllable) session's menu has Open PR and Refresh only.
 
 Owning automated coverage: E2E-001 and E2E-003 (`web/e2e/__tests__/session-pull-request-chip.spec.ts`, store-seeded cache rows), `lib/__tests__/pull-request.test.ts` (UT-060..UT-064, UT-073), `use-session-topbar-slot.test.tsx` (chip placement, menu primary, non-controllable menu), `query-options.test.ts` (UT-072). The real-forge refresh and exit-action legs are not covered by the seeded browser walk.
+
+QA impact 2026-10-24 (review remediation; integrated re-walk pending): with dirty
+changes and a commit-primary exit plan, the chip offers the enabled Commit & push
+row. After switching a managed worktree's checked-out branch, the chip and board
+resolve the current status branch; detached HEAD does not retain the old PR.
+Focused evidence: pull-request menu suite and real SQLite branch/board suites pass.

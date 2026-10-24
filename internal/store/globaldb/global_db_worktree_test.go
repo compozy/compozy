@@ -1015,6 +1015,54 @@ func TestSessionBranchSnapshots(t *testing.T) {
 	if err != nil || got[ids[0]] != "topic" || got[ids[1]] != "managed" {
 		t.Fatalf("branches=%#v %v", got, err)
 	}
+	// The status snapshot owns subsequent checkouts and detached HEAD for all readers.
+	for _, detached := range []bool{false, true} {
+		if _, err := db.db.ExecContext(ctx,
+			`INSERT INTO worktree_status(worktree_id,branch,detached) VALUES('wt-branch','switched',?)
+ ON CONFLICT(worktree_id) DO UPDATE SET branch=excluded.branch,detached=excluded.detached`, detached); err != nil {
+			t.Fatal(err)
+		}
+		want := "switched"
+		if detached {
+			want = ""
+		}
+		got, err = db.SessionBranches(ctx, ids)
+		if err != nil || got[ids[1]] != want {
+			t.Fatalf("current branch=%#v %v", got, err)
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace,
+			Archive: store.SessionArchiveExclude, Sort: sessionCatalogSortRecent, Limit: 10,
+			RepositoryKeys: map[string]string{workspace: "github.com/owner/repo"},
+		}
+		keys, err := db.SessionCatalogBranches(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, key := range keys {
+			if key.Branch == "switched" {
+				found = true
+			}
+		}
+		if found == detached {
+			t.Fatalf("detached=%t refresh keys=%#v", detached, keys)
+		}
+		if _, err := db.db.ExecContext(ctx,
+			`INSERT OR REPLACE INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state)
+ VALUES (?,'github.com/owner/repo','switched','open')`, workspace); err != nil {
+			t.Fatal(err)
+		}
+		query.Columns = []string{"in_review"}
+		page, err := db.PageSessions(ctx, query)
+		wantTotal := 1
+		if detached {
+			wantTotal = 0
+		}
+		if err != nil || page.Total != wantTotal {
+			t.Fatalf("detached=%t page=%#v %v", detached, page, err)
+		}
+	}
 	if err = db.SaveSessionBranch(ctx, workspace, "bound-branch", "wrong"); err != nil {
 		t.Fatal(err)
 	}
