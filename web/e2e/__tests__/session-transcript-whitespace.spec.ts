@@ -34,11 +34,12 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
   await appPage.goto(runtime.url(`/agents/${agentName}/sessions/${sessionId}`));
   const window = sessionWindow(appPage, sessionId);
   const ui = sessionWindowSelectors(window, appPage);
-  // Invariant: authored soft breaks, lists, and links keep their visual structure through
+  // Invariant: authored soft breaks, lists, links, and inline code keep their visual structure through
   // send/reload, typed the way an operator types them (#872, #967).
   // Owner: session transcript browser rendering; canonical suite: this file.
   const url = "https://example.com/docs/transcript";
-  const pastedList = "- first item\n- second item\n  - nested item";
+  const pastedList =
+    "- first item\n- second item\n  - nested item\n\nRun `printf 'a  b'` then `printf 'a b'`.";
   // The fixture answers only this exact text, so the reply proves the wire kept every break.
   await ui.composerTextarea.click();
   await ui.composerTextarea.pressSequentially("show the diagram");
@@ -68,6 +69,19 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
       "nested item",
     ]);
     await expect(bubble.getByRole("link", { name: url })).toHaveAttribute("target", "_blank");
+    const inlineCode = bubble.locator("p code");
+    await expect(inlineCode).toHaveText(["printf 'a  b'", "printf 'a b'"]);
+    await expect
+      .poll(() =>
+        inlineCode.evaluateAll(elements => {
+          const [doubleSpace, singleSpace] = elements;
+          if (!doubleSpace || !singleSpace) return 0;
+          return (
+            doubleSpace.getBoundingClientRect().width - singleSpace.getBoundingClientRect().width
+          );
+        })
+      )
+      .toBeGreaterThan(1);
     // Markdown's whitespace between blocks never renders as blank lines inside the bubble.
     await expect
       .poll(() => bubble.evaluate(element => (element as HTMLElement).innerText))

@@ -1,5 +1,16 @@
 # Compozy Change Impact
 
+## Authored inline code whitespace review repair — 2026-10-24
+
+Owner: post-merge audit of PR #968. `StreamMarkdown` authored mode preserves consecutive spaces
+in inline code without applying whitespace preservation to list containers or fenced code.
+The session transcript browser scenario and ACP fixture co-ship the send/reload regression.
+
+- **Web/Docs:** user-message rendering only; owning QA is
+  `docs/qa/scenarios/RT-session-transcript-whitespace.md`. Assistant rendering is unchanged.
+- **Native tools, extensibility/hooks/config, workspace data, official skill:** no contract,
+  persisted bytes, schema, authorization, or `skills/compozy/` changes.
+
 ## Interrupted worktree removal review repairs — 2026-10-24
 
 Owner: post-merge audit of PR #964. Existing CLI/HTTP/UDS removal and

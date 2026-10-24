@@ -174,7 +174,7 @@ function StreamMarkdown({
         ...components,
       }}
       plugins={streamMarkdownPlugins(slots !== undefined, authored)}
-      className={className}
+      className={cn(authored && "[&_:not(pre)>code]:whitespace-pre-wrap", className)}
       {...props}
     >
       {children}
