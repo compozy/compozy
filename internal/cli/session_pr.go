@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
@@ -19,11 +20,18 @@ func (c *daemonClient) RefreshSessionPullRequest(
 	id string,
 ) (contract.SessionPullRequestResponse, error) {
 	var response contract.SessionPullRequestResponse
-	path, err := c.sessionScopedPath(ctx, id, "/pull-request/refresh")
+	target, err := requirePathValue("session_id", id)
 	if err != nil {
 		return response, err
 	}
-	err = c.doJSON(ctx, http.MethodPost, path, nil, nil, &response)
+	err = c.doJSON(
+		ctx,
+		http.MethodPost,
+		"/api/sessions/"+url.PathEscape(target)+"/pull-request/refresh",
+		nil,
+		nil,
+		&response,
+	)
 	return response, err
 }
 
