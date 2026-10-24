@@ -1690,15 +1690,15 @@ func TestValidateDaemonCompatibilityNormalizesDaemonBuildVersions(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			withDaemonVersion(t, tt.current)
 
-			err := validateDaemonCompatibility(tt.minVersion)
+			err := ValidateDaemonCompatibility(tt.minVersion)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("validateDaemonCompatibility() error = nil, want non-nil")
+					t.Fatal("ValidateDaemonCompatibility() error = nil, want non-nil")
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("validateDaemonCompatibility() error = %v", err)
+				t.Fatalf("ValidateDaemonCompatibility() error = %v", err)
 			}
 		})
 	}

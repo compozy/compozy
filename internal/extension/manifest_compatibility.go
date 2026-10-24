@@ -10,7 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/version"
 )
 
-func validateDaemonCompatibility(minVersion string) error {
+// ValidateDaemonCompatibility checks the minimum version against the running build.
+func ValidateDaemonCompatibility(minVersion string) error {
 	current := version.Current().Version
 	return validateCompozyVersionCompatibility(current, minVersion)
 }

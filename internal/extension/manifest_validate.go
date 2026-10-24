@@ -46,7 +46,7 @@ func validateNativeManifestCompatibility(manifest *Manifest) error {
 	if err := validateSemanticVersionField(manifestMinCompozyVersionKey, manifest.MinCompozyVersion); err != nil {
 		return err
 	}
-	return validateDaemonCompatibility(manifest.MinCompozyVersion)
+	return ValidateDaemonCompatibility(manifest.MinCompozyVersion)
 }
 
 func validateManifestResources(manifest *Manifest) error {

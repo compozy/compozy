@@ -114,6 +114,11 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 	result.DigestSHA256 = entry.DigestSHA256
 	result.Icon = entry.Icon
 	result.Layout = entry.Layout
+	if entry.InstallBlocker == "" && details.Extension != nil && details.Extension.MinCompozyVersion != "" {
+		if err := extensionpkg.ValidateDaemonCompatibility(details.Extension.MinCompozyVersion); err != nil {
+			entry.InstallBlocker = err.Error()
+		}
+	}
 	result.Installable = entry.InstallBlocker == ""
 	result.InstallBlocker = entry.InstallBlocker
 	result.Trust = &trust

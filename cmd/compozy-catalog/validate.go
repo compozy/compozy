@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,6 +35,14 @@ func validateCatalogForPublication(ctx context.Context, directory string) (err e
 	document, err := marketplace.DecodeDocument(raw)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: decode extension feed: %w", err)
+	}
+	// #nosec G703 -- directory is the explicit catalog root selected by the publishing operator.
+	metadata, err := os.ReadFile(filepath.Join(directory, "v3", "compatibility.json"))
+	if err != nil {
+		return fmt.Errorf("compozy-catalog: read compatibility metadata: %w", err)
+	}
+	if err := marketplace.ApplyCompatibility(document, raw, metadata); err != nil {
+		return err
 	}
 	temporaryRoot, err := os.MkdirTemp("", "compozy-catalog-validation-*")
 	if err != nil {
@@ -84,9 +93,18 @@ func validateExtensionArtifact(
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: install extension artifact %q: %w", artifactName, err)
 	}
+	if err := validateArtifactSource(catalogDir, entry.EntryID, result.InstallPath); err != nil {
+		return err
+	}
 	manifest, err := extensionpkg.LoadManifest(result.InstallPath)
 	if err != nil {
 		return fmt.Errorf("compozy-catalog: load extension artifact %q: %w", artifactName, err)
+	}
+	if manifest.MinCompozyVersion != details.Extension.MinCompozyVersion {
+		return fmt.Errorf(
+			"compozy-catalog: extension %q compatibility requirement differs from packaged manifest",
+			entry.EntryID,
+		)
 	}
 	if manifest.Version != entry.Version {
 		return fmt.Errorf(
@@ -159,4 +177,36 @@ func removeCatalogTemporaryDirectory(path string) error {
 		return fmt.Errorf("compozy-catalog: remove catalog temporary directory: %w", err)
 	}
 	return nil
+}
+
+func validateArtifactSource(catalogDir, entryID, installedPath string) error {
+	packages := filepath.Join(catalogDir, "packages")
+	// #nosec G703 -- packages is beneath the explicit operator-selected catalog directory.
+	if _, err := os.Stat(packages); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("compozy-catalog: inspect package sources: %w", err)
+	}
+	for _, filename := range []string{"extension.toml", "extension.json"} {
+		// #nosec G703 -- entryID is validated by the catalog decoder; filename is a fixed manifest name.
+		source, err := os.ReadFile(filepath.Join(packages, entryID, filename))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("compozy-catalog: read source manifest for %q: %w", entryID, err)
+		}
+		packaged, err := os.ReadFile(filepath.Join(installedPath, filename))
+		if err != nil {
+			return fmt.Errorf("compozy-catalog: read packaged manifest for %q: %w", entryID, err)
+		}
+		if !bytes.Equal(source, packaged) {
+			return fmt.Errorf(
+				"compozy-catalog: extension %q packaged manifest differs from source; regenerate with publish",
+				entryID,
+			)
+		}
+		return nil
+	}
+	return fmt.Errorf("compozy-catalog: extension %q source manifest is missing", entryID)
 }

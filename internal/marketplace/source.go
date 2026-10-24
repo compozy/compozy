@@ -95,7 +95,17 @@ func (s *HTTPSource) Fetch(ctx context.Context) (*Document, error) {
 		return nil, err
 	}
 	document, decodeErr := DecodeDocument(body)
-	return document, errors.Join(err, decodeErr)
+	if err := errors.Join(err, decodeErr); err != nil {
+		return document, err
+	}
+	metadata, err := s.read(ctx, strings.TrimSuffix(s.endpoint, "extensions.json")+"compatibility.json")
+	if status, ok := errors.AsType[*httpStatusError](err); ok && status.status == http.StatusNotFound {
+		return document, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return document, ApplyCompatibility(document, body, metadata)
 }
 
 // FetchPresets reads the ordered v3 preset catalog through the same bounded transport.

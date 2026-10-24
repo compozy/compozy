@@ -56,6 +56,20 @@ func stageCatalogPublication(ctx context.Context, source, stage string, sources 
 	}); err != nil {
 		return err
 	}
+	digest, err := marketplace.DigestFile(filepath.Join(stage, "v3", "extensions.json"))
+	if err != nil {
+		return err
+	}
+	compatibility := marketplace.CompatibilityDocument{
+		FeedDigestSHA256: digest,
+		MinimumVersions:  make(map[string]string, len(current)),
+	}
+	for _, entry := range current {
+		compatibility.MinimumVersions[entry.DigestSHA256] = entry.MinCompozyVersion
+	}
+	if err := writePublicationJSON(stage, "v3/compatibility.json", compatibility); err != nil {
+		return err
+	}
 	// #nosec G703 -- source is the explicit local catalog root selected by the publishing operator.
 	raw, err := os.ReadFile(filepath.Join(source, "marketplaces.json"))
 	if err != nil {

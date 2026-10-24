@@ -26,21 +26,22 @@ type publicationSources struct {
 }
 
 type publicationEntry struct {
-	EntryID      string                   `json:"entry_id"`
-	Name         string                   `json:"name"`
-	Description  string                   `json:"description"`
-	Version      string                   `json:"version,omitempty"`
-	PublishedAt  string                   `json:"published_at,omitempty"`
-	UpdatedAt    string                   `json:"updated_at,omitempty"`
-	InstallSlug  string                   `json:"install_slug"`
-	ArtifactURL  string                   `json:"artifact_url,omitempty"`
-	DigestSHA256 string                   `json:"digest_sha256,omitempty"`
-	Tier         string                   `json:"tier"`
-	Format       string                   `json:"format,omitempty"`
-	Author       string                   `json:"author,omitempty"`
-	Repository   string                   `json:"repository,omitempty"`
-	Icon         string                   `json:"icon,omitempty"`
-	Inputs       []marketplace.EntryInput `json:"inputs,omitempty"`
+	MinCompozyVersion string                   `json:"-"`
+	EntryID           string                   `json:"entry_id"`
+	Name              string                   `json:"name"`
+	Description       string                   `json:"description"`
+	Version           string                   `json:"version,omitempty"`
+	PublishedAt       string                   `json:"published_at,omitempty"`
+	UpdatedAt         string                   `json:"updated_at,omitempty"`
+	InstallSlug       string                   `json:"install_slug"`
+	ArtifactURL       string                   `json:"artifact_url,omitempty"`
+	DigestSHA256      string                   `json:"digest_sha256,omitempty"`
+	Tier              string                   `json:"tier"`
+	Format            string                   `json:"format,omitempty"`
+	Author            string                   `json:"author,omitempty"`
+	Repository        string                   `json:"repository,omitempty"`
+	Icon              string                   `json:"icon,omitempty"`
+	Inputs            []marketplace.EntryInput `json:"inputs,omitempty"`
 }
 
 type publicationDocument[T any] struct {
@@ -137,6 +138,7 @@ func packagePublicationEntry(
 	if err != nil {
 		return publicationEntry{}, err
 	}
+	entry.MinCompozyVersion = manifest.MinCompozyVersion
 	entry.Version = manifest.Version
 	entry.ArtifactURL = strings.TrimRight(sources.ArtifactBaseURL, "/") + "/" + filename
 	entry.DigestSHA256 = digest
