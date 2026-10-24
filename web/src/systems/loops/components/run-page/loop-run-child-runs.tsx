@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, Skeleton, StateGlyph, cn } from "@compozy/ui";
+import { Button, SkeletonText, StateGlyph, cn } from "@compozy/ui";
 
 import {
   type LoopChildRunRead as LoopChildRunReadState,
@@ -30,7 +30,7 @@ function LoopRunChildRunStatus({ summary, isLoading }: LoopChildRunReadState) {
   if (summary) {
     return <LoopStatusMark data-testid="loop-run-child-run-status" status={summary.status} />;
   }
-  return isLoading ? <Skeleton className="h-3.5 w-16" /> : null;
+  return isLoading ? <SkeletonText className="w-16 text-small-body" /> : null;
 }
 
 /**
@@ -67,7 +67,7 @@ function LoopRunChildRunStep({
       </>
     );
   }
-  return isLoading ? <Skeleton className="h-3 w-32" /> : null;
+  return isLoading ? <SkeletonText className="w-32 text-form-hint" /> : null;
 }
 
 interface LoopRunChildRunRowProps {

@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
 import { Search } from "lucide-react";
 
-import { Button, PAGE_CONTENT_GUTTER, cn } from "@compozy/ui";
+import { Button, SkeletonRegion } from "@compozy/ui";
 
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
 
@@ -30,6 +30,9 @@ import type { LoopInspectLane } from "./inspect/loop-run-inspect-register";
 import type { LoopFanoutRollup, LoopRosterNode } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
 import { LoopRunBriefing } from "./loop-run-briefing";
+import { LoopRunPageFrame } from "./loop-run-page-frame";
+import { RAIL_CARD_CLASS } from "./loop-run-page-classes";
+import { LoopRunBriefingSkeleton, LoopRunStepsProgressSkeleton } from "./loop-run-page-skeleton";
 import { LoopRunChildReadContext } from "../../hooks/use-loop-run-child-read";
 import { LOOP_NEEDS_YOU_ANCHOR_ID } from "./loop-run-briefing-constants";
 import { LoopRunRegisters } from "./loop-run-registers";
@@ -62,6 +65,14 @@ const NO_PAGING: LoopRunStoryPaging = {
 export interface LoopRunRosterRead {
   isLoading: boolean;
   isError: boolean;
+}
+
+/**
+ * Whether the briefing read has answered yet. Until it does, the strip and the progress card it
+ * feeds show their skeletons instead of being absent, so they do not push the page down later.
+ */
+export interface LoopRunBriefingRead {
+  isLoading: boolean;
 }
 
 export interface LoopRunGoalTurnsPaging {
@@ -102,6 +113,8 @@ export interface LoopRunPageBodyProps extends Omit<ComponentProps<"div">, "child
   storyPaging?: LoopRunStoryPaging;
   /** Read state for the roster, so Inspect never calls a pending read empty. */
   rosterRead?: LoopRunRosterRead;
+  /** Read state for the briefing, so the strip and progress hold their place while it arrives. */
+  briefingRead?: LoopRunBriefingRead;
   /**
    * The Events lane's raw activity read (`view=all`), when the page has one.
    *
@@ -163,6 +176,7 @@ export function LoopRunPageBody({
   isLoadingMoreRoster = false,
   storyPaging,
   rosterRead,
+  briefingRead,
   events,
   isReconnecting = false,
   usageRows,
@@ -190,10 +204,11 @@ export function LoopRunPageBody({
   requestState,
   onCompareGeneration,
   onForkGeneration,
-  className,
-  ...divProps
+  ...frameProps
 }: LoopRunPageBodyProps) {
   const [inspectLane, setInspectLane] = useState<LoopInspectLane>("graph");
+  // The briefing and the progress card exist only once the briefing has been read.
+  const briefingPending = briefingRead?.isLoading === true && registers.briefing === null;
   const status = run.status;
   const contract = materializedContract;
   const quarantinedNodes = (nodeLifecycles ?? []).filter(node => node.quarantined);
@@ -202,126 +217,129 @@ export function LoopRunPageBody({
     // Child runs surface in Progress, the graph and the node panel; they read
     // the workspace and the page clock from here rather than through each register.
     <LoopRunChildReadContext value={{ workspaceId, nowMs, clockLive: isLive }}>
-      <div
-        className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
+      <LoopRunPageFrame
         data-testid="loop-run-detail-content"
-        {...divProps}
-      >
-        <div className={cn(PAGE_CONTENT_GUTTER, "pt-6 pb-16")}>
-          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-            <main className="flex min-w-0 flex-col gap-6">
-              {/* Four elements, in order, and nothing competing with them. Failure
-                and needs-you render here whatever is collapsed below: a signal
-                you have to expand to see is a signal you will miss. */}
-              {registers.briefing ? (
-                <LoopRunBriefing
-                  briefing={registers.briefing}
-                  onOpenInspect={() => inspect.onOpenChange(true)}
-                  outcome={registers.outcome}
-                />
-              ) : null}
-              {status === "needs-approval" || quarantinedNodes.length > 0 || requests.length > 0 ? (
-                // The anchor, and only the anchor. `LoopRunNeedsYouCard` owns the
-                // `loop-run-needs-you` test id and the labelled region; repeating
-                // either here would give strict selectors two matching nodes and
-                // screen readers two regions with one name.
-                <section id={LOOP_NEEDS_YOU_ANCHOR_ID} tabIndex={-1}>
-                  <LoopRunNeedsYouCard
-                    fallbackFacts={approvalFallbackFacts}
-                    isPending={pendingAction === "approve"}
-                    onDecision={onDecision}
-                    onOpenQuarantine={onOpenQuarantine}
-                    quarantinedNodes={quarantinedNodes}
-                    request={approvalRequest}
-                    requestState={requestState}
-                    requestFocus={requestFocus}
-                    requests={requests}
-                    run={run}
-                    showApproval={status === "needs-approval"}
-                    workspaceId={workspaceId}
-                  />
-                </section>
-              ) : null}
-              {registers.progress ? (
-                <LoopRunStepsProgress
-                  doneWhen={contract.definition_of_done}
-                  goal={contract.goal}
-                  progress={registers.progress}
-                  reach={registers.reach}
-                />
-              ) : null}
-              <LoopRunStory
-                beats={registers.beats}
-                isReconnecting={isReconnecting}
-                paging={storyPaging ?? NO_PAGING}
+        {...frameProps}
+        main={
+          <>
+            {/* Four elements, in order, and nothing competing with them. Failure
+              and needs-you render here whatever is collapsed below: a signal
+              you have to expand to see is a signal you will miss. */}
+            {registers.briefing ? (
+              <LoopRunBriefing
+                briefing={registers.briefing}
+                onOpenInspect={() => inspect.onOpenChange(true)}
+                outcome={registers.outcome}
               />
-              {/* A forked or time-travelled run is part of the story: the point
-                it branched at is recorded here, and it links the related run so
-                the reader can follow it (US-009.EC-3). */}
-              <LoopRunLineageSection forkedFrom={run.forked_from ?? null} forks={run.forks} />
-              {/* Everything the default read demoted lives one disclosure down. */}
-              <LoopRunRegisters
-                goalTurns={goalTurns}
-                bestGeneration={run.best_generation}
-                generations={generations}
-                nodeLifecycles={nodeLifecycles ?? []}
-                isLoadingMoreRoster={isLoadingMoreRoster}
-                onLoadMoreRoster={onLoadMoreRoster}
-                renderNodeActions={renderNodeActions}
-                graph={graph}
-                isLive={isLive}
-                isReconnecting={isReconnecting}
-                nowMs={nowMs}
-                runStatus={status}
-                nodes={rosterNodes}
-                onCompareGeneration={onCompareGeneration}
-                onForkGeneration={onForkGeneration}
-                onOpenChange={inspect.onOpenChange}
-                onSelectionChange={onNodeSelectionChange}
-                open={inspect.open}
-                prunedSessionIds={prunedSessionIds}
-                registers={registers}
-                rollups={rosterRollups}
-                events={events}
-                rosterRead={rosterRead}
-                selection={nodeSelection}
-                lane={inspectLane}
-                onLaneChange={setInspectLane}
-                watchEvents={watchEvents}
-              />
-            </main>
-            <aside data-testid="loop-run-detail-rail">
-              <div className="rounded-lg bg-card shadow-card">
-                <LoopRunUsageRail rows={usageRows} note={usageNote} />
-                <LoopRunAboutRail
+            ) : briefingPending ? (
+              <SkeletonRegion label="Loading run status">
+                <LoopRunBriefingSkeleton />
+              </SkeletonRegion>
+            ) : null}
+            {status === "needs-approval" || quarantinedNodes.length > 0 || requests.length > 0 ? (
+              // The anchor, and only the anchor. `LoopRunNeedsYouCard` owns the
+              // `loop-run-needs-you` test id and the labelled region; repeating
+              // either here would give strict selectors two matching nodes and
+              // screen readers two regions with one name.
+              <section id={LOOP_NEEDS_YOU_ANCHOR_ID} tabIndex={-1}>
+                <LoopRunNeedsYouCard
+                  fallbackFacts={approvalFallbackFacts}
+                  isPending={pendingAction === "approve"}
+                  onDecision={onDecision}
+                  onOpenQuarantine={onOpenQuarantine}
+                  quarantinedNodes={quarantinedNodes}
+                  request={approvalRequest}
+                  requestState={requestState}
+                  requestFocus={requestFocus}
+                  requests={requests}
                   run={run}
-                  versionLabel={versionLabel}
-                  inputRows={inputRows}
-                  startedBy={startedBy}
-                  workspaceLabel={workspaceLabel}
-                  lastWakeAt={watchEvents?.last_wake_at}
-                  onOpenGeneration={() => {
-                    setInspectLane("generations");
-                    inspect.onOpenChange(true);
-                  }}
+                  showApproval={status === "needs-approval"}
+                  workspaceId={workspaceId}
                 />
-                <div className="flex items-center border-t border-line-soft px-3 py-2">
-                  <Button
-                    data-testid="loop-run-open-inspect"
-                    onClick={() => inspect.onOpenChange(true)}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Search aria-hidden="true" />
-                    Inspect
-                  </Button>
-                </div>
-              </div>
-            </aside>
+              </section>
+            ) : null}
+            {registers.progress ? (
+              <LoopRunStepsProgress
+                doneWhen={contract.definition_of_done}
+                goal={contract.goal}
+                progress={registers.progress}
+                reach={registers.reach}
+                stepsPending={rosterRead?.isLoading === true}
+              />
+            ) : briefingPending ? (
+              <LoopRunStepsProgressSkeleton />
+            ) : null}
+            <LoopRunStory
+              beats={registers.beats}
+              isReconnecting={isReconnecting}
+              paging={storyPaging ?? NO_PAGING}
+            />
+            {/* A forked or time-travelled run is part of the story: the point
+              it branched at is recorded here, and it links the related run so
+              the reader can follow it (US-009.EC-3). */}
+            <LoopRunLineageSection forkedFrom={run.forked_from ?? null} forks={run.forks} />
+            {/* Everything the default read demoted lives one disclosure down. */}
+            <LoopRunRegisters
+              goalTurns={goalTurns}
+              bestGeneration={run.best_generation}
+              generations={generations}
+              nodeLifecycles={nodeLifecycles ?? []}
+              isLoadingMoreRoster={isLoadingMoreRoster}
+              onLoadMoreRoster={onLoadMoreRoster}
+              renderNodeActions={renderNodeActions}
+              graph={graph}
+              isLive={isLive}
+              isReconnecting={isReconnecting}
+              nowMs={nowMs}
+              runStatus={status}
+              nodes={rosterNodes}
+              onCompareGeneration={onCompareGeneration}
+              onForkGeneration={onForkGeneration}
+              onOpenChange={inspect.onOpenChange}
+              onSelectionChange={onNodeSelectionChange}
+              open={inspect.open}
+              prunedSessionIds={prunedSessionIds}
+              registers={registers}
+              rollups={rosterRollups}
+              events={events}
+              rosterRead={rosterRead}
+              selection={nodeSelection}
+              lane={inspectLane}
+              onLaneChange={setInspectLane}
+              watchEvents={watchEvents}
+            />
+          </>
+        }
+        rail={
+          <div className={RAIL_CARD_CLASS}>
+            <LoopRunUsageRail rows={usageRows} note={usageNote} />
+            <LoopRunAboutRail
+              run={run}
+              versionLabel={versionLabel}
+              inputRows={inputRows}
+              startedBy={startedBy}
+              workspaceLabel={workspaceLabel}
+              lastWakeAt={watchEvents?.last_wake_at}
+              onOpenGeneration={() => {
+                setInspectLane("generations");
+                inspect.onOpenChange(true);
+              }}
+            />
+            <div className="flex items-center border-t border-line-soft px-3 py-2">
+              <Button
+                data-testid="loop-run-open-inspect"
+                onClick={() => inspect.onOpenChange(true)}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <Search aria-hidden="true" />
+                Inspect
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        }
+      />
     </LoopRunChildReadContext>
   );
 }

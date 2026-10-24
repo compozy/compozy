@@ -19,6 +19,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopCatalog } = await import("../catalog/loop-catalog");
+const { LoopCatalogSkeleton } = await import("../catalog/loop-catalog-skeleton");
 const { loopCatalogFixtures } = await import("../../mocks/fixtures");
 const reviewCatalogEntry = loopCatalogFixtures.find(entry => entry.name === "review-and-fix")!;
 type LoopCatalogEntry = import("../../types").LoopCatalogEntry;
@@ -250,5 +251,30 @@ describe("LoopCatalog", () => {
     expect(screen.getByTestId("loop-catalog-truncated")).toHaveTextContent(
       "Showing the first 2,000 definitions"
     );
+  });
+});
+
+describe("LoopCatalogSkeleton", () => {
+  // Invariant: before the first read the catalog area holds the loaded catalog's own shape (its
+  // heading, static sentence and one group of rows or cards) in one named status region. It never
+  // claims an empty catalog and offers nothing that could be used before there is a Loop to use.
+  it.each([
+    ["rows", '[data-slot="listing-row"]'],
+    ["cards", '[data-slot="catalog-card"]'],
+  ] as const)("Should hold the %s layout in one named status region", (view, placeholder) => {
+    render(<LoopCatalogSkeleton view={view} workspaceLabel="launch-hq" />);
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(within(region).getByText("Loading Loops")).toBeInTheDocument();
+    expect(within(region).getByRole("heading", { name: "Loops" })).toBeInTheDocument();
+    expect(
+      within(region).getByText("Repeatable jobs that keep working on a goal until it's done.")
+    ).toBeInTheDocument();
+    expect(region.querySelectorAll(placeholder).length).toBeGreaterThan(1);
+    expect(screen.queryByTestId("loop-catalog-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-catalog-row")).not.toBeInTheDocument();
+    expect(within(region).queryByRole("link")).not.toBeInTheDocument();
+    expect(within(region).queryByRole("button")).not.toBeInTheDocument();
   });
 });

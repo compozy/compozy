@@ -79,3 +79,18 @@ export const WatchNoChecks: Story = {
     </StorySurface>
   ),
 };
+
+/** The reads have not answered: the dialog opens with its chrome over placeholders. */
+export const Loading: Story = {
+  render: () => (
+    <StorySurface className="h-[880px] p-0">
+      <LoopConfigureDialog
+        name="implement-tasks"
+        open
+        workspaceId="ws_default"
+        onOpenChange={noop}
+        onOpenEditor={noop}
+      />
+    </StorySurface>
+  ),
+};

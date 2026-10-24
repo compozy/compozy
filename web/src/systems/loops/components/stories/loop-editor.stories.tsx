@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -137,6 +137,25 @@ type Story = StoryObj<typeof meta>;
 
 export const Editor: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
+};
+
+/**
+ * The Loop has not been read: the editor's own chrome (toolbar, node palette, validation bar),
+ * inert, over a canvas of placeholders. The read never answers, so the state holds still.
+ */
+export const Loading: Story = {
+  args: { workspaceId: WS, name: "implement-tasks" },
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}", async () => {
+          await delay("infinite");
+          throw new Error("unreachable");
+        }),
+        ...loopHandlers,
+      ],
+    },
+  },
 };
 
 export const DslView: Story = {

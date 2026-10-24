@@ -12,8 +12,10 @@ import {
   LoopRunControls,
   LoopRunOverflowMenu,
   LoopRunPageBody,
+  LoopRunPageSkeleton,
   LoopStatusMark,
 } from "../../index";
+import { projectLoopRunRegisters } from "../../lib/loop-run-registers-view";
 import {
   forkedRunScenario,
   laneRequestsScenario,
@@ -74,8 +76,11 @@ function ScenarioPage({
   requestState,
   prunedSessionIds,
   workspaceId,
+  readsPending = false,
 }: {
   scenario: LoopRunStoryScenario;
+  /** The run has loaded but its briefing, roster and timeline reads have not answered. */
+  readsPending?: boolean;
   /** Scopes the reads a story serves over MSW (child runs). */
   workspaceId?: string;
   inspectInitiallyOpen?: boolean;
@@ -85,7 +90,27 @@ function ScenarioPage({
 }) {
   const [inspectOpen, setInspectOpen] = useState(inspectInitiallyOpen);
   const [nodeSelection, setNodeSelection] = useState<LoopNodeSelection | null>(null);
-  const props = buildScenarioProps(scenario);
+  const scenarioProps = buildScenarioProps(scenario);
+  const props = readsPending
+    ? {
+        ...scenarioProps,
+        registers: projectLoopRunRegisters({
+          briefing: null,
+          nodes: [],
+          rollups: [],
+          timeline: [],
+          graph: null,
+        }),
+        briefingRead: { isLoading: true },
+        rosterRead: { isLoading: true, isError: false },
+        storyPaging: {
+          hasOlder: false,
+          isLoading: true,
+          isLoadingOlder: false,
+          onLoadOlder: () => {},
+        },
+      }
+    : scenarioProps;
   const topbarIdentity: Pick<TopbarSlotValue, "crumb" | "crumbs" | "onBack"> = {
     onBack: () => {},
     crumbs: [
@@ -150,6 +175,24 @@ type Story = StoryObj<typeof meta>;
 export const Running: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={runningScenario()} />,
+};
+
+/** The run record has not answered: the page's own frame over placeholders. */
+export const Loading: Story = {
+  args: {},
+  render: () => (
+    <div className="flex h-dvh flex-col bg-canvas">
+      <StoryTopbarHost title="Loops">
+        <LoopRunPageSkeleton />
+      </StoryTopbarHost>
+    </div>
+  ),
+};
+
+/** The run has loaded; the briefing, progress and activity hold their place until their reads do. */
+export const ReadsPending: Story = {
+  args: {},
+  render: () => <LoopRunPageStory readsPending scenario={runningScenario()} />,
 };
 
 export const NeedsApproval: Story = {

@@ -19,6 +19,9 @@ import type { PaletteItem } from "../../lib/loop-palette";
 import type { LoopEditorPaletteMode } from "../../lib/loop-editor-types";
 import { LoopEditorPaletteMenu } from "./loop-editor-palette-menu";
 
+const TOOLBAR_CLASS =
+  "flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5";
+
 interface LoopEditorToolbarProps {
   busy: boolean;
   positionsDirty: boolean;
@@ -77,7 +80,7 @@ export function LoopEditorToolbar({
   const paletteExpanded = paletteMode === "expanded";
 
   return (
-    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5">
+    <div className={TOOLBAR_CLASS}>
       {paletteMode === "menu" ? null : (
         <Button
           aria-label={paletteExpanded ? "Close step list" : "Open step list"}

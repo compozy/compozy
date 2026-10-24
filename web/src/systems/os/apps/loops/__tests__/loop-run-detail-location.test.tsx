@@ -3,7 +3,7 @@
 // run loads through `@user`, and an unbound All projects window reads nothing — and the run label
 // names the same project that loaded it.
 // Owning layer: LoopRunDetailLocation, which binds the window's data scope to the run page.
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopbarSlot } from "@compozy/ui";
 
@@ -22,6 +22,7 @@ const workspace = vi.hoisted(() => ({
 const loopRunPageBodySpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
 const quarantineSheetSpy = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
 const loopRunPageSpy = vi.hoisted(() => vi.fn());
+const runQueryState = vi.hoisted(() => ({ pending: false }));
 const pageRun = vi.hoisted(() => ({
   current: null as {
     historical?: boolean;
@@ -83,7 +84,7 @@ vi.mock("../use-loop-run-page", () => ({
       waitingNodes: [],
       resetRunControlErrors: vi.fn(),
       run: pageRun.current,
-      runQuery: { error: null, isLoading: false },
+      runQuery: { error: null, isLoading: false, isPending: runQueryState.pending },
     };
   },
 }));
@@ -142,6 +143,7 @@ vi.mock("@/systems/loops", async () => ({
   LoopRunControls: () => null,
   LoopRunOverflowMenu: () => null,
   LoopRunPageBody: (props: Record<string, unknown>) => loopRunPageBodySpy(props),
+  LoopRunPageSkeleton: () => <div data-testid="loop-run-page-skeleton" />,
   LoopStatusMark: () => null,
   /** Keeps Goal history idle while these cases exercise route composition. */
   useGoalTurns: () => ({
@@ -174,7 +176,27 @@ describe("LoopRunDetailLocation", () => {
     quarantineSheetSpy.mockClear();
     loopRunPageSpy.mockClear();
     pageRun.current = null;
+    runQueryState.pending = false;
     vi.mocked(useTopbarSlot).mockClear();
+  });
+
+  // Invariant: a run that has no data yet and no failure is waiting, not missing. "No data yet" is
+  // the query's `isPending` (a window outside the live-data budget has not started its read), so
+  // the page's skeleton shows for it; a refresh behind a run already read shows the page.
+  it("Should hold the page's skeleton, not a missing run, while the run has not been read", () => {
+    runQueryState.pending = true;
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(screen.getByTestId("loop-run-page-skeleton")).toBeInTheDocument();
+    expect(loopRunPageBodySpy).not.toHaveBeenCalled();
+  });
+
+  it("Should show the page, not the skeleton, once the run has been read", () => {
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(screen.queryByTestId("loop-run-page-skeleton")).not.toBeInTheDocument();
+    expect(loopRunPageBodySpy).toHaveBeenCalled();
   });
 
   it("Should show the registered runtime workspace name when the selected project differs", () => {

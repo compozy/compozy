@@ -1,6 +1,7 @@
 import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "lucide-react";
 
 import type { LoopDiffChange } from "../../lib/loop-request-vocabulary";
+import { DIFF_ROW_CLASS } from "./loop-run-diff-parts";
 import type { LoopDiffRowView, LoopDiffValueView } from "../../lib/loop-run-diff-model";
 
 export interface LoopRunDiffRowProps {
@@ -78,7 +79,7 @@ export function LoopRunDiffRow({ row }: LoopRunDiffRowProps) {
     .join(" · ");
   return (
     <li
-      className="flex items-start gap-2.5 border-t border-line-soft px-3 py-2.5 first:border-t-0 hover:bg-surface-2"
+      className={`${DIFF_ROW_CLASS} hover:bg-surface-2`}
       data-change={row.change}
       data-testid={`loop-diff-row-${row.nodeId}`}
     >

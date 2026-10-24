@@ -23,6 +23,11 @@ export function useLoopRunFormPage(name: string) {
     activeRun: liveRunsQuery.data?.runs[0] ?? null,
     configQuery,
     loopQuery,
+    /**
+     * The live-run read has not answered. It decides whether a notice leads the form, so the
+     * form waits for it rather than shifting down when the notice arrives.
+     */
+    liveRunPending: liveRunsQuery.isPending,
     openLoop: () => void navigate({ to: "/loops/$name", params: { name }, search }),
     openLoops: () => void navigate({ to: "/loops" }),
     openRun: (runId: string) =>

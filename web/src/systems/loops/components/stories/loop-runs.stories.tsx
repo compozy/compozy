@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { StorySurface } from "@/storybook/story-layout";
 
-import { LoopRunsView } from "../runs/loop-runs-view";
+import { LoopRunsSkeleton, LoopRunsView } from "../runs/loop-runs-view";
 import type { LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
 import { loopRunFixtures } from "../../mocks/fixtures";
@@ -86,4 +86,22 @@ export const DozensActive: Story = {
 /** VC-36 · a dropped stream is not an empty workspace and never borrows its words. */
 export const TransportDegraded: Story = {
   render: () => <RunsHarness isReconnecting />,
+};
+
+/** The first read has not answered: the roster's table frame with its real column header. */
+export const RosterLoading: Story = {
+  render: () => (
+    <div className="min-h-dvh bg-canvas p-6">
+      <LoopRunsSkeleton withProject={false} />
+    </div>
+  ),
+};
+
+/** Under All projects the roster also has its Project column. */
+export const RosterLoadingAllProjects: Story = {
+  render: () => (
+    <div className="min-h-dvh bg-canvas p-6">
+      <LoopRunsSkeleton withProject />
+    </div>
+  ),
 };

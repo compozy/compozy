@@ -22,6 +22,12 @@ import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
 import { loopRequestLocationPath } from "@/systems/loops";
 
 const runningLoopRunRoute = "/loop-runs/looprun_running";
+
+/** A read that never answers, so a story can hold a surface in its loading state. */
+async function neverAnswers(): Promise<never> {
+  await delay("infinite");
+  throw new Error("unreachable");
+}
 const loopRunDiffRoute = `/loop-runs/${GRAPH_ENG_RUN_ID}/diff?generation=3&against_generation=2`;
 const attentionRequestTargetRoute = loopRequestLocationPath({
   workspaceId: primaryWorkspaceFixture.id,
@@ -220,6 +226,71 @@ export const LoadingRuns: Story = {
           });
         }),
       ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The run record is still being read: the run page's own skeleton. */
+export const LoadingRunDetail: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(runningLoopRunRoute),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", neverAnswers),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
+ * The run has loaded; the briefing, roster and timeline reads have not. The briefing, progress
+ * and activity sections hold their place as skeletons instead of arriving and pushing the page.
+ */
+export const LoadingRunReads: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(runningLoopRunRoute),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+          neverAnswers
+        ),
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes", neverAnswers),
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
+          neverAnswers
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The compare page waits for the run it compares. */
+export const LoadingDiff: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(loopRunDiffRoute),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loop-runs/{run_id}", neverAnswers),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The step inventory's first read is still pending. */
+export const LoadingSteps: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/loop-runs?nodes=waiting"),
+    ...storybookMswParameters({
+      loops: [compozyApiMock.get("/api/workspaces/{workspace_id}/loop-nodes", neverAnswers)],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

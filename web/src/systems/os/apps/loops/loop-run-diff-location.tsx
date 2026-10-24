@@ -1,15 +1,17 @@
 import { AlertCircle, GitCompare } from "lucide-react";
 
-import { Empty, ListingPage, Spinner, useTopbarSlot } from "@compozy/ui";
+import { Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
 
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDiffPage } from "./use-loop-run-diff-page";
 
 import {
+  LoopRunDiffPageSkeleton,
   LoopRunDiffPickers,
   LoopRunDiffView,
   type LoopRunDiffRouteSearch,
   LoopStatusMark,
+  loopRunDiffQuery,
 } from "@/systems/loops";
 import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
 import { LoopUnboundState } from "./loop-unbound-state";
@@ -61,12 +63,9 @@ function LoopRunDiffPage({ runId, search, workspaceId }: LoopRunDiffPageProps) {
 
   if (page.isRunLoading) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid="loop-run-diff-loading"
-      >
-        <Spinner aria-hidden="true" className="size-5 text-subtle" />
-      </div>
+      <ListingPage>
+        <LoopRunDiffPageSkeleton hasComparison={loopRunDiffQuery(search) !== null} />
+      </ListingPage>
     );
   }
 

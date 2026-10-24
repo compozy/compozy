@@ -2,7 +2,7 @@ import { AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
-import { Empty, PAGE_CONTENT_GUTTER, Skeleton, SkeletonRows, cn, useTopbarSlot } from "@compozy/ui";
+import { Empty, useTopbarSlot } from "@compozy/ui";
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunDetail } from "./use-loop-run-detail";
 import { useLoopRunTopbar } from "./hooks/use-loop-run-topbar";
@@ -18,6 +18,7 @@ import {
   LoopQuarantineSheet,
   LoopRunControlDialog,
   LoopRunPageBody,
+  LoopRunPageSkeleton,
 } from "@/systems/loops";
 import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
@@ -105,18 +106,9 @@ function LoopRunDetail({
   const { page, nodeControls, requests, timetravel, dialogs, events, goalTurns } = detail;
   useLoopRunTopbar(detail, { runId, openLoops, openRuns, navigate, bindingSearch });
 
-  if (page.runQuery.isLoading) {
-    return (
-      <div
-        aria-busy="true"
-        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
-        data-testid="loop-run-detail-loading"
-      >
-        <Skeleton className="h-7 w-48" />
-        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
-      </div>
-    );
-  }
+  // "No run yet", not "fetching": a window outside the live-data budget has not started its
+  // reads and must not read as a missing run.
+  if (page.runQuery.isPending) return <LoopRunPageSkeleton />;
 
   if (page.runQuery.error || !page.effectiveRun || !page.materializedContract) {
     return (
@@ -155,6 +147,7 @@ function LoopRunDetail({
         prunedSessionIds={page.prunedSessionIds}
         storyPaging={page.storyPaging}
         rosterRead={page.rosterRead}
+        briefingRead={page.briefingRead}
         events={events}
         goalTurns={goalTurns}
         isReconnecting={page.isReconnecting}
