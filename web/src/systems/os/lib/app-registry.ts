@@ -11,6 +11,8 @@ import {
   type OsAppDescriptor,
 } from "./app-catalog";
 import type { OsAppId, OsWindowRoute } from "./os-types";
+import { SessionWindowFallback } from "../apps/session/session-window-fallback";
+import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
@@ -105,6 +107,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   session: {
     ...OS_APP_DESCRIPTORS.session,
     Controller: SessionWindow,
+    LoadingFallback: SessionWindowFallback,
   },
   terminal: {
     ...OS_APP_DESCRIPTORS.terminal,
@@ -151,6 +154,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.settings,
     preload: preloadSettings,
     Controller: SettingsWindow,
+    LoadingFallback: SettingsWindowFallback,
   },
 };
 

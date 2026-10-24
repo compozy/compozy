@@ -1,6 +1,9 @@
+import { render, screen } from "@testing-library/react";
+import { createElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import { OS_APPS, matchSessionInstance, resolveAppForPath } from "../app-registry";
+import type { OsAppId } from "../os-types";
 import { defaultOsWindowRoute } from "../window-manager-view";
 import { pickLastCreatedSession } from "../last-created-session";
 import type { SessionPayload } from "@/systems/session";
@@ -74,4 +77,52 @@ describe("app registry", () => {
     expect(resolveAppForPath("/")?.app.id).toBe("dashboard");
     expect(resolveAppForPath("/tasks")?.app.id).toBe("tasks");
   });
+});
+
+// Invariant: an app's loading fallback is a static frame for the route it is about to render. It
+// mounts with no providers (no query, router, store or window context), announces itself once as
+// a single loading region, and leaves nothing in it that can take focus or be activated.
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+interface FallbackCase {
+  app: OsAppId;
+  label: string;
+  pathname: string;
+  search?: Record<string, unknown>;
+}
+
+const FALLBACK_CASES: readonly FallbackCase[] = [
+  { app: "session", label: "a session", pathname: "/agents/webgen/sessions/s1" },
+  { app: "session", label: "no session selected", pathname: "/sessions" },
+  { app: "settings", label: "General", pathname: "/settings/general" },
+  { app: "settings", label: "a lazy section", pathname: "/settings/providers" },
+  { app: "settings", label: "a retired section", pathname: "/settings/defaults" },
+];
+
+describe("app loading fallbacks", () => {
+  it("Should give every app in the content-shaped rollout a fallback", () => {
+    for (const app of ["session", "settings"] as const) {
+      expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
+    }
+  });
+
+  it.each(FALLBACK_CASES)(
+    "Should render $app on $label ($pathname) as one loading region with nothing focusable",
+    ({ app, pathname, search = {} }) => {
+      const Fallback = OS_APPS[app].LoadingFallback;
+      if (!Fallback) throw new Error(`${app} has no loading fallback`);
+
+      const { container } = render(createElement(Fallback, { route: { pathname, search } }));
+
+      const regions = screen.getAllByRole("status");
+      expect(regions).toHaveLength(1);
+      expect(regions[0]).toHaveAttribute("aria-busy", "true");
+      expect(regions[0]).toHaveTextContent(/^Loading/);
+      const focusable = [...container.querySelectorAll(FOCUSABLE)].filter(
+        element => !element.closest("[inert]")
+      );
+      expect(focusable).toEqual([]);
+    }
+  );
 });

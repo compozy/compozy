@@ -15,11 +15,7 @@ import { useDesktop } from "../../hooks/use-desktop";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
-import {
-  retiredSettingsSectionReplacement,
-  SETTINGS_SECTIONS,
-  SettingsPageState,
-} from "@/systems/settings";
+import { SettingsPageState, settingsSectionSlugFromPathname } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
@@ -125,14 +121,6 @@ const SECTION_PAGES = Object.fromEntries(
   })
 ) as Record<MappedSectionSlug, LazyExoticComponent<SectionComponent>>;
 
-function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
-  const raw = pathname.split("/")[2] ?? "";
-  const segment = retiredSettingsSectionReplacement(raw) ?? raw;
-  return segment in SECTION_PAGES
-    ? (segment as MappedSectionSlug)
-    : (SETTINGS_SECTIONS[0].slug as MappedSectionSlug);
-}
-
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
@@ -205,7 +193,7 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
   const { coordinator } = useOsShell();
-  const activeSlug = sectionSlugFromPathname(route.pathname);
+  const activeSlug = settingsSectionSlugFromPathname(route.pathname);
   useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
