@@ -580,6 +580,8 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 	}
 	waitForStoppedSession(t, h.manager, session)
 
+	// A recorded agent failure must remain distinct from an interrupted daemon.
+	meta.Failure = &store.SessionFailure{Kind: store.FailureProcess, Summary: resumeStopDetailAgentCrashed}
 	meta.State = string(StateActive)
 	meta.StopReason = nil
 	meta.StopDetail = ""

@@ -21,7 +21,6 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/admission"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	shellquote "github.com/kballard/go-shellquote"
 
@@ -1587,9 +1586,9 @@ func TestDrainAllowsActiveAutomationPromptToFinishBeforeJoinedShutdown(t *testin
 	promptFinished := make(chan struct{})
 	var d *Daemon
 	sessions := &fakeSessionManager{}
-	sessions.promptHook = func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
-		if d.IsDraining() {
-			return nil, admission.ErrDraining
+	sessions.promptHook = func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
+		if err := d.admission.Check(ctx); err != nil {
+			return nil, err
 		}
 		close(promptStarted)
 		events := make(chan acp.AgentEvent, 1)
@@ -1901,6 +1900,18 @@ func TestRunGracefulShutdownViaSignal(t *testing.T) {
 	}
 }
 
+// Request a real restart transition while keeping process launch and signals inside the test.
+func requestDaemonIntegrationRestart(t *testing.T, d *Daemon) {
+	t.Helper()
+	d.startDetached = func(context.Context, detachedStartRequest) (restartProcess, error) {
+		return restartProcessStub{pid: os.Getpid()}, nil
+	}
+	d.signalProcess = func(int, syscall.Signal) error { return nil }
+	if _, err := d.RequestRestart(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -1946,6 +1957,7 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 
+	requestDaemonIntegrationRestart(t, d)
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}

@@ -467,6 +467,15 @@ func newSubagentDaemonWithSetup(
 						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "child answer"}},
 					},
 					{
+						Name: "restart-continuation",
+						Match: acpmock.TurnMatch{
+							UserTextContains: "The daemon restarted while your previous turn was running.",
+						},
+						Steps: []acpmock.Step{
+							{Kind: acpmock.StepKindAssistant, Text: "Continue the interrupted delegated task."},
+						},
+					},
+					{
 						Name:  "wake",
 						Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
 						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "wake received"}},
@@ -1501,6 +1510,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 		// the real processes and closes every database before the new daemon boots.
 		manager.SetSubagentService(nil)
 		home, cfg := d.homePaths, d.config
+		requestDaemonIntegrationRestart(t, d)
 		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatal(err)
 		}
@@ -1564,7 +1574,11 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 		{"Should preserve an unobserved completed answer across clean shutdown", true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d, manager, workspace := newSubagentDaemonIntegration(t)
+			// This suite owns retained wakes awaiting an explicit parent resume.
+			d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+				cfg.Session.Restart.AutoContinue = false
+			}, "")
+
 			parent, caller := startSubagentIntegrationParent(t, manager, workspace)
 			if tc.missed {
 				manager.SetSubagentService(nil)
@@ -1609,6 +1623,7 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 				})
 			}
 			home, cfg := d.homePaths, d.config
+			requestDaemonIntegrationRestart(t, d)
 			if err := d.Shutdown(testutil.Context(t)); err != nil {
 				t.Fatal(err)
 			}
@@ -1621,6 +1636,7 @@ func TestSubagentSettledRestartDaemonIntegration(t *testing.T) {
 				*settled.Result != "child answer" {
 				t.Fatalf("settled = %+v", settled)
 			}
+			requestDaemonIntegrationRestart(t, restarted)
 			if err := restarted.Shutdown(testutil.Context(t)); err != nil {
 				t.Fatal(err)
 			}
@@ -1991,7 +2007,21 @@ func TestSubagentCleanRestartDaemonIntegration(t *testing.T) {
 			10*time.Second,
 			func() bool { return child.IsPrompting() && child.CurrentTurnID() != "" },
 		)
+		// Yield the parent for synthetic admission without canceling its delegated child.
+		if _, err := m.CancelPromptWithCause(
+			t.Context(), parent.ID, session.PromptCancelSyntheticAdmission,
+		); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(
+			t,
+			"parent idle before restart",
+			10*time.Second,
+			func() bool { return !parent.IsPrompting() },
+		)
+
 		home, cfg := d.homePaths, d.config
+		requestDaemonIntegrationRestart(t, d)
 		if err := d.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatal(err)
 		}
