@@ -69,7 +69,9 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
     ]);
     await expect(bubble.getByRole("link", { name: url })).toHaveAttribute("target", "_blank");
     // Markdown's whitespace between blocks never renders as blank lines inside the bubble.
-    await expect.poll(() => bubble.evaluate(element => element.innerText)).not.toMatch(/\n{3,}/);
+    await expect
+      .poll(() => bubble.evaluate(element => (element as HTMLElement).innerText))
+      .not.toMatch(/\n{3,}/);
     await expect
       .poll(() =>
         bubble
