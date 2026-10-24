@@ -53,6 +53,7 @@ import { useWorkspacesStripScroll } from "../use-workspaces-strip-scroll";
 import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
+import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
 
 const TEST_KEYMAP = {
   "palette.open": ["meta+KeyK", "meta+shift+KeyP"],
@@ -317,6 +318,65 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.compozyShell;
+});
+
+// Invariant: either motion preference controls document animations and live changes stay in sync.
+// Owning layer: shell-to-browser preference binding; canonical suite: OS interaction hooks.
+describe("document reduced motion", () => {
+  it.each([
+    [false, false, false],
+    [true, false, true],
+    [false, true, true],
+    [true, true, true],
+  ])("Should publish app=%s or system=%s as reduced=%s", (app, system, reduced) => {
+    const shell = createShell();
+    shell.setRuntimeState({ reduceMotion: app });
+    const media = new EventTarget();
+    vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: system,
+      addEventListener: media.addEventListener.bind(media),
+      removeEventListener: media.removeEventListener.bind(media),
+    } as MediaQueryList);
+
+    const { result, unmount } = renderHook(useOsDocumentReducedMotion, { wrapper: shell.wrapper });
+    expect(result.current).toBe(reduced);
+    expect(document.documentElement).toHaveAttribute("data-reduce-motion", String(reduced));
+    unmount();
+    expect(document.documentElement).not.toHaveAttribute("data-reduce-motion");
+  });
+
+  it("Should follow both preferences live and restore the host attribute on unmount", () => {
+    const shell = createShell();
+    const media = new EventTarget();
+    let system = false;
+    vi.spyOn(window, "matchMedia").mockReturnValue({
+      get matches() {
+        return system;
+      },
+      addEventListener: media.addEventListener.bind(media),
+      removeEventListener: media.removeEventListener.bind(media),
+    } as MediaQueryList);
+    document.documentElement.setAttribute("data-reduce-motion", "false");
+    const { unmount } = renderHook(useOsDocumentReducedMotion, { wrapper: shell.wrapper });
+
+    act(() => shell.setRuntimeState({ reduceMotion: true }));
+    expect(document.documentElement).toHaveAttribute("data-reduce-motion", "true");
+    act(() => {
+      system = true;
+      media.dispatchEvent(new Event("change"));
+      shell.setRuntimeState({ reduceMotion: false });
+    });
+    expect(document.documentElement).toHaveAttribute("data-reduce-motion", "true");
+    act(() => {
+      system = false;
+      media.dispatchEvent(new Event("change"));
+    });
+    expect(document.documentElement).toHaveAttribute("data-reduce-motion", "false");
+    act(() => shell.setRuntimeState({ reduceMotion: true }));
+    unmount();
+    expect(document.documentElement).toHaveAttribute("data-reduce-motion", "false");
+    document.documentElement.removeAttribute("data-reduce-motion");
+  });
 });
 
 describe("useCmdPaletteContext store subscriptions", () => {
