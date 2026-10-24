@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { useTopbarSlot } from "@compozy/ui";
 
@@ -10,6 +10,8 @@ import type { OsAppId } from "../os-types";
 import { defaultOsWindowRoute } from "../window-manager-view";
 import { pickLastCreatedSession } from "../last-created-session";
 import type { SessionPayload } from "@/systems/session";
+import { sessionSidebarStore } from "@/systems/session/hooks/use-session-sidebar-state";
+import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
 function catalogSession(id: string, createdAt: string, archivedAt: string | null = null) {
   return { id, created_at: createdAt, archived_at: archivedAt } as SessionPayload;
@@ -302,6 +304,41 @@ describe("app loading fallbacks", () => {
       expect([...(row?.querySelectorAll(FOCUSABLE) ?? [])]).toEqual([]);
     }
   );
+
+  describe("the session rail", () => {
+    afterEach(() => {
+      act(() => {
+        sessionSidebarStore.trigger.widthReset({ scopeId: SHELL_WORKTREE_SCOPE });
+        sessionSidebarStore.trigger.sidebarVisibilityChanged({
+          scopeId: SHELL_WORKTREE_SCOPE,
+          open: true,
+        });
+      });
+    });
+
+    it("Should hold the rail at the width the window saved, in pixels, and collapse it with the rail", () => {
+      const Fallback = OS_APPS.session.LoadingFallback;
+      if (!Fallback) throw new Error("session has no loading fallback");
+      act(() => {
+        sessionSidebarStore.trigger.widthChanged({ scopeId: SHELL_WORKTREE_SCOPE, width: 320 });
+      });
+
+      const { container } = render(
+        createElement(Fallback, { route: { pathname: "/sessions", search: {} }, aggregate: false })
+      );
+      const rail = container.querySelector('[data-slot="session-sidebar-static-layout"]')
+        ?.firstElementChild as HTMLElement;
+
+      expect(rail.style.width).toBe("320px");
+      act(() => {
+        sessionSidebarStore.trigger.sidebarVisibilityChanged({
+          scopeId: SHELL_WORKTREE_SCOPE,
+          open: false,
+        });
+      });
+      expect(rail.style.width).toBe("0px");
+    });
+  });
 
   it("Should hand the strip row to the app's own strip, and clear it when the app publishes none", () => {
     const Fallback = OS_APPS.vault.LoadingFallback;
