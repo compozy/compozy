@@ -2,7 +2,15 @@ import { AlertCircle, Clock3, RefreshCcw } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { CatalogEmptyPanel } from "@/components/catalog-empty-state";
-import { Button, CatalogEmptyDisclosureRow, Pill, Skeleton, Spinner } from "@compozy/ui";
+import {
+  Button,
+  CatalogEmptyDisclosureRow,
+  Pill,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
+  Spinner,
+} from "@compozy/ui";
 
 import { describeFireLimit, formatPromptPreview } from "../lib/automation-formatters";
 import { describeSchedule } from "../lib/automation-sentence";
@@ -50,31 +58,48 @@ function SuggestionsShell({
   );
 }
 
+const SUGGESTION_SKELETON_IDS = ["suggestion-skeleton-1", "suggestion-skeleton-2"] as const;
+
+/**
+ * Two collapsed suggestion rows in the real disclosure grid: the 12px chevron column, the 28px
+ * icon well, the title and description lines, and the two action buttons.
+ */
 function AutomationSuggestionsLoading({ className }: { className?: string }) {
   return (
     <SuggestionsShell className={className}>
-      <div
-        aria-busy="true"
-        aria-label="Loading suggested automations"
+      <SkeletonRegion
         data-testid="automation-suggestions-loading"
+        label="Loading suggested automations"
       >
-        {["first", "second"].map(row => (
-          <div
-            className="flex items-center justify-between gap-4 border-t border-line-soft px-4 py-3 first:border-t-0"
-            key={row}
-          >
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="h-3 w-64 max-w-full" />
-              <Skeleton className="h-3 w-full max-w-xl" />
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <Skeleton className="h-button-default w-28" />
-              <Skeleton className="h-button-default w-20" />
-            </div>
-          </div>
-        ))}
-      </div>
+        <ul>
+          {SUGGESTION_SKELETON_IDS.map(id => (
+            <li
+              aria-hidden="true"
+              className="@container/catalog-row animate-skeleton-reveal border-t border-line-soft first:border-t-0"
+              key={id}
+            >
+              <div className="grid grid-cols-1 items-center gap-3.5 px-4 @lg/catalog-row:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="grid grid-cols-[12px_28px_minmax(0,1fr)] items-start gap-2.5 py-3">
+                  <span />
+                  <Skeleton className="mt-px size-7" />
+                  <span className="min-w-0">
+                    <b className="block text-card-title font-medium tracking-row-title">
+                      <SkeletonText className="w-40" />
+                    </b>
+                    <span className="mt-0.5 block text-small-body">
+                      <SkeletonText className="w-64" />
+                    </span>
+                  </span>
+                </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5 pb-3 pl-16 @lg/catalog-row:pb-0 @lg/catalog-row:pl-0">
+                  <Skeleton className="h-button-sm w-32" />
+                  <Skeleton className="h-button-sm w-16" />
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </SkeletonRegion>
     </SuggestionsShell>
   );
 }

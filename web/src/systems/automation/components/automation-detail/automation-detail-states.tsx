@@ -1,38 +1,52 @@
-import { AlertCircle, FolderLock, Search } from "lucide-react";
+import { AlertCircle, FolderLock, Search, Workflow } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { Button, Empty, PAGE_CONTENT_GUTTER, Skeleton, cn } from "@compozy/ui";
+import { Button, Empty, PAGE_CONTENT_GUTTER, SkeletonRegion, cn } from "@compozy/ui";
+
+import { AutomationDetailHeadSkeleton } from "./automation-detail-head";
+import { AutomationDetailSectionSkeleton } from "./automation-detail-section";
+import { AutomationRailSkeleton } from "./automation-rail";
+import { AutomationRuleCardSkeleton } from "./automation-rule-card";
+import { AutomationRunListSkeleton } from "./automation-run-list";
+
+interface AutomationDetailSkeletonProps extends Omit<ComponentProps<"section">, "children"> {
+  /** Which entity the route names, so the rule card and rail hold the bands that kind has. */
+  kind?: "job" | "trigger";
+}
 
 /**
- * Loading keeps the shape of the answer, not a spinner: one sentence-width bar
- * where the sentence will be, one subhead bar, then the card geometry. Never a
- * guessed sentence.
+ * Loading keeps the shape of the answer, not a spinner: the real page grid with the head's
+ * sentence lines, "How it works", the runs and the rail held by placeholders. Never a guessed
+ * sentence.
  */
-export function AutomationDetailSkeleton({ className, ...props }: ComponentProps<"div">) {
+export function AutomationDetailSkeleton({
+  kind = "job",
+  className,
+  ...props
+}: AutomationDetailSkeletonProps) {
   return (
-    <div
-      aria-busy="true"
+    <section
       className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       data-testid="automation-detail-loading"
-      role="status"
       {...props}
     >
-      {/* Same container query as the loaded page, so the columns don't jump on load. */}
-      <div className="@container min-h-0 flex-1">
-        <div className="flex flex-col gap-3 border-b border-line pt-5 pb-4.5">
-          <Skeleton className="h-5.5 w-[min(32.5rem,90%)]" />
-          <Skeleton className="h-3 w-70" />
+      {/* Same scroller and container query as the loaded page, so the columns don't jump. */}
+      <SkeletonRegion
+        className="@container min-h-0 flex-1 overflow-y-auto pt-5 pb-16"
+        label="Loading automation details"
+      >
+        <AutomationDetailHeadSkeleton sentenceLines={kind === "job" ? 1 : 2} />
+        <div className="grid items-start gap-8 @3xl:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
+          <main className="flex min-w-0 flex-col gap-6">
+            <AutomationDetailSectionSkeleton icon={Workflow} label="How it works">
+              <AutomationRuleCardSkeleton kind={kind} />
+            </AutomationDetailSectionSkeleton>
+            <AutomationRunListSkeleton />
+          </main>
+          <AutomationRailSkeleton kind={kind} />
         </div>
-        <div className="grid items-start gap-8 pt-5.5 @3xl:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-          <div className="flex flex-col gap-6">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </div>
-      <span className="sr-only">Loading automation details</span>
-    </div>
+      </SkeletonRegion>
+    </section>
   );
 }
 
