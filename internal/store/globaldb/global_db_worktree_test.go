@@ -898,6 +898,8 @@ func TestGlobalDBWorktreeNameReservationMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("upgrade GlobalDB through v63 error = %v", err)
 		}
+		// Upgrade owns its migration budget; verification starts a fresh phase.
+		ctx = testutil.Context(t)
 		upgradedClosed := false
 		t.Cleanup(func() {
 			if upgradedClosed {
