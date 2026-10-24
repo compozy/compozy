@@ -183,7 +183,9 @@ beforeEach(() => {
 
 describe("OsWindow geometry render isolation", () => {
   it("Should retain an unchanged sibling while updating the moved frame", () => {
-    const primary = frameModel();
+    // JSDOM has no layout: start at its zero origin so react-rnd does not
+    // infer a parent offset from a nonzero initial position.
+    const primary = frameModel({ rect: { x: 0, y: 0, w: 720, h: 480 } });
     const sibling = frameModel({
       id: "window:other",
       members: ["window:other"],
@@ -208,7 +210,7 @@ describe("OsWindow geometry render isolation", () => {
     );
     expect(controllerRenders).not.toContain(sibling.id);
     expect(screen.getByTestId(`os-window-frame-${primary.id}`).parentElement).toHaveStyle({
-      transform: "translate(200px,50px)",
+      transform: "translate(200px,0px)",
     });
   });
 });
