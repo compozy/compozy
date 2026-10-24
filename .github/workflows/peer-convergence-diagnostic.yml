@@ -1,0 +1,33 @@
+name: Peer convergence diagnostic
+on:
+  push:
+    branches: [fix/issue-941-e2e023-peer-convergence]
+permissions:
+  contents: read
+jobs:
+  attribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CGO_ENABLED: 0
+      CI: "true"
+      COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
+      COMPOZY_PEER_PROFILE: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+      - run: |
+          bunx turbo run build --filter=./web
+          go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
+      - name: Attribute remaining long frames
+        working-directory: web
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 20
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: peer-frame-attribution
+          path: .tmp/playwright
+          retention-days: 7
