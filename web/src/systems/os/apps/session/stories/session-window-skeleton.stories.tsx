@@ -20,7 +20,7 @@ function seedRail(open: boolean) {
 }
 
 const meta = {
-  title: "systems/os/apps/session/SessionWindowSkeleton",
+  title: "systems/os/components/SessionWindowSkeleton",
   component: SessionWindowSkeleton,
   parameters: {
     layout: "fullscreen",
