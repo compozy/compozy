@@ -8,6 +8,7 @@ import {
   goalTurnsOptions,
   loopConfigOptions,
   loopDetailOptions,
+  loopNodeInventoryOptions,
   loopRequestDetailOptions,
   loopRequestAttentionOptions,
   loopRequestsOptions,
@@ -120,6 +121,67 @@ describe("loop query-options", () => {
       client.clear();
       fetch.mockRestore();
     }
+  });
+
+  // Invariant: a list read keeps its previous rows through a filter change inside one scope, so the
+  // toolbar never blanks the list for the length of a fetch, and never across scopes, where the
+  // previous rows would be another workspace's or profile's.
+  it("Should bridge a filter change inside one scope for the list reads and never across scopes", () => {
+    type Bridge = (
+      previous: unknown,
+      query: { queryKey: readonly unknown[] } | undefined
+    ) => unknown;
+    const rows = { rows: ["previous"] };
+    const bridgeOf = (options: { placeholderData?: unknown }) => {
+      expect(typeof options.placeholderData).toBe("function");
+      return options.placeholderData as Bridge;
+    };
+
+    const catalog = bridgeOf(loopsCatalogOptions("ws_a", { limit: 50, q: "b" }));
+    expect(
+      catalog(rows, { queryKey: loopsCatalogOptions("ws_a", { limit: 50, q: "a" }).queryKey })
+    ).toBe(rows);
+    expect(
+      catalog(rows, { queryKey: loopsCatalogOptions("ws_b", { limit: 50, q: "a" }).queryKey })
+    ).toBeUndefined();
+
+    const batch = bridgeOf(loopsAggregateOptions({ all_workspaces: true }, { limit: 50, q: "b" }));
+    expect(
+      batch(rows, {
+        queryKey: loopsAggregateOptions({ all_workspaces: true }, { limit: 50, q: "a" }).queryKey,
+      })
+    ).toBe(rows);
+    expect(
+      batch(rows, { queryKey: loopsCatalogOptions("ws_a", { limit: 50, q: "a" }).queryKey })
+    ).toBeUndefined();
+
+    const roster = bridgeOf(
+      loopRunsListOptions({ kind: "workspace", workspaceId: "ws_a" }, { origin: "session" })
+    );
+    expect(
+      roster(rows, {
+        queryKey: loopRunsListOptions({ kind: "workspace", workspaceId: "ws_a" }, {}).queryKey,
+      })
+    ).toBe(rows);
+    expect(
+      roster(rows, {
+        queryKey: loopRunsListOptions({ kind: "workspace", workspaceId: "ws_b" }, {}).queryKey,
+      })
+    ).toBeUndefined();
+
+    const inventory = bridgeOf(
+      loopNodeInventoryOptions("ws_a", { loop: "delivery", state: "waiting" })
+    );
+    expect(
+      inventory(rows, {
+        queryKey: loopNodeInventoryOptions("ws_a", { state: "waiting" }).queryKey,
+      })
+    ).toBe(rows);
+    expect(
+      inventory(rows, {
+        queryKey: loopNodeInventoryOptions("ws_a", { state: "attention" }).queryKey,
+      })
+    ).toBeUndefined();
   });
 
   it("Should key each option by its workspace-scoped query key", () => {

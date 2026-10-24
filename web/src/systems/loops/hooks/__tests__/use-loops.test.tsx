@@ -129,6 +129,74 @@ describe("loop read hooks", () => {
       wrapper: createWrapper(),
     });
     expect(result.current.isLoading).toBe(false);
+    // Waiting is still waiting: nothing has been read, so the view shows its skeleton, not "empty".
+    expect(result.current.isPending).toBe(true);
+  });
+
+  describe("node inventory filter changes", () => {
+    const inventoryPage = (nodes: string[], nextCursor: string) =>
+      HttpResponse.json({
+        items: nodes.map(node_id => ({ node_id, run_id: "run_1", state: "waiting" })),
+        next_cursor: nextCursor,
+      });
+
+    function stubInventory(release: Promise<void>) {
+      vi.stubGlobal(
+        "fetch",
+        createMswFetch(() => [
+          http.get("*/api/workspaces/:workspace/loop-nodes", async ({ request }) => {
+            const params = new URL(request.url).searchParams;
+            if (params.get("loop") === "delivery" || params.get("state") === "attention") {
+              await release;
+              return inventoryPage(["narrowed"], "");
+            }
+            return inventoryPage(["all-a", "all-b"], "cursor-2");
+          }),
+          ...handlers,
+        ])
+      );
+    }
+
+    // Invariant: narrowing a loaded inventory keeps its rows on screen until the narrowed ones
+    // land, and the cursor behind those rows is the old filter's, so paging waits.
+    it("Should keep the previous rows, and hold paging, while a narrower filter loads", async () => {
+      let release!: () => void;
+      stubInventory(new Promise<void>(resolve => (release = resolve)));
+      const { result, rerender } = renderHook(
+        ({ loop }: { loop?: string }) => useLoopNodeInventory(WS, { state: "waiting", loop }),
+        { initialProps: {}, wrapper: createWrapper() }
+      );
+      await waitFor(() => expect(result.current.items).toHaveLength(2));
+      expect(result.current.hasMore).toBe(true);
+
+      rerender({ loop: "delivery" });
+
+      expect(result.current.isPending).toBe(false);
+      expect(result.current.items.map(item => item.node_id)).toEqual(["all-a", "all-b"]);
+      expect(result.current.hasMore).toBe(false);
+
+      release();
+      await waitFor(() =>
+        expect(result.current.items.map(item => item.node_id)).toEqual(["narrowed"])
+      );
+    });
+
+    it("Should not carry one state's rows into another state's list", async () => {
+      let release!: () => void;
+      stubInventory(new Promise<void>(resolve => (release = resolve)));
+      const { result, rerender } = renderHook(
+        ({ state }: { state: "waiting" | "attention" }) => useLoopNodeInventory(WS, { state }),
+        { initialProps: { state: "waiting" as "waiting" | "attention" }, wrapper: createWrapper() }
+      );
+      await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+      rerender({ state: "attention" });
+
+      expect(result.current.isPending).toBe(true);
+      expect(result.current.items).toEqual([]);
+      release();
+      await waitFor(() => expect(result.current.items).toHaveLength(1));
+    });
   });
   it("Should read a completed run only in its selected Profile and isolate cached results on switch", async () => {
     const fixture = loopRunDetailByRunId.get("looprun_running");

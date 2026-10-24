@@ -23,10 +23,12 @@ import {
 } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import {
+  bridgeFilterChange,
   LOOP_AGGREGATE_KEY,
   loopAggregateFilterKey,
   type LoopNodeInventoryStableFilter,
   loopsKeys,
+  loopsPopulation,
 } from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
 import type { LoopBreadthTarget } from "@/systems/workspace";
@@ -54,12 +56,15 @@ const TIMELINE_PAGE_LIMIT = 50;
 
 export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogStableFilter = {}) {
   const normalizedFilters = normalizeLoopCatalogFilter(filters);
+  const queryKey = loopsKeys.catalog(workspaceId, normalizedFilters);
   return infiniteQueryOptions({
-    queryKey: loopsKeys.catalog(workspaceId, normalizedFilters),
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       listLoops(workspaceId, loopCatalogRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    // Searching or filtering narrows the same catalog, so its rows stay up until the next ones land.
+    placeholderData: bridgeFilterChange(loopsPopulation.catalog, queryKey),
     staleTime: DEFAULT_STALE_TIME,
   });
 }
@@ -74,12 +79,15 @@ export function loopsAggregateOptions(
   enabled = true
 ) {
   const normalizedFilters = normalizeLoopCatalogFilter(filters);
+  const queryKey = [
+    ...loopsKeys.catalog(LOOP_AGGREGATE_KEY, normalizedFilters),
+    loopAggregateFilterKey(breadth.workspace_ids),
+  ];
   return queryOptions({
-    queryKey: [
-      ...loopsKeys.catalog(LOOP_AGGREGATE_KEY, normalizedFilters),
-      loopAggregateFilterKey(breadth.workspace_ids),
-    ],
+    queryKey,
     queryFn: ({ signal }) => listLoopsAggregate(breadth, normalizedFilters, signal),
+    // The Project filter and the toolbar narrow the same batch, so its rows stay up meanwhile.
+    placeholderData: bridgeFilterChange(loopsPopulation.catalog, queryKey),
     staleTime: DEFAULT_STALE_TIME,
     enabled,
   });
@@ -96,12 +104,15 @@ export function loopNodeInventoryOptions(
   enabled = true
 ) {
   const normalizedFilters = { ...filters, limit: filters.limit ?? 50 };
+  const queryKey = loopsKeys.nodeInventory(workspaceId, normalizedFilters);
   return infiniteQueryOptions({
-    queryKey: loopsKeys.nodeInventory(workspaceId, normalizedFilters),
+    queryKey,
     queryFn: ({ pageParam, signal }) =>
       listLoopNodes(workspaceId, { ...normalizedFilters, cursor: pageParam }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: page => page.next_cursor || undefined,
+    // The loop and run filters narrow one state's inventory; another state is another list.
+    placeholderData: bridgeFilterChange(loopsPopulation.nodeInventory, queryKey),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(workspaceId) && Boolean(normalizedFilters.state) && enabled,
@@ -187,6 +198,8 @@ export function loopRunsListOptions(
       aggregate
         ? listLoopRunsAggregate(target.params, filters, signal)
         : listLoopRuns(target.workspaceId, filters, signal),
+    // The origin filters and the Project filter narrow one roster, so its rows stay up meanwhile.
+    placeholderData: bridgeFilterChange(loopsPopulation.runs, queryKey),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: (aggregate || Boolean(target.workspaceId)) && enabled,

@@ -23,6 +23,11 @@ export interface LoopNodeInventoryView {
   /** True while the server still holds a continuation cursor. */
   hasMore: boolean;
   isLoading: boolean;
+  /**
+   * No rows yet and no failure — including a read that has not started (a window outside the
+   * live-data budget). The inventory shows its skeleton for this, never "Nothing is waiting".
+   */
+  isPending: boolean;
   isFetchingNextPage: boolean;
   isError: boolean;
   error: Error | null;
@@ -40,16 +45,20 @@ export function useLoopNodeInventory(
     loopNodeInventoryOptions(workspaceId, { ...filters, ...params }, enabled)
   );
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
+  // While a loop or run filter is loading, the rows are the previous ones; their cursor belongs
+  // to the previous filter, so paging waits for the new first page.
+  const paging = !query.isPlaceholderData;
   return {
     items,
     loadedCount: items.length,
-    hasMore: query.hasNextPage,
+    hasMore: paging && query.hasNextPage,
     isLoading: query.isLoading,
+    isPending: query.isPending,
     isFetchingNextPage: query.isFetchingNextPage,
     isError: query.isError,
     error: query.error,
     fetchNextPage: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+      if (paging && query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
     },
     refetch: () => {
       void query.refetch();
