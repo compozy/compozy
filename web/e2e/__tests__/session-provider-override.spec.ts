@@ -463,7 +463,7 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
         return rehydrated.session.runtime.effective;
       })
       .toMatchObject({ provider: "agy", model: agyModel, reasoning_effort: "low" });
-    await expect(sessionWin.getByTestId("session-status-provider")).toHaveText("agy");
+    await expect(runtimeTrigger).toContainText("QA Browser Model Alt");
     await expect(
       sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
     ).toHaveAttribute("data-kind", "agy");
