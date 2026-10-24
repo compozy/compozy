@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@compozy/ui";
 
+import { AgentCommandListSkeleton } from "./agent-command-list-skeleton";
 import { AgentIcon } from "./agent-icon";
 import {
   buildAgentCategoryTree,
@@ -56,6 +57,11 @@ export interface AgentCommandListProps {
   itemTestId?: (agent: AgentPayload) => string;
   /** Items rendered above the catalog groups, inside the same command list. */
   leadingItems?: ReactNode;
+  /**
+   * The catalog has not answered: row-shaped placeholders stand where the groups will be, and
+   * the list never claims that nothing matches. Agents already in hand are listed as usual.
+   */
+  loading?: boolean;
 }
 
 export function AgentCommandList({
@@ -65,13 +71,18 @@ export function AgentCommandList({
   emptyState = "No agents match your search.",
   itemTestId,
   leadingItems,
+  loading = false,
 }: AgentCommandListProps) {
   const groups = collectGroups(buildAgentCategoryTree(agents));
+  const awaitingCatalog = loading && groups.length === 0;
 
   return (
     <CommandList>
-      <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
+      {awaitingCatalog ? null : (
+        <CommandEmpty data-testid="agent-command-empty">{emptyState}</CommandEmpty>
+      )}
       {leadingItems}
+      {awaitingCatalog ? <AgentCommandListSkeleton /> : null}
       {groups.map(group => (
         <CommandSelectGroup
           key={group.key}

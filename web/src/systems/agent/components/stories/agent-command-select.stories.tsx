@@ -104,6 +104,51 @@ export const Empty: Story = {
 };
 
 /**
+ * The catalog has not answered: the trigger holds a text bar (still named "Loading agents") and
+ * stays disabled until the first page lands.
+ */
+export const Loading: Story = {
+  args: {
+    agents: [],
+    value: null,
+    loading: true,
+    onChange: fn(),
+    triggerTestId: "agent-command-select-trigger",
+  },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+};
+
+/**
+ * A configured name is known before its agent is: the trigger shows the name with only the
+ * provider as a placeholder, never "Not available" while the catalog is still being read.
+ */
+export const LoadingConfiguredName: Story = {
+  args: { ...Loading.args, value: storyAgentNames.cto },
+  render: args => (
+    <Frame>
+      <AgentCommandSelect {...args} />
+    </Frame>
+  ),
+};
+
+/** The composer's chromeless pill while its catalog loads, with and without a default agent. */
+export const LoadingComposer: Story = {
+  args: { ...Loading.args, variant: "composer", placeholder: "Choose an agent" },
+  render: args => (
+    <Frame>
+      <div className="flex flex-col items-start gap-3">
+        <AgentCommandSelect {...args} />
+        <AgentCommandSelect {...args} value={storyAgentNames.cto} />
+      </div>
+    </Frame>
+  ),
+};
+
+/**
  * Grouped: opening the popover reveals one CommandGroup per category and a
  * root-level "Agents" group for uncategorized entries.
  */
@@ -168,6 +213,19 @@ export const CommandList: StoryObj<typeof AgentCommandList> = {
       <Command>
         <CommandInput placeholder="Search agents..." data-testid="agent-command-input" />
         <AgentCommandList agents={groupedAgents} isSelected={() => false} onSelect={fn()} />
+      </Command>
+    </Frame>
+  ),
+};
+
+/** The list on its own while the catalog loads: group and row placeholders, no empty claim. */
+export const LoadingList: StoryObj<typeof AgentCommandList> = {
+  args: {},
+  render: () => (
+    <Frame>
+      <Command>
+        <CommandInput placeholder="Search agents..." data-testid="agent-command-input" />
+        <AgentCommandList agents={[]} isSelected={() => false} loading onSelect={fn()} />
       </Command>
     </Frame>
   ),
