@@ -2190,6 +2190,34 @@ test("E2E-011: the compact stack round-trips with floating rects preserved", asy
     .toBe(true);
 });
 
+// The browser owns snapshot animation: exercise the shared vocabulary with the real API,
+// while the Appearance control and OS media preference supply the actual shell signal.
+async function contentTransitionAnimations(page: Page): Promise<string[]> {
+  return page.evaluate(async () => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;inset:0;width:20px;height:20px;background:red";
+    probe.style.viewTransitionName = "motion-preference-probe";
+    probe.style.setProperty("view-transition-class", "vt-fade");
+    document.body.append(probe);
+    try {
+      const transition = document.startViewTransition(() => {
+        probe.style.backgroundColor = "blue";
+      });
+      await transition.ready;
+      const animations = document.getAnimations().flatMap(animation => {
+        const effect = animation.effect;
+        if (!(effect instanceof KeyframeEffect)) return [];
+        const pseudo = effect.pseudoElement;
+        return pseudo?.includes("motion-preference-probe") ? [pseudo] : [];
+      });
+      await transition.finished;
+      return animations;
+    } finally {
+      probe.remove();
+    }
+  });
+}
+
 test("E2E-004 / E2E-013: appearance stays client-local while minimize updates the dock and restore remounts content", async ({
   appPage,
   runtime,
@@ -2206,6 +2234,21 @@ test("E2E-004 / E2E-013: appearance stays client-local while minimize updates th
   const wallpaper = appPage.locator('[data-slot="os-wallpaper"]');
   await expect(wallpaper).toHaveAttribute("data-wallpaper", "carbon");
   const reduceMotion = appPage.getByRole("switch", { name: "Reduce motion" });
+  await appPage.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(reduceMotion).not.toBeChecked();
+  expect((await contentTransitionAnimations(appPage)).length).toBeGreaterThan(0);
+  await reduceMotion.click();
+  await expect(reduceMotion).toBeChecked();
+  await expect(appPage.locator("html")).toHaveAttribute("data-reduce-motion", "true");
+  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  await appPage.emulateMedia({ reducedMotion: "reduce" });
+  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  await reduceMotion.click();
+  await expect(reduceMotion).not.toBeChecked();
+  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  await appPage.emulateMedia({ reducedMotion: "no-preference" });
+  await expect(appPage.locator("html")).toHaveAttribute("data-reduce-motion", "false");
+  expect((await contentTransitionAnimations(appPage)).length).toBeGreaterThan(0);
   await reduceMotion.click();
   await expect(reduceMotion).toBeChecked();
   expect((await windowManagerSnapshot(runtime, workspace.id)).revision).toBe(

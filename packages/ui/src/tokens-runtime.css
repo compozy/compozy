@@ -253,6 +253,23 @@ html:active-view-transition-type(drill-out)::view-transition-new(os-window-body)
   }
 }
 
+/* The host may request reduced motion even when the system preference is off.
+   View-transition snapshots belong to the document, outside app containers. */
+html[data-reduce-motion="true"],
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}
+
+html[data-reduce-motion="true"]::view-transition-group(*),
+html[data-reduce-motion="true"]::view-transition-old(*),
+html[data-reduce-motion="true"]::view-transition-new(*) {
+  animation: none !important;
+}
+
 /* `0.001ms` preserves animation-end callbacks while removing visible motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

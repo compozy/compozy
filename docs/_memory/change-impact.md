@@ -4378,3 +4378,16 @@ Native tools, public contracts, hooks, extensions, config, workspace data, Web, 
 official skill are unaffected. Fixtures use isolated HTTP servers and subprocesses. Focused
 race tests verify these support contracts; the unchanged daemon scenario and complete
 integration shards remain CI-owned under the user's local-validation override.
+
+## In-product reduced motion for content transitions — 2026-10-24
+
+Owner: post-merge review A-972-01 of PR #972. The desktop shell publishes its effective motion
+preference (client-local Appearance setting OR system preference) to the shared document CSS.
+View-transition snapshots and CSS animations honor either preference without changing navigation,
+deferred content identity, window geometry, or palette subscriptions.
+
+- **Web/Docs:** Settings, Session and all shared content transitions use the same suppression;
+  `docs/qa/scenarios/ET-web-ui-resilience.md` tracks the focused real-browser verification.
+- **Native tools, extensibility/hooks/config, workspace isolation, official skill:** no wire,
+  schema, persisted preference, authorization, SDK or `skills/compozy/` change. The DOM attribute
+  is an internal rendering boundary and is restored when the shell unmounts.
