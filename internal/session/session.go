@@ -206,6 +206,7 @@ type Session struct {
 	creationIdentity          *store.SessionCreationIdentity
 	providerRoute             compozyconfig.ResolvedAgent
 	acceptedRoute             *store.SessionAcceptedRoute
+	restartBoundary           *store.SessionRestartCheckpoint
 	// derivation and importedContext exist only on continued or forked children.
 	derivation          *store.SessionDerivation
 	importedContext     *store.SessionImportedContext

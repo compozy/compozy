@@ -143,7 +143,7 @@ func retainsRawPayload(eventType string) bool {
 		events.SessionTurnQuiesced, events.SessionStopEscalated, events.SessionStopVerificationFailed,
 		events.SessionQueueCleared, events.SessionQueueClearFailed,
 		events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted,
-		events.SessionRestartBoundary, events.SessionRestartInterrupted, events.SessionRestartAttempt,
+		events.SessionRestartInterrupted, events.SessionRestartAttempt,
 		events.SessionRestartResumed, events.SessionRestartSkipped:
 		return true
 	default:

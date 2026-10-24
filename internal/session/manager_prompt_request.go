@@ -124,7 +124,7 @@ func (m *Manager) lookupPromptRequestSession(
 	req promptRequest,
 ) (*Session, error) {
 	if _, held := m.restartInputsHeld.Load(req.target); held &&
-		(req.meta.Synthetic == nil || req.meta.Synthetic.Kind != "restart_continuation") {
+		(req.meta.Synthetic == nil || req.meta.Synthetic.Kind != restartContinuationKind) {
 		return nil, fmt.Errorf("%w: restart recovery in progress", ErrPromptInProgress)
 	}
 	if req.resumeStopped {

@@ -31,7 +31,7 @@ func (m *Manager) QualifyRestartContinuation(ctx context.Context, id string) (bo
 }
 
 func (m *Manager) restartSkipReason(
-	ctx context.Context, meta *store.SessionMeta, checkpoint restartCheckpoint,
+	ctx context.Context, meta *store.SessionMeta, checkpoint store.SessionRestartCheckpoint,
 ) (string, error) {
 	if checkpoint.Reason != "" {
 		return checkpoint.Reason, nil
@@ -39,7 +39,7 @@ func (m *Manager) restartSkipReason(
 	if meta.Failure != nil {
 		return "agent_failure", nil
 	}
-	if checkpoint.Delivery != PromptDeliveryNormal {
+	if checkpoint.Delivery != string(PromptDeliveryNormal) {
 		return "maintenance_command", nil
 	}
 	if !sameRestartBinding(checkpoint, meta) {
@@ -65,7 +65,7 @@ func (m *Manager) restartSkipReason(
 func (m *Manager) restartRuntimeSkipReason(
 	ctx context.Context,
 	meta *store.SessionMeta,
-	checkpoint restartCheckpoint,
+	checkpoint store.SessionRestartCheckpoint,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
 	worktree, root, err := m.resolveSessionWorktree(ctx, workspace.ID, meta.WorktreeIDValue())
@@ -92,7 +92,7 @@ func (m *Manager) restartRuntimeSkipReason(
 	if spec.acceptedRoute == nil || spec.resumeReplayReason == acceptedRouteMissingReason {
 		return "route_changed", nil
 	}
-	if string(m.startPermissions(runtime.agent.Permissions)) != checkpoint.Permissions {
+	if string(m.startPermissions(startSpecPermissions(&spec, runtime.agent.Permissions))) != checkpoint.Permissions {
 		return "permissions_changed", nil
 	}
 	digest, err := restartPolicyDigest(runtime.agentDef)
@@ -119,7 +119,7 @@ func (m *Manager) restartLimitReason(
 	return "", nil
 }
 
-func sameRestartBinding(checkpoint restartCheckpoint, meta *store.SessionMeta) bool {
+func sameRestartBinding(checkpoint store.SessionRestartCheckpoint, meta *store.SessionMeta) bool {
 	_, revision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	if checkpoint.RuntimeRevision != revision ||
 		checkpoint.WorktreeID != meta.WorktreeIDValue() || checkpoint.CWD != meta.CWDValue() ||

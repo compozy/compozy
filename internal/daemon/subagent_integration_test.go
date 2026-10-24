@@ -1722,6 +1722,7 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		return
 	}
 	t.Run("Should recover a child after killing its daemon process", func(t *testing.T) {
+		driver := acpmock.RequireDriver(t)
 		// Own every helper-created temporary directory, including TestMain's seed.
 		root, err := os.MkdirTemp("/tmp", "sa-crash-")
 		if err != nil {
@@ -1748,7 +1749,9 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 			"-test.run=^TestSubagentCrashRestartDaemonIntegration$",
 			"-test.timeout=2m",
 		)
-		cmd.Env = append(os.Environ(), "TMPDIR="+root, "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff)
+		cmd.Env = append(os.Environ(), "TMPDIR="+root, "HOME="+root,
+			"CODEX_HOME="+filepath.Join(root, ".codex"), "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff,
+			"COMPOZY_TEST_ACPMOCK_DRIVER_BIN="+driver)
 		cmd.Stdout, cmd.Stderr = output, output
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
@@ -1797,6 +1800,7 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		cfg.Automation.Enabled = false
 		cfg.Roles.AutoTitle.Enabled = false
 		cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+		cfg.ProviderUsage.Enabled = false
 		restarted := reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
 		var row session.Subagent
 		waitForRuntimeCondition(t, "resumed child result delivered", 15*time.Second, func() bool {
@@ -1847,7 +1851,15 @@ type subagentCrashCheckpoint struct {
 
 func runSubagentCrashProcess(t *testing.T, handoff string) {
 	t.Helper()
-	d, manager, workspace := newSubagentDaemonIntegration(t)
+	// This journey owns mock ACP processes only. Persist discovery opt-outs so
+	// profile reloads cannot start installed provider CLIs during the crash walk.
+	d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+		cfg.ProviderUsage.Enabled = false
+		for name, provider := range compozyconfig.BuiltinProviders() {
+			provider.Models.Discovery.Enabled = new(false)
+			cfg.Providers[name] = provider
+		}
+	})
 	_, caller := startSubagentIntegrationParent(t, manager, workspace)
 	row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
 		Caller: caller, Task: "hold parent", Title: "Crash mid child turn",

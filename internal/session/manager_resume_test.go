@@ -43,10 +43,14 @@ func TestResumeInterruptedSession(t *testing.T) {
 		interaction string
 		queued      bool
 		maintenance bool
+		permissions compozyconfig.PermissionMode
+		batched     bool
 		completed   bool
 		wantResume  bool
 	}{
 		{name: "Should resume an interrupted turn exactly once", restart: true, wantResume: true},
+		{name: "Should preserve explicit permission overrides", restart: true, wantResume: true, permissions: compozyconfig.PermissionModeApproveReads},
+		{name: "Should preserve policy checks after a later batched input", restart: true, changed: "policy", batched: true},
 		{name: "Should drain queued inputs after continuation in their original order", restart: true, wantResume: true, queued: true},
 		{name: "Should never repeat an interrupted maintenance command", restart: true, maintenance: true},
 		{name: "Should never resume an explicit daemon stop"},
@@ -66,7 +70,11 @@ func TestResumeInterruptedSession(t *testing.T) {
 				WithSessionInputQueueStore(admissions),
 			)
 			registerManagerInputQueueWorkspace(t, admissions, h)
-			target := createSession(t, h)
+			target, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Name: "session",
+				Workspace: h.workspaceID, Permissions: tc.permissions})
+			if err != nil {
+				t.Fatal(err)
+			}
 			registerManagerInputQueueSession(t, admissions, h, target)
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
 			source := make(chan acp.AgentEvent)
@@ -98,6 +106,16 @@ func TestResumeInterruptedSession(t *testing.T) {
 					InteractionID: "restart-decision", SessionID: target.ID, Kind: tc.interaction,
 					ProviderRequestID: "provider-decision", TurnID: target.CurrentTurnID(),
 					Title: "Review this action", CreatedAt: h.manager.now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.batched {
+				if err := h.manager.recordEvent(t.Context(), target, acp.AgentEvent{
+					Type:      acp.EventTypeUserMessage,
+					TurnID:    target.CurrentTurnID(),
+					Text:      "batched follower",
+					Timestamp: h.manager.now(),
 				}); err != nil {
 					t.Fatal(err)
 				}
@@ -196,52 +214,73 @@ func TestResumeInterruptedSession(t *testing.T) {
 // Invariant: repeated interruptions stop after the configured durable attempt budget, including across managers.
 // Owner: session manager; canonical resume suite.
 func TestResumeInterruptedSessionCrashLoop(t *testing.T) {
-	admissions := openManagerInputQueueStore(t)
-	h := newHarness(t, WithSessionPromptAdmissionStore(admissions),
-		WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
-	registerManagerInputQueueWorkspace(t, admissions, h)
-	target := createSession(t, h)
-	registerManagerInputQueueSession(t, admissions, h, target)
-	t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
-	var source chan acp.AgentEvent
-	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		source = make(chan acp.AgentEvent)
-		return source, nil
-	}
-	stream, err := h.manager.Prompt(t.Context(), target.ID, "finish the work")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for attempt := range 4 {
-		if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
-			t.Fatal(err)
-		}
-		if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
-			t.Fatal(err)
-		}
-		close(source)
-		if attempt == 0 {
-			collectEvents(t, stream)
-		}
-		if err := h.manager.Shutdown(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		h.manager = newManagerWithHarness(t, h, WithSessionPromptAdmissionStore(admissions),
+	t.Run("Should skip the fourth continuation after the durable attempt budget is spent", func(t *testing.T) {
+		admissions := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionPromptAdmissionStore(admissions),
 			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
-		resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
-		if attempt < 3 {
-			if err != nil || !resumed {
-				t.Fatalf("attempt %d = %t, %v", attempt+1, resumed, err)
-			}
-		} else if resumed || !errors.Is(err, ErrRestartContinuationSkipped) || !strings.Contains(err.Error(), "restart_limit") {
-			t.Fatalf("breaker did not stop fourth attempt: %t, %v", resumed, err)
+		registerManagerInputQueueWorkspace(t, admissions, h)
+		target := createSession(t, h)
+		registerManagerInputQueueSession(t, admissions, h, target)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var source chan acp.AgentEvent
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			source = make(chan acp.AgentEvent)
+			return source, nil
 		}
-	}
-	h.driver.mu.Lock()
-	defer h.driver.mu.Unlock()
-	if len(h.driver.promptCalls) != 4 {
-		t.Fatalf("provider prompts = %d, want original plus three continuations", len(h.driver.promptCalls))
-	}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "finish the work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 4 {
+			if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			close(source)
+			if attempt == 0 {
+				collectEvents(t, stream)
+			}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			h.manager = newManagerWithHarness(t, h, WithSessionPromptAdmissionStore(admissions),
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			if attempt < 3 {
+				if err != nil || !resumed {
+					t.Fatalf("attempt %d = %t, %v", attempt+1, resumed, err)
+				}
+			} else if resumed || !errors.Is(err, ErrRestartContinuationSkipped) || !strings.Contains(err.Error(), "restart_limit") {
+				t.Fatalf("breaker did not stop fourth attempt: %t, %v", resumed, err)
+			}
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 4 {
+			t.Fatalf("provider prompts = %d, want original plus three continuations", len(h.driver.promptCalls))
+		}
+	})
+}
+
+// Invariant: map iteration order cannot change restart policy eligibility; owner: resume qualification.
+func TestRestartPolicyDigest(t *testing.T) {
+	t.Run("Should fingerprint identical MCP policies consistently", func(t *testing.T) {
+		agent := compozyconfig.AgentDef{MCPServers: []compozyconfig.MCPServer{{
+			Name: "fixture", Env: map[string]string{"FIRST": "one", "SECOND": "two", "THIRD": "three"},
+		}}}
+		want, err := restartPolicyDigest(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 100 {
+			got, err := restartPolicyDigest(agent)
+			if err != nil || got != want {
+				t.Fatalf("policy digest changed: %q != %q, %v", got, want, err)
+			}
+		}
+	})
 }
 
 func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {

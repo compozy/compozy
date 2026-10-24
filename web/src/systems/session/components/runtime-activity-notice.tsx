@@ -312,7 +312,12 @@ export function RuntimeActivityNotice({
   ) {
     return (
       <Marker role="status" tone="neutral" icon={<Info />}>
-        {event.text}
+        {event.text?.trim() ||
+          (event.type === "session.restart_interrupted"
+            ? "Interrupted by CompozyOS restart."
+            : event.type === "session.restart_resumed"
+              ? "Resumed after CompozyOS restart."
+              : "Automatic continuation paused. Review this session.")}
       </Marker>
     );
   }

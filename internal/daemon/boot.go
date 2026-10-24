@@ -197,7 +197,6 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	}
 
 	d.publishBootState(state)
-	d.admission.Undrain()
 	return nil
 }
 
@@ -244,6 +243,7 @@ func (d *Daemon) beginBoot() error {
 		return errors.New("daemon: already booted")
 	}
 	d.booting = true
+	d.admission.Undrain()
 	return nil
 }
 

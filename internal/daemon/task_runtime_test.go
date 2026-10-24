@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -774,6 +775,54 @@ func assertLoopActionLivenessFailure(
 // Invariant: boot uses the Loop continuation owner before lease requeue and parks unsafe nodes.
 // Owner: daemon task composition; canonical task runtime suite.
 func TestLoopActionBootRestartRecovery(t *testing.T) {
+	t.Run("Should ignore a run whose session no longer exists", func(t *testing.T) {
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		run.SessionID = "missing"
+		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
+		runtime, err := newLoopActionRuntime(manager, actionStore, &loopActionLivenessTestRunner{},
+			loopActionSessionStatusStub{err: session.ErrSessionNotFound}, discardLogger(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer runtime.cancel()
+		actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := runtime.recoverInterruptedRuns(t.Context(), actor); err != nil {
+			t.Fatal(err)
+		}
+		if actionStore.resumeCalls.Load() != 0 || actionStore.pauseCalls.Load() != 0 {
+			t.Fatal("missing session triggered a Loop transition")
+		}
+	})
+	t.Run("Should retain boot admission when queued recovery starts asynchronously", func(t *testing.T) {
+		_, taskRecord, run := newLoopActionLivenessTestFixture()
+		gate := &admission.Gate{}
+		ctx := gate.BeginBoot(t.Context())
+		manager := &loopActionCapacityTestManager{
+			run:       run,
+			completed: make(chan taskpkg.LeaseCompletion, 1),
+			gate:      gate,
+		}
+		runtime, err := newLoopActionRuntime(manager, &loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			&loopActionCapacityTestRunner{}, nil, discardLogger(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer runtime.cancel()
+		runtime.claimRetryInterval = time.Millisecond
+		runtime.Recover(ctx)
+		select {
+		case <-manager.completed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("queued recovery lost composition-root admission")
+		}
+		if err := gate.Check(t.Context()); !errors.Is(err, admission.ErrDraining) {
+			t.Fatal("external gate opened early", err)
+		}
+	})
+
 	for _, eligible := range []bool{true, false} {
 		t.Run(fmt.Sprintf("Should gate restart continuation eligible=%t", eligible), func(t *testing.T) {
 			t.Parallel()
@@ -890,6 +939,7 @@ func (s *loopActionCapacityTestStore) livenessObservationCount() int {
 }
 
 type loopActionCapacityTestManager struct {
+	gate       *admission.Gate
 	claimCalls atomic.Int32
 	completed  chan taskpkg.LeaseCompletion
 	run        taskpkg.Run
@@ -906,10 +956,15 @@ func (*loopActionCapacityTestManager) ReserveRunLeaseSettlement(
 }
 
 func (m *loopActionCapacityTestManager) ClaimNextRun(
-	context.Context,
-	taskpkg.ClaimCriteria,
-	taskpkg.ActorContext,
+	ctx context.Context,
+	_ taskpkg.ClaimCriteria,
+	_ taskpkg.ActorContext,
 ) (*taskpkg.ClaimResult, error) {
+	if m.gate != nil {
+		if err := m.gate.Check(ctx); err != nil {
+			return nil, err
+		}
+	}
 	if m.claimCalls.Add(1) == 1 {
 		return nil, taskpkg.ErrWorkspaceActiveRunCapReached
 	}

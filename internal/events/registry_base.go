@@ -17,7 +17,6 @@ var baseRegistryEntries = []Metadata{
 	failure(ACPError, "session", ComponentSession),
 	info(SessionStopped, "session", ComponentSession),
 	info(SessionTurnQuiesced, "session", ComponentSession),
-	info(SessionRestartBoundary, "session", ComponentSession),
 	info(SessionRestartInterrupted, "session", ComponentSession),
 	info(SessionRestartAttempt, "session", ComponentSession),
 	info(SessionRestartResumed, "session", ComponentSession),

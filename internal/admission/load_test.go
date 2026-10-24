@@ -217,6 +217,10 @@ func TestGateBootRecovery(t *testing.T) {
 			t.Fatalf("recovery admission = %v", err)
 		}
 		gate.Undrain()
+		if err := gate.Check(t.Context()); !errors.Is(err, ErrDraining) {
+			t.Fatalf("public undrain bypassed boot recovery: %v", err)
+		}
+		gate.FinishBoot()
 		if err := gate.Check(t.Context()); err != nil {
 			t.Fatalf("ready admission = %v", err)
 		}

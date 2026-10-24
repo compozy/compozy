@@ -62,6 +62,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		startedAt:             state.startedAt,
 		info:                  state.info,
 	}
+	d.admission.FinishBoot()
 	if !d.readyClosed {
 		close(d.readyCh)
 		d.readyClosed = true

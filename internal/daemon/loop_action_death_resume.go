@@ -120,31 +120,51 @@ func (r *loopActionRuntime) recoverInterruptedRuns(ctx context.Context, actor ta
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, run := range runs {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(append(errs, err)...)
+		}
 		if run.LoopRunID == "" || run.SessionID == "" {
 			continue
 		}
-		info, err := r.sessions.Status(ctx, run.SessionID)
-		if err != nil {
-			return err
+		if err := r.recoverInterruptedRun(ctx, run, actor); err != nil &&
+			!errors.Is(err, session.ErrSessionNotFound) {
+			errs = append(errs, fmt.Errorf("daemon: recover interrupted Loop run %q: %w", run.ID, err))
 		}
-		if info == nil || info.State != session.StateStopped || info.StopReason != storepkg.StopShutdown {
-			continue
-		}
-		limit, err := r.actionDeathStreakLimitForRun(ctx, run)
-		if err != nil {
-			return err
-		}
-		handled, err := r.resumeConfirmedDeadAction(ctx, run, actor, looppkg.WorkspaceID(info.WorkspaceID),
-			run.SessionID, limit)
-		if err != nil && !errors.Is(err, session.ErrRestartContinuationSkipped) {
-			return err
-		}
-		if !handled {
-			if err := r.pauseInterruptedRun(ctx, run, actor, info.WorkspaceID, limit); err != nil {
-				return err
-			}
-		}
+	}
+	return errors.Join(errs...)
+}
+
+func (r *loopActionRuntime) recoverInterruptedRun(
+	ctx context.Context,
+	run taskpkg.Run,
+	actor taskpkg.ActorContext,
+) error {
+	info, err := r.sessions.Status(ctx, run.SessionID)
+	if err != nil {
+		return err
+	}
+	if info == nil || info.State != session.StateStopped || info.StopReason != storepkg.StopShutdown {
+		return nil
+	}
+	limit, err := r.actionDeathStreakLimitForRun(ctx, run)
+	if err != nil {
+		return err
+	}
+	handled, err := r.resumeConfirmedDeadAction(
+		ctx,
+		run,
+		actor,
+		looppkg.WorkspaceID(info.WorkspaceID),
+		run.SessionID,
+		limit,
+	)
+	if err != nil && !errors.Is(err, session.ErrRestartContinuationSkipped) {
+		return err
+	}
+	if !handled {
+		return r.pauseInterruptedRun(ctx, run, actor, info.WorkspaceID, limit)
 	}
 	return nil
 }

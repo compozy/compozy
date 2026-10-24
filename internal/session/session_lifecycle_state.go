@@ -106,7 +106,6 @@ func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
 	if s.stopCause == CauseNone {
 		s.stopCause = cause
 		s.stopDetail = strings.TrimSpace(detail)
-		s.stopReason, s.stopDetail = classifyStopReason(cause, nil, detail)
 		return
 	}
 

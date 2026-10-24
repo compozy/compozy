@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootSubagents(_ context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil

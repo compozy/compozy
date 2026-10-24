@@ -32,7 +32,7 @@ type Gate struct {
 
 type bootOwnerKey struct{}
 
-// BeginBoot permits only composition-root recovery until Undrain publishes readiness.
+// BeginBoot permits only composition-root recovery until FinishBoot publishes readiness.
 // The capability is an in-process context value and cannot be supplied by clients.
 func (g *Gate) BeginBoot(ctx context.Context) context.Context {
 	g.draining.Store(false)
@@ -55,8 +55,14 @@ func (g *Gate) Undrain() bool {
 	if g == nil {
 		return false
 	}
-	wasBooting := g.booting.Swap(false)
-	return g.draining.Swap(false) || wasBooting
+	return g.draining.Swap(false)
+}
+
+// FinishBoot publishes composition-root readiness independently of public drain control.
+func (g *Gate) FinishBoot() {
+	if g != nil {
+		g.booting.Store(false)
+	}
 }
 
 // SetLoadMonitor attaches host-load-aware admission for background work; nil detaches it.

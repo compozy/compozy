@@ -87,6 +87,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, source *store.SessionM
 	if spec.acpSessionID != "" {
 		spec.acceptedRoute = store.CloneSessionAcceptedRoute(meta.AcceptedRoute)
 	}
+	spec.restartBoundary = store.CloneSessionRestartCheckpoint(meta.RestartBoundary)
 	spec.stopReason = sessionMetaStopReason(&meta)
 	spec.stopDetail = strings.TrimSpace(meta.StopDetail)
 	spec.failure = store.CloneSessionFailure(meta.Failure)

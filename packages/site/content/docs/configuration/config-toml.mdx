@@ -1244,11 +1244,11 @@ Subagents have no depth, count, or TTL caps.
 
 ## `[session.restart]`
 
-| Field | Type | Default | Valid values | Description |
-| --- | --- | --- | --- | --- |
-| `auto_continue` | boolean | `true` | `true`, `false` | Continue eligible interrupted turns after daemon restart or crash. |
-| `max_attempts` | integer | `3` | `1`–`10` | Maximum automatic recovery attempts per session inside the window. |
-| `window` | duration | `"5m"` | `"1s"`–`"1h"` | Rolling window for the durable restart attempt budget. |
+| Field           | Type     | Default | Valid values    | Description                                                        |
+| --------------- | -------- | ------- | --------------- | ------------------------------------------------------------------ |
+| `auto_continue` | boolean  | `true`  | `true`, `false` | Continue eligible interrupted turns after daemon restart or crash. |
+| `max_attempts`  | integer  | `3`     | `1`–`10`        | Maximum automatic recovery attempts per session inside the window. |
+| `window`        | duration | `"5m"`  | `"1s"`–`"1h"`   | Rolling window for the durable restart attempt budget.             |
 
 These keys are additive: omitted values receive defaults without rewriting existing files; explicit
 `auto_continue = false` is preserved. They follow the restart-required settings lifecycle and can be

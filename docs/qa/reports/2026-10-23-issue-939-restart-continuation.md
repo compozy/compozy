@@ -2,7 +2,7 @@
 
 - **Scope:** interrupted sessions, shutdown admission, subagent result delivery, and Loop recovery ownership.
 - **Cadence tier:** targeted.
-- **Build:** issue-939-restart-resume working branch; current-head delivery evidence will be recorded after rebase.
+- **Build:** PR #942, rebased onto main including #940; first-review remediation checks run before their commit. Current-head CI is recorded separately.
 - **Environment:** disposable homes, sockets, ports, and real daemon subprocesses using the repository's ACP mock agent. No operator runtime was restarted.
 - **Status:** in-progress.
 
@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|
 | CH-daemon-restart-continuation | J-daemon-restart-continuation / RT-daemon-restart-continuation | Dora | Interrupt | Pending | Fresh structured reads after final rebase; Web interaction remains separate from the subprocess probe. |
 | CH-daemon-restart-continuation | RT-daemon-drain-admission | Dora | Interrupt | Pending | Boot admission and shutdown budget owning tests passed; final composition-root rerun pending. |
-| CH-daemon-restart-continuation | RT-subagent-restart | Dora | Interrupt | Pending | Real subprocess SIGKILL probe passed after fixing result delivery during parent resume. |
+| CH-daemon-restart-continuation | RT-subagent-restart | Dora | Interrupt | Pending | Rebased real subprocess SIGKILL probe passed; fixture provider homes and discovery are isolated. |
 
 ## Automated Evidence Collected During Implementation
 
@@ -31,6 +31,24 @@
 - A ready runtime retains its last binding strategy. Treating that strategy as an unfinished transition falsely classified SIGKILL as an agent crash; readiness now distinguishes those cases.
 - Reordering boot inventory ahead of pending stop settlement broke an existing recovery guarantee. Pending stops again settle before the repair inventory; restart capture precedes decision expiry and history repair.
 - A subagent result could be disposed while its parent was in `starting` during resume. Delivery now remains pending across that transition.
+
+## First Review and CI Remediation
+
+The original session contract tests caught an extra checkpoint event changing ordinary transcript
+sequence numbers and managed Goal metadata. The dispatch checkpoint now lives in the existing atomic
+session metadata. The unchanged failing suites, plus #940 inventory/cache contracts, passed (18.899s).
+Existing metadata upgrades additively; no SQL schema or public DTO changes are involved.
+
+Focused reruns after the review fixes passed: session recovery/permissions/batched-policy/deterministic
+fingerprinting/stop receipt (10.472s), boot admission (0.198s), Loop/boot composition (1.850s), and the
+combined ordinary/subagent real-process probes (19.800s). The boot fence cannot be opened through
+public undrain; asynchronous Loop dispatch retains the composition-root admission context.
+
+A subagent-probe teardown failure revealed installed-provider discovery subprocesses. The fixture now
+persists discovery opt-outs, assigns an isolated HOME/CODEX_HOME, and passes the prebuilt mock driver
+into the helper. The final probe passed including cleanup; no retries or weakened cleanup assertions
+were added. One failed setup's isolated temporary directory was removed after confirming no owned
+process remained.
 
 ## Limits and Remaining Work
 

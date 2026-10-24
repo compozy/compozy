@@ -197,14 +197,14 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.recordRestartBoundary(session, req); err != nil {
+		return nil, err
+	}
 	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
-		return nil, err
-	}
-	if err := m.recordRestartBoundary(ctx, session, req); err != nil {
 		return nil, err
 	}
 	delivery, err := m.openDurablePromptDelivery(req.deliveryCtx, session, req.turnID)

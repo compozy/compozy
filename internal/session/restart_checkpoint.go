@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	restartBoundaryEvent    = events.SessionRestartBoundary
+	restartContinuationKind = "restart_continuation"
 	restartInterruptedEvent = events.SessionRestartInterrupted
 	restartAttemptEvent     = events.SessionRestartAttempt
 	restartResumedEvent     = events.SessionRestartResumed
@@ -27,32 +27,23 @@ const (
 		"completed. Do not assume that an interrupted action had no effect."
 )
 
-type restartCheckpoint struct {
-	TurnID          string                      `json:"turn_id"`
-	RuntimeRevision int64                       `json:"runtime_revision,omitempty"`
-	Delivery        PromptDelivery              `json:"delivery,omitempty"`
-	PolicyDigest    string                      `json:"policy_digest,omitempty"`
-	Route           *store.SessionAcceptedRoute `json:"route,omitzero"`
-	Permissions     string                      `json:"permissions,omitempty"`
-	WorktreeID      string                      `json:"worktree_id,omitempty"`
-	CWD             string                      `json:"cwd,omitempty"`
-	Reason          string                      `json:"reason,omitempty"`
-}
-
-func (m *Manager) recordRestartBoundary(ctx context.Context, active *Session, req promptRequest) error {
+func (m *Manager) recordRestartBoundary(active *Session, req promptRequest) error {
 	meta := active.Meta()
 	digest, err := restartPolicyDigest(active.AgentDefinition())
 	if err != nil {
 		return err
 	}
 	checkpoint := restartCheckpointFromMeta(&meta, req.turnID)
-	checkpoint.Delivery, checkpoint.PolicyDigest = req.delivery, digest
-	return m.appendRestartEvent(ctx, &meta, restartBoundaryEvent, checkpoint, "")
+	checkpoint.Delivery, checkpoint.PolicyDigest = string(req.delivery), digest
+	active.mu.Lock()
+	active.restartBoundary = store.CloneSessionRestartCheckpoint(&checkpoint)
+	active.mu.Unlock()
+	return m.persistSessionMetadataOnly(active)
 }
 
-func restartCheckpointFromMeta(meta *store.SessionMeta, turnID string) restartCheckpoint {
+func restartCheckpointFromMeta(meta *store.SessionMeta, turnID string) store.SessionRestartCheckpoint {
 	_, revision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
-	return restartCheckpoint{TurnID: turnID, Route: store.CloneSessionAcceptedRoute(meta.AcceptedRoute),
+	return store.SessionRestartCheckpoint{TurnID: turnID, Route: store.CloneSessionAcceptedRoute(meta.AcceptedRoute),
 		RuntimeRevision: revision,
 		Permissions:     meta.EffectivePermissionsValue(), WorktreeID: meta.WorktreeIDValue(), CWD: meta.CWDValue()}
 }
@@ -66,7 +57,7 @@ func restartPolicyDigest(agent compozyconfig.AgentDef) (string, error) {
 	}{Permissions: agent.Permissions, WorkspaceAccess: agent.WorkspaceAccess,
 		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
 		Skills: agent.Skills, MCPServers: agent.MCPServers}
-	data, err := json.Marshal(policy)
+	data, err := json.Marshal(policy, json.Deterministic(true))
 	if err != nil {
 		return "", fmt.Errorf("session: fingerprint restart policy: %w", err)
 	}
@@ -80,7 +71,11 @@ func restartEventID(turnID, eventType string) string {
 }
 
 func (m *Manager) appendRestartEvent(
-	ctx context.Context, meta *store.SessionMeta, eventType string, checkpoint restartCheckpoint, text string,
+	ctx context.Context,
+	meta *store.SessionMeta,
+	eventType string,
+	checkpoint store.SessionRestartCheckpoint,
+	text string,
 ) error {
 	id := restartEventID(checkpoint.TurnID, eventType)
 	if eventType == restartAttemptEvent {
@@ -118,40 +113,42 @@ func (m *Manager) appendRestartEvent(
 	return nil
 }
 
-func decodeRestartCheckpoint(event store.SessionEvent) (restartCheckpoint, error) {
+func decodeRestartCheckpoint(event store.SessionEvent) (store.SessionRestartCheckpoint, error) {
 	agent, err := transcript.UnmarshalAgentEvent(event.Content)
 	if err != nil {
-		return restartCheckpoint{}, err
+		return store.SessionRestartCheckpoint{}, err
 	}
-	var checkpoint restartCheckpoint
+	var checkpoint store.SessionRestartCheckpoint
 	if err := json.Unmarshal(agent.Raw, &checkpoint); err != nil {
-		return restartCheckpoint{}, fmt.Errorf("session: decode restart checkpoint: %w", err)
+		return store.SessionRestartCheckpoint{}, fmt.Errorf("session: decode restart checkpoint: %w", err)
 	}
 	if checkpoint.TurnID == "" || checkpoint.TurnID != event.TurnID {
-		return restartCheckpoint{}, fmt.Errorf("session: restart checkpoint turn mismatch")
+		return store.SessionRestartCheckpoint{}, fmt.Errorf("session: restart checkpoint turn mismatch")
 	}
 	return checkpoint, nil
 }
 
-func (m *Manager) latestRestartBoundary(ctx context.Context, meta *store.SessionMeta) (restartCheckpoint, bool, error) {
+func (m *Manager) latestRestartBoundary(
+	ctx context.Context,
+	meta *store.SessionMeta,
+) (store.SessionRestartCheckpoint, bool, error) {
 	rows, err := m.Events(ctx, meta.ID, store.EventQuery{Types: []string{
-		restartBoundaryEvent, acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry,
+		acp.EventTypeUserMessage, acp.EventTypeSyntheticReentry,
 	}, Limit: 1, Archive: store.EventArchiveUnarchived})
 	if err != nil || len(rows) == 0 {
-		return restartCheckpoint{}, false, err
+		return store.SessionRestartCheckpoint{}, false, err
 	}
 	row := rows[0]
-	if row.Type == restartBoundaryEvent {
-		checkpoint, err := decodeRestartCheckpoint(row)
-		return checkpoint, err == nil, err
+	if checkpoint := meta.RestartBoundary; checkpoint != nil {
+		return *store.CloneSessionRestartCheckpoint(checkpoint), checkpoint.TurnID == row.TurnID, nil
 	}
 	checkpoint := restartCheckpointFromMeta(meta, row.TurnID)
 	input, err := transcript.UnmarshalAgentEvent(row.Content)
 	if err != nil {
-		return restartCheckpoint{}, false, err
+		return store.SessionRestartCheckpoint{}, false, err
 	}
 	if strings.HasPrefix(strings.TrimSpace(input.Text), "/") {
-		checkpoint.Delivery = PromptDeliveryMaintenance
+		checkpoint.Delivery = string(PromptDeliveryMaintenance)
 	}
 	return checkpoint, true, nil
 }

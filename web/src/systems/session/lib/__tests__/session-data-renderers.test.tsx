@@ -24,6 +24,10 @@ describe("restart lifecycle events", () => {
     expect(screen.getByRole("status")).toHaveTextContent(text);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+  it.each([undefined, "", "   "])("provides a status label for missing restart text %s", text => {
+    renderWithContext({ type: "session.restart_interrupted", text });
+    expect(screen.getByRole("status")).toHaveTextContent("Interrupted by CompozyOS restart.");
+  });
 });
 
 function clarifyResolved(): AgentEventPayload {

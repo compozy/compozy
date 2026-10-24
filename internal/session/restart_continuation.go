@@ -79,8 +79,7 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 	}
 	if result.Events != nil {
 		m.startTrackedPromptTask(func() {
-			for range result.Events {
-			}
+			drainPromptSource(result.Events)
 		})
 	}
 	if err := m.appendRestartEvent(
@@ -99,27 +98,27 @@ func (m *Manager) ResumeInterruptedSession(ctx context.Context, id string) (bool
 
 func (m *Manager) pendingRestartCheckpoint(
 	ctx context.Context, meta *store.SessionMeta,
-) (restartCheckpoint, bool, error) {
+) (store.SessionRestartCheckpoint, bool, error) {
 	if sessionMetaStopReason(meta) != store.StopShutdown {
-		return restartCheckpoint{}, false, nil
+		return store.SessionRestartCheckpoint{}, false, nil
 	}
 	rows, err := m.Events(ctx, meta.ID, store.EventQuery{Type: restartInterruptedEvent, Limit: 1,
 		Archive: store.EventArchiveUnarchived})
 	if err != nil || len(rows) == 0 {
-		return restartCheckpoint{}, false, err
+		return store.SessionRestartCheckpoint{}, false, err
 	}
 	checkpoint, err := decodeRestartCheckpoint(rows[0])
 	if err != nil {
-		return restartCheckpoint{}, false, err
+		return store.SessionRestartCheckpoint{}, false, err
 	}
 	boundary, found, err := m.latestRestartBoundary(ctx, meta)
 	if err != nil || !found || boundary.TurnID != checkpoint.TurnID {
-		return restartCheckpoint{}, false, err
+		return store.SessionRestartCheckpoint{}, false, err
 	}
 	for _, eventType := range []string{restartResumedEvent, restartSkippedEvent} {
 		settled, err := m.restartEventExists(ctx, meta.ID, checkpoint.TurnID, eventType)
 		if err != nil || settled {
-			return restartCheckpoint{}, false, err
+			return store.SessionRestartCheckpoint{}, false, err
 		}
 	}
 	terminal, err := m.Events(ctx, meta.ID, store.EventQuery{
@@ -141,7 +140,7 @@ func (m *Manager) pendingRestartCheckpoint(
 }
 
 func (m *Manager) skipRestartContinuation(
-	ctx context.Context, meta *store.SessionMeta, checkpoint restartCheckpoint, reason string,
+	ctx context.Context, meta *store.SessionMeta, checkpoint store.SessionRestartCheckpoint, reason string,
 ) error {
 	checkpoint.Reason = reason
 	if err := m.appendRestartEvent(ctx, meta, restartSkippedEvent, checkpoint,
@@ -153,12 +152,12 @@ func (m *Manager) skipRestartContinuation(
 }
 
 func (m *Manager) admitRestartContinuation(
-	ctx context.Context, active *Session, checkpoint restartCheckpoint,
+	ctx context.Context, active *Session, checkpoint store.SessionRestartCheckpoint,
 ) (SendPromptResult, error) {
 	identity := "restart:" + checkpoint.TurnID
 	req, err := m.parseSyntheticPromptRequest(ctx, active.ID, SyntheticPromptOpts{
 		Message: restartContinueMessage, TurnID: "turn-" + restartEventID(checkpoint.TurnID, "continue"),
-		Metadata: acp.PromptSyntheticMeta{Kind: "restart_continuation", Reason: "daemon_restarted",
+		Metadata: acp.PromptSyntheticMeta{Kind: restartContinuationKind, Reason: "daemon_restarted",
 			WakeEventID: restartEventID(checkpoint.TurnID, restartInterruptedEvent)},
 	})
 	if err != nil {

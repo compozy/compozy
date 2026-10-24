@@ -1285,7 +1285,8 @@ Use `compozy daemon restart` for a restart that should preserve running work. An
 `compozy daemon stop` or session stop cancels work and never automatically continues it. A crash
 or SIGKILL is recovered from the continuously persisted turn boundary, not from a shutdown-only
 snapshot. Boot reconciles interruptions, surviving processes, unknown-outcome tool calls and
-pending interactions before reopening new-work admission.
+pending interactions before reopening new-work admission. Public `undrain` cannot bypass this boot
+reconciliation fence; admission opens only when the composition root publishes readiness.
 
 Eligible ordinary sessions reload their accepted native provider session with `session/load`, or
 `session/resume` when only that capability is supported; the existing bounded transcript replay

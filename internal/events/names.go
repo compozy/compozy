@@ -21,7 +21,6 @@ const (
 	SessionSupervisionSourceError     = "session.supervision_source_error"
 	SessionStopped                    = "session_stopped"
 	SessionTurnQuiesced               = "session.turn_quiesced"
-	SessionRestartBoundary            = "session.restart_boundary"
 	SessionRestartInterrupted         = "session.restart_interrupted"
 	SessionRestartAttempt             = "session.restart_attempt"
 	SessionRestartResumed             = "session.restart_resumed"

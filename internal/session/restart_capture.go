@@ -86,7 +86,7 @@ func (m *Manager) captureRestartInterruption(ctx context.Context, meta *store.Se
 		return err
 	}
 	checkpoint.Reason = reason
-	if reason == "" && checkpoint.Delivery != PromptDeliveryNormal {
+	if reason == "" && checkpoint.Delivery != string(PromptDeliveryNormal) {
 		checkpoint.Reason = "maintenance_command"
 	}
 	if m.attentionStore != nil && checkpoint.Reason == "" {
@@ -101,4 +101,14 @@ func (m *Manager) captureRestartInterruption(ctx context.Context, meta *store.Se
 		}
 	}
 	return m.appendRestartEvent(ctx, meta, restartInterruptedEvent, checkpoint, "Interrupted by CompozyOS restart.")
+}
+
+// HasPendingRestart reports unsettled restart work without scanning the complete transcript.
+func (m *Manager) HasPendingRestart(ctx context.Context, id string) (bool, error) {
+	meta, err := m.readMetaWithContext(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	_, pending, err := m.pendingRestartCheckpoint(ctx, &meta)
+	return pending, err
 }
