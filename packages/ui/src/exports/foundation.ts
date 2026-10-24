@@ -146,6 +146,10 @@ export {
 } from "../lib/identity-palette";
 export {
   runViewTransition,
+  startTypedTransition,
   viewTransitionName,
+  VIEW_TRANSITION_CLASS,
+  VIEW_TRANSITION_DRILL,
+  VIEW_TRANSITION_TYPE,
   type RunViewTransitionOptions,
 } from "../lib/view-transition";

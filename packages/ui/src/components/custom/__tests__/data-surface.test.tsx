@@ -49,6 +49,35 @@ describe("DataSurface", () => {
     }
   });
 
+  it("Should show skeleton children in a busy status region instead of the spinner", () => {
+    const { container } = render(
+      <DataSurface state="loading">
+        <DataSurface.Loading label="Loading records">
+          <span data-testid="skeleton-shape" />
+        </DataSurface.Loading>
+        <DataSurface.Content>ready content</DataSurface.Content>
+      </DataSurface>
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading records");
+    expect(region).toContainElement(screen.getByTestId("skeleton-shape"));
+    expect(container.querySelector('[data-slot="block-loading"]')).toBeNull();
+  });
+
+  it("Should keep the spinner fallback when no skeleton is passed", () => {
+    const { container } = render(
+      <DataSurface state="loading">
+        <DataSurface.Loading label="Loading records" />
+        <DataSurface.Content>ready content</DataSurface.Content>
+      </DataSurface>
+    );
+
+    expect(container.querySelector('[data-slot="block-loading"]')).not.toBeNull();
+    expect(screen.getByLabelText("Loading records")).toBeInTheDocument();
+  });
+
   it("Should resolve state using loading, error, empty, ready precedence", () => {
     expect(
       resolveDataSurfaceState({ isLoading: true, error: new Error("fail"), isEmpty: true })
