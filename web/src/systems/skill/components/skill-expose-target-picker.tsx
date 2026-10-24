@@ -8,7 +8,8 @@ import {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-  Spinner,
+  Skeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 import type { SkillExposeTarget } from "../types";
 
@@ -57,15 +58,11 @@ export function SkillExposeTargetPicker({
   };
 
   if (loading) {
+    // The "Expose to…" trigger's size, so the control does not jump when the sources arrive.
     return (
-      <p
-        className="flex items-center gap-2 text-form-hint text-subtle"
-        data-testid={`${TEST_ID}-loading`}
-        role="status"
-      >
-        <Spinner aria-hidden="true" className="size-3.5" />
-        Loading sources…
-      </p>
+      <SkeletonRegion data-testid={`${TEST_ID}-loading`} label="Loading sources">
+        <Skeleton className="h-button-sm w-24" />
+      </SkeletonRegion>
     );
   }
 

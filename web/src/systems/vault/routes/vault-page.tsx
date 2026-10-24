@@ -7,8 +7,6 @@ import {
   ListingPage,
   ListingToolbar,
   MonoId,
-  Skeleton,
-  SkeletonRows,
   Spinner,
   useTopbarSlot,
 } from "@compozy/ui";
@@ -32,12 +30,9 @@ export function VaultPage({ search = {} }: { search?: VaultRouteSearch }) {
     count: page.isLoading ? undefined : page.counts.total,
     crumb: "Vault",
     actions: <VaultTopbarActions page={page} />,
-    toolbar: page.isLoading ? undefined : <VaultListingToolbar page={page} />,
+    // Search, namespace and view are static controls: they stay put while the list loads.
+    toolbar: <VaultListingToolbar page={page} />,
   });
-
-  if (page.isLoading) {
-    return <VaultPageLoading />;
-  }
 
   return (
     <ListingPage data-testid="vault-shell">
@@ -143,26 +138,6 @@ function VaultListingToolbar({ page }: { page: VaultPageModel }) {
   );
 }
 
-function VaultPageLoading() {
-  return (
-    <ListingPage data-testid="vault-page-loading">
-      <div aria-label="Loading secrets" role="status">
-        <SkeletonRows
-          className="overflow-hidden rounded-lg bg-card shadow-card"
-          count={4}
-          rowClassName="flex-row items-center gap-3 border-b border-line-soft px-4 py-3 last:border-b-0"
-        >
-          <Skeleton className="size-8 shrink-0 rounded-md" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Skeleton className="h-3 w-2/5 rounded-xs" />
-            <Skeleton className="h-2.5 w-1/4 rounded-xs" />
-          </div>
-        </SkeletonRows>
-      </div>
-    </ListingPage>
-  );
-}
-
 /** Deep-link failure wins, then a blocking list error, then the list itself. */
 function VaultPageContent({ page }: { page: VaultPageModel }) {
   if (page.selectionError) {
@@ -215,7 +190,7 @@ function VaultPageContent({ page }: { page: VaultPageModel }) {
       emptyDescription="Add an API key or token so agents and extensions can use it."
       emptyTitle="No secrets yet"
       error={page.queryError ? new Error(page.queryError) : null}
-      isLoading={page.isRefetching && page.secrets.length === 0}
+      isLoading={page.isLoading}
       onDelete={page.openDelete}
       onSelect={page.openInspect}
       secrets={page.secrets}

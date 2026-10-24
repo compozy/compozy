@@ -75,6 +75,22 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+export const LoadingCards: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/vault?view=cards"),
+    ...storybookMswParameters({
+      vault: [
+        compozyApiMock.get("/api/vault/secrets", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ secrets: [] });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 export const Error: Story = {
   args: {},
   parameters: {
