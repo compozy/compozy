@@ -7,21 +7,38 @@ import {
   MetadataTile,
   Panel,
   Pill,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { HomeSystemModel } from "../lib/home-system";
+import { HOME_SYSTEM_ROW_CLASS } from "./home-zone-shape";
+import { HomeSystemPanelSkeleton } from "./home-zone-skeletons";
 
 export interface HomeSystemPanelProps {
   system: HomeSystemModel;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Daemon status has not answered yet: the row waits instead of reporting "Needs a look". */
+  loading?: boolean;
 }
 
 /**
  * Zone 7 — the operator depth, folded by default. One truthful summary line;
  * the expanded tiles carry the full system state.
  */
-export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelProps) {
+export function HomeSystemPanel({
+  system,
+  open,
+  onOpenChange,
+  loading = false,
+}: HomeSystemPanelProps) {
+  if (loading) {
+    return (
+      <SkeletonRegion label="Loading system status">
+        <HomeSystemPanelSkeleton />
+      </SkeletonRegion>
+    );
+  }
   if (system.tiles.length === 0) {
     return null;
   }
@@ -29,7 +46,9 @@ export function HomeSystemPanel({ system, open, onOpenChange }: HomeSystemPanelP
   return (
     <Panel bodyClassName="p-0" data-slot="home-system">
       <Collapsible onOpenChange={onOpenChange} open={open}>
-        <CollapsibleTrigger className="group flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none">
+        <CollapsibleTrigger
+          className={`group ${HOME_SYSTEM_ROW_CLASS} text-left transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none`}
+        >
           <Pill.Dot tone={system.allNormal ? "success" : "warning"} />
           <span className="shrink-0 text-small-body font-medium text-fg-strong">
             {system.allNormal ? "All systems normal" : "Needs a look"}

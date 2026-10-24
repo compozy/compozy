@@ -1,14 +1,20 @@
 import { Link } from "@tanstack/react-router";
 
-import { Metric, MetricGrid, Sparkline } from "@compozy/ui";
+import { Metric, MetricGrid, SkeletonText, Sparkline } from "@compozy/ui";
 
 import { formatHomeTokens } from "../lib/home-formatters";
 import type { HomeOverview } from "../types";
+import { HOME_KPI_LABELS, HOME_KPI_SPARKLINE_HEIGHT, homeUsageLabel } from "./home-zone-shape";
 
 export interface HomeKpiStripProps {
   overview: HomeOverview;
   workingNowTotal: number;
   workingNowDetail: string;
+  /**
+   * The live-work reads have not answered yet: the Working now tile waits in text blocks instead
+   * of claiming zero. The Working now zone below carries the one loading status.
+   */
+  workingNowLoading?: boolean;
 }
 
 function attentionDetail(byKind: Record<string, number>): string {
@@ -40,7 +46,12 @@ const KPI_LINK_METRIC = "transition-colors duration-base group-hover/kpi:bg-surf
  * Zone 2 — the four at-a-glance counters. Every tile deep-links into the
  * surface that owns the number; the usage tile carries the 30d spark.
  */
-export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: HomeKpiStripProps) {
+export function HomeKpiStrip({
+  overview,
+  workingNowTotal,
+  workingNowDetail,
+  workingNowLoading = false,
+}: HomeKpiStripProps) {
   const usageValues = overview.usage.days.map(day => day.tokens);
 
   return (
@@ -52,10 +63,10 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
       >
         <Metric
           className={KPI_LINK_METRIC}
-          label="Working now"
+          label={HOME_KPI_LABELS.workingNow}
           labelCase="eyebrow"
-          subtext={workingNowDetail}
-          value={workingNowTotal}
+          subtext={workingNowLoading ? <SkeletonText className="w-28" /> : workingNowDetail}
+          value={workingNowLoading ? <SkeletonText className="w-12" /> : workingNowTotal}
         />
       </Link>
       <Link
@@ -65,7 +76,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
       >
         <Metric
           className={KPI_LINK_METRIC}
-          label="Needs you"
+          label={HOME_KPI_LABELS.needsYou}
           labelCase="eyebrow"
           subtext={attentionDetail(overview.attention.by_kind ?? {})}
           value={overview.attention.total}
@@ -78,7 +89,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
       >
         <Metric
           className={KPI_LINK_METRIC}
-          label="Completed today"
+          label={HOME_KPI_LABELS.completedToday}
           labelCase="eyebrow"
           subtext={`${overview.today.runs_completed} runs, ${overview.today.tasks_closed} tasks finished`}
           value={overview.today.runs_completed + overview.today.tasks_closed}
@@ -86,7 +97,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
       </Link>
       <div className="min-w-0 rounded-lg" data-slot="home-kpi-usage">
         <Metric
-          label={`Usage, last ${overview.usage.window_days} days`}
+          label={homeUsageLabel(overview.usage.window_days)}
           labelCase="eyebrow"
           subtext={usageCostDetail(overview)}
           trailing={
@@ -94,7 +105,7 @@ export function HomeKpiStrip({ overview, workingNowTotal, workingNowDetail }: Ho
               <Sparkline
                 ariaLabel={`Tokens per day over the last ${overview.usage.window_days} days`}
                 className="w-16"
-                height={22}
+                height={HOME_KPI_SPARKLINE_HEIGHT}
                 values={usageValues}
               />
             ) : undefined

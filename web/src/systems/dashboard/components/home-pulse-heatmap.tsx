@@ -2,17 +2,18 @@ import { Panel, Section } from "@compozy/ui";
 
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeOverview, HomePulseBucket } from "../types";
+import { HomePulseAxis } from "./home-zone-parts";
+import {
+  HOME_PULSE_GRID_CLASS,
+  HOME_PULSE_GRID_COLUMNS,
+  HOME_PULSE_INSIGHTS_CLASS,
+  HOME_PULSE_WEEKDAY_LABELS,
+  HOME_PULSE_WEEKDAY_ROWS,
+} from "./home-zone-shape";
 
 export interface HomePulseHeatmapProps {
   pulse: HomeOverview["pulse"];
 }
-
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-/** Monday-first display order over the backend's Sunday-first weekday index. */
-const WEEKDAY_ROWS = [1, 2, 3, 4, 5, 6, 0] as const;
-/** Fixed weekday-label track + 24 hour cells, sized by the home-pulse tokens. */
-const PULSE_GRID_COLUMNS =
-  "var(--size-home-pulse-label) repeat(24, minmax(var(--size-home-pulse-cell-min), 1fr))";
 
 function cellBackground(events: number, max: number): string | undefined {
   if (events <= 0 || max <= 0) {
@@ -36,7 +37,7 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
   }
 
   const busiestLabel = pulse.busiest
-    ? `busiest hour is ${WEEKDAY_LABELS[pulse.busiest.weekday]} ${String(pulse.busiest.hour).padStart(2, "0")}:00`
+    ? `busiest hour is ${HOME_PULSE_WEEKDAY_LABELS[pulse.busiest.weekday]} ${String(pulse.busiest.hour).padStart(2, "0")}:00`
     : "no events in the window";
 
   return (
@@ -49,35 +50,23 @@ export function HomePulseHeatmap({ pulse }: HomePulseHeatmapProps) {
         <div className="overflow-x-auto px-4 pt-4 pb-1.5">
           <div
             aria-label={`Activity heatmap by hour and weekday over the last 14 days; ${busiestLabel}`}
-            className="grid min-w-[var(--size-home-pulse-min-w)] gap-[var(--space-home-pulse-gap)]"
+            className={HOME_PULSE_GRID_CLASS}
             role="img"
-            style={{ gridTemplateColumns: PULSE_GRID_COLUMNS }}
+            style={{ gridTemplateColumns: HOME_PULSE_GRID_COLUMNS }}
           >
-            {WEEKDAY_ROWS.map(weekday => (
+            {HOME_PULSE_WEEKDAY_ROWS.map(weekday => (
               <HeatmapRow byCell={byCell} key={weekday} max={max} weekday={weekday} />
             ))}
-            <span aria-hidden="true" />
-            {Array.from({ length: 24 }, (_, hour) => (
-              <span
-                aria-hidden="true"
-                className="pt-0.5 text-left font-mono text-micro text-faint"
-                key={hour}
-              >
-                {hour % 6 === 0 ? String(hour).padStart(2, "0") : ""}
-              </span>
-            ))}
+            <HomePulseAxis />
           </div>
         </div>
         {pulse.busiest || pulse.longest_session ? (
-          <div
-            className="flex flex-wrap items-center gap-2.5 border-t border-line-soft px-4 py-2.5 text-small-body text-muted"
-            data-slot="home-pulse-insights"
-          >
+          <div className={HOME_PULSE_INSIGHTS_CLASS} data-slot="home-pulse-insights">
             {pulse.busiest ? (
               <span>
                 Busiest hour{" "}
                 <span className="font-medium text-fg">
-                  {WEEKDAY_LABELS[pulse.busiest.weekday]}{" "}
+                  {HOME_PULSE_WEEKDAY_LABELS[pulse.busiest.weekday]}{" "}
                   {String(pulse.busiest.hour).padStart(2, "0")}:00
                 </span>{" "}
                 <span className="text-eyebrow tabular-nums text-subtle">
@@ -117,7 +106,9 @@ function HeatmapRow({
 }) {
   return (
     <>
-      <span className="self-center font-mono text-micro text-faint">{WEEKDAY_LABELS[weekday]}</span>
+      <span className="self-center font-mono text-micro text-faint">
+        {HOME_PULSE_WEEKDAY_LABELS[weekday]}
+      </span>
       {Array.from({ length: 24 }, (_, hour) => {
         const events = byCell.get(`${weekday}:${hour}`)?.events ?? 0;
         return (
@@ -125,7 +116,7 @@ function HeatmapRow({
             className="h-[var(--size-home-pulse-cell)] rounded-xs bg-surface-2"
             key={hour}
             style={{ background: cellBackground(events, max) }}
-            title={`${WEEKDAY_LABELS[weekday]} ${String(hour).padStart(2, "0")}:00 · ${events} events`}
+            title={`${HOME_PULSE_WEEKDAY_LABELS[weekday]} ${String(hour).padStart(2, "0")}:00 · ${events} events`}
           />
         );
       })}

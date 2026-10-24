@@ -8,6 +8,7 @@ import {
 } from "../types";
 import { formatHomeTokens } from "../lib/home-formatters";
 import { HomeProfileShare } from "./home-profile-share";
+import { HOME_USAGE_HEADLINE_CLASS } from "./home-zone-shape";
 
 export interface HomeUsageChartProps {
   /** The aggregate read is on — the labeled per-profile breakdown belongs. */
@@ -77,7 +78,7 @@ export function HomeUsageChart({
       }
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
-        <div className="flex items-baseline gap-2.5">
+        <div className={HOME_USAGE_HEADLINE_CLASS}>
           <span className="text-kpi-value font-semibold text-fg-strong tabular-nums">
             {formatHomeTokens(usage.total_tokens)}
           </span>

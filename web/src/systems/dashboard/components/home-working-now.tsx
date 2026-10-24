@@ -8,7 +8,7 @@ import {
   Panel,
   Pill,
   Section,
-  SkeletonRows,
+  SkeletonRegion,
   StateGlyph,
   Surface,
 } from "@compozy/ui";
@@ -16,6 +16,12 @@ import {
 import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../types";
+import {
+  HOME_RUN_ROW_CLASS,
+  HOME_RUN_SUBTITLE_CLASS,
+  HOME_RUN_TITLE_CLASS,
+} from "./home-zone-shape";
+import { HomeWorkingNowSkeleton } from "./home-zone-skeletons";
 import { useSessionCreateActions } from "@/systems/session";
 import { WorkspaceBadge } from "@/systems/workspace";
 
@@ -34,11 +40,11 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
   // One row of the shared live-work card: rows divide, the card carries the edge.
   const body = (
     <div
-      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition-colors duration-base hover:bg-surface-2"
+      className={`${HOME_RUN_ROW_CLASS} transition-colors duration-base hover:bg-surface-2`}
       data-slot="home-run-card"
     >
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-body font-medium text-fg-strong">
+        <div className={HOME_RUN_TITLE_CLASS}>
           <StateGlyph state="running" />
           <OwnerAvatar name={card.agentName} ownerId={card.agentName} ownerKind="agent" size="sm" />
           <span className="truncate">{card.title}</span>
@@ -48,7 +54,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
             </Pill>
           ) : null}
         </div>
-        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+        <p className={HOME_RUN_SUBTITLE_CLASS}>
           {card.project ? (
             <WorkspaceBadge
               className="max-w-40 shrink-[1000]"
@@ -133,6 +139,15 @@ export function HomeWorkingNow({
   const nowSeconds = useElapsedNowSeconds(liveEnabled);
   const sessionCreate = useSessionCreateActions();
 
+  // Its own read is still out: the zone in its loading shape, not a count of zero.
+  if (status === "loading" && cards.length === 0) {
+    return (
+      <SkeletonRegion label="Loading live work">
+        <HomeWorkingNowSkeleton />
+      </SkeletonRegion>
+    );
+  }
+
   return (
     <Section
       className="flex min-h-full flex-col"
@@ -153,10 +168,6 @@ export function HomeWorkingNow({
           icon={AlertTriangle}
           title="Couldn't load live work"
         />
-      ) : status === "loading" && cards.length === 0 ? (
-        <Surface data-slot="home-working-now-loading">
-          <SkeletonRows count={2} rowClassName="gap-1.5 py-1" />
-        </Surface>
       ) : cards.length === 0 ? (
         <HomeWorkingNowEmpty onStartSession={() => sessionCreate.openForAgent("")} />
       ) : (

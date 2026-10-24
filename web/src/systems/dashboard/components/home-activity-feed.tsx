@@ -10,11 +10,14 @@ import {
   Panel,
   Pill,
   Section,
+  SkeletonRegion,
   Time,
 } from "@compozy/ui";
 
 import { homeActivityTone, isQuietActivityEvent } from "../lib/activity-classes";
 import type { HomeActivityEvent, HomeSurfaceStatus } from "../types";
+import { HOME_ACTIVITY_ROW_CLASS } from "./home-zone-shape";
+import { HomeActivityFeedSkeleton } from "./home-zone-skeletons";
 
 export interface HomeActivityFeedProps {
   events: HomeActivityEvent[];
@@ -65,10 +68,7 @@ function toneFor(event: HomeActivityEvent) {
 function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boolean }) {
   const tone = toneFor(event);
   return (
-    <div
-      className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-2.5 px-4 py-2.5"
-      data-slot="home-activity-row"
-    >
+    <div className={HOME_ACTIVITY_ROW_CLASS} data-slot="home-activity-row">
       <span className="mt-1.5 flex justify-center">
         {tone ? (
           <Pill.Dot tone={tone} />
@@ -113,6 +113,15 @@ export function HomeActivityFeed({
     return !Number.isNaN(at) && now - at > RECENT_WINDOW_MS;
   });
   const separatorLabel = earlierSeparatorLabel(loudVisible[separatorIndex]?.timestamp);
+
+  // The feed has not answered yet: its loading shape, never "no recent activity".
+  if (status === "loading" && events.length === 0) {
+    return (
+      <SkeletonRegion label="Loading activity">
+        <HomeActivityFeedSkeleton />
+      </SkeletonRegion>
+    );
+  }
 
   return (
     <Section

@@ -44,6 +44,8 @@ export interface HomeDashboardModel {
   workingNow: HomeWorkingNowModel;
   agents: HomeAgentsModel;
   system: HomeSystemModel;
+  /** Daemon status has no answer yet, so the system row waits. */
+  systemLoading: boolean;
   systemOpen: boolean;
   setSystemOpen: (open: boolean) => void;
 }
@@ -122,7 +124,7 @@ export function useHomeDashboard({
   const activityPresentation = queryPresentation(activityQuery, scopeSettled);
   const overview = overviewQuery.data;
   const agents = useHomeAgents();
-  const system = useHomeSystem(
+  const { system, loading: systemLoading } = useHomeSystem(
     overview?.system.hook_runs_today,
     overview?.system.hook_failures_today,
     overview?.system.retention_days
@@ -165,6 +167,7 @@ export function useHomeDashboard({
     workingNow,
     agents,
     system,
+    systemLoading,
     systemOpen,
     setSystemOpen: open => {
       if (open) {
