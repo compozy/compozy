@@ -1,9 +1,9 @@
 import { ListingPage } from "@compozy/ui";
 
 import {
-  OsWindowToolbarSkeleton,
   ToolbarFilterSkeleton,
   ToolbarSearchSkeleton,
+  ToolbarSlotSkeleton,
   ToolbarViewToggleSkeleton,
 } from "../../components/os-window-toolbar-skeleton";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -18,7 +18,7 @@ export function VaultWindowFallback({ route }: { route: OsWindowRoute }) {
   const { view } = validateVaultSearch(route.search);
   return (
     <>
-      <OsWindowToolbarSkeleton
+      <ToolbarSlotSkeleton
         leading={
           <>
             <ToolbarSearchSkeleton />

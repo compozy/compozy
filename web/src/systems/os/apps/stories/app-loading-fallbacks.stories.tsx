@@ -44,7 +44,7 @@ const meta = {
     docs: {
       description: {
         component:
-          "The body an OS window shows while its app's code loads, per app and route: static, query-free frames shaped like what the app renders, so the app arrives into the same places. Apps that publish a listing toolbar reserve its strip row.",
+          "The body an OS window shows while its app's code loads, per app and route: static, query-free frames shaped like what the app renders, so the app arrives into the same places. Apps that publish a listing toolbar publish its placeholder into the window's strip row.",
       },
     },
   },

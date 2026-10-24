@@ -1,10 +1,10 @@
 import { ListingPage, SkeletonRegion, type ListingViewMode } from "@compozy/ui";
 
 import {
-  OsWindowToolbarSkeleton,
   ToolbarFilterSkeleton,
   ToolbarSearchSkeleton,
   ToolbarSegmentsSkeleton,
+  ToolbarSlotSkeleton,
   ToolbarViewToggleSkeleton,
 } from "../../components/os-window-toolbar-skeleton";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -25,7 +25,7 @@ import {
 function LoopsCatalogFallback({ view }: { view: ListingViewMode }) {
   return (
     <>
-      <OsWindowToolbarSkeleton
+      <ToolbarSlotSkeleton
         leading={
           <>
             <ToolbarSearchSkeleton />
@@ -46,7 +46,7 @@ function LoopRunsFallback({ search }: { search: LoopRunsRouteSearch }) {
   const inventory = search.nodes;
   return (
     <>
-      <OsWindowToolbarSkeleton
+      <ToolbarSlotSkeleton
         leading={
           <>
             <ToolbarSegmentsSkeleton className="w-40" />
@@ -67,9 +67,9 @@ function LoopRunsFallback({ search }: { search: LoopRunsRouteSearch }) {
 
 /**
  * The Loops window's body while its code loads: the surface the route is about to show, in the
- * loading state its location shows while that surface's read is out. The listings reserve the
- * strip row their location will publish. The configure route is a dialog over an empty body, so
- * its body is the empty region.
+ * loading state its location shows while that surface's read is out. The listings publish the
+ * strip their location will. The configure route is a dialog over an empty body, so its body is
+ * the empty region.
  */
 export function LoopsWindowFallback({ route }: { route: OsWindowRoute }) {
   const location = parseLoopWindowLocation(route);

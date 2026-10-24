@@ -1,10 +1,10 @@
 import { Separator } from "@compozy/ui";
 
 import {
-  OsWindowToolbarSkeleton,
   ToolbarFilterSkeleton,
   ToolbarSearchSkeleton,
   ToolbarSegmentsSkeleton,
+  ToolbarSlotSkeleton,
 } from "../../components/os-window-toolbar-skeleton";
 import type { OsWindowRoute } from "../../lib/os-types";
 import {
@@ -20,7 +20,7 @@ import { TasksCatalogSkeleton, type TaskDetailTab, type TaskViewMode } from "@/s
 function TasksCatalogStripSkeleton({ mode }: { mode: TaskViewMode }) {
   const list = mode === "list";
   return (
-    <OsWindowToolbarSkeleton
+    <ToolbarSlotSkeleton
       leading={
         <>
           <ToolbarSegmentsSkeleton className="w-72" />
@@ -71,8 +71,8 @@ function TaskDetailFallback({ tab }: { tab: TaskDetailTab }) {
 
 /**
  * The tasks window's body while its code loads: the surface the route is about to show, in the
- * state the window itself shows while that surface's read is out. The catalog reserves the strip
- * row its location will publish; a task, its edit route and a run show the page frame.
+ * state the window itself shows while that surface's read is out. The catalog publishes the
+ * strip its location will; a task, its edit route and a run show the page frame.
  */
 export function TasksWindowFallback({ route }: { route: OsWindowRoute }) {
   const location = parseTaskWindowLocation(route);

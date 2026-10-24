@@ -1,8 +1,8 @@
 import { cn, LaneTabs, ListingPage, SkeletonRegion, type ListingViewMode } from "@compozy/ui";
 
 import {
-  OsWindowToolbarSkeleton,
   ToolbarSearchSkeleton,
+  ToolbarSlotSkeleton,
   ToolbarViewToggleSkeleton,
 } from "../../components/os-window-toolbar-skeleton";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -36,7 +36,7 @@ const noop = () => undefined;
 function AgentsCatalogFallback({ view }: { view: ListingViewMode }) {
   return (
     <>
-      <OsWindowToolbarSkeleton
+      <ToolbarSlotSkeleton
         leading={<ToolbarSearchSkeleton />}
         trailing={<ToolbarViewToggleSkeleton />}
       />

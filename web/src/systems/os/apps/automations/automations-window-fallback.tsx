@@ -1,10 +1,10 @@
 import { ListingPage } from "@compozy/ui";
 
 import {
-  OsWindowToolbarSkeleton,
   ToolbarFilterSkeleton,
   ToolbarSearchSkeleton,
   ToolbarSegmentsSkeleton,
+  ToolbarSlotSkeleton,
   ToolbarViewToggleSkeleton,
 } from "../../components/os-window-toolbar-skeleton";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -17,9 +17,9 @@ import {
 
 /**
  * The automations window's body while its code loads. An automation shows its page frame with
- * the bands its kind has; the listing reserves the strip row its location will publish (the
- * Start views, search, filters and the cards/rows toggle stay put while the list loads) over the
- * listing's loading rows or cards.
+ * the bands its kind has; the listing publishes the strip its location will (the Start views,
+ * search, filters and the cards/rows toggle stay put while the list loads) over the listing's
+ * loading rows or cards.
  */
 export function AutomationsWindowFallback({ route }: { route: OsWindowRoute }) {
   const detail = parseAutomationDetailPath(route.pathname);
@@ -28,7 +28,7 @@ export function AutomationsWindowFallback({ route }: { route: OsWindowRoute }) {
   const search = validateAutomationsSearch(route.search);
   return (
     <>
-      <OsWindowToolbarSkeleton
+      <ToolbarSlotSkeleton
         leading={
           <>
             <ToolbarSegmentsSkeleton className="w-52" />

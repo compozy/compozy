@@ -1,33 +1,48 @@
 import type { ReactNode } from "react";
 
-import { Skeleton } from "@compozy/ui";
+import { Skeleton, useTopbarSlot } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 /**
- * The window toolbar strip before the app has published its own (`OsWindowToolbar`): the same
- * fixed-height row, rule and padding, with blocks where the controls go. The loaded app mounts
- * its strip above the body and this row leaves the body in the same commit, so the body keeps
- * its place. It is presentational and hidden from assistive technology; the fallback's one status
+ * The window toolbar strip before the app has published its own. It goes where the app's strip
+ * goes: it publishes through the window's own topbar slot, so the frame mounts it in the strip row
+ * above the body (`OsWindowToolbar`, the row the loaded app's strip takes over) before the first
+ * paint. Drawn inside the body instead, the body would sit one strip lower while the app loads
+ * and jump up when it arrived. It renders nothing where it is used, and publishes only `toolbar`,
+ * so the head keeps the window's own title and glyph; the slot is the window's own, and the
+ * app's publish replaces it while this unmounting clears only what it published itself.
+ *
+ * The row is the same fixed-height row, rule and padding, with blocks where the controls go. The
+ * blocks are presentational and hidden from assistive technology; the fallback's one status
  * region carries the loading semantics.
  */
-export function OsWindowToolbarSkeleton({
+export function ToolbarSlotSkeleton({
   leading,
   trailing,
 }: {
   leading: ReactNode;
   trailing?: ReactNode;
 }) {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex h-window-toolbar shrink-0 items-center gap-2.5 overflow-hidden border-b border-line bg-canvas px-3"
-      data-slot="os-window-toolbar-skeleton"
-    >
-      <div className="flex flex-1 flex-nowrap items-center gap-2.5">{leading}</div>
-      {trailing ? <div className="ml-auto flex shrink-0 items-center">{trailing}</div> : null}
-    </div>
-  );
+  useTopbarSlot({
+    toolbar: (
+      <>
+        <div
+          aria-hidden="true"
+          className="flex flex-1 flex-nowrap items-center gap-2.5"
+          data-slot="toolbar-skeleton"
+        >
+          {leading}
+        </div>
+        {trailing ? (
+          <div aria-hidden="true" className="ml-auto flex shrink-0 items-center">
+            {trailing}
+          </div>
+        ) : null}
+      </>
+    ),
+  });
+  return null;
 }
 
 /** The listing search field, level with the real one (`--height-search`). */
