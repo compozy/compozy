@@ -11,6 +11,28 @@ import (
 	"strings"
 )
 
+// SetToolApprovalGrant Set an explicit agent-wide or tool-wide native-tool approval decision
+func (c *Client) SetToolApprovalGrant(ctx context.Context, params SetToolApprovalGrantParams, body ToolApprovalGrantSetRequest) (*ToolApprovalGrantResponse, error) {
+	path := "/api/tool-approval-grants"
+	query := url.Values{}
+	query.Set("workspace_id", params.WorkspaceID)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalGrantResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SignalTerminalParams carries the path, query, and header parameters.
+type SignalTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // SignalTerminal Signal one running terminal
 func (c *Client) SignalTerminal(ctx context.Context, params SignalTerminalParams, body TerminalSignalRequest) (*TerminalDeliveredResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}/signal"

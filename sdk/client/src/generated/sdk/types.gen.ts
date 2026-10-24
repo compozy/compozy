@@ -37730,6 +37730,54 @@ export type CancelWorktreeExitActionResponses = {
 export type CancelWorktreeExitActionResponse =
   CancelWorktreeExitActionResponses[keyof CancelWorktreeExitActionResponses];
 
+export type PrepareWorktreeExitPlanData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+    /**
+     * Worktree id, name, or path
+     */
+    worktree_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare";
+};
+
+export type PrepareWorktreeExitPlanErrors = {
+  /**
+   * Worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Worktree exit plan is unavailable
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type PrepareWorktreeExitPlanError =
+  PrepareWorktreeExitPlanErrors[keyof PrepareWorktreeExitPlanErrors];
+
+export type PrepareWorktreeExitPlanResponses = {
+  /**
+   * OK
+   */
+  200: WorktreeExitPlanResponse;
+};
+
+export type PrepareWorktreeExitPlanResponse =
+  PrepareWorktreeExitPlanResponses[keyof PrepareWorktreeExitPlanResponses];
+
 export type GetWorktreeStatusData = {
   body?: never;
   path: {

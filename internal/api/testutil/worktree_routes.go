@@ -38,6 +38,7 @@ func ExpectedWorktreeRouteKeys() []string {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/dismiss",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
+		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/prepare",
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",
 		"POST /api/workspaces/:workspace_id/worktrees/discovered/remove",
 	}

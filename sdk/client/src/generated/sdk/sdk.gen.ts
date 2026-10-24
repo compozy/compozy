@@ -999,6 +999,9 @@ import type {
   PrepareProfileRenameData,
   PrepareProfileRenameErrors,
   PrepareProfileRenameResponses,
+  PrepareWorktreeExitPlanData,
+  PrepareWorktreeExitPlanErrors,
+  PrepareWorktreeExitPlanResponses,
   PreviewExtensionEnableData,
   PreviewExtensionEnableErrors,
   PreviewExtensionEnableResponses,
@@ -11681,6 +11684,29 @@ export class worktrees extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Resolve forge capabilities and prepare the worktree exit plan
+   */
+  public prepareWorktreeExitPlan<ThrowOnError extends boolean = true>(
+    options: Options<PrepareWorktreeExitPlanData, ThrowOnError>
+  ): RequestResult<
+    PrepareWorktreeExitPlanResponses,
+    PrepareWorktreeExitPlanErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      PrepareWorktreeExitPlanResponses,
+      PrepareWorktreeExitPlanErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare",
+      ...options,
     });
   }
 

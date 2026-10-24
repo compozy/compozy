@@ -372,7 +372,7 @@ func TestExitPlan(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose forge PR defaults and omit them without a forge", func(t *testing.T) {
+	t.Run("Should prepare native PR creation from a cold clean pushed branch", func(t *testing.T) {
 		t.Parallel()
 		item := Worktree{
 			ID: "wt-prefill", WorkspaceID: "ws-prefill", Path: "/repo", Name: "prefill",
@@ -428,8 +428,18 @@ func TestExitPlan(t *testing.T) {
 		if err != nil || cold.PRPrefill != nil || provider.capabilityCalls != 0 || provider.statusCalls != 0 {
 			t.Fatalf("cold plan=%#v, %v; provider=%#v", cold, err, provider)
 		}
-		if withForge.exitForgeCapabilities(t.Context(), []string{"git@github.com:acme/repo.git"}) == nil {
-			t.Fatal("explicit capability lookup failed")
+		prepared, err := withForge.PrepareExitPlan(t.Context(), item.WorkspaceID, item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		open := exitActionRow(t, prepared.Actions, ExitActionOpenPR)
+		if !open.Enabled || open.URL != "" || prepared.PRPrefill == nil {
+			t.Fatalf("prepared native PR action=%#v, prefill=%#v", open, prepared.PRPrefill)
+		}
+		for _, action := range []ExitAction{ExitActionCommit, ExitActionPush} {
+			if exitActionRow(t, prepared.Actions, action).Enabled {
+				t.Fatalf("unrelated mutation %s enabled", action)
+			}
 		}
 		plan, err := withForge.ExitPlan(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil {

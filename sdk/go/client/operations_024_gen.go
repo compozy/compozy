@@ -10,6 +10,22 @@ import (
 	"strings"
 )
 
+// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
+type RefreshProviderModelsByProviderParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// RefreshProviderModelsByProvider Refresh provider model catalog sources for one provider
+func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params RefreshProviderModelsByProviderParams, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models/refresh"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderModelRefreshResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RefreshProviderUsage Refresh provider usage (experimental) Experimental: pin the exact SDK version.
 func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRefreshRequest) (*ProviderUsageEnvelope, error) {
 	path := "/api/provider-usage/refresh"
@@ -429,22 +445,4 @@ func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessio
 type ReorderSessionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ReorderSessions Set the manual session order in a folder or the workspace root
-func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/sessions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

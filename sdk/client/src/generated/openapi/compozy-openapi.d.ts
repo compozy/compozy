@@ -6825,6 +6825,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve forge capabilities and prepare the worktree exit plan */
+    post: operations["prepareWorktreeExitPlan"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status": {
     parameters: {
       query?: never;
@@ -53673,6 +53690,67 @@ export interface operations {
         };
       };
       /** @description Worktree or forge service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  prepareWorktreeExitPlan: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+        /** @description Worktree id, name, or path */
+        worktree_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreeExitPlanResponse"];
+        };
+      };
+      /** @description Worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree exit plan is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

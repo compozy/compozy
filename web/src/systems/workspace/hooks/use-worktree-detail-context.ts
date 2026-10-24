@@ -11,6 +11,7 @@ import { useSessionPromptStaging } from "@/systems/session";
 
 import {
   useCancelWorktreeExitAction,
+  usePrepareWorktreeExitPlan,
   useRunWorktreeExitAction,
   useWorktreeStatus,
 } from "./use-worktree-exit";
@@ -68,17 +69,21 @@ export function useWorktreeDetailContext({
   const status = useWorktreeStatus(workspaceId, worktreeId, { enabled });
   const exit = useWorktreeExitLadder(workspaceId, worktreeId, { enabled });
   const run = useRunWorktreeExitAction(workspaceId, worktreeId);
+  const prepare = usePrepareWorktreeExitPlan(workspaceId, worktreeId);
   const cancel = useCancelWorktreeExitAction(workspaceId, worktreeId);
   const staging = useSessionPromptStaging({ workspaceId, worktreeId, enabled });
   const [dialog, setDialog] = useState<"commit" | "pr" | null>(null);
 
   function onAction(row: WorktreeExitLadderRow) {
+    if (row.action === "open_pr") {
+      if (!prepare.isPending) prepare.mutate(undefined, { onSuccess: () => setDialog("pr") });
+      return;
+    }
     if (row.opensURL && row.url) {
       window.open(row.url, "_blank", "noreferrer");
       return;
     }
     if (COMMIT_ACTIONS.has(row.action)) return setDialog("commit");
-    if (row.action === "open_pr") return setDialog("pr");
     run.mutate({ action: row.action });
   }
 
@@ -97,7 +102,7 @@ export function useWorktreeDetailContext({
   const forgeFetchedAt = status.data?.forge?.fetched_at;
   const staleLabel =
     ladder?.cleanup.stale && forgeFetchedAt ? formatRelativeTime(forgeFetchedAt) : undefined;
-  const detailError = worktrees.error ?? status.error ?? exit.error;
+  const detailError = worktrees.error ?? status.error ?? exit.error ?? prepare.error;
   const detailLoading = worktrees.isPending || status.isPending || exit.isLoading;
   const state: WorktreeDetailModel["state"] = detailError
     ? "error"
@@ -107,6 +112,7 @@ export function useWorktreeDetailContext({
         ? "ready"
         : "missing";
   const retry = () => {
+    prepare.reset();
     void worktrees.refetch();
     void status.refetch();
     exit.refetch();
@@ -122,7 +128,7 @@ export function useWorktreeDetailContext({
     forgeStatus: status.data?.forge ?? undefined,
     ladder,
     staleLabel,
-    isRunning: run.isPending || waitingForProgress || progressRunning,
+    isRunning: prepare.isPending || run.isPending || waitingForProgress || progressRunning,
     onAction,
     onRemove,
     onCleanUp,

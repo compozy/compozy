@@ -80,7 +80,10 @@ only the intended running operation with `compozy worktree exit-cancel <ref> --o
 finished id is a no-op and cannot cancel a later action.
 
 HTTP and UDS expose the same exit contract at `GET .../exit`, `POST .../exit/actions`, and
-`POST .../exit/cancel`. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
+`POST .../exit/cancel`. `POST .../exit/prepare` resolves forge capabilities with an eight-second
+request deadline and returns the same exit-plan payload without mutating Git. The Web PR action
+uses this explicit preparation before choosing native creation or browser fallback, including after
+a daemon restart. Ordinary `GET .../exit` reads remain provider-free. Repeat `include` query parameters on `GET .../exit` for a scoped plan. Action input is
 `{action, message?, title?, body?, draft?, base?, include_paths?, expected_scope?, delivery_id?, expected_head?}`
 and accepted execution returns `{op_id}`. For `action: "deliver"`, `delivery_id`, `expected_head`,
 `message`, `base`, a nonempty `include_paths`, and `expected_scope` are required; the validated

@@ -179,6 +179,26 @@ func (h *BaseHandlers) GetWorktreeExitPlan(c *gin.Context) {
 	c.JSON(http.StatusOK, WorktreeExitPlanPayload(plan))
 }
 
+func (h *BaseHandlers) PrepareWorktreeExitPlan(c *gin.Context) {
+	scope, id, ok := h.worktreeRoute(c)
+	if !ok {
+		return
+	}
+	preparer, supports := h.Worktrees.(interface {
+		PrepareExitPlan(context.Context, string, string) (*worktree.ExitPlan, error)
+	})
+	if !supports {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: exit preparation unavailable"))
+		return
+	}
+	plan, err := preparer.PrepareExitPlan(c.Request.Context(), scope.RegistryID, id)
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, WorktreeExitPlanPayload(plan))
+}
+
 func (h *BaseHandlers) RunWorktreeExitAction(c *gin.Context) {
 	scope, id, ok := h.worktreeRoute(c)
 	if !ok {

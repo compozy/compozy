@@ -145,6 +145,10 @@ export const worktreeHandlers: HttpHandler[] = [
     HttpResponse.json(exitPlanCommitFixture)
   ),
 
+  compozyApiMock.post("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare", () =>
+    HttpResponse.json(exitPlanCommitFixture)
+  ),
+
   // 202 + an operation id: the action itself keeps running daemon-side and
   // reports on the per-worktree stream, never in this response.
   compozyApiMock.post("/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/actions", () =>

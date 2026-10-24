@@ -398,6 +398,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"prepareProfileArchive",
 			"prepareProfileDelete",
 			"prepareProfileRename",
+			"prepareWorktreeExitPlan",
 			"previewExtensionEnable",
 			"previewExtensionInstall",
 			"previewWindowManagerCommand",

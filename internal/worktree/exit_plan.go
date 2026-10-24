@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -31,6 +32,20 @@ const (
 
 func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPlan, error) {
 	return s.exitPlan(ctx, workspaceID, id, false)
+}
+
+// PrepareExitPlan resolves provider capabilities only for an explicit delivery gesture.
+func (s *Service) PrepareExitPlan(ctx context.Context, workspaceID, id string) (*ExitPlan, error) {
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	plan, err := s.exitPlan(ctx, workspaceID, id, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return plan, nil
 }
 
 func (s *Service) exitPlan(ctx context.Context, workspaceID, id string, action bool) (*ExitPlan, error) {

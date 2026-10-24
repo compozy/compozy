@@ -9,6 +9,26 @@ import (
 	"strings"
 )
 
+// PutResource Create or replace one desired-state resource on the local operator control plane
+func (c *Client) PutResource(ctx context.Context, params PutResourceParams, body PutResourceRequest) (*ResourceResponse, error) {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out ResourceResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutSettingsHookParams carries the path, query, and header parameters.
+type PutSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // PutSettingsHook Create or replace one settings-backed hook declaration
 func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookParams, body PutSettingsHookRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/hooks/{name}"
@@ -422,22 +442,6 @@ func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMar
 // RefreshProviderModels Refresh provider model catalog sources across providers
 func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
 	path := "/api/model-catalog/models/refresh"
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
-type RefreshProviderModelsByProviderParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// RefreshProviderModelsByProvider Refresh provider model catalog sources for one provider
-func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params RefreshProviderModelsByProviderParams, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/refresh"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
 	var out ProviderModelRefreshResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err

@@ -39,8 +39,10 @@ Review regression checks:
   JSON formats: exit 1 with `session_branch_unavailable`. A linked-session explicit refresh uses
   the canonical by-id route and returns the refreshed observation.
 - Open managed session topbars while the display cache is stale or rate-limited. Exit-plan reads
-  perform no inline forge capability/status requests. Cold plans use local/browser actions;
-  previously observed capabilities can supply presentation defaults. Explicit actions revalidate
+  perform no inline forge capability/status requests. Cold plans remain provider-free. On a clean, pushed managed branch after restart, select the
+  PR action: preparation resolves native capabilities before opening the dialog. Confirm title/body
+  prefill and draft/create actions appear without an unrelated commit or push; no browser fallback
+  opens while preparation is pending. Previously observed capabilities supply presentation defaults. Explicit actions revalidate
   capabilities, and removal still obtains fresh evidence against the current HEAD.
 - Occupy all four display-refresh slots, queue an automatic refresh under backoff, then join it
   explicitly: exactly one provider call runs for that key after admission.
