@@ -1,6 +1,16 @@
 import { Boxes } from "lucide-react";
 
-import { Button, cn, ListingRow, MonoId, Pill, Section, Spinner } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  ListingRow,
+  ListingRowSkeleton,
+  MonoId,
+  Pill,
+  Section,
+  SkeletonRegion,
+  SkeletonText,
+} from "@compozy/ui";
 
 import type { ExtensionKitItem } from "../types";
 
@@ -55,6 +65,23 @@ function KitInventoryGroup({ group }: { group: ExtensionKitInventoryGroup }) {
   );
 }
 
+/** One group of placeholder rows: the group head's kind and count, then the real row layout. */
+function KitInventorySkeleton() {
+  return (
+    <SkeletonRegion label="Loading kit inventory">
+      <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
+        <span className="eyebrow">
+          <SkeletonText className="w-16" />
+        </span>
+        <span className="font-mono text-eyebrow">
+          <SkeletonText className="w-4" />
+        </span>
+      </div>
+      <ListingRowSkeleton count={3} trail="pill" />
+    </SkeletonRegion>
+  );
+}
+
 function KitInventoryContent({
   items,
   error,
@@ -65,12 +92,7 @@ function KitInventoryContent({
   showEmptyState: boolean;
 }) {
   if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-3 text-small-body text-muted" role="status">
-        <Spinner className="size-3.5" />
-        Loading kit inventory
-      </div>
-    );
+    return <KitInventorySkeleton />;
   }
   if (error) {
     return (

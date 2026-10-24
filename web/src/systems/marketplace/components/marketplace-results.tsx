@@ -11,7 +11,10 @@ import { MarketplaceCatalogSection } from "./marketplace-catalog-section";
 import { MarketplaceEntryCard } from "./marketplace-entry-card";
 import { MarketplaceCatalogTrail } from "./marketplace-entry-trail";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
-import { MarketplaceInstalledShelf } from "./marketplace-installed-shelf";
+import {
+  MarketplaceInstalledShelf,
+  MarketplaceInstalledShelfSkeleton,
+} from "./marketplace-installed-shelf";
 import type { MarketplaceActionController } from "./use-marketplace-action-controller";
 
 type MarketplacePageModel = ReturnType<typeof useMarketplacePage>;
@@ -45,7 +48,9 @@ function MarketplaceResults({
   page,
   query,
 }: MarketplaceResultsProps) {
-  const shelf = (
+  const shelf = page.isInstalledLoading ? (
+    <MarketplaceInstalledShelfSkeleton />
+  ) : (
     <MarketplaceInstalledShelf
       items={page.installedItems}
       query={query}
@@ -57,7 +62,7 @@ function MarketplaceResults({
     return (
       <>
         {shelf}
-        <MarketplaceGridSkeleton count={6} />
+        <MarketplaceGridSkeleton count={8} />
       </>
     );
   }

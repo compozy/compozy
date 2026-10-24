@@ -60,6 +60,47 @@ export const DetailExtensionBrowse: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** The entry read never settles: the lede, one section and the About card hold their places. */
+export const DetailLoading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/slack-notify?source=compozy-catalog"),
+    ...marketplaceStoryHandlers({ catalog: [storyCatalog.slackNotify], entryDelay: "infinite" }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Installed, but the installed record is still loading: the Manage card shows its rows loading. */
+export const DetailInstalledManageLoading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog&installed_name=github"),
+    ...marketplaceStoryHandlers({
+      catalog: [installedListing(storyCatalog.github)],
+      extensionsDelay: "infinite",
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The kit inventory read never settles: the What's inside section shows placeholder rows. */
+export const DetailKitInventoryLoading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/marketplace/github?source=compozy-catalog&installed_name=github"),
+    ...marketplaceStoryHandlers({
+      catalog: [installedListing(storyCatalog.github)],
+      extensions: [
+        installedExtension(installedListing(storyCatalog.github), {
+          contents: { agents: 0, hooks: 0, loops: 0, mcp_servers: 1, skills: 0 },
+        }),
+      ],
+      inventoryDelay: "infinite",
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 /** An MCP-backed entry, not installed: the Server card summarises the manifest, no status or actions. */
 export const DetailExtensionServerBrowse: Story = {
   args: {},

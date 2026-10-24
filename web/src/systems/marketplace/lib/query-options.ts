@@ -12,10 +12,23 @@ import type { MarketplaceCatalogOptions, MarketplaceCatalogEntryOptions } from "
 
 const MARKETPLACE_STALE_TIME = 60_000;
 
+/**
+ * The scope a search edit leaves alone: while an edited search loads, the previous results stay
+ * on screen, but never across a workspace, profile or page-size change. Kept in the query `meta`
+ * so the rule does not depend on where `q` sits in the key.
+ */
+function catalogPopulation({ q: _search, ...population }: MarketplaceCatalogOptions): string {
+  return JSON.stringify(marketplaceKeys.catalog({ ...population, q: undefined }));
+}
+
 export function marketplaceCatalogOptions(options: MarketplaceCatalogOptions = {}, enabled = true) {
+  const population = catalogPopulation(options);
   return queryOptions({
     queryKey: marketplaceKeys.catalog(options),
     queryFn: ({ signal }) => readMarketplaceSnapshot(options, signal),
+    meta: { population },
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.meta?.population === population ? previousData : undefined,
     // Follow every daemon-owned flight, including healthy sources beside degraded ones.
     refetchInterval: query =>
       query.state.data?.pages.some(page => page.refreshing) ? 1_000 : false,
