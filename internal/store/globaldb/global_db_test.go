@@ -196,7 +196,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"task_run_terminal_commands",
 			"worktrees",
 			"worktree_status",
-			"worktree_forge_status",
+			"worktree_forge_status_legacy",
+			"forge_pull_requests",
 			"worktree_exit_ops",
 		)
 		assertTableHasColumns(t, globalDB.db, "sessions", []string{
@@ -254,7 +255,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"cost_cache_write_per_million",
 			"cost_reasoning_per_million",
 		})
-		for _, absent := range []string{"schema_migrations", "memory_events", "goose_db_version_memory"} {
+		for _, absent := range []string{"schema_migrations", "memory_events", "goose_db_version_memory", "worktree_forge_status"} {
 			exists, err := tableExists(testutil.Context(t), globalDB.db, absent)
 			if err != nil {
 				t.Fatalf("tableExists(%q) error = %v", absent, err)
@@ -4841,6 +4842,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"origin_message_id",
 				"origin_agent_name",
 				"effective_workspace_access",
+				"branch",
 			},
 		)
 	})
