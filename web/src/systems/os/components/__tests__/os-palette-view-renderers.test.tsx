@@ -284,7 +284,7 @@ describe("command palette view renderers", () => {
 
     const loaded = screen.getByTestId("os-palette-domain-row-task:one");
     const loading = screen.getByRole("status");
-    expect(loading).toHaveTextContent("Loading Tasks");
+    expect(loading).toHaveTextContent("Loading tasks");
     expect(loaded.compareDocumentPosition(loading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });

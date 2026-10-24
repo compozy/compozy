@@ -110,7 +110,7 @@ export function useOsPaletteDomainView(
       ),
     // Nothing to show yet and the read is out: the rows' shape, never a sentence about them.
     empty: loading ? (
-      <OsPaletteRowsSkeleton count={5} label={`Loading ${domainTitle}`} />
+      <OsPaletteRowsSkeleton count={5} label={`Loading ${domainTitle.toLowerCase()}`} />
     ) : (
       <OsPaletteViewNote placement="empty">
         {domainEmptyMessage(domainTitle, query, filter, loading, section?.error ?? null)}

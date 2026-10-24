@@ -56,7 +56,7 @@ describe("useOsPaletteDomainView", () => {
 
     render(<>{tasksView().empty}</>);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading Tasks");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading tasks");
     expect(screen.queryByText("Loading tasks…")).not.toBeInTheDocument();
   });
 

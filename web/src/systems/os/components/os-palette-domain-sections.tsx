@@ -75,7 +75,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
           // Rows already in place stay put: a read still out for the rest trails them as one row.
           <OsPaletteRowsSkeleton
             count={section.rows.length === 0 ? 3 : 1}
-            label={`Loading ${section.title}`}
+            label={`Loading ${section.title.toLowerCase()}`}
           />
         ) : null}
         {section.total > section.rows.length ? (
