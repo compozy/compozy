@@ -4,10 +4,10 @@
 // frame order onto visual layers where floating windows remain above tiled resize seams. On the
 // All projects desktop a bound item window names its project (or User) in the chrome; catalog
 // windows and project desktops show no badge. While an app's surface loads, the window body shows
-// the app's registered loading frame for the window's route, or the generic rows for an app
-// without one.
+// the app's registered loading frame for the window's route, in that window's own scope, or the
+// generic rows for an app without one.
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { StrictMode, useState } from "react";
+import { StrictMode, useContext, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDesktop } from "../../hooks/use-desktop";
@@ -22,6 +22,7 @@ import type { LayoutProjection, ProjectedSeam } from "../../lib/window-manager-t
 import { WINDOW_VISUAL_LAYER, windowVisualLayer } from "../../lib/window-visual-layer";
 import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindow } from "../os-window";
+import { WindowScopeContext } from "@/hooks/use-window-scope";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
 vi.mock("@/systems/workspace", async importOriginal => ({
@@ -83,7 +84,14 @@ let jobsLoadingFallback = false;
 let deckOpenNewTab = vi.fn();
 
 function JobsLoadingFallback({ route }: { route: OsWindowRoute }) {
-  return <div aria-label="Loading Automations" data-route={route.pathname} role="status" />;
+  return (
+    <div
+      aria-label="Loading Automations"
+      data-route={route.pathname}
+      data-scope={useContext(WindowScopeContext) ?? ""}
+      role="status"
+    />
+  );
 }
 
 vi.mock("../../lib/app-registry", () => ({
@@ -486,10 +494,10 @@ describe("OsWindow", () => {
     );
 
     const body = screen.getByTestId("os-window-window:jobs");
-    expect(within(body).getByRole("status", { name: "Loading Automations" })).toHaveAttribute(
-      "data-route",
-      "/automations/jobs/morning-digest"
-    );
+    const fallback = within(body).getByRole("status", { name: "Loading Automations" });
+    expect(fallback).toHaveAttribute("data-route", "/automations/jobs/morning-digest");
+    // Hosted in its own window's scope, like the surface it stands in for.
+    expect(fallback).toHaveAttribute("data-scope", "window:jobs");
     expect(within(body).queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
   });
 });

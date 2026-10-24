@@ -1,5 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
 
+import { WindowScopeContext } from "@/hooks/use-window-scope";
+
 import { useDesktop } from "../hooks/use-desktop";
 import type { OsAppDefinition } from "../lib/app-registry";
 import type { OsWindowRoute } from "../lib/os-types";
@@ -12,7 +14,13 @@ function RoutedFallback({
   windowId: string;
 }) {
   const route = useDesktop(state => state.windows[windowId]?.route);
-  return route ? <Fallback route={route} /> : null;
+  // Hosted in the window's own scope, the way its surface will be, so a frame that reflects a
+  // per-window preference (the session rail's width) reads this window's and not the shell's.
+  return route ? (
+    <WindowScopeContext value={windowId}>
+      <Fallback route={route} />
+    </WindowScopeContext>
+  ) : null;
 }
 
 /**
