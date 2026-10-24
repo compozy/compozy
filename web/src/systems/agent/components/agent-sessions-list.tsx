@@ -9,7 +9,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Pill,
-  Skeleton,
+  SkeletonRegion,
   StateGlyph,
   Spinner,
   Table,
@@ -18,6 +18,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowSkeleton,
+  type TableRowSkeletonColumn,
   Time,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
@@ -148,17 +150,7 @@ function AgentSessionsTable({
     <div className="flex flex-col" data-testid="agent-sessions-table-wrapper">
       <div className="overflow-x-auto">
         <Table data-testid="agent-sessions-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-2/5">Session</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Duration</TableHead>
-              <TableHead className="text-right">Last activity</TableHead>
-              <TableHead className="w-10">
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
+          <AgentSessionsTableHead />
           <TableBody>
             {sessions.map(session => (
               <AgentSessionRow
@@ -287,27 +279,50 @@ function ArchivedSessionsSection({
   );
 }
 
-function AgentSessionsSkeleton() {
+const SESSION_SKELETON_ROWS = 5;
+const SESSION_SKELETON_COLUMNS: readonly TableRowSkeletonColumn[] = [
+  { className: "w-48" },
+  { className: "w-20" },
+  { align: "end", className: "w-12" },
+  { align: "end", className: "w-16" },
+  { align: "end", className: "w-5" },
+];
+
+function AgentSessionsTableHead() {
   return (
-    <div
-      className="flex flex-col gap-2 px-1 py-2"
-      data-testid="agent-sessions-loading"
-      role="status"
-      aria-live="polite"
-    >
-      {AGENT_SESSION_SKELETON_IDS.map(id => (
-        <Skeleton key={id} className="h-9 w-full rounded-md" />
-      ))}
-    </div>
+    <TableHeader>
+      <TableRow>
+        <TableHead className="w-2/5">Session</TableHead>
+        <TableHead>Status</TableHead>
+        <TableHead className="text-right">Duration</TableHead>
+        <TableHead className="text-right">Last activity</TableHead>
+        <TableHead className="w-10">
+          <span className="sr-only">Actions</span>
+        </TableHead>
+      </TableRow>
+    </TableHeader>
   );
 }
 
-const AGENT_SESSION_SKELETON_IDS = [
-  "agent-session-skeleton-1",
-  "agent-session-skeleton-2",
-  "agent-session-skeleton-3",
-  "agent-session-skeleton-4",
-];
+/** The sessions table while its rows load: the real header and cell grid, placeholder rows. */
+export function AgentSessionsSkeleton() {
+  return (
+    <SkeletonRegion
+      className="flex flex-col"
+      data-testid="agent-sessions-loading"
+      label="Loading sessions"
+    >
+      <div className="overflow-x-auto">
+        <Table>
+          <AgentSessionsTableHead />
+          <TableBody>
+            <TableRowSkeleton columns={SESSION_SKELETON_COLUMNS} count={SESSION_SKELETON_ROWS} />
+          </TableBody>
+        </Table>
+      </div>
+    </SkeletonRegion>
+  );
+}
 
 function LastActivity({ iso }: { iso: string | null | undefined }) {
   if (!iso || !Number.isFinite(new Date(iso).getTime())) return <>—</>;

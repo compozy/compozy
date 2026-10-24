@@ -133,7 +133,8 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     isFirstRunEmpty,
     isFilteredEmpty,
     sessionsPartial,
-    hasMore: catalogQuery.hasNextPage,
+    // The rows of the previous search have a cursor of their own; the next page is the new search's.
+    hasMore: catalogQuery.hasNextPage && !catalogQuery.isPlaceholderData,
     isLoadingMore: catalogQuery.isFetchingNextPage,
     loadMore: () => {
       void catalogQuery.fetchNextPage();
@@ -153,14 +154,29 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   };
 }
 
+/** What the fleet's visibility reads of a catalog query; both catalog hooks satisfy it. */
+interface FleetCatalogState {
+  agents: readonly unknown[];
+  facets?: { total: number };
+  isError: boolean;
+  isPending: boolean;
+  isPlaceholderData: boolean;
+  total: number;
+}
+
 function projectFleetVisibility(
-  catalogQuery: ReturnType<typeof useAgentCatalog>,
+  catalogQuery: FleetCatalogState,
   pending: boolean,
   search: AgentsFleetSearch,
   projectFilterActive: boolean
 ) {
   const filtersActive = hasActiveAgentFleetFilters(search) || projectFilterActive;
-  const isLoading = pending || catalogQuery.isLoading;
+  // No answer yet, however it is pending: still fetching, or idle until the window may read. A
+  // placeholder keeps the previous search's rows on screen, but with none it is no answer.
+  const isLoading =
+    pending ||
+    catalogQuery.isPending ||
+    (catalogQuery.isPlaceholderData && catalogQuery.agents.length === 0);
   const overallTotal = catalogQuery.facets?.total ?? 0;
   const isFirstRunEmpty =
     !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;
@@ -176,5 +192,5 @@ function projectFleetVisibility(
   return { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle };
 }
 
-export { useAgentsFleetPage };
+export { projectFleetVisibility, useAgentsFleetPage };
 export type { AgentsFleetSearch };

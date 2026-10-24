@@ -78,7 +78,7 @@ export function useAgentRuntimeEditor({
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
   const providersLoading = useWorkspaceProviders
     ? workspaceId !== null && workspaceDetail.isLoading
-    : settingsProviders.isLoading || settingsProviders.isFetching;
+    : settingsProviders.isLoading;
   const providerSourceError = useWorkspaceProviders
     ? workspaceDetail.error
       ? describeError("Couldn't load workspace providers", workspaceDetail.error)

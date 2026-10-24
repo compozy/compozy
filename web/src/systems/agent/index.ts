@@ -256,12 +256,18 @@ export { providerIconMap } from "./components/provider-icon-map";
 export {
   AgentPageActions,
   AgentPageOverflow,
+  AgentPageOverflowSkeleton,
   AgentPageStatusPill,
+  AgentPageStatusSkeleton,
   type AgentPageActionsProps,
   type AgentPageOverflowProps,
   type AgentPageStatusPillProps,
 } from "./components/agent-page-header";
-export { AgentDetailHeader, type AgentDetailHeaderProps } from "./components/agent-detail-header";
+export {
+  AgentDetailHeader,
+  AgentDetailHeaderSkeleton,
+  type AgentDetailHeaderProps,
+} from "./components/agent-detail-header";
 export {
   AgentRuntimeControl,
   type AgentRuntimeControlProps,
@@ -277,13 +283,23 @@ export {
   AgentMcpServersPanel,
   type AgentMcpServersPanelProps,
 } from "./components/agent-mcp-servers-panel";
-export { AgentOverviewTab, type AgentOverviewTabProps } from "./components/agent-overview-tab";
 export {
+  AgentOverviewSkeleton,
+  AgentOverviewTab,
+  type AgentOverviewTabProps,
+} from "./components/agent-overview-tab";
+export {
+  AgentConfigurationSkeleton,
   AgentConfigurationTab,
   type AgentConfigurationTabProps,
 } from "./components/agent-configuration-tab";
-export { AgentSessionsTab, type AgentSessionsTabProps } from "./components/agent-sessions-tab";
 export {
+  AgentSessionsTab,
+  AgentSessionsTabSkeleton,
+  type AgentSessionsTabProps,
+} from "./components/agent-sessions-tab";
+export {
+  AgentInstructionsSkeleton,
   AgentInstructionsTab,
   type AgentInstructionsTabProps,
   type AgentInstructionsTabViewModel,
@@ -299,6 +315,7 @@ export {
 export { AgentHeartbeatOps, type AgentHeartbeatOpsProps } from "./components/agent-heartbeat-ops";
 export {
   AgentSettingsPanels,
+  AgentSettingsPanelsSkeleton,
   type AgentSettingsPanelsProps,
 } from "./components/agent-settings-panels";
 export {
