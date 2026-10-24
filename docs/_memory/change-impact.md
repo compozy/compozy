@@ -4384,7 +4384,8 @@ integration shards remain CI-owned under the user's local-validation override.
 Owner: post-merge review A-972-01 of PR #972. The desktop shell publishes its effective motion
 preference (client-local Appearance setting OR system preference) to the shared document CSS.
 View-transition snapshots and CSS animations honor either preference without changing navigation,
-deferred content identity, window geometry, or palette subscriptions.
+deferred content identity, window geometry, or palette subscriptions. Skeleton sweeps stop entirely
+and delayed reveals retain their delay under either preference, avoiding fast-load flashes.
 
 - **Web/Docs:** Settings, Session and all shared content transitions use the same suppression;
   `docs/qa/scenarios/ET-web-ui-resilience.md` tracks the focused real-browser verification.
