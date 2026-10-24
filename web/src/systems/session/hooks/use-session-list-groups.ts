@@ -57,12 +57,7 @@ export function useSessionListGroups({
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
-    ...sessionFacetsOptions({
-      ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
-      ...(population ?? { subagents: sessionListSubagentsParam(search) }),
-      ...(archived ? { archive: "only" as const } : {}),
-      ...lens,
-    }),
+    ...sessionFacetsOptions(groupFacetFilters({ scope, lens, archived, search, population })),
     enabled: grouped,
   });
   const byProfile = grouped && groupBy === "profile";
@@ -80,6 +75,25 @@ export function useSessionListGroups({
     groups,
     loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
     error: groupsFailure(grouped, facets, byProfile ? profiles : null),
+  };
+}
+
+/** The one facets query membership reads: the list's breadth and lens over its population. */
+function groupFacetFilters({
+  scope,
+  lens,
+  archived,
+  search,
+  population,
+}: Pick<
+  SessionListGroupsInput,
+  "scope" | "lens" | "archived" | "search" | "population"
+>): SessionListFilters {
+  return {
+    ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
+    ...(population ?? { subagents: sessionListSubagentsParam(search) }),
+    ...(archived ? { archive: "only" as const } : {}),
+    ...lens,
   };
 }
 
