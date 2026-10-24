@@ -853,17 +853,26 @@ describe("route query preloading", () => {
     setActiveWorkspaceId(workspace.id);
   });
 
-  // The menubar mounts its usage tray only for a profile with targets; the shell must render
-  // with that answer already read so the tray never appears or vanishes beside its neighbors.
-  it("Should read the usage envelope before the app shell renders", async () => {
+  // The usage tray read is optional to the desktop: an unanswered /api/provider-usage must neither
+  // hold the app route nor delay the warmups beside it, and it still warms the acting profile's key.
+  it("Should settle the app route and start its warmups while the usage read is unanswered", async () => {
     const queryClient = createQueryClient();
+    adapterMocks.getProviderUsage.mockImplementation(() => new Promise(() => undefined));
 
-    await invokeLoader(AppRoute, context(queryClient));
+    await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
 
+    for (const warmup of [
+      adapterMocks.fetchAgents,
+      adapterMocks.fetchAgentCatalog,
+      adapterMocks.fetchWorkspace,
+      adapterMocks.fetchSessions,
+    ]) {
+      expect(warmup).toHaveBeenCalledTimes(1);
+    }
     expect(adapterMocks.getProviderUsage).toHaveBeenCalledTimes(1);
     const profile = readActingProfile(queryClient);
-    expect(queryClient.getQueryData(providerUsageOptions(profile).queryKey)).toEqual(
-      defaultUsageEnvelope()
+    expect(queryClient.getQueryState(providerUsageOptions(profile).queryKey)?.fetchStatus).toBe(
+      "fetching"
     );
   });
 

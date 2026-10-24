@@ -1,10 +1,6 @@
 import { CancelledError, type QueryClient } from "@tanstack/react-query";
 
-import {
-  ensureRouteQueryData,
-  resolveActiveWorkspaceId,
-  settleRouteQueries,
-} from "./-route-preload";
+import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentCatalogOptions, agentsListOptions } from "@/systems/agent";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { providerUsageOptions } from "@/systems/provider-usage";
@@ -72,18 +68,13 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
   const profileScope = readProfileScopeParams(queryClient);
 
   const profile = readActingProfile(queryClient);
-  // The menubar mounts its usage tray only for a profile with usage targets. Reading the stored
-  // envelope before the shell renders lets the tray land with the shell rather than appear (or
-  // vanish) beside the controls next to it. Settled: a failed read never holds the desktop.
-  if (profile !== "") {
-    await Promise.allSettled([
-      ensureRouteQueryData(() => queryClient.ensureQueryData(providerUsageOptions(profile))),
-    ]);
-  }
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1, profile })),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
+    // Warms the menubar usage tray under the same profile key; never waited on, so an unanswered
+    // usage read cannot hold the desktop or the reads beside it.
+    ...(profile === "" ? [] : [queryClient.ensureQueryData(providerUsageOptions(profile))]),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({ workspace_id: workspaceId, state: "active", limit: 1, ...profileScope })
     ),

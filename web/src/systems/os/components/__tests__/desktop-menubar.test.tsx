@@ -263,7 +263,10 @@ describe("DesktopMenubar provider usage control", () => {
     ).map(element => element.getAttribute("data-slot") ?? "");
   }
 
-  it("Should sit right after All desktops while the profile has targets", () => {
+  // The control leads the right-aligned cluster: it is known only once the usage read answers, so
+  // arriving there takes the spacer's room and the controls already on screen keep their place.
+  // DOM order is the visual and tab order.
+  it("Should lead the tray cluster while the profile has targets", () => {
     const { container } = renderMenubar({ usage: codexWeekly });
 
     expect(
@@ -274,16 +277,15 @@ describe("DesktopMenubar provider usage control", () => {
     const usageButton = screen.getByRole("button", { name: /^Codex · Weekly/ });
     expect([...footprint].filter(token => !usageButton.classList.contains(token))).toEqual([]);
     expect(trayOrder(container)).toEqual([
-      "os-menubar-desktops",
       "os-menubar-usage",
+      "os-menubar-desktops",
       "os-menubar-bell",
       "os-menubar-command",
     ]);
   });
 
-  // Invariant: the tray control never mounts on an unknown answer. The app route reads the usage
-  // envelope before the shell renders, so a pending read here (a profile switch) must not hold a
-  // slot that a no-target answer would then take away beside the other menubar controls.
+  // Invariant: the tray control never mounts on an unknown answer, so a pending read never holds a
+  // slot that a no-target answer would then take away.
   it("Should mount the control only once the read answers with a target", async () => {
     let answer!: (response: Response) => void;
     vi.mocked(globalThis.fetch).mockImplementation(
