@@ -121,6 +121,32 @@ describe("production task detail route (integration)", () => {
     );
   });
 
+  it("Should swap the tab panel when the location's tab changes, and leave only that panel", async () => {
+    const { router } = buildProductionDetailRouter("/tasks/task_abc");
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-detail-overview")).toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate({
+        to: "/tasks/$id",
+        params: { id: "task_abc" },
+        search: { tab: "runs" },
+      });
+    });
+
+    // The tabs and their panel follow the location together, as a deferred swap that settles.
+    await waitFor(() =>
+      expect(screen.getByTestId("tasks-detail-tab-runs")).toHaveAttribute("aria-selected", "true")
+    );
+    expect(await screen.findByTestId("tasks-runs-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-overview")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-tab-overview")).toHaveAttribute(
+      "aria-selected",
+      "false"
+    );
+  });
+
   it("Should stand in with the task's own shape while it loads, and not again on a refetch", async () => {
     const detail = buildDetailFixture({
       task: { id: "task_abc", title: "Production route task", latest_event_seq: undefined },

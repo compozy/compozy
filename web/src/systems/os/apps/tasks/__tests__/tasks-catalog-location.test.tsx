@@ -260,6 +260,20 @@ describe("TasksCatalogLocation", () => {
     );
   });
 
+  it("Should swap the body to the new mode while the strip follows at once", async () => {
+    const { rerender } = renderCatalog();
+    expect(screen.getByTestId("tasks-list-surface")).toBeInTheDocument();
+
+    rerender(<TasksCatalogLocation search={{ mode: "dashboard" }} />);
+
+    // The body renders the new mode as a deferred swap, so it settles rather than lands in the
+    // same pass; nothing of the old view stays mounted once it has.
+    expect(await screen.findByTestId("tasks-dashboard-view")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-mode-dashboard")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("tasks-mode-list")).not.toHaveAttribute("aria-current");
+  });
+
   it("Should show the head count only for the unfiltered list", () => {
     const { unmount } = renderCatalog();
     expect(document.querySelector("[data-slot='topbar-count']")).toHaveTextContent("3");

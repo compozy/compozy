@@ -4,7 +4,7 @@ import { ListChecks, Plus } from "lucide-react";
 import { Button, RouteNav, Separator, useTopbarSlot } from "@compozy/ui";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
-import { TasksCatalogBody } from "./tasks-catalog-views";
+import { TasksCatalogContent } from "./tasks-catalog-views";
 import { useTasksCatalogNavigation } from "./use-tasks-catalog-navigation";
 import {
   taskModeSearchFor,
@@ -109,7 +109,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
       data-density="route"
       data-testid="tasks-shell"
     >
-      <TasksCatalogBody mode={mode} openCreate={openCreate} openTask={openTask} page={page} />
+      <TasksCatalogContent mode={mode} openCreate={openCreate} openTask={openTask} page={page} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { AlertCircle, ClipboardList } from "lucide-react";
+import { useDeferredValue, ViewTransition } from "react";
 
 import {
   Button,
@@ -8,6 +9,7 @@ import {
   PAGE_CONTENT_GUTTER,
   SkeletonRegion,
   TabsContent,
+  VIEW_TRANSITION_CLASS,
   type LaneTabsItem,
 } from "@compozy/ui";
 
@@ -202,6 +204,10 @@ function TaskDetailContent({
   completedResult: TaskOverviewCompletedResult;
 }) {
   const { page } = controller;
+  // The tab arrives from the window-manager store, whose updates are never React transitions, so
+  // the tabs and their panel read it deferred: the swap renders as the transition the panel's
+  // boundary animates.
+  const tab = useDeferredValue(controller.search.tab);
   const reviewsByRun = groupReviewsByRun(page.reviews);
   const canStartRun = command.primary?.kind === "start";
   const isDraft = record.draft || record.status === "draft";
@@ -224,67 +230,75 @@ function TaskDetailContent({
             items={buildTabItems(page.runsLoading ? undefined : page.runs.length)}
             listClassName="w-full"
             onChange={controller.setTab}
-            value={controller.search.tab}
+            value={tab}
           >
             <div className={cn(TASK_DETAIL_GRID_CLASS, "pt-5")}>
               <main className="min-w-0" data-testid="tasks-detail-panels">
-                <TabsContent value="overview">
-                  <TaskOverviewPanel
-                    activeRunElapsed={controller.activeElapsed}
-                    completedResult={completedResult}
-                    detail={detail}
-                    isLive={page.isLive}
-                    nowHandlers={{
-                      onOpenRun: controller.openRun,
-                      onOpenTask: controller.openTask,
-                      onApprove: () => void page.handleApproveTask(),
-                      onReject: () => void page.handleRejectTask(),
-                      onResume: () => void page.handleResumeTask(),
-                      onRecover: () => void page.handleRecoverTask(),
-                      onClearBlock: blockId => void page.handleClearBlock(blockId),
-                      onViewResult: controller.scrollToResult,
-                    }}
-                    nowPending={{
-                      approve: page.isApprovePending,
-                      reject: page.isRejectPending,
-                      resume: page.isResumePending,
-                      recover: page.isRecoverPending,
-                      clearBlock: page.isClearBlockPending,
-                    }}
-                    onViewAllActivity={() => controller.setTab("activity")}
-                    runs={page.runs}
-                    timeline={page.timeline}
-                    timelineLoading={page.timelineLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="runs">
-                  <TaskRunsPanel
-                    emptyDescription={
-                      isDraft
-                        ? "Saved intent only. Runs appear after you publish, start, or approve a task."
-                        : undefined
-                    }
-                    errorMessage={page.runsError?.message ?? null}
-                    isLoading={page.runsLoading}
-                    isStartPending={page.isEnqueuePending}
-                    onStartRun={canStartRun ? () => void page.handleEnqueueRun() : undefined}
-                    reviewsByRun={reviewsByRun}
-                    runDurations={controller.runDurations}
-                    runs={page.runs}
-                    taskId={taskId}
-                    workerName={page.profile?.worker?.agent_name ?? null}
-                  />
-                </TabsContent>
-                <TabsContent value="activity">
-                  <TaskActivityPanel
-                    canLoadMore={page.isTimelineSaturated}
-                    errorMessage={page.timelineError?.message ?? null}
-                    isLive={page.isLive}
-                    isLoading={page.timelineLoading}
-                    items={page.timeline}
-                    onLoadMore={page.handleTimelineLoadMore}
-                  />
-                </TabsContent>
+                {/* A tab swap cross-fades the panel. Keyed by tab so only the swap triggers it. */}
+                <ViewTransition
+                  key={tab}
+                  default="none"
+                  enter={VIEW_TRANSITION_CLASS.fade}
+                  exit={VIEW_TRANSITION_CLASS.fade}
+                >
+                  <TabsContent value="overview">
+                    <TaskOverviewPanel
+                      activeRunElapsed={controller.activeElapsed}
+                      completedResult={completedResult}
+                      detail={detail}
+                      isLive={page.isLive}
+                      nowHandlers={{
+                        onOpenRun: controller.openRun,
+                        onOpenTask: controller.openTask,
+                        onApprove: () => void page.handleApproveTask(),
+                        onReject: () => void page.handleRejectTask(),
+                        onResume: () => void page.handleResumeTask(),
+                        onRecover: () => void page.handleRecoverTask(),
+                        onClearBlock: blockId => void page.handleClearBlock(blockId),
+                        onViewResult: controller.scrollToResult,
+                      }}
+                      nowPending={{
+                        approve: page.isApprovePending,
+                        reject: page.isRejectPending,
+                        resume: page.isResumePending,
+                        recover: page.isRecoverPending,
+                        clearBlock: page.isClearBlockPending,
+                      }}
+                      onViewAllActivity={() => controller.setTab("activity")}
+                      runs={page.runs}
+                      timeline={page.timeline}
+                      timelineLoading={page.timelineLoading}
+                    />
+                  </TabsContent>
+                  <TabsContent value="runs">
+                    <TaskRunsPanel
+                      emptyDescription={
+                        isDraft
+                          ? "Saved intent only. Runs appear after you publish, start, or approve a task."
+                          : undefined
+                      }
+                      errorMessage={page.runsError?.message ?? null}
+                      isLoading={page.runsLoading}
+                      isStartPending={page.isEnqueuePending}
+                      onStartRun={canStartRun ? () => void page.handleEnqueueRun() : undefined}
+                      reviewsByRun={reviewsByRun}
+                      runDurations={controller.runDurations}
+                      runs={page.runs}
+                      taskId={taskId}
+                      workerName={page.profile?.worker?.agent_name ?? null}
+                    />
+                  </TabsContent>
+                  <TabsContent value="activity">
+                    <TaskActivityPanel
+                      canLoadMore={page.isTimelineSaturated}
+                      errorMessage={page.timelineError?.message ?? null}
+                      isLive={page.isLive}
+                      isLoading={page.timelineLoading}
+                      items={page.timeline}
+                      onLoadMore={page.handleTimelineLoadMore}
+                    />
+                  </TabsContent>
+                </ViewTransition>
               </main>
               <aside className={TASK_DETAIL_RAIL_CLASS}>
                 <TaskPropertiesRail
