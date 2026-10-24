@@ -75,18 +75,24 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 	return recoverErr
 }
 
-// recoverRemoval finishes a removal interrupted by a daemon stop. A refusal,
-// such as a checkout the interrupted Git command left orphaned, returns the
-// record to ready for the user to decide; it must not fail daemon startup.
+// recoverRemoval finishes a removal interrupted by a daemon stop. Anything
+// that keeps it from finishing, such as a checkout the interrupted Git command
+// left orphaned or an unreadable leftover, returns the record to the user and
+// is logged; one worktree must not fail daemon startup.
 func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
 	refusalResult, err := s.removeFenced(ctx, item, false)
-	if refusalResult == nil && !errors.Is(err, ErrCheckoutOrphaned) {
-		return err
+	if err == nil && refusalResult == nil {
+		return nil
 	}
-	s.logger.WarnContext(
-		ctx, "interrupted worktree removal needs confirmation",
-		"worktree_id", item.ID, "error", diagnostics.RedactAndBound(fmt.Sprint(err), 2048),
-	)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return errors.Join(err, ctxErr)
+	}
+	attrs := []any{"worktree_id", item.ID, "error", diagnostics.RedactAndBound(fmt.Sprint(err), 2048)}
+	if refusalResult != nil || errors.Is(err, ErrCheckoutOrphaned) {
+		s.logger.WarnContext(ctx, "interrupted worktree removal needs confirmation", attrs...)
+		return nil
+	}
+	s.logger.ErrorContext(ctx, "interrupted worktree removal could not finish", attrs...)
 	return nil
 }
 

@@ -98,8 +98,8 @@ func (s *Service) RemoveDiscovered(
 			}
 		}
 	}
-	if err := s.runDiscoveredRemoval(ctx, workspace.Root, commonDir, target, force); err != nil {
-		return nil, err
+	if refusalResult, err := s.runDiscoveredRemoval(ctx, workspace.Root, commonDir, target, force); err != nil {
+		return refusalResult, err
 	}
 	s.invalidateDiscovery(workspaceID)
 	return nil, nil
@@ -262,7 +262,7 @@ func (s *Service) runDiscoveredRemoval(
 	commonDir string,
 	target discoveredRemovalTarget,
 	force bool,
-) error {
+) (*RemovalRefusal, error) {
 	args := []string{gitDirFlag, commonDir, worktreeDescriptorName, exitRemoveAction}
 	if force {
 		args = append(args, "--force")
@@ -273,19 +273,17 @@ func (s *Service) runDiscoveredRemoval(
 	args = append(args, target.entry.Path)
 	_, stderr, err := s.runCheckoutRemoval(ctx, workspaceRoot, args...)
 	if err == nil {
-		return nil
+		return nil, nil
 	}
 	removeErr := fmt.Errorf("%w: %s: %v", ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
-	_, orphaned, inspectErr := findOrphanedCheckout(target.entry.Path, commonDir)
+	orphan, orphaned, inspectErr := findOrphanedCheckout(target.entry.Path, commonDir)
 	if inspectErr != nil {
-		return errors.Join(removeErr, inspectErr)
+		return nil, errors.Join(removeErr, inspectErr)
 	}
 	if orphaned {
-		// Git stopped midway, after deleting the .git link. A retry offers to
-		// delete what is left.
-		s.logger.WarnContext(ctx, "discovered worktree removal interrupted; checkout left orphaned",
-			"error", removeErr.Error())
-		return refusal(ErrCheckoutOrphaned, orphanedCheckoutDetail)
+		// Git stopped midway, after deleting the .git link. The refusal offers
+		// to delete what is left.
+		return s.interruptedRemovalRefusal(context.WithoutCancel(ctx), workspaceRoot, orphan, removeErr)
 	}
-	return removeErr
+	return nil, removeErr
 }

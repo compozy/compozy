@@ -189,6 +189,27 @@ func (s *Service) evaluateOrphanedRemoval(
 	return risk, refusalResult, err
 }
 
+// interruptedRemovalRefusal answers a removal that Git abandoned after
+// deleting the .git link with the same refusal and inventory a new request
+// would get, so callers can offer force without another round trip.
+func (s *Service) interruptedRemovalRefusal(
+	ctx context.Context,
+	root string,
+	orphan orphanedCheckout,
+	cause error,
+) (*RemovalRefusal, error) {
+	s.logger.WarnContext(
+		ctx, "worktree removal interrupted; checkout left orphaned",
+		"error", diagnostics.RedactAndBound(cause.Error(), 2048),
+	)
+	risk, err := s.orphanedRemovalRisk(ctx, root, orphan)
+	if err != nil {
+		return nil, fmt.Errorf("%w: orphaned checkout inventory: %v", ErrSafetyCheckFailed, err)
+	}
+	return &RemovalRefusal{Code: ErrCheckoutOrphaned.Error(), Risk: risk},
+		refusal(ErrCheckoutOrphaned, orphanedCheckoutDetail)
+}
+
 // removeOrphanedCheckout deletes the leftover directory first and only then
 // clears Git's entry, which Git accepts once the checkout is gone. Stopping in
 // between leaves another orphaned checkout, never an untracked directory.
@@ -214,7 +235,7 @@ func (s *Service) removeOrphanedCheckout(
 		args = append(args, "--force")
 	}
 	args = append(args, gitPath)
-	if _, stderr, err := s.runner.Run(ctx, root, args...); err != nil {
+	if _, stderr, err := s.runCheckoutRemoval(ctx, root, args...); err != nil {
 		return fmt.Errorf("%w: clear orphaned Git entry: %s: %v",
 			ErrRemovalFailed, diagnostics.RedactAndBound(string(stderr), 2048), err)
 	}

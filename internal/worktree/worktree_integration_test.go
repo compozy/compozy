@@ -1750,6 +1750,29 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if got := f.item(registered.ID).State; got != StateReady {
 			t.Fatalf("recovered orphan state = %q, want ready for confirmation", got)
 		}
+		// An unreadable leftover cannot be inventoried; startup still continues.
+		locked := filepath.Join(registered.Path, "locked")
+		if err := os.Mkdir(locked, 0o700); err != nil {
+			t.Fatalf("Mkdir(locked) error = %v", err)
+		}
+		if err := os.Chmod(locked, 0o000); err != nil {
+			t.Fatalf("Chmod(locked) error = %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed unreadable interrupted removal: %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations(unreadable orphan) error = %v, want startup to continue", err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("unreadable orphan state = %q, want ready", got)
+		}
+		if err := os.Chmod(locked, 0o700); err != nil {
+			t.Fatalf("Chmod(unlock) error = %v", err)
+		}
 		if refusalResult, err = f.service.Remove(
 			t.Context(), f.workspace.ID, registered.ID, true,
 		); err != nil || refusalResult != nil {
@@ -1788,7 +1811,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		)
 		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
 			refusalResult.Risk.UnpushedCommits != 1 || refusalResult.Risk.LeftoverFiles == 0 {
-			t.Fatalf("RemoveDiscovered(orphaned) = (%#v, %v), want detached commit and files at risk", refusalResult, err)
+			t.Fatalf(
+				"RemoveDiscovered(orphaned) = (%#v, %v), want detached commit and files at risk",
+				refusalResult,
+				err,
+			)
 		}
 		if _, err := os.Lstat(filepath.Join(detachedPath, "unique.txt")); err != nil {
 			t.Fatalf("refused orphan lost files: %v", err)

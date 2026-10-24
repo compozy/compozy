@@ -385,6 +385,49 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should finish the removal record when the request ends while Git deletes", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		ctx, cancel := context.WithCancel(t.Context())
+		fixture.onRemove = cancel
+		refusalResult, err := fixture.service.Remove(ctx, fixture.workspace.ID, fixture.item.ID, false)
+		if err != nil || refusalResult != nil {
+			t.Fatalf("Remove(disconnected) = %#v, %v, want completed removal", refusalResult, err)
+		}
+		if got := fixture.mustItem(t).State; got != StateRemoved {
+			t.Fatalf("disconnected removal state = %q, want removed", got)
+		}
+	})
+
+	t.Run("Should answer a Git removal that stops after deleting .git with the orphan inventory", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		if err := os.WriteFile(
+			filepath.Join(fixture.item.GitDir, "HEAD"),
+			[]byte("ref: refs/heads/feature/remove\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write admin HEAD: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(fixture.item.Path, "left.txt"), []byte("left\n"), 0o600); err != nil {
+			t.Fatalf("write leftover: %v", err)
+		}
+		fixture.removeFails.Store(true)
+		fixture.onRemove = func() {
+			if err := os.Remove(filepath.Join(fixture.item.Path, ".git")); err != nil {
+				t.Errorf("delete .git during removal: %v", err)
+			}
+		}
+		refusalResult, err := fixture.service.Remove(t.Context(), fixture.workspace.ID, fixture.item.ID, false)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Code != ErrCheckoutOrphaned.Error() || refusalResult.Risk.LeftoverFiles != 1 {
+			t.Fatalf("Remove(interrupted) = %#v, %v, want orphaned refusal with one leftover", refusalResult, err)
+		}
+		if got := fixture.mustItem(t).State; got != StateReady {
+			t.Fatalf("interrupted removal state = %q, want ready", got)
+		}
+	})
+
 	t.Run("Should refuse dirty state with an inventory and restore the ready fence", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
@@ -852,6 +895,8 @@ type removalTestFixture struct {
 	removeFails            atomicBool
 	failFirstForcedRemoval atomicBool
 	removeCalls            atomicInt
+	// onRemove runs while Git deletes the checkout, e.g. to drop the request.
+	onRemove func()
 }
 
 type lostStateFenceStore struct {
@@ -976,6 +1021,9 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			return gitResponse{}
 		case strings.HasPrefix(command, "--git-dir "+commonDir+" worktree remove "):
 			fixture.removeCalls.Store(fixture.removeCalls.Load() + 1)
+			if fixture.onRemove != nil {
+				fixture.onRemove()
+			}
 			if fixture.removeFails.Load() ||
 				(fixture.failFirstForcedRemoval.Load() && fixture.removeCalls.Load() == 1) {
 				return gitResponse{stderr: []byte("resource busy"), err: errors.New("exit 1")}
