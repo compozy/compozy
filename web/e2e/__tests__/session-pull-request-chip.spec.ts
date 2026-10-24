@@ -112,7 +112,11 @@ test("E2E-003: failing checks lead the chip menu and send one prompt naming the 
   await browserArtifacts.captureScreenshot("session-pr-chip-fix-menu", appPage);
 
   await items.first().click();
-  const message = frame.getByText(/The checks on pull request #932/);
+  const message = frame.getByTestId("user-message-bubble").filter({
+    hasText: /The checks on pull request #932/,
+  });
+  await expect(message).toHaveCount(1);
   await expect(message).toBeVisible({ timeout: 30_000 });
   await expect(message).toContainText("lint");
+  await expect(frame.getByText("I will inspect the failing PR checks.")).toBeVisible();
 });

@@ -27,3 +27,8 @@ changes and a commit-primary exit plan, the chip offers the enabled Commit & pus
 row. After switching a managed worktree's checked-out branch, the chip and board
 resolve the current status branch; detached HEAD does not retain the old PR.
 Focused evidence: pull-request menu suite and real SQLite branch/board suites pass.
+
+Release regression 2026-10-24: the Fix failing checks journey must send exactly
+one user message naming the PR and failing check, and the fixture agent must
+accept it and answer. A provider error echo is not evidence of successful prompt
+handling. The existing E2E-003 owns this check; CI re-walk is pending.

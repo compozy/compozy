@@ -120,3 +120,9 @@ sessions, stopped parents, missing parents and subagent restart exceptions must
 retain their existing stop/wake behavior. A parent lookup failure must abort the
 sweep rather than classify that child as orphaned. Backend evidence and limits:
 [session inventory performance](../reports/2026-10-23-session-inventory.md).
+
+Release regression 2026-10-24: isolated managed delivery must expose the final
+commit/push/PR facts after the delivery fence releases. Those facts come from the
+forge observation, independently of the UI's PR display cache. The existing
+TestIsolatedSubagentDeliveryIntegration passed locally with real Git and ACP,
+using a stub only for external forge I/O (6.171s).

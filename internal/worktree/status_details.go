@@ -77,3 +77,21 @@ func (s *Service) requestPullRequestRefresh(ctx context.Context, item Worktree) 
 		s.pullRequests.RequestRefresh(key)
 	}
 }
+
+// ObserveForgeStatus reads fresh delivery evidence without consulting the display cache.
+func (s *Service) ObserveForgeStatus(ctx context.Context, workspaceID, id string) (*ForgeStatus, error) {
+	item, err := s.Get(ctx, workspaceID, id)
+	if err != nil {
+		return nil, err
+	}
+	if s.forge == nil {
+		return nil, ErrForgeUnavailable
+	}
+	remotes, err := s.readOriginRemoteURLs(ctx, item.Path)
+	if err != nil {
+		return nil, err
+	}
+	return s.forge.Status(ctx, ForgeStatusRequest{
+		WorkspaceID: workspaceID, WorktreeID: item.ID, RemoteURLs: remotes, Branch: item.Branch,
+	})
+}

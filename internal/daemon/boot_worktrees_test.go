@@ -898,14 +898,10 @@ func (s *subagentWorktreeServiceStub) CommitsAheadOf(_ context.Context, _, _, ba
 	return s.ahead, nil
 }
 
-func (s *subagentWorktreeServiceStub) StatusDetails(
-	context.Context,
-	string,
-	string,
-	bool,
-	bool,
-) (*worktree.StatusDetails, error) {
-	return &worktree.StatusDetails{ForgeStatus: s.forge}, s.forgeErr
+func (s *subagentWorktreeServiceStub) ObserveForgeStatus(
+	context.Context, string, string,
+) (*worktree.ForgeStatus, error) {
+	return s.forge, s.forgeErr
 }
 
 // Invariant: only a named non-default branch is snapshotted, and readiness fails closed.
