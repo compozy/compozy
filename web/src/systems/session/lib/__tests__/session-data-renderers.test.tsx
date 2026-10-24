@@ -13,6 +13,19 @@ import { SessionRuntimeRenderProvider } from "../session-runtime-render-context"
 const WORKSPACE_ID = "ws_alpha";
 const SESSION_ID = "sess-001";
 
+// The transcript renderer owns restart status visibility; internal checkpoints stay hidden.
+describe("restart lifecycle events", () => {
+  it.each([
+    ["session.restart_interrupted", "Interrupted by CompozyOS restart."],
+    ["session.restart_resumed", "Resumed after CompozyOS restart."],
+    ["session.restart_skipped", "Automatic continuation paused. Review the pending approval."],
+  ])("renders %s as a status, without a failure alert", (type, text) => {
+    renderWithContext({ type, text });
+    expect(screen.getByRole("status")).toHaveTextContent(text);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
 function clarifyResolved(): AgentEventPayload {
   return {
     type: "clarify",

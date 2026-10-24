@@ -20,7 +20,7 @@ func planSubagentDelivery(row store.SessionSubagent, parent subagentSnapshot, di
 	if store.IsSubagentDeliveryFinal(row.Delivery) {
 		return subagentPlanNone
 	}
-	if parent.Info != nil && parent.Info.State == StateStopping {
+	if parent.Info != nil && (parent.Info.State == StateStopping || parent.Info.State == StateStarting) {
 		return store.SubagentDeliveryPending
 	}
 	if !subagentParentAcceptsWake(parent.Info) {
@@ -35,10 +35,10 @@ func planSubagentDelivery(row store.SessionSubagent, parent subagentSnapshot, di
 	return "claim"
 }
 
-// A daemon interruption suspends delivery until the user resumes the parent.
+// A daemon interruption suspends delivery until the parent resumes.
 // Explicit stops still dispose results through the ordinary stop cascade.
 func subagentParentAcceptsWake(info *Info) bool {
-	return info != nil && (info.State == StateActive ||
+	return info != nil && (info.State == StateActive || info.State == StateStarting ||
 		(info.State == StateStopped && (info.StopReason == store.StopShutdown || info.StopReason == store.StopAgentCrashed)))
 }
 

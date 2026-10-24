@@ -15,6 +15,37 @@ Resume attach and replay are related, but they are not the same thing in Compozy
   same daemon-owned session record.
 </OperatorNote>
 
+## Continue work after a daemon restart
+
+CompozyOS automatically continues eligible in-flight sessions after an update, requested restart,
+or unexpected daemon exit. The session keeps its ID and partial assistant output. Boot reconciles
+stored sessions and stops surviving provider processes before reopening new-work admission.
+It reloads the native provider session with ACP `session/load` (or `session/resume` when only that
+capability is available), with the existing bounded transcript replay as a fallback.
+
+The interrupted turn receives one durable continuation asking the agent to verify current state
+before repeating actions. A tool call without a recorded result is aborted with an unknown outcome;
+the action may already have happened. Recovery does not promise exactly-once external effects.
+Queued inputs remain ordered behind the continuation. Restart notices appear in the session timeline
+and in `compozy session events`; interrupted sessions retain `stop_reason: "shutdown"` without a
+fabricated provider failure. Confirmed provider crashes retain their failure classification.
+
+Automatic continuation pauses for pending permission or clarification requests, changed runtime
+selection, provider binding, permissions or worktree, maintenance commands, archived sessions, or
+an exhausted retry budget. A completed turn is never continued again. The default limit is three
+recovery attempts in five minutes; inspect the session before sending a fresh prompt after a pause.
+Subagents and Loops retain their existing recovery owners and apply the same restart safety checks.
+
+`compozy daemon stop` and explicit session stops cancel work and never schedule automatic
+continuation. Use `compozy daemon restart` to preserve restart intent. You can opt out in `config.toml`:
+
+```toml
+[session.restart]
+auto_continue = false
+```
+
+Existing configuration and stored histories upgrade without being rewritten or discarded.
+
 ## When resume attach is the right tool
 
 Use resume attach when an operator or agent needs to re-enter a session that is still live and

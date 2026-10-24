@@ -26,7 +26,18 @@ type Checker interface {
 // Gate is a concurrency-safe, in-memory daemon admission gate.
 type Gate struct {
 	draining atomic.Bool
+	booting  atomic.Bool
 	load     atomic.Pointer[LoadMonitor]
+}
+
+type bootOwnerKey struct{}
+
+// BeginBoot permits only composition-root recovery until Undrain publishes readiness.
+// The capability is an in-process context value and cannot be supplied by clients.
+func (g *Gate) BeginBoot(ctx context.Context) context.Context {
+	g.draining.Store(false)
+	g.booting.Store(true)
+	return context.WithValue(ctx, bootOwnerKey{}, g)
 }
 
 var _ Checker = (*Gate)(nil)
@@ -44,7 +55,8 @@ func (g *Gate) Undrain() bool {
 	if g == nil {
 		return false
 	}
-	return g.draining.Swap(false)
+	wasBooting := g.booting.Swap(false)
+	return g.draining.Swap(false) || wasBooting
 }
 
 // SetLoadMonitor attaches host-load-aware admission for background work; nil detaches it.
@@ -57,7 +69,7 @@ func (g *Gate) SetLoadMonitor(monitor *LoadMonitor) {
 
 // State returns the current admission state.
 func (g *Gate) State() State {
-	if g != nil && g.draining.Load() {
+	if g != nil && (g.draining.Load() || g.booting.Load()) {
 		return StateDraining
 	}
 	return StateActive
@@ -89,7 +101,7 @@ func (g *Gate) checkState(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if g.State() == StateDraining {
+	if g != nil && (g.draining.Load() || (g.booting.Load() && ctx.Value(bootOwnerKey{}) != g)) {
 		return ErrDraining
 	}
 	return nil

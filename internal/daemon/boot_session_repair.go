@@ -37,13 +37,9 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err := d.installBootSupervisedWorkRecovery(state); err != nil {
 		return err
 	}
-	if recoverer, ok := state.sessions.(sessionPendingStopRecoverer); ok {
-		if err := recoverer.RecoverPendingStops(ctx); err != nil {
-			return fmt.Errorf("daemon: recover pending session stops: %w", err)
-		}
+	if err := recoverBootPendingStops(ctx, state.sessions); err != nil {
+		return err
 	}
-	recoverBootStaleInputDispatches(ctx, state)
-
 	infos, err := state.sessions.ListAll(ctx)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -55,6 +51,10 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 	if err != nil {
 		return err
 	}
+	if err := captureBootRestartInterruptions(ctx, state.sessions, infos); err != nil {
+		return err
+	}
+	recoverBootStaleInputDispatches(ctx, state)
 	if err := recoverBootPendingInteractions(ctx, state, infos); err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func bootShouldRepairSession(info *session.Info) bool {
 		return false
 	}
 	switch info.StopReason {
-	case store.StopAgentCrashed, store.StopError:
+	case store.StopAgentCrashed, store.StopError, store.StopShutdown:
 		return true
 	default:
 		return false

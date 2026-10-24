@@ -69,7 +69,7 @@ func applyRepairEvent(
 
 func repairDefaultStopReason(reason store.StopReason) bool {
 	switch reason {
-	case store.StopAgentCrashed, store.StopError:
+	case store.StopAgentCrashed, store.StopError, store.StopShutdown:
 		return true
 	default:
 		return false

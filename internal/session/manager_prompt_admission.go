@@ -205,6 +205,9 @@ func (m *Manager) submitAdmittedDirectPrompt(
 	events, err := m.submitPromptRequest(ctx, req)
 	if err != nil {
 		if errors.Is(err, ErrPromptInProgress) && !committed {
+			if req.meta.Synthetic != nil && req.meta.Synthetic.Kind == "restart_continuation" {
+				return SendPromptResult{}, err
+			}
 			return m.submitAdmittedBusyPrompt(ctx, session, req, mode, admissionReq)
 		}
 		if committed {

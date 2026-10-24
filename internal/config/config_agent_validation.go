@@ -146,6 +146,9 @@ func (c LimitsConfig) Validate() error {
 
 // Validate ensures session-scoped controls are internally consistent.
 func (c SessionConfig) Validate() error {
+	if err := c.Restart.Validate(); err != nil {
+		return err
+	}
 	if err := c.Stop.Validate(); err != nil {
 		return err
 	}

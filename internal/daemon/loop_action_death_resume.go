@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,7 +12,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-// resumeConfirmedDeadAction leaves supervised stops to their receipt owner and resumes only confirmed crash deaths.
+// resumeConfirmedDeadAction leaves supervised stops to their receipt owner and resumes confirmed interruptions.
 func (r *loopActionRuntime) resumeConfirmedDeadAction(
 	ctx context.Context,
 	run taskpkg.Run,
@@ -40,6 +41,12 @@ func (r *loopActionRuntime) resumeConfirmedDeadAction(
 	}
 	if !confirmedLoopActionSessionDeath(info) {
 		return false, nil
+	}
+	if info.StopReason == storepkg.StopShutdown {
+		qualified, err := qualifyLoopRestart(ctx, r.sessions, sessionID)
+		if err != nil || !qualified {
+			return false, err
+		}
 	}
 	checkpoint, err := r.captureDeathResumeCheckpoint(ctx, sessionID)
 	if err != nil {
@@ -80,12 +87,84 @@ func (r *loopActionRuntime) resumeConfirmedDeadAction(
 }
 
 func confirmedLoopActionSessionDeath(info *session.Info) bool {
-	return info != nil && info.State == session.StateStopped && info.StopReason == storepkg.StopAgentCrashed
+	return info != nil && info.State == session.StateStopped &&
+		(info.StopReason == storepkg.StopAgentCrashed || info.StopReason == storepkg.StopShutdown)
+}
+
+func qualifyLoopRestart(ctx context.Context, sessions loopActionSessionStatus, id string) (bool, error) {
+	qualifier, ok := sessions.(interface {
+		QualifyRestartContinuation(context.Context, string) (bool, error)
+	})
+	if !ok {
+		return false, nil
+	}
+	return qualifier.QualifyRestartContinuation(ctx, id)
 }
 
 func confirmedLoopActionDeathCause(info *session.Info) string {
+	if info != nil && info.StopReason == storepkg.StopShutdown {
+		return "daemon restart interrupted the session; verify state before repeating actions"
+	}
 	if info != nil && info.Failure != nil && strings.TrimSpace(info.Failure.Summary) != "" {
 		return "confirmed session death: " + strings.TrimSpace(info.Failure.Summary)
 	}
 	return "confirmed session death: agent process exited"
+}
+
+// recoverInterruptedRuns fences Loop cells before generic boot lease recovery can requeue their old attempts.
+// The Loop store remains the sole owner of continuation identities and its death-streak breaker.
+func (r *loopActionRuntime) recoverInterruptedRuns(ctx context.Context, actor taskpkg.ActorContext) error {
+	runs, err := r.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
+		taskpkg.TaskRunStatusClaimed, taskpkg.TaskRunStatusStarting, taskpkg.TaskRunStatusRunning,
+	})
+	if err != nil {
+		return err
+	}
+	for _, run := range runs {
+		if run.LoopRunID == "" || run.SessionID == "" {
+			continue
+		}
+		info, err := r.sessions.Status(ctx, run.SessionID)
+		if err != nil {
+			return err
+		}
+		if info == nil || info.State != session.StateStopped || info.StopReason != storepkg.StopShutdown {
+			continue
+		}
+		limit, err := r.actionDeathStreakLimitForRun(ctx, run)
+		if err != nil {
+			return err
+		}
+		handled, err := r.resumeConfirmedDeadAction(ctx, run, actor, looppkg.WorkspaceID(info.WorkspaceID),
+			run.SessionID, limit)
+		if err != nil && !errors.Is(err, session.ErrRestartContinuationSkipped) {
+			return err
+		}
+		if !handled {
+			if err := r.pauseInterruptedRun(ctx, run, actor, info.WorkspaceID, limit); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *loopActionRuntime) pauseInterruptedRun(
+	ctx context.Context, run taskpkg.Run, actor taskpkg.ActorContext, workspaceID string, limit int,
+) error {
+	request, err := looppkg.DeadNodeResumeRequestForTaskRun(run, looppkg.WorkspaceID(workspaceID),
+		run.SessionID, nil, limit, "Restart continuation requires review.", actor, r.now().UTC())
+	if err != nil {
+		return err
+	}
+	pauser, ok := r.store.(looppkg.NodePauseStore)
+	if !ok {
+		return errors.New("daemon: Loop store does not support pausing interrupted nodes")
+	}
+	_, err = pauser.PauseNode(ctx, looppkg.NodePauseMutation{
+		WorkspaceID: request.WorkspaceID, RunID: request.RunID, NodeID: request.NodeID,
+		ItemIndex: new(request.ItemIndex), Mode: looppkg.NodePauseDrain, Reason: request.Cause,
+		Actor: actor, RequestedAt: request.ConfirmedAt,
+	})
+	return err
 }

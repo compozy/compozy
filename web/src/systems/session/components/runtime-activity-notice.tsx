@@ -305,6 +305,17 @@ export function RuntimeActivityNotice({
   event: AgentEventPayload;
   count?: number;
 }) {
+  if (
+    event.type === "session.restart_interrupted" ||
+    event.type === "session.restart_resumed" ||
+    event.type === "session.restart_skipped"
+  ) {
+    return (
+      <Marker role="status" tone="neutral" icon={<Info />}>
+        {event.text}
+      </Marker>
+    );
+  }
   if (isSessionErrorEvent(event)) {
     return <SessionErrorNotice event={event} count={count} />;
   }

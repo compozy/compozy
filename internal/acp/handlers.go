@@ -48,6 +48,14 @@ type wireLoadSessionRequest struct {
 	SessionID      acpsdk.SessionId   `json:"sessionId"`
 }
 
+type wireResumeSessionRequest struct {
+	Meta                  any                `json:"_meta,omitempty"`
+	Cwd                   string             `json:"cwd"`
+	McpServers            []acpsdk.McpServer `json:"mcpServers,omitempty"`
+	AdditionalDirectories []string           `json:"additionalDirectories,omitempty"`
+	SessionID             acpsdk.SessionId   `json:"sessionId"`
+}
+
 type wireUsage struct {
 	InputTokens       *int64 `json:"inputTokens,omitzero"`
 	OutputTokens      *int64 `json:"outputTokens,omitzero"`

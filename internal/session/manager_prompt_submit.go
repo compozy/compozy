@@ -204,6 +204,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
 	}
+	if err := m.recordRestartBoundary(ctx, session, req); err != nil {
+		return nil, err
+	}
 	delivery, err := m.openDurablePromptDelivery(req.deliveryCtx, session, req.turnID)
 	if err != nil {
 		return nil, fmt.Errorf("session: open durable prompt delivery for %q: %w", req.target, err)

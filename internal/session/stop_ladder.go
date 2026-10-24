@@ -5,8 +5,17 @@ import (
 	"errors"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 )
+
+// TerminationBudget reserves all process termination phases independently of session count.
+func TerminationBudget(config compozyconfig.SessionStopConfig) time.Duration {
+	if config.CooperativeGrace <= 0 {
+		config = compozyconfig.DefaultSessionStopConfig()
+	}
+	return config.CooperativeGrace + stopForcedGrace + stopKillGrace
+}
 
 // StopPhase identifies the last attempted termination phase.
 type StopPhase string

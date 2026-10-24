@@ -1279,6 +1279,43 @@ secret-binding or shell workaround. In Settings the provider shows `Sign-in unve
 live probe succeeds, and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 
+## Automatic continuation after daemon restart
+
+Use `compozy daemon restart` for a restart that should preserve running work. An explicit
+`compozy daemon stop` or session stop cancels work and never automatically continues it. A crash
+or SIGKILL is recovered from the continuously persisted turn boundary, not from a shutdown-only
+snapshot. Boot reconciles interruptions, surviving processes, unknown-outcome tool calls and
+pending interactions before reopening new-work admission.
+
+Eligible ordinary sessions reload their accepted native provider session with `session/load`, or
+`session/resume` when only that capability is supported; the existing bounded transcript replay
+handles unavailable native sessions. The original CompozyOS session ID and partial assistant text
+remain. One continuation identity is derived from the interrupted turn and committed through the
+durable prompt admission store. Do not resend an indeterminate dispatch: inspect current state first.
+The continuation explicitly asks the agent to verify effects before repeating actions. Tool calls
+without a saved result are recorded as aborted with unknown outcome; that does not prove their
+effects were rolled back. Queued inputs drain after the continuation.
+
+Read `session.restart_interrupted`, `session.restart_resumed`, and `session.restart_skipped` through
+the existing session events surfaces. Interrupted metadata uses `stop_reason: "shutdown"` without
+an invented `process_exit` failure. Confirmed agent failures remain failures. The Web timeline shows
+the interruption and resumption; CLI, HTTP/UDS and native reads share the same persisted state.
+
+Automatic continuation is skipped for explicit stops, pending approval or clarification, maintenance
+commands, completed turns, archived sessions, changed provider binding/runtime selection/permission
+policy/worktree, or a reached restart attempt limit. Pending interactions require review; boot does
+not grant permission or invent clarification answers. Subagent and Loop recovery retain their own
+transition owners and use the shared restart eligibility checks; never run a second recovery for
+their sessions.
+
+`session.restart.auto_continue` defaults to `true`; set it to `false` to opt out. The durable breaker
+defaults to `session.restart.max_attempts = 3` within `session.restart.window = "5m"` (ranges 1–10 and
+1s–1h). `daemon.shutdown_grace = "30s"` (0s–5m) allows admitted turns to finish before concurrent
+termination. The total shutdown/relaunch budgets also cover termination and cleanup. These additive
+keys retain explicit zero/false values, do not rewrite old user config, and require a daemon restart
+through the existing settings apply lifecycle. Inspect a skipped session before issuing a fresh
+operator prompt; an automatic pause never authorizes replaying an external effect.
+
 ## Status, Doctor, Logs, And Support
 
 `compozy observe overview -o json` reads the selected profile by default. Use `--profile <name>` for

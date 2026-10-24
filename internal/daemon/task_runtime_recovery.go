@@ -66,10 +66,16 @@ func recoverTaskRunsOnBoot(
 	store taskStore,
 	sessions taskBridgeSessionManager,
 	actor taskpkg.ActorContext,
+	loopActions *loopActionRuntime,
 ) (taskRecoveryStats, error) {
 	terminalSettled, err := recoverPendingTerminalRunCommandsOnBoot(ctx, manager, sessions, actor)
 	if err != nil {
 		return taskRecoveryStats{}, err
+	}
+	if loopActions != nil {
+		if err := loopActions.recoverInterruptedRuns(ctx, actor); err != nil {
+			return taskRecoveryStats{}, err
+		}
 	}
 	expired, err := manager.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
 		Reason: taskRecoveryReasonBoot,

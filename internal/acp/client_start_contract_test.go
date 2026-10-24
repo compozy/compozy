@@ -294,6 +294,18 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 
 func TestStartResumeUsesLoadSession(t *testing.T) {
 	t.Parallel()
+	// Invariant: a resume-only ACP agent retains its native conversation without transcript replay.
+	// Owner: ACP driver; canonical start negotiation suite with a subprocess at the protocol boundary.
+	t.Run("Should use session resume when load is unsupported", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "resume_session", "", StartOpts{ResumeSessionID: "sess-existing"})
+		defer stopProcess(t, driver, proc)
+		if proc.SessionID != "sess-existing" ||
+			!slices.Equal(proc.CapsSnapshot().SupportedModes, []string{"loaded-mode"}) {
+			t.Fatalf("resume did not preserve native binding and modes: %q %#v", proc.SessionID, proc.CapsSnapshot())
+		}
+	})
 
 	t.Run("Should resume through loadSession when a prior session ID is provided", func(t *testing.T) {
 		t.Parallel()

@@ -4297,6 +4297,7 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	d.restartRequested = true
 
 	manager := &fakeSessionManager{
 		infos: []*session.Info{{ID: "sess-a"}},
@@ -4315,8 +4316,8 @@ func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	if call.cause != session.CauseShutdown {
 		t.Fatalf("StopWithCause() cause = %v, want %v", call.cause, session.CauseShutdown)
 	}
-	if call.detail != "daemon shutdown" {
-		t.Fatalf("StopWithCause() detail = %q, want %q", call.detail, "daemon shutdown")
+	if call.detail != "Interrupted by daemon restart." {
+		t.Fatalf("StopWithCause() detail = %q, want restart attribution", call.detail)
 	}
 	if got := len(manager.stopCalls); got != 0 {
 		t.Fatalf("Stop() calls = %d, want 0 when StopWithCause is available", got)
@@ -4598,11 +4599,13 @@ func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 
 func TestGracefulShutdownTimeout(t *testing.T) {
 	t.Parallel()
-	t.Run("Should reserve the base runtime cleanup budget", func(t *testing.T) {
+	t.Run("Should reserve drain grace and the complete parallel termination ladder", func(t *testing.T) {
 		t.Parallel()
-		d := &Daemon{}
-		if got := d.gracefulShutdownTimeout(); got != defaultShutdownTimeout {
-			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, defaultShutdownTimeout)
+		cfg := compozyconfig.DefaultWithHome(testHomePaths(t))
+		d := &Daemon{config: cfg}
+		want := defaultShutdownTimeout + cfg.Daemon.ShutdownGrace + cfg.Session.Stop.CooperativeGrace + 10*time.Second
+		if got := d.gracefulShutdownTimeout(); got != want {
+			t.Fatalf("gracefulShutdownTimeout() = %s, want %s", got, want)
 		}
 	})
 }

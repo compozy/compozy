@@ -10,6 +10,8 @@ func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessa
 	metadata := map[string]any{
 		"compozy": map[string]any{
 			"repair":   true,
+			"aborted":  true,
+			"outcome":  "unknown",
 			"toolName": strings.TrimSpace(toolName),
 		},
 	}
