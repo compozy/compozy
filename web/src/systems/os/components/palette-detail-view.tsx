@@ -1,6 +1,7 @@
-import { Button, Markdown, MetadataList, SkeletonRows } from "@compozy/ui";
+import { Button, Markdown, MetadataList } from "@compozy/ui";
 
 import type { CmdPaletteViewAction, CmdPaletteViewDetail } from "../lib/cmd-palette-types";
+import { OsPaletteDetailSkeleton } from "./os-palette-skeletons";
 
 export function PaletteDetailView({
   detail,
@@ -22,7 +23,7 @@ export function PaletteDetailView({
   if (detail.is_loading) {
     return (
       <aside className="w-64 shrink-0 p-4" data-testid="palette-detail-loading">
-        <SkeletonRows count={4} />
+        <OsPaletteDetailSkeleton label="Loading details" />
       </aside>
     );
   }

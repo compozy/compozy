@@ -14,7 +14,7 @@ import {
   type PaletteGridTile,
 } from "../lib/cmd-palette-grid";
 import type { CmdPaletteViewAction, CmdPaletteViewGrid } from "../lib/cmd-palette-types";
-import { OsPaletteProgramBand } from "./os-palette-program-status";
+import { OsPaletteGridSkeleton } from "./os-palette-skeletons";
 import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows-constants";
 import { usePaletteGridVirtualizer } from "../hooks/use-palette-grid-virtualizer";
 
@@ -57,7 +57,7 @@ export function PaletteGridView({
 
   if (tiles.length === 0) {
     if (loading) {
-      return <OsPaletteProgramBand phase="busy" onRetry={() => undefined} />;
+      return <OsPaletteGridSkeleton columns={safeColumns} label="Loading view" />;
     }
     return (
       <div className="px-3 py-8 text-center" data-testid="palette-grid-empty">

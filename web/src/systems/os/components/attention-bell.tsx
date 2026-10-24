@@ -1,10 +1,10 @@
 import type { ComponentProps } from "react";
 import { Bell, Check, CircleAlert } from "lucide-react";
 
-import { Button, cn, Empty, Eyebrow, Icon, SkeletonRows } from "@compozy/ui";
+import { Button, cn, Empty, Eyebrow, Icon, SkeletonRegion } from "@compozy/ui";
 
 import type { OsAttentionRow, OsAttentionSections } from "../lib/attention-model";
-import { AttentionBellRow } from "./attention-bell-row";
+import { AttentionBellRow, AttentionBellRowSkeleton } from "./attention-bell-row";
 
 function BellSection({
   label,
@@ -137,7 +137,10 @@ export function AttentionBell({
           />
         ) : null}
         {loading && empty ? (
-          <SkeletonRows aria-label="Loading notifications" count={2} className="gap-3 px-2 py-3" />
+          <SkeletonRegion label="Loading notifications">
+            <AttentionBellRowSkeleton />
+            <AttentionBellRowSkeleton />
+          </SkeletonRegion>
         ) : null}
       </div>
     </div>

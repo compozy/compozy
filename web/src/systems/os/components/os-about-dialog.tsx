@@ -8,6 +8,9 @@ import {
   Logo,
   MetadataList,
   MetadataListRow,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Time,
 } from "@compozy/ui";
 
@@ -20,6 +23,10 @@ export interface OsAboutDialogProps {
 
 const UNKNOWN = "—";
 
+/** The headline rows' labels: static copy, so the loading shape names them too. */
+const ABOUT_LABELS = { version: "Version", status: "Status", started: "Started" } as const;
+const ABOUT_VALUE_PROPS = { className: "truncate font-mono text-micro text-fg" };
+
 /**
  * Installation identity, straight from `/api/status`. Only fields the daemon
  * actually puts on the wire are shown — build SHA, Go version, and OS/arch live
@@ -30,11 +37,11 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
   const status = useStatus();
   const rows = daemon.data
     ? [
-        { id: "version", label: "Version", value: daemon.data.version ?? UNKNOWN },
-        { id: "status", label: "Status", value: daemon.data.status },
+        { id: "version", label: ABOUT_LABELS.version, value: daemon.data.version ?? UNKNOWN },
+        { id: "status", label: ABOUT_LABELS.status, value: daemon.data.status },
         {
           id: "started",
-          label: "Started",
+          label: ABOUT_LABELS.started,
           value: <Time iso={daemon.data.started_at} />,
         },
       ]
@@ -69,11 +76,7 @@ export function OsAboutDialog({ open, onOpenChange }: OsAboutDialogProps) {
           </div>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {daemon.isPending ? (
-            <p className="text-small-body text-muted" role="status">
-              Reading CompozyOS status…
-            </p>
-          ) : null}
+          {daemon.isPending ? <AboutRowsSkeleton /> : null}
           {daemon.isError ? (
             <p className="text-small-body text-danger" role="status">
               CompozyOS status is unavailable. The desktop keeps running on its last snapshot.
@@ -105,11 +108,33 @@ function AboutRows({
           key={row.id}
           data-testid={`os-about-row-${row.id}`}
           label={row.label}
-          valueProps={{ className: "truncate font-mono text-micro text-fg" }}
+          valueProps={ABOUT_VALUE_PROPS}
         >
           {row.value}
         </MetadataListRow>
       ))}
     </MetadataList>
+  );
+}
+
+/**
+ * The identity rows while the daemon status is read: the real labels over blocks for the values,
+ * and the closed Technical details fold as a chevron and a line, under one busy region.
+ */
+function AboutRowsSkeleton() {
+  return (
+    <SkeletonRegion className="flex flex-col gap-4" label="Reading CompozyOS status">
+      <MetadataList aria-hidden="true">
+        {Object.values(ABOUT_LABELS).map(label => (
+          <MetadataListRow key={label} label={label} valueProps={ABOUT_VALUE_PROPS}>
+            <SkeletonText className="w-32" />
+          </MetadataListRow>
+        ))}
+      </MetadataList>
+      <div aria-hidden="true" className="flex w-fit items-center gap-2 py-1 text-small-body">
+        <Skeleton className="size-3.5 shrink-0 rounded-xs" />
+        <SkeletonText className="w-28" />
+      </div>
+    </SkeletonRegion>
   );
 }

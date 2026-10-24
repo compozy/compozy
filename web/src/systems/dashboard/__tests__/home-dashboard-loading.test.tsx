@@ -40,6 +40,7 @@ vi.mock("../hooks/use-home-dashboard", () => ({
   useHomeDashboard: () => dashboardModel.current,
 }));
 
+const { DashboardWindowSkeleton } = await import("../components/dashboard-window-skeleton");
 const { HomeActivityFeed } = await import("../components/home-activity-feed");
 const { HomeAgentsPanel } = await import("../components/home-agents-panel");
 const { HomeDashboard } = await import("../components/home-dashboard");
@@ -106,6 +107,15 @@ describe("Home dashboard loading shapes", () => {
     // Nothing that waits for a loaded zone can mistake a placeholder for it.
     expect(container.querySelector('[data-slot="home-kpi-strip"]')).toBeNull();
     expect(container.querySelector('[data-slot="home-pulse"]')).toBeNull();
+  });
+
+  it("Should show the Home window as one busy region with its date line before any code or data", () => {
+    const { container } = render(<DashboardWindowSkeleton />);
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading home dashboard");
+    expect(container.querySelector('[data-slot="home-page-meta"]')).not.toBeNull();
+    expect(container.querySelector("a, button, input, [tabindex]")).toBeNull();
   });
 
   it.each([

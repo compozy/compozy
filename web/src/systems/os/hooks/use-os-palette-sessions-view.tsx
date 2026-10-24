@@ -6,6 +6,7 @@ import { useSessionCatalog, type SessionPayload } from "@/systems/session";
 import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteSessionChips } from "../components/os-palette-session-chips";
+import { OsPaletteSessionRowsSkeleton } from "../components/os-palette-skeletons";
 import { OsPaletteSessionRow } from "../components/os-palette-session-row";
 import { OsPaletteViewNote } from "../components/os-palette-view-note";
 import { paletteSessionFilter, type PaletteSessionFilterId } from "../lib/palette-session-filters";
@@ -83,12 +84,20 @@ export function useOsPaletteSessionsView({
         onArchivedChange={setArchived}
       />
     ),
-    empty: (
+    // Nothing to show yet and the read is out: the rows' own shape, never a sentence about them.
+    empty: loading ? (
+      <OsPaletteSessionRowsSkeleton label="Loading sessions" />
+    ) : (
       <OsPaletteViewNote placement="empty">
-        {emptySessionsMessage({ loading, query, filterId, allWorkspaces, archived })}
+        {emptySessionsMessage({ query, filterId, allWorkspaces, archived })}
       </OsPaletteViewNote>
     ),
-    note: paletteSessionsNote({ ...catalog, paging: loading }, visible.length),
+    // The note says "Loading sessions…" only under rows already on screen (a page or a search
+    // still coming); with none yet, the placeholder above is the whole story.
+    note: paletteSessionsNote(
+      { ...catalog, paging: loading && visible.length > 0 },
+      visible.length
+    ),
     backHint: filterId === "all" ? "back" : "clear filter",
     resetKey: `${filterId}:${allWorkspaces ? "all-workspaces" : "workspace"}:${archived}`,
     onEmptyQueryBackspace: () => {
@@ -100,13 +109,11 @@ export function useOsPaletteSessionsView({
 }
 
 function emptySessionsMessage(input: {
-  loading: boolean;
   query: string;
   filterId: PaletteSessionFilterId;
   allWorkspaces: boolean;
   archived: boolean;
 }): string {
-  if (input.loading) return "Loading sessions…";
   if (input.query.trim() !== "") return `No sessions match “${input.query.trim()}”.`;
   if (input.filterId === "all" && input.archived) return "No archived sessions yet.";
   if (input.filterId === "all" && input.allWorkspaces) return "No sessions across projects yet.";

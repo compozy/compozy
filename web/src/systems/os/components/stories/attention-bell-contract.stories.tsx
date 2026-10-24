@@ -30,7 +30,14 @@ const FINISHED: OsSessionAttentionRow = {
   reason: "finished while you were away",
 };
 
-type BellState = "gate-before" | "needs-you" | "finished" | "quiet" | "disconnected" | "muted";
+type BellState =
+  | "gate-before"
+  | "needs-you"
+  | "finished"
+  | "quiet"
+  | "disconnected"
+  | "muted"
+  | "loading";
 
 function AttentionBellContract({ state }: { state: BellState }) {
   const sections: OsAttentionSections = {
@@ -59,7 +66,7 @@ function AttentionBellContract({ state }: { state: BellState }) {
         sessionsDisconnected={state === "disconnected"}
         tasksDisconnected={false}
         loopRequestsDisconnected={false}
-        loading={false}
+        loading={state === "loading"}
         onSelect={fn()}
       />
     </div>
@@ -87,6 +94,8 @@ export const FinishedOnly: Story = { args: { state: "finished" } };
 export const Quiet: Story = { args: { state: "quiet" } };
 export const Disconnected: Story = { args: { state: "disconnected" } };
 export const MutedWorkspace: Story = { args: { state: "muted" } };
+/** The first read is out: the rows' shape under one busy region, never "All quiet". */
+export const Loading: Story = { args: { state: "loading" } };
 
 export const BeforeGateFiltering: Story = { args: { state: "gate-before" } };
 export const GateSessionsHidden: Story = { args: { state: "quiet" } };

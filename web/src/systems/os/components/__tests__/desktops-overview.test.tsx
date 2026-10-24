@@ -165,7 +165,7 @@ describe("DesktopsOverview", () => {
   it("Should expose loading semantics without rendering plausible desktop data", () => {
     renderOverview({ state: { status: "loading" } });
 
-    expect(screen.getByRole("dialog", { name: "Desktops" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status")).toHaveTextContent("Loading desktops");
     expect(screen.queryByRole("button", { name: /Switch to/ })).not.toBeInTheDocument();
   });
 

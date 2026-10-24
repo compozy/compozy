@@ -1852,6 +1852,18 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-session-filter-all")).toHaveTextContent(/All\s*212/);
   });
 
+  it("Should show session rows' shape, not a sentence, while the first Sessions read is out", async () => {
+    const user = userEvent.setup();
+    paletteMocks.sessions = [];
+    paletteMocks.sessionsLoading = true;
+    renderPalette();
+    await pushSessionsView(user);
+
+    const region = screen.getByText("Loading sessions").closest('[role="status"]');
+    expect(region).not.toBeNull();
+    expect(screen.queryByText("Loading sessions…")).not.toBeInTheDocument();
+  });
+
   it("Should gate every domain read by the daemon query bounds [UT-110, UT-111]", () => {
     expect(isPaletteDomainSearchEnabled(true, "ab", TEST_WEIGHTS)).toBe(true);
     expect(isPaletteDomainSearchEnabled(true, "a", TEST_WEIGHTS)).toBe(false);
