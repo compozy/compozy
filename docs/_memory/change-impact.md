@@ -1,5 +1,62 @@
 # Compozy Change Impact
 
+## Sessions Kanban — session PR link, `waiting` badge, board columns — 2026-10-24
+
+**Owning spec:** `.compozy/tasks/sessions-kanban/_spec.md`. Impact Analysis is in Part II, the
+decisions are ADR-001 through ADR-004, and the exploration is in `analysis/` (2026-10-23, revised
+after peer review round 1). Implementation slices link to this entry and update only the entries
+they affect.
+
+- **Native tools.**
+  - `compozy__session_list` gains the `board_column` and `children` input filters.
+  - `compozy__session_list` and `compozy__session_status` results gain these fields: `branch`,
+    `pull_request`, `pull_request_lookup`, `board_column`, `parent_title` and `children`.
+  - The badge enum adds `waiting`.
+  - No new tools; the catalog and digests regenerate in the same slice.
+- **CLI/HTTP/UDS.**
+  - CLI: `compozy session list` gains `--column` and `--hide-children`, and there is a new
+    `compozy session pr <id> [--refresh]`.
+  - `GET /api/sessions` accepts `board_column` and `children=exclude`, applied before pagination.
+  - `GET /api/sessions/facets` adds `board` inside every existing facets object.
+  - New routes: `POST /api/sessions/{id}/pull-request/refresh` (app-token allowed, like
+    `GET /api/sessions/{id}`) and `POST /api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/prepare`
+    (app-token denied, like the exit plan; resolves the native PR capability with an 8 s bound so plain
+    exit-plan reads stay provider-free).
+  - Session payloads gain seven fields (including `waiting_on`), and the badge gains `waiting`; monitors become the `active_monitor` work signal.
+  - All of this is additive public surface (SD-013 ladder (a)); nothing is retired. OpenAPI and
+    `@compozy/client` regenerate in the slice that adds each field.
+- **Extensibility and hooks.**
+  - The `forge/status` result of `forge.provider` keeps every existing field. It gains optional
+    `checks`, `review_decision`, `mergeable`, `updated_at`, `selection` and `retry_after` (the last
+    only together with `cause`, carried through the extension and daemon error adapters). Older providers keep
+    working; their missing facts render as unknown.
+  - The GitHub provider fills the new fields through paginated GraphQL with aggregate check counts.
+  - No hook event, Host API, manifest or MCP changes.
+- **Config.** None.
+- **Workspace data isolation.**
+  - New table `forge_pull_requests`, keyed by `(workspace_id, repo_key, branch)`. It cascades on
+    workspace delete and is read only within the session/workspace read scope.
+  - `worktree_forge_status` rows with a branch and a parseable `pr_url` (which gives the repository
+    identity) are copied into it; the table is renamed to `worktree_forge_status_legacy`. Every
+    row is retained, and the legacy table is never read (migration `00153`). Dropping it requires a
+    later signed-off ADR.
+  - Managed delivery and cleanup keep their exact provider evidence local; they neither read nor write
+    the display cache, and request a canonical refresh on completion.
+  - New column: `sessions.branch`.
+  - Child rollups and parent titles respect the read scope.
+  - No credentials appear in payloads, logs or errors.
+- **Official Compozy skill.**
+  - `skills/compozy/references/runtime-operations.md`: `waiting`, board columns, `compozy session pr`.
+  - `skills/compozy/references/native-tools.md`: the new fields and filters.
+  - `skills/compozy/references/worktrees.md`: the PR display cache versus exact delivery evidence.
+- **Web/Docs.**
+  - `web/src/systems/session`: PR chip, `ToggleGroup` view toggle, board, cards, badge dictionary,
+    60 s visible re-read.
+  - `web/src/systems/os/lib/attention-delivery.ts`: toast copy.
+  - `packages/site`: a "Sessions board" page with a step-by-step tutorial, the updated badges, and
+    the generated CLI reference.
+  - QA: `docs/qa/scenarios/` deltas ship per slice; the final QA pair walks the real GitHub PR.
+
 ## Stable release line v0.4.0 — 2026-10-23
 
 Owner: plan `.claude/plans/stable-release-040.md`, branch `feat/stable-release-040`, with
