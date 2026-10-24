@@ -20,3 +20,7 @@ export const SIDEBAR_TABS_LIST_CLASS = "w-full shrink-0 border-b border-line px-
 /** The validation dock's frame and its always-visible bar. */
 export const DOCK_CLASS = "flex max-h-48 flex-none flex-col border-t border-line bg-sunken";
 export const DOCK_BAR_CLASS = "flex h-9 items-center gap-2 px-4";
+
+/** The editor's toolbar row. */
+export const EDITOR_TOOLBAR_CLASS =
+  "flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5";

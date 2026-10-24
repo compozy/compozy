@@ -11,6 +11,7 @@ import {
   type OsAppDescriptor,
 } from "./app-catalog";
 import type { OsAppId, OsWindowRoute } from "./os-types";
+import { LoopsWindowFallback } from "../apps/loops/loops-window-fallback";
 import { SessionWindowFallback } from "../apps/session/session-window-fallback";
 import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
 import { TasksWindowFallback } from "../apps/tasks/tasks-window-fallback";
@@ -133,6 +134,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.loops,
     preload: preloadLoops,
     Controller: LoopsWindow,
+    LoadingFallback: LoopsWindowFallback,
   },
   automations: {
     ...OS_APP_DESCRIPTORS.automations,

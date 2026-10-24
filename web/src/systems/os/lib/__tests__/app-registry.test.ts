@@ -83,7 +83,7 @@ describe("app registry", () => {
 // mounts with no providers (no query, router, store or window context), announces itself once as
 // a single loading region, and leaves nothing in it that can take focus or be activated.
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled]), [contenteditable="true"]';
 
 interface FallbackCase {
   app: OsAppId;
@@ -107,11 +107,32 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
   { app: "tasks", label: "a task's runs tab", pathname: "/tasks/t1", search: { tab: "runs" } },
   { app: "tasks", label: "a task being edited", pathname: "/tasks/t1/edit" },
   { app: "tasks", label: "a run", pathname: "/tasks/t1/runs/r1" },
+  { app: "loops", label: "the catalog", pathname: "/loops" },
+  { app: "loops", label: "the catalog as cards", pathname: "/loops", search: { view: "cards" } },
+  { app: "loops", label: "a Loop", pathname: "/loops/ship-it" },
+  { app: "loops", label: "a Loop's run form", pathname: "/loops/ship-it/run" },
+  { app: "loops", label: "a Loop's editor", pathname: "/loops/ship-it/editor" },
+  { app: "loops", label: "a Loop's configure dialog", pathname: "/loops/ship-it/configure" },
+  { app: "loops", label: "the runs roster", pathname: "/loop-runs" },
+  {
+    app: "loops",
+    label: "the step inventory",
+    pathname: "/loop-runs",
+    search: { nodes: "waiting" },
+  },
+  { app: "loops", label: "a run", pathname: "/loop-runs/r1" },
+  { app: "loops", label: "a run's comparison", pathname: "/loop-runs/r1/diff" },
+  {
+    app: "loops",
+    label: "a run's comparison against another run",
+    pathname: "/loop-runs/r1/diff",
+    search: { against_run: "r0" },
+  },
 ];
 
 describe("app loading fallbacks", () => {
   it("Should give every app in the content-shaped rollout a fallback", () => {
-    for (const app of ["session", "settings", "tasks"] as const) {
+    for (const app of ["session", "settings", "tasks", "loops"] as const) {
       expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
     }
   });

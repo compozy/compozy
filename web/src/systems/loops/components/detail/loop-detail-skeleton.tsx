@@ -77,11 +77,10 @@ interface LoopDetailSkeletonProps {
 /**
  * The Loop detail page before its definition and settings have answered: the page's own frame
  * with every static heading real and the data-bearing parts as placeholders in their slots.
- * The window head already names the Loop and offers the way back, so only its actions arrive late.
+ * Presentational: it publishes nothing to the window head and reads no router, so a window can
+ * show it before its code has loaded.
  */
-export function LoopDetailSkeleton({ name }: LoopDetailSkeletonProps) {
-  const navigate = useNavigate();
-  useTopbarSlot(loopDetailTopbarIdentity(name, () => void navigate({ to: "/loops" })));
+export function LoopDetailSkeletonBody({ name }: LoopDetailSkeletonProps) {
   return (
     <SkeletonRegion
       className="flex min-h-0 flex-1 flex-col"
@@ -127,4 +126,14 @@ export function LoopDetailSkeleton({ name }: LoopDetailSkeletonProps) {
       />
     </SkeletonRegion>
   );
+}
+
+/**
+ * The Loop detail page before its definition and settings have answered. The window head already
+ * names the Loop and offers the way back, so only its actions arrive late.
+ */
+export function LoopDetailSkeleton({ name }: LoopDetailSkeletonProps) {
+  const navigate = useNavigate();
+  useTopbarSlot(loopDetailTopbarIdentity(name, () => void navigate({ to: "/loops" })));
+  return <LoopDetailSkeletonBody name={name} />;
 }

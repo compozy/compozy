@@ -1,12 +1,10 @@
 import { ReactFlowProvider } from "@xyflow/react";
 
-import { cn, Eyebrow, LaneTabs, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
+import { cn, LaneTabs, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { useLoopEditorChrome } from "../../hooks/use-loop-editor-chrome";
 import { placeholderSlots } from "../../lib/placeholder-slots";
 import {
-  DOCK_BAR_CLASS,
-  DOCK_CLASS,
   SIDEBAR_CLASS,
   SIDEBAR_TABS,
   SIDEBAR_TABS_CLASS,
@@ -14,16 +12,10 @@ import {
 } from "./loop-editor-chrome-parts";
 import { editorGridClass } from "./loop-editor-grid";
 import { LoopEditorPalette } from "./loop-editor-palette";
+import { LoopEditorCanvasSkeleton } from "./loop-editor-skeleton-parts";
 import { LoopEditorToolbar } from "./loop-editor-toolbar";
 
 const noop = () => undefined;
-
-/** Step cards on the canvas as a Loop of a few steps lays them out; decorative, so no shift. */
-const CANVAS_STEPS = [
-  { id: "step-a", className: "top-16 left-16" },
-  { id: "step-b", className: "top-44 left-72" },
-  { id: "step-c", className: "top-72 left-28" },
-] as const;
 
 function SidebarSkeleton() {
   return (
@@ -89,19 +81,7 @@ export function LoopEditorSkeleton() {
         </ReactFlowProvider>
         <div className={cn("grid min-h-0 flex-1", editorGridClass(paletteMode, inspectorOpen))}>
           {paletteMode === "expanded" ? <LoopEditorPalette disabled onAddNode={noop} /> : null}
-          <section className="relative flex min-h-0 flex-col bg-canvas">
-            <div aria-hidden="true" className="relative min-h-0 flex-1">
-              {CANVAS_STEPS.map(step => (
-                <Skeleton className={cn("absolute h-24 w-44", step.className)} key={step.id} />
-              ))}
-            </div>
-            <div className={DOCK_CLASS}>
-              <div className={DOCK_BAR_CLASS}>
-                <Eyebrow className="text-subtle">Validation</Eyebrow>
-                <Skeleton className="h-pill-xs w-16 rounded-pill" />
-              </div>
-            </div>
-          </section>
+          <LoopEditorCanvasSkeleton />
           {inspectorOpen ? <SidebarSkeleton /> : null}
         </div>
       </div>
