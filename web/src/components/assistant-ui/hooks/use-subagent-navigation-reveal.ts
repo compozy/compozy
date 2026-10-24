@@ -30,6 +30,64 @@ function findSubagent(index: SessionSequenceIndex, subagentId: string) {
   return null;
 }
 
+async function revealSubagent(
+  options: SubagentRevealOptions,
+  target: { key: number; subagentId: string },
+  canceled: () => boolean,
+  commitReveal: (reveal: SessionNavigationReveal) => void
+) {
+  try {
+    let match = findSubagent(options.readIndex(), target.subagentId);
+    for (let page = 0; !match && page < 500 && !canceled(); page += 1) {
+      if (!(await options.loadOlder())) break;
+      match = findSubagent(options.readIndex(), target.subagentId);
+    }
+    if (canceled()) return;
+    if (!match) throw new Error("Subagent activity is not available in this transcript.");
+    commitReveal({
+      key: target.key,
+      messageId: match.entry.messageId,
+      turnId: match.entry.turnId,
+      partIndex: match.partIndex,
+      subagentId: target.subagentId,
+      field: null,
+      toolCallId: null,
+      opensBody: true,
+    });
+    await new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    if (canceled()) return;
+    let card: HTMLElement | null = null;
+    const landed = await options.scrollToMessage(match.entry.messageId, 48, row => {
+      card = row.querySelector<HTMLElement>(
+        `[data-subagent-id="${CSS.escape(target.subagentId)}"]`
+      );
+      if (!card) return null;
+      const range = document.createRange();
+      range.selectNodeContents(card);
+      return range;
+    });
+    if (canceled()) return;
+    if (!landed || !card) throw new Error("Subagent activity did not come into view.");
+    // A short token-colored focus tint; no new motion or visual vocabulary.
+    (card as HTMLElement).animate?.(
+      [{ backgroundColor: "var(--color-selected)" }, { backgroundColor: "var(--color-selected)" }],
+      { duration: 1400 }
+    );
+  } catch (error) {
+    if (!canceled())
+      notifyUser({
+        message: error instanceof Error ? error.message : "Couldn't show subagent activity.",
+        tone: "error",
+      });
+  } finally {
+    if (!canceled()) {
+      subagentRevealStore.trigger.settled({ key: target.key });
+    }
+  }
+}
+
 /** Reveal through the transcript's paging and scroll owner, including virtualized history. */
 export function useSubagentNavigationReveal(options: SubagentRevealOptions) {
   const request = useSelector(subagentRevealStore, snapshot => {
@@ -40,63 +98,11 @@ export function useSubagentNavigationReveal(options: SubagentRevealOptions) {
   });
   const [reveal, setReveal] = useState<SessionNavigationReveal | null>(null);
   const [released, setReleased] = useState<ReadonlySet<string>>(new Set());
-  const perform = useEffectEvent(
-    async (target: NonNullable<typeof request>, canceled: () => boolean) => {
-      try {
-        let match = findSubagent(options.readIndex(), target.subagentId);
-        for (let page = 0; !match && page < 500 && !canceled(); page += 1) {
-          if (!(await options.loadOlder())) break;
-          match = findSubagent(options.readIndex(), target.subagentId);
-        }
-        if (canceled()) return;
-        if (!match) throw new Error("Subagent activity is not available in this transcript.");
-        setReleased(new Set());
-        setReveal({
-          key: target.key,
-          messageId: match.entry.messageId,
-          turnId: match.entry.turnId,
-          partIndex: match.partIndex,
-          subagentId: target.subagentId,
-          field: null,
-          toolCallId: null,
-          opensBody: true,
-        });
-        await new Promise<void>(resolve =>
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-        );
-        if (canceled()) return;
-        let card: HTMLElement | null = null;
-        const landed = await options.scrollToMessage(match.entry.messageId, 48, row => {
-          card = row.querySelector<HTMLElement>(
-            `[data-subagent-id="${CSS.escape(target.subagentId)}"]`
-          );
-          if (!card) return null;
-          const range = document.createRange();
-          range.selectNodeContents(card);
-          return range;
-        });
-        if (canceled()) return;
-        if (!landed || !card) throw new Error("Subagent activity did not come into view.");
-        // A short token-colored focus tint; no new motion or visual vocabulary.
-        (card as HTMLElement).animate?.(
-          [
-            { backgroundColor: "var(--color-selected)" },
-            { backgroundColor: "var(--color-selected)" },
-          ],
-          { duration: 1400 }
-        );
-      } catch (error) {
-        if (!canceled())
-          notifyUser({
-            message: error instanceof Error ? error.message : "Couldn't show subagent activity.",
-            tone: "error",
-          });
-      } finally {
-        if (!canceled()) {
-          subagentRevealStore.trigger.settled({ key: target.key });
-        }
-      }
-    }
+  const perform = useEffectEvent((target: NonNullable<typeof request>, canceled: () => boolean) =>
+    revealSubagent(options, target, canceled, next => {
+      setReleased(new Set());
+      setReveal(next);
+    })
   );
   useEffect(() => {
     if (!request || !options.ready) return;
