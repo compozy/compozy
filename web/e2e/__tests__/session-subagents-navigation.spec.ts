@@ -131,8 +131,11 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
   await test.step("one parent row carries a folded 10/10 indicator and no subagent rows", async () => {
     const parentRow = sidebar.getByTestId(`session-sidebar-session-${parent.id}`);
     await expect(parentRow).toBeVisible();
-    // The parent turn ended while its subagents work: it reads delegated, not done (UT-W14).
-    await expect(parentRow.locator('[data-badge="delegated"]')).toBeVisible();
+    // The parent turn ended while its subagents work: the daemon badges it waiting on
+    // sessions, not done (Sessions Kanban Business Rule 10, ADR-003).
+    await expect(
+      parentRow.locator('[data-badge="waiting"][data-waiting-on="sessions"]')
+    ).toBeVisible();
     const indicator = sidebar.getByRole("button", { name: "10 of 10 subagents running" });
     await expect(indicator).toHaveText("10/10");
     await expect(indicator).toHaveAttribute("aria-expanded", "false");
