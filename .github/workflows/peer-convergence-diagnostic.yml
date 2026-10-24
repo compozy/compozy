@@ -4,42 +4,25 @@ on:
     branches: [fix/issue-941-e2e023-peer-convergence]
 permissions:
   contents: read
-  actions: read
 jobs:
   source:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          github-token: ${{ github.token }}
-          run-id: 40050522287
-          name: peer-frame-attribution
-          path: traces
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-bun
+      - run: bunx turbo run build --filter=./web
       - name: Resolve attributed script offsets
         run: |
           python3 - <<'PYCODE'
-          import pathlib,zipfile,json
-          seen=set()
-          for path in pathlib.Path('traces').rglob('*.zip'):
-              try:
-                  archive=zipfile.ZipFile(path)
-              except zipfile.BadZipFile:
-                  continue
-              for name in archive.namelist():
-                  if not name.endswith('.network'): continue
-                  for line in archive.read(name).decode().splitlines():
-                      record=json.loads(line).get('snapshot',{})
-                      url=record.get('request',{}).get('url','')
-                      offsets={'_app-CVy3F0iC.js':395023,'query-DNwCG9-X.js':1646}
-                      asset=next((asset for asset in offsets if asset in url),None)
-                      if not asset or asset in seen: continue
-                      content=record.get('response',{}).get('content',{})
-                      key=content.get('_sha1')
-                      if not key or 'resources/'+key not in archive.namelist(): continue
-                      source=archive.read('resources/'+key).decode()
-                      offset=offsets[asset]
-                      print('ATTRIBUTED_SOURCE',asset,source[max(0,offset-1200):offset+2500])
-                      seen.add(asset)
-          print('FOUND',sorted(seen))
+          import pathlib
+          for pattern,offset in [('_app-*.js',395023),('query-*.js',1646)]:
+              for path in pathlib.Path('web/dist/assets').glob(pattern):
+                  source=path.read_text()
+                  print('ATTRIBUTED_SOURCE',path.name,source[max(0,offset-1500):offset+2500])
+                  if pattern.startswith('_app'):
+                      for marker in ['os-window-overlays','os-window-frame-']:
+                          at=source.find(marker)
+                          print('COMPILED_MEMBER',marker,source[max(0,at-4000):at+1500])
           PYCODE
