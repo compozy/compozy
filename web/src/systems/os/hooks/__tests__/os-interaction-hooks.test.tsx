@@ -29,8 +29,8 @@ import {
   OS_ZOOM_MENU_OPEN_DELAY_MS,
   useOsZoomMenu,
 } from "../use-os-zoom-menu";
-import { statusKeys } from "@/systems/status/lib/query-keys";
-import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
+import { statusKeys } from "@/systems/status";
+import { workspaceKeys } from "@/systems/workspace";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
