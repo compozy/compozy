@@ -41,10 +41,16 @@ func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 				home := newTestHomePaths(t)
 				ws := Workspace{ID: "ws_config_ttl", Name: "repo", RootDir: t.TempDir()}
 				paths := map[string]string{
-					"user":              home.ConfigFile,
-					"workspace":         filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
-					"profile":           filepath.Join(home.ProfilesDir, "design", compozyconfig.ConfigName),
-					"workspace-profile": filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, "design", compozyconfig.ConfigName),
+					"user":      home.ConfigFile,
+					"workspace": filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName),
+					"profile":   filepath.Join(home.ProfilesDir, "design", compozyconfig.ConfigName),
+					"workspace-profile": filepath.Join(
+						ws.RootDir,
+						compozyconfig.DirName,
+						compozyconfig.ProfilesDirName,
+						"design",
+						compozyconfig.ConfigName,
+					),
 				}
 				r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home), WithSnapshotTTL(time.Minute))
 				resolve := func() string {

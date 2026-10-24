@@ -9,7 +9,11 @@ import (
 	"github.com/compozy/compozy/internal/filesnap"
 )
 
-func (r *Resolver) freshSnapshot(key string, ws Workspace, workspaceID, profileName, profileID string) (ResolvedWorkspace, bool) {
+func (r *Resolver) freshSnapshot(
+	key string,
+	ws Workspace,
+	workspaceID, profileName, profileID string,
+) (ResolvedWorkspace, bool) {
 	r.mu.RLock()
 	now := r.now()
 	cached := r.cache[key]
@@ -32,7 +36,11 @@ func (r *Resolver) freshSnapshot(key string, ws Workspace, workspaceID, profileN
 	return resolved, true
 }
 
-func (r *Resolver) snapshotConfigUnchanged(ws Workspace, profileName string, snapshots map[string]filesnap.Snapshot) bool {
+func (r *Resolver) snapshotConfigUnchanged(
+	ws Workspace,
+	profileName string,
+	snapshots map[string]filesnap.Snapshot,
+) bool {
 	paths := []string{r.homePaths.ConfigFile, filepath.Join(r.homePaths.HomeDir, compozyconfig.MCPJSONName)}
 	var roots []string
 	if ws.RootDir != "" {
@@ -42,11 +50,18 @@ func (r *Resolver) snapshotConfigUnchanged(ws Workspace, profileName string, sna
 	if profileName != "" {
 		roots = append(roots, filepath.Join(r.homePaths.ProfilesDir, profileName))
 		if ws.RootDir != "" {
-			roots = append(roots, filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, profileName))
+			roots = append(
+				roots,
+				filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ProfilesDirName, profileName),
+			)
 		}
 	}
 	for _, root := range roots {
-		paths = append(paths, filepath.Join(root, compozyconfig.ConfigName), filepath.Join(root, compozyconfig.MCPJSONName))
+		paths = append(
+			paths,
+			filepath.Join(root, compozyconfig.ConfigName),
+			filepath.Join(root, compozyconfig.MCPJSONName),
+		)
 	}
 	for _, path := range paths {
 		previous, found := snapshots[path]
