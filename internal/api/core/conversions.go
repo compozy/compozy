@@ -80,17 +80,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		CreatedAt:           info.CreatedAt,
 		UpdatedAt:           info.UpdatedAt,
 	}
-	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
-		requested := info.RequestedRuntime()
-		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
-		payload.Runtime.LastKnown = runtime
-		if runtimeHasEffectiveSelection(info) {
-			payload.Runtime.Effective = runtime
-		}
-	}
-	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
-		payload.Runtime.ACPCaps = caps
-	}
+	populateSessionRuntimePayload(&payload, info)
 	if activity := RuntimeActivityPayloadFromSessionMeta(info.Liveness, now); activity != nil {
 		payload.Activity = activity
 	}
@@ -110,6 +100,20 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		payload.BoardColumn = info.BoardColumn
 	}
 	return payload
+}
+
+func populateSessionRuntimePayload(payload *contract.SessionPayload, info *session.Info) {
+	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
+		requested := info.RequestedRuntime()
+		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
+		payload.Runtime.LastKnown = runtime
+		if runtimeHasEffectiveSelection(info) {
+			payload.Runtime.Effective = runtime
+		}
+	}
+	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
+		payload.Runtime.ACPCaps = caps
+	}
 }
 
 // SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.

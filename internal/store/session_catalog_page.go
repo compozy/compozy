@@ -120,6 +120,10 @@ func (q SessionCatalogPageQuery) Validate() error {
 	if !q.LineageKind.Valid() {
 		return fmt.Errorf("store: unsupported session lineage kind filter %q", q.LineageKind)
 	}
+	return q.validateCursor()
+}
+
+func (q SessionCatalogPageQuery) validateCursor() error {
 	if q.After != nil && q.Sort == "name" && q.After.Name == nil {
 		return fmt.Errorf("store: name cursor key is required")
 	}

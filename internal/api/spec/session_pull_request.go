@@ -18,7 +18,7 @@ func refreshSessionPullRequestOperation() OperationSpec {
 				Description: "Refreshed or retained cached facts",
 				Body:        contract.SessionPullRequestResponse{},
 			},
-			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: authoredContextSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Session branch unavailable", Body: contract.SessionPullRequestErrorPayload{}},
 			{
 				Status:      502,

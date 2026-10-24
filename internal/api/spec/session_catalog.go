@@ -58,7 +58,7 @@ func sessionWaitOperation() OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "Wait completed or timed out", Body: contract.SessionWaitResponse{}},
 			{Status: 400, Description: "Malformed wait request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: authoredContextSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Wait limit reached or registration in use", Body: contract.ErrorPayload{}},
 			{Status: 410, Description: "Session gone or wait registration expired", Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid wait request", Body: contract.ErrorPayload{}},
@@ -86,7 +86,7 @@ func sessionCatalogListOperation() OperationSpec {
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
-				[]string{"starting", specActiveKey, "stopping", "stopped"},
+				[]string{"starting", specActiveKey, "stopping", specStoppedKey},
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),
@@ -111,7 +111,12 @@ func sessionCatalogListOperation() OperationSpec {
 			),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
 			boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
-			ParameterSpec{Name: "board_column", In: specParameterInQuery, Kind: specArrayKind, Description: "Repeatable board column filter: needs_you, working, in_review, done"},
+			ParameterSpec{
+				Name:        "board_column",
+				In:          specParameterInQuery,
+				Kind:        specArrayKind,
+				Description: "Repeatable board column filter: needs_you, working, in_review, done",
+			},
 			queryParam("badge", "Filter by comma-separated exact session badges", false),
 			enumQueryParam(
 				"archive",
@@ -183,14 +188,14 @@ func sessionInteractionsOperation() OperationSpec {
 			enumQueryParam(
 				"status",
 				"Filter by interaction status",
-				[]string{"pending", "orphaned", "resolved", "timed_out", "canceled"},
+				[]string{specPendingKey, "orphaned", "resolved", "timed_out", "canceled"},
 			),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionInteractionsResponse{}},
 			{Status: 400, Description: "Invalid interaction status", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: agentIdentityDeniedDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: authoredContextSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: sessionAttentionUnavailableDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -284,7 +289,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			enumQueryParam(
 				"state",
 				"Filter by exact session state",
-				[]string{"starting", "active", "stopping", "stopped"},
+				[]string{"starting", "active", "stopping", specStoppedKey},
 			),
 			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			enumQueryParam(

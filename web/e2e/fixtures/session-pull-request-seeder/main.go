@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -130,13 +131,10 @@ func parseOptions(args []string) (options, error) {
 		parsed.branch,
 		parsed.repoKey,
 	}
-	for _, value := range required {
-		if value == "" {
-			return options{}, errors.New(
-				"--home, --workspace, --session, --branch and --repo-key are required",
-			)
-		}
+	if slices.Contains(required, "") {
+		return options{}, errors.New("--home, --workspace, --session, --branch and --repo-key are required")
 	}
+
 	if parsed.number <= 0 {
 		return options{}, errors.New("--number must be positive")
 	}
