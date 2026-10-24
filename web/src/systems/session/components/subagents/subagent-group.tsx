@@ -32,6 +32,8 @@ export interface SubagentGroupProps {
   stale?: boolean;
   /** Provider-native inner rows per member (S8); see `SubagentCard.nested`. */
   nested?: (subagent: SubagentView) => ReactNode;
+  revealedSubagentId?: string;
+  onRevealClose?: () => void;
   className?: string;
 }
 
@@ -56,6 +58,8 @@ export function SubagentGroup({
   onOpenChange,
   stale = false,
   nested,
+  revealedSubagentId,
+  onRevealClose,
   className,
 }: SubagentGroupProps) {
   const summary = subagentGroupSummary(subagents);
@@ -128,6 +132,8 @@ export function SubagentGroup({
             subagent={subagent}
             onOpen={onOpen}
             nested={nested?.(subagent)}
+            revealOpen={subagent.id === revealedSubagentId}
+            onRevealClose={onRevealClose}
             stale={stale}
             variant="flush"
           />

@@ -110,7 +110,9 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
     SUBAGENT_ROW_STOP_FAILED,
     [subagent]
   );
-  const drillable = subagent.child_session_id !== null && onOpen !== undefined;
+  const drillable =
+    (subagent.child_session_id !== null || subagent.origin === "provider_native") &&
+    onOpen !== undefined;
   const word = SUBAGENT_STATUS_WORD[subagent.status];
   // Isolated rows grow a branch line (S5); the PR link stays a sibling of the open control.
   const branch = subagentWorktree(subagent)?.branch;

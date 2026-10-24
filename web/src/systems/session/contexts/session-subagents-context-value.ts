@@ -13,6 +13,8 @@ export interface SubagentNavigationTarget {
   /** Empty when unknown; the window then opens through the attention jump. */
   agentName: string;
   workspaceId: string;
+  /** Reveal provider-native work inside this parent session. */
+  subagentId?: string;
 }
 
 export interface SubagentNavigation {

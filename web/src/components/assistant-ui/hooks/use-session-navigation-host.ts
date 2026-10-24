@@ -37,6 +37,7 @@ import {
 } from "@/systems/session/lib/session-transcript-query";
 import type { SessionTranscriptSearchMatch } from "@/systems/session/types";
 import { locateFindTarget } from "../session-find-ranges";
+import { useSubagentNavigationReveal } from "./use-subagent-navigation-reveal";
 import type {
   SessionNavigationReveal,
   SessionNavigationTarget,
@@ -294,8 +295,33 @@ export function useSessionNavigationHost({
       fetchNextPage: () => transcript.fetchNextPage(),
       setJumpActive,
     });
-  const jumpToSequence = (sequence: number) =>
-    landNavigationSequence(sequence, { readIndex, latest, setJumpActive, setReveal, setReleased });
+  const jumpToSequence = (sequence: number) => {
+    nativeNavigation.clear();
+    return landNavigationSequence(sequence, {
+      readIndex,
+      latest,
+      setJumpActive,
+      setReveal,
+      setReleased,
+    });
+  };
+
+  const nativeNavigation = useSubagentNavigationReveal({
+    workspaceId,
+    sessionId,
+    ready: transcript.data !== undefined,
+    readIndex,
+    scrollToMessage: (...args) => latest.current.scrollToMessage(...args),
+    loadOlder: async () => {
+      const before = readIndex().range?.from;
+      const data = queryClient.getQueryData<SessionTranscriptData>(transcriptKey);
+      const last = data?.pages.at(-1);
+      if (!last || nextTranscriptPageParam(last) === undefined) return false;
+      const result = await transcript.fetchNextPage();
+      if (result.isError) throw result.error;
+      return readIndex().range?.from !== before;
+    },
+  });
 
   const handlers: SessionFindJumpHandlers = {
     isSequenceLoaded: sequence => isSequenceLoaded(index.range, sequence),
@@ -415,17 +441,19 @@ export function useSessionNavigationHost({
     findFocusKey: findState?.focusKey ?? 0,
     findOpen: findState !== null,
     isSequenceFolded: matchBehindFold,
-    jumpActive,
+    jumpActive: jumpActive || nativeNavigation.jumpActive,
     refreshKey,
     resolveMatchTime: match => index.bySequence.get(match.sequence)?.at ?? null,
     target: {
       activeMessageId: activeEntry?.messageId ?? null,
       foldMatchCounts: findState ? findMatchesInsideFolds(find.matches, index) : EMPTY_COUNTS,
       query: findState ? find.committedQuery : "",
-      releaseDisclosure: id =>
-        setReleased(previous => (previous.has(id) ? previous : new Set([...previous, id]))),
-      released,
-      reveal,
+      releaseDisclosure: id => {
+        if (nativeNavigation.reveal) nativeNavigation.releaseDisclosure(id);
+        else setReleased(previous => (previous.has(id) ? previous : new Set([...previous, id])));
+      },
+      released: nativeNavigation.reveal ? nativeNavigation.released : released,
+      reveal: nativeNavigation.reveal ?? reveal,
     },
     trail: {
       enabled: pane.width >= TRAIL_MIN_PANE_WIDTH_PX,

@@ -100,12 +100,9 @@ describe("SubagentCard", () => {
     });
   });
 
-  it("Should render a provider-native card without a child as static, with no chevron (UT-W05)", () => {
+  it("Should keep a provider-native card static when its host provides no navigation (UT-W05)", () => {
     const { container } = renderUI(
-      <SubagentCard
-        subagent={subagent({ origin: "provider_native", child_session_id: null })}
-        onOpen={vi.fn()}
-      />
+      <SubagentCard subagent={subagent({ origin: "provider_native", child_session_id: null })} />
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(container.querySelector(".lucide-chevron-right")).toBeNull();
@@ -486,13 +483,16 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
     expect(screen.queryByRole("button", { name: /^Show / })).not.toBeInTheDocument();
   });
 
-  it("Should open the hover card from keyboard focus on a row that cannot be opened (m19)", async () => {
+  it("Should keep native work keyboard-accessible and open it from the inspector (issue #947)", async () => {
     const user = userEvent.setup();
     const native = subagent({ id: "native", origin: "provider_native", child_session_id: null });
-    renderUI(<SessionInspectorSubagentsSection subagents={[native]} onOpen={vi.fn()} />);
-    const row = screen.getByRole("group", { name: `${native.title}, Running` });
+    const onOpen = vi.fn();
+    renderUI(<SessionInspectorSubagentsSection subagents={[native]} onOpen={onOpen} />);
+    const row = screen.getByRole("button", { name: `Open ${native.title}` });
     await user.tab();
     expect(row).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(onOpen).toHaveBeenCalledWith(native, { newWindow: false });
     await waitFor(() =>
       expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
     );
