@@ -150,17 +150,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		return sessionCatalogPlacedPosition(info, normalized.Sort, placements)
 	}
 
-	candidates := make([]store.SessionInfo, 0, len(durable.Sessions)+len(activeMatches))
-	candidates = append(candidates, durable.Sessions...)
-	for index := range activeMatches {
-		info := &activeMatches[index]
-		if after == nil || compareSessionCatalogPosition(position(info), *after) > 0 {
-			candidates = append(candidates, *info)
-		}
-	}
-	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
-		return compareSessionCatalogPosition(position(&a), position(&b))
-	})
+	candidates := mergeSessionCatalogCandidates(durable.Sessions, activeMatches, after, position)
 
 	page := ListPage{
 		Total: durable.Total + len(activeMatches),
@@ -192,6 +182,26 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		}
 	}
 	return page, nil
+}
+
+func mergeSessionCatalogCandidates(
+	durable, activeMatches []store.SessionInfo,
+	after *store.SessionCatalogPosition,
+	position func(*store.SessionInfo) store.SessionCatalogPosition,
+) []store.SessionInfo {
+	candidates := make([]store.SessionInfo, 0, len(durable)+len(activeMatches))
+	candidates = append(candidates, durable...)
+	for index := range activeMatches {
+		info := &activeMatches[index]
+		if after == nil || compareSessionCatalogPosition(position(info), *after) > 0 {
+			candidates = append(candidates, *info)
+		}
+	}
+	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
+		return compareSessionCatalogPosition(position(&a), position(&b))
+	})
+
+	return candidates
 }
 
 func sessionCatalogPageQuery(
