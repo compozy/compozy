@@ -86,3 +86,13 @@ rows with a leading circle-check and a footer of **N selected · Select all · C
 name, path or receipt), the description becomes the live tally ("2 of 3 done · 1 failed"), and the
 footer carries one destructive action (**Remove N worktrees**, then **Force remove…** beside
 **Retry failed**). Re-walked the same six menubar states on the isolated daemon with Vite.
+
+2026-10-24 #953 impact: a half-removed checkout (folder present, `.git` link gone, Git entry
+prunable) in a batch must fail with a readable reason ("Its Git metadata (.git) is missing, so this
+folder is left over from an interrupted removal. Nothing was removed.") and a leftover-files risk
+row, never the bare `worktree_removal_failed` code. **Force remove…** lists it with its leftover
+files (and a detached HEAD's unique commits); confirming deletes the folder and clears the Git entry
+("Leftover files deleted and stale Git entry cleared. Branch kept." for discovered rows). The single
+removal dialog shows the "lost its Git metadata" refusal with **Force remove…** as its primary. A
+genuine 500 shows "Git could not remove this worktree. The daemon log has the details." and the
+daemon log records the cause.

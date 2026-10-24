@@ -3619,6 +3619,28 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		)
 	}
 
+	// #953: optional human-readable reason on worktree removal refusals; the
+	// code and risk inventory keep their meaning.
+	refusalProperties := paths[worktreePath].(map[string]any)
+	for _, key := range []string{
+		"delete", "responses", "409", "content", "application/json", "schema", "properties",
+	} {
+		refusalProperties = refusalProperties[key].(map[string]any)
+	}
+	if _, exists := refusalProperties["error"]; exists {
+		t.Fatal("approved removal refusal addition: error already exists in the historical baseline")
+	}
+	refusalProperties["error"] = map[string]any{"type": "string"}
+	riskSchema := refusalProperties["risk"].(map[string]any)
+	riskSchema["properties"].(map[string]any)["leftover_files"] = map[string]any{"type": "integer"}
+	if required, ok := riskSchema["required"].([]any); ok {
+		required = append(required, "leftover_files")
+		slices.SortFunc(required, func(left, right any) int {
+			return strings.Compare(left.(string), right.(string))
+		})
+		riskSchema["required"] = required
+	}
+
 	// All projects (AP BR-12): optional breadth parameters inserted right after the
 	// existing workspace selector; existing parameters keep their meaning.
 	workspaceIDs := map[string]any{

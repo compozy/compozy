@@ -70,7 +70,7 @@ export function WorktreeRemoveDialog({
 }: WorktreeRemoveDialogProps) {
   const stage = resolveRemoveStage(refusal, forceRequested, boundSessions);
   const risk = refusal?.risk ?? null;
-  const isRefusal = stage === "dirty-refusal" || stage === "bound-running";
+  const isRefusal = stage === "dirty-refusal" || stage === "orphaned" || stage === "bound-running";
   const branchOptIn =
     !isRefusal && worktree.branch !== "" ? (
       <Field orientation="horizontal">
@@ -123,11 +123,12 @@ export function WorktreeRemoveDialog({
       noteTone={stage === "downgrade" ? "info" : stage === "force" ? "warning" : "neutral"}
       body={
         <div className="flex flex-col gap-4">
-          {risk && (stage === "dirty-refusal" || stage === "force") ? (
+          {risk && (stage === "dirty-refusal" || stage === "orphaned" || stage === "force") ? (
             <WorktreeRemovalRiskRows
               risk={risk}
               worktreeName={worktree.name}
-              branch={worktree.branch}
+              // A detached checkout has no branch; the risk copy still needs a subject.
+              branch={worktree.branch || "This detached checkout"}
             />
           ) : null}
           {facts}
@@ -164,17 +165,22 @@ export function WorktreeRemoveDialog({
           ? "Open session"
           : stage === "dirty-refusal"
             ? "Commit & push first"
-            : stage === "force"
-              ? "Force remove"
-              : "Remove worktree"
+            : stage === "orphaned"
+              ? "Force remove…"
+              : stage === "force"
+                ? "Force remove"
+                : "Remove worktree"
       }
       cancelLabel="Cancel"
       isPending={isRemoving}
-      confirmIcon={stage === "force" ? TriangleAlert : Trash2}
+      confirmIcon={stage === "force" || stage === "orphaned" ? TriangleAlert : Trash2}
       onConfirm={() => {
         if (stage === "bound-running") return onOpenSession?.();
         // The refusal's primary is the way out that keeps the work.
         if (stage === "dirty-refusal") return onCommitAndPush?.();
+        // Nothing can be committed without Git metadata; force is the only way on,
+        // and it still passes the second confirm that re-states the loss.
+        if (stage === "orphaned") return onRequestForce();
         onConfirm(stage === "force");
       }}
       contentProps={{ "data-testid": "worktree-remove-dialog", "data-stage": stage }}

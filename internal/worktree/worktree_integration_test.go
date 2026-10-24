@@ -1699,6 +1699,137 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	// Invariant: a checkout whose .git link is gone while Git still registers it
+	// (an interrupted removal) is refused with an inventory instead of failing,
+	// and force deletes the leftover directory and clears only its Git entry.
+	t.Run("Should refuse orphaned checkouts with an inventory and force-remove them", func(t *testing.T) {
+		f := newRealGitFixture(t)
+		orphan := func(path string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(path, "leftover.txt"), []byte("left\n"), 0o600); err != nil {
+				t.Fatalf("WriteFile(leftover) error = %v", err)
+			}
+			if err := os.Remove(filepath.Join(path, ".git")); err != nil {
+				t.Fatalf("Remove(.git) error = %v", err)
+			}
+		}
+		listed := func(path string) bool {
+			t.Helper()
+			for entry := range strings.SplitSeq(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), "\n") {
+				if listedPath, ok := strings.CutPrefix(entry, "worktree "); ok &&
+					canonicalComparablePath(listedPath) == canonicalComparablePath(path) {
+					return true
+				}
+			}
+			return false
+		}
+
+		registered, err := f.service.Create(
+			t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Orphaned"},
+		)
+		if err != nil {
+			t.Fatalf("Create(orphaned) error = %v", err)
+		}
+		orphan(registered.Path)
+		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, registered.ID, false)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Code != ErrCheckoutOrphaned.Error() || refusalResult.Risk.LeftoverFiles == 0 {
+			t.Fatalf("Remove(orphaned) = (%#v, %v), want orphaned refusal with leftover files", refusalResult, err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("refused orphan state = %q, want ready", got)
+		}
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed interrupted removal: %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations(orphaned removal) error = %v, want startup to continue", err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("recovered orphan state = %q, want ready for confirmation", got)
+		}
+		// An unreadable leftover cannot be inventoried; startup still continues.
+		locked := filepath.Join(registered.Path, "locked")
+		if err := os.Mkdir(locked, 0o700); err != nil {
+			t.Fatalf("Mkdir(locked) error = %v", err)
+		}
+		if err := os.Chmod(locked, 0o000); err != nil {
+			t.Fatalf("Chmod(locked) error = %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+		if err := f.store.SetState(
+			t.Context(), f.workspace.ID, registered.ID, StateRemoving, registered.UpdatedAt,
+		); err != nil {
+			t.Fatalf("seed unreadable interrupted removal: %v", err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations(unreadable orphan) error = %v, want startup to continue", err)
+		}
+		if got := f.item(registered.ID).State; got != StateReady {
+			t.Fatalf("unreadable orphan state = %q, want ready", got)
+		}
+		if err := os.Chmod(locked, 0o700); err != nil {
+			t.Fatalf("Chmod(unlock) error = %v", err)
+		}
+		if refusalResult, err = f.service.Remove(
+			t.Context(), f.workspace.ID, registered.ID, true,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("Remove(force orphaned) = (%#v, %v), want success", refusalResult, err)
+		}
+		if _, err := os.Lstat(registered.Path); !errors.Is(err, os.ErrNotExist) || listed(registered.Path) {
+			t.Fatalf("orphaned checkout after force: stat=%v listed=%t, want both gone", err, listed(registered.Path))
+		}
+		if got := f.item(registered.ID).State; got != StateRemoved {
+			t.Fatalf("force-removed orphan state = %q, want removed", got)
+		}
+
+		detachedPath := filepath.Join(t.TempDir(), "orphaned-detached")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", detachedPath, "main")
+		if err := os.WriteFile(filepath.Join(detachedPath, "unique.txt"), []byte("unique\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(unique) error = %v", err)
+		}
+		f.git(detachedPath, "add", "unique.txt")
+		f.git(detachedPath, "commit", "-m", "detached unique")
+		orphan(detachedPath)
+		var detachedListed string
+		listing, err := f.service.List(t.Context(), f.workspace.ID, true)
+		if err != nil {
+			t.Fatalf("List(refresh) error = %v", err)
+		}
+		for _, entry := range listing.Discovered {
+			if canonicalComparablePath(entry.Path) == canonicalComparablePath(detachedPath) {
+				detachedListed = entry.Path
+			}
+		}
+		if detachedListed == "" {
+			t.Fatalf("discovered = %#v, want the orphaned detached checkout", listing.Discovered)
+		}
+		refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, detachedListed, RemoveDiscoveredOptions{ExpectStale: true},
+		)
+		if !errors.Is(err, ErrCheckoutOrphaned) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 || refusalResult.Risk.LeftoverFiles == 0 {
+			t.Fatalf(
+				"RemoveDiscovered(orphaned) = (%#v, %v), want detached commit and files at risk",
+				refusalResult,
+				err,
+			)
+		}
+		if _, err := os.Lstat(filepath.Join(detachedPath, "unique.txt")); err != nil {
+			t.Fatalf("refused orphan lost files: %v", err)
+		}
+		if refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, detachedListed, RemoveDiscoveredOptions{Force: true, ExpectStale: true},
+		); err != nil || refusalResult != nil {
+			t.Fatalf("RemoveDiscovered(force orphaned) = (%#v, %v), want success", refusalResult, err)
+		}
+		if _, err := os.Lstat(detachedPath); !errors.Is(err, os.ErrNotExist) || listed(detachedPath) {
+			t.Fatalf("discovered orphan after force: stat=%v listed=%t, want both gone", err, listed(detachedPath))
+		}
+	})
+
 	// Invariant: opt-in branch deletion runs only after cleanup, keeps protected
 	// and unmerged branches, and releases only the cleaned record's stale entry.
 	t.Run("Should delete local branches after cleanup only when Git safety allows it", func(t *testing.T) {

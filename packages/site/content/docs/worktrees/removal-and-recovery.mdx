@@ -72,12 +72,14 @@ Dirty or unpushed work returns a structured conflict instead of deleting it:
 ```json
 {
   "code": "worktree_dirty_requires_force",
+  "error": "The worktree has uncommitted changes. Force removal discards them.",
   "risk": {
     "changed_files": 2,
     "insertions": 4,
     "deletions": 1,
     "unpushed_commits": 3,
-    "exists_on_remote": false
+    "exists_on_remote": false,
+    "leftover_files": 0
   },
   "downgrade": false
 }
@@ -94,6 +96,45 @@ compozy worktree remove feature-auth --workspace . --force -o json
 but it never hides dirty files or an unreadable safety check. The narrow exception is an unchanged
 runtime-owned per-run branch: CompozyOS compare-deletes it only while it still points at the recorded
 creation commit and emits `worktree.branch_reclaimed`.
+
+## Recover a half-removed checkout
+
+A removal that stops midway can leave a checkout folder behind after Git already deleted its `.git`
+link. Git still lists the entry as `prunable`, but refuses to remove it, even with `--force`.
+CompozyOS reports this state instead of failing, for a registered Worktree and for a discovered path:
+
+```json
+{
+  "code": "worktree_checkout_orphaned",
+  "error": "The checkout's Git metadata (.git) is missing; the directory is left over from an interrupted removal. Force removal deletes the leftover files and clears Git's entry.",
+  "risk": {
+    "changed_files": 0,
+    "insertions": 0,
+    "deletions": 0,
+    "unpushed_commits": 1,
+    "exists_on_remote": false,
+    "leftover_files": 1284
+  },
+  "downgrade": false
+}
+```
+
+Nothing is removed. `leftover_files` counts every file still in the folder, because Git can no longer
+tell which ones changed. `unpushed_commits` counts commits that only a detached HEAD still holds; a
+branch keeps its own commits. Copy anything you need out of the folder, then confirm:
+
+```bash
+compozy worktree remove perf-baseline --workspace . --force -o json
+compozy worktree remove --path /private/tmp/perf-baseline --workspace . --force -o json
+```
+
+CompozyOS deletes the leftover folder first, then clears only that entry from Git's list. If it stops
+in between, the folder is still listed and the same command finishes the job. In the app, the
+failed row shows the reason and **Force remove…** lists the leftover files before confirming.
+
+CompozyOS runs checkout removal independently of the request that started it, with a budget sized for
+large folders, so closing the app or a slow delete no longer interrupts Git midway. If the daemon
+stops during a removal, the record returns to ready on the next start and asks for this decision.
 
 ## Delete the local branch
 

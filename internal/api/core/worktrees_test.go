@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -893,6 +894,7 @@ func TestWorktreeErrorCodes(t *testing.T) {
 			{worktree.ErrUnpushedRequiresForce, "worktree_unpushed_requires_force"},
 			{worktree.ErrSafetyCheckFailed, "worktree_safety_check_failed"},
 			{worktree.ErrRemovalFailed, "worktree_removal_failed"},
+			{worktree.ErrCheckoutOrphaned, "worktree_checkout_orphaned"},
 			{worktree.ErrPerRunMaterialization, "per_run_materialization_failed"},
 			{worktree.ErrConfigInvalid, "worktree_config_invalid"},
 			{worktree.ErrDeniedByHook, "worktree_denied_by_hook"},
@@ -1400,58 +1402,137 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the exact risk inventory with status 409", func(t *testing.T) {
+	t.Run("Should return the exact risk inventory and reason with status 409", func(t *testing.T) {
 		t.Parallel()
 
+		testCases := []struct {
+			name    string
+			refusal worktree.RemovalRefusal
+			err     error
+			want    string
+		}{
+			{
+				name: "dirty",
+				refusal: worktree.RemovalRefusal{
+					Code: worktree.ErrDirtyRequiresForce.Error(),
+					Risk: worktree.RemovalRisk{ChangedFiles: 2, Insertions: 4, Deletions: 1, UnpushedCommits: 3},
+				},
+				err: worktree.ErrDirtyRequiresForce,
+				want: `{"code":"worktree_dirty_requires_force","error":"The worktree has uncommitted changes. ` +
+					`Force removal discards them.","risk":{"changed_files":2,"insertions":4,"deletions":1,` +
+					`"unpushed_commits":3,"exists_on_remote":false,"leftover_files":0},"downgrade":false}`,
+			},
+			{
+				name: "orphaned",
+				refusal: worktree.RemovalRefusal{
+					Code: worktree.ErrCheckoutOrphaned.Error(),
+					Risk: worktree.RemovalRisk{LeftoverFiles: 7, UnpushedCommits: 1},
+				},
+				err: worktree.ErrCheckoutOrphaned,
+				want: `{"code":"worktree_checkout_orphaned","error":"The checkout's Git metadata (.git) is ` +
+					`missing; the directory is left over from an interrupted removal. Force removal deletes ` +
+					`the leftover files and clears Git's entry.","risk":{"changed_files":0,"insertions":0,` +
+					`"deletions":0,"unpushed_commits":1,"exists_on_remote":false,"leftover_files":7},"downgrade":false}`,
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run("Should answer the "+testCase.name+" refusal", func(t *testing.T) {
+				t.Parallel()
+				handlers := &BaseHandlers{
+					Workspaces: workspaceServiceStub{resolve: func(
+						_ context.Context,
+						ref string,
+					) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{
+							ID: "registry-a", Name: ref,
+							WorkspaceID: "workspace-a",
+						}, nil
+					}},
+					Worktrees: worktreeServiceStub{
+						resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
+							return &worktree.Worktree{
+								ID:          id,
+								WorkspaceID: workspaceID,
+								ProfileID:   store.DefaultProfileID,
+							}, nil
+						},
+						remove: func(
+							_ context.Context,
+							workspaceID string,
+							worktreeID string,
+							force bool,
+						) (*worktree.RemovalRefusal, error) {
+							if workspaceID != "registry-a" || worktreeID != "wt-a" || force {
+								t.Fatalf("Remove() args = %q, %q, %t", workspaceID, worktreeID, force)
+							}
+							refusal := testCase.refusal
+							return &refusal, testCase.err
+						},
+					},
+				}
+				router := gin.New()
+				router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", handlers.RemoveWorktree)
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodDelete,
+					"/workspaces/workspace-a/worktrees/wt-a",
+					http.NoBody,
+				)
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+
+				if response.Code != http.StatusConflict {
+					t.Fatalf(
+						"status = %d, want %d; body=%s",
+						response.Code,
+						http.StatusConflict,
+						response.Body.String(),
+					)
+				}
+				if got := response.Body.String(); got != testCase.want {
+					t.Fatalf("body = %s, want %s", got, testCase.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should log the cause behind a 500 removal failure", func(t *testing.T) {
+		t.Parallel()
+
+		var logs strings.Builder
 		handlers := &BaseHandlers{
+			Logger:             slog.New(slog.NewTextHandler(&logs, nil)),
+			MaskInternalErrors: true,
 			Workspaces: workspaceServiceStub{resolve: func(
 				_ context.Context,
 				ref string,
 			) (workspacepkg.ResolvedWorkspace, error) {
-				return workspacepkg.ResolvedWorkspace{
-					ID: "registry-a", Name: ref,
-					WorkspaceID: "workspace-a",
-				}, nil
+				return workspacepkg.ResolvedWorkspace{ID: "registry-a", Name: ref, WorkspaceID: "workspace-a"}, nil
 			}},
 			Worktrees: worktreeServiceStub{
 				resolve: func(_ context.Context, workspaceID, id string) (*worktree.Worktree, error) {
 					return &worktree.Worktree{ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID}, nil
 				},
-				remove: func(
-					_ context.Context,
-					workspaceID string,
-					worktreeID string,
-					force bool,
-				) (*worktree.RemovalRefusal, error) {
-					if workspaceID != "registry-a" || worktreeID != "wt-a" || force {
-						t.Fatalf("Remove() args = %q, %q, %t", workspaceID, worktreeID, force)
-					}
-					return &worktree.RemovalRefusal{
-						Code: worktree.ErrDirtyRequiresForce.Error(),
-						Risk: worktree.RemovalRisk{
-							ChangedFiles: 2, Insertions: 4, Deletions: 1, UnpushedCommits: 3,
-						},
-					}, worktree.ErrDirtyRequiresForce
+				remove: func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error) {
+					return nil, fmt.Errorf("%w: git exploded on checkout", worktree.ErrRemovalFailed)
 				},
 			},
 		}
 		router := gin.New()
 		router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", handlers.RemoveWorktree)
 		request := httptest.NewRequestWithContext(
-			t.Context(),
-			http.MethodDelete,
-			"/workspaces/workspace-a/worktrees/wt-a",
-			http.NoBody,
+			t.Context(), http.MethodDelete, "/workspaces/workspace-a/worktrees/wt-a", http.NoBody,
 		)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
 
-		if response.Code != http.StatusConflict {
-			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusConflict, response.Body.String())
+		if response.Code != http.StatusInternalServerError ||
+			strings.Contains(response.Body.String(), "git exploded") {
+			t.Fatalf("response = %d %s, want a masked 500", response.Code, response.Body.String())
 		}
-		const want = `{"code":"worktree_dirty_requires_force","risk":{"changed_files":2,"insertions":4,"deletions":1,"unpushed_commits":3,"exists_on_remote":false},"downgrade":false}`
-		if got := response.Body.String(); got != want {
-			t.Fatalf("body = %s, want %s", got, want)
+		if got := logs.String(); !strings.Contains(got, "api: request failed") ||
+			!strings.Contains(got, "git exploded on checkout") {
+			t.Fatalf("server log = %q, want the 500 cause", got)
 		}
 	})
 }

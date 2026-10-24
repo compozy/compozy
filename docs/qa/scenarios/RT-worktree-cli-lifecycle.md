@@ -48,3 +48,11 @@ cases with race detection, including default `trunk`, replacement branch and fai
 without adoption. Isolated-lab walk on 2026-10-20: a prunable entry cleared; a dirty checkout
 refused with `worktree_dirty_requires_force` (exit 65, file kept) and `--force` removed it while its
 branch survived; `<ref>` plus `--path` and `--path` plus `--delete-branch` fail as usage errors.
+
+2026-10-24 #953 impact: a checkout whose `.git` link is gone while Git lists it as prunable (an
+interrupted removal) must refuse `remove <ref>` and `remove --path <listed path>` with
+`worktree_checkout_orphaned` (exit 65, folder kept, `risk.leftover_files` > 0, a detached HEAD's
+unique commits in `risk.unpushed_commits`), never a 500 `worktree_removal_failed`. `--force` deletes
+the folder and clears only that Git entry; the record becomes removed and the path leaves
+`git worktree list`. Text output names the reason after the code. A record left `removing` by a
+daemon stop returns to `ready` on boot without failing startup.

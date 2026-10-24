@@ -82,6 +82,7 @@ var worktreeErrorCodes = []struct {
 	{worktree.ErrUnpushedRequiresForce, "worktree_unpushed_requires_force"},
 	{worktree.ErrSafetyCheckFailed, "worktree_safety_check_failed"},
 	{worktree.ErrRemovalFailed, "worktree_removal_failed"},
+	{worktree.ErrCheckoutOrphaned, "worktree_checkout_orphaned"},
 	{worktree.ErrPerRunMaterialization, "per_run_materialization_failed"},
 	{worktree.ErrConfigInvalid, "worktree_config_invalid"},
 	{worktree.ErrDeniedByHook, "worktree_denied_by_hook"},

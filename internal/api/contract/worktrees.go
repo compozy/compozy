@@ -129,10 +129,15 @@ type WorktreeRemovalRiskPayload struct {
 	Deletions       int  `json:"deletions"`
 	UnpushedCommits int  `json:"unpushed_commits"`
 	ExistsOnRemote  bool `json:"exists_on_remote"`
+	// LeftoverFiles counts the files left in a worktree_checkout_orphaned
+	// checkout; Git cannot tell which of them hold changes.
+	LeftoverFiles int `json:"leftover_files"`
 }
 
 type WorktreeRemovalRefusalPayload struct {
-	Code      string                     `json:"code"`
+	Code string `json:"code"`
+	// Error explains the refusal and its force consequence in one sentence.
+	Error     string                     `json:"error,omitempty"`
 	Risk      WorktreeRemovalRiskPayload `json:"risk"`
 	Downgrade bool                       `json:"downgrade"`
 }

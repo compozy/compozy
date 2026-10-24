@@ -432,7 +432,7 @@ func (s *Service) rollbackCreate(
 	var rollbackErr error
 	if item.PendingPhase == PhaseCheckout || item.PendingPhase == PhaseCopy || item.PendingPhase == PhaseSetup ||
 		item.GitDir != "" {
-		_, stderr, err := s.runner.Run(
+		_, stderr, err := s.runCheckoutRemoval(
 			ctx,
 			workspace.Root,
 			"--git-dir",

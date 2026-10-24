@@ -344,12 +344,16 @@ func (s *memoryWorktreeStore) CompareAndSwapState(
 }
 
 func (s *memoryWorktreeStore) SetState(
-	_ context.Context,
+	ctx context.Context,
 	workspaceID string,
 	id string,
 	state State,
 	updatedAt time.Time,
 ) error {
+	// Like the SQLite store, a canceled caller context fails the write.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := worktreeStoreKey(workspaceID, id)

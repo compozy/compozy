@@ -2,13 +2,12 @@ package core
 
 import (
 	"context"
-
 	"errors"
-
 	"log/slog"
-
+	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +30,34 @@ func (h *BaseHandlers) StreamDoneChannel() <-chan struct{} {
 }
 
 func (h *BaseHandlers) respondError(c *gin.Context, status int, err error) {
+	h.logServerError(c, status, err)
 	RespondError(c, status, err, h.MaskInternalErrors)
+}
+
+// logServerError records the cause behind a 5xx response. The access log keeps
+// only the status, and the response may mask the message.
+func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
+	if err == nil {
+		return
+	}
+	status = normalizeErrorStatus(status, err, false).status
+	if status < http.StatusInternalServerError {
+		return
+	}
+	logger := slog.Default()
+	if h != nil && h.Logger != nil {
+		logger = h.Logger
+	}
+	ctx := context.Background()
+	method, path := "", ""
+	if c != nil && c.Request != nil {
+		ctx, method, path = c.Request.Context(), c.Request.Method, c.FullPath()
+	}
+	logger.ErrorContext(
+		ctx, "api: request failed",
+		"method", method, "path", path, "status", status,
+		handlersErrorKey, diagnostics.RedactAndBound(err.Error(), 2048),
+	)
 }
 
 func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, err error, attrs ...any) {
