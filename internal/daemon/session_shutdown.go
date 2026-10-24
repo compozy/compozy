@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/compozy/compozy/internal/session"
 )
@@ -26,21 +27,31 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 	}
 
 	infos := sessions.List()
-	var errs []error
-	for _, info := range infos {
+	d.mu.Lock()
+	cause, detail := session.CauseUserRequested, "daemon stopped by user"
+	if d.restartRequested {
+		cause, detail = session.CauseShutdown, "Interrupted by daemon restart."
+	}
+	d.mu.Unlock()
+	errs := make([]error, len(infos))
+	var workers sync.WaitGroup
+	for index, info := range infos {
 		if info == nil {
 			continue
 		}
-		var err error
-		if stopper, ok := sessions.(shutdownStopper); ok {
-			err = stopper.StopWithCause(ctx, info.ID, session.CauseShutdown, "daemon shutdown")
-		} else {
-			err = sessions.Stop(ctx, info.ID)
-		}
-		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
-			errs = append(errs, fmt.Errorf("daemon: stop session %q: %w", info.ID, err))
-		}
+		workers.Go(func() {
+			var err error
+			if stopper, ok := sessions.(shutdownStopper); ok {
+				err = stopper.StopWithCause(ctx, info.ID, cause, detail)
+			} else {
+				err = sessions.Stop(ctx, info.ID)
+			}
+			if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+				errs[index] = fmt.Errorf("daemon: stop session %q: %w", info.ID, err)
+			}
+		})
 	}
+	workers.Wait()
 	if waiter, ok := sessions.(finalizationWaiter); ok {
 		if err := waiter.WaitForFinalizations(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("daemon: wait for session finalizations: %w", err))

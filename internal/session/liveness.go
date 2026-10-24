@@ -33,6 +33,9 @@ func ClassifyInactiveMetaForRecovery(now time.Time, meta *store.SessionMeta) (st
 	if interruptedStartupMeta(meta) {
 		state = StateStarting
 	}
+	if classifyDaemonInterruption(meta, &next, state) {
+		return recoveredMeta(meta, &next)
+	}
 	if (state == StateActive || state == StateStopping || state == StateStarting) &&
 		!inactiveProcessExitVerified(meta) {
 		next.State = string(StateStopping)

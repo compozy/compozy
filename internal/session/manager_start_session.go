@@ -38,6 +38,7 @@ func (s *sessionStartSpec) newStartingSession(
 		stopReason: s.stopReason, stopDetail: s.stopDetail, failure: store.CloneSessionFailure(s.failure),
 		ACPSessionID:        s.acpSessionID,
 		acceptedRoute:       store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		restartBoundary:     store.CloneSessionRestartCheckpoint(s.restartBoundary),
 		derivation:          store.CloneSessionDerivation(s.derivation),
 		importedContext:     store.CloneSessionImportedContext(s.importedContext),
 		pendingResumeReplay: s.resumeReplayBlock,

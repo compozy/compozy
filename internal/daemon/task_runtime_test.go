@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -771,6 +772,96 @@ func assertLoopActionLivenessFailure(
 	}
 }
 
+// Invariant: boot uses the Loop continuation owner before lease requeue and parks unsafe nodes.
+// Owner: daemon task composition; canonical task runtime suite.
+func TestLoopActionBootRestartRecovery(t *testing.T) {
+	t.Run("Should ignore a run whose session no longer exists", func(t *testing.T) {
+		manager, taskRecord, run := newLoopActionLivenessTestFixture()
+		run.SessionID = "missing"
+		actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run}
+		runtime, err := newLoopActionRuntime(manager, actionStore, &loopActionLivenessTestRunner{},
+			loopActionSessionStatusStub{err: session.ErrSessionNotFound}, discardLogger(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer runtime.cancel()
+		actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := runtime.recoverInterruptedRuns(t.Context(), actor); err != nil {
+			t.Fatal(err)
+		}
+		if actionStore.resumeCalls.Load() != 0 || actionStore.pauseCalls.Load() != 0 {
+			t.Fatal("missing session triggered a Loop transition")
+		}
+	})
+	t.Run("Should retain boot admission when queued recovery starts asynchronously", func(t *testing.T) {
+		_, taskRecord, run := newLoopActionLivenessTestFixture()
+		gate := &admission.Gate{}
+		ctx := gate.BeginBoot(t.Context())
+		manager := &loopActionCapacityTestManager{
+			run:       run,
+			completed: make(chan taskpkg.LeaseCompletion, 1),
+			gate:      gate,
+		}
+		runtime, err := newLoopActionRuntime(manager, &loopActionCapacityTestStore{taskRecord: taskRecord, run: run},
+			&loopActionCapacityTestRunner{}, nil, discardLogger(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer runtime.cancel()
+		runtime.claimRetryInterval = time.Millisecond
+		runtime.Recover(ctx)
+		select {
+		case <-manager.completed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("queued recovery lost composition-root admission")
+		}
+		if err := gate.Check(t.Context()); !errors.Is(err, admission.ErrDraining) {
+			t.Fatal("external gate opened early", err)
+		}
+	})
+
+	for _, eligible := range []bool{true, false} {
+		t.Run(fmt.Sprintf("Should gate restart continuation eligible=%t", eligible), func(t *testing.T) {
+			t.Parallel()
+			manager, taskRecord, run := newLoopActionLivenessTestFixture()
+			run.SessionID = "sess-interrupted"
+			run.Metadata = json.RawMessage(`{"generation":1,"node_id":"work","item_index":0,"attempt":1,"epoch":4}`)
+			actionStore := &loopActionCapacityTestStore{taskRecord: taskRecord, run: run,
+				resumeResult: looppkg.DeadNodeResumeResult{Continued: true, IssuedEpoch: 5}}
+			runtime, err := newLoopActionRuntime(manager, actionStore, &loopActionLivenessTestRunner{},
+				loopActionSessionStatusStub{info: &session.Info{ID: run.SessionID, WorkspaceID: "ws-test",
+					State: session.StateStopped, StopReason: store.StopShutdown}, restartEligible: eligible},
+				discardLogger(), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			actor, err := taskpkg.DeriveDaemonActorContext("boot-recovery", "daemon.boot")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := runtime.recoverInterruptedRuns(t.Context(), actor); err != nil {
+				t.Fatal(err)
+			}
+			if eligible {
+				if actionStore.resumeCalls.Load() != 1 || actionStore.pauseCalls.Load() != 0 ||
+					actionStore.resumeRequest.SourceSessionID != run.SessionID || actionStore.resumeRequest.ExpectedEpoch != 4 {
+					t.Fatalf("continuation = %+v, pauses=%d", actionStore.resumeRequest, actionStore.pauseCalls.Load())
+				}
+			} else if actionStore.resumeCalls.Load() != 0 || actionStore.pauseCalls.Load() != 1 ||
+				actionStore.pauseRequest.Mode != looppkg.NodePauseDrain || actionStore.pauseRequest.NodeID != "work" {
+				t.Fatalf(
+					"unsafe restart = resumes %d, pause %+v",
+					actionStore.resumeCalls.Load(),
+					actionStore.pauseRequest,
+				)
+			}
+		})
+	}
+}
+
 type loopActionCapacityTestStore struct {
 	taskpkg.Store
 	taskRecord           taskpkg.Task
@@ -779,8 +870,33 @@ type loopActionCapacityTestStore struct {
 	resumeRequest        looppkg.DeadNodeResumeRequest
 	resumeResult         looppkg.DeadNodeResumeResult
 	resumeErr            error
+	pauseCalls           atomic.Int32
+	pauseRequest         looppkg.NodePauseMutation
 	livenessMu           sync.Mutex
 	livenessObservations []looppkg.NodeLivenessObservation
+}
+
+func (s *loopActionCapacityTestStore) ListTaskRunsByStatus(
+	context.Context,
+	[]taskpkg.RunStatus,
+) ([]taskpkg.Run, error) {
+	return []taskpkg.Run{s.run}, nil
+}
+
+func (s *loopActionCapacityTestStore) PauseNode(
+	_ context.Context,
+	request looppkg.NodePauseMutation,
+) (looppkg.NodePauseResult, error) {
+	s.pauseCalls.Add(1)
+	s.pauseRequest = request
+	return looppkg.NodePauseResult{Applied: true}, nil
+}
+
+func (s *loopActionCapacityTestStore) ResumeNode(
+	context.Context,
+	looppkg.NodeResumeMutation,
+) (looppkg.NodeResumeResult, error) {
+	return looppkg.NodeResumeResult{}, errors.New("unexpected node resume")
 }
 
 func (s *loopActionCapacityTestStore) GetTask(context.Context, string) (taskpkg.Task, error) {
@@ -823,6 +939,7 @@ func (s *loopActionCapacityTestStore) livenessObservationCount() int {
 }
 
 type loopActionCapacityTestManager struct {
+	gate       *admission.Gate
 	claimCalls atomic.Int32
 	completed  chan taskpkg.LeaseCompletion
 	run        taskpkg.Run
@@ -839,10 +956,15 @@ func (*loopActionCapacityTestManager) ReserveRunLeaseSettlement(
 }
 
 func (m *loopActionCapacityTestManager) ClaimNextRun(
-	context.Context,
-	taskpkg.ClaimCriteria,
-	taskpkg.ActorContext,
+	ctx context.Context,
+	_ taskpkg.ClaimCriteria,
+	_ taskpkg.ActorContext,
 ) (*taskpkg.ClaimResult, error) {
+	if m.gate != nil {
+		if err := m.gate.Check(ctx); err != nil {
+			return nil, err
+		}
+	}
 	if m.claimCalls.Add(1) == 1 {
 		return nil, taskpkg.ErrWorkspaceActiveRunCapReached
 	}
@@ -1050,9 +1172,14 @@ func (r *loopActionLivenessTestRunner) ActionRunTimeout(
 }
 
 type loopActionSessionStatusStub struct {
-	info   *session.Info
-	events []store.SessionEvent
-	err    error
+	info            *session.Info
+	events          []store.SessionEvent
+	err             error
+	restartEligible bool
+}
+
+func (s loopActionSessionStatusStub) QualifyRestartContinuation(context.Context, string) (bool, error) {
+	return s.restartEligible, nil
 }
 
 func (s loopActionSessionStatusStub) Status(context.Context, string) (*session.Info, error) {
@@ -3496,7 +3623,7 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
 		}
-		stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor)
+		stats, err := recoverTaskRunsOnBoot(t.Context(), runtime.manager, runtime.store, sessions, bootActor, nil)
 		if err != nil {
 			t.Fatalf("recoverTaskRunsOnBoot() error = %v", err)
 		}

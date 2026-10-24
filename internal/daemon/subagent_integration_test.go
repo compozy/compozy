@@ -1199,6 +1199,9 @@ func TestSubagentRecoveryDaemonIntegration(t *testing.T) {
 		if err := d.bootSubagents(t.Context(), state); err != nil {
 			t.Fatal(err)
 		}
+		if err := recoverBootDelegatedSessions(t.Context(), state); err != nil {
+			t.Fatal(err)
+		}
 		service = state.subagents
 		current, err = service.Get(t.Context(), workspace, row.ID)
 		if err != nil || current.Status != "completed" || current.WakeMessageID == nil {
@@ -1711,7 +1714,7 @@ func requireSubagentRestartDelivery(t *testing.T, d *Daemon, workspace, id, pare
 }
 
 // IT-012: kill the actual daemon-hosting process mid child turn; ordinary boot
-// repair must settle the child and produce one wake retained until parent resume.
+// repair must resume the child exactly once and deliver its result to the resumed parent.
 // Owner: daemon restart integration, real ACP subprocesses and persisted stores.
 func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 	if handoff := os.Getenv("COMPOZY_SUBAGENT_CRASH_HANDOFF"); handoff != "" {
@@ -1719,6 +1722,7 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		return
 	}
 	t.Run("Should recover a child after killing its daemon process", func(t *testing.T) {
+		driver := acpmock.RequireDriver(t)
 		// Own every helper-created temporary directory, including TestMain's seed.
 		root, err := os.MkdirTemp("/tmp", "sa-crash-")
 		if err != nil {
@@ -1745,7 +1749,9 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 			"-test.run=^TestSubagentCrashRestartDaemonIntegration$",
 			"-test.timeout=2m",
 		)
-		cmd.Env = append(os.Environ(), "TMPDIR="+root, "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff)
+		cmd.Env = append(os.Environ(), "TMPDIR="+root, "HOME="+root,
+			"CODEX_HOME="+filepath.Join(root, ".codex"), "COMPOZY_SUBAGENT_CRASH_HANDOFF="+handoff,
+			"COMPOZY_TEST_ACPMOCK_DRIVER_BIN="+driver)
 		cmd.Stdout, cmd.Stderr = output, output
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
@@ -1794,29 +1800,45 @@ func TestSubagentCrashRestartDaemonIntegration(t *testing.T) {
 		cfg.Automation.Enabled = false
 		cfg.Roles.AutoTitle.Enabled = false
 		cfg.ModelCatalog.Sources.ModelsDev.Enabled = new(false)
+		cfg.ProviderUsage.Enabled = false
 		restarted := reopenSubagentIntegrationDaemon(t, checkpoint.Home, &cfg)
-		row, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, checkpoint.Row.ID)
+		var row session.Subagent
+		waitForRuntimeCondition(t, "resumed child result delivered", 15*time.Second, func() bool {
+			var err error
+			row, err = restarted.SubagentService().Get(t.Context(), checkpoint.Workspace, checkpoint.Row.ID)
+			return err == nil && row.Status == store.SubagentStatusCompleted &&
+				row.Delivery == store.SubagentDeliveryDelivered && row.WakeMessageID != nil
+		})
 		info, err := restarted.sessions.Status(t.Context(), *row.ChildSessionID)
-		if err != nil || info.State != session.StateStopped || info.StopReason != store.StopAgentCrashed {
+		if err != nil || info.Failure != nil || info.StopReason == store.StopAgentCrashed {
 			t.Fatalf("child recovery = %+v, err = %v", info, err)
 		}
-		if row.Status != store.SubagentStatusFailed || row.Error == nil {
-			t.Fatalf("crashed row = %+v", row)
+		if row.Status != store.SubagentStatusCompleted || row.Error != nil {
+			t.Fatalf("resumed row = %+v", row)
 		}
-		// The existing dead-runtime contract forbids reviving a process-failed
-		// parent. Preserve its mailbox without bypassing that independent gate.
-		if _, err := restarted.sessions.Resume(
-			t.Context(),
-			row.ParentSessionID,
-		); !errors.Is(
-			err,
-			store.ErrSessionNotAttachable,
-		) {
-			t.Fatalf("Resume(dead parent) = %v, want ErrSessionNotAttachable", err)
+		for _, id := range []string{row.ParentSessionID, *row.ChildSessionID} {
+			continued, err := restarted.sessions.Events(t.Context(), id, store.EventQuery{
+				Type: "session.restart_resumed", Limit: 10,
+			})
+			if err != nil || len(continued) != 1 {
+				t.Fatalf("restart continuations for %s = %d, %v", id, len(continued), err)
+			}
 		}
-		again, _ := requireSubagentRestartWake(t, restarted, checkpoint.Workspace, row.ID)
+		if err := restarted.SubagentService().Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		again, err := restarted.SubagentService().Get(t.Context(), checkpoint.Workspace, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !row.SettledAt.Equal(*again.SettledAt) || *row.WakeMessageID != *again.WakeMessageID {
 			t.Fatal("recovery duplicated settlement or wake", again)
+		}
+		inputs, err := restarted.sessions.Events(t.Context(), row.ParentSessionID, store.EventQuery{
+			Type: acp.EventTypeSyntheticReentry, Limit: 10,
+		})
+		if err != nil || len(inputs) != 2 {
+			t.Fatalf("parent synthetic turns = %d, %v; want one continuation and one result", len(inputs), err)
 		}
 	})
 }
@@ -1829,7 +1851,15 @@ type subagentCrashCheckpoint struct {
 
 func runSubagentCrashProcess(t *testing.T, handoff string) {
 	t.Helper()
-	d, manager, workspace := newSubagentDaemonIntegration(t)
+	// This journey owns mock ACP processes only. Persist discovery opt-outs so
+	// profile reloads cannot start installed provider CLIs during the crash walk.
+	d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+		cfg.ProviderUsage.Enabled = false
+		for name, provider := range compozyconfig.BuiltinProviders() {
+			provider.Models.Discovery.Enabled = new(false)
+			cfg.Providers[name] = provider
+		}
+	})
 	_, caller := startSubagentIntegrationParent(t, manager, workspace)
 	row, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
 		Caller: caller, Task: "hold parent", Title: "Crash mid child turn",

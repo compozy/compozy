@@ -202,6 +202,35 @@ func TestGateLoadAwareAdmission(t *testing.T) {
 	})
 }
 
+// Invariant: boot recovery alone can admit work before readiness; its capability cannot bypass shutdown.
+// Owner: admission gate; canonical gate suite.
+func TestGateBootRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should fence external work until recovery and fence every caller during shutdown", func(t *testing.T) {
+		t.Parallel()
+		gate := &Gate{}
+		recovery := gate.BeginBoot(t.Context())
+		if err := gate.Check(t.Context()); !errors.Is(err, ErrDraining) {
+			t.Fatalf("external admission during boot = %v", err)
+		}
+		if err := gate.Check(recovery); err != nil {
+			t.Fatalf("recovery admission = %v", err)
+		}
+		gate.Undrain()
+		if err := gate.Check(t.Context()); !errors.Is(err, ErrDraining) {
+			t.Fatalf("public undrain bypassed boot recovery: %v", err)
+		}
+		gate.FinishBoot()
+		if err := gate.Check(t.Context()); err != nil {
+			t.Fatalf("ready admission = %v", err)
+		}
+		gate.Drain()
+		if err := gate.Check(recovery); !errors.Is(err, ErrDraining) {
+			t.Fatalf("recovery capability bypassed shutdown: %v", err)
+		}
+	})
+}
+
 func TestSampleLoadAverage(t *testing.T) {
 	t.Parallel()
 

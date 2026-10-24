@@ -31,7 +31,8 @@ type sessionStartSpec struct {
 	// fallbackAttempt is the chain index this launch attempts (0 = primary route).
 	fallbackAttempt int
 	// acceptedRoute is the persisted accepted binding a resume must match (resume affinity).
-	acceptedRoute *store.SessionAcceptedRoute
+	acceptedRoute   *store.SessionAcceptedRoute
+	restartBoundary *store.SessionRestartCheckpoint
 	// derivation, importedContext, and deriveReceipt are set only for continued or
 	// forked children; deriveReceipt selects RegisterDerivedSession at the commit.
 	derivation               *store.SessionDerivation

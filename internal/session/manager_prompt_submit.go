@@ -197,6 +197,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	cancelPromptExecution context.CancelFunc,
 ) (<-chan acp.AgentEvent, error) {
 	req.message = message
+	if err := m.recordRestartBoundary(session, req); err != nil {
+		return nil, err
+	}
 	dispatchMessage, replayBlock, err := m.prepareReservedPromptInput(ctx, session, &req, dispatchInput)
 	if err != nil {
 		return nil, err

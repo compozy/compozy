@@ -3,6 +3,7 @@ package config
 import "time"
 
 type daemonOverlay struct {
+	ShutdownGrace                       *time.Duration              `toml:"shutdown_grace"`
 	Socket                              *string                     `toml:"socket"`
 	MemoryReportInterval                *time.Duration              `toml:"memory_report_interval"`
 	SubprocessHealthEscalationThreshold *int                        `toml:"subprocess_health_escalation_threshold"`
@@ -22,6 +23,9 @@ type daemonReloadTimeoutsOverlay struct {
 }
 
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
+	if o.ShutdownGrace != nil {
+		dst.ShutdownGrace = *o.ShutdownGrace
+	}
 	if o.Socket != nil {
 		dst.Socket = *o.Socket
 	}

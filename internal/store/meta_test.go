@@ -56,6 +56,28 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	if *readBack.StopReason != *meta.StopReason {
 		t.Fatalf("ReadSessionMeta().StopReason = %q, want %q", *readBack.StopReason, *meta.StopReason)
 	}
+	// Invariant: existing session documents upgrade additively without changing retained fields.
+	// Owner: atomic metadata storage; canonical metadata round-trip suite.
+	t.Run("Should add a restart boundary losslessly to existing metadata", func(t *testing.T) {
+		if readBack.RestartBoundary != nil {
+			t.Fatal("legacy metadata acquired a restart boundary")
+		}
+		readBack.RestartBoundary = &SessionRestartCheckpoint{
+			TurnID:          "turn-interrupted",
+			PolicyDigest:    "policy",
+			RuntimeRevision: 4,
+		}
+		if err := WriteSessionMeta(path, &readBack); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(upgraded, readBack) {
+			t.Fatalf("metadata upgrade changed retained state: %+v", upgraded)
+		}
+	})
 }
 
 func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {

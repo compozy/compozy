@@ -42,8 +42,15 @@ func (m *Manager) prepareClassifiedExitSettlement(before, after *store.SessionMe
 		return err
 	}
 	cause := CauseProcessExited
-	if interruptedStartupMeta(before) {
-		cause = CauseFailed
+	switch sessionMetaStopReason(after) {
+	case store.StopShutdown:
+		cause = CauseShutdown
+	case store.StopUserCanceled:
+		cause = CauseUserRequested
+	default:
+		if interruptedStartupMeta(before) {
+			cause = CauseFailed
+		}
 	}
 	settlement := &recoveredStopSettlement{
 		turnID:    turnID,

@@ -512,6 +512,9 @@ func (a *helperACPAgent) Initialize(
 		sessionCaps.Fork = &acpsdk.SessionForkCapabilities{}
 		sessionCaps.Resume = &acpsdk.SessionResumeCapabilities{}
 	}
+	if a.scenario == "resume_session" {
+		sessionCaps.Resume = &acpsdk.SessionResumeCapabilities{}
+	}
 	if a.scenario == "config_options_slow_close" {
 		sessionCaps.Close = &acpsdk.SessionCloseCapabilities{}
 	}
@@ -594,9 +597,17 @@ func (a *helperACPAgent) ListSessions(
 }
 
 func (a *helperACPAgent) ResumeSession(
-	context.Context,
-	acpsdk.ResumeSessionRequest,
+	_ context.Context,
+	params acpsdk.ResumeSessionRequest,
 ) (acpsdk.ResumeSessionResponse, error) {
+	if params.SessionId != "sess-existing" {
+		return acpsdk.ResumeSessionResponse{}, fmt.Errorf("resume session id = %q", params.SessionId)
+	}
+	if a.scenario == "resume_session" {
+		return acpsdk.ResumeSessionResponse{Modes: &acpsdk.SessionModeState{
+			CurrentModeId: "loaded-mode", AvailableModes: []acpsdk.SessionMode{{Id: "loaded-mode", Name: "Loaded"}},
+		}}, nil
+	}
 	return acpsdk.ResumeSessionResponse{}, nil
 }
 

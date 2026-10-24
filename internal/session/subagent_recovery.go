@@ -194,7 +194,7 @@ func (s *subagentService) recoverWake(ctx context.Context, wake store.SessionSub
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		return err
 	}
-	if snap.Info != nil && snap.Info.State == StateStopping {
+	if snap.Info != nil && (snap.Info.State == StateStopping || snap.Info.State == StateStarting) {
 		return nil
 	}
 	if !subagentParentAcceptsWake(snap.Info) {

@@ -139,6 +139,7 @@ type sessionResumeRun struct {
 type Manager struct {
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
+	restartInputsHeld          sync.Map
 	replyWatches               ReplyWatchService
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings

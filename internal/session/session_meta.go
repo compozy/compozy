@@ -47,6 +47,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		ACPSessionID:           stringPointer(s.ACPSessionID),
 		AcceptedRoute:          store.CloneSessionAcceptedRoute(s.acceptedRoute),
 		Liveness:               store.CloneSessionLivenessMeta(s.Liveness),
+		RestartBoundary:        store.CloneSessionRestartCheckpoint(s.restartBoundary),
 		Derivation:             store.CloneSessionDerivation(s.derivation),
 		ImportedContext:        store.CloneSessionImportedContext(s.importedContext),
 		CreationProfile:        profile,
@@ -56,6 +57,12 @@ func (s *Session) metaLocked() store.SessionMeta {
 		ParentSoulDigest:       s.ParentSoulDigest,
 		CreatedAt:              s.CreatedAt,
 		UpdatedAt:              s.UpdatedAt,
+	}
+	// Stop intent is durable before termination; the catalog's terminal classification
+	// is still published only after verified process exit.
+	if s.stopCause != CauseNone && s.stopReason == "" {
+		reason, detail := classifyStopReason(s.stopCause, nil, s.stopDetail)
+		meta.StopReason, meta.StopDetail = stopReasonPointer(reason), detail
 	}
 	if s.process != nil {
 		meta.SpeedResolution = s.speedResolutionForCapsLocked(s.process.CapsSnapshot())

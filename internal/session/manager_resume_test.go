@@ -32,6 +32,257 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// Invariant: restart recovery admits one continuation per interrupted turn and honors explicit stops and opt-out.
+// Owner: session manager; canonical resume suite. The ACP boundary is fake; checkpoints and admissions use SQLite.
+func TestResumeInterruptedSession(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		restart     bool
+		disabled    bool
+		changed     string
+		interaction string
+		queued      bool
+		maintenance bool
+		permissions compozyconfig.PermissionMode
+		batched     bool
+		completed   bool
+		wantResume  bool
+	}{
+		{name: "Should resume an interrupted turn exactly once", restart: true, wantResume: true},
+		{name: "Should preserve explicit permission overrides", restart: true, wantResume: true, permissions: compozyconfig.PermissionModeApproveReads},
+		{name: "Should preserve policy checks after a later batched input", restart: true, changed: "policy", batched: true},
+		{name: "Should drain queued inputs after continuation in their original order", restart: true, wantResume: true, queued: true},
+		{name: "Should never repeat an interrupted maintenance command", restart: true, maintenance: true},
+		{name: "Should never resume an explicit daemon stop"},
+		{name: "Should honor automatic continuation opt-out", restart: true, disabled: true},
+		{name: "Should refuse a changed tool policy", restart: true, changed: "policy"},
+		{name: "Should refuse a changed provider command", restart: true, changed: "route"},
+		{name: "Should require a new permission decision", restart: true, interaction: store.PendingInteractionKindPermission},
+		{name: "Should require a new clarification answer", restart: true, interaction: store.PendingInteractionKindClarify},
+		{name: "Should not continue a turn that completed during drain", restart: true, completed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			admissions := openManagerInputQueueStore(t)
+			h := newHarness(
+				t,
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}),
+				WithSessionPromptAdmissionStore(admissions),
+				WithSessionInputQueueStore(admissions),
+			)
+			registerManagerInputQueueWorkspace(t, admissions, h)
+			target, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Name: "session",
+				Workspace: h.workspaceID, Permissions: tc.permissions})
+			if err != nil {
+				t.Fatal(err)
+			}
+			registerManagerInputQueueSession(t, admissions, h, target)
+			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				return source, nil
+			}
+			opts := PromptOpts{Message: "finish the work"}
+			if tc.maintenance {
+				opts.Delivery = PromptDeliveryMaintenance
+			}
+			stream, err := h.manager.PromptWithOpts(t.Context(), target.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			originalACP := target.Info().ACPSessionID
+			if tc.queued {
+				for index, text := range []string{"first follow-up", "second follow-up"} {
+					if _, _, err := admissions.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+						ID: fmt.Sprintf("restart-follow-up-%d", index), SessionID: target.ID, Text: text,
+						QueueCap: 3, Now: h.manager.now().Add(time.Duration(index) * time.Millisecond),
+					}); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if tc.interaction != "" {
+				h.manager.attentionStore = admissions
+				if _, err := admissions.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{
+					InteractionID: "restart-decision", SessionID: target.ID, Kind: tc.interaction,
+					ProviderRequestID: "provider-decision", TurnID: target.CurrentTurnID(),
+					Title: "Review this action", CreatedAt: h.manager.now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.batched {
+				if err := h.manager.recordEvent(t.Context(), target, acp.AgentEvent{
+					Type:      acp.EventTypeUserMessage,
+					TurnID:    target.CurrentTurnID(),
+					Text:      "batched follower",
+					Timestamp: h.manager.now(),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := h.manager.PrepareDaemonShutdown(t.Context(), tc.restart); err != nil {
+				t.Fatal(err)
+			}
+			if tc.completed {
+				source <- acp.AgentEvent{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn}
+				close(source)
+				collectEvents(t, stream)
+			}
+			if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.completed {
+				close(source)
+				collectEvents(t, stream)
+			}
+			h.driver.mu.Lock()
+			h.driver.promptHook = nil
+			h.driver.mu.Unlock()
+			if tc.disabled || tc.changed != "" {
+				h.resolver.mu.Lock()
+				for key, workspace := range h.resolver.byRef {
+					workspace.Config.Session.Restart.AutoContinue = !tc.disabled
+					if tc.changed == "policy" {
+						for i := range workspace.Agents {
+							workspace.Agents[i].DenyTools = []string{"compozy__terminal_exec"}
+						}
+					}
+					if tc.changed == "route" {
+						provider := workspace.Config.Providers["claude"]
+						provider.Command = "changed-acp-command"
+						workspace.Config.Providers["claude"] = provider
+					}
+					h.resolver.byRef[key] = workspace
+				}
+				h.resolver.mu.Unlock()
+			}
+			infos, err := h.manager.ListAll(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.CaptureRestartInterruptions(t.Context(), infos); err != nil {
+				t.Fatal(err)
+			}
+			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			if err != nil && !errors.Is(err, ErrRestartContinuationSkipped) {
+				t.Fatal(err)
+			}
+			if resumed != tc.wantResume {
+				t.Fatalf("resumed = %t, want %t; error %v", resumed, tc.wantResume, err)
+			}
+			if resumed {
+				if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
+					t.Fatalf("resumed ACP = %q, want %q", got, originalACP)
+				}
+			}
+			if repeated, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID); err != nil || repeated {
+				t.Fatalf("repeated recovery = %t, %v", repeated, err)
+			}
+			if tc.queued {
+				waitForCondition(
+					t,
+					"ordered restart follow-ups",
+					func() bool { return len(managerPromptCalls(h)) == 4 },
+				)
+				if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				calls := managerPromptCalls(h)
+				for index, text := range []string{"The daemon restarted", "first follow-up", "second follow-up"} {
+					if !strings.Contains(calls[index+1].Message, text) {
+						t.Fatalf("prompt %d = %q, want %q", index+1, calls[index+1].Message, text)
+					}
+				}
+			}
+			h.driver.mu.Lock()
+			prompts := len(h.driver.promptCalls)
+			h.driver.mu.Unlock()
+			want := 1
+			if tc.wantResume {
+				want++
+			}
+			if tc.queued {
+				want += 2
+			}
+			if prompts != want {
+				t.Fatalf("provider prompts = %d, want %d", prompts, want)
+			}
+		})
+	}
+}
+
+// Invariant: repeated interruptions stop after the configured durable attempt budget, including across managers.
+// Owner: session manager; canonical resume suite.
+func TestResumeInterruptedSessionCrashLoop(t *testing.T) {
+	t.Run("Should skip the fourth continuation after the durable attempt budget is spent", func(t *testing.T) {
+		admissions := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionPromptAdmissionStore(admissions),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+		registerManagerInputQueueWorkspace(t, admissions, h)
+		target := createSession(t, h)
+		registerManagerInputQueueSession(t, admissions, h, target)
+		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+		var source chan acp.AgentEvent
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			source = make(chan acp.AgentEvent)
+			return source, nil
+		}
+		stream, err := h.manager.Prompt(t.Context(), target.ID, "finish the work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for attempt := range 4 {
+			if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.StopWithCause(t.Context(), target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			close(source)
+			if attempt == 0 {
+				collectEvents(t, stream)
+			}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			h.manager = newManagerWithHarness(t, h, WithSessionPromptAdmissionStore(admissions),
+				WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: time.Millisecond}))
+			resumed, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID)
+			if attempt < 3 {
+				if err != nil || !resumed {
+					t.Fatalf("attempt %d = %t, %v", attempt+1, resumed, err)
+				}
+			} else if resumed || !errors.Is(err, ErrRestartContinuationSkipped) || !strings.Contains(err.Error(), "restart_limit") {
+				t.Fatalf("breaker did not stop fourth attempt: %t, %v", resumed, err)
+			}
+		}
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		if len(h.driver.promptCalls) != 4 {
+			t.Fatalf("provider prompts = %d, want original plus three continuations", len(h.driver.promptCalls))
+		}
+	})
+}
+
+// Invariant: map iteration order cannot change restart policy eligibility; owner: resume qualification.
+func TestRestartPolicyDigest(t *testing.T) {
+	t.Run("Should fingerprint identical MCP policies consistently", func(t *testing.T) {
+		agent := compozyconfig.AgentDef{MCPServers: []compozyconfig.MCPServer{{
+			Name: "fixture", Env: map[string]string{"FIRST": "one", "SECOND": "two", "THIRD": "three"},
+		}}}
+		want, err := restartPolicyDigest(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 100 {
+			got, err := restartPolicyDigest(agent)
+			if err != nil || got != want {
+				t.Fatalf("policy digest changed: %q != %q, %v", got, want, err)
+			}
+		}
+	})
+}
+
 func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	t.Parallel()
 

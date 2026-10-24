@@ -4,9 +4,9 @@ area: RT
 title: Subagent results and wakes survive a daemon restart
 persona: Dora
 journey: J-automatic-runtime-recovery
-expected: A clean daemon stop is never a cancel: a running subagent is not settled canceled or disposed by shutdown, its child session is resumed after restart like any other session, and the row finalizes and wakes its parent exactly once when the child settles (a child that cannot be resumed settles interrupted with its wake kept for the parent); a subagent that settles while the daemon is down is finalized at boot and wakes its parent exactly once; a wake already queued before shutdown is not duplicated; a daemon killed mid child turn (kill -9) settles the running row failed with its wake kept for a resumable parent, while a parent recovered from SIGKILL stays read-only under the existing attachment contract; boot recovery fails delegations stuck in queued for more than 2 minutes with "delegation interrupted", re-admits a missing first prompt once, re-offers open wakes whose input is missing, claims pending rows of idle parents, and stops subagent sessions that have no record, logging each action as subagent.recovered with its reason; results stay readable through the native tool, CLI, and HTTP/UDS after restart.
-entry_points: compozy daemon stop/start (or kill -9 of the daemon process); compozy session subagents <session-id>; compozy session subagents show <subagent-id> --json; compozy__subagent_status; daemon log (subagent.recovered)
-qa_status: pass
+expected: Eligible subagent turns resume once after requested restart or daemon crash, preserve partial results and durable wakes, and finalize through the subagent owner; explicit daemon or session stops never auto-resume, and skipped recovery retains inspectable results.
+entry_points: compozy daemon restart; isolated daemon SIGKILL; compozy daemon stop/start; compozy session subagents; compozy__subagent_status; HTTP/UDS session reads
+qa_status: untested
 bug_ids: BUG-20261009-subagent-daemon-stop-cancels; BUG-20261009-subagent-crash-no-wake
 fix_status: fixed
 retest_status: pass
@@ -20,24 +20,18 @@ Spec: `.compozy/tasks/subagents/_spec.md` Delivery and lifecycle rule 11 (Recove
 Automated owners: IT-011, IT-012, IT-031 (acpmock, restarted daemon over the same DB). This scenario
 is the real-lab walk.
 
-1. **Clean stop mid child turn.** Delegate a long task from a Claude parent. `compozy daemon stop`
-   while the child runs. Shutdown is not a user cancel: the row must not become `canceled` or
-   `disposed`. Start the daemon. The child session is resumed or recovered like any other session,
-   and when it settles the row finalizes (`completed` with its result) and the parent gets exactly one
-   wake turn. If the child cannot be resumed after the clean restart, the row settles `interrupted`
-   with its wake kept (delivery not `disposed`), and the parent is woken when it resumes. A child that
-   settles while the daemon is down (acpmock replay) is finalized at boot with
-   `subagent.recovered{reason=child_reconciled}` and wakes the parent once.
-2. **Wake queued before shutdown.** Let a child settle while the parent is mid-turn so the wake is
-   queued, then stop the daemon before the parent's turn ends. After restart and explicit parent
-   resume, the parent receives that wake once (no duplicate input row with the same wake id).
-3. **Killed mid child turn.** `kill -9` the daemon while the child is streaming. After restart the
-   running row settles `failed` (the child crashed with the daemon), recovery logs
-   `subagent.recovered{reason=child_reconciled}`, and the row's wake is kept for a resumable parent
-   (delivery not `disposed`). A parent that was itself recovered from SIGKILL stays read-only under
-   the existing attachment contract, so no wake turn runs on it; do not bypass that gate. The result
-   and error stay readable through `compozy__subagent_status`, the CLI, and HTTP. Explicit user stop
-   still disposes the wake.
+1. **Requested restart mid child turn.** Delegate a long task and request `compozy daemon restart`.
+   The subagent owner resumes an eligible child once using the shared continuation safety checks;
+   the ordinary-session boot pass must not claim it too. Partial text remains, and the completed
+   child finalizes its row and wakes the parent exactly once. Pending approvals, changed bindings,
+   or exhausted restart attempts require review instead of blind continuation.
+2. **Wake queued before restart.** Let a child settle while the parent works, then restart with
+   the wake queued. The parent continues its interrupted work first and receives the existing wake
+   once afterward. Repeat another restart and confirm the durable wake identity is not duplicated.
+3. **Killed mid child turn and explicit stop.** SIGKILL only the isolated daemon. After boot, eligible
+   children and ordinary parents continue without a false `agent_crashed` failure. Recorded real
+   provider failures remain failures. Repeat with `compozy daemon stop`: explicit stop cancels work
+   and start does not auto-resume it. Explicit parent stop still disposes its wake.
 4. **Stuck delegation.** Interrupt a delegation between reserve and child start (acpmock boot delay +
    kill). After restart, a `queued` row older than 2 minutes is `failed` with `delegation interrupted`,
    any partly created child is stopped, and `subagent.recovered{reason=stale_reserved}` is logged.
@@ -70,3 +64,12 @@ SQLite audit 2026-10-09: Seed pending deliveries for multiple parents, settle on
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+QA impact 2026-10-23 (#939): requested restart and SIGKILL now share safe continuation; explicit daemon stop is cancellation. Earlier verdicts below describe the previous contract and are historical. Re-walk before delivery.
+
+Targeted automated verification 2026-10-23 (#939): the changed runtime contracts passed in the
+canonical session/daemon suites and isolated real-process probes. Restart/stop detail and persisted
+events were independently read over HTTP and UDS after replacement and a third boot; no false failed
+badge or duplicate continuation was observed. See
+[the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
+The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.

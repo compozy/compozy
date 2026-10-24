@@ -14,6 +14,13 @@ import (
 
 // Resume restarts a stopped session from its persisted metadata and event history.
 func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err error) {
+	if _, held := m.restartInputsHeld.Load(id); held {
+		return nil, fmt.Errorf("%w: restart recovery in progress", ErrPromptInProgress)
+	}
+	return m.resume(ctx, id, true)
+}
+
+func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed *Session, err error) {
 	if ctx == nil {
 		return nil, errors.New("session: resume context is required")
 	}
@@ -28,7 +35,7 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	}
 	defer func() {
 		unlockConversation()
-		if err == nil && resumed != nil {
+		if err == nil && resumed != nil && dispatch {
 			if service := m.ReplyWatches(); service != nil {
 				service.OnSessionResumed(ctx, target)
 			}

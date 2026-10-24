@@ -170,6 +170,7 @@ func (d *Daemon) boot(ctx context.Context) (err error) {
 	if err := d.beginBoot(); err != nil {
 		return err
 	}
+	ctx = d.admission.BeginBoot(ctx)
 	defer d.finishBoot(&err)
 
 	state := &bootState{
@@ -241,8 +242,8 @@ func (d *Daemon) beginBoot() error {
 		d.automation != nil {
 		return errors.New("daemon: already booted")
 	}
-	d.admission.Undrain()
 	d.booting = true
+	d.admission.Undrain()
 	return nil
 }
 

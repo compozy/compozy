@@ -10,6 +10,7 @@ import (
 var sessionLimitsTimeoutDeprecation sync.Once
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
+	o.Restart.Apply(&dst.Restart)
 	if o.Stop.CooperativeGrace != nil {
 		dst.Stop.CooperativeGrace = *o.Stop.CooperativeGrace
 	}

@@ -56,8 +56,9 @@ func (d *Daemon) runShutdownOperation(
 	defer cancel()
 
 	drainErr := d.Drain(context.WithoutCancel(shutdownCtx))
+	checkpointErr := d.prepareShutdownSessions(shutdownCtx, targets.sessions)
 	shutdownErr := d.shutdownDetached(shutdownCtx, targets)
-	d.completeShutdownOperation(operation, errors.Join(drainErr, shutdownErr))
+	d.completeShutdownOperation(operation, errors.Join(drainErr, checkpointErr, shutdownErr))
 }
 
 func (d *Daemon) completeShutdownOperation(operation *daemonShutdownOperation, result error) {

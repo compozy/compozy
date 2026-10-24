@@ -163,11 +163,12 @@ compozy session list --subagents exclude
   `compozy session subagents show`.
 - **Approvals stay with the subagent.** When a subagent needs your approval, its card reads "Waiting
   for you". Open it and answer there.
-- **Restarts are safe.** Results and pending wake-ups survive a CompozyOS restart. Stopping CompozyOS
-  doesn't cancel a working subagent: it picks up again after the restart and wakes the parent once
-  when it finishes. If it can't pick up again, it's marked interrupted and the parent still hears
-  about it. A subagent that finished while CompozyOS was off wakes the parent once when it comes back.
-  If CompozyOS crashes, a subagent that was working is marked failed.
+- **Restarts preserve work.** Results and pending wake-ups survive a CompozyOS restart or crash.
+  Eligible interrupted subagents reload their native sessions and continue once, then deliver their
+  results to the parent. Pending approvals, changed permissions or runtime bindings, and repeated
+  restart failures pause automatic continuation. Explicitly stopping CompozyOS or the parent cancels
+  the work; it does not automatically resume on the next start. See [Resume](/docs/sessions/resume)
+  for recovery controls and the attempt limit.
 - **Archiving follows the parent.** Archive or unarchive the parent and its subagents follow.
   Subagent sessions have no archive action of their own.
 

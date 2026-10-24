@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootSubagents(_ context.Context, state *bootState) error {
 	manager, ok := state.sessions.(*session.Manager)
 	if !ok {
 		return nil
@@ -42,9 +42,6 @@ func (d *Daemon) bootSubagents(ctx context.Context, state *bootState) error {
 	state.subagents = service
 	// Runtime deps are assembled before this step; HTTP/UDS read them at server boot.
 	state.deps.Subagents = service
-	if err := service.Recover(ctx); err != nil {
-		return fmt.Errorf("daemon: recover subagents: %w", err)
-	}
 	return nil
 }
 
