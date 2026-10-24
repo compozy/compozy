@@ -19,18 +19,19 @@ type EntryDetails struct {
 }
 
 type ExtensionEntryDetails struct {
-	InstanceName string
-	Inputs       []EntryInput
-	InstallSlug  string
-	ArtifactURL  string
-	DigestSHA256 string
-	Repository   string
-	Homepage     string
-	License      string
-	Category     string
-	Keywords     []string
-	Acquisition  *pluginsource.AcquisitionRecord
-	Contents     PluginContents
+	MinCompozyVersion string
+	InstanceName      string
+	Inputs            []EntryInput
+	InstallSlug       string
+	ArtifactURL       string
+	DigestSHA256      string
+	Repository        string
+	Homepage          string
+	License           string
+	Category          string
+	Keywords          []string
+	Acquisition       *pluginsource.AcquisitionRecord
+	Contents          PluginContents
 	// Format is the curated display marker, never install policy: detection at install time decides
 	// what a package actually is.
 	Format string
@@ -56,14 +57,15 @@ func ProjectEntry(entry Entry) (EntryDetails, error) {
 	return EntryDetails{
 		Author: strings.TrimSpace(value.Author), Source: source, SourceRef: sourceRef,
 		Extension: &ExtensionEntryDetails{
-			InstanceName: value.InstanceName,
-			Inputs:       value.Inputs,
-			InstallSlug:  strings.TrimSpace(value.InstallSlug),
-			ArtifactURL:  strings.TrimSpace(value.ArtifactURL),
-			DigestSHA256: strings.ToLower(strings.TrimSpace(value.DigestSHA256)),
-			Repository:   strings.TrimSpace(value.Repository),
-			Format:       format,
-			Homepage:     value.Homepage, License: value.License, Category: value.Category,
+			MinCompozyVersion: value.MinCompozyVersion,
+			InstanceName:      value.InstanceName,
+			Inputs:            value.Inputs,
+			InstallSlug:       strings.TrimSpace(value.InstallSlug),
+			ArtifactURL:       strings.TrimSpace(value.ArtifactURL),
+			DigestSHA256:      strings.ToLower(strings.TrimSpace(value.DigestSHA256)),
+			Repository:        strings.TrimSpace(value.Repository),
+			Format:            format,
+			Homepage:          value.Homepage, License: value.License, Category: value.Category,
 			Keywords: value.Keywords, Acquisition: value.Acquisition, Contents: value.Contents,
 		},
 	}, nil

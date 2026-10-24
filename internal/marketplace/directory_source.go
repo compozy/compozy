@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -47,7 +48,17 @@ func (s *DirectorySource) Fetch(ctx context.Context) (*Document, error) {
 		return nil, err
 	}
 	document, decodeErr := DecodeDocument(body)
-	return document, errors.Join(err, decodeErr)
+	if err := errors.Join(err, decodeErr); err != nil {
+		return document, err
+	}
+	metadata, err := s.read(ctx, filepath.Join(filepath.Dir(s.path), "compatibility.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return document, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return document, ApplyCompatibility(document, body, metadata)
 }
 
 // FetchPresets reads only the v3 preset catalog from the configured directory.

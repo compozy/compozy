@@ -46,6 +46,11 @@ An entry is identified by `(source_ref, entry_id)`. Installed state joins on tha
 name. Use `installed_name` when selecting a specific local installation. Entries without catalog
 provenance still appear in Installed. Follow the returned `manage_path` for management.
 
+Curated catalogs publish minimum CompozyOS versions alongside the feed. Incompatible entries
+remain readable with `installable: false` and an `install_blocker` reason; the app disables Install.
+Refresh after the publisher corrects a package. Older catalogs without these requirements are still
+readable, and package inspection and installation always enforce the packaged minimum version.
+
 ## Install An Extension
 
 Choose Install on an entry whose trust decision allows installation. Entries that need configuration

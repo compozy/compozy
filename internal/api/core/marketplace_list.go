@@ -39,6 +39,7 @@ func newMarketplaceInstallIndex() marketplaceInstallIndex {
 	}
 }
 
+// extensionInstallIndex indexes only installations visible within the requested scope.
 func (h *BaseHandlers) extensionInstallIndex(
 	ctx context.Context,
 	scope marketplaceReadScope,
@@ -66,6 +67,7 @@ func (h *BaseHandlers) extensionInstallIndex(
 	return index, nil
 }
 
+// catalogMarketplaceListing joins installation identity and current daemon compatibility into the shared read model.
 func (h *BaseHandlers) catalogMarketplaceListing(
 	ctx context.Context,
 	entry marketplacepkg.Entry,
@@ -114,6 +116,11 @@ func (h *BaseHandlers) catalogMarketplaceListing(
 	result.DigestSHA256 = entry.DigestSHA256
 	result.Icon = entry.Icon
 	result.Layout = entry.Layout
+	if entry.InstallBlocker == "" && details.Extension != nil && details.Extension.MinCompozyVersion != "" {
+		if err := extensionpkg.ValidateDaemonCompatibility(details.Extension.MinCompozyVersion); err != nil {
+			entry.InstallBlocker = err.Error()
+		}
+	}
 	result.Installable = entry.InstallBlocker == ""
 	result.InstallBlocker = entry.InstallBlocker
 	result.Trust = &trust

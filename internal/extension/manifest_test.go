@@ -1644,6 +1644,7 @@ func TestLoadManifest_RejectsManifestDirectoryEntries(t *testing.T) {
 	}
 }
 
+// TestValidateDaemonCompatibilityNormalizesDaemonBuildVersions preserves release and prerelease comparisons.
 func TestValidateDaemonCompatibilityNormalizesDaemonBuildVersions(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -1690,15 +1691,24 @@ func TestValidateDaemonCompatibilityNormalizesDaemonBuildVersions(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			withDaemonVersion(t, tt.current)
 
-			err := validateDaemonCompatibility(tt.minVersion)
+			err := ValidateDaemonCompatibility(tt.minVersion)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatal("validateDaemonCompatibility() error = nil, want non-nil")
+					t.Fatal("ValidateDaemonCompatibility() error = nil, want non-nil")
+				}
+				compatibility, ok := errors.AsType[*ManifestCompatibilityError](err)
+				if !ok || compatibility.CurrentVersion != tt.current || compatibility.MinVersion != tt.minVersion {
+					t.Fatalf(
+						"compatibility error = %#v, want current %q and minimum %q",
+						err,
+						tt.current,
+						tt.minVersion,
+					)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("validateDaemonCompatibility() error = %v", err)
+				t.Fatalf("ValidateDaemonCompatibility() error = %v", err)
 			}
 		})
 	}

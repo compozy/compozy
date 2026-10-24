@@ -9,7 +9,7 @@ entry_points: GET /api/marketplace; GET /api/marketplace/entries/{entry_id}; POS
 qa_status: pass
 bug_ids: BUG-20260715-native-marketplace-extension-parity; BUG-20260715-marketplace-stale-report; BUG-20260729-marketplace-file-cursor-fence
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: 8eeb8a38;351f3535
 evidence: docs/qa/evidence/2026-09-13-marketplace-catalog/retired-routes.json
 last_report: docs/qa/reports/2026-09-13-marketplace-catalog.md
@@ -60,3 +60,25 @@ QA result 2026-07-29: an unchanged file-catalog refetch invalidated the first pa
 cursor because freshness was treated as catalog revision. The canonical regression, staged root
 fix, and rebuilt cross-plane replay are green; the scenario remains failed until the fix has a
 governed commit.
+
+## Compatibility regression (#917)
+
+Using an isolated daemon stamped `0.4.0`, publish Linear with a packaged minimum of `0.5.0`
+and matching digest-bound `v3/compatibility.json`. Verify HTTP and UDS browse and detail return
+`installable: false` with a reason naming the required version, and CLI `marketplace info` succeeds
+with the same blocked entry. Web must retain the detail view, show Blocked with that reason, and expose no Install action.
+Replace the artifact with the regenerated checked-in Linear package, refresh, and verify the new
+digest becomes installable and installs successfully. Do not reuse OAuth credentials from another
+installation. Check older feeds without the additional document still load; incompatible detail
+inspection must return the blocked entry instead of an HTTP error.
+
+Owning automated scenario: `TestDaemonE2EExtensionDistributionAcrossIsolatedHomes/Should_report_incompatible_pinned_manifests_and_install_regenerated_Linear`.
+
+2026-10-24 targeted evidence: the owning scenario passed with `-race` using a real `0.4.0`
+daemon, isolated home, HTTP, UDS, CLI, and the checked-in Linear archive. Existing v3 publication
+and curated update/integrity scenarios also passed. Browser rendering is blocked by the automatic approval rejection of initial setup model selection; see `docs/qa/reports/2026-10-24-issue-917-marketplace.md`.
+
+2026-10-24 authorized browser re-walk: passed on the isolated 0.4.0 daemon. The real list and
+detail render Blocked with no Install action; the badge title exposes the required/current versions.
+Inspected 1440 × 900 list/detail and 320 × 800 detail captures. This supersedes the initial setup
+blocker above; see the same dated report for retained evidence and upload limitations.

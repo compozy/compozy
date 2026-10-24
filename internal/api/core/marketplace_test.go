@@ -837,6 +837,35 @@ func TestMarketplaceCatalog(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: older feeds without compatibility metadata still return readable incompatible details.
+	// Owner: shared marketplace detail transport. Canonical suite: TestMarketplaceCatalog.
+	t.Run("Should expose incompatible legacy catalog details without failing the read", func(t *testing.T) {
+		t.Parallel()
+		entry := marketplaceEntryForTest()
+		handlers := marketplaceHandlersForTest(t, marketplaceHandlerFixture{})
+		handlers.MarketplaceCatalog = marketplaceCatalogStub{
+			detailFn: func(context.Context, string, string) (*marketplacepkg.Entry, error) { return &entry, nil },
+		}
+		handlers.Extensions = marketplaceInspectionService{
+			inspectFn: func(context.Context, marketplacepkg.Entry, string) (contract.MarketplaceExtensionDetailPayload, error) {
+				return contract.MarketplaceExtensionDetailPayload{}, &extensionpkg.ManifestCompatibilityError{
+					CurrentVersion: "0.4.0",
+					MinVersion:     "0.5.0",
+				}
+			},
+		}
+		engine := gin.New()
+		engine.GET("/marketplace/entries/:entry_id", handlers.GetMarketplaceCatalogEntry)
+		response := performRequest(t, engine, http.MethodGet, "/marketplace/entries/"+entry.EntryID, nil)
+		var result contract.MarketplaceEntryResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || result.Entry.Installable ||
+			!strings.Contains(result.Entry.InstallBlocker, "0.5.0") {
+			t.Fatalf("incompatible detail = %d %s", response.Code, response.Body.String())
+		}
+	})
 	t.Run("Should report changed inspection bytes as a typed conflict", func(t *testing.T) {
 		t.Parallel()
 		entry := marketplaceEntryForTest()

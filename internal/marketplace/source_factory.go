@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// FeedSource reads both documents in the published v3 catalog family.
+// FeedSource reads the published v3 catalog and its optional compatibility metadata.
 type FeedSource interface {
 	Source
 	FetchPresets(context.Context) (*PresetDocument, error)

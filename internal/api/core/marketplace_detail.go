@@ -7,9 +7,11 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 )
 
+// catalogMarketplaceEntry keeps incompatible entries readable while preserving install blockers and inspection errors.
 func (h *BaseHandlers) catalogMarketplaceEntry(
 	ctx context.Context,
 	source, entryID string,
@@ -43,7 +45,14 @@ func (h *BaseHandlers) catalogMarketplaceEntry(
 	}
 	response := contract.MarketplaceEntryResponse{Entry: listing}
 	response.Extension = marketplaceExtensionDetail(details)
-	if err := h.populateMarketplaceExtensionDetail(ctx, *entry, installed, scope, response.Extension); err != nil {
+	projected := *entry
+	projected.InstallBlocker = listing.InstallBlocker
+	if err := h.populateMarketplaceExtensionDetail(ctx, projected, installed, scope, response.Extension); err != nil {
+		if incompatible, ok := errors.AsType[*extensionpkg.ManifestCompatibilityError](err); ok {
+			response.Entry.Installable = false
+			response.Entry.InstallBlocker = incompatible.Error()
+			return response, nil
+		}
 		return contract.MarketplaceEntryResponse{}, err
 	}
 	return response, nil

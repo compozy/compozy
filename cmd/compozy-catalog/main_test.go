@@ -153,6 +153,94 @@ func TestPublishCatalog(t *testing.T) {
 			t.Fatal("changed package did not publish a new artifact digest")
 		}
 	})
+	t.Run("Should reject source manifest drift in a committed catalog", func(t *testing.T) {
+		t.Parallel()
+		altered := t.TempDir()
+		if err := os.CopyFS(altered, os.DirFS(output)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.CopyFS(
+			filepath.Join(altered, "packages"),
+			os.DirFS(filepath.Join(source, "packages")),
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := run(t.Context(), []string{"validate", altered}, io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(altered, "packages", "linear", "extension.toml")
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		changed := strings.Replace(
+			string(raw),
+			`min_compozy_version = "0.3.0-beta.25"`,
+			`min_compozy_version = "0.5.0"`,
+			1,
+		)
+		if changed == string(raw) {
+			t.Fatal("fixture minimum version was not changed")
+		}
+		if err := os.WriteFile(path, []byte(changed), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err = run(t.Context(), []string{"validate", altered}, io.Discard)
+		if err == nil || !strings.Contains(err.Error(), `extension "linear" packaged manifest differs from source`) {
+			t.Fatalf("drift validation = %v", err)
+		}
+	})
+	for _, layout := range []string{"plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", ".cursor-plugin/plugin.json"} {
+		t.Run("Should publish portable packages without native requirements using "+layout, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			sources, err := readPublicationSources(source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sources.Entries = []publicationEntry{{
+				EntryID: "portable", Name: "Portable", Description: "Portable package", InstallSlug: "acme/portable",
+				Tier: "official", Format: "agent-plugin",
+			}}
+			if err := writePublicationJSON(root, "sources.json", sources); err != nil {
+				t.Fatal(err)
+			}
+			presets, err := os.ReadFile(filepath.Join(source, "marketplaces.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "marketplaces.json"), presets, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			manifest := map[string]string{
+				"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				"name":    "portable", "version": "1.0.0", "description": "Portable package",
+			}
+			manifestPath := filepath.Join("packages", "portable", filepath.FromSlash(layout))
+			if err := writePublicationJSON(root, manifestPath, manifest); err != nil {
+				t.Fatal(err)
+			}
+			if err := run(t.Context(), []string{"publish", root, root}, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+			if err := run(t.Context(), []string{"validate", root}, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+			manifest["description"] = "Changed source"
+			if err := writePublicationJSON(root, manifestPath, manifest); err != nil {
+				t.Fatal(err)
+			}
+			if err := run(
+				t.Context(),
+				[]string{"validate", root},
+				io.Discard,
+			); err == nil ||
+				!strings.Contains(err.Error(), "packaged manifest differs from source") {
+				t.Fatalf("portable drift validation = %v", err)
+			}
+		})
+	}
+
 	t.Run("Should reject a published artifact above the compressed size limit", func(t *testing.T) {
 		t.Parallel()
 		oversizedSource := t.TempDir()
@@ -219,6 +307,21 @@ func TestPublishCatalog(t *testing.T) {
 			}
 		}
 		if err := writePublicationJSON(altered, "v3/extensions.json", document); err != nil {
+			t.Fatal(err)
+		}
+		metadata, err := os.ReadFile(filepath.Join(altered, "v3", "compatibility.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var compatibility marketplace.CompatibilityDocument
+		if err := json.Unmarshal(metadata, &compatibility); err != nil {
+			t.Fatal(err)
+		}
+		compatibility.FeedDigestSHA256, err = marketplace.DigestFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writePublicationJSON(altered, "v3/compatibility.json", compatibility); err != nil {
 			t.Fatal(err)
 		}
 		err = run(t.Context(), []string{"validate", altered}, io.Discard)

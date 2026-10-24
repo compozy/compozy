@@ -65,6 +65,7 @@ func WithPluginRefreshBudget(budget time.Duration) PluginProjectorOption {
 	}
 }
 
+// NewPluginProjector combines source resolution and install inspection within the source refresh budget.
 func NewPluginProjector(
 	resolver PluginResolver,
 	inspect PluginInspector,
@@ -83,7 +84,8 @@ func NewPluginProjector(
 }
 
 type pluginEntry struct {
-	InstanceName string `json:"instance_name,omitempty"`
+	MinCompozyVersion string `json:"min_compozy_version,omitempty"`
+	InstanceName      string `json:"instance_name,omitempty"`
 	extensionEntry
 	SourceRef   string                          `json:"source_ref,omitempty"`
 	Homepage    string                          `json:"homepage,omitempty"`

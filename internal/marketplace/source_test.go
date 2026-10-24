@@ -2,6 +2,7 @@ package marketplace
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -824,7 +825,63 @@ func TestDigestFile(t *testing.T) {
 	})
 }
 
+// TestCatalogSourceFetch verifies bounded catalog acquisition, compatibility binding, and legacy source behavior.
 func TestCatalogSourceFetch(t *testing.T) {
+	// Invariant: requirements apply only to their exact feed and archive; malformed metadata fails closed.
+	// Owner: catalog ingestion. Canonical suite: TestCatalogSourceFetch.
+	t.Run("Should bind compatibility requirements to the complete feed", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, minimum, wantMessage    string
+			wrongFeed, missing, wantError bool
+		}{
+			{name: "Should project a valid minimum", minimum: "0.5.0"},
+			{name: "Should reject metadata from another feed", minimum: "0.5.0", wrongFeed: true, wantError: true, wantMessage: "compatibility metadata does not match the extension feed"},
+			{name: "Should reject an absent archive requirement", missing: true, wantError: true, wantMessage: `missing compatibility requirement for "github-tools"`},
+			{name: "Should reject a malformed minimum", minimum: "next", wantError: true, wantMessage: `invalid minimum version for "github-tools"`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				feed := []byte(validExtensionDocumentJSON())
+				document, err := DecodeDocument(feed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				metadata := CompatibilityDocument{
+					FeedDigestSHA256: fmt.Sprintf("%x", sha256.Sum256(feed)),
+					MinimumVersions:  map[string]string{},
+				}
+				if !tc.missing {
+					metadata.MinimumVersions[document.Entries[0].DigestSHA256] = tc.minimum
+				}
+				if tc.wrongFeed {
+					metadata.FeedDigestSHA256 = strings.Repeat("0", 64)
+				}
+				raw, err := json.Marshal(metadata)
+				if err != nil {
+					t.Fatal(err)
+				}
+				err = ApplyCompatibility(document, feed, raw)
+				if tc.wantError {
+					if !errors.Is(err, ErrCatalogValidation) {
+						t.Fatalf("metadata error = %v", err)
+					}
+					if !strings.Contains(err.Error(), tc.wantMessage) {
+						t.Fatalf("metadata error = %v, want %q", err, tc.wantMessage)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				projection, err := ProjectEntry(document.Entries[0])
+				if err != nil || projection.Extension.MinCompozyVersion != tc.minimum {
+					t.Fatalf("compatibility projection = %+v, %v", projection, err)
+				}
+			})
+		}
+	})
+
 	t.Parallel()
 
 	// Invariant: file sources cannot fall back to a retired root feed.
@@ -909,6 +966,10 @@ func TestCatalogSourceFetch(t *testing.T) {
 		t.Parallel()
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/v3/compatibility.json" {
+				http.NotFound(w, r)
+				return
+			}
 			if got, want := r.URL.Path, "/v3/extensions.json"; got != want {
 				t.Errorf("request path = %q, want %q", got, want)
 			}
@@ -1198,7 +1259,10 @@ func TestCatalogSourceFetch(t *testing.T) {
 				}
 				client := &http.Client{
 					Timeout: time.Second,
-					Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+						if strings.HasSuffix(request.URL.Path, "/compatibility.json") {
+							return &http.Response{StatusCode: http.StatusNotFound, Body: http.NoBody}, nil
+						}
 						return response, nil
 					}),
 				}

@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sys/execabs"
 )
 
+// TestDaemonE2EExtensionDistributionAcrossIsolatedHomes exercises real distribution flows without shared runtime state.
 func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	// Share only the immutable catalog executable; publication and package outputs stay isolated.
 	catalogPath := filepath.Join(t.TempDir(), "compozy-catalog")
@@ -73,6 +74,7 @@ func TestDaemonE2EExtensionDistributionAcrossIsolatedHomes(t *testing.T) {
 	})
 	t.Run("Should join curated installs update releases and reject changed artifacts [IT-003 IT-004]",
 		func(t *testing.T) { testDaemonCuratedCatalogLifecycle(t, catalogBinary) })
+	t.Run("Should report incompatible pinned manifests and install regenerated Linear", testDaemonCatalogCompatibility)
 	t.Run("Should install checked-in required and optional secret inputs through public transports [IT-005]",
 		testDaemonCatalogSecretInputs)
 	t.Run("Should restore typed inputs through public transports after daemon restart [IT-020]",
@@ -453,7 +455,8 @@ func testDaemonCatalogPublication(t *testing.T, catalogBinary func() (string, er
 				t.Fatal("daemon never requested the v3 publication")
 			}
 			for path := range requests {
-				if path != "/v3/extensions.json" && path != "/v3/marketplaces.json" {
+				if path != "/v3/extensions.json" && path != "/v3/marketplaces.json" &&
+					path != "/v3/compatibility.json" {
 					t.Fatalf("daemon requested a non-v3 catalog path: %s", path)
 				}
 			}
@@ -3079,4 +3082,136 @@ func testDaemonMarketplaceSources(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: public discovery blocks incompatible bytes and admits a repaired digest on a released daemon.
+// Owner: daemon distribution integration. Canonical suite: TestDaemonE2EExtensionDistributionAcrossIsolatedHomes.
+func testDaemonCatalogCompatibility(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(t.Context(), 240*time.Second)
+	defer cancel()
+	root := extensionAuthoringE2ERepoRoot(t)
+	binary := filepath.Join(t.TempDir(), "compozy")
+	build := execabs.CommandContext(
+		ctx,
+		"go",
+		"build",
+		"-ldflags",
+		"-X github.com/compozy/compozy/internal/version.Version=0.4.0",
+		"-o",
+		binary,
+		"./cmd/compozy",
+	)
+	build.Dir = root
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build released daemon: %v\n%s", err, output)
+	}
+	catalog := newDistributionGitHubServer(t, "compatibility-fixture")
+	t.Cleanup(catalog.Close)
+	entry := distributionCatalogEntry(t, root, "linear")
+	manifest, err := os.ReadFile(filepath.Join(root, "catalog", "packages", "linear", "extension.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := strings.Replace(
+		string(manifest),
+		`min_compozy_version = "0.3.0-beta.25"`,
+		`min_compozy_version = "0.5.0"`,
+		1,
+	)
+	publishDistributionManifest(t, catalog, entry, future)
+	originalDigest := entry["digest_sha256"].(string)
+	feedHandler := catalog.Config.Handler
+	compatibilityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v3/compatibility.json" {
+			feedHandler.ServeHTTP(w, r)
+			return
+		}
+		feed := httptest.NewRecorder()
+		feedHandler.ServeHTTP(feed, httptest.NewRequest(http.MethodGet, "/v3/extensions.json", nil))
+		minimum := "0.5.0"
+		catalog.mu.Lock()
+		digest := catalog.catalogEntries["linear"]["digest_sha256"].(string)
+		catalog.mu.Unlock()
+		if digest != originalDigest {
+			minimum = "0.3.0-beta.25"
+		}
+		writeDistributionGitHubJSON(t, w, marketplacepkg.CompatibilityDocument{
+			FeedDigestSHA256: fmt.Sprintf("%x", sha256.Sum256(feed.Body.Bytes())),
+			MinimumVersions:  map[string]string{digest: minimum},
+		}, http.StatusOK)
+	}))
+	t.Cleanup(compatibilityServer.Close)
+	runtime := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		BinaryPath: binary,
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *compozyconfig.Config) {
+			cfg.Marketplace.Catalog.BaseURL = compatibilityServer.URL
+		}},
+	})
+	refreshDistributionCatalog(t, ctx, runtime)
+	for _, read := range []func(context.Context, string, string, any, any) error{runtime.HTTPJSON, runtime.UDSJSON} {
+		var list compozycontract.MarketplaceListResponse
+		if err := read(ctx, http.MethodGet, "/api/marketplace?q=linear", nil, &list); err != nil {
+			t.Fatal(err)
+		}
+		if len(list.Items) != 1 || list.Items[0].Installable ||
+			!strings.Contains(list.Items[0].InstallBlocker, "0.5.0") {
+			t.Fatalf("incompatible listing = %+v", list.Items)
+		}
+		var detail compozycontract.MarketplaceEntryResponse
+		if err := read(
+			ctx,
+			http.MethodGet,
+			"/api/marketplace/entries/linear?source=compozy-catalog",
+			nil,
+			&detail,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if detail.Entry.Installable || detail.Entry.InstallBlocker != list.Items[0].InstallBlocker {
+			t.Fatalf("incompatible detail = %+v", detail.Entry)
+		}
+	}
+	var cliDetail compozycontract.MarketplaceEntryResponse
+	runExtensionAuthoringCLI(
+		t,
+		ctx,
+		runtime,
+		&cliDetail,
+		"marketplace",
+		"info",
+		"linear",
+		"--source",
+		"compozy-catalog",
+		"-o",
+		"json",
+	)
+	if cliDetail.Entry.Installable || !strings.Contains(cliDetail.Entry.InstallBlocker, "0.5.0") {
+		t.Fatalf("CLI incompatible detail = %+v", cliDetail.Entry)
+	}
+	archive, err := os.ReadFile(filepath.Join(root, "catalog", "artifacts", "linear-v1.0.0.tar.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog.setCatalogArtifact(entry, archive)
+	refreshDistributionCatalog(t, ctx, runtime)
+	var repaired compozycontract.MarketplaceEntryResponse
+	if err := runtime.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		"/api/marketplace/entries/linear?source=compozy-catalog",
+		nil,
+		&repaired,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !repaired.Entry.Installable || repaired.Entry.InstallBlocker != "" {
+		t.Fatalf("repaired detail = %+v", repaired.Entry)
+	}
+	requestDistributionInstall(t, ctx, runtime.HTTPClient, runtime.HTTPURL("/api/extensions"),
+		compozycontract.InstallExtensionRequest{
+			Source: compozycontract.InstallExtensionSourceCurated, Ref: "compozy/linear", Scope: "global",
+			ExpectedDigest: entry["digest_sha256"].(string),
+		}, http.StatusCreated)
+	assertDistributionCatalogListing(t, ctx, runtime, "linear", "1.0.0", "1.0.0", false)
 }
