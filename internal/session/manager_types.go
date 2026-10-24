@@ -141,7 +141,7 @@ type Manager struct {
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map
 	pullRequestReader          PullRequestReader
-	branchSnapshots            SessionBranchReader
+	branchSnapshots            BranchSnapshotReader
 	replyWatches               ReplyWatchService
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings

@@ -10,9 +10,14 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
+const graphFactsNone = "none"
+const graphCheckCancelled = "CANCELLED" //nolint:misspell // GitHub's GraphQL enum spelling.
+
 const pullQuery = `query($owner:String!,$name:String!,$branch:String!,$states:[PullRequestState!]!,$after:String){
- repository(owner:$owner,name:$name){pullRequests(headRefName:$branch,states:$states,first:50,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){
- nodes{number url state isDraft merged headRefOid baseRefName updatedAt reviewDecision mergeable headRepository{nameWithOwner}}
+ repository(owner:$owner,name:$name){pullRequests(
+ headRefName:$branch,states:$states,first:50,after:$after,orderBy:{field:UPDATED_AT,direction:DESC}){
+ nodes{number url state isDraft merged headRefOid baseRefName updatedAt
+ reviewDecision mergeable headRepository{nameWithOwner}}
  pageInfo{hasNextPage endCursor}}}}`
 
 const checksQuery = `query($owner:String!,$name:String!,$oid:GitObjectID!){repository(owner:$owner,name:$name){object(oid:$oid){... on Commit{oid statusCheckRollup{contexts(first:20){totalCount checkRunCountsByState{state count} statusContextCountsByState{state count} nodes{... on CheckRun{name conclusion status} ... on StatusContext{context state}}}}}}}}`
@@ -122,7 +127,7 @@ func (p *Provider) graphStatus(
 	response.UpdatedAt = &pull.UpdatedAt
 	response.ReviewDecision = strings.ToLower(pull.ReviewDecision)
 	if response.ReviewDecision == "" {
-		response.ReviewDecision = "none"
+		response.ReviewDecision = graphFactsNone
 	}
 	response.Mergeable = strings.ToLower(pull.Mergeable)
 	if response.Mergeable == "" {
@@ -141,7 +146,7 @@ func (p *Provider) graphStatus(
 	if object == nil || object.OID != pull.HeadRefOID {
 		return response, errors.New("github forge: checks head mismatch")
 	}
-	response.Checks = &extensioncontract.ForgeChecks{State: "none", FailedNames: []string{}}
+	response.Checks = &extensioncontract.ForgeChecks{State: graphFactsNone, FailedNames: []string{}}
 	if object.StatusCheckRollup != nil {
 		response.Checks = aggregateGraphChecks(object.StatusCheckRollup.Contexts)
 	}
@@ -201,7 +206,7 @@ func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks
 			switch count.State {
 			case "SUCCESS", "NEUTRAL", "SKIPPED":
 				result.Passed += count.Count
-			case "FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
+			case "FAILURE", "ERROR", graphCheckCancelled, "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
 				result.Failed += count.Count
 			default:
 				result.Pending += count.Count
@@ -219,7 +224,7 @@ func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks
 	case result.Passed > 0:
 		result.State = "passing"
 	default:
-		result.State = "none"
+		result.State = graphFactsNone
 	}
 	for _, node := range contexts.Nodes {
 		state, name := node.Conclusion, node.Name
@@ -227,11 +232,34 @@ func aggregateGraphChecks(contexts graphContexts) *extensioncontract.ForgeChecks
 			state, name = node.State, node.Context
 		}
 		switch state {
-		case "FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
+		case "FAILURE", "ERROR", graphCheckCancelled, "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE":
 			if name != "" && len(result.FailedNames) < 5 {
 				result.FailedNames = append(result.FailedNames, name)
 			}
 		}
 	}
 	return result
+}
+
+func (p *Provider) tryGraphStatus(
+	ctx context.Context,
+	repo repository,
+	branch, token string,
+) (extensioncontract.ForgeStatusResponse, bool, error) {
+	response, err := p.graphStatus(ctx, repo, branch, token)
+	if err == nil {
+		return response, true, nil
+	}
+	apiErr, ok := errors.AsType[*githubAPIError](err)
+	if ok && (apiErr.status == http.StatusNotFound || apiErr.status == http.StatusNotImplemented) {
+		return response, false, nil
+	}
+	if cause := githubErrorCause(err); cause != "" {
+		response.Cause = cause
+		if ok {
+			response.RetryAfter = apiErr.retryAfter
+		}
+		return response, true, nil
+	}
+	return extensioncontract.ForgeStatusResponse{}, true, err
 }

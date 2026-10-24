@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+const forgeFactUnknown = "unknown"
+
 func (g *WorktreeRepo) ReadPullRequests(
 	ctx context.Context,
 	keys []worktree.PullRequestKey,
@@ -99,7 +101,7 @@ func (g *WorktreeRepo) SavePullRequest(ctx context.Context, entry worktree.PullR
 	}
 	checks := facts.Checks
 	if checks == nil {
-		checks = &worktree.ForgeChecks{State: "unknown", FailedNames: []string{}}
+		checks = &worktree.ForgeChecks{State: forgeFactUnknown, FailedNames: []string{}}
 	}
 	names := checks.FailedNames
 	if names == nil {
@@ -111,10 +113,10 @@ func (g *WorktreeRepo) SavePullRequest(ctx context.Context, entry worktree.PullR
 	}
 	review, mergeable := facts.ReviewDecision, facts.Mergeable
 	if review == "" {
-		review = "unknown"
+		review = forgeFactUnknown
 	}
 	if mergeable == "" {
-		mergeable = "unknown"
+		mergeable = forgeFactUnknown
 	}
 	err = g.queries.UpsertForgePullRequest(ctx, sqlcgen.UpsertForgePullRequestParams{
 		WorkspaceID:       entry.Key.WorkspaceID,

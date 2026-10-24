@@ -140,11 +140,11 @@ func forgeFailureKind(cause string) error {
 
 func (p daemonExtensionForgeProvider) resolve() (extensionpkg.ForgeRuntime, error) {
 	if p.runtime == nil {
-		return nil, worktree.ErrForgeUnavailable
+		return nil, worktree.NewForgeFailure(worktree.ErrForgeUnavailable, "provider_disabled", nil)
 	}
 	runtime, ok := p.runtime().(extensionpkg.ForgeRuntime)
 	if !ok || runtime == nil {
-		return nil, worktree.ErrForgeUnavailable
+		return nil, worktree.NewForgeFailure(worktree.ErrForgeUnavailable, "provider_disabled", nil)
 	}
 	return runtime, nil
 }

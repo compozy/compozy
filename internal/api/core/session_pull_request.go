@@ -26,9 +26,9 @@ func (h *BaseHandlers) RefreshSessionPullRequest(c *gin.Context) {
 		return
 	}
 	refresher, ok := h.Sessions.(interface {
-		RefreshSessionPullRequest(context.Context, *session.Info) (session.SessionPullRequestView, error)
+		RefreshSessionPullRequest(context.Context, *session.Info) (session.PullRequestProjection, error)
 	})
-	var view session.SessionPullRequestView
+	var view session.PullRequestProjection
 	if ok {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
 		defer cancel()
@@ -37,17 +37,18 @@ func (h *BaseHandlers) RefreshSessionPullRequest(c *gin.Context) {
 	if view.Branch == "" && err == nil {
 		c.JSON(
 			http.StatusConflict,
-			contract.ErrorPayload{
-				Code:  "session_branch_unavailable",
-				Error: "session has no branch (default branch, detached HEAD, or no git repository)",
-			},
+			sessionPullRequestError(
+				"session_branch_unavailable",
+				"session has no branch (default branch, detached HEAD, or no git repository)",
+				"",
+			),
 		)
 		return
 	}
 	if err != nil && view.Lookup.ObservedAt.IsZero() {
 		c.JSON(
 			http.StatusBadGateway,
-			gin.H{"code": "forge_unavailable", "message": "pull request refresh failed", "cause": view.Lookup.Cause},
+			sessionPullRequestError("forge_unavailable", "pull request refresh failed", view.Lookup.Cause),
 		)
 		return
 	}
@@ -64,7 +65,7 @@ func DecorateSessionPullRequests(
 	payloads []contract.SessionPayload,
 ) error {
 	projection, ok := reader.(interface {
-		SessionPullRequests(context.Context, []*session.Info) (map[string]session.SessionPullRequestView, error)
+		SessionPullRequests(context.Context, []*session.Info) (map[string]session.PullRequestProjection, error)
 	})
 	if !ok {
 		return nil
@@ -127,4 +128,8 @@ func pullRequestPayload(
 		Mergeable:      pr.Mergeable,
 		ReadyToMerge:   pr.ReadyToMerge,
 	}, lookup
+}
+
+func sessionPullRequestError(code, message, cause string) contract.SessionPullRequestErrorPayload {
+	return contract.SessionPullRequestErrorPayload{Code: code, Error: message, Message: message, Cause: cause}
 }

@@ -1943,14 +1943,14 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 	observed := time.Now().UTC()
 	for _, testCase := range []struct {
 		name   string
-		view   session.SessionPullRequestView
+		view   session.PullRequestProjection
 		err    error
 		status int
 		code   string
 	}{
 		{name: "no branch", status: http.StatusConflict, code: "session_branch_unavailable"},
-		{name: "provider failure", view: session.SessionPullRequestView{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
-		{name: "cached failure", view: session.SessionPullRequestView{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
+		{name: "provider failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
+		{name: "cached failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
 	} {
 		t.Run("Should return "+testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -1958,7 +1958,7 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 				return &session.Info{ID: "session-pr", ProfileID: store.DefaultProfileID}, nil
 			}}
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-			fixture.Handlers.Sessions = pullRequestHandlerManager{
+			fixture.Handlers.Sessions = &pullRequestHandlerManager{
 				StubSessionManager: manager,
 				view:               testCase.view,
 				err:                testCase.err,
@@ -1991,13 +1991,13 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 
 type pullRequestHandlerManager struct {
 	testutil.StubSessionManager
-	view session.SessionPullRequestView
+	view session.PullRequestProjection
 	err  error
 }
 
-func (m pullRequestHandlerManager) RefreshSessionPullRequest(
+func (m *pullRequestHandlerManager) RefreshSessionPullRequest(
 	context.Context,
 	*session.Info,
-) (session.SessionPullRequestView, error) {
+) (session.PullRequestProjection, error) {
 	return m.view, m.err
 }

@@ -2806,6 +2806,7 @@ export type {
   SessionPromptCancelResponse,
   SessionProviderOptionPayload,
   SessionPullRequestChecksPayload,
+  SessionPullRequestErrorPayload,
   SessionPullRequestLookupPayload,
   SessionPullRequestPayload,
   SessionPullRequestResponse,

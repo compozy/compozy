@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const pullRequestIncomplete = "incomplete"
+
 type PullRequestKey struct{ WorkspaceID, RepoKey, Branch string }
 
 type PullRequestEntry struct {
@@ -192,6 +194,20 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 	if err == nil && facts.PRURL != "" {
 		facts.PRURL, err = sanitizeForgeWebURL(facts.PRURL)
 	}
+	after := pullRequestAttemptResult(before, facts, err, now)
+	after.Stale = pullRequestStale(after, now)
+	if saveErr := s.store.SavePullRequest(s.ctx, after); saveErr != nil {
+		return before, saveErr
+	}
+	if s.changed != nil &&
+		(before.LookupState != after.LookupState || before.LookupCause != after.LookupCause ||
+			!reflect.DeepEqual(before.Facts, after.Facts)) {
+		s.changed(key.WorkspaceID)
+	}
+	return after, err
+}
+
+func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err error, now time.Time) PullRequestEntry {
 	after := before
 	after.AttemptAt = &now
 	if err != nil {
@@ -215,22 +231,14 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 		after.LookupCause = ""
 		after.FailureCount = 0
 		after.RetryAfter = nil
-		if facts.Selection == "incomplete" {
-			after.LookupState = "incomplete"
+		if facts.Selection == pullRequestIncomplete {
+			after.LookupState = pullRequestIncomplete
 			// Incomplete selection is distinct from a confirmed absence.
-			after.Facts = &ForgeStatus{FetchedAt: &now, Selection: "incomplete"}
+			after.Facts = &ForgeStatus{FetchedAt: &now, Selection: pullRequestIncomplete}
 		} else {
 			facts.FetchedAt = &now
 			after.Facts = facts
 		}
 	}
-	after.Stale = pullRequestStale(after, now)
-	if saveErr := s.store.SavePullRequest(s.ctx, after); saveErr != nil {
-		return before, saveErr
-	}
-	if s.changed != nil &&
-		(before.LookupState != after.LookupState || before.LookupCause != after.LookupCause || !reflect.DeepEqual(before.Facts, after.Facts)) {
-		s.changed(key.WorkspaceID)
-	}
-	return after, err
+	return after
 }

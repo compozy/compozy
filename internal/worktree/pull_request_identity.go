@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -21,7 +22,7 @@ func NormalizeRepoKey(remote string) (string, error) {
 	}
 	parsed, err := url.Parse(remote)
 	if err != nil || parsed.Hostname() == "" ||
-		(parsed.Scheme != "https" && parsed.Scheme != "http" && parsed.Scheme != "ssh" && parsed.Scheme != "git") ||
+		(parsed.Scheme != httpsScheme && parsed.Scheme != "http" && parsed.Scheme != "ssh" && parsed.Scheme != "git") ||
 		strings.Contains(parsed.EscapedPath(), "%") ||
 		parsed.RawQuery != "" ||
 		parsed.Fragment != "" {
@@ -60,6 +61,11 @@ func (s *PullRequestService) RepoKey(ctx context.Context, root string) (string, 
 // IsDefaultBranch uses the local origin HEAD; absent metadata falls back to the
 // conventional names. It never contacts the remote and caches each root briefly.
 func (s *PullRequestService) IsDefaultBranch(ctx context.Context, root, branch string) bool {
+	return slices.Contains(s.DefaultBranchNames(ctx, root), branch)
+}
+
+// DefaultBranchNames shares the cached local origin HEAD with display filtering.
+func (s *PullRequestService) DefaultBranchNames(ctx context.Context, root string) []string {
 	s.mu.Lock()
 	cached, ok := s.defaults[root]
 	s.mu.Unlock()
@@ -75,7 +81,7 @@ func (s *PullRequestService) IsDefaultBranch(ctx context.Context, root, branch s
 		s.mu.Unlock()
 	}
 	if cached.key == "" {
-		return branch == "main" || branch == "master"
+		return []string{"main", "master"}
 	}
-	return branch == cached.key
+	return []string{cached.key}
 }

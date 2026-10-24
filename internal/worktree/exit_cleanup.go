@@ -78,13 +78,13 @@ func forgeMergeIsCurrent(
 	return strings.TrimSpace(string(stdout)) != ""
 }
 
-func (s *Service) removalMergeIsCurrent(ctx context.Context, item Worktree) (bool, error) {
-	forge := s.cleanupForgeStatus(ctx, item, nil)
+func (s *Service) removalMergeIsCurrent(ctx context.Context, item Worktree) bool {
+	forge := s.cleanupForgeStatus(ctx, item)
 	return forge != nil && !forge.IsStale(s.now().UTC(), exitForgeFreshness) &&
-		forgeMergeIsCurrent(ctx, s.runner, item.Path, forge), nil
+		forgeMergeIsCurrent(ctx, s.runner, item.Path, forge)
 }
 
-func (s *Service) cleanupForgeStatus(ctx context.Context, item Worktree, cached *ForgeStatus) *ForgeStatus {
+func (s *Service) cleanupForgeStatus(ctx context.Context, item Worktree) *ForgeStatus {
 	// Display observations are never cleanup authority. Obtain action-local evidence.
 	if s.forge == nil {
 		return nil

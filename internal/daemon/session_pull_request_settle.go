@@ -9,7 +9,7 @@ import (
 )
 
 type sessionBranchStore interface {
-	session.SessionBranchReader
+	session.BranchSnapshotReader
 	SaveSessionBranch(context.Context, string, string, string) error
 }
 
@@ -21,7 +21,7 @@ func registerSessionPullRequests(
 	logger *slog.Logger,
 ) {
 	projection, ok := sessions.(interface {
-		ConfigurePullRequests(session.PullRequestReader, session.SessionBranchReader)
+		ConfigurePullRequests(session.PullRequestReader, session.BranchSnapshotReader)
 	})
 	if ok {
 		projection.ConfigurePullRequests(reader, store)

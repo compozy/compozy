@@ -287,7 +287,6 @@ func TestServiceStatus(t *testing.T) {
 		cachedForge := entries[key].Facts
 		if err != nil || details == nil || details.WorktreeID != item.ID ||
 			forge.lastStatus.Branch != item.Branch || forge.lastStatus.WorkspaceID != item.WorkspaceID || cacheErr != nil || cachedForge == nil {
-
 			t.Fatalf("StatusDetails(name) = %#v, %v, want canonical id %q", details, err, item.ID)
 		}
 	})

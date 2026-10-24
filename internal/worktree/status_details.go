@@ -39,7 +39,7 @@ func (s *Service) StatusDetails(
 		}
 		facts = entry.Facts
 	} else {
-		facts, err = s.readDisplayPullRequest(ctx, *item)
+		facts = s.readDisplayPullRequest(ctx, *item)
 	}
 	if err != nil {
 		return nil, err
@@ -56,16 +56,16 @@ func (s *Service) displayPullRequestKey(ctx context.Context, item Worktree) (Pul
 	return PullRequestKey{WorkspaceID: item.WorkspaceID, RepoKey: repo, Branch: item.Branch}, err
 }
 
-func (s *Service) readDisplayPullRequest(ctx context.Context, item Worktree) (*ForgeStatus, error) {
+func (s *Service) readDisplayPullRequest(ctx context.Context, item Worktree) *ForgeStatus {
 	if s.pullRequests == nil || item.Branch == "" {
-		return nil, nil
+		return nil
 	}
 	key, err := s.displayPullRequestKey(ctx, item)
 	if err != nil {
-		return nil, nil
+		return nil
 	}
 	entry := s.pullRequests.Read(ctx, []PullRequestKey{key})[key]
-	return entry.Facts, nil
+	return entry.Facts
 }
 
 func (s *Service) requestPullRequestRefresh(ctx context.Context, item Worktree) {

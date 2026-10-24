@@ -25030,6 +25030,58 @@
         ],
         "type": "object"
       },
+      "SessionPullRequestErrorPayload": {
+        "properties": {
+          "cause": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "config_path": {
+            "type": "string"
+          },
+          "current_turn_id": {
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "diagnostic": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticItem"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "unknown_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "error",
+          "message"
+        ],
+        "type": "object"
+      },
       "SessionPullRequestLookupPayload": {
         "properties": {
           "cause": {
@@ -64119,7 +64171,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "$ref": "#/components/schemas/SessionPullRequestErrorPayload"
                 }
               }
             },
@@ -64129,7 +64181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "$ref": "#/components/schemas/SessionPullRequestErrorPayload"
                 }
               }
             },

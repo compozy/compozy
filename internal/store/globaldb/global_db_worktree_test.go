@@ -405,7 +405,6 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			!forge.FetchedAt.Equal(fetchedAt) {
 			t.Fatalf("durable PR = %#v", forge)
 		}
-
 	})
 
 	t.Run("Should persist lifecycle events with workspace and worktree correlation", func(t *testing.T) {

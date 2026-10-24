@@ -13,10 +13,18 @@ func refreshSessionPullRequestOperation() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters:  withProfileSelector(pathParam("session_id", "Session id")),
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Refreshed or retained cached facts", Body: contract.SessionPullRequestResponse{}},
+			{
+				Status:      200,
+				Description: "Refreshed or retained cached facts",
+				Body:        contract.SessionPullRequestResponse{},
+			},
 			{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Session branch unavailable", Body: contract.ErrorPayload{}},
-			{Status: 502, Description: "Forge unavailable without cached facts", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Session branch unavailable", Body: contract.SessionPullRequestErrorPayload{}},
+			{
+				Status:      502,
+				Description: "Forge unavailable without cached facts",
+				Body:        contract.SessionPullRequestErrorPayload{},
+			},
 		},
 	}
 }

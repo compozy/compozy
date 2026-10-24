@@ -13,6 +13,45 @@ import (
 // Owner: PullRequestService; this is its canonical suite (new subsystem).
 func TestPullRequestService(t *testing.T) {
 	t.Parallel()
+	// Invariant: SQL names and display filtering share origin HEAD and its TTL.
+	// Owner: PullRequestService; canonical service suite, exercised with real Git.
+	t.Run("Should share cached default branch names with display filtering", func(t *testing.T) {
+		t.Parallel()
+		runner, err := NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		if _, _, err := runner.Run(t.Context(), root, "init", "--initial-branch=main"); err != nil {
+			t.Fatal(err)
+		}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), nil, runner, nil)
+		t.Cleanup(service.Close)
+		now := statusTestClock()
+		service.now = func() time.Time { return now }
+		names := service.DefaultBranchNames(t.Context(), root)
+		if len(names) != 2 || names[0] != "main" || names[1] != "master" {
+			t.Fatalf("fallback: %v", names)
+		}
+		if _, _, err := runner.Run(
+			t.Context(),
+			root,
+			"symbolic-ref",
+			"refs/remotes/origin/HEAD",
+			"refs/remotes/origin/trunk",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !service.IsDefaultBranch(t.Context(), root, "main") {
+			t.Fatal("cached fallback changed early")
+		}
+		now = now.Add(time.Minute)
+		names = service.DefaultBranchNames(t.Context(), root)
+		if len(names) != 1 || names[0] != "trunk" || !service.IsDefaultBranch(t.Context(), root, "trunk") ||
+			service.IsDefaultBranch(t.Context(), root, "main") {
+			t.Fatalf("origin default: %v", names)
+		}
+	})
 	t.Run("Should retain successful facts and suppress identical failure wakes", func(t *testing.T) {
 		t.Parallel()
 		cache := newPullRequestMemoryStore()

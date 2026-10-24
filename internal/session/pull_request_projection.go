@@ -2,28 +2,28 @@ package session
 
 import "context"
 
-type SessionBranchReader interface {
+type BranchSnapshotReader interface {
 	SessionBranches(context.Context, []string) (map[string]string, error)
 }
 
-type SessionPullRequestView struct {
+type PullRequestProjection struct {
 	Branch string
 	PullRequestView
 }
 
 // ConfigurePullRequests connects the optional read model at daemon composition.
-func (m *Manager) ConfigurePullRequests(reader PullRequestReader, branches SessionBranchReader) {
+func (m *Manager) ConfigurePullRequests(reader PullRequestReader, branches BranchSnapshotReader) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.pullRequestReader = reader
 	m.branchSnapshots = branches
 }
 
-func (m *Manager) SessionPullRequests(ctx context.Context, infos []*Info) (map[string]SessionPullRequestView, error) {
+func (m *Manager) SessionPullRequests(ctx context.Context, infos []*Info) (map[string]PullRequestProjection, error) {
 	m.mu.RLock()
 	reader, branches := m.pullRequestReader, m.branchSnapshots
 	m.mu.RUnlock()
-	out := make(map[string]SessionPullRequestView, len(infos))
+	out := make(map[string]PullRequestProjection, len(infos))
 	if reader == nil || branches == nil {
 		return out, nil
 	}
@@ -72,7 +72,7 @@ func (m *Manager) SessionPullRequests(ctx context.Context, infos []*Info) (map[s
 		}
 		branch := snapshots[info.ID]
 		if branch != "" && !defaults[BranchKey{info.WorkspaceID, branch}] {
-			out[info.ID] = SessionPullRequestView{
+			out[info.ID] = PullRequestProjection{
 				Branch:          branch,
 				PullRequestView: views[BranchKey{info.WorkspaceID, branch}],
 			}
@@ -81,37 +81,37 @@ func (m *Manager) SessionPullRequests(ctx context.Context, infos []*Info) (map[s
 	return out, nil
 }
 
-func (m *Manager) RefreshSessionPullRequest(ctx context.Context, info *Info) (SessionPullRequestView, error) {
+func (m *Manager) RefreshSessionPullRequest(ctx context.Context, info *Info) (PullRequestProjection, error) {
 	m.mu.RLock()
 	reader, branches := m.pullRequestReader, m.branchSnapshots
 	m.mu.RUnlock()
 	if reader == nil || branches == nil {
-		return SessionPullRequestView{}, nil
+		return PullRequestProjection{}, nil
 	}
 	snapshots, err := branches.SessionBranches(ctx, []string{info.ID})
 	if err != nil {
-		return SessionPullRequestView{}, err
+		return PullRequestProjection{}, err
 	}
 	branch := snapshots[info.ID]
 	if branch == "" {
-		return SessionPullRequestView{}, nil
+		return PullRequestProjection{}, nil
 	}
 	if filter, ok := reader.(interface {
 		DefaultBranches(context.Context, []BranchKey) map[BranchKey]bool
 	}); ok {
 		key := BranchKey{info.WorkspaceID, branch}
 		if filter.DefaultBranches(ctx, []BranchKey{key})[key] {
-			return SessionPullRequestView{}, nil
+			return PullRequestProjection{}, nil
 		}
 	}
 	refresher, ok := reader.(interface {
 		RefreshBranch(context.Context, BranchKey) (PullRequestView, error)
 	})
 	if !ok {
-		return SessionPullRequestView{Branch: branch}, nil
+		return PullRequestProjection{Branch: branch}, nil
 	}
 	view, err := refresher.RefreshBranch(ctx, BranchKey{info.WorkspaceID, branch})
-	return SessionPullRequestView{Branch: branch, PullRequestView: view}, err
+	return PullRequestProjection{Branch: branch, PullRequestView: view}, err
 }
 
 // PublishWorkspaceCatalogChanged wakes every affected profile, including stopped sessions.

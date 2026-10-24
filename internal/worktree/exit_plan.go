@@ -56,10 +56,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		return s.remoteUnreadableExitPlan(ctx, *item, status, scope)
 	}
 	forge := s.exitForgeCapabilities(ctx, remoteURLs)
-	forgeStatus, err := s.readDisplayPullRequest(ctx, *item)
-	if err != nil {
-		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
-	}
+	forgeStatus := s.readDisplayPullRequest(ctx, *item)
 	base := s.resolveExitBase(ctx, *item, status, forge)
 	baseAhead := s.countCommitsAhead(ctx, item.Path, base)
 	paused, err := s.exitPauseCause(ctx, *item, status)
@@ -84,7 +81,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		status, forge, forgeStatus, baseAhead, len(remoteURLs) > 0, plan.BrowserURL, paused,
 	)
 	plan.Primary = selectExitPrimary(plan.Actions, status)
-	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, s.cleanupForgeStatus(ctx, *item, nil))
+	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, s.cleanupForgeStatus(ctx, *item))
 	return plan, nil
 }
 
@@ -94,10 +91,7 @@ func (s *Service) remoteUnreadableExitPlan(
 	status *Status,
 	scope ExitCommitScope,
 ) (*ExitPlan, error) {
-	forgeStatus, err := s.readDisplayPullRequest(ctx, item)
-	if err != nil {
-		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
-	}
+	forgeStatus := s.readDisplayPullRequest(ctx, item)
 	plan := &ExitPlan{
 		WorktreeID:       item.ID,
 		GlobalPauseCause: reasonRemoteUnreadable,
@@ -118,10 +112,7 @@ func (s *Service) unreadableExitPlan(
 	item Worktree,
 	status *Status,
 ) (*ExitPlan, error) {
-	forgeStatus, err := s.readDisplayPullRequest(ctx, item)
-	if err != nil {
-		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
-	}
+	forgeStatus := s.readDisplayPullRequest(ctx, item)
 	plan := &ExitPlan{
 		WorktreeID:       item.ID,
 		GlobalPauseCause: reasonStatusUnreadable,

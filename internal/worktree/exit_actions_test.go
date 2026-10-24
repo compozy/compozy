@@ -418,7 +418,6 @@ func TestExitActions(t *testing.T) {
 		if err != nil || cached == nil || cached.Provider != "github" {
 			t.Fatalf("cached refresh=%#v %v", cached, err)
 		}
-
 	})
 
 	t.Run("Should skip a push that is already up to date", func(t *testing.T) {

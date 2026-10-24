@@ -13881,6 +13881,19 @@ export interface components {
       /** @enum {string} */
       state: "passing" | "failing" | "pending" | "none" | "unknown";
     };
+    SessionPullRequestErrorPayload: {
+      cause?: string;
+      code?: string;
+      config_path?: string;
+      current_turn_id?: string;
+      details?: {
+        [key: string]: string;
+      };
+      diagnostic?: components["schemas"]["DiagnosticItem"] | null;
+      error: string;
+      message: string;
+      unknown_keys?: string[];
+    };
     SessionPullRequestLookupPayload: {
       cause: string;
       /** Format: date-time */
@@ -32678,7 +32691,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json": components["schemas"]["SessionPullRequestErrorPayload"];
         };
       };
       /** @description Forge unavailable without cached facts */
@@ -32687,7 +32700,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json": components["schemas"]["SessionPullRequestErrorPayload"];
         };
       };
     };

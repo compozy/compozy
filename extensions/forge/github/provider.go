@@ -112,24 +112,12 @@ func (p *Provider) Status(
 	}
 
 	if request.Base == "" && request.HeadSHA == "" {
-		response, graphErr := p.graphStatus(ctx, repo, request.Branch, credential.token)
-		if graphErr == nil {
-			return response, nil
-		}
-		if apiErr, ok := errors.AsType[*githubAPIError](
-			graphErr,
-		); !ok ||
-			(apiErr.status != http.StatusNotFound && apiErr.status != http.StatusNotImplemented) {
-			if cause := githubErrorCause(graphErr); cause != "" {
-				response.Cause = cause
-				if ok {
-					response.RetryAfter = apiErr.retryAfter
-				}
-				return response, nil
-			}
-			return extensioncontract.ForgeStatusResponse{}, graphErr
+		response, handled, err := p.tryGraphStatus(ctx, repo, request.Branch, credential.token)
+		if handled {
+			return response, err
 		}
 	}
+
 	stateFilter := "all"
 	if request.Base != "" || request.HeadSHA != "" {
 		stateFilter = "open"

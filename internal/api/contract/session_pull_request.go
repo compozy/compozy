@@ -1,8 +1,9 @@
 package contract
 
 import (
-	"github.com/compozy/compozy/internal/session"
 	"time"
+
+	"github.com/compozy/compozy/internal/session"
 )
 
 type SessionPullRequestChecksPayload struct {
@@ -53,4 +54,12 @@ type SessionPullRequestResponse struct {
 	Branch            string                           `json:"branch"`
 	PullRequest       *SessionPullRequestPayload       `json:"pull_request"`
 	PullRequestLookup *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
+}
+
+// SessionPullRequestErrorPayload keeps the common CLI error while exposing the
+// refresh-specific cause and message to structured clients.
+type SessionPullRequestErrorPayload struct {
+	ErrorPayload
+	Message string `json:"message"`
+	Cause   string `json:"cause,omitempty"`
 }

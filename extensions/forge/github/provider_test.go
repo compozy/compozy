@@ -592,7 +592,7 @@ func TestProviderGraphQL(t *testing.T) {
 	t.Run("Should bound candidate pages without confirming an incomplete population", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 			calls.Add(1)
 			_, _ = w.Write(
 				[]byte(
@@ -639,7 +639,7 @@ func TestProviderGraphQL(t *testing.T) {
 	t.Run("Should retain the rate limit reset without retrying", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 			calls.Add(1)
 			w.Header().Set("X-RateLimit-Remaining", "0")
 			w.Header().Set("X-RateLimit-Reset", "1800000000")

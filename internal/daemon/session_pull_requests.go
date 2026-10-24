@@ -26,7 +26,9 @@ func (a sessionPullRequestAdapter) PullRequests(
 		if !ok {
 			workspace, err := a.resolver.ResolveWorktreeWorkspace(ctx, key.WorkspaceID, "")
 			if err == nil {
-				repo, _ = a.service.RepoKey(ctx, workspace.Root)
+				if key, keyErr := a.service.RepoKey(ctx, workspace.Root); keyErr == nil {
+					repo = key
+				}
 			}
 			repos[key.WorkspaceID] = repo
 		}
@@ -161,6 +163,32 @@ func (a sessionPullRequestAdapter) RepositoryKeys(
 	workspaceIDs []string,
 ) map[string]string {
 	result := make(map[string]string)
+	for id, root := range a.workspaceRoots(ctx, scope, workspaceIDs) {
+		if key, err := a.service.RepoKey(ctx, root); err == nil {
+			result[id] = key
+		}
+	}
+	return result
+}
+
+func (a sessionPullRequestAdapter) DefaultBranchNames(
+	ctx context.Context,
+	scope store.ReadScope,
+	workspaceIDs []string,
+) map[string][]string {
+	result := make(map[string][]string)
+	for id, root := range a.workspaceRoots(ctx, scope, workspaceIDs) {
+		result[id] = a.service.DefaultBranchNames(ctx, root)
+	}
+	return result
+}
+
+func (a sessionPullRequestAdapter) workspaceRoots(
+	ctx context.Context,
+	scope store.ReadScope,
+	workspaceIDs []string,
+) map[string]string {
+	result := make(map[string]string)
 	if scope.Validate() != nil {
 		return result
 	}
@@ -171,10 +199,7 @@ func (a sessionPullRequestAdapter) RepositoryKeys(
 		}
 		for _, workspace := range workspaces {
 			if workspace.ID != "" && workspace.ID != "@user" {
-				key, err := a.service.RepoKey(ctx, workspace.Root)
-				if err == nil {
-					result[workspace.ID] = key
-				}
+				result[workspace.ID] = workspace.Root
 			}
 		}
 		return result
@@ -186,13 +211,8 @@ func (a sessionPullRequestAdapter) RepositoryKeys(
 		if _, ok := result[id]; ok {
 			continue
 		}
-		workspace, err := a.resolver.ResolveWorktreeWorkspace(ctx, id, "")
-		if err != nil {
-			continue
-		}
-		key, err := a.service.RepoKey(ctx, workspace.Root)
-		if err == nil {
-			result[id] = key
+		if workspace, err := a.resolver.ResolveWorktreeWorkspace(ctx, id, ""); err == nil {
+			result[id] = workspace.Root
 		}
 	}
 	return result

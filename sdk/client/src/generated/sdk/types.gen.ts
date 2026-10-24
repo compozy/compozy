@@ -6813,6 +6813,20 @@ export type SessionPullRequestChecksPayload = {
   state: "passing" | "failing" | "pending" | "none" | "unknown";
 };
 
+export type SessionPullRequestErrorPayload = {
+  cause?: string;
+  code?: string;
+  config_path?: string;
+  current_turn_id?: string;
+  details?: {
+    [key: string]: string;
+  };
+  diagnostic?: DiagnosticItem | null;
+  error: string;
+  message: string;
+  unknown_keys?: Array<string>;
+};
+
 export type SessionPullRequestLookupPayload = {
   cause: string;
   observed_at: string | null;
@@ -21975,11 +21989,11 @@ export type RefreshSessionPullRequestErrors = {
   /**
    * Session branch unavailable
    */
-  409: ErrorPayload;
+  409: SessionPullRequestErrorPayload;
   /**
    * Forge unavailable without cached facts
    */
-  502: ErrorPayload;
+  502: SessionPullRequestErrorPayload;
 };
 
 export type RefreshSessionPullRequestError =
