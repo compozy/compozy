@@ -100,7 +100,7 @@ describe("SessionsBoard", () => {
     const child = card("child", {
       board_column: "needs_you",
       badge: "waiting-for-input",
-      parent_title: "Coordinator",
+      parent_title: "  Coordinator  ",
     });
     renderBoard(
       board({
@@ -109,10 +109,36 @@ describe("SessionsBoard", () => {
       })
     );
     expect(screen.getByTestId("session-board-card-parent-child")).toHaveTextContent("Coordinator");
+    expect(
+      screen.getByRole("button", { name: /Session child, Input, Child of Coordinator,/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Coordinator,.*3 child sessions, A child needs you,/ })
+    ).toBeInTheDocument();
     const rollup = screen.getByTestId("session-board-card-children-parent");
     expect(rollup).toHaveTextContent("3");
     expect(rollup).toHaveAttribute("data-needs-you", "true");
     expect(screen.getByTestId("session-board-card-status-child")).toHaveTextContent("Input");
+  });
+
+  it("Should name one child without an attention signal and omit absent family facts", () => {
+    renderBoard(
+      board({
+        working: {
+          sessions: [
+            card("one", {
+              children: { total: 1, needs_you: 0, working: 1, in_review: 0, done: 0 },
+            }),
+            card("none", { parent_title: "  ", children: null }),
+          ],
+        },
+      })
+    );
+    const one = screen.getByRole("button", { name: /Session one,.*1 child session,/ });
+    expect(one).not.toHaveAccessibleName(/A child needs you/);
+    expect(screen.getByTestId("session-board-card-none")).not.toHaveAccessibleName(
+      /Child of|child session|child needs you/
+    );
   });
 
   it("Should open the clicked session and offer the next page with its progress", async () => {

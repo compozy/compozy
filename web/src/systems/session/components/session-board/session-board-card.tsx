@@ -71,7 +71,17 @@ export function SessionBoardCard({
   const status = sessionBoardCardStatus(session);
   const meta = sessionBoardCardMeta(session, workspaceName);
   const waiting = sessionBoardCardWaiting(session);
-  const label = [title, status?.label, waiting?.word, formatRelativeTime(session.updated_at)]
+  const rollup = sessionBoardCardRollup(session);
+  const parentTitle = session.parent_title?.trim();
+  const label = [
+    title,
+    status?.label,
+    waiting?.word,
+    parentTitle ? `Child of ${parentTitle}` : null,
+    rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
+    rollup?.needsYou ? "A child needs you" : null,
+    formatRelativeTime(session.updated_at),
+  ]
     .filter(Boolean)
     .join(", ");
   return (

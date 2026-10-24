@@ -21,3 +21,8 @@ Introduced by the Sessions Kanban spec (US-014, E2E-007, visual contract VC-27, 
 Walk: from an orchestrator session spawn three children (`compozy session new --parent <orchestrator>`), and make one of them ask a question. Open the board: the parent card shows the children count 3 with the accent dot, and its tooltip reads 1 Needs you · 2 Working; the questioning child sits in Needs you with "↳ <orchestrator title>". Press "Hide child sessions": the three child cards leave and the Needs you and Working counts drop by their numbers. Reload; the filter is still on for this window only. Archive the orchestrator: its children keep "↳ <title>".
 
 Owning automated coverage: E2E-007 (`web/e2e`), `session-board-card.test.ts` (UT-070 rollup), `sessions-board.test.tsx` (parent link and highlighted rollup render), `use-session-sidebar-state.test.ts` (per-window filter).
+
+Accessibility regression: inspect the card button's accessible name. A child includes "Child of
+{parent title}"; a parent includes "3 child sessions, A child needs you". One child reads
+"1 child session". No family metadata means no family phrase. Existing title, status, waiting
+signal and relative time remain in the name. Covered by `sessions-board.test.tsx`.
