@@ -3,9 +3,9 @@
 package providerusage
 
 import (
+	"encoding/base64"
 	"errors"
 	"os"
-	"reflect"
 	"testing"
 )
 
@@ -13,39 +13,44 @@ func TestClaudeKeychainCommand(t *testing.T) {
 	t.Run("Should distinguish missing items from denied access and other failures", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
-			code       int
-			diagnostic string
-			want       error
+			result string
+			want   error
 		}{
-			{44, "", os.ErrNotExist},
-			{1, "The specified item could not be found in the keychain.", os.ErrNotExist},
-			{128, "User canceled the operation.", os.ErrPermission},
-			{36, "User interaction is not allowed.", os.ErrPermission},
-			{51, "Authorization denied.", os.ErrPermission},
+			{`{"status":-25300}`, os.ErrNotExist},
+			{`{"status":-25308}`, os.ErrPermission},
+			{`{"status":-25293}`, os.ErrPermission},
+			{`{"status":-128}`, os.ErrPermission},
 		} {
-			if err := claudeKeychainFailure(tc.code, []byte(tc.diagnostic)); !errors.Is(err, tc.want) {
-				t.Fatalf("exit %d: got %v, want %v", tc.code, err, tc.want)
+			_, err := decodeClaudeKeychainResult([]byte(tc.result))
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
 			}
 		}
-		err := claudeKeychainFailure(1, []byte("sensitive unexpected OS failure"))
+		_, err := decodeClaudeKeychainResult([]byte(`{"status":-1,"data":"sensitive unexpected OS failure"}`))
 		requireEqual(t, ErrorCodeProviderUnavailable, AsUsageError(err, "Claude").Code)
 	})
-
-	t.Run("Should bind security lookup to exactly one account and service without executing", func(t *testing.T) {
+	t.Run("Should decode successful bytes and reject malformed helper output", func(t *testing.T) {
 		t.Parallel()
-		command := claudeKeychainCommand(t.Context(), "Claude Code-credentials-route", "test-user")
-		want := []string{
-			"/usr/bin/security",
-			"find-generic-password",
-			"-a",
-			"test-user",
-			"-w",
-			"-s",
-			"Claude Code-credentials-route",
+		want := `{"claudeAiOauth":{"accessToken":"synthetic"}}`
+		data, err := decodeClaudeKeychainResult(
+			[]byte(`{"status":0,"data":"` + base64.StdEncoding.EncodeToString([]byte(want)) + `"}`),
+		)
+		requireNoError(t, err)
+		requireEqual(t, want, string(data))
+		for _, result := range []string{`{`, `{}`, `{"status":0,"data":"%%%"}`} {
+			_, err := decodeClaudeKeychainResult([]byte(result))
+			requireEqual(t, ErrorCodeParseError, AsUsageError(err, "Claude").Code)
 		}
-		if !reflect.DeepEqual(want, command.Args) {
-			t.Fatalf("unexpected command arguments: %v", command.Args)
+	})
+	t.Run("Should pass exact lookup values and interaction policy as separate arguments", func(t *testing.T) {
+		t.Parallel()
+		for _, interactive := range []bool{false, true} {
+			command := claudeKeychainCommand(t.Context(), "service' ; injected", "account", interactive)
+			requireEqual(t, "/usr/bin/osascript", command.Path)
+			requireEqual(t, "--", command.Args[5])
+			requireEqual(t, "service' ; injected", command.Args[6])
+			requireEqual(t, "account", command.Args[7])
+			requireEqual(t, interactive, command.Args[8] == "true")
 		}
-		requireEqual(t, "/usr/bin/security", command.Path)
 	})
 }

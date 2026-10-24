@@ -59,6 +59,16 @@ func NewUsageError(code ErrorCode, provider string) *UsageError {
 			message = fmt.Sprintf(message, provider)
 		}
 	}
+	if strings.EqualFold(provider, claudeProviderID) {
+		switch code {
+		case ErrorCodeAuthMissing:
+			message = "Sign in with claude /login to read usage"
+		case ErrorCodeAuthExpired:
+			message = "Run claude /login to sign in again"
+		case ErrorCodeAuthScope:
+			message = "This Claude login can't read usage. Run claude /login to sign in again."
+		}
+	}
 	return &UsageError{Code: code, Message: message, Action: description.action}
 }
 

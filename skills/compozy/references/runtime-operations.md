@@ -1093,9 +1093,11 @@ may renew its own login). Codex runs only with its file credential store; `keyri
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
 
 Refresh intent is `background` (scheduler, popover open, agents, gateway devices, app tokens) or
-`explicit` (local desktop Refresh/Allow and the local CLI). Only explicit refreshes may read the
-macOS Keychain, and only with `provider_usage.providers.claude.keychain_access = true`; the loaded
-Claude token is reused in memory by background refreshes until it expires or the account changes.
+`explicit` (local desktop Refresh/Allow and the local CLI). Keychain reads require
+`provider_usage.providers.claude.keychain_access = true`. Background refreshes reuse a valid cached
+Claude token, then silently reread the exact routed Keychain item after expiry, account changes, or
+daemon restart. They never prompt; only explicit local refreshes may request OS authorization.
+CompozyOS never redeems Claude Code refresh tokens or writes its credentials.
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 
@@ -1108,7 +1110,8 @@ includes a Claude login missing from the Keychain, `auth_missing`); `needs_conse
 tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` → an explicit
 local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
 `provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
-collection, and a Keychain-backed Claude row asks for an explicit refresh again.
+collection. With consent and readable credentials, Claude recovers automatically; if OS authorization
+is required, refresh explicitly on the host. An expired native credential requires `claude /login`.
 
 ## MCP Serve
 

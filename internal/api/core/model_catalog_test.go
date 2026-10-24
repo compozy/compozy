@@ -906,6 +906,45 @@ func TestProviderUsageIntent(t *testing.T) {
 	}
 }
 
+func TestProviderUsageRefreshProfile(t *testing.T) {
+	for _, query := range []string{"", "?profile=default", "?profile=unrelated"} {
+		t.Run("Should resolve the body profile after middleware reads query "+query, func(t *testing.T) {
+			t.Parallel()
+			catalog := &providerusage.TargetCatalog{}
+			catalog.Replace("profile-marketing", []providerusage.Target{{
+				ProfileID: "profile-marketing", ProviderID: "claude", ProviderName: "Claude",
+				Status: providerusage.StatusSignedOut,
+				Error:  providerusage.NewUsageError(providerusage.ErrorCodeAuthMissing, "Claude"),
+			}})
+			manager := providerusage.NewService(providerusage.Options{Resolver: catalog})
+			t.Cleanup(func() {
+				if err := manager.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			handler := &BaseHandlers{Profiles: modelCatalogProfileServiceStub{}, ProviderUsage: manager}
+			engine := gin.New()
+			engine.Use(handler.WorkspaceReferenceGuard)
+			engine.POST("/api/provider-usage/refresh", handler.RefreshProviderUsage)
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				"/api/provider-usage/refresh"+query,
+				strings.NewReader(`{"profile":"marketing","provider_ids":["claude"],"intent":"explicit","wait_ms":0}`)))
+			if response.Code != http.StatusOK {
+				t.Fatalf("refresh: %d %s", response.Code, response.Body.String())
+			}
+			var envelope contract.ProviderUsageEnvelope
+			if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if envelope.ProfileID != "profile-marketing" || len(envelope.Targets) != 1 ||
+				envelope.Targets[0].Status != "signed_out" {
+				t.Fatalf("wrong profile result: %+v", envelope)
+			}
+		})
+	}
+}
+
 func TestProviderUsageRefreshBounds(t *testing.T) {
 	for _, wait := range []int64{-1, 30001, 45000} {
 		_, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &wait})

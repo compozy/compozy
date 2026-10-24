@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: reports/2026-10-24-issue-955.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -29,13 +29,13 @@ not a completed operator walk.
 3. Connect SSE before refreshing. Capture `ready`, a subsequent `provider_usage_changed`, reconnect
    readiness and a changed boot ID after restarting the daemon. Frames contain revision metadata.
 4. Invoke both native tools from the non-default profile. Confirm background refresh cannot request
-   Keychain access, and returned JSON excludes secrets and credential fingerprints.
+   Keychain prompts or grant consent, and returned JSON excludes secrets and credential fingerprints.
 5. On a non-default profile, turn Claude Keychain access on locally with the settings PATCH
    `collection_profile` selector, then off. Verify one explicit collection for that profile only,
-   credential invalidation on revocation, and no Keychain invocation for gateway/app-token/agent actions.
-   After an OS denial, a background tick retains `keychain_denied`; after token expiry, same-owner
-   last-good values remain stale. Keychain expiry offers refresh; file expiry directs the operator to
-   run Claude to renew the login.
+   credential invalidation on revocation, and only noninteractive Keychain reads for gateway/app-token/agent actions with existing consent.
+   After an OS denial, background ticks never prompt and recover if OS access becomes available.
+   After cached token expiry, reread the routed item: renewed credentials recover automatically;
+   an actually expired native credential directs the operator to `claude /login`.
 6. Disable usage during a collection. Verify cancellation, the disabled envelope and refresh 409.
    Change the refresh interval and verify the active scheduler adopts it. Disable/remove one target
    during a multi-request collection and verify it sends no further request while another profile
@@ -69,13 +69,13 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   isolated filesystem, fake Keychain, and local HTTP provider; it does not certify the desktop walk.
 - Switch a file-backed native login from account A to B, then list usage before the refresh interval.
   Account A's values disappear immediately and background collection starts for B. Repeat with logout,
-  unreadable credentials, and a Codex auth-store change; no read may touch the Keychain.
+  unreadable credentials, and a Codex auth-store change; cache reads never touch the Keychain; scheduled collection may silently reacquire consented credentials.
 - Override a native-login provider with bound-secret auth, or a key provider with native auth.
   Its row is `unsupported` with `no_collector`; no credential from the other auth mode is read.
 - Delete a custom provider with a saved usage toggle. The same config write removes its usage override.
 - When Cursor returns only auto/API percentages, the monthly total remains unknown, including 100/0.
 - Reload settings or change another section after enabling Claude Keychain access in config.
-  Neither action reads the Keychain, even with an ordinary profile selector. A local usage PATCH with
+  Neither action may prompt for Keychain access, even with an ordinary profile selector. A local usage PATCH with
   the collection profile owns the initial consent collection; a cold restart offers explicit Refresh.
 - Create or delete a profile while credential resolution is slow. The mutation completes independently
   of usage reconciliation; queued events coalesce and daemon shutdown cancels and joins reconciliation.
@@ -87,3 +87,12 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   scheduler context cancels that resolution and shutdown joins it without timing out.
 - Create a profile after the scheduler's startup tick. Its eligible providers receive their first
   background collection promptly; repeated profile reconciliation joins existing flights.
+
+## Targeted verification — 2026-10-24
+
+The issue-955 isolated macOS walk verified startup collection for two profiles, missing-login
+guidance, and browser Refresh targeting with real OAuth usage and independent API readback.
+The profile mismatch was reproduced through the real HTTP middleware and repaired, then re-walked.
+See [the run report](../reports/2026-10-24-issue-955.md) for evidence and limits. The broader scenario
+remains untested because packaged desktop, all transport/security variants, and forced native-token
+expiry were not part of this targeted walk.

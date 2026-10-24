@@ -65,7 +65,14 @@ function describeNeedsConsent(
 ): ProviderUsageStatusPresentation {
   const code = target.error?.code;
   if (code === "keychain_token_expired") {
-    return presentation("warning", "Login expired", "Refresh to reload your Claude login", REFRESH);
+    return presentation(
+      "warning",
+      "Needs refresh",
+      "Refresh to reload your Claude login",
+      REFRESH,
+      "solid",
+      options.remoteClient ? REMOTE_CONSENT_NOTE : null
+    );
   }
   const denied = code === "keychain_denied";
   const label = denied ? "Access denied" : "Needs access";

@@ -3023,10 +3023,12 @@ func (s usageConsentSettings) Reload(ctx context.Context) (settingspkg.ApplyResu
 	return settingspkg.ApplyResult{}, nil
 }
 
-type usageConsentKeychain struct{ reads chan string }
+type usageConsentKeychain struct{ prompts chan string }
 
-func (r usageConsentKeychain) Read(_ context.Context, _, account string) ([]byte, error) {
-	r.reads <- account
+func (r usageConsentKeychain) Read(_ context.Context, _, account string, interactive bool) ([]byte, error) {
+	if interactive {
+		r.prompts <- account
+	}
 	return nil, os.ErrNotExist
 }
 
@@ -3049,7 +3051,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 			),
 			func(t *testing.T) {
 				t.Parallel()
-				reader := usageConsentKeychain{reads: make(chan string, 2)}
+				reader := usageConsentKeychain{prompts: make(chan string, 2)}
 				catalog := &providerusage.TargetCatalog{}
 				for _, id := range []string{store.DefaultProfileID, "work-id"} {
 					home := t.TempDir()
@@ -3085,10 +3087,10 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if initial.Targets[0].Error.Code != providerusage.ErrorCodeKeychainTokenExpired ||
-					initial.Targets[0].Error.Action != string(providerusage.ActionRefresh) ||
-					len(reader.reads) != 0 {
-					t.Fatal("restart/background must request Refresh without reading the Keychain")
+				if initial.Targets[0].Error.Code != providerusage.ErrorCodeAuthMissing ||
+					initial.Targets[0].Error.Action != string(providerusage.ActionSignIn) ||
+					len(reader.prompts) != 0 {
+					t.Fatal("background must report missing credentials without prompting")
 				}
 				before, err := manager.Envelope(t.Context(), selection.otherID)
 				if err != nil {
@@ -3116,8 +3118,8 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 						http.NoBody,
 					),
 				)
-				if reload.Code != http.StatusOK || len(reader.reads) != 0 {
-					t.Fatalf("reload granted consent: status=%d reads=%d", reload.Code, len(reader.reads))
+				if reload.Code != http.StatusOK || len(reader.prompts) != 0 {
+					t.Fatalf("reload granted consent: status=%d reads=%d", reload.Code, len(reader.prompts))
 				}
 				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
 				requestCtx := t.Context()
@@ -3152,8 +3154,8 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 					if refreshResponse.Code != http.StatusOK {
 						t.Fatalf("refresh: %d %s", refreshResponse.Code, refreshResponse.Body.String())
 					}
-					if len(reader.reads) != 0 ||
-						!strings.Contains(refreshResponse.Body.String(), "keychain_token_expired") {
+					if len(reader.prompts) != 0 ||
+						!strings.Contains(refreshResponse.Body.String(), "auth_missing") {
 						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
 					}
 					return
@@ -3175,7 +3177,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 						t.Fatal("selected profile collection did not finish")
 					}
 				}
-				if len(reader.reads) != 1 || <-reader.reads != selection.profileID {
+				if len(reader.prompts) != 1 || <-reader.prompts != selection.profileID {
 					t.Fatal("consent read another profile login")
 				}
 				after, err := manager.Envelope(ctx, selection.otherID)
