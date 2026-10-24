@@ -26,7 +26,10 @@ export interface SubagentComposerControlProps {
   subagents: readonly SubagentView[];
   /** What the trigger reports: the rows' counts, or the session's summary before they load. */
   counts: SubagentCounts;
-  /** The session reports subagents whose rows have not arrived yet. */
+  /**
+   * The roster has not answered yet: the popover holds the rows' place (sized by the session's
+   * summary) instead of claiming nothing was delegated.
+   */
   loading?: boolean;
   /** The rows could not be read; `onRetry` reads them again. */
   failed?: boolean;
