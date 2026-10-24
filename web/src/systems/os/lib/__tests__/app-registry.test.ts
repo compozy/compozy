@@ -139,6 +139,12 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
   },
   {
     app: "agents",
+    label: "an agent's heartbeat file (status card over the editor)",
+    pathname: "/agents/webgen",
+    search: { tab: "instructions", file: "heartbeat" },
+  },
+  {
+    app: "agents",
     label: "an agent's sessions",
     pathname: "/agents/webgen",
     search: { tab: "sessions", filter: "failed" },

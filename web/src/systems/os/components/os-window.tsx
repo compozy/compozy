@@ -314,11 +314,13 @@ function OsWindowMember({
           <OsWindowErrorBoundary title={app.title}>
             <Suspense
               fallback={
-                app.LoadingFallback ? (
-                  <OsWindowLoadingFallback Fallback={app.LoadingFallback} windowId={windowId} />
-                ) : (
-                  <SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />
-                )
+                <OsWindowLoadingFallback
+                  app={app}
+                  generic={
+                    <SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />
+                  }
+                  windowId={windowId}
+                />
               }
             >
               <WindowLiveDataContext value={liveDataEnabled}>
@@ -332,12 +334,16 @@ function OsWindowMember({
               </WindowLiveDataContext>
             </Suspense>
           </OsWindowErrorBoundary>
-        ) : app.LoadingFallback ? (
-          <OsWindowLoadingFallback Fallback={app.LoadingFallback} windowId={windowId} />
         ) : (
-          <div className="flex min-h-32 flex-1 items-center justify-center">
-            <Spinner className="size-4 text-subtle" />
-          </div>
+          <OsWindowLoadingFallback
+            app={app}
+            generic={
+              <div className="flex min-h-32 flex-1 items-center justify-center">
+                <Spinner className="size-4 text-subtle" />
+              </div>
+            }
+            windowId={windowId}
+          />
         )}
       </OverlayContainerContext.Provider>
       <div
