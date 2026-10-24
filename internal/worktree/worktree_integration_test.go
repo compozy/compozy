@@ -1715,7 +1715,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 		listed := func(path string) bool {
 			t.Helper()
-			for _, entry := range strings.Split(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), "\n") {
+			for entry := range strings.SplitSeq(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), "\n") {
 				if listedPath, ok := strings.CutPrefix(entry, "worktree "); ok &&
 					canonicalComparablePath(listedPath) == canonicalComparablePath(path) {
 					return true
