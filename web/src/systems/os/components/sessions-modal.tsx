@@ -23,6 +23,7 @@ import {
   SessionRenameDialog,
   type useSessionLifecycleActions,
   type SessionCreateOpenOptions,
+  subagentRevealStore,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -124,6 +125,13 @@ export function OsSessionsModal({
   };
 
   const selectSession = (session: SessionListTarget) => {
+    if (session.subagentId) {
+      subagentRevealStore.trigger.requested({
+        workspaceId: session.workspace_id ?? "",
+        sessionId: session.id,
+        subagentId: session.subagentId,
+      });
+    }
     onOpenChange(false);
     jumpToSession({
       sessionId: session.id,

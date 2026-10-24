@@ -20,6 +20,7 @@ import {
   type SessionPayload,
   type SessionThreadBranchChange,
   useSessionCreateActions,
+  subagentRevealStore,
   useSessionListView,
   useSessionSidebarState,
   useSessionTransportState,
@@ -34,6 +35,7 @@ export interface SessionWindowSidebarTarget {
   sessionId: string;
   agentName: string;
   workspaceId: string;
+  subagentId?: string;
 }
 
 export interface SessionWindowSidebarModel {
@@ -96,6 +98,13 @@ export function useSessionWindowSidebar({
   const reducedMotion = useOsReducedMotion();
 
   const openSession = (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
+    if (target.subagentId) {
+      subagentRevealStore.trigger.requested({
+        workspaceId: target.workspaceId,
+        sessionId: target.sessionId,
+        subagentId: target.subagentId,
+      });
+    }
     if (sessionId !== undefined && target.sessionId === sessionId) return;
     const targetScope = ownerDataScope(target.workspaceId);
     const allProjects = scope?.kind === "all";
@@ -134,6 +143,7 @@ export function useSessionWindowSidebar({
         sessionId: target.id,
         agentName: target.agent_name,
         workspaceId: target.workspace_id ?? "",
+        ...(target.subagentId ? { subagentId: target.subagentId } : {}),
       },
       { newWindow: false }
     );

@@ -1,6 +1,7 @@
 import { Button, Skeleton, StatusDot, cn } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
+import { subagentNavigationTarget } from "../../lib/subagent-navigation";
 import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
 import { SUBAGENT_STATUS_WORD, subagentDot } from "../subagents/subagent-format";
@@ -33,11 +34,13 @@ export function SessionListSubagentBranch({
 }: SessionListSubagentBranchProps) {
   const branch = useSessionSubagentBranch(workspaceId, sessionId, total);
   const open = (subagent: SubagentView) => {
-    if (subagent.child_session_id === null) return;
+    const target = subagentNavigationTarget(subagent, workspaceId);
+    if (!target) return;
     onSelectSession({
-      id: subagent.child_session_id,
-      agent_name: subagent.runtime.agent ?? "",
+      id: target.sessionId,
+      agent_name: target.agentName,
       workspace_id: workspaceId,
+      ...(target.subagentId ? { subagentId: target.subagentId } : {}),
     });
   };
 
@@ -116,7 +119,7 @@ function SubagentBranchRow({
 
   return (
     <div className={BRANCH_NODE} data-slot="session-subagent-row" data-status={subagent.status}>
-      {subagent.child_session_id !== null ? (
+      {subagent.child_session_id !== null || subagent.origin === "provider_native" ? (
         <button
           type="button"
           className={cn(
@@ -131,7 +134,7 @@ function SubagentBranchRow({
           {body}
         </button>
       ) : (
-        // A provider-native subagent has no session to open: the row only reports.
+        // A delegated child can still be awaiting session admission.
         <div role="group" aria-label={`${subagent.title}, ${word}`} className={rowClass}>
           {body}
         </div>

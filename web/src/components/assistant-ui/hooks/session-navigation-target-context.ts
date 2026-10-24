@@ -20,6 +20,8 @@ export interface SessionNavigationReveal {
   toolCallId: string | null;
   /** The matched field sits in a collapsed body (reasoning, tool input/output/error). */
   opensBody: boolean;
+  /** Native work revealed from a subagent surface rather than a text match. */
+  subagentId?: string;
 }
 
 export interface SessionNavigationTarget {

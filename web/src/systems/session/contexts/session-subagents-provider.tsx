@@ -2,6 +2,7 @@ import { use, type ReactNode } from "react";
 
 import type { SubagentOpenOptions } from "../components/subagents/subagent-card";
 import type { SubagentView } from "../components/subagents/types";
+import { subagentNavigationTarget } from "../lib/subagent-navigation";
 import {
   SessionSubagentsContext,
   SubagentNavigationContext,
@@ -23,12 +24,8 @@ export function SessionSubagentsProvider({
   const navigation = use(SubagentNavigationContext);
   const onOpen = navigation
     ? (subagent: SubagentView, { newWindow }: SubagentOpenOptions) => {
-        const child = subagent.child_session_id;
-        if (!child) return;
-        navigation.openSession(
-          { sessionId: child, agentName: subagent.runtime.agent ?? "", workspaceId },
-          { newWindow }
-        );
+        const target = subagentNavigationTarget(subagent, workspaceId);
+        if (target) navigation.openSession(target, { newWindow });
       }
     : undefined;
   return (
