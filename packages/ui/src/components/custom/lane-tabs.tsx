@@ -13,6 +13,11 @@ export interface LaneTabsItem<T extends string> {
    * the number arrives. Leave it out only for a tab that never shows a count.
    */
   count?: TabsTriggerCount;
+  /**
+   * The digits the placeholder of a pending count holds, two by default. Set it to the count's
+   * usual size (one for a tab that rarely passes nine) so the tab keeps its width when it lands.
+   */
+  pendingCountDigits?: number;
   liveLabel?: React.ReactNode;
   testId?: string;
 }
@@ -52,6 +57,7 @@ function LaneTabs<T extends string>({
             key={item.value}
             value={item.value}
             count={item.count}
+            pendingCountDigits={item.pendingCountDigits}
             liveLabel={item.liveLabel}
             data-testid={item.testId}
           >

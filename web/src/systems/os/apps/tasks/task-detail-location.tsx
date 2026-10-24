@@ -45,7 +45,14 @@ import {
 function buildTabItems(runCount: number | "pending"): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
   return [
     { value: "overview", label: "Overview", testId: "tasks-detail-tab-overview" },
-    { value: "runs", label: "Runs", count: runCount, testId: "tasks-detail-tab-runs" },
+    {
+      value: "runs",
+      label: "Runs",
+      count: runCount,
+      // A task rarely has more than nine attempts, so the placeholder is one digit wide.
+      pendingCountDigits: 1,
+      testId: "tasks-detail-tab-runs",
+    },
     { value: "activity", label: "Activity", testId: "tasks-detail-tab-activity" },
   ];
 }

@@ -93,4 +93,33 @@ describe("Tabs", () => {
     rerender(tabs());
     expect(container.querySelector('[data-slot="tabs-trigger-count"]')).toBeNull();
   });
+
+  it("Should size the pending placeholder by the digits the caller expects", () => {
+    const { container, rerender } = render(
+      <Tabs defaultValue="runs">
+        <TabsList>
+          <TabsTrigger count="pending" value="runs">
+            Runs
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    );
+    const placeholder = () =>
+      container.querySelector<HTMLElement>(
+        '[data-slot="tabs-trigger-count"] [data-slot="skeleton-text"]'
+      );
+
+    expect(placeholder()?.style.width).toBe("2ch");
+
+    rerender(
+      <Tabs defaultValue="runs">
+        <TabsList>
+          <TabsTrigger count="pending" pendingCountDigits={1} value="runs">
+            Runs
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    );
+    expect(placeholder()?.style.width).toBe("1ch");
+  });
 });

@@ -85,7 +85,7 @@ export const PendingCount: Story = {
     docs: {
       description: {
         story:
-          "A `count` of `pending` holds the slot with a placeholder two digits wide while the number is being read, so the tab does not widen and push the tabs after it when the count arrives.",
+          "A `count` of `pending` holds the slot with a placeholder while the number is being read (two digits wide unless `pendingCountDigits` says otherwise), so the tab does not widen and push the tabs after it when the count arrives.",
       },
     },
   },

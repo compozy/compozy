@@ -54,9 +54,9 @@ export const WithCounts: Story = {
 };
 
 /**
- * The Runs count is still being read: its slot is held by a placeholder two digits wide, so the
- * strip already has the width it will have and the tabs after it stay put when the number arrives.
- * The settled strip sits underneath to compare the two.
+ * The Runs count is still being read: its slot is held by a placeholder, two digits wide here
+ * (`pendingCountDigits` sets the usual size), so the strip already has the width it will have and
+ * the tabs after it stay put when the number arrives. The settled strip sits underneath to compare.
  */
 export const PendingCount: Story = {
   args: {},
@@ -65,7 +65,7 @@ export const PendingCount: Story = {
     const [value, setValue] = useState<Tab>("overview");
     const items = (runs: number | "pending"): LaneTabsItem<Tab>[] => [
       { value: "overview", label: "Overview" },
-      { value: "runs", label: "Runs", count: runs },
+      { value: "runs", label: "Runs", count: runs, pendingCountDigits: 2 },
       { value: "activity", label: "Activity" },
     ];
     return (

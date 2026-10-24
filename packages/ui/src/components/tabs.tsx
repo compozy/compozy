@@ -37,15 +37,28 @@ export type TabsTriggerCount = number | "pending";
 
 export interface TabsTriggerProps extends TabsPrimitive.Tab.Props {
   /**
-   * The count after the label. `"pending"` holds the slot with a placeholder two digits wide, so
-   * the tab and the tabs after it do not move when the number arrives; absent shows no count at
-   * all. Use `"pending"` only for a count that has not been read yet, never for a refetch.
+   * The count after the label. `"pending"` holds the slot with a placeholder, so the tab and the
+   * tabs after it do not move when the number arrives; absent shows no count at all. Use
+   * `"pending"` only for a count that has not been read yet, never for a refetch.
    */
   count?: TabsTriggerCount;
+  /**
+   * How many digits the placeholder of a pending count holds, two by default. Set it to the
+   * count's usual size: the tab keeps its width when the number has that many digits, and moves by
+   * the difference when it does not.
+   */
+  pendingCountDigits?: number;
   liveLabel?: React.ReactNode;
 }
 
-function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTriggerProps) {
+function TabsTrigger({
+  className,
+  children,
+  count,
+  pendingCountDigits = 2,
+  liveLabel,
+  ...props
+}: TabsTriggerProps) {
   return (
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
@@ -66,7 +79,11 @@ function TabsTrigger({ className, children, count, liveLabel, ...props }: TabsTr
           data-pending={count === "pending" || undefined}
           className="inline-flex items-center font-normal tabular-nums text-subtle"
         >
-          {count === "pending" ? <SkeletonText className="w-[2ch]" /> : count}
+          {count === "pending" ? (
+            <SkeletonText style={{ width: `${Math.max(1, pendingCountDigits)}ch` }} />
+          ) : (
+            count
+          )}
         </span>
       ) : null}
       {liveLabel ? (
