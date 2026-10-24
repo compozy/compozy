@@ -695,13 +695,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # Run the full integration suite on a fresh runner.
+  # Run the full integration suite on a fresh runner: on release PRs, and on
+  # every routine push to main so integration regressions surface when they
+  # merge instead of at release time. Release-merge pushes are skipped (their
+  # release PR already ran it); superseded main pushes cancel via concurrency.
   integration:
     name: Full Integration Suite (${{ matrix.shard_index }})
     if: |
-      github.event_name == 'pull_request' &&
-      (startsWith(github.event.pull_request.title, 'build: release ') ||
-       startsWith(github.base_ref, 'release/v'))
+      (github.event_name == 'pull_request' &&
+       (startsWith(github.event.pull_request.title, 'build: release ') ||
+        startsWith(github.base_ref, 'release/v'))) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+       !startsWith(github.event.head_commit.message, 'release:') &&
+       !startsWith(github.event.head_commit.message, 'ci(release):'))
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
