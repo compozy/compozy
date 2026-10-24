@@ -53,7 +53,7 @@ export function useCmdPaletteContext({
             focusedSessionState,
           })
         : null,
-    sameContextSnapshot
+    (left, right) => left !== undefined && sameContextSnapshot(left, right)
   );
   const [settled, setSettled] = useState<CmdPaletteContextSnapshot | null>(live);
   const commitLive = useEffectEvent(() => {
