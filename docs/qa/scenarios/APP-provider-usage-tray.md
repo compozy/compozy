@@ -51,21 +51,22 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
   through a background interval;
 - **Allow** saves the Settings switch; the daemon runs exactly one explicit collection and the web only invalidates its query (no follow-up refresh POST); macOS asks for
   `Claude Code-credentials`; **Allow** fills Session, Weekly, per-model weekly, and Extra usage;
-- **Deny** shows `Keychain access denied` with **Try again**; nothing retries until clicked;
+- **Deny** shows `Keychain access denied` with **Try again**; background retries are silent and never
+  prompt, including when OS access is later granted outside CompozyOS;
 - with Claude Code signed out of the Keychain (no `Claude Code-credentials` item), **Allow** ends in
   `Signed out · Sign in with Claude to read usage`, not a denial;
 - while the loaded token is valid, background refreshes keep the row fresh without a prompt; once
-  it expires the row reads `Refresh to reload your Claude login` and ⟳ reloads it (silent after
-  **Always Allow**);
+  it expires the daemon silently rereads the exact routed item. If Claude Code has renewed it, usage
+  recovers automatically; an actually expired credential directs the operator to `claude /login`;
 - `compozy provider usage refresh claude` from the host terminal behaves like **Allow** once
   consent is on and prints only the Claude row; a gateway device sees `Approve on the host Mac: open CompozyOS there and refresh`
   and never triggers a prompt;
-- restart the daemon: rows read `Loading…` until their first collection; Claude asks for **Refresh**
-  with consent still on;
+- restart only the isolated lab daemon: rows read `Loading…` until their first collection; Claude
+  recovers automatically when consent is still on and OS access is available;
 - sign in to Claude Code with another account or sign out: the old numbers disappear instead of
   turning stale;
 - within 30 seconds of a successful collection, switch the native Claude login to another account
-  and let a background refresh discard the old usage. Click the row's **Refresh** immediately:
+  and let a background refresh reread the replacement login. Click the row's **Refresh** immediately:
   the new account's usage and plan appear without waiting for the previous collection's freshness
   window. The next background interval refreshes that account without another Keychain read;
 - repeat with a provider route selecting another `CLAUDE_CONFIG_DIR`,
@@ -109,3 +110,14 @@ starts collapsed to one line with a compact trailing cue (percent used, or a wor
 Usage app no longer opens every row expanded. The shared `ScrollArea` bar now overlays a reserved
 gutter and shows only on hover, scroll, or keyboard focus. Re-walk the expand-then-act steps;
 status stays `untested`.
+
+### Automatic recovery and explicit feedback
+
+- In two operator profiles with consent, open the tray and Usage app after a fresh lab startup.
+  Each profile independently acquires its routed credentials without a prompt or a previous explicit
+  refresh. Expire the cached credential and let Claude Code renew its native item; the next scheduled
+  collection must recover. Never alter the operator's credential to manufacture expiry.
+- Switch profiles and refresh a single row. Verify the POST names the displayed profile and provider,
+  the busy indicator appears, and an unsuccessful collection ends with a precise visible result.
+- From a gateway client, a cached-login refresh warning explains that OS authorization must happen
+  on the host Mac. Refresh never opens an OS prompt remotely.

@@ -558,19 +558,20 @@ the topbar globe, not a config key.
 sets it fails to load (`provider_usage settings are global-only`) and profile overlays reject it
 (`profile_config_key_denied`).
 
-| Key                                               | Default | Notes                                                                             |
-| ------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
-| `provider_usage.enabled`                          | `true`  | `false` removes the tray meter, stops collection, and empties envelopes.          |
-| `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                    |
-| `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.        |
-| `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for explicit local Keychain reads; turning it off clears the token. |
+| Key                                               | Default | Notes                                                                                                |
+| ------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
+| `provider_usage.enabled`                          | `true`  | `false` removes the tray meter, stops collection, and empties envelopes.                             |
+| `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                                       |
+| `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.                           |
+| `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for Keychain reads; only local explicit reads may prompt; revocation clears the token. |
 
 Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/settings/provider-usage`
 (the PATCH body carries the complete `config` section; the response adds read-only
 `keychain_supported`, `true` only on a macOS daemon). Agents may change `enabled`,
 `refresh_interval`, and `providers.<id>.enabled` through `compozy__config_set`, but not
-`keychain_access`: consent is operator-only. Consent alone never reads the Keychain; a read still
-needs an explicit local refresh, which agents cannot make.
+`keychain_access`: consent is operator-only. With existing consent, scheduled collection may
+silently reread the routed Keychain item. OS authorization prompts still require an explicit local
+refresh, which agents cannot make. CompozyOS never exchanges Claude Code refresh tokens.
 
 ## User-scope execution directory
 

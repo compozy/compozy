@@ -215,7 +215,7 @@ describe("describeProviderUsageStatus (UT-063)", () => {
       "keychain_token_expired",
       status.keychainTokenExpired,
       mac,
-      "Login expired",
+      "Needs refresh",
       "Refresh to reload your Claude login",
       "Refresh",
     ],
@@ -272,11 +272,14 @@ describe("describeProviderUsageStatus (UT-063)", () => {
     expect(describeProviderUsageStatus(codexOkTarget(NOW), mac)).toBeNull();
   });
 
-  it("Should route remote consent to the host Mac", () => {
-    const presentation = describeProviderUsageStatus(status.needsConsent, {
-      ...mac,
-      remoteClient: true,
-    });
-    expect(presentation?.note).toBe("Approve on the host Mac: open CompozyOS there and refresh");
-  });
+  it.each([status.needsConsent, status.keychainTokenExpired])(
+    "Should route remote consent and credential reload to the host Mac",
+    target => {
+      const presentation = describeProviderUsageStatus(target, {
+        ...mac,
+        remoteClient: true,
+      });
+      expect(presentation?.note).toBe("Approve on the host Mac: open CompozyOS there and refresh");
+    }
+  );
 });

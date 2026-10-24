@@ -6,9 +6,17 @@ import { toast } from "@compozy/ui";
 
 import { refreshProviderUsage } from "../adapters/provider-usage-api";
 import { providerUsageKeys } from "../lib/query-keys";
-import type { ProviderUsageRowAction } from "../lib/status";
+import { describeProviderUsageStatus, type ProviderUsageRowAction } from "../lib/status";
 import { PROVIDER_USAGE_OPEN_MAX_AGE_SECONDS, targetsNeedingOpenRefresh } from "../lib/view-model";
 import type { ProviderUsageEnvelope, ProviderUsageRefreshIntent } from "../types";
+
+const REFRESH_WARNING_STATUSES = new Set([
+  "needs_consent",
+  "signed_out",
+  "error",
+  "stale",
+  "rate_limited",
+]);
 
 export interface ProviderUsageRefreshInput {
   intent: ProviderUsageRefreshIntent;
@@ -32,6 +40,21 @@ export function useRefreshProviderUsage(profile: string) {
         ...(providerIds && providerIds.length > 0 ? { provider_ids: providerIds } : {}),
         ...(maxAgeSeconds === undefined ? {} : { max_age_seconds: maxAgeSeconds }),
       }),
+    onSuccess: (envelope, { intent, providerIds }) => {
+      if (intent !== "explicit") return;
+      const requested = providerIds?.length ? new Set(providerIds) : null;
+      for (const target of envelope.targets) {
+        if (requested && !requested.has(target.provider_id)) continue;
+        if (!REFRESH_WARNING_STATUSES.has(target.status) || target.refreshing) continue;
+        const status = describeProviderUsageStatus(target, {
+          now: Date.now(),
+          isMacHost: envelope.keychain_supported,
+        });
+        toast.warning(`${target.provider_name} usage still needs attention`, {
+          description: target.error?.message.trim() || status?.text,
+        });
+      }
+    },
     onError: (error, { intent }) => {
       if (intent === "explicit") {
         toast.error("Couldn't refresh provider usage", { description: error.message });

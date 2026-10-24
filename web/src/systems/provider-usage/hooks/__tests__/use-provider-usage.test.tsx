@@ -23,6 +23,7 @@ import { providerUsageKeys } from "../../lib/query-keys";
 import {
   codexOkTarget,
   defaultUsageEnvelope,
+  statusTargets,
   usageEnvelope,
   usageTarget,
 } from "../../mocks/fixtures";
@@ -65,6 +66,7 @@ describe("provider usage hooks", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(toast, "error").mockReturnValue("usage-error");
+    vi.spyOn(toast, "warning").mockReturnValue("usage-warning");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -191,6 +193,87 @@ describe("provider usage hooks", () => {
       intent: "explicit",
       provider_ids: ["claude"],
     });
+  });
+
+  it("Should refresh the displayed profile and row after switching between non-default profiles", async () => {
+    const { wrapper } = setup();
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const request = input as Request;
+      const profile =
+        request.method === "POST"
+          ? (await request.clone().json()).profile
+          : new URL(request.url).searchParams.get("profile");
+      return jsonResponse(
+        usageEnvelope(
+          [usageTarget({ provider_id: "claude", provider_name: `Claude ${profile}` })],
+          { profile_id: profile }
+        )
+      );
+    });
+    const { result, rerender } = renderHook(
+      ({ profile }) => ({
+        usage: useProviderUsage(profile),
+        actions: useProviderUsageActions(profile),
+      }),
+      { wrapper, initialProps: { profile: "work" } }
+    );
+    for (const profile of ["work", "personal"]) {
+      rerender({ profile });
+      await waitFor(() => expect(result.current.usage.viewModel?.profileId).toBe(profile));
+      expect(result.current.usage.viewModel?.rows[0]?.target.provider_name).toBe(
+        `Claude ${profile}`
+      );
+      act(() => result.current.actions.runAction("claude", "refresh"));
+      await waitFor(() => expect(refreshCalls()).toHaveLength(profile === "work" ? 1 : 2));
+      expect(await requestBody(refreshCalls().at(-1) ?? -1)).toEqual({
+        profile,
+        intent: "explicit",
+        provider_ids: ["claude"],
+      });
+      await waitFor(() => expect(result.current.actions.pendingProviderIds.size).toBe(0));
+    }
+  });
+
+  it.each(["needs_consent", "signed_out", "error", "stale", "rate_limited"] as const)(
+    "Should explain an explicit refresh that returns %s without warning about unrequested rows",
+    async status => {
+      const { wrapper } = setup();
+      const message = "Run Claude Code to refresh your login";
+      vi.mocked(globalThis.fetch).mockResolvedValue(
+        jsonResponse(
+          usageEnvelope([
+            usageTarget({
+              provider_id: "claude",
+              provider_name: "Claude Code",
+              status,
+              error: { code: "auth_expired", message, action: "sign_in", retry_after: null },
+            }),
+            statusTargets().codexAuthExpired,
+          ])
+        )
+      );
+      const { result } = renderHook(() => useProviderUsageActions("work"), { wrapper });
+      act(() => result.current.runAction("claude", "refresh"));
+      await waitFor(() =>
+        expect(toast.warning).toHaveBeenCalledWith("Claude Code usage still needs attention", {
+          description: message,
+        })
+      );
+      expect(toast.warning).toHaveBeenCalledTimes(1);
+      expect(toast.error).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should keep background collection outcomes silent", async () => {
+    const { queryClient, wrapper } = setup();
+    const envelope = usageEnvelope([statusTargets().keychainTokenExpired]);
+    queryClient.setQueryData(providerUsageKeys.envelope("work"), envelope);
+    vi.mocked(globalThis.fetch).mockResolvedValue(jsonResponse(envelope));
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderUsageOpenRefresh("work"), { wrapper });
+    act(() => result.current());
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 
   it.each(["all", "retry", "refresh"] as const)(
