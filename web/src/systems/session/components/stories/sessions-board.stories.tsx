@@ -10,6 +10,7 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import type { SessionsBoardLane } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoard } from "../session-board/sessions-board";
+import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
 import { SESSIONS_BOARD_SESSIONS, sessionsBoardView } from "./sessions-board-fixtures";
 
 const meta: Meta<typeof SessionsBoard> = {
@@ -53,6 +54,31 @@ export const Loading: Story = {
       { count: 0, sessions: [] }
     ),
   },
+};
+
+/** Group by Project while the lanes' facets are read: lane headers over rows of columns, as blocks. */
+export const LoadingGroupedLanes: Story = {
+  args: {
+    board: {
+      ...sessionsBoardView(),
+      columns: [],
+      lanes: [],
+      lanesLoading: true,
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+    },
+  },
+};
+
+/** The whole board before any of it is known: what the Sessions window shows while its code loads. */
+export const BoardSkeleton: StoryObj<typeof SessionsBoardSkeleton> = {
+  args: {},
+  render: () => <SessionsBoardSkeleton />,
+};
+
+export const BoardSkeletonLanes: StoryObj<typeof SessionsBoardSkeleton> = {
+  args: {},
+  render: () => <SessionsBoardSkeleton layout="lanes" />,
 };
 
 export const Empty: Story = {

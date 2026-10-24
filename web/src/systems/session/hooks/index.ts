@@ -89,7 +89,6 @@ export {
 } from "./use-session-window-view-state";
 export { useSessionWindowOrder, type SessionWindowOrder } from "./use-session-window-order";
 export {
-  SESSION_BOARD_COLUMNS,
   useSessionsBoard,
   useSessionsBoardColumns,
   type SessionsBoardColumnView,

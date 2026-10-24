@@ -11,6 +11,14 @@ import type { SessionPayload } from "../types";
 
 export type SessionBoardColumnId = SessionPayload["board_column"];
 
+/** The board's four derived columns in display order, with the names their headers carry. */
+export const SESSION_BOARD_COLUMNS: readonly { id: SessionBoardColumnId; label: string }[] = [
+  { id: "needs_you", label: "Needs you" },
+  { id: "working", label: "Working" },
+  { id: "in_review", label: "In review" },
+  { id: "done", label: "Done" },
+];
+
 export type SessionPullRequest = components["schemas"]["SessionPullRequestPayload"];
 export type SessionChildrenRollup = components["schemas"]["SessionChildrenPayload"];
 export type SessionBoardFacets = components["schemas"]["SessionBoardCountsPayload"];

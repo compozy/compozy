@@ -1,15 +1,7 @@
-import { ChevronRight, CircleSlash, GitPullRequest } from "lucide-react";
+import { ChevronRight, CircleSlash } from "lucide-react";
 import { useId } from "react";
 
-import {
-  Alert,
-  AlertActions,
-  AlertDescription,
-  Button,
-  Skeleton,
-  Spinner,
-  StateGlyph,
-} from "@compozy/ui";
+import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -17,8 +9,14 @@ import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lif
 import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCard } from "./session-board-card";
-
-const SKELETON_KEYS = ["a", "b", "c"] as const;
+import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
+import {
+  SESSIONS_BOARD_COLUMN_BODY,
+  SESSIONS_BOARD_COLUMN_FRAME,
+  SESSIONS_BOARD_COLUMN_HEADER,
+  SESSIONS_BOARD_COLUMN_TITLE,
+} from "./sessions-board-frame";
+import { SessionsBoardColumnCardsSkeleton } from "./sessions-board-skeleton";
 
 const EMPTY_COPY: Record<SessionBoardColumnId, string> = {
   needs_you: "Nothing needs you",
@@ -44,14 +42,6 @@ export interface SessionsBoardColumnProps {
   /** Swimlanes repeat the columns: the lane names the region and prefixes test ids. */
   regionPrefix?: string;
   testIdPrefix?: string;
-}
-
-function ColumnGlyph({ id }: { id: SessionBoardColumnId }) {
-  if (id === "in_review") {
-    return <GitPullRequest aria-hidden="true" className="size-3.5 shrink-0 text-info" />;
-  }
-  const state = id === "needs_you" ? "attention" : id === "working" ? "running" : "done";
-  return <StateGlyph state={state} />;
 }
 
 function sessionCountLabel(count: number): string {
@@ -82,26 +72,15 @@ export function SessionsBoardColumn({
   return (
     <section
       aria-label={regionLabel}
-      className={cn(
-        "flex min-h-0 w-74 shrink-0 flex-col overflow-hidden rounded-lg bg-sunken",
-        collapsed && "w-11"
-      )}
+      className={cn(SESSIONS_BOARD_COLUMN_FRAME, collapsed && "w-11")}
       data-collapsed={collapsed ? "true" : undefined}
       data-testid={`${testIdPrefix}-column-${column.id}`}
     >
       <header
-        className={cn(
-          "flex shrink-0 items-center gap-2 px-3 pt-3 pb-2",
-          collapsed && "flex-col gap-2.5 px-0 py-2.5"
-        )}
+        className={cn(SESSIONS_BOARD_COLUMN_HEADER, collapsed && "flex-col gap-2.5 px-0 py-2.5")}
       >
-        <ColumnGlyph id={column.id} />
-        <h2
-          className={cn(
-            "text-item-title font-medium text-fg",
-            collapsed && "[writing-mode:vertical-rl]"
-          )}
-        >
+        <SessionsBoardColumnGlyph id={column.id} />
+        <h2 className={cn(SESSIONS_BOARD_COLUMN_TITLE, collapsed && "[writing-mode:vertical-rl]")}>
           {column.label}
         </h2>
         {count !== undefined && !column.loading ? (
@@ -135,7 +114,7 @@ export function SessionsBoardColumn({
       </header>
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pt-1 pb-3",
+          SESSIONS_BOARD_COLUMN_BODY,
           layout === "lane" && "max-h-96",
           collapsed && "hidden"
         )}
@@ -165,9 +144,7 @@ function SessionsBoardColumnBody({
 }: Omit<SessionsBoardColumnProps, "collapsible" | "layout" | "regionPrefix"> & {
   testIdPrefix: string;
 }) {
-  if (column.loading) {
-    return SKELETON_KEYS.map(key => <SessionBoardCardSkeleton key={key} />);
-  }
+  if (column.loading) return <SessionsBoardColumnCardsSkeleton id={column.id} />;
   if (column.failure === "initial") {
     return (
       <div
@@ -310,19 +287,5 @@ export function SessionsBoardLoadMore({
         </span>
       ) : null}
     </Button>
-  );
-}
-
-function SessionBoardCardSkeleton() {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex w-full shrink-0 flex-col gap-2.5 rounded-lg bg-card p-3 shadow-card"
-      data-testid="sessions-board-card-skeleton"
-    >
-      <Skeleton className="h-2.5 w-[55%] rounded-xs" />
-      <Skeleton className="h-3 w-[90%] rounded-xs" />
-      <Skeleton className="h-2.5 w-2/5 rounded-xs" />
-    </div>
   );
 }

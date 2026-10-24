@@ -5,6 +5,12 @@ import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionsBoardArchiveBar } from "./sessions-board-archive-bar";
 import {
+  SESSIONS_BOARD_FRAME,
+  SESSIONS_BOARD_LANES,
+  SESSIONS_BOARD_SCROLLER,
+} from "./sessions-board-frame";
+import { SessionsBoardLanesSkeleton } from "./sessions-board-skeleton";
+import {
   SessionsBoardColumnsRow,
   SessionsBoardLanesFailure,
   SessionsBoardSwimlane,
@@ -41,8 +47,8 @@ export function SessionsBoard({
     workspaceNameOf: board.workspaceNameOf,
   };
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas" data-testid="sessions-board">
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+    <div className={SESSIONS_BOARD_FRAME} data-testid="sessions-board">
+      <div className={SESSIONS_BOARD_SCROLLER}>
         {board.lanes === null ? (
           <SessionsBoardColumnsRow {...row} columns={board.columns} layout="fill" />
         ) : (
@@ -67,9 +73,7 @@ function SessionsBoardLanes({
   row: Omit<React.ComponentProps<typeof SessionsBoardSwimlane>, "lane">;
 }) {
   if (board.lanesError) return <SessionsBoardLanesFailure onRetry={board.lanesError.retry} />;
-  if (board.lanesLoading) {
-    return <p className="px-3 py-8 text-center text-small-body text-muted">Loading sessions…</p>;
-  }
+  if (board.lanesLoading) return <SessionsBoardLanesSkeleton />;
   if (board.lanes === null || board.lanes.length === 0) {
     return (
       <p
@@ -81,7 +85,7 @@ function SessionsBoardLanes({
     );
   }
   return (
-    <div className="flex w-max min-w-full flex-col gap-6" data-testid="sessions-board-lanes">
+    <div className={SESSIONS_BOARD_LANES} data-testid="sessions-board-lanes">
       {board.lanes.map(lane => (
         <SessionsBoardSwimlane {...row} key={lane.group.key} lane={lane} />
       ))}
