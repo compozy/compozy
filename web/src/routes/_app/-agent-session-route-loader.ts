@@ -1,6 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
+import {
+  ensureRouteQueryData,
+  resolveActiveWorkspaceSelection,
+  settleRouteQueries,
+} from "./-route-preload";
 import { sessionRouteOwnership, type SessionRouteOwnership } from "./-session-route-ownership";
 import {
   cachedForeignSessionOwner,
@@ -63,9 +67,14 @@ export async function prefetchAgentSessionRoute({
     // enforces the profile lens but is intentionally workspace-agnostic; using
     // it alone would silently open another destination's session. The User
     // desktop proves through `@user`, which resolves to the request's profile.
-    await queryClient.ensureQueryData(sessionDetailOptions(ownership.proofSelector, sessionId));
-    await queryClient.ensureQueryData(
-      sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
+    const proofSelector = ownership.proofSelector;
+    await ensureRouteQueryData(() =>
+      queryClient.ensureQueryData(sessionDetailOptions(proofSelector, sessionId))
+    );
+    await ensureRouteQueryData(() =>
+      queryClient.ensureQueryData(
+        sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
+      )
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
@@ -92,12 +101,14 @@ async function resolveForeignSession(
   sessionId: string,
   ownership: SessionRouteOwnership
 ): Promise<AgentSessionRouteLoaderData> {
-  const owner = await resolveSessionOwner(queryClient, sessionId);
+  const owner = await ensureRouteQueryData(() => resolveSessionOwner(queryClient, sessionId));
   if (!owner) {
     return { status: "not-found" };
   }
   if (ownership.accepts(owner.workspaceId)) {
-    await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
+    await ensureRouteQueryData(() =>
+      queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId))
+    );
     await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
