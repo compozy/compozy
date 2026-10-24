@@ -57,8 +57,8 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 		var calls atomic.Int32
 		runtime.driver.mu.Lock()
 		runtime.driver.promptHook = func(_ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			calls.Add(1)
-			if req.Message == "hold for HTTP replay" {
+			// Hold the first dispatch even when runtime recovery prepends transcript context.
+			if calls.Add(1) == 1 {
 				return held, nil
 			}
 			done := make(chan acp.AgentEvent, 1)
@@ -70,6 +70,9 @@ func TestHTTPPromptIdentityRoundTrip(t *testing.T) {
 		active, err := runtime.manager.Prompt(t.Context(), id, "hold for HTTP replay")
 		if err != nil {
 			t.Fatal(err)
+		}
+		if !runtime.manager.IsPrompting(id) {
+			t.Fatal("held prompt must remain active before concurrent retries")
 		}
 		url := mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+id+"/prompt")
 		body := []byte(

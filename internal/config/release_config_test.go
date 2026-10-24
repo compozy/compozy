@@ -1106,6 +1106,10 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		)
 		assertContainsText(t, "desktop dry-run smoke artifact version", desktopSmokeJob, sharedVersion)
 		assertNotContainsText(t, "desktop dry-run smoke", desktopSmokeJob, "0.0.0-beta.0")
+		channel := "RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}"
+		if count := strings.Count(desktopSmokeJob, channel); count != 2 {
+			t.Fatalf("dry-run smoke channel bindings = %d, want 2", count)
+		}
 	})
 
 	t.Run("Should fail closed on signing and prove macOS provenance", func(t *testing.T) {

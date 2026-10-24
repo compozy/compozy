@@ -538,7 +538,7 @@ jobs:
 
       - name: Provision from the transferred package
         env:
-          RELEASE_CHANNEL: beta
+          RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
           bash scripts/smoke-desktop-release-artifact.sh \
             "${{ matrix.platform }}" \
@@ -549,7 +549,7 @@ jobs:
       - name: Verify Linux AppImage extraction fallback
         if: matrix.platform == 'linux'
         env:
-          RELEASE_CHANNEL: beta
+          RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
           bash scripts/smoke-desktop-release-artifact.sh \
             "${{ matrix.platform }}" \
