@@ -1,7 +1,7 @@
 name: Peer convergence diagnostic
 on:
   push:
-    branches: [fix/issue-941-e2e023-peer-convergence]
+    branches: [fix/issue-941-residual-2]
 permissions:
   contents: read
 jobs:
@@ -11,6 +11,7 @@ jobs:
     env:
       CGO_ENABLED: 0
       CI: "true"
+      COMPOZY_PEER_PROFILE: "1"
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
     steps:
       - uses: actions/checkout@v7
@@ -24,7 +25,15 @@ jobs:
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
       - name: Check window component behavior
         run: bunx turbo run test --filter=./web -- src/systems/os/components/__tests__/os-window.test.tsx
-      - name: Validate thirty uninstrumented repetitions
+      - name: Attribute residual convergence work
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         working-directory: web
-        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 30
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 5
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: residual-2-peer-profile
+          path: |
+            .tmp/playwright
+            web/dist
+          retention-days: 7
