@@ -286,6 +286,10 @@ function projectPaletteSessions(
   return sessionRows;
 }
 
+const noopWindowSlotSubscribe = () => () => undefined;
+const closedWindowSlotVersion = () => 0;
+
+/** Reads live tab metadata only while visible; reopening observes the current stores. */
 export function usePaletteTabs(
   open: boolean,
   destinationWindowId: string | null,
@@ -298,9 +302,9 @@ export function usePaletteTabs(
     shallowEqual
   );
   useSyncExternalStore(
-    subscribeWindowSlotRegistry,
-    windowSlotRegistryVersion,
-    windowSlotRegistryVersion
+    open ? subscribeWindowSlotRegistry : noopWindowSlotSubscribe,
+    open ? windowSlotRegistryVersion : closedWindowSlotVersion,
+    open ? windowSlotRegistryVersion : closedWindowSlotVersion
   );
   const liveWindowIds = Object.keys(desktopData?.windows ?? {}).join("\0");
   useEffect(() => {
