@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 
 import {
   CatalogCardSkeleton,
+  ListingToolbar,
   Skeleton,
   SkeletonRegion,
   SkeletonText,
@@ -18,6 +19,7 @@ import {
   INVENTORY_ROWS_CLASS,
 } from "./loop-node-inventory-classes";
 import { InventoryHeadRow } from "./loop-node-inventory-parts";
+import { LoopNodeInventorySection } from "./loop-node-inventory-section";
 
 const SKELETON_ROWS = 5;
 
@@ -93,5 +95,35 @@ export function LoopNodeInventorySkeleton({
     >
       {view === "cards" ? <InventoryCardsSkeleton /> : <InventoryRowsSkeleton />}
     </SkeletonRegion>
+  );
+}
+
+/**
+ * The inventory page before its first read, for a window that shows it before the page's code has
+ * loaded: the section and its toolbar row (the state switch, the two filters and the view toggle)
+ * as blocks, over the results' skeleton. Nothing in it takes focus; the results' status region is
+ * the page's only one.
+ */
+export function LoopNodeInventoryPageSkeleton({
+  state,
+  view,
+}: {
+  state: LoopNodeInventoryState;
+  view: ListingViewMode;
+}) {
+  return (
+    <LoopNodeInventorySection>
+      <ListingToolbar aria-hidden="true">
+        <ListingToolbar.Leading>
+          <Skeleton className="h-control-compact w-80 shrink-0 rounded-pill" />
+          <Skeleton className="h-control-compact w-48 shrink-0 rounded-md" />
+          <Skeleton className="h-control-compact w-48 shrink-0 rounded-md" />
+        </ListingToolbar.Leading>
+        <ListingToolbar.Trailing>
+          <Skeleton className="h-control-compact w-32 rounded-pill" />
+        </ListingToolbar.Trailing>
+      </ListingToolbar>
+      <LoopNodeInventorySkeleton state={state} view={view} />
+    </LoopNodeInventorySection>
   );
 }

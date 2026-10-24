@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Layers } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import {
   Button,
@@ -9,7 +9,6 @@ import {
   type ListingViewMode,
   StateGlyph,
   PillGroup,
-  Section,
   Select,
   SelectContent,
   SelectItem,
@@ -27,6 +26,7 @@ import {
 } from "../../lib/loop-node-inventory";
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
 import { useWindowBindingSearch } from "@/systems/workspace";
+import { LoopNodeInventorySection } from "./loop-node-inventory-section";
 import { LoopNodeInventorySkeleton } from "./loop-node-inventory-skeleton";
 import {
   INVENTORY_CARDS_CLASS,
@@ -97,12 +97,7 @@ export function LoopNodeInventoryView({
   const rows = items.map(item => buildInventoryRow(item, nowMs));
   const filtered = loopFilter !== "" || runFilter !== "";
   return (
-    <Section
-      data-testid="loop-node-inventory"
-      icon={Layers}
-      label="Inventory"
-      bodyClassName="gap-4"
-    >
+    <LoopNodeInventorySection>
       <ListingToolbar>
         <ListingToolbar.Leading>
           {/* No count badges: the route publishes `{items, next_cursor}` and no
@@ -155,7 +150,7 @@ export function LoopNodeInventoryView({
         state={state}
         view={view}
       />
-    </Section>
+    </LoopNodeInventorySection>
   );
 }
 

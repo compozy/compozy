@@ -87,6 +87,9 @@ export const LoopConfigure: Story = {
   args: { app: "loops", pathname: "/loops/ship-it/configure" },
 };
 export const LoopRuns: Story = { args: { app: "loops", pathname: "/loop-runs" } };
+export const LoopRunSteps: Story = {
+  args: { app: "loops", pathname: "/loop-runs", search: { nodes: "waiting" } },
+};
 export const LoopRun: Story = { args: { app: "loops", pathname: "/loop-runs/run-1" } };
 export const LoopRunComparison: Story = {
   args: { app: "loops", pathname: "/loop-runs/run-1/diff" },

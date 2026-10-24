@@ -13,7 +13,7 @@ import {
   LoopCatalogSkeleton,
   LoopDetailSkeletonBody,
   LoopEditorStaticSkeleton,
-  LoopNodeInventorySkeleton,
+  LoopNodeInventoryPageSkeleton,
   LoopRunDiffPageSkeleton,
   LoopRunFormSkeleton,
   LoopRunPageSkeleton,
@@ -58,7 +58,7 @@ function LoopRunsFallback({ search }: { search: LoopRunsRouteSearch }) {
         {inventory === undefined ? (
           <LoopRunsSkeleton withProject={false} />
         ) : (
-          <LoopNodeInventorySkeleton state={inventory} view={search.view ?? "rows"} />
+          <LoopNodeInventoryPageSkeleton state={inventory} view={search.view ?? "rows"} />
         )}
       </ListingPage>
     </>

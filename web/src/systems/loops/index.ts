@@ -308,7 +308,7 @@ export { LoopRunsView } from "./components/runs/loop-runs-view";
 export { LoopRunsSkeleton } from "./components/runs/loop-runs-skeleton";
 export { LoopRunsFilters } from "./components/runs/loop-runs-filters";
 export { LoopNodeInventoryView } from "./components/runs/loop-node-inventory-view";
-export { LoopNodeInventorySkeleton } from "./components/runs/loop-node-inventory-skeleton";
+export { LoopNodeInventoryPageSkeleton } from "./components/runs/loop-node-inventory-skeleton";
 export type { LoopNodeInventoryViewProps } from "./components/runs/loop-node-inventory-view";
 export type { LoopOutcomeValue } from "./lib/loop-runs-view";
 export { LoopTargetFields } from "./components/target/loop-target-fields";
