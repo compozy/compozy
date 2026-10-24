@@ -1,7 +1,7 @@
 import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import { filterAgentSessionsByStatus, type AgentSessionFilter } from "../lib/agent-detail-search";
-import { AgentSessionsList } from "./agent-sessions-list";
+import { AgentSessionsList, AgentSessionsSkeleton } from "./agent-sessions-list";
 import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 
 /** Filter pills carry the catalog counts; counts stay hidden until the aggregate is exact. */
@@ -140,6 +140,30 @@ export function AgentSessionsTab({
         sessionActions={sessionActions}
         onRetry={onRetry}
       />
+    </div>
+  );
+}
+
+export interface AgentSessionsTabSkeletonProps {
+  filter: AgentSessionFilter;
+  onFilterChange: (filter: AgentSessionFilter) => void;
+}
+
+/** The tab while the agent loads: the real filter pills without counts, over the table skeleton. */
+export function AgentSessionsTabSkeleton({
+  filter,
+  onFilterChange,
+}: AgentSessionsTabSkeletonProps) {
+  return (
+    <div className="flex flex-col gap-4" data-testid="agent-sessions-tab-skeleton">
+      <PillGroup
+        aria-label="Session filter"
+        items={sessionFilterItems(null)}
+        onChange={onFilterChange}
+        size="md"
+        value={filter}
+      />
+      <AgentSessionsSkeleton />
     </div>
   );
 }

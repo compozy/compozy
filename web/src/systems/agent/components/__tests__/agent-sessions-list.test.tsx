@@ -107,6 +107,21 @@ describe("AgentSessionsList", () => {
     expect(screen.queryByText("New session")).not.toBeInTheDocument();
   });
 
+  it("holds the table's header and row grid while the sessions load", () => {
+    render(<AgentSessionsList agentName="codex-agent" sessions={[]} status="loading" />);
+
+    // One busy region over the real header, so the columns do not move when the rows arrive.
+    const loading = screen.getByTestId("agent-sessions-loading");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading).toHaveTextContent("Loading sessions");
+    expect(
+      within(loading)
+        .getAllByRole("columnheader")
+        .map(header => header.textContent)
+    ).toEqual(["Session", "Status", "Duration", "Last activity", "Actions"]);
+    expect(screen.queryByTestId("agent-sessions-empty")).not.toBeInTheDocument();
+  });
+
   it("offers a retry when the session list fails to load", () => {
     const onRetry = vi.fn();
     render(

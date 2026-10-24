@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useDeferredValue, useEffect, useRef, ViewTransition } from "react";
 import { Bot } from "lucide-react";
 
 import {
@@ -11,11 +11,13 @@ import {
   Spinner,
   cn,
   dialogShellClass,
+  VIEW_TRANSITION_CLASS,
 } from "@compozy/ui";
 
 import {
   AGENT_SETTINGS_SECTIONS,
   AgentSettingsPanels,
+  AgentSettingsPanelsSkeleton,
   type AgentSettingsSearch,
   type AgentSettingsSection,
   resolveAgentSettingsSearch,
@@ -42,6 +44,10 @@ export function AgentSettingsLocation({
   const search = resolveAgentSettingsSearch(rawSearch);
   const page = useAgentSettingsPage({ name, section: search.section });
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  // The section lives in the window route, an external store whose updates are never transitions.
+  // The nav reads it at once; the panel reads it deferred, so its swap is a transition the fade
+  // below can animate while the nav highlight does not wait.
+  const panelSection = useDeferredValue(search.section);
 
   useEffect(() => {
     const previous = document.activeElement;
@@ -85,71 +91,67 @@ export function AgentSettingsLocation({
           title={`Edit ${name}`}
         />
 
-        {page.agentLoading || !page.agent || !page.draft ? (
-          <div
-            className="flex flex-1 items-center justify-center gap-2 px-6 py-10 text-muted"
-            data-testid="agent-settings-loading"
+        <div
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row"
+          data-testid="agent-settings-page"
+        >
+          <nav
+            aria-label="Agent settings sections"
+            className="flex w-full shrink-0 flex-wrap gap-1 border-b border-line px-3 py-2 md:w-settings-nav md:flex-col md:flex-nowrap md:border-r md:border-b-0 md:py-3"
+            data-testid="agent-settings-section-nav"
           >
-            <Spinner aria-hidden="true" />
-            Loading settings…
+            {AGENT_SETTINGS_SECTIONS.map(section => {
+              const isActive = search.section === section;
+              return (
+                <button
+                  key={section}
+                  type="button"
+                  data-testid={`agent-settings-nav-${section}`}
+                  data-active={isActive ? "true" : "false"}
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => page.setSection(section)}
+                  className={cn(
+                    "rounded-md px-3 py-2 text-left text-small-body font-medium tracking-tight transition-colors duration-base ease-out",
+                    "w-auto shrink-0 md:w-full",
+                    isActive ? "bg-selected text-fg" : "text-muted hover:bg-hover hover:text-fg"
+                  )}
+                >
+                  <span className="whitespace-nowrap md:truncate">{SECTION_LABELS[section]}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
+              {page.agentLoading || !page.agent || !page.draft ? (
+                <AgentSettingsPanelsSkeleton section={panelSection} />
+              ) : (
+                <AgentSettingsPanels
+                  section={panelSection}
+                  agent={page.agent}
+                  draft={page.draft}
+                  validation={page.validation}
+                  phase={page.phase}
+                  error={page.error}
+                  onReloadAndRetry={() => {
+                    void page.onReloadAndRetry();
+                  }}
+                  onPatch={page.patchDraft}
+                  onDelete={page.deleteFlow.openDialog}
+                  isDeleting={page.deleteFlow.isDeleting}
+                  providerOptions={page.providerOptions}
+                  providersLoading={page.providersLoading}
+                  runtimeModels={page.runtimeModels}
+                  modelCatalogLoading={page.modelCatalogLoading}
+                  modelCatalogRefreshing={page.modelCatalogRefreshing}
+                  modelCatalogError={page.modelCatalogError}
+                  onRefreshCatalog={page.onRefreshCatalog}
+                  onOpenProviderSettings={page.onOpenProviderSettings}
+                />
+              )}
+            </ViewTransition>
           </div>
-        ) : (
-          <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:flex-row"
-            data-testid="agent-settings-page"
-          >
-            <nav
-              aria-label="Agent settings sections"
-              className="flex w-full shrink-0 flex-wrap gap-1 border-b border-line px-3 py-2 md:w-settings-nav md:flex-col md:flex-nowrap md:border-r md:border-b-0 md:py-3"
-              data-testid="agent-settings-section-nav"
-            >
-              {AGENT_SETTINGS_SECTIONS.map(section => {
-                const isActive = search.section === section;
-                return (
-                  <button
-                    key={section}
-                    type="button"
-                    data-testid={`agent-settings-nav-${section}`}
-                    data-active={isActive ? "true" : "false"}
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={() => page.setSection(section)}
-                    className={cn(
-                      "rounded-md px-3 py-2 text-left text-small-body font-medium tracking-tight transition-colors duration-base ease-out",
-                      "w-auto shrink-0 md:w-full",
-                      isActive ? "bg-selected text-fg" : "text-muted hover:bg-hover hover:text-fg"
-                    )}
-                  >
-                    <span className="whitespace-nowrap md:truncate">{SECTION_LABELS[section]}</span>
-                  </button>
-                );
-              })}
-            </nav>
-            <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              <AgentSettingsPanels
-                section={search.section}
-                agent={page.agent}
-                draft={page.draft}
-                validation={page.validation}
-                phase={page.phase}
-                error={page.error}
-                onReloadAndRetry={() => {
-                  void page.onReloadAndRetry();
-                }}
-                onPatch={page.patchDraft}
-                onDelete={page.deleteFlow.openDialog}
-                isDeleting={page.deleteFlow.isDeleting}
-                providerOptions={page.providerOptions}
-                providersLoading={page.providersLoading}
-                runtimeModels={page.runtimeModels}
-                modelCatalogLoading={page.modelCatalogLoading}
-                modelCatalogRefreshing={page.modelCatalogRefreshing}
-                modelCatalogError={page.modelCatalogError}
-                onRefreshCatalog={page.onRefreshCatalog}
-                onOpenProviderSettings={page.onOpenProviderSettings}
-              />
-            </div>
-          </div>
-        )}
+        </div>
 
         <DialogFooter variant="ruled" className="shrink-0 sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
