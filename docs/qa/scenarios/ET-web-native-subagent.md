@@ -86,3 +86,11 @@ reopens. A card without projected nested activity still receives focus; no child
 invented. Verify keyboard activation and a narrow session window. Delegated rows continue
 to open their actual child sessions. E2E-006 owns the daemon-served native click journey;
 `session-thread-navigation.test.tsx` owns paging and repeat-reveal behavior.
+
+QA re-walk 2026-10-24 (merge train, E2E-006): the isolated daemon-served scenario
+passed in 12.3s (48.3s total). Sidebar reveal, manual close/reopen, and All projects
+modal reveal of the settled fold all passed. Native reveal now locates the fold's
+card by subagent ID: retained streaming rows may lack projected part indices.
+The modal gesture uses the existing branch-toggle test ID and preserves an
+already-expanded branch. All content, fold and completion assertions remain.
+This is deterministic ACP-fixture evidence; the real-provider matrix above is unchanged.

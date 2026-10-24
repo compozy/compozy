@@ -295,10 +295,12 @@ test("E2E-006: native subagent list clicks reveal its nested work in the parent"
   await appPage.getByTestId("os-menubar-command-shell.sessions.toggle").click();
   const modal = appPage.getByTestId("os-sessions-modal");
   await expect(modal).toBeVisible();
-  await modal
-    .locator(`[data-testid="os-sessions-modal-session-${scene.sessionId}"]`)
-    .getByRole("button", { name: /subagent/ })
-    .click();
+  const nativeBranchToggle = modal.getByTestId(
+    `os-sessions-modal-thread-toggle-${scene.sessionId}`
+  );
+  if ((await nativeBranchToggle.getAttribute("aria-expanded")) !== "true") {
+    await nativeBranchToggle.click();
+  }
   await modal
     .getByTestId(`os-sessions-modal-subagents-${scene.sessionId}`)
     .getByRole("button", { name: "Open Review the diff (high effort)" })

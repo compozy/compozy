@@ -232,7 +232,11 @@ function SessionTurnFoldRowContent({ row }: { row: SessionTurnFoldRow }) {
     row.id,
     reveal =>
       reveal.turnId === turnId &&
-      (reveal.partIndex === null || rowsContainPart(row.rows, reveal.partIndex))
+      (reveal.subagentId
+        ? row.rows.some(
+            nested => nested.kind === "subagents" && nested.subagentIds.includes(reveal.subagentId!)
+          )
+        : reveal.partIndex === null || rowsContainPart(row.rows, reveal.partIndex))
   );
   const openedForMatch = hold.held;
   const expanded = expandedByReader || openedForMatch;
