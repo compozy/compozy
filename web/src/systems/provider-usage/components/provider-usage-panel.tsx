@@ -11,7 +11,7 @@ import {
   PopoverHeader,
   PopoverTitle,
   ScrollArea,
-  SkeletonRows,
+  SkeletonText,
   Spinner,
 } from "@compozy/ui";
 
@@ -26,6 +26,8 @@ import {
 
 import { ProviderUsageQuietGroup } from "./provider-usage-quiet-group";
 import { ProviderUsageRow } from "./provider-usage-row";
+import { PROVIDER_USAGE_LIST_FRAME } from "./provider-usage-row-frame";
+import { ProviderUsageRowsSkeleton } from "./provider-usage-skeleton";
 
 export interface ProviderUsagePanelProps {
   viewModel: ProviderUsageViewModel | null;
@@ -63,7 +65,7 @@ const NO_PENDING: ReadonlySet<string> = new Set();
 function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number }) {
   const { viewModel, loading, errorMessage, chrome = "popover" } = props;
   if (!viewModel) {
-    if (loading) return <SkeletonRows count={2} className="gap-4 px-2 py-2" aria-busy="true" />;
+    if (loading) return <ProviderUsageRowsSkeleton />;
     if (errorMessage) {
       return (
         <Empty size="compact" title="Couldn't load provider usage" description={errorMessage} />
@@ -103,7 +105,7 @@ function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number
       className={cn("min-h-0", chrome === "popover" ? "max-h-[min(60vh,28rem)]" : "flex-1")}
       viewportClassName={chrome === "popover" ? "max-h-[min(60vh,28rem)]" : undefined}
     >
-      <ul aria-label="Providers" className="flex flex-col gap-0.5">
+      <ul aria-label="Providers" className={PROVIDER_USAGE_LIST_FRAME}>
         {measured.map(row => (
           <li key={row.providerId}>
             <ProviderUsageRow
@@ -188,6 +190,7 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
   } = props;
   const now = useUsageClock();
   const freshness = viewModel?.enabled ? formatUpdated(viewModel.oldestMeasuredAt, now) : null;
+  const pendingFirstRead = viewModel === null && props.loading === true;
   // Refresh is absent, not disabled, while the daemon is unreachable.
   const canRefresh = !daemonUnavailable && viewModel?.enabled !== false;
 
@@ -204,6 +207,11 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
           {freshness ? (
             <p data-slot="provider-usage-freshness" className="text-meta text-muted">
               {freshness}
+            </p>
+          ) : pendingFirstRead ? (
+            // Holds the freshness line's place so the header does not grow when it arrives.
+            <p aria-hidden="true" className="text-meta">
+              <SkeletonText className="w-28" />
             </p>
           ) : null}
         </PopoverHeader>
