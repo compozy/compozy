@@ -3,7 +3,9 @@
 // across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
 // frame order onto visual layers where floating windows remain above tiled resize seams. On the
 // All projects desktop a bound item window names its project (or User) in the chrome; catalog
-// windows and project desktops show no badge.
+// windows and project desktops show no badge. While an app's surface loads, the window body shows
+// the app's registered loading frame for the window's route, or the generic rows for an app
+// without one.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,7 +13,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
-import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib/os-types";
+import type {
+  OsDesktopRuntimeStore,
+  OsWindow as OsWindowState,
+  OsWindowRoute,
+} from "../../lib/os-types";
 import type { LayoutProjection, ProjectedSeam } from "../../lib/window-manager-types";
 import { WINDOW_VISUAL_LAYER, windowVisualLayer } from "../../lib/window-visual-layer";
 import { OsSnapSeamLayer } from "../os-snap-seam";
@@ -73,7 +79,12 @@ function PendingController(): never {
 }
 
 let pendingJobsController = false;
+let jobsLoadingFallback = false;
 let deckOpenNewTab = vi.fn();
+
+function JobsLoadingFallback({ route }: { route: OsWindowRoute }) {
+  return <div aria-label="Loading Automations" data-route={route.pathname} role="status" />;
+}
 
 vi.mock("../../lib/app-registry", () => ({
   OS_APPS: {},
@@ -82,6 +93,7 @@ vi.mock("../../lib/app-registry", () => ({
     icon: () => null,
     Controller:
       pendingJobsController && app === "automations" ? PendingController : TasksController,
+    LoadingFallback: jobsLoadingFallback && app === "automations" ? JobsLoadingFallback : undefined,
   }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
   resolveAppForPath: () => null,
@@ -165,6 +177,7 @@ beforeEach(() => {
   windows = { "window:tasks": windowState() };
   model = hookModel(frameModel());
   pendingJobsController = false;
+  jobsLoadingFallback = false;
   deckOpenNewTab = vi.fn();
   vi.mocked(useOsWindow).mockImplementation(() => model);
   vi.mocked(useDesktop).mockImplementation(selector =>
@@ -450,5 +463,33 @@ describe("OsWindow", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "New tab (⌘T)" }));
     expect(deckOpenNewTab).toHaveBeenCalledOnce();
+  });
+
+  it("Should show the app's loading frame for the window's route while its surface suspends, in place of the generic rows", () => {
+    pendingJobsController = true;
+    jobsLoadingFallback = true;
+    windows = {
+      "window:jobs": windowState({
+        id: "window:jobs",
+        app: "automations",
+        route: { pathname: "/automations/jobs/morning-digest", search: {} },
+      }),
+    };
+    render(
+      <OsWindow
+        frame={frameModel({
+          id: "window:jobs",
+          members: ["window:jobs"],
+          activeWindowId: "window:jobs",
+        })}
+      />
+    );
+
+    const body = screen.getByTestId("os-window-window:jobs");
+    expect(within(body).getByRole("status", { name: "Loading Automations" })).toHaveAttribute(
+      "data-route",
+      "/automations/jobs/morning-digest"
+    );
+    expect(within(body).queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
   });
 });

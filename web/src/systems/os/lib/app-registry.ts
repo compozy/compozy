@@ -10,12 +10,19 @@ import {
   resolveAppDescriptorForPath,
   type OsAppDescriptor,
 } from "./app-catalog";
-import type { OsAppId } from "./os-types";
+import type { OsAppId, OsWindowRoute } from "./os-types";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
   preload?: (qc: QueryClient, ctx: { workspaceId: string }) => Promise<void>;
   Controller: ComponentType<{ windowId: string }>;
+  /**
+   * The window body while the app's code loads, shaped like the route it is about to render. It is
+   * mounted eagerly in the shell and shown before the app's own providers exist, so it stays
+   * static: no queries, stores, router or context, and no import of the app's window module.
+   * Apps without one keep the generic loading rows.
+   */
+  LoadingFallback?: ComponentType<{ route: OsWindowRoute }>;
 }
 
 const DashboardWindow = lazy(() =>

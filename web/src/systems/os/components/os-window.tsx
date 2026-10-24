@@ -34,6 +34,7 @@ import { windowVisualLayer } from "../lib/window-visual-layer";
 import { OsWindowDeck } from "./os-window-deck";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 import { OsWindowChrome, OsWindowSurface } from "./os-window-frame";
+import { OsWindowLoadingFallback } from "./os-window-loading-fallback";
 import { OsZoomMenu } from "./os-zoom-menu";
 
 export interface OsWindowProps {
@@ -312,7 +313,13 @@ function OsWindowMember({
         {contentHost ? (
           <OsWindowErrorBoundary title={app.title}>
             <Suspense
-              fallback={<SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />}
+              fallback={
+                app.LoadingFallback ? (
+                  <OsWindowLoadingFallback Fallback={app.LoadingFallback} windowId={windowId} />
+                ) : (
+                  <SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />
+                )
+              }
             >
               <WindowLiveDataContext value={liveDataEnabled}>
                 {/* Scopes per-window selection (e.g. active worktree) without
@@ -325,6 +332,8 @@ function OsWindowMember({
               </WindowLiveDataContext>
             </Suspense>
           </OsWindowErrorBoundary>
+        ) : app.LoadingFallback ? (
+          <OsWindowLoadingFallback Fallback={app.LoadingFallback} windowId={windowId} />
         ) : (
           <div className="flex min-h-32 flex-1 items-center justify-center">
             <Spinner className="size-4 text-subtle" />
