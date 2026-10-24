@@ -94,6 +94,10 @@
       animation: none;
     }
   }
+
+  html[data-reduce-motion="true"] &::after {
+    animation: none;
+  }
 }
 
 /* Delayed reveal. The box is laid out at once, so a skeleton that mirrors real
@@ -113,6 +117,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    animation-delay: var(--duration-base) !important;
+  }
+
+  html[data-reduce-motion="true"] & {
     animation-delay: var(--duration-base) !important;
   }
 }

@@ -24,7 +24,9 @@ preference to document CSS, including React view-transition snapshots. With syst
 turn on Appearance → Reduce motion and switch loaded Settings sections and sessions; content must
 update without animation. Repeat with only system reduced motion enabled and with both enabled.
 Turn both off and verify content transitions resume. Check that toggling the preference does not
-change the daemon window-manager revision. The canonical E2E-004 / E2E-013 Appearance journey
+change the daemon window-manager revision. With either preference enabled, skeleton sweeps must
+stop completely while the delayed reveal keeps its normal delay, so fast loads do not flash.
+The canonical E2E-004 / E2E-013 Appearance journey
 covers the real browser snapshot animations; the complete resilience scenario remains pending.
 
 2026-09-10, issue #593: shared settings Save bars retain retry and discard actions for a valid dirty

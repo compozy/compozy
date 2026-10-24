@@ -2192,13 +2192,15 @@ test("E2E-011: the compact stack round-trips with floating rects preserved", asy
 
 // The browser owns snapshot animation: exercise the shared vocabulary with the real API,
 // while the Appearance control and OS media preference supply the actual shell signal.
-async function contentTransitionAnimations(page: Page): Promise<string[]> {
+async function contentMotionState(page: Page) {
   return page.evaluate(async () => {
     const probe = document.createElement("div");
     probe.style.cssText = "position:fixed;inset:0;width:20px;height:20px;background:red";
     probe.style.viewTransitionName = "motion-preference-probe";
     probe.style.setProperty("view-transition-class", "vt-fade");
-    document.body.append(probe);
+    const skeleton = document.createElement("div");
+    skeleton.className = "skeleton-shimmer animate-skeleton-reveal";
+    document.body.append(probe, skeleton);
     try {
       const transition = document.startViewTransition(() => {
         probe.style.backgroundColor = "blue";
@@ -2210,10 +2212,15 @@ async function contentTransitionAnimations(page: Page): Promise<string[]> {
         const pseudo = effect.pseudoElement;
         return pseudo?.includes("motion-preference-probe") ? [pseudo] : [];
       });
+      const reveal = getComputedStyle(skeleton);
+      const sweepName = getComputedStyle(skeleton, "::after").animationName;
+      const revealDelay = parseFloat(reveal.animationDelay);
+      const revealDuration = parseFloat(reveal.animationDuration);
       await transition.finished;
-      return animations;
+      return { animations, sweepName, revealDelay, revealDuration };
     } finally {
       probe.remove();
+      skeleton.remove();
     }
   });
 }
@@ -2236,19 +2243,35 @@ test("E2E-004 / E2E-013: appearance stays client-local while minimize updates th
   const reduceMotion = appPage.getByRole("switch", { name: "Reduce motion" });
   await appPage.emulateMedia({ reducedMotion: "no-preference" });
   await expect(reduceMotion).not.toBeChecked();
-  expect((await contentTransitionAnimations(appPage)).length).toBeGreaterThan(0);
+  const animated = await contentMotionState(appPage);
+  expect(animated.animations.length).toBeGreaterThan(0);
+  expect(animated.sweepName).toBe("skeleton-sweep");
+  expect(animated.revealDelay).toBeGreaterThan(0);
   await reduceMotion.click();
   await expect(reduceMotion).toBeChecked();
   await expect(appPage.locator("html")).toHaveAttribute("data-reduce-motion", "true");
-  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  const appReduced = await contentMotionState(appPage);
+  expect(appReduced.animations).toEqual([]);
+  expect(appReduced.sweepName).toBe("none");
+  expect(appReduced.revealDelay).toBe(animated.revealDelay);
+  expect(appReduced.revealDuration).toBeLessThan(animated.revealDuration);
   await appPage.emulateMedia({ reducedMotion: "reduce" });
-  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  const bothReduced = await contentMotionState(appPage);
+  expect(bothReduced.animations).toEqual([]);
+  expect(bothReduced.sweepName).toBe("none");
+  expect(bothReduced.revealDelay).toBe(animated.revealDelay);
   await reduceMotion.click();
   await expect(reduceMotion).not.toBeChecked();
-  expect(await contentTransitionAnimations(appPage)).toEqual([]);
+  const systemReduced = await contentMotionState(appPage);
+  expect(systemReduced.animations).toEqual([]);
+  expect(systemReduced.sweepName).toBe("none");
+  expect(systemReduced.revealDelay).toBe(animated.revealDelay);
   await appPage.emulateMedia({ reducedMotion: "no-preference" });
   await expect(appPage.locator("html")).toHaveAttribute("data-reduce-motion", "false");
-  expect((await contentTransitionAnimations(appPage)).length).toBeGreaterThan(0);
+  const restored = await contentMotionState(appPage);
+  expect(restored.animations.length).toBeGreaterThan(0);
+  expect(restored.sweepName).toBe(animated.sweepName);
+  expect(restored.revealDelay).toBe(animated.revealDelay);
   await reduceMotion.click();
   await expect(reduceMotion).toBeChecked();
   expect((await windowManagerSnapshot(runtime, workspace.id)).revision).toBe(
