@@ -17,6 +17,8 @@ const USER_BUBBLE_FRAME =
   "w-fit max-w-full min-w-0 rounded-xl bg-chat-fill-user px-3.5 py-2 text-transcript-message leading-relaxed";
 const ASSISTANT_ROW_FRAME = "group/message flex w-full min-w-0 pt-1 pb-transcript-turn-gap";
 const ASSISTANT_COLUMN_FRAME = "flex min-w-0 flex-1 flex-col gap-transcript-inline-gap";
+/** The room a settled message keeps for its 22 px copy and timestamp row. */
+const ACTIONS_ROW_FRAME = "h-5.5";
 const WORK_ROW_FRAME =
   "flex min-h-transcript-line min-w-0 items-center gap-1.5 px-1 text-small-body";
 
@@ -27,6 +29,7 @@ function UserRowSkeleton({ width, lines = 1 }: { width: string; lines?: number }
         <div className={USER_BUBBLE_FRAME}>
           <SkeletonText lines={lines} className={width} />
         </div>
+        <div className={ACTIONS_ROW_FRAME} />
       </div>
     </div>
   );
@@ -49,7 +52,8 @@ function AssistantRowSkeleton({
             <SkeletonText className="w-44" />
           </div>
         ) : null}
-        <SkeletonText lines={lines} className="text-transcript-message" />
+        <SkeletonText lines={lines} className="text-body leading-prose" />
+        <div className={ACTIONS_ROW_FRAME} />
       </div>
     </div>
   );
