@@ -1,7 +1,7 @@
 import { ExternalLink, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Pill, Spinner } from "@compozy/ui";
+import { Button, Pill, SkeletonRegion, SkeletonText, Spinner } from "@compozy/ui";
 import {
   SettingRow,
   SettingValue,
@@ -93,21 +93,21 @@ function UpdatesGroup({
   );
 }
 
+/** The first read of the update status: the group's own title and row label, a placeholder for the verdict. */
 function UpdateCheckingGroup() {
   return (
-    <UpdatesGroup>
-      <SettingRow
-        data-testid="settings-page-general-update-status"
-        description="Checking for a new version."
-        label="CompozyOS"
-        control={
-          <>
-            <Spinner className="size-3.5 text-info" />
-            <SettingValue>Checking…</SettingValue>
-          </>
-        }
-      />
-    </UpdatesGroup>
+    <SkeletonRegion
+      data-testid="settings-page-general-update-checking"
+      label="Checking for a new version"
+    >
+      <UpdatesGroup>
+        <SettingRow
+          data-testid="settings-page-general-update-status"
+          label="CompozyOS"
+          control={<SkeletonText className="w-32 text-small-body" />}
+        />
+      </UpdatesGroup>
+    </SkeletonRegion>
   );
 }
 

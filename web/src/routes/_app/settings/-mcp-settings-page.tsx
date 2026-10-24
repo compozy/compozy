@@ -8,7 +8,8 @@ import {
   NativeSelectOption,
   HelpTip,
   PillGroup,
-  SkeletonRows,
+  SkeletonRegion,
+  SkeletonText,
 } from "@compozy/ui";
 
 import { useSettingsMCPPage } from "@/systems/settings/hooks/use-settings-mcp-page";
@@ -21,6 +22,7 @@ import {
   MCPServerDeleteDialog,
   MCPServerEditor,
   MCPServersTable,
+  MCPServersTableSkeleton,
   SettingsPageFrame,
   useSettingsTopbar,
   type SettingsMCPServerEntry,
@@ -63,7 +65,9 @@ export function MCPSettingsPage() {
       meta={[
         {
           key: "servers",
-          content: (
+          content: page.collection.isPending ? (
+            <SkeletonText className="w-16" />
+          ) : (
             <span data-testid="settings-page-mcp-count">
               {page.servers.length} {page.servers.length === 1 ? "server" : "servers"}
             </span>
@@ -155,15 +159,9 @@ function MCPServersBody({
   const { collection } = page;
   if (collection.isPending) {
     return (
-      <div
-        aria-busy="true"
-        className="rounded-lg bg-card shadow-card p-3.5"
-        data-testid="settings-page-mcp-loading"
-        role="status"
-      >
-        <SkeletonRows count={3} rowClassName="border-t border-line-soft py-3 first:border-t-0" />
-        <span className="sr-only">Loading MCP servers</span>
-      </div>
+      <SkeletonRegion data-testid="settings-page-mcp-loading" label="Loading MCP servers">
+        <MCPServersTableSkeleton />
+      </SkeletonRegion>
     );
   }
   if (collection.error && !collection.data) {

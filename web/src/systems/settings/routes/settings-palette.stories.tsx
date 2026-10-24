@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 
 import { appRouteParameters } from "@/storybook/route-story-meta";
 import { StorybookRouteCanvas, StorybookWorkspaceSetup } from "@/storybook/route-story";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
+import { settingsCmdPaletteSectionFixture } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/SettingsPalette",
@@ -68,6 +69,22 @@ export const AgentFallbackOff: Story = {
             personalization: true,
           })
         ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Loading state: the three palette rows hold their place while the section resolves. */
+export const Loading: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/palette"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/cmd-palette", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsCmdPaletteSectionFixture);
+        }),
       ],
     }),
   },

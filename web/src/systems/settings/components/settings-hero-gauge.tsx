@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, Pill, type PillTone } from "@compozy/ui";
+import { cn, Pill, Skeleton, SkeletonText, type PillTone } from "@compozy/ui";
 
 export interface SettingsHeroGaugeProps {
   /** Headline usage, e.g. "842 MB of 1 GB". */
@@ -26,6 +26,8 @@ const GAUGE_FILL: Record<string, string> = {
   neutral: "bg-fg",
 };
 
+const HERO_GAUGE_CLASS = "flex flex-col gap-3 rounded-lg bg-card shadow-card p-4";
+
 /**
  * Page-top capacity gauge (prototype `.gauge`): headline usage + percent +
  * tone pill over a tone-colored utilization bar with legend and activity
@@ -43,10 +45,7 @@ export function SettingsHeroGauge({
   const clamped = Math.min(100, Math.max(0, percent));
 
   return (
-    <section
-      className="flex flex-col gap-3 rounded-lg bg-card shadow-card p-4"
-      data-testid={testId ?? "settings-hero-gauge"}
-    >
+    <section className={HERO_GAUGE_CLASS} data-testid={testId ?? "settings-hero-gauge"}>
       <div className="flex min-w-0 items-baseline gap-2.5">
         <span className="min-w-0 truncate text-metric-value font-semibold tabular-nums text-fg">
           {usage}
@@ -79,6 +78,19 @@ export function SettingsHeroGauge({
       {foot ? (
         <div className="border-t border-line-soft pt-2.5 text-form-label text-subtle">{foot}</div>
       ) : null}
+    </section>
+  );
+}
+
+/** The gauge in skeleton form: the usage headline, an empty track and the legend line. */
+export function SettingsHeroGaugeSkeleton() {
+  return (
+    <section aria-hidden="true" className={HERO_GAUGE_CLASS}>
+      <div className="flex min-w-0 items-baseline gap-2.5">
+        <SkeletonText className="w-44 text-metric-value font-semibold" />
+      </div>
+      <Skeleton className="h-2 w-full rounded-pill" />
+      <SkeletonText className="w-4/5 text-form-label" />
     </section>
   );
 }

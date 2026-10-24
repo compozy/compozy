@@ -823,7 +823,10 @@ describe("GeneralSettingsPage — Updates section", () => {
     };
     const { rerender } = render(<GeneralSettingsPage />);
 
-    expect(row()).toHaveTextContent("Checking");
+    expect(screen.getByTestId("settings-page-general-update-checking")).toHaveTextContent(
+      "Checking for a new version"
+    );
+    expect(row()).not.toHaveTextContent("Up to date");
 
     pageState.update = {
       data: settingsUpdateStatusFixture,
@@ -836,7 +839,7 @@ describe("GeneralSettingsPage — Updates section", () => {
     rerender(<GeneralSettingsPage />);
 
     expect(within(row()).getByText("Up to date")).toBeInTheDocument();
-    expect(row()).not.toHaveTextContent("Checking");
+    expect(screen.queryByTestId("settings-page-general-update-checking")).not.toBeInTheDocument();
   });
 
   it("UT-046: Should keep the last known status and offer one retry when the refresh fails", () => {

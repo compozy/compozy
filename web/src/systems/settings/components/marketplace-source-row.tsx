@@ -11,6 +11,8 @@ import {
   MonoId,
   Pill,
   PropertyRow,
+  Skeleton,
+  SkeletonText,
   Spinner,
   Switch,
   Time,
@@ -28,6 +30,10 @@ import {
   marketplaceSourceTestId,
   marketplaceSourceWasRead,
 } from "./marketplace-source-labels";
+
+const SOURCE_ROW_CLASS = "flex min-w-0 flex-col border-b border-line last:border-b-0";
+const SOURCE_SUMMARY_CLASS = "flex min-h-11 min-w-0 items-center gap-2 px-3";
+const SOURCE_SKELETON_ROWS = ["catalog", "official", "preset", "custom"] as const;
 
 export interface MarketplaceSourceRowProps {
   source: MarketplaceSource;
@@ -55,11 +61,7 @@ export function MarketplaceSourceRow({
   const testId = marketplaceSourceTestId(source.name);
 
   return (
-    <Collapsible
-      className="flex min-w-0 flex-col border-b border-line last:border-b-0"
-      data-state-word={source.state}
-      data-testid={testId}
-    >
+    <Collapsible className={SOURCE_ROW_CLASS} data-state-word={source.state} data-testid={testId}>
       <MarketplaceSourceSummary source={source} pending={pending} onToggle={onToggle} />
       <MarketplaceSourceDetails
         source={source}
@@ -107,7 +109,7 @@ function MarketplaceSourceSummary({
   const wasRead = marketplaceSourceWasRead(source);
   const alwaysOn = source.kind === "feed";
   return (
-    <div className="flex min-h-11 min-w-0 items-center gap-2 px-3">
+    <div className={SOURCE_SUMMARY_CLASS}>
       <CollapsibleTrigger
         className={cn(
           "group/marketplace-source flex min-w-0 flex-1 items-center gap-2 py-2 text-left",
@@ -298,6 +300,32 @@ function MarketplaceSourceRecoveryNotice({ source }: Pick<MarketplaceSourceRowPr
           {origin.kind === "feed" ? "feed" : origin.kind} until then.
         </p>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * The marketplace source rows in skeleton form: the closed 44px line of chevron, name, count and
+ * switch, with a placeholder where each goes. Siblings, so put them in the sources list and wrap
+ * the area in a `SkeletonRegion`.
+ */
+export function MarketplaceSourceRowSkeletons() {
+  return (
+    <>
+      {SOURCE_SKELETON_ROWS.map(row => (
+        <div aria-hidden="true" className={SOURCE_ROW_CLASS} key={row}>
+          <div className={SOURCE_SUMMARY_CLASS}>
+            <div className="flex min-w-0 flex-1 items-center gap-2 py-2">
+              <Skeleton className="size-3.5 shrink-0 rounded-xs" />
+              <SkeletonText className="w-40 text-body" />
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Skeleton className="h-pill-xs w-14 rounded-pill" />
+              <Skeleton className="h-switch-sm w-switch-sm rounded-pill" />
+            </div>
+          </div>
+        </div>
+      ))}
     </>
   );
 }

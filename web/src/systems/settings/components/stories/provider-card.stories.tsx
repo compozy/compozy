@@ -5,7 +5,7 @@ import { PanelSurface } from "@/storybook/story-layout";
 import type { SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks";
 
-import { ProviderCard } from "../provider-card";
+import { ProviderCard, ProviderCardGrid, ProviderCardSkeleton } from "../provider-card";
 
 const claudeFixture: SettingsProviderEntry = {
   ...settingsProviderFixtures[0]!,
@@ -113,6 +113,17 @@ export const CardStates: Story = {
       <ProviderCard onOpen={fn()} provider={needsSignInFixture} />
       <ProviderCard onOpen={fn()} provider={unknownAuthFixture} />
       <ProviderCard onOpen={fn()} provider={binaryMissingFixture} />
+    </PanelSurface>
+  ),
+};
+
+/** Loading — the cards' real surface and slots with placeholders, in the same grid. */
+export const Loading: StoryObj = {
+  render: () => (
+    <PanelSurface className="w-full max-w-4xl p-6">
+      <ProviderCardGrid aria-hidden="true">
+        <ProviderCardSkeleton />
+      </ProviderCardGrid>
     </PanelSurface>
   ),
 };

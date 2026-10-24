@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn, Pill, type PillTone } from "@compozy/ui";
+import { cn, Pill, Skeleton, SkeletonText, type PillTone } from "@compozy/ui";
 
 export interface SettingsHeroStat {
   key: string;
@@ -25,6 +25,8 @@ export interface SettingsHeroBoardProps {
   "data-testid"?: string;
 }
 
+const HERO_BOARD_CLASS = "flex flex-col gap-4 rounded-lg bg-card shadow-card p-4";
+
 /**
  * Page-top status board (prototype `.board` / `.mesh`): live state line with
  * a pulse dot, optionally over a status pill and big stat cells. Values must come
@@ -40,10 +42,7 @@ export function SettingsHeroBoard({
   "data-testid": testId,
 }: SettingsHeroBoardProps) {
   return (
-    <section
-      className="flex flex-col gap-4 rounded-lg bg-card shadow-card p-4"
-      data-testid={testId ?? "settings-hero-board"}
-    >
+    <section className={HERO_BOARD_CLASS} data-testid={testId ?? "settings-hero-board"}>
       <div className="flex min-w-0 items-center gap-2.5">
         <Pill.Dot pulse={pulse} tone={tone} />
         <span className="min-w-0 truncate text-item-title font-medium text-fg">{state}</span>
@@ -76,6 +75,19 @@ export function SettingsHeroBoard({
           ))}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+/** The status line of the board in skeleton form: a dot and the state sentence's placeholder. */
+export function SettingsHeroBoardSkeleton() {
+  return (
+    <section aria-hidden="true" className={HERO_BOARD_CLASS}>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Skeleton className="size-2 shrink-0 rounded-full" />
+        <SkeletonText className="w-56 text-item-title font-medium" />
+        <SkeletonText className="w-40 text-form-label" />
+      </div>
     </section>
   );
 }

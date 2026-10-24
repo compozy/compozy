@@ -4,7 +4,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import { PanelSurface } from "@/storybook/story-layout";
 
-import { SettingsChoiceGroup } from "../settings-choice-group";
+import { SettingsChoiceGroup, SettingsChoiceGroupSkeleton } from "../settings-choice-group";
 
 const options = [
   { value: "ask", name: "Ask first", description: "Every action waits for approval." },
@@ -50,4 +50,19 @@ export const KeyboardNavigation: Story = {
     await expect(read).toHaveFocus();
     await expect(read).toHaveAttribute("aria-checked", "true");
   },
+};
+
+/** Loading — three disabled cards of the same shell while the value arrives. */
+export const Loading: Story = {
+  args: {
+    ariaLabel: "Permission mode",
+    onChange: () => undefined,
+    options,
+    value: "ask",
+  },
+  render: () => (
+    <PanelSurface className="w-full max-w-3xl p-6">
+      <SettingsChoiceGroupSkeleton />
+    </PanelSurface>
+  ),
 };

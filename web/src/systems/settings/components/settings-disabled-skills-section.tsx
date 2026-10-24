@@ -3,6 +3,8 @@ import { Wrench } from "lucide-react";
 import {
   Empty,
   Section,
+  Skeleton,
+  SkeletonText,
   Switch,
   Table,
   TableBody,
@@ -10,7 +12,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowSkeleton,
 } from "@compozy/ui";
+
+const DISABLED_LIST_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
+const SKILL_COLUMN_CLASS = "eyebrow text-muted";
+const DISABLED_COLUMN_CLASS = "eyebrow w-[1%] text-right text-muted";
+const SKELETON_COLUMNS = [{ className: "w-32" }, { align: "end", className: "w-10" }] as const;
 
 interface SettingsDisabledSkillsSectionProps {
   baselineDisabled: readonly string[];
@@ -46,15 +54,12 @@ export function SettingsDisabledSkillsSection({
           data-testid="settings-page-skills-disabled-empty"
         />
       ) : (
-        <div
-          className="overflow-hidden rounded-lg bg-card shadow-card"
-          data-testid="settings-page-skills-disabled-list"
-        >
+        <div className={DISABLED_LIST_CLASS} data-testid="settings-page-skills-disabled-list">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="eyebrow text-muted">Skill</TableHead>
-                <TableHead className="eyebrow w-[1%] text-right text-muted">Disabled</TableHead>
+                <TableHead className={SKILL_COLUMN_CLASS}>Skill</TableHead>
+                <TableHead className={DISABLED_COLUMN_CLASS}>Disabled</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -81,6 +86,36 @@ export function SettingsDisabledSkillsSection({
           </Table>
         </div>
       )}
+    </Section>
+  );
+}
+
+/**
+ * The disabled-skills section in skeleton form: the real column headers over placeholder rows, with
+ * a placeholder where the title, note and controls go.
+ */
+export function SettingsDisabledSkillsSkeleton() {
+  return (
+    <Section
+      aria-hidden="true"
+      divided
+      label={<SkeletonText className="w-32" />}
+      note={<SkeletonText className="w-56" />}
+      right={<Skeleton className="h-button-sm w-40 rounded-pill" />}
+    >
+      <div className={DISABLED_LIST_CLASS}>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className={SKILL_COLUMN_CLASS}>Skill</TableHead>
+              <TableHead className={DISABLED_COLUMN_CLASS}>Disabled</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRowSkeleton columns={SKELETON_COLUMNS} count={2} />
+          </TableBody>
+        </Table>
+      </div>
     </Section>
   );
 }
