@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 func TestManagerListForWorkspace(t *testing.T) {
@@ -1202,6 +1203,59 @@ func TestSessionMatchesListQuery(t *testing.T) {
 
 func TestNormalizeListQuery(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bind cursors to canonical board columns and child visibility", func(t *testing.T) {
+		t.Parallel()
+		base := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			Columns:       []string{"done", "in_review"},
+		}
+		query, err := normalizeListQuery(base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fingerprint, err := sessionListFingerprintForQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		cursor, err := encodeSessionListCursor(
+			fingerprint,
+			store.SessionCatalogPosition{ID: "cursor-row", PrimaryAt: now, SecondaryAt: now, CreatedAt: now},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tc := range []struct {
+			name    string
+			columns []string
+			hide    bool
+			reject  bool
+		}{
+			{"same columns reordered", []string{"in_review", "done"}, false, false},
+			{"different column", []string{"working"}, false, true},
+			{"children excluded", base.Columns, true, true},
+		} {
+			changed := base
+			changed.Columns, changed.HideChildren = tc.columns, tc.hide
+			changed, err = normalizeListQuery(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			key, err := sessionListFingerprintForQuery(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = decodeSessionListCursor(cursor, key, changed.Sort)
+			if tc.reject != errors.Is(err, ErrListCursorInvalid) {
+				t.Fatalf("%s cursor: %v", tc.name, err)
+			}
+		}
+		base.Columns = []string{"blocked"}
+		if _, err := normalizeListQuery(base); !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("invalid column: %v", err)
+		}
+	})
 
 	t.Run("Should normalize defaults and case-insensitive search", func(t *testing.T) {
 		t.Parallel()
@@ -4012,8 +4066,10 @@ func (b *pullRequestQueryBranches) SessionBranches(context.Context, []string) (m
 }
 
 type pullRequestQueryReader struct {
-	calls int
-	keys  []BranchKey
+	state        PullRequestState
+	repositories map[string]string
+	calls        int
+	keys         []BranchKey
 }
 
 func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
@@ -4021,7 +4077,7 @@ func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKe
 	r.keys = keys
 	result := make(map[BranchKey]PullRequestView)
 	for _, key := range keys {
-		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42}}
+		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42, State: r.state}}
 	}
 	return result
 }
@@ -4031,4 +4087,131 @@ func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []Branc
 		result[key] = key.Branch == "main"
 	}
 	return result
+}
+
+func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope, []string) map[string]string {
+	return r.repositories
+}
+
+func TestManagerBoardCatalog(t *testing.T) {
+	t.Parallel()
+	t.Run("Should overlay active PR columns and direct children before filtering and counting", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		parent, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.manager.Create(
+			ctx,
+			CreateOpts{
+				AgentName: "coder",
+				Name:      "Child",
+				Workspace: h.workspaceID,
+				Type:      SessionTypeSpawned,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: parent.ID,
+					RootSessionID:   parent.ID,
+					SpawnDepth:      1,
+					SpawnRole:       "worker",
+					TTLExpiresAt:    new(time.Now().Add(time.Hour)),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child.mu.Lock()
+		child.supervisionState = &SupervisionState{WorkSignals: []WorkSignal{{Kind: WorkSignalActiveMonitor}}}
+		child.mu.Unlock()
+		durable := sessionCatalogInfoFromRuntime(child.Info())
+		durable.ID, durable.Name, durable.State = "durable-child", "Durable child", string(StateStopped)
+		if err := catalog.RegisterSession(ctx, durable); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{parent.ID, durable.ID} {
+			if err := catalog.SaveSessionBranch(ctx, h.workspaceID, id, "topic"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		const repo = "github.com/owner/repo"
+		if err := catalog.Worktrees.SavePullRequest(ctx, worktreepkg.PullRequestEntry{
+			Key: worktreepkg.PullRequestKey{
+				WorkspaceID: h.workspaceID,
+				RepoKey:     repo,
+				Branch:      "topic",
+			},
+			LookupState: "ok",
+			Facts:       &worktreepkg.ForgeStatus{PRState: new("open"), PRNumber: new(42)},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reader := &pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{h.workspaceID: repo}}
+		h.manager.ConfigurePullRequests(reader, catalog)
+		query := ListQuery{
+			ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:  h.workspaceID,
+			Columns:      []string{"in_review"},
+			HideChildren: true,
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != parent.ID ||
+			page.Sessions[0].BoardColumn != BoardInReview {
+			t.Fatalf("root board = %#v", page)
+		}
+		if reader.calls != 1 {
+			t.Fatalf("active projection calls = %d, want one batch", reader.calls)
+		}
+		counts := page.Sessions[0].Children
+		if counts == nil || counts.Working != 1 || counts.InReview != 1 || counts.Done != 0 {
+			t.Fatalf("children = %#v", counts)
+		}
+		facets, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.Board.InReview != 1 || facets.Facets.All != 1 {
+			t.Fatalf("root facets = %#v", facets)
+		}
+		query.HideChildren = false
+		facets, err = h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Working != 1 || facets.Facets.All != 3 {
+			t.Fatalf("all facets = %#v", facets)
+		}
+		query.Columns = []string{"working"}
+		page, err = h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].ParentTitle != "Parent" {
+			t.Fatalf("child board = %#v", page)
+		}
+		detail := parent.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil {
+			t.Fatal(err)
+		}
+		if detail.Children == nil || *detail.Children != *counts {
+			t.Fatalf("detail children = %#v", detail.Children)
+		}
+		h.manager.ConfigurePullRequests(nil, nil)
+		query.Columns = []string{"in_review"}
+		page, err = h.manager.ListPage(ctx, query)
+		if err != nil || page.Total != 0 {
+			t.Fatalf("unconfigured reader = %#v, %v", page, err)
+		}
+	})
 }

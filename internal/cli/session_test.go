@@ -1250,6 +1250,42 @@ func TestSessionListDefaultsToExactActiveState(t *testing.T) {
 
 func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 	t.Parallel()
+	t.Run("Should forward board filters without implicit active state and reject invalid columns", func(t *testing.T) {
+		t.Parallel()
+		var seen SessionListQuery
+		deps := newWorkspaceTestDeps(
+			t,
+			&stubClient{listSessionPageFn: func(_ context.Context, query SessionListQuery) (SessionListPage, error) {
+				seen = query
+				return SessionListPage{Page: contract.CountedCursorPagePayload{Limit: 50}}, nil
+			}},
+		)
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"list",
+			"--column",
+			"in_review,done",
+			"--hide-children",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"in_review", "done"}) {
+			t.Fatalf("query = %#v", seen)
+		}
+		values := sessionListValues(seen)
+		if !slices.Equal(values["board_column"], seen.Columns) || values.Get("children") != "exclude" {
+			t.Fatalf("wire query = %#v", values)
+		}
+		_, _, err := executeRootCommand(t, deps, "session", "list", "--column", "blocked")
+		if err == nil || cliExitCodeForError(err) != 2 ||
+			err.Error() != `invalid --column "blocked" (allowed: needs_you, working, in_review, done)` {
+			t.Fatalf("invalid column = %v", err)
+		}
+	})
 
 	t.Run("Should pass needs-you filtering with attention-first ordering", func(t *testing.T) {
 		t.Parallel()

@@ -53,6 +53,9 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	BoardColumn              BoardColumn
+	ParentTitle              string
+	Children                 *store.SessionBoardCounts
 	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState

@@ -185,6 +185,13 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	InputQueueSummary(context.Context, string) (session.InputQueueSummary, error)
 }, info *session.Info) (contract.SessionPayload, error) {
+	if relations, ok := reader.(interface {
+		PopulateSessionRelations(context.Context, *session.Info) error
+	}); ok {
+		if err := relations.PopulateSessionRelations(ctx, info); err != nil {
+			return contract.SessionPayload{}, err
+		}
+	}
 	payload := SessionPayloadFromInfo(info)
 	queue, err := reader.InputQueueSummary(ctx, info.ID)
 	if err != nil {

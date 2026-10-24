@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 type PullRequestState string
@@ -105,4 +107,15 @@ func BoardColumnFor(badge Badge, prState PullRequestState) BoardColumn {
 		return BoardInReview
 	}
 	return BoardDone
+}
+
+// PullRequestRepositoryReader resolves current identities for scoped catalog SQL.
+// A nil workspace list selects all readable workspaces. Missing keys never match.
+type PullRequestRepositoryReader interface {
+	RepositoryKeys(context.Context, store.ReadScope, []string) map[string]string
+}
+
+// PullRequestDefaultBranchReader shares default-branch suppression with durable board reads.
+type PullRequestDefaultBranchReader interface {
+	DefaultBranchNames(context.Context, store.ReadScope, []string) map[string][]string
 }

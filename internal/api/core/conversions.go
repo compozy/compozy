@@ -95,6 +95,20 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		payload.Activity = activity
 	}
 	payload.Derivation = sessionDerivationPayload(info.Derivation)
+	payload.ParentTitle = info.ParentTitle
+	if info.Children != nil {
+		counts := info.Children
+		payload.Children = &contract.SessionChildrenPayload{
+			Total:    counts.NeedsYou + counts.Working + counts.InReview + counts.Done,
+			NeedsYou: counts.NeedsYou,
+			Working:  counts.Working,
+			InReview: counts.InReview,
+			Done:     counts.Done,
+		}
+	}
+	if info.BoardColumn != "" {
+		payload.BoardColumn = info.BoardColumn
+	}
 	return payload
 }
 

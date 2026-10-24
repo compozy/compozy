@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
-
-	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/listcursor"
 	"github.com/compozy/compozy/internal/store"
@@ -84,6 +81,8 @@ type ListPage struct {
 }
 
 type sessionListFingerprint struct {
+	Columns         []string                   `json:"columns,omitempty"`
+	HideChildren    bool                       `json:"hide_children,omitempty"`
 	Subagents       string                     `json:"subagents,omitempty"`
 	ProfileID       string                     `json:"profile_id"`
 	AllProfiles     bool                       `json:"all_profiles"`
@@ -128,9 +127,17 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		return ListPage{}, err
 	}
 
-	activeByID, activeIDs, activeMatches := m.activeSessionCatalogRows(normalized)
+	activeByID, activeIDs, activeMatches, err := m.activeBoardSessionCatalogRows(ctx, normalized)
+	if err != nil {
+		return ListPage{}, err
+	}
+	repositoryKeys := m.catalogRepositoryKeys(ctx, normalized)
+	defaultBranches := m.catalogDefaultBranches(ctx, normalized)
+	durableQuery := sessionCatalogPageQuery(normalized, after, activeIDs)
+	durableQuery.RepositoryKeys = repositoryKeys
+	durableQuery.DefaultBranches = defaultBranches
 
-	durable, err := pager.PageSessions(ctx, sessionCatalogPageQuery(normalized, after, activeIDs))
+	durable, err := pager.PageSessions(ctx, durableQuery)
 	if err != nil {
 		return ListPage{}, fmt.Errorf("session: page durable catalog: %w", err)
 	}
@@ -164,6 +171,16 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 		candidates = candidates[:normalized.Limit]
 	}
 	page.Sessions = projectSessionCatalogPage(candidates, activeByID)
+	if err := m.populateCatalogRelations(
+		ctx,
+		normalized,
+		page.Sessions,
+		activeByID,
+		repositoryKeys,
+		defaultBranches,
+	); err != nil {
+		return ListPage{}, err
+	}
 	page.Placements = pageSessionPlacements(candidates, placements)
 	if page.HasMore && len(candidates) > 0 {
 		page.NextCursor, err = encodeSessionListCursor(
@@ -217,7 +234,13 @@ func sessionCatalogPageQuery(
 func (m *Manager) activeSessionCatalogRows(
 	query ListQuery,
 ) (map[string]*Info, []string, []store.SessionInfo) {
-	activeInfos := m.List()
+	return m.activeSessionCatalogRowsFromInfos(query, m.List())
+}
+
+func (m *Manager) activeSessionCatalogRowsFromInfos(
+	query ListQuery,
+	activeInfos []*Info,
+) (map[string]*Info, []string, []store.SessionInfo) {
 	activeByID := make(map[string]*Info, len(activeInfos))
 	activeIDs := make([]string, 0, len(activeInfos))
 	activeMatches := make([]store.SessionInfo, 0, len(activeInfos))
@@ -236,183 +259,10 @@ func (m *Manager) activeSessionCatalogRows(
 	return activeByID, activeIDs, activeMatches
 }
 
-// normalizeListBreadth requires exactly one workspace or the All projects read with its narrowing.
-func normalizeListBreadth(query *ListQuery) error {
-	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
-	if (query.WorkspaceID != "") == query.AllWorkspaces {
-		return fmt.Errorf("%w: choose exactly one workspace or all workspaces", ErrListQueryInvalid)
-	}
-	ids, err := NormalizeWorkspaceIDs(query.WorkspaceIDs, query.AllWorkspaces)
-	if err != nil {
-		return err
-	}
-	query.WorkspaceIDs = ids
-	return nil
-}
-
-func normalizeListQuery(query ListQuery) (ListQuery, error) {
-	filter, err := normalizeSubagentListFilter(query.Subagents)
-	if err != nil {
-		return ListQuery{}, err
-	}
-	query.Subagents = filter
-	query.ReadScope.ProfileID = strings.TrimSpace(query.ReadScope.ProfileID)
-	if err := query.ReadScope.Validate(); err != nil {
-		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
-	}
-	if err := normalizeListBreadth(&query); err != nil {
-		return ListQuery{}, err
-	}
-	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
-	query.State = strings.TrimSpace(query.State)
-	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
-	query.AgentName = strings.TrimSpace(query.AgentName)
-	query.ParentSessionID = strings.TrimSpace(query.ParentSessionID)
-	query.RootSessionID = strings.TrimSpace(query.RootSessionID)
-	query.SearchFields = strings.TrimSpace(query.SearchFields)
-	if query.SearchFields != "" && query.SearchFields != sessionCatalogSearchTitleAgent {
-		return ListQuery{}, fmt.Errorf("%w: unsupported search_fields %q", ErrListQueryInvalid, query.SearchFields)
-	}
-	query.Search = strings.TrimSpace(query.Search)
-	if query.SearchFields == sessionCatalogSearchTitleAgent {
-		query.Search = store.LowerSessionCatalogSearchText(query.Search)
-	} else {
-		query.Search = strings.ToLower(query.Search)
-	}
-	badges, err := ParseBadgeFilters(badgeStrings(query.Badges))
-	if err != nil {
-		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
-	}
-	query.Badges = badges
-	query.Archive = store.SessionArchiveFilter(strings.TrimSpace(string(query.Archive)))
-	query.Sort = strings.TrimSpace(query.Sort)
-	query.Cursor = strings.TrimSpace(query.Cursor)
-	if (query.AttentionOnly || len(query.Badges) > 0) && query.Sort == "" {
-		query.Sort = ListSortAttention
-	} else if query.Sort == "" {
-		query.Sort = ListSortRecent
-	}
-	if query.Archive == "" {
-		query.Archive = ArchiveExclude
-	}
-	if err := query.Archive.Validate(); err != nil {
-		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
-	}
-	if query.Limit == 0 {
-		query.Limit = DefaultListLimit
-	}
-	if query.Limit < 1 || query.Limit > MaxListLimit {
-		return ListQuery{}, fmt.Errorf("%w: limit must be between 1 and %d", ErrListQueryInvalid, MaxListLimit)
-	}
-	switch query.Sort {
-	case ListSortRecent, ListSortCreated, ListSortName, ListSortNavigator, ListSortLastActivity, ListSortAttention,
-		ListSortManual:
-	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported sort %q", ErrListQueryInvalid, query.Sort)
-	}
-	switch State(query.State) {
-	case "", StateStarting, StateActive, StateStopping, StateStopped:
-	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported state %q", ErrListQueryInvalid, query.State)
-	}
-	switch query.SessionType {
-	case "", SessionTypeUser, SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned:
-	default:
-		return ListQuery{}, fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
-	}
-	return query, nil
-}
-
-func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
-	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
-		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) {
-		return false
-	}
-	badge := BadgeForInfo(info)
-	if query.AttentionOnly && ClassForBadge(badge) != AttentionNeedsYou {
-		return false
-	}
-	if len(query.Badges) > 0 && !badgeFilterContains(query.Badges, badge) {
-		return false
-	}
-	search := strings.TrimSpace(query.Search)
-	if search == "" {
-		return true
-	}
-	if query.SearchFields == sessionCatalogSearchTitleAgent {
-		search = store.LowerSessionCatalogSearchText(search)
-		return strings.Contains(store.LowerSessionCatalogSearchText(sessionCatalogDisplayTitle(info)), search) ||
-			strings.Contains(store.LowerSessionCatalogSearchText(strings.TrimSpace(info.AgentName)), search)
-	}
-	search = strings.ToLower(search)
-	for _, value := range []string{
-		info.ID,
-		info.Name,
-		info.AgentName,
-		info.Provider,
-	} {
-		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), search) {
-			return true
-		}
-	}
-	return false
-}
-
-func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
-	if !isPublicSessionCatalogInfo(info) ||
-		(query.SessionType == "" && isInternalVerificationSession(info)) {
-		return false
-	}
-	return query.ReadScope.Matches(info.ProfileID) &&
-		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID ||
-			(query.WorkspaceID == workspaceaccess.UserSelector && info.WorkspaceID == "")) &&
-		sessionMatchesWorkspaceIDs(info.WorkspaceID, query.WorkspaceIDs) &&
-		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
-		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
-		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
-		(query.AgentName == "" || strings.TrimSpace(info.AgentName) == query.AgentName)
-}
-
-func isPublicSessionCatalogInfo(info *Info) bool {
-	if info == nil {
-		return false
-	}
-	lineage := info.Lineage
-	return lineage == nil || !IsInternalSpawnRole(lineage.SpawnRole)
-}
-
-func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
-	isSubagent := info.Lineage != nil && info.Lineage.SpawnRole == store.SubagentSpawnRole
-	if (query.Subagents == "exclude" && isSubagent) || (query.Subagents == "only" && !isSubagent) {
-		return false
-	}
-	if query.ParentSessionID == "" && query.RootSessionID == "" {
-		return true
-	}
-	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
-	if query.ParentSessionID != "" && lineage.ParentSessionID != query.ParentSessionID {
-		return false
-	}
-	if query.RootSessionID != "" && lineage.RootSessionID != query.RootSessionID {
-		return false
-	}
-	return true
-}
-
-func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) bool {
-	archived := info != nil && info.ArchivedAt != nil
-	switch filter {
-	case ArchiveExclude:
-		return !archived
-	case ArchiveOnly:
-		return archived
-	default:
-		return true
-	}
-}
-
 func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
+		Columns:         query.Columns,
+		HideChildren:    query.HideChildren,
 		Subagents:       query.Subagents,
 		ProfileID:       query.ReadScope.ProfileID,
 		AllProfiles:     query.ReadScope.AllProfiles,
@@ -459,7 +309,7 @@ func normalizeSubagentListFilter(value string) (string, error) {
 	switch value {
 	case "", "include":
 		return "", nil
-	case "exclude", "only":
+	case childrenExclude, "only":
 		return value, nil
 	default:
 		return "", fmt.Errorf("%w: unsupported subagents %q", ErrListQueryInvalid, value)

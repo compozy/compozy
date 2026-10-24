@@ -606,6 +606,25 @@ Extension hooks use the separate async-only `session.attention.changed` event. I
 `from`, `to`, `class`, `at`, and the session/workspace context; hook failure never rolls back the
 canonical attention change.
 
+### Session board columns
+
+`compozy session list --column in_review --hide-children` filters the derived board before
+pagination and counting. Repeat `--column` or comma-separate `needs_you`, `working`, `in_review`,
+and `done`; an unknown column exits 2. The filters combine with workspace, badge and archive
+selectors. Selecting a column removes the default active-state filter. Human output includes
+BRANCH, PR, CHECKS and REVIEW.
+
+The daemon assigns needs-you badges first, then running/hung/unhealthy/waiting to `working`,
+then remaining sessions with an open PR to `in_review`, and all others to `done`. A parent's
+column is independent of its children. `children` aggregates its direct, non-archived, readable
+children across every page; `parent_title` can name an archived readable parent.
+
+HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child,
+whereas `subagents=exclude` excludes only the subagent role. Facets expose `board` counts for the
+same scope and child visibility, independent of search, badge and selected board column. Changing
+columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
+never wait on forge calls.
+
 ### Waiting for session state
 
 `compozy session wait <session-id>` blocks until the session settles or needs someone. The default
