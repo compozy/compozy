@@ -11,9 +11,6 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   Icon,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
   cn,
 } from "@compozy/ui";
 
@@ -64,27 +61,22 @@ function OrderMenu<T extends string>({
 }: OrderMenuProps<T>) {
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <DropdownMenuTrigger
-              aria-label={`${label}: ${labels[value]}`}
-              data-testid={`${testId}-trigger`}
-              render={
-                <Button
-                  className={cn("shrink-0", active && "bg-surface-2 text-fg", className)}
-                  size="icon-sm"
-                  type="button"
-                  variant="quiet"
-                />
-              }
-            />
-          }
-        >
-          <Icon as={icon} size="sm" />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">{label}</TooltipContent>
-      </Tooltip>
+      {/* No tooltip: focus returns here when the menu closes, and an open tooltip would take
+          the next Escape that should dismiss the surrounding dialog. The name says it all. */}
+      <DropdownMenuTrigger
+        aria-label={`${label}: ${labels[value]}`}
+        data-testid={`${testId}-trigger`}
+        render={
+          <Button
+            className={cn("shrink-0", active && "bg-surface-2 text-fg", className)}
+            size="icon-sm"
+            type="button"
+            variant="quiet"
+          />
+        }
+      >
+        <Icon as={icon} size="sm" />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
         <DropdownMenuGroup>
           <DropdownMenuLabel>{label}</DropdownMenuLabel>
