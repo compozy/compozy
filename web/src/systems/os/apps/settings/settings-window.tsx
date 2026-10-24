@@ -213,8 +213,12 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
     <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Section switches are sibling navigation: the outlet's <ViewTransition> owns their
+          animation and the nav rail stays put, so the window-manager drill must not also
+          snapshot and slide the whole body (tokens-runtime.css). History is unchanged. */}
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
+        data-owns-view-transition=""
         data-testid="settings-shell"
       >
         <SettingsWindowNav
