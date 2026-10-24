@@ -56,6 +56,8 @@ const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
 const profileScope = { aggregate: false };
 let deletionPending = false;
+let deletedByOperator = false;
+const toastError = vi.hoisted(() => vi.fn());
 const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
 
 vi.mock("@/systems/session/lib/query-options", () => ({
@@ -69,8 +71,11 @@ vi.mock("@/systems/session", async importOriginal => {
     sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
     useForeignProfileSession: () => foreignState.current,
     useSessionDeletionPending: () => deletionPending,
+    useSessionDeletedByOperator: () => deletedByOperator,
   };
 });
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
   useForeignProfileSession: () => foreignState.current,
@@ -154,6 +159,8 @@ describe("SessionWindow", () => {
     foreignState.current = { status: "disabled" };
     profileScope.aggregate = false;
     deletionPending = false;
+    deletedByOperator = false;
+    toastError.mockClear();
     userRetireSession.mockClear();
     userRetireSession.mockResolvedValue(true);
     userClose.mockClear();
@@ -316,6 +323,24 @@ describe("SessionWindow", () => {
     deletionPending = false;
     rerender(<SessionWindow windowId="session:sess-1" />);
     await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
+  });
+
+  // #952: rename/delete run through the session list's row lifecycle, which retires the window
+  // itself. If that retarget was refused, the window still stops reading the session and retires
+  // quietly: an operator-deleted session is never announced as missing.
+  it("Should retire a window whose session this client deleted without reporting it missing", async () => {
+    deletedByOperator = true;
+    render(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ liveTail: false })
+    );
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {

@@ -877,7 +877,8 @@ describe("sessions board read failures", () => {
 
 // Invariant (#952): board columns read in the window's sort, a List-only `manual` reading
 // `last_activity`; grouped by project, the board lists one lane per facet group (never derived
-// from a loaded page) and leaves the ungrouped columns unread. Owner: the board read model.
+// from a loaded page), counted with the same population filters as its columns, and leaves the
+// ungrouped columns unread. Owner: the board read model.
 describe("sessions board order and swimlanes", () => {
   const facet = (all: number) => ({
     terminal_approvals: 0,
@@ -941,6 +942,13 @@ describe("sessions board order and swimlanes", () => {
       expect.objectContaining({ workspace_id: "ws_alpha", children: "exclude", sort: "name" }),
       expect.objectContaining({ workspace_id: "ws_beta", children: "exclude", sort: "name" }),
     ]);
+    // Lane membership counts the rows the lanes' columns show: every subagent, children hidden.
+    const membership = vi
+      .mocked(fetchSessionFacets)
+      .mock.calls.map(([query]) => query)
+      .find(query => query?.all_workspaces);
+    expect(membership).toMatchObject({ children: "exclude" });
+    expect(membership).not.toHaveProperty("subagents");
     // Only the Archive bar reads a page here: each lane reads its own columns when it renders.
     const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
     expect(reads.every(query => query?.archive === "only")).toBe(true);

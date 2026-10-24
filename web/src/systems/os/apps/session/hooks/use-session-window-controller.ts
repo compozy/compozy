@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { useProfileReadScope } from "@/systems/profiles";
-import { useSessionDeletionPending, useSessionPresence } from "@/systems/session";
+import {
+  useSessionDeletedByOperator,
+  useSessionDeletionPending,
+  useSessionPresence,
+} from "@/systems/session";
 import { useWindowDataWorkspace } from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
@@ -18,13 +22,14 @@ export function useSessionWindowController(windowId: string) {
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
+  const deletedByOperator = useSessionDeletedByOperator(sessionId);
   const resolution = useSessionWindowResolution({
     sessionId,
     focusedScope,
-    liveTailEnabled,
+    liveTailEnabled: liveTailEnabled && !deletedByOperator,
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
-  const deletedLocally = remotelyGone;
+  const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletedLocally && !resolution.crossesWorkspace;
   useSessionPresence(
@@ -33,8 +38,15 @@ export function useSessionWindowController(windowId: string) {
     presenceEnabled && sessionPresenceAllowed(resolution, deletedLocally)
   );
   // A document's project lens cannot remove a valid shared window. Only a
-  // confirmed missing session retires it; scope mismatches render a local notice.
-  useRetireMissingSessionWindow(windowId, sessionId !== null && !deletionPending && remotelyGone);
+  // confirmed missing session, or one this client deleted, retires it; scope mismatches
+  // render a local notice.
+  useRetireMissingSessionWindow(
+    windowId,
+    sessionId !== null && !deletionPending && deletedLocally,
+    // The list's delete already retired this window; if that retarget was refused, retire it
+    // again here without announcing an operator-deleted session as missing.
+    !deletedByOperator
+  );
 
   return {
     ...resolution,
@@ -66,11 +78,11 @@ function sessionPresenceAllowed(resolution: SessionWindowResolution, deletedLoca
   return !resolution.crossesWorkspace && resolution.foreign.status !== "loading";
 }
 
-function useRetireMissingSessionWindow(windowId: string, retire: boolean) {
+function useRetireMissingSessionWindow(windowId: string, retire: boolean, announce: boolean) {
   const { coordinator } = useOsShell();
   useEffect(() => {
     if (!retire) return;
-    toast.error("Session not found");
+    if (announce) toast.error("Session not found");
     void coordinator.userRetireSession(windowId);
-  }, [coordinator, retire, windowId]);
+  }, [announce, coordinator, retire, windowId]);
 }

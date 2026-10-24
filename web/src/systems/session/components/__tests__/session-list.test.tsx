@@ -1999,12 +1999,13 @@ describe("SessionList breadth and Group by", () => {
     expect(screen.queryByRole("button", { name: /^Group by/ })).not.toBeInTheDocument();
     flat.update(sessions, { ...view, groupByOptions: ["none", "project"], setGroupBy });
     await user.click(screen.getByRole("button", { name: "Group by: None" }));
-    expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-group-by-none")).toHaveAttribute(
+    expect(await screen.findByTestId("session-sidebar-group-by-none")).toHaveAttribute(
       "aria-checked",
       "true"
     );
     expect(screen.queryByTestId("session-sidebar-group-by-profile")).not.toBeInTheDocument();
+    // The Group by menu holds only groupings; sorts live behind their own icon.
+    expect(screen.queryByRole("menuitemradio", { name: "Created" })).not.toBeInTheDocument();
     await user.click(screen.getByTestId("session-sidebar-group-by-project"));
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });

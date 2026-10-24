@@ -102,6 +102,7 @@ export {
   useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,

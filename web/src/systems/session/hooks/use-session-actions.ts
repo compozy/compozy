@@ -1,4 +1,9 @@
-import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useIsMutating,
+  useMutation,
+  useMutationState,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -165,6 +170,30 @@ export function useSessionDeletionPending(sessionId: string | null): boolean {
         );
       },
     }) > 0
+  );
+}
+
+/**
+ * True once this client deleted the session: a window still showing it after an
+ * operator-owned deletion is retired quietly, never reported as a missing session.
+ */
+export function useSessionDeletedByOperator(sessionId: string | null): boolean {
+  return (
+    useMutationState({
+      filters: {
+        mutationKey: sessionKeys.deletions(),
+        status: "success",
+        predicate: mutation => {
+          const variables = mutation.state.variables;
+          return (
+            typeof variables === "object" &&
+            variables !== null &&
+            "id" in variables &&
+            variables.id === sessionId
+          );
+        },
+      },
+    }).length > 0
   );
 }
 

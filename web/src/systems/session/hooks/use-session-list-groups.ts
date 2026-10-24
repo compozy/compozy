@@ -4,6 +4,7 @@ import { useProfiles, type ProfileOwner, type ProfileScopeParams } from "@/syste
 import { breadthQuery, sessionCatalogBreadthParams, type DataScope } from "@/systems/workspace";
 
 import { sessionFacetsOptions } from "../lib/session-catalog-options";
+import type { SessionListFilters } from "../types";
 import {
   profileSessionGroups,
   projectSessionGroups,
@@ -23,6 +24,12 @@ export interface SessionListGroupsInput {
   archived: boolean;
   search?: string;
   enabled: boolean;
+  /**
+   * The population filters of a surface that reads its own rows differently from
+   * the list (the board: every subagent, children per "Hide child sessions"), so
+   * group membership and totals count exactly the rows that surface shows.
+   */
+  population?: Pick<SessionListFilters, "children" | "subagents">;
 }
 
 export interface SessionListGroupsModel {
@@ -46,12 +53,13 @@ export function useSessionListGroups({
   archived,
   search,
   enabled,
+  population,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
     ...sessionFacetsOptions({
       ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
-      subagents: sessionListSubagentsParam(search),
+      ...(population ?? { subagents: sessionListSubagentsParam(search) }),
       ...(archived ? { archive: "only" as const } : {}),
       ...lens,
     }),

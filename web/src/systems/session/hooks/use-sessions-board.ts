@@ -174,10 +174,8 @@ export function useSessionsBoard({
   const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
   const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
   const grouped = effectiveGroupBy !== "none";
-  const shared: SessionListFilters = {
-    ...(hideChildren ? { children: "exclude" as const } : {}),
-    sort: sessionBoardSort(sort),
-  };
+  const population = hideChildren ? { children: "exclude" as const } : {};
+  const shared: SessionListFilters = { ...population, sort: sessionBoardSort(sort) };
   const base = sessionCatalogScopedFilters(scope, shared, params);
   const columns = useSessionsBoardColumns(base, active && !grouped);
   const grouping = useSessionListGroups({
@@ -187,6 +185,8 @@ export function useSessionsBoard({
     workspaces: registeredWorkspaces,
     archived: false,
     enabled: active,
+    // Lane membership and totals count the rows the lane's columns read.
+    population,
   });
   const archive = useSessionsBoardPage({ ...base, archive: "only" }, active);
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
