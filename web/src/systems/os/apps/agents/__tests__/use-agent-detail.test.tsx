@@ -82,7 +82,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useDataScope: () => mockDataScope,
 }));
 
-import { useAgentDetailPage } from "@/systems/os/apps/agents/use-agent-detail";
+import { agentStatusSlot } from "@/systems/os/apps/agents/agent-detail-view";
+import {
+  useAgentDetailPage,
+  type UseAgentDetailResult,
+} from "@/systems/os/apps/agents/use-agent-detail";
 import { WindowDataBindingContext } from "@/systems/workspace";
 
 const emptySearch = {};
@@ -279,5 +283,38 @@ describe("useAgentDetailPage", () => {
     expect(metricsFailed.result.current.metricsError).toBe(true);
     expect(metricsFailed.result.current.metricsUnavailable).toBe(true);
     expect(metricsFailed.result.current.sessions).toEqual([{ id: "sess-ok" }]);
+  });
+});
+
+describe("agentStatusSlot", () => {
+  const page = (overrides: Partial<UseAgentDetailResult>) =>
+    ({
+      agent: { name: "fraud-ops" },
+      metricsLoading: false,
+      metricsUnavailable: false,
+      metricsError: false,
+      ...overrides,
+    }) as UseAgentDetailResult;
+
+  it.each([
+    { name: "metrics loaded", overrides: {}, expected: "pill" },
+    { name: "metrics loading", overrides: { metricsLoading: true }, expected: "placeholder" },
+    {
+      name: "agent scope still resolving (metrics disabled)",
+      overrides: { agent: undefined, metricsUnavailable: true },
+      expected: "placeholder",
+    },
+    {
+      name: "metrics failed",
+      overrides: { metricsError: true, metricsUnavailable: true },
+      expected: "none",
+    },
+    {
+      name: "loaded agent without session metrics",
+      overrides: { metricsUnavailable: true },
+      expected: "none",
+    },
+  ] as const)("Should resolve the status slot when $name", ({ overrides, expected }) => {
+    expect(agentStatusSlot(page(overrides as Partial<UseAgentDetailResult>))).toBe(expected);
   });
 });

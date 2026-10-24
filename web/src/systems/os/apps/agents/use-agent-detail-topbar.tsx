@@ -1,6 +1,6 @@
 import { useTopbarSlot } from "@compozy/ui";
 
-import { agentMetricsReady } from "./agent-detail-view";
+import { agentStatusSlot } from "./agent-detail-view";
 import type { UseAgentDetailResult } from "./use-agent-detail";
 import {
   AgentPageActions,
@@ -16,7 +16,6 @@ import {
  * overflow and the status follow the agent and its metrics, and hold their places until then.
  */
 export function useAgentDetailTopbar(page: UseAgentDetailResult, name: string) {
-  const metricsReady = agentMetricsReady(page);
   const navigation = {
     onBack: () => page.onBackToAgents(),
     crumbs: [{ id: "agents", label: "Agents", onSelect: () => page.onBackToAgents() }],
@@ -24,11 +23,13 @@ export function useAgentDetailTopbar(page: UseAgentDetailResult, name: string) {
   };
   // The status follows the metrics: a placeholder holds its place while they load, nothing when
   // they are unavailable.
-  const status = metricsReady ? (
-    <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
-  ) : page.metricsLoading ? (
-    <AgentPageStatusSkeleton />
-  ) : undefined;
+  const statusSlot = agentStatusSlot(page);
+  const status =
+    statusSlot === "pill" ? (
+      <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
+    ) : statusSlot === "placeholder" ? (
+      <AgentPageStatusSkeleton />
+    ) : undefined;
   const actions = (
     <AgentPageActions
       onNewSession={page.onNewSession}
