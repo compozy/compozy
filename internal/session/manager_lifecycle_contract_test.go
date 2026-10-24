@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -738,6 +739,61 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 
 func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 	t.Parallel()
+	t.Run("Should archive a recovered stop after exit classification cleared its process identity", func(t *testing.T) {
+		t.Parallel()
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, active.MetaPath())
+		meta.State = string(StateStopping)
+		meta.StopVerificationFailed = true
+		if meta.RuntimeStatus != store.SessionRuntimeUnbound || meta.Liveness.SubprocessPID != 0 ||
+			meta.Liveness.SubprocessStartedAt != nil {
+			t.Fatalf("exit classification did not release identity: %#v", meta.Liveness)
+		}
+		if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
+			t.Fatal(err)
+		}
+		manager := newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, manager)
+		if err := manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatalf("retry recovered stop: %v", err)
+		}
+		info, err := manager.ArchiveWithStop(t.Context(), h.workspaceID, active.ID)
+		if err != nil {
+			t.Fatalf("archive recovered stop: %v", err)
+		}
+		if info.State != StateStopped || info.StopVerificationFailed || info.ArchivedAt == nil {
+			t.Fatalf("recovered stop not archived: %#v", info)
+		}
+		if info.StopReason != store.StopUserCanceled {
+			t.Fatalf("recovery changed the recorded stop cause: %s", info.StopReason)
+		}
+	})
+	t.Run("Should report a repeated verification cause once across stop phases and retries", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		cause := errors.New("process identity unavailable")
+		stopErr := errors.New("provider stop refused")
+		h.driver.stopHook = func(*fakeProcess) error { return stopErr }
+		h.driver.mu.Lock()
+		h.driver.verifyExitHook = func(*AgentProcess) (bool, error) { return false, cause }
+		h.driver.mu.Unlock()
+		t.Cleanup(func() { h.driver.mu.Lock(); h.driver.verifyExitHook = nil; h.driver.mu.Unlock() })
+		for range 2 {
+			err := h.manager.Stop(t.Context(), active.ID)
+			if !errors.Is(err, ErrStopVerificationFailed) || !errors.Is(err, cause) || !errors.Is(err, stopErr) {
+				t.Fatalf("verification identity lost: %v", err)
+			}
+			if strings.Count(err.Error(), cause.Error()) != 1 || strings.Count(err.Error(), stopErr.Error()) != 1 {
+				t.Fatalf("repeated verification cause: %v", err)
+			}
+		}
+	})
 	t.Run("Should retain stopping until process death is verified", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

@@ -42,6 +42,9 @@ func (m *Manager) AwaitStopped(ctx context.Context, id string) (StopOutcome, err
 func waitSessionStopRun(ctx context.Context, run *sessionStopRun) (StopOutcome, error) {
 	select {
 	case <-run.done:
+		if errors.Is(run.err, ErrStopVerificationFailed) {
+			return run.outcome, stopVerificationError{run.err}
+		}
 		return run.outcome, run.err
 	case <-ctx.Done():
 		return StopOutcome{}, ctx.Err()

@@ -899,8 +899,11 @@ stored-session writer can complete the event while preserving the failed recorde
 Once storage recovers, settlement restores the original stop reason and failure from the retained
 receipt; a temporary storage diagnostic does not permanently relabel cancellation or an agent crash.
 Resume settles the existing stop without initiating another parent-stop cascade.
-Missing local PID/start identity also retains stopping with verification-failed attention,
-including interrupted startup metadata. Recovery preserves history while exit remains unproven.
+Incomplete local PID/start identity retains stopping with verification-failed attention,
+including interrupted startup metadata. An unbound runtime with both identity fields cleared
+has already released its process; recovery completes its pending stop and permits archive.
+Retry stop after upgrade for this previously stuck state. Repeated verification causes appear
+once in the reported error. Recovery preserves history while exit remains unproven.
 After verified recovery, the saved ACP session ID remains available for normal resume/load;
 known incomplete starts still clear their stale ACP ID through startup repair. A verified
 interrupted start also completes its terminal event and cleanup through the durable settlement
