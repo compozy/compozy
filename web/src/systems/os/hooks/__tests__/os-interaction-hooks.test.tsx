@@ -31,6 +31,8 @@ import {
 } from "../use-os-zoom-menu";
 import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
+import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
+import { usePaletteTabs } from "../use-os-palette-entities";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
@@ -314,6 +316,58 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   delete window.compozyShell;
+});
+
+describe("usePaletteTabs", () => {
+  afterEach(() => act(() => pruneWindowSlotStores(new Set())));
+  it("Should ignore closed-palette topology and title updates and read current tabs on reopen", () => {
+    const shell = createShell();
+    let renders = 0;
+    const { result, rerender } = renderHook(
+      ({ open }) => {
+        renders += 1;
+        return usePaletteTabs(open, null, []);
+      },
+      { wrapper: shell.wrapper, initialProps: { open: false } }
+    );
+    const primary = shell.state.windows["window:primary"]!;
+    const slot = ensureWindowSlotStore(primary.id);
+    const owner = {};
+    const initialRenders = renders;
+    act(() => slot.publishSlot(owner, { crumb: "Changed while closed" }));
+    expect(renders).toBe(initialRenders);
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 }, minimized: true },
+        },
+      })
+    );
+    expect(renders).toBe(initialRenders);
+    expect(result.current).toEqual([]);
+    rerender({ open: true });
+    expect(result.current).toEqual([
+      expect.objectContaining({
+        windowId: primary.id,
+        minimized: true,
+        label: "Changed while closed",
+      }),
+    ]);
+    act(() => slot.publishSlot(owner, { crumb: "Changed while open" }));
+    expect(result.current[0]?.label).toBe("Changed while open");
+    act(() => shell.setRuntimeState({ windows: {} }));
+    expect(result.current).toEqual([]);
+    rerender({ open: false });
+    const closedRenders = renders;
+    act(() => ensureWindowSlotStore(primary.id).publishSlot(owner, { crumb: "Reopened title" }));
+    expect(renders).toBe(closedRenders);
+    act(() => shell.setRuntimeState({ windows: { [primary.id]: primary } }));
+    expect(renders).toBe(closedRenders);
+    rerender({ open: true });
+    expect(result.current).toEqual([
+      expect.objectContaining({ windowId: primary.id, minimized: false, label: "Reopened title" }),
+    ]);
+  });
 });
 
 describe("useOsWindowMember", () => {
