@@ -217,8 +217,8 @@ test("operator can create a provider/model override session and attach without l
   const sessionWin = sessionWindow(appPage, createdSession.session.id);
   const sessionUi = sessionWindowSelectors(sessionWin, appPage);
   await expect(sessionWin).toBeVisible();
-  await sessionUi.topbarOverflow.click();
-  await appPage.getByTestId("rename-button").click();
+  await sessionUi.sessionRowActions(createdSession.session.id).click();
+  await sessionUi.sessionRowMenuItem("rename", createdSession.session.id).click();
   const renameResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "PATCH" &&

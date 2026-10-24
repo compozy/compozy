@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 
 import { useProfileReadScope } from "@/systems/profiles";
@@ -9,9 +9,8 @@ import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
 
-/** Resolves the session window identity and owns its redirect/delete lifecycle. */
+/** Resolves the session window identity and retires it once its session is confirmed gone. */
 export function useSessionWindowController(windowId: string) {
-  const { coordinator } = useOsShell();
   const { aggregate } = useProfileReadScope();
   // The window's own scope (its binding, else its partition): a session of
   // another scope is hidden here; a catalog window on All projects hides none.
@@ -19,15 +18,13 @@ export function useSessionWindowController(windowId: string) {
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
-  const [deletedSessionId, setDeletedSessionId] = useState<string | null>(null);
-  const deletedByOperator = sessionId !== null && deletedSessionId === sessionId;
   const resolution = useSessionWindowResolution({
     sessionId,
     focusedScope,
-    liveTailEnabled: liveTailEnabled && !deletedByOperator,
+    liveTailEnabled,
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
-  const deletedLocally = deletedByOperator || remotelyGone;
+  const deletedLocally = remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletedLocally && !resolution.crossesWorkspace;
   useSessionPresence(
@@ -37,10 +34,7 @@ export function useSessionWindowController(windowId: string) {
   );
   // A document's project lens cannot remove a valid shared window. Only a
   // confirmed missing session retires it; scope mismatches render a local notice.
-  useRetireMissingSessionWindow(
-    windowId,
-    sessionId !== null && !deletionPending && !deletedByOperator && remotelyGone
-  );
+  useRetireMissingSessionWindow(windowId, sessionId !== null && !deletionPending && remotelyGone);
 
   return {
     ...resolution,
@@ -49,11 +43,6 @@ export function useSessionWindowController(windowId: string) {
     effectiveLiveTailEnabled,
     liveTailEnabled,
     sessionId,
-    handleDeleteSuccess: () => {
-      if (sessionId === null) return;
-      setDeletedSessionId(sessionId);
-      void coordinator.userRetireSession(windowId);
-    },
   };
 }
 

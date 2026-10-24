@@ -314,14 +314,8 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="automations-shell"]') !== null ||
         document.querySelector('[data-testid="automation-detail-panel"]') !== null,
       chat_view_visible: document.querySelector('[data-testid="chat-view"]') !== null,
-      composer_clear_button_enabled:
-        document.querySelector<HTMLButtonElement>('[data-testid="composer-clear-button"]')
-          ?.disabled === false,
-      composer_clear_button_visible:
-        document.querySelector('[data-testid="composer-clear-button"]') !== null,
-      delete_button_visible: document.querySelector('[data-testid="delete-button"]') !== null,
-      session_topbar_overflow_visible:
-        document.querySelector('[data-testid="session-topbar-overflow"]') !== null,
+      session_view_toggle_visible:
+        document.querySelector('[data-testid="session-view-toggle"]') !== null,
       home_activity_count: document.querySelectorAll('[data-slot="home-activity-row"]').length,
       home_agent_count: document.querySelectorAll('[data-slot="home-agent-row"]').length,
       home_completed_today_value: readHomeMetricValue("Completed today"),

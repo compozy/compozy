@@ -235,7 +235,7 @@ export const StableSortMenu: Story = {
   args: CreatedOrder.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Sort sessions" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Sort by: Created" }));
     await expect(
       await within(canvasElement.ownerDocument.body).findByRole("menuitemradio", {
         name: "Created",

@@ -1,8 +1,8 @@
 // Suite: daemon-backed session-list preferences
-// Invariant: full-section preference writes never overlap, so an older response
-// cannot overwrite a newer sort or grouping choice, and writes never carry the
-// deprecated `scope`. An old client's `legacy_scope` applies breadth once per newer
-// explicit revision (ADR-004 / W-29): the first observation applies only
+// Invariant: the daemon's `shell.sessions` sort and grouping read through with
+// documented defaults for unset or unknown values, and the web never writes them
+// (they only seed windows, #952). An old client's `legacy_scope` applies breadth once
+// per newer explicit revision (ADR-004 / W-29): the first observation applies only
 // `all-workspaces`, and defaults never apply.
 // Owning layer: session-list preference hook; the daemon's shell settings route is the
 // mocked I/O boundary.
@@ -25,8 +25,7 @@ type LegacyScope = { value: "workspace" | "all-workspaces"; explicit: boolean; r
 const daemon: {
   sessions: { sort?: string; group_by?: string };
   legacy?: LegacyScope;
-  hangWrites: boolean;
-} = { sessions: {}, hangWrites: false };
+} = { sessions: {} };
 
 function json(body: unknown) {
   return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
@@ -80,16 +79,12 @@ describe("useSessionListPreferences", () => {
   beforeEach(async () => {
     daemon.sessions = {};
     daemon.legacy = undefined;
-    daemon.hangWrites = false;
     fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
       const request = input as Request;
       if (new URL(request.url).pathname !== "/api/settings/shell") {
         return new Response(null, { status: 404 });
       }
-      if (request.method === "PATCH") {
-        if (daemon.hangWrites) return new Promise<Response>(() => undefined);
-        return json({ applied: true });
-      }
+      if (request.method === "PATCH") return json({ applied: true });
       return json({
         config: { sessions: { ...daemon.sessions } },
         ...(daemon.legacy ? { legacy_scope: daemon.legacy } : {}),
@@ -129,22 +124,11 @@ describe("useSessionListPreferences", () => {
     expect(result.current.groupBy).toBe(groupBy);
   });
 
-  it("Should reject a second full-section write until the first settles, never sending scope", async () => {
-    daemon.hangWrites = true;
+  it("Should never write the daemon preference", async () => {
+    daemon.sessions = { sort: "name", group_by: "project" };
     const { result } = renderPreferences();
-    await waitFor(() => expect(result.current.loading).toBe(false));
-
-    act(() => {
-      result.current.setSort("attention");
-      result.current.setGroupBy("project");
-    });
-
-    await waitFor(() => expect(writes()).toHaveLength(1));
-    expect(await writes()[0]!.clone().json()).toEqual({
-      config: { sessions: { sort: "attention", group_by: "none" } },
-    });
-    expect(result.current.sort).toBe("attention");
-    expect(result.current.saving).toBe(true);
+    await waitFor(() => expect(result.current.sort).toBe("name"));
+    expect(writes()).toHaveLength(0);
   });
 
   describe("W-29: legacy breadth", () => {

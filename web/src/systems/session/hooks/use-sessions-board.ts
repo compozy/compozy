@@ -10,7 +10,16 @@ import {
   sessionFacetsOptions,
 } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
+import type { SessionListGroupSpec } from "../lib/session-list-groups";
+import {
+  availableSessionListGroupBys,
+  effectiveSessionListGroupBy,
+  sessionBoardSort,
+  type SessionListGroupBy,
+  type SessionListSort,
+} from "../lib/session-list-preferences";
 import type { SessionListFilters } from "../types";
+import { useSessionListGroups } from "./use-session-list-groups";
 
 export const SESSION_BOARD_COLUMNS: readonly { id: SessionBoardColumnId; label: string }[] = [
   { id: "needs_you", label: "Needs you" },
@@ -48,8 +57,23 @@ export interface SessionsBoardColumnView extends SessionsBoardPage {
   count: number | undefined;
 }
 
+/** One Group-by swimlane: its group and the catalog filters every column of it reads. */
+export interface SessionsBoardLane {
+  group: SessionListGroupSpec;
+  filters: SessionListFilters;
+}
+
 export interface SessionsBoardView {
+  /** The ungrouped board's columns; empty and unread while the board is grouped. */
   columns: SessionsBoardColumnView[];
+  /** Group-by swimlanes from server facets; `null` while the board is ungrouped. */
+  lanes: SessionsBoardLane[] | null;
+  lanesLoading: boolean;
+  lanesError?: { retry: () => void };
+  /** The grouping that renders: an inapplicable stored value renders ungrouped. */
+  groupBy: SessionListGroupBy;
+  /** Groupings available in the current breadth and profile lens. */
+  groupByOptions: readonly SessionListGroupBy[];
   /**
    * `count` is the archive's total, `undefined` until a read succeeds, so a
    * failed or pending read is never mistaken for zero archived sessions.
@@ -89,30 +113,15 @@ function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): Se
 }
 
 /**
- * The Sessions board read model for a data scope (`_uiux.md` S4). Each column
- * is its own catalog read filtered by the daemon's `board_column` before
- * pagination; counts come from `facets.board`, so they include cards not yet
- * loaded. Archived sessions appear only in the Archive bar. All reads live under
- * the catalog list family, so stream wakes and the 60 s visible re-read keep
- * them current.
+ * The four derived columns for one catalog query: each column is its own read
+ * filtered by the daemon's `board_column` before pagination, and the counts come
+ * from `facets.board`, so they include cards that are not loaded yet. The
+ * ungrouped board reads one set; each swimlane reads its own.
  */
-export function useSessionsBoard({
-  scope,
-  hideChildren,
-  enabled = true,
-}: {
-  scope: DataScope | null;
-  hideChildren: boolean;
-  enabled?: boolean;
-}): SessionsBoardView {
-  const { params } = useProfileReadScope();
-  const { registeredWorkspaces } = useActiveWorkspace();
-  const active = enabled && scope !== null;
-  const base = sessionCatalogScopedFilters(
-    scope,
-    hideChildren ? { children: "exclude" } : {},
-    params
-  );
+export function useSessionsBoardColumns(
+  base: SessionListFilters,
+  active: boolean
+): SessionsBoardColumnView[] {
   const column = (id: SessionBoardColumnId): SessionListFilters => ({
     ...base,
     board_column: [id],
@@ -122,7 +131,6 @@ export function useSessionsBoard({
   const working = useSessionsBoardPage(column("working"), active);
   const inReview = useSessionsBoardPage(column("in_review"), active);
   const done = useSessionsBoardPage(column("done"), active);
-  const archive = useSessionsBoardPage({ ...base, archive: "only" }, active);
   const facets = useQuery({
     ...sessionFacetsOptions(base),
     refetchInterval: SESSION_BOARD_REFETCH_MS,
@@ -130,16 +138,72 @@ export function useSessionsBoard({
   });
   const counts = facets.data?.facets.board;
   const pages = { needs_you: needsYou, working, in_review: inReview, done };
+  return SESSION_BOARD_COLUMNS.map(({ id, label }) => ({
+    ...pages[id],
+    id,
+    label,
+    count: counts?.[id],
+  }));
+}
+
+/**
+ * The Sessions board read model for a data scope (`_uiux.md` S4). Columns read
+ * in the window's sort (a List-only `manual` reads `last_activity`). Grouped by
+ * project or profile, the board becomes swimlanes: membership comes from the
+ * same facets the List groups use, and each lane reads its own columns. Archived
+ * sessions appear only in the Archive bar, which stays ungrouped. All reads live
+ * under the catalog list family, so stream wakes and the 60 s visible re-read
+ * keep them current.
+ */
+export function useSessionsBoard({
+  scope,
+  hideChildren,
+  sort,
+  groupBy,
+  enabled = true,
+}: {
+  scope: DataScope | null;
+  hideChildren: boolean;
+  sort: SessionListSort;
+  groupBy: SessionListGroupBy;
+  enabled?: boolean;
+}): SessionsBoardView {
+  const { params, aggregate } = useProfileReadScope();
+  const { registeredWorkspaces } = useActiveWorkspace();
+  const active = enabled && scope !== null;
+  const breadth = { allProjects: scope?.kind === "all", allProfiles: aggregate };
+  const effectiveGroupBy = effectiveSessionListGroupBy(groupBy, breadth);
+  const grouped = effectiveGroupBy !== "none";
+  const shared: SessionListFilters = {
+    ...(hideChildren ? { children: "exclude" as const } : {}),
+    sort: sessionBoardSort(sort),
+  };
+  const base = sessionCatalogScopedFilters(scope, shared, params);
+  const columns = useSessionsBoardColumns(base, active && !grouped);
+  const grouping = useSessionListGroups({
+    groupBy: effectiveGroupBy,
+    scope,
+    lens: params,
+    workspaces: registeredWorkspaces,
+    archived: false,
+    enabled: active,
+  });
+  const archive = useSessionsBoardPage({ ...base, archive: "only" }, active);
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const allProjects = scope?.kind === "all";
 
   return {
-    columns: SESSION_BOARD_COLUMNS.map(({ id, label }) => ({
-      ...pages[id],
-      id,
-      label,
-      count: counts?.[id],
-    })),
+    columns: grouped ? [] : columns,
+    lanes: grouped
+      ? grouping.groups.map(group => ({
+          group,
+          filters: sessionCatalogScopedFilters(group.scope, shared, group.lens),
+        }))
+      : null,
+    lanesLoading: grouping.loading,
+    lanesError: grouping.error,
+    groupBy: effectiveGroupBy,
+    groupByOptions: availableSessionListGroupBys(breadth),
     archive: { ...archive, count: archive.total },
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,

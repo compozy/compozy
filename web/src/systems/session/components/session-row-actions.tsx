@@ -57,7 +57,7 @@ export function SessionRowActions({ session, actions }: SessionRowActionsProps) 
             <DropdownMenuItem
               key={item.id}
               data-testid={`session-row-${item.id}-${session.id}`}
-              disabled={disabled}
+              disabled={disabled || item.disabled}
               onClick={item.onSelect}
               variant={item.destructive ? "destructive" : undefined}
             >

@@ -292,7 +292,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   expect((await approvalResponsePromise).ok()).toBe(true);
 
   await expect(ui.permissionPrompt).toBeHidden();
-  await expect(ui.topbarOverflow).toBeVisible();
+  await expect(ui.viewToggle).toBeVisible();
 
   const snapshot = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(snapshot.events)).toContain("tool-hardening-read-1");
@@ -316,7 +316,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   ) as Record<string, unknown>;
   expect(routeState).toMatchObject({
     chat_view_visible: true,
-    session_topbar_overflow_visible: true,
+    session_view_toggle_visible: true,
     message_count: expect.any(Number),
     permission_prompt_visible: false,
   });
@@ -363,7 +363,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await ui.stopButton.click();
   expect((await stopActionResponsePromise).ok()).toBe(true);
 
-  await expect(ui.topbarOverflow).toBeVisible({ timeout: 60_000 });
+  await expect(ui.sessionRowActions(session.id)).toBeEnabled({ timeout: 60_000 });
   const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeClear.transcript)).toContain("block until canceled");
 
@@ -382,8 +382,8 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   expect(JSON.stringify(afterEdit.transcript)).toContain("continue after disconnect");
   await browserArtifacts.captureScreenshot("session-stop-edit-resend", appPage);
 
-  await ui.topbarOverflow.click();
-  await ui.composerClearButton.click();
+  await ui.sessionRowActions(session.id).click();
+  await ui.sessionRowMenuItem("clear", session.id).click();
   await expect(appPage.getByTestId("composer-clear-dialog")).toBeVisible();
   const clearResponsePromise = appPage.waitForResponse(
     response =>
@@ -424,10 +424,10 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const deletableWin = sessionWindow(appPage, deletableSession.id);
   const deletableUi = sessionWindowSelectors(deletableWin, appPage);
   await expect(deletableWin).toBeVisible();
-  await expect(deletableUi.topbarOverflow).toBeVisible();
+  await expect(deletableUi.sessionRowActions(deletableSession.id)).toBeEnabled();
   await browserArtifacts.captureScreenshot("session-stopped-before-delete", appPage);
-  await deletableUi.topbarOverflow.click();
-  await deletableUi.deleteButton.click();
+  await deletableUi.sessionRowActions(deletableSession.id).click();
+  await deletableUi.sessionRowMenuItem("delete", deletableSession.id).click();
   await expect(appPage.getByTestId("delete-dialog")).toBeVisible();
   const deleteResponsePromise = appPage.waitForResponse(
     response =>

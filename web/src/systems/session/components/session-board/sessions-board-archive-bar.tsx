@@ -5,6 +5,7 @@ import { Button, Spinner } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
+import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCard } from "./session-board-card";
@@ -14,6 +15,7 @@ export interface SessionsBoardArchiveBarProps {
   archive: SessionsBoardView["archive"];
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
+  actions?: SessionLifecycleActionHandlers;
 }
 
 const BAR_CLASS = "flex h-tabs-list w-full items-center gap-2 px-4 text-small-body text-muted";
@@ -28,6 +30,7 @@ export function SessionsBoardArchiveBar({
   archive,
   workspaceNameOf,
   onOpen,
+  actions,
 }: SessionsBoardArchiveBarProps) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
@@ -99,6 +102,7 @@ export function SessionsBoardArchiveBar({
           {archive.sessions.map(session => (
             <div className="w-66 shrink-0" key={session.id}>
               <SessionBoardCard
+                actions={actions}
                 archived
                 onOpen={onOpen}
                 session={session}

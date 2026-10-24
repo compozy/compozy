@@ -5,6 +5,7 @@
  */
 export { SessionViewToggle } from "./components/session-board/session-view-toggle";
 export { SessionsBoard } from "./components/session-board/sessions-board";
+export { SessionGroupByMenu, SessionSortMenu } from "./components/session-order-menus";
 export type { SessionBoardColumnId, SessionBoardPayload } from "./lib/session-board-contract";
 export { sessionWaitingOn, type SessionWaitingOn } from "./lib/session-pull-request";
 export { pullRequestPill, type PullRequestPill } from "./lib/pull-request-signal";

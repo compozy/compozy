@@ -801,7 +801,11 @@ describe("sessions board read failures", () => {
   function renderBoard(client: QueryClient) {
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
-    return renderHook(() => useSessionsBoard({ scope: ALPHA, hideChildren: false }), { wrapper });
+    return renderHook(
+      () =>
+        useSessionsBoard({ scope: ALPHA, hideChildren: false, sort: "created", groupBy: "none" }),
+      { wrapper }
+    );
   }
 
   it("Should keep loaded cards when the next page or a re-read fails", async () => {
@@ -867,6 +871,93 @@ describe("sessions board read failures", () => {
     const { result } = renderBoard(client);
     await waitFor(() => expect(result.current.archive.failure).toBe("initial"));
     expect(result.current.archive.count).toBeUndefined();
+    client.clear();
+  });
+});
+
+// Invariant (#952): board columns read in the window's sort, a List-only `manual` reading
+// `last_activity`; grouped by project, the board lists one lane per facet group (never derived
+// from a loaded page) and leaves the ungrouped columns unread. Owner: the board read model.
+describe("sessions board order and swimlanes", () => {
+  const facet = (all: number) => ({
+    terminal_approvals: 0,
+    all,
+    needs_you: 0,
+    working: all,
+    finished: 0,
+    idle: 0,
+    board: { needs_you: 0, working: all, in_review: 0, done: 0 },
+  });
+
+  beforeEach(() => {
+    vi.mocked(fetchSessionCatalogPage).mockReset();
+    vi.mocked(fetchSessionFacets).mockReset();
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 50 },
+    });
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: facet(3),
+      by_workspace: [
+        { workspace_id: "ws_alpha", facets: facet(2) },
+        { workspace_id: "ws_beta", facets: facet(1) },
+        { workspace_id: "ws_empty", facets: facet(0) },
+      ],
+      by_profile: [],
+    });
+  });
+
+  function renderBoard(input: Parameters<typeof useSessionsBoard>[0]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+    return { client, ...renderHook(() => useSessionsBoard(input), { wrapper }) };
+  }
+
+  it("Should read every column in last-activity order while the stored sort is manual", async () => {
+    const { client } = renderBoard({
+      scope: ALPHA,
+      hideChildren: false,
+      sort: "manual",
+      groupBy: "none",
+    });
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(5));
+    const sorts = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query?.sort);
+    expect(new Set(sorts)).toEqual(new Set(["last_activity"]));
+    client.clear();
+  });
+
+  it("Should list one lane per project with sessions and leave the flat columns unread", async () => {
+    const { result, client } = renderBoard({
+      scope: { kind: "all" },
+      hideChildren: true,
+      sort: "name",
+      groupBy: "project",
+    });
+    await waitFor(() => expect(result.current.lanes?.length).toBe(2));
+    expect(result.current.groupBy).toBe("project");
+    expect(result.current.columns).toEqual([]);
+    expect(result.current.lanes!.map(lane => lane.filters)).toEqual([
+      expect.objectContaining({ workspace_id: "ws_alpha", children: "exclude", sort: "name" }),
+      expect.objectContaining({ workspace_id: "ws_beta", children: "exclude", sort: "name" }),
+    ]);
+    // Only the Archive bar reads a page here: each lane reads its own columns when it renders.
+    const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
+    expect(reads.every(query => query?.archive === "only")).toBe(true);
+    client.clear();
+  });
+
+  it("Should render ungrouped where the stored grouping does not apply", async () => {
+    const { result, client } = renderBoard({
+      scope: ALPHA,
+      hideChildren: false,
+      sort: "created",
+      groupBy: "project",
+    });
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(5));
+    expect(result.current.groupBy).toBe("none");
+    expect(result.current.lanes).toBeNull();
+    expect(result.current.columns).toHaveLength(4);
     client.clear();
   });
 });

@@ -83,6 +83,21 @@ export function sessionListSortParam(sort: SessionListSort, singlePair = true): 
   return sort === "manual" && !singlePair ? "last_activity" : sort;
 }
 
+type SessionBoardSort = Exclude<SessionListSort, "manual">;
+
+/**
+ * Sorts the board offers. Manual order is the List's drag order inside one
+ * project and profile's folders; it has no meaning across board columns.
+ */
+export const SESSION_BOARD_SORTS: readonly SessionBoardSort[] = SESSION_LIST_SORTS.filter(
+  (sort): sort is SessionBoardSort => sort !== "manual"
+);
+
+/** The order board columns read: a stored `manual` reads `last_activity`, unchanged in storage. */
+export function sessionBoardSort(sort: SessionListSort): SessionBoardSort {
+  return sort === "manual" ? "last_activity" : sort;
+}
+
 /**
  * Subagent sessions stay out of the sidebar page (ADR-005): the parent row
  * carries their chip. A search widens the population so matching subagents

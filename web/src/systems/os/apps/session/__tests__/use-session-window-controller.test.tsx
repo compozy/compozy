@@ -36,15 +36,10 @@ vi.mock("@/hooks/routes/use-session-clear-dialog", () => ({
   useSessionClearDialog: () => ({ openDialog: vi.fn() }),
 }));
 
-vi.mock("@/hooks/routes/use-session-delete-dialog", () => ({
-  useSessionDeleteDialog: () => ({ openDialog: vi.fn() }),
-}));
-
 vi.mock("@/hooks/routes/use-session-page-controls", () => ({
   useSessionPageControls: () => ({
     canClear: true,
     handleClear: vi.fn(),
-    handleDelete: vi.fn(),
     handleInterruptPrompt: vi.fn(),
     handleQueuePrompt: vi.fn(),
     handleRemoveQueuedPrompt: vi.fn(),
@@ -53,7 +48,6 @@ vi.mock("@/hooks/routes/use-session-page-controls", () => ({
     handleSteerQueuedPrompt: vi.fn(),
     handleStop: vi.fn(),
     isClearing: false,
-    isDeleting: false,
     isSessionRunning: false,
     isStopping: false,
     isUnarchiving: false,
@@ -152,7 +146,6 @@ describe("useSessionWindowController", () => {
       sessionId: "sess-1",
       workspaceId: "ws-1",
       session,
-      onDeleteSuccess: vi.fn(),
       liveDataEnabled: true,
     };
     const { rerender } = renderHook(() => useSessionWindowController(input));
@@ -192,7 +185,6 @@ describe("useSessionWindowController", () => {
         sessionId: "sess-1",
         workspaceId: "ws-1",
         session,
-        onDeleteSuccess: vi.fn(),
         liveDataEnabled: true,
         onOpenWorktreeContext,
         onResolveMissingWorktree,
@@ -216,7 +208,6 @@ describe("useSessionWindowController", () => {
         sessionId: "sess-1",
         workspaceId: "ws-1",
         session,
-        onDeleteSuccess: vi.fn(),
         liveDataEnabled: true,
       })
     );

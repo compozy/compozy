@@ -43,7 +43,6 @@ function renderView(session: Record<string, unknown>) {
       liveTailEnabled
       isLoading={false}
       error={null}
-      onDeleteSuccess={() => {}}
     />
   );
 }

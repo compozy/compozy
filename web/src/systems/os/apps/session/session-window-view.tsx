@@ -26,7 +26,6 @@ export function SessionWindowView({
   liveTailEnabled,
   isLoading,
   error,
-  onDeleteSuccess,
 }: {
   windowId: string;
   name: string;
@@ -36,7 +35,6 @@ export function SessionWindowView({
   liveTailEnabled: boolean;
   isLoading: boolean;
   error: Error | null;
-  onDeleteSuccess: () => void;
 }) {
   const sessionWorkspaceId = session ? (session.workspace_id?.trim() ?? "") : undefined;
 
@@ -81,7 +79,6 @@ export function SessionWindowView({
           sessionId={id}
           session={session}
           workspaceId={runtimeWorkspaceId}
-          onDeleteSuccess={onDeleteSuccess}
         />
       </SessionChatRuntimeProvider>
     </SessionPromptRuntimeProvider>

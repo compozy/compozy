@@ -9,8 +9,6 @@ import {
   cancelSessionPrompt,
   invalidateSessionMutationQueries,
   useClearSessionConversation,
-  useDeleteSession,
-  useRenameSession,
   useStopSession,
   useSessionTranscriptThreadMessages,
   canPromptSession,
@@ -35,7 +33,6 @@ interface UseSessionPageControlsOptions {
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   /** Whether the hosting window owns live data; a background window reads its queue on return. */
   liveDataEnabled?: boolean;
-  onDeleteSuccess?: () => void;
   workspaceId?: string;
 }
 
@@ -48,21 +45,12 @@ export function useSessionPageControls(
   const aui = useAui();
   const queryClient = useQueryClient();
   const workspaceId = options.workspaceId ?? "";
-  const onDeleteSuccess = options.onDeleteSuccess;
   const getRuntimeSnapshot = options.getRuntimeSnapshot;
   const messages = useAuiState(state => state.thread.messages);
   const transcriptMessages = useSessionTranscriptThreadMessages();
   const isRunning = useAuiState(state => state.thread.isRunning);
-  const deleteMutation = useDeleteSession({
-    onDeleteSuccess: () => {
-      aui.thread.reset();
-      toast.success("Session deleted.");
-      onDeleteSuccess?.();
-    },
-  });
   const stopMutation = useStopSession();
   const unarchiveMutation = useUnarchiveSession();
-  const renameMutation = useRenameSession();
   const clearMutation = useClearSessionConversation({ workspaceId });
   const {
     activeTurnId,
@@ -121,8 +109,6 @@ export function useSessionPageControls(
   };
 
   const isUnarchiving = unarchiveMutation.isPending;
-  const isDeleting = deleteMutation.isPending;
-  const isRenaming = renameMutation.isPending;
   const isClearing = clearMutation.isPending;
   const busyInputPending = busyInput.pending;
   const { canClear, controlsBusy, isStopping, isStopRetrying, stopAttention } =
@@ -130,7 +116,7 @@ export function useSessionPageControls(
       controlsState,
       effectiveRunning,
       hasConversationContent: messages.length > 0 || transcriptMessages.length > 0,
-      pending: { busyInputPending, isClearing, isDeleting, isRenaming, isUnarchiving },
+      pending: { busyInputPending, isClearing, isUnarchiving },
       session,
       userControllable,
     });
@@ -173,37 +159,6 @@ export function useSessionPageControls(
     });
   };
 
-  const handleDelete = () => {
-    if (controlsBusy || !userControllable) {
-      return;
-    }
-    deleteMutation.mutate(session, {
-      onError: error => {
-        console.error("Failed to delete session", error);
-        toast.error(
-          error instanceof Error ? error.message : "Couldn't delete this session. Try again."
-        );
-      },
-    });
-  };
-
-  const handleRename = async (name: string) => {
-    if (!userControllable) {
-      return;
-    }
-    if (controlsBusy) {
-      throw new Error("Session controls are busy.");
-    }
-    try {
-      await renameMutation.mutateAsync({ ...session, name });
-      toast.success("Session renamed.");
-    } catch (error) {
-      console.error("Failed to rename session", error);
-      toast.error("Couldn't rename this session.");
-      throw error;
-    }
-  };
-
   const handleClear = () => {
     if (controlsBusy || !userControllable || effectiveRunning) {
       return;
@@ -226,13 +181,11 @@ export function useSessionPageControls(
     handleCancelPrompt,
     handleClear,
     handleClearQueue: busyInput.handleClearQueue,
-    handleDelete,
     handleDiscardUnconfirmedSend: busyInput.handleDiscardUnconfirmedSend,
     handleInterruptPrompt: busyInput.handleInterruptPrompt,
     handleQueuePrompt: busyInput.handleQueuePrompt,
     handleRemoveQueuedPrompt: busyInput.handleRemoveQueuedPrompt,
     handleReplaceQueuedPrompt: busyInput.handleReplaceQueuedPrompt,
-    handleRename,
     handleRetryUnconfirmedSend: busyInput.handleRetryUnconfirmedSend,
     handleSteerPrompt: busyInput.handleSteerPrompt,
     handleSteerQueuedPrompt: busyInput.handleSteerQueuedPrompt,
@@ -240,8 +193,6 @@ export function useSessionPageControls(
     handleUnarchive,
     isBusyInputPending: busyInputPending,
     isClearing,
-    isDeleting,
-    isRenaming,
     isSessionRunning: daemonRunning,
     isStopRetrying,
     isStopping,
@@ -287,8 +238,6 @@ function sessionControlsAvailability(input: {
   pending: {
     busyInputPending: boolean;
     isClearing: boolean;
-    isDeleting: boolean;
-    isRenaming: boolean;
     isUnarchiving: boolean;
   };
   session: SessionPayload;
@@ -297,12 +246,7 @@ function sessionControlsAvailability(input: {
   const stopRequestActive = isStopRequestActive(input.controlsState);
   const { pending } = input;
   const controlsBusy =
-    stopRequestActive ||
-    pending.isUnarchiving ||
-    pending.isDeleting ||
-    pending.isRenaming ||
-    pending.isClearing ||
-    pending.busyInputPending;
+    stopRequestActive || pending.isUnarchiving || pending.isClearing || pending.busyInputPending;
   return {
     canClear:
       input.userControllable &&

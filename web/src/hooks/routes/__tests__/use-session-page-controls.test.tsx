@@ -16,9 +16,6 @@ const routeHookMocks = vi.hoisted(() => ({
   cancelSessionPrompt: vi.fn(),
   invalidateSessionMutationQueries: vi.fn(async () => undefined),
   clearMutation: { isPending: false, mutate: vi.fn() },
-  deleteOptions: { current: undefined as { onDeleteSuccess?: () => void } | undefined },
-  deleteMutation: { isPending: false, mutate: vi.fn() },
-  renameMutation: { isPending: false, mutateAsync: vi.fn() },
   unarchiveMutation: { isPending: false, mutate: vi.fn() },
   sendPromptMutation: { isPending: false, mutateAsync: vi.fn() },
   stopMutation: { isPending: false, mutate: vi.fn(), mutateAsync: vi.fn() },
@@ -76,14 +73,9 @@ vi.mock("@/systems/session", async () => {
     useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
     useClearSessionInputs: () => routeHookMocks.clearInputsMutation,
     useClearSessionConversation: () => routeHookMocks.clearMutation,
-    useDeleteSession: (options: { onDeleteSuccess?: () => void }) => {
-      routeHookMocks.deleteOptions.current = options;
-      return routeHookMocks.deleteMutation;
-    },
     usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
     useSendSessionPrompt: () => routeHookMocks.sendPromptMutation,
     useReplaceSessionInput: () => routeHookMocks.replaceInputMutation,
-    useRenameSession: () => routeHookMocks.renameMutation,
     useUnarchiveSession: () => routeHookMocks.unarchiveMutation,
     useSessionInputs: (
       _workspaceId: string,
@@ -156,10 +148,12 @@ function createWrapper() {
   };
 }
 
-function renderControls(session = makeSession("active"), onDeleteSuccess?: () => void) {
+function renderControls(session = makeSession("active")) {
   return renderHook(
-    () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID, onDeleteSuccess }),
-    { wrapper: createWrapper() }
+    () => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+    {
+      wrapper: createWrapper(),
+    }
   );
 }
 
@@ -182,7 +176,6 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = false;
     routeHookMocks.auiState.thread.messages = [];
     routeHookMocks.transcriptMessages = [];
-    routeHookMocks.deleteOptions.current = undefined;
     routeHookMocks.sessionInputsQuery.data = { inputs: [] };
     routeHookMocks.sessionInputsEnabled = [];
     routeHookMocks.resetThread.mockReset();
@@ -198,10 +191,6 @@ describe("useSessionPageControls", () => {
       mutation.isPending = false;
       mutation.mutate.mockReset();
     }
-    routeHookMocks.deleteMutation.isPending = false;
-    routeHookMocks.deleteMutation.mutate.mockReset();
-    routeHookMocks.renameMutation.isPending = false;
-    routeHookMocks.renameMutation.mutateAsync.mockReset();
     routeHookMocks.unarchiveMutation.isPending = false;
     routeHookMocks.unarchiveMutation.mutate.mockReset();
     routeHookMocks.sendPromptMutation.isPending = false;
@@ -227,11 +216,11 @@ describe("useSessionPageControls", () => {
     });
     await waitFor(() => expect(result.current.isStopping).toBe(true));
     act(() => {
-      result.current.handleDelete();
+      result.current.handleClear();
     });
 
     expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledOnce();
-    expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
     await act(async () => {
       cancellation.resolve();
       await cancellation.promise;
@@ -476,42 +465,6 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
   });
 
-  it("Should display the deletion failure and allow a retry without reporting success", () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const failure = new Error("Could not settle the session Goal. Try again.");
-    try {
-      const { result } = renderControls(makeSession("stopped"));
-      act(() => result.current.handleDelete());
-      const options = routeHookMocks.deleteMutation.mutate.mock.calls[0]?.[1];
-      act(() => options.onError(failure));
-      expect(routeHookMocks.toastError).toHaveBeenCalledWith(
-        "Could not settle the session Goal. Try again."
-      );
-      expect(routeHookMocks.toastSuccess).not.toHaveBeenCalled();
-      expect(routeHookMocks.resetThread).not.toHaveBeenCalled();
-      act(() => result.current.handleDelete());
-      expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledTimes(2);
-      expect(consoleError).toHaveBeenCalledExactlyOnceWith("Failed to delete session", failure);
-    } finally {
-      consoleError.mockRestore();
-    }
-  });
-
-  it("Should own delete success in the mutation lifecycle before the route unmounts", () => {
-    const onDeleteSuccess = vi.fn();
-    const { result } = renderControls(makeSession("stopped"), onDeleteSuccess);
-
-    act(() => result.current.handleDelete());
-    act(() => routeHookMocks.deleteOptions.current?.onDeleteSuccess?.());
-
-    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledWith(makeSession("stopped"), {
-      onError: expect.any(Function),
-    });
-    expect(routeHookMocks.resetThread).toHaveBeenCalledOnce();
-    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Session deleted.");
-    expect(onDeleteSuccess).toHaveBeenCalledOnce();
-  });
-
   it.each(["user", "system", "coordinator", "spawned"] as const)(
     "Should allow normal prompts for active and stopped %s sessions",
     sessionType => {
@@ -580,24 +533,20 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.clearMutation.mutate).toHaveBeenCalledOnce();
   });
 
-  it("Should reject lifecycle mutations for a managed session", async () => {
+  it("Should reject lifecycle mutations for a managed session", () => {
     routeHookMocks.transcriptMessages = [{ id: "message-1" }];
     const { result } = renderControls(makeSession("active", "turn-managed", "system"));
 
     expect(result.current.canClear).toBe(false);
     act(() => {
       result.current.handleStop();
-      result.current.handleDelete();
       result.current.handleClear();
       result.current.handleUnarchive();
     });
-    await expect(result.current.handleRename("Managed title")).resolves.toBeUndefined();
 
     expect(routeHookMocks.stopMutation.mutateAsync).not.toHaveBeenCalled();
-    expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
     expect(routeHookMocks.unarchiveMutation.mutate).not.toHaveBeenCalled();
-    expect(routeHookMocks.renameMutation.mutateAsync).not.toHaveBeenCalled();
     expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
   });
 

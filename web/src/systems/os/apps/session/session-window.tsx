@@ -34,7 +34,6 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     effectiveLiveTailEnabled,
     error,
     foreign,
-    handleDeleteSuccess,
     isLoading,
     liveTailEnabled,
     session,
@@ -77,7 +76,6 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         liveTailEnabled={liveTailEnabled}
         isLoading
         error={null}
-        onDeleteSuccess={handleDeleteSuccess}
       />
     );
   }
@@ -101,7 +99,6 @@ export function SessionWindow({ windowId }: { windowId: string }) {
         liveTailEnabled={effectiveLiveTailEnabled}
         isLoading={isLoading}
         error={error}
-        onDeleteSuccess={handleDeleteSuccess}
       />
     </div>
   );

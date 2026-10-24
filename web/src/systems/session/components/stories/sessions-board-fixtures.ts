@@ -202,6 +202,10 @@ export function sessionsBoardView(
 ): SessionsBoardView {
   return {
     columns: (Object.keys(LABELS) as SessionBoardColumnId[]).map(id => column(id, overrides[id])),
+    lanes: null,
+    lanesLoading: false,
+    groupBy: "none",
+    groupByOptions: ["none"],
     archive: {
       sessions: SESSIONS_BOARD_ARCHIVED,
       count: 37,

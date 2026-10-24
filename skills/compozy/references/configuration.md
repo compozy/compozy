@@ -536,7 +536,9 @@ governs one daemon. Workspace overlays remain valid.
 
 `shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
 `shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
-preferences apply live. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+values apply live as the default for session windows: each Web window keeps its own Sort by / Group by
+(shared by its List and Kanban views), follows these values until the operator chooses there, and never
+writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent

@@ -9,17 +9,30 @@
 // its state and a retry — and lists archived cards once expanded.
 // Owning layer: component (systems/session/components). Card mapping rules live
 // in lib/__tests__/session-board-card.test.ts; queries and toggle in E2E-005..007.
+// #952: with the session list's lifecycle verbs, every card offers them on
+// right-click and behind a `…` button that never opens the session; a grouped
+// board renders one swimlane per group, each reading the four columns through
+// the group's own scope.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { workspaceBadgeIdentity } from "@/systems/workspace";
+
+import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
+import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { primarySessionFixture } from "../../testing";
 import type { SessionPayload } from "../../types";
 import { SessionsBoard } from "../session-board/sessions-board";
+
+vi.mock("../../adapters/session-catalog-api", () => ({
+  fetchSessionCatalogPage: vi.fn(),
+  fetchSessionFacets: vi.fn(),
+}));
 
 const LABELS: Record<SessionBoardColumnId, string> = {
   needs_you: "Needs you",
@@ -68,18 +81,38 @@ function board(
       count: 0,
       ...columns[id],
     })),
+    lanes: null,
+    lanesLoading: false,
+    groupBy: "none",
+    groupByOptions: ["none"],
     archive: { ...page(), count: 0, ...archive },
     workspaceNameOf: () => null,
   };
 }
 
-function renderBoard(view: SessionsBoardView, onOpen = vi.fn()) {
+function renderBoard(
+  view: SessionsBoardView,
+  onOpen = vi.fn(),
+  actions?: SessionLifecycleActionHandlers
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  render(<SessionsBoard board={view} onOpen={onOpen} />, { wrapper });
+  render(<SessionsBoard actions={actions} board={view} onOpen={onOpen} />, { wrapper });
   return onOpen;
+}
+
+function lifecycleActions(): SessionLifecycleActionHandlers {
+  return {
+    pendingAction: null,
+    pendingSessionId: null,
+    onStop: vi.fn(),
+    onRename: vi.fn(),
+    onArchive: vi.fn(),
+    onUnarchive: vi.fn(),
+    onDelete: vi.fn(),
+  };
 }
 
 describe("SessionsBoard", () => {
@@ -265,5 +298,118 @@ describe("SessionsBoard", () => {
     await user.click(toggle);
     const body = screen.getByTestId("sessions-board-archive-body");
     expect(within(body).getAllByRole("button")).toHaveLength(3);
+  });
+});
+
+describe("SessionsBoard card actions", () => {
+  it("Should open the session list's verbs from a card's context menu", async () => {
+    const user = userEvent.setup();
+    const actions = lifecycleActions();
+    const working = card("ctx");
+    const onOpen = renderBoard(
+      board({ working: { sessions: [working], count: 1 } }),
+      vi.fn(),
+      actions
+    );
+
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId("session-board-card-ctx"),
+    });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete session" }));
+    expect(actions.onDelete).toHaveBeenCalledExactlyOnceWith(working);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should offer the same verbs behind the card's `…` without opening the session", async () => {
+    const user = userEvent.setup();
+    const actions = lifecycleActions();
+    const working = card("dots");
+    const onOpen = renderBoard(
+      board({ working: { sessions: [working], count: 1 } }),
+      vi.fn(),
+      actions
+    );
+
+    const trigger = screen.getByRole("button", { name: "More actions for Session dots" });
+    await user.click(trigger);
+    await user.click(await screen.findByTestId("session-row-archive-dots"));
+    expect(actions.onArchive).toHaveBeenCalledExactlyOnceWith(working);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should reach the card's `…` from the keyboard right after its card", async () => {
+    const user = userEvent.setup();
+    renderBoard(
+      board({ working: { sessions: [card("keys")], count: 1 } }),
+      vi.fn(),
+      lifecycleActions()
+    );
+    screen.getByTestId("session-board-card-keys").focus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "More actions for Session keys" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+  });
+
+  it("Should carry no menus when the host offers no verbs", () => {
+    renderBoard(board({ working: { sessions: [card("plain")], count: 1 } }));
+    expect(screen.queryByRole("button", { name: /More actions for/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("SessionsBoard swimlanes", () => {
+  it("Should render one lane per group, each reading the four columns in its own scope", async () => {
+    vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
+      sessions:
+        query?.workspace_id === "ws-alpha" && query.board_column?.includes("working")
+          ? [card("alpha-1", { workspace_id: "ws-alpha" })]
+          : [],
+      page: { has_more: false, limit: 50 },
+    }));
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: {
+        terminal_approvals: 0,
+        all: 1,
+        needs_you: 0,
+        working: 1,
+        finished: 0,
+        idle: 0,
+        board: { needs_you: 0, working: 1, in_review: 0, done: 0 },
+      },
+      by_workspace: [],
+      by_profile: [],
+    });
+    const names = new Map([
+      ["ws-alpha", "Alpha"],
+      ["ws-beta", "Beta"],
+    ]);
+    const lane = (workspaceId: string, total: number) => ({
+      group: {
+        key: `project:${workspaceId}`,
+        kind: "project" as const,
+        badge: workspaceBadgeIdentity(workspaceId, names),
+        total,
+        working: total,
+        needsYou: 0,
+        scope: { kind: "project" as const, workspaceId },
+        lens: { profile: "default" },
+        pair: null,
+      },
+      filters: { workspace_id: workspaceId, sort: "created" as const },
+    });
+    renderBoard({ ...board(), columns: [], lanes: [lane("ws-alpha", 1), lane("ws-beta", 0)] });
+
+    const alpha = screen.getByRole("region", { name: "Alpha" });
+    expect(screen.getByRole("region", { name: "Beta" })).toBeInTheDocument();
+    expect(await within(alpha).findByTestId("session-board-card-alpha-1")).toBeInTheDocument();
+    expect(
+      within(alpha).getByRole("region", { name: "Alpha, Working, 1 session" })
+    ).toBeInTheDocument();
+    const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
+    expect(reads.filter(query => query?.workspace_id === "ws-beta")).toHaveLength(4);
+    expect(reads.every(query => query?.sort === "created")).toBe(true);
   });
 });

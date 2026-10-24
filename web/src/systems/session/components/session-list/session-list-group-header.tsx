@@ -43,7 +43,8 @@ function GroupSignal({ group }: { group: SessionListGroupSpec }) {
   return null;
 }
 
-function GroupIdentity({ group }: { group: SessionListGroupSpec }) {
+/** A group's identity: the project badge, or the profile owner tag. */
+export function SessionListGroupIdentity({ group }: { group: SessionListGroupSpec }) {
   if (group.badge) return <WorkspaceBadge identity={group.badge} variant="chrome" />;
   if (group.owner) return <ProfileOwnerTag owner={group.owner} />;
   return null;
@@ -93,7 +94,7 @@ export function SessionListGroupHeader({
           className={cn("shrink-0 text-faint transition-transform", !collapsed && "rotate-90")}
         />
         <span className="flex min-w-0 flex-1 items-center">
-          <GroupIdentity group={group} />
+          <SessionListGroupIdentity group={group} />
         </span>
         {collapsed ? <GroupSignal group={group} /> : null}
         <span className="font-mono text-micro text-faint">{group.total}</span>

@@ -268,10 +268,7 @@ vi.mock("@/systems/session", async importOriginal => ({
   useSessionListPreferences: () => ({
     sort: "last_activity" as const,
     groupBy: "none" as const,
-    setSort: vi.fn(),
-    setGroupBy: vi.fn(),
     loading: false,
-    saving: false,
   }),
 }));
 

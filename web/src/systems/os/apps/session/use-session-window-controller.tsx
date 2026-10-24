@@ -1,6 +1,4 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
-import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
-import { useSessionRenameDialog } from "@/hooks/routes/use-session-rename-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
@@ -53,13 +51,10 @@ export function useSessionWindowController(input: {
   sessionId: string;
   workspaceId: string;
   session: SessionPayload;
-  onDeleteSuccess: () => void;
   liveDataEnabled: boolean;
   onOpenWorktreeContext?: (workspaceId: string, worktree: WorktreePayload) => void;
   onResolveMissingWorktree?: (workspaceId: string, worktree: WorktreePayload) => void;
-  /** Continue/Fork/origin chrome published into the window topbar. */
-  onContinue?: () => void;
-  onFork?: () => void;
+  /** Origin chrome published into the window topbar. */
   origin?: SessionOriginView | null;
   onOpenOriginSource?: (sessionId: string) => void;
 }) {
@@ -68,12 +63,9 @@ export function useSessionWindowController(input: {
     sessionId,
     workspaceId,
     session,
-    onDeleteSuccess,
     liveDataEnabled,
     onOpenWorktreeContext,
     onResolveMissingWorktree,
-    onContinue,
-    onFork,
     origin,
     onOpenOriginSource,
   } = input;
@@ -86,7 +78,6 @@ export function useSessionWindowController(input: {
   const controls = useSessionPageControls(sessionId, session, {
     getRuntimeSnapshot: () => getSessionPromptRuntimeSnapshot(promptRuntime),
     liveDataEnabled,
-    onDeleteSuccess,
     workspaceId: session.workspace_id,
   });
   const inspector = useSessionInspectorState(sessionId);
@@ -99,8 +90,6 @@ export function useSessionWindowController(input: {
   });
   const sessionCommands = useSessionCommands(workspaceId, sessionId, { enabled: liveDataEnabled });
   const inspectorUsage = toInspectorUsage(sessionContext.usage);
-  const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
-  const renameDialog = useSessionRenameDialog(controls.handleRename);
   const clearDialog = useSessionClearDialog(controls.handleClear);
   const transport = useSessionTransportState();
   const sidebar = useSessionWindowSidebar({
@@ -153,12 +142,8 @@ export function useSessionWindowController(input: {
               : undefined,
         }
       : undefined,
-    isDeleting: controls.isDeleting,
-    isRenaming: controls.isRenaming,
     isStopping: controls.isStopping,
     isUnarchiving: controls.isUnarchiving,
-    isClearing: controls.isClearing,
-    canClear: controls.canClear,
     inspectorOpen: inspector.open,
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
@@ -174,13 +159,8 @@ export function useSessionWindowController(input: {
       />
     ),
     onInspectorToggle: inspector.toggle,
-    onDelete: deleteDialog.openDialog,
-    onRename: renameDialog.openDialog,
     onStop: controls.handleStop,
     onUnarchive: controls.handleUnarchive,
-    onClear: clearDialog.openDialog,
-    onContinue,
-    onFork,
     origin,
     onOpenOriginSource,
   });
@@ -192,8 +172,6 @@ export function useSessionWindowController(input: {
     sessionContext,
     sessionUsageTurns,
     inspectorUsage,
-    deleteDialog,
-    renameDialog,
     clearDialog,
     commandCatalog: sessionCommands.catalog,
     commandCatalogStatus: sessionCommands.isPending ? ("loading" as const) : ("ready" as const),

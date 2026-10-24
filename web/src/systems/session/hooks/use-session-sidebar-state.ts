@@ -6,47 +6,22 @@ import { useSelector } from "@xstate/store-react";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
+import type { SessionListGroupBy, SessionListSort } from "../lib/session-list-preferences";
+import {
+  DEFAULT_SCOPE_STATE,
+  isRecord,
+  normalizedCollapsedFlags,
+  normalizedScopeState,
+  type SessionSidebarScopeState,
+  type SessionWindowViewMode,
+} from "../lib/session-sidebar-scope";
 import type { SessionThreadSegment } from "../lib/session-thread-branch";
 import {
   normalizeSessionSidebarWidth,
   SESSION_SIDEBAR_DEFAULT_WIDTH,
 } from "../lib/session-sidebar-width";
 
-/** The session window body: the list + transcript, or the sessions board. */
-export type SessionWindowViewMode = "list" | "kanban";
-
-/**
- * One window's sessions presentation. Per-window by design: two session
- * windows side by side open, close, collapse, resize, and switch views independently.
- */
-export interface SessionSidebarScopeState {
-  /** The rail is open until the operator closes it in this window. */
-  open: boolean;
-  /** Child sessions start unfolded; a fold is remembered per root session id. */
-  collapsedThreads: Record<string, boolean>;
-  /**
-   * Subagent lists start closed; an open one is remembered per parent session
-   * id. Opening it folds the children, so `collapsedThreads` alone still says
-   * which child rows are on screen.
-   */
-  subagentThreads: Record<string, boolean>;
-  /** Folders start expanded; a collapse is remembered per folder id. */
-  collapsedFolders: Record<string, boolean>;
-  /**
-   * Group-by groups start expanded; a collapse is remembered per group id,
-   * which the list qualifies with its scope, profile lens, and grouping.
-   */
-  collapsedGroups: Record<string, boolean>;
-  /**
-   * The rail width the operator dragged to in this window, in pixels. `null`
-   * follows the default, so a reset tracks it.
-   */
-  width: number | null;
-  /** List | Kanban (US-011). Window-only: new windows always open in List. */
-  view: SessionWindowViewMode;
-  /** The board's "Hide child sessions" filter, remembered per window. */
-  hideChildren: boolean;
-}
+export type { SessionSidebarScopeState, SessionWindowViewMode };
 
 interface SessionSidebarContext {
   /**
@@ -67,57 +42,41 @@ interface SessionSidebarContext {
 
 export const SESSION_SIDEBAR_STORAGE_KEY = "compozy:session:sidebar:v1";
 
-const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
-  open: true,
-  collapsedThreads: {},
-  subagentThreads: {},
-  collapsedFolders: {},
-  collapsedGroups: {},
-  width: null,
-  view: "list",
-  hideChildren: false,
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizedCollapsedFlags(value: unknown): Record<string, boolean> {
-  if (!isRecord(value)) {
-    return {};
-  }
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, boolean] => typeof entry[1] === "boolean"
-    )
-  );
-}
-
-function normalizedScopeState(value: unknown): SessionSidebarScopeState {
-  if (!isRecord(value)) {
-    return DEFAULT_SCOPE_STATE;
-  }
-  return {
-    open: typeof value.open === "boolean" ? value.open : DEFAULT_SCOPE_STATE.open,
-    collapsedThreads: normalizedCollapsedFlags(value.collapsedThreads),
-    subagentThreads: normalizedCollapsedFlags(value.subagentThreads),
-    collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
-    collapsedGroups: normalizedCollapsedFlags(value.collapsedGroups),
-    width: normalizeSessionSidebarWidth(value.width),
-    view: value.view === "kanban" ? "kanban" : "list",
-    hideChildren: value.hideChildren === true,
-  };
-}
-
 /**
  * A scope with no entry of its own follows the shell (last-used) state, so a
- * new window opens looking like the last one the operator touched.
+ * new window opens looking like the last one the operator touched. Its order
+ * and grouping are the exception: read them through `resolveSessionWindowOrder`.
  */
 export function resolveSessionSidebarScope(
   byScope: Record<string, SessionSidebarScopeState>,
   scopeId: string
 ): SessionSidebarScopeState {
   return byScope[scopeId] ?? byScope[SHELL_WORKTREE_SCOPE] ?? DEFAULT_SCOPE_STATE;
+}
+
+/**
+ * A window's own order and grouping. A window never inherits them from the
+ * shell (last-used) state: until it chooses, both read `null` and the daemon's
+ * value seeds it, so one window's choice never reaches a new window.
+ */
+export function resolveSessionWindowOrder(
+  byScope: Record<string, SessionSidebarScopeState>,
+  scopeId: string
+): Pick<SessionSidebarScopeState, "sort" | "groupBy"> {
+  return byScope[scopeId] ?? NO_WINDOW_ORDER;
+}
+
+const NO_WINDOW_ORDER = { sort: null, groupBy: null } as const;
+
+/** The state a gesture starts from: inherited rail state, never an inherited order. */
+function scopeBaseState(
+  byScope: Record<string, SessionSidebarScopeState>,
+  scopeId: string
+): SessionSidebarScopeState {
+  const state = resolveSessionSidebarScope(byScope, scopeId);
+  return Object.hasOwn(byScope, scopeId) || scopeId === SHELL_WORKTREE_SCOPE
+    ? state
+    : { ...state, ...NO_WINDOW_ORDER };
 }
 
 function mergeSessionSidebarPreferences(
@@ -144,16 +103,23 @@ function mergeSessionSidebarPreferences(
 
 /**
  * Writes one scope and makes it the last-used state new windows inherit. The
- * board view and its filter stay with their window: a window opened to show a
- * session must never land on another window's board.
+ * board view, its filter, and the order and grouping stay with their window: a
+ * window opened to show a session must never land on another window's board.
  */
 function withScopeState(
   context: SessionSidebarContext,
   scopeId: string,
   update: (state: SessionSidebarScopeState) => SessionSidebarScopeState
 ): SessionSidebarContext {
-  const next = update(resolveSessionSidebarScope(context.byScope, scopeId));
-  const shell = { ...next, view: DEFAULT_SCOPE_STATE.view, hideChildren: false };
+  const next = update(scopeBaseState(context.byScope, scopeId));
+  const previousShell = context.byScope[SHELL_WORKTREE_SCOPE];
+  const shell = {
+    ...next,
+    view: DEFAULT_SCOPE_STATE.view,
+    hideChildren: false,
+    sort: previousShell?.sort ?? null,
+    groupBy: previousShell?.groupBy ?? null,
+  };
   return {
     ...context,
     byScope: { ...context.byScope, [SHELL_WORKTREE_SCOPE]: shell, [scopeId]: next },
@@ -252,6 +218,10 @@ export const sessionSidebarLogic = createStoreLogic({
         ...state,
         hideChildren: event.hideChildren,
       })),
+    sortChanged: (context, event: { scopeId: string; sort: SessionListSort }) =>
+      withScopeState(context, event.scopeId, state => ({ ...state, sort: event.sort })),
+    groupByChanged: (context, event: { scopeId: string; groupBy: SessionListGroupBy }) =>
+      withScopeState(context, event.scopeId, state => ({ ...state, groupBy: event.groupBy })),
     widthChanged: (context, event: { scopeId: string; width: number }) => {
       const width = normalizeSessionSidebarWidth(event.width);
       if (width === null) {
@@ -320,7 +290,7 @@ export const sessionSidebarLogic = createStoreLogic({
         ...context,
         byScope: {
           ...context.byScope,
-          [event.scopeId]: resolveSessionSidebarScope(context.byScope, event.scopeId),
+          [event.scopeId]: scopeBaseState(context.byScope, event.scopeId),
         },
       };
     },

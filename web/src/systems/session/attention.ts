@@ -43,8 +43,10 @@ export {
 } from "./components/session-badge-mark";
 export {
   DEFAULT_SESSION_LIST_PREFERENCES,
+  SESSION_BOARD_SORTS,
   SESSION_LIST_GROUP_BYS,
   SESSION_LIST_SORTS,
+  sessionBoardSort,
   sessionListSortParam,
   toSessionListGroupBy,
   toSessionListSort,
