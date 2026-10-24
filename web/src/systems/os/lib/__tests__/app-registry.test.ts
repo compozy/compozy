@@ -98,11 +98,20 @@ const FALLBACK_CASES: readonly FallbackCase[] = [
   { app: "settings", label: "General", pathname: "/settings/general" },
   { app: "settings", label: "a lazy section", pathname: "/settings/providers" },
   { app: "settings", label: "a retired section", pathname: "/settings/defaults" },
+  { app: "tasks", label: "the list", pathname: "/tasks" },
+  { app: "tasks", label: "the kanban board", pathname: "/tasks", search: { mode: "kanban" } },
+  { app: "tasks", label: "the inbox", pathname: "/tasks", search: { mode: "inbox" } },
+  { app: "tasks", label: "the dashboard", pathname: "/tasks", search: { mode: "dashboard" } },
+  { app: "tasks", label: "the new-task dialog over the list", pathname: "/tasks/new" },
+  { app: "tasks", label: "a task", pathname: "/tasks/t1" },
+  { app: "tasks", label: "a task's runs tab", pathname: "/tasks/t1", search: { tab: "runs" } },
+  { app: "tasks", label: "a task being edited", pathname: "/tasks/t1/edit" },
+  { app: "tasks", label: "a run", pathname: "/tasks/t1/runs/r1" },
 ];
 
 describe("app loading fallbacks", () => {
   it("Should give every app in the content-shaped rollout a fallback", () => {
-    for (const app of ["session", "settings"] as const) {
+    for (const app of ["session", "settings", "tasks"] as const) {
       expect(OS_APPS[app].LoadingFallback, app).toBeTypeOf("function");
     }
   });

@@ -4,6 +4,7 @@ import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, SkeletonRegion } from 
 
 import { TaskRunLoadingTopbar, TaskRunTopbar } from "./task-run-topbar";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
+import { TaskPageLoadingFrame, TaskRunLoadingGrid } from "./task-loading-frames";
 import { type TaskRunLocationController, useTaskRunLocation } from "./use-task-run-location";
 import {
   TaskResultSection,
@@ -11,13 +12,10 @@ import {
   TaskRunActivitySection,
   TaskRunForceFailDialog,
   TaskRunInspectDrawer,
-  TaskRunMainSkeleton,
   TaskRunOutcome,
   TaskRunRail,
-  TaskRunRailSkeleton,
   TaskRunReviewCard,
   TaskRunSubhead,
-  TaskSubheadSkeleton,
   useTaskRunResult,
 } from "@/systems/tasks";
 import type { TaskRun } from "@/systems/tasks";
@@ -28,24 +26,12 @@ import type { TaskRun } from "@/systems/tasks";
  */
 function TaskRunLoading({ controller }: { controller: TaskRunLocationController }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <TaskRunLoadingTopbar controller={controller} />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-16")}>
-          <TaskSubheadSkeleton />
-          <SkeletonRegion
-            className={TASK_DETAIL_GRID_CLASS}
-            data-testid="tasks-run-detail-loading"
-            label="Loading run"
-          >
-            <TaskRunMainSkeleton />
-            <aside className={TASK_DETAIL_RAIL_CLASS}>
-              <TaskRunRailSkeleton />
-            </aside>
-          </SkeletonRegion>
-        </div>
-      </div>
-    </div>
+    <TaskPageLoadingFrame
+      bottomPadding="pb-16"
+      head={<TaskRunLoadingTopbar controller={controller} />}
+    >
+      <TaskRunLoadingGrid />
+    </TaskPageLoadingFrame>
   );
 }
 

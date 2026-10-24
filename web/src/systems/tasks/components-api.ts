@@ -42,6 +42,7 @@ export {
   TaskStateBand,
   TaskSubheadSkeleton,
   TaskSubtasksSection,
+  TasksCatalogSkeleton,
   TasksDashboardActiveRuns,
   TasksDashboardCards,
   TasksDashboardQueueHealth,

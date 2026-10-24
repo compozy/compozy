@@ -21,6 +21,7 @@ export { TaskGroup } from "./task-group";
 export type { TaskGroupProps } from "./task-group";
 export { TasksKanbanBoard } from "./tasks-kanban-board";
 export type { TasksKanbanBoardProps } from "./tasks-kanban-board";
+export { TasksCatalogSkeleton } from "./tasks-catalog-skeleton";
 export { TasksEmptyState } from "./tasks-empty-state";
 export type { TasksEmptyStateProps } from "./tasks-empty-state";
 export { TaskEditorModal } from "./task-editor-modal";

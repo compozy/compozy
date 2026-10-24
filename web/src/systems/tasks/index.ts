@@ -407,7 +407,7 @@ export {
   TaskRawPane, TaskResultSection, TaskReviewCardSkeleton, TaskRunActivitySection, TaskRunForceFailDialog,
   TaskRunInspectDrawer, TaskRunMainSkeleton, TaskRunOutcome, TaskRunPageActions, TaskRunPageOverflow,
   TaskRunPageStatus, TaskRunRail, TaskRunRailSkeleton, TaskRunReviewCard, TaskRunSubhead, TaskRunsPanel,
-  TaskSetupSheet, TaskStateBand, TaskSubheadSkeleton, TaskSubtasksSection, TasksDashboardActiveRuns,
+  TaskSetupSheet, TaskStateBand, TaskSubheadSkeleton, TaskSubtasksSection, TasksCatalogSkeleton, TasksDashboardActiveRuns,
   TasksDashboardCards, TasksDashboardQueueHealth, TasksDashboardStatusBreakdown,
   TasksDashboardView, TasksDetailSubhead, TasksEmptyState, TasksInboxItem, TasksInboxView,
   TasksKanbanBoard, TasksListFilters, TasksListRecordsFilter, TasksListRow, TasksListSort,

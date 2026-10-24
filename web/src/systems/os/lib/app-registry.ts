@@ -13,6 +13,7 @@ import {
 import type { OsAppId, OsWindowRoute } from "./os-types";
 import { SessionWindowFallback } from "../apps/session/session-window-fallback";
 import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
+import { TasksWindowFallback } from "../apps/tasks/tasks-window-fallback";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
@@ -126,6 +127,7 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.tasks,
     preload: preloadTasks,
     Controller: TasksWindow,
+    LoadingFallback: TasksWindowFallback,
   },
   loops: {
     ...OS_APP_DESCRIPTORS.loops,

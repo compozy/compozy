@@ -64,6 +64,11 @@ export interface TasksInboxViewProps {
 
 type InboxItemActionProps = Omit<TasksInboxItemProps, "item" | "group">;
 
+// The inbox frame, shared by the live view and its skeleton so the toolbar row and the body hold
+// the same place when the inbox arrives.
+const INBOX_TOOLBAR_CLASS = "flex flex-wrap items-center gap-2 border-b border-line-soft pb-3";
+const INBOX_BODY_CLASS = "mt-4 flex min-h-0 flex-1 flex-col gap-6";
+
 export function TasksInboxView({
   inbox,
   laneFilter,
@@ -99,10 +104,7 @@ export function TasksInboxView({
 
   return (
     <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
-      <div
-        className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
-        data-testid="tasks-inbox-toolbar"
-      >
+      <div className={INBOX_TOOLBAR_CLASS} data-testid="tasks-inbox-toolbar">
         <SearchInput
           containerClassName="w-64 max-w-full"
           data-testid="tasks-inbox-search"
@@ -143,7 +145,7 @@ export function TasksInboxView({
         </label>
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
+      <div className={INBOX_BODY_CLASS} data-testid="tasks-inbox-body">
         <TasksInboxContent
           errorMessage={errorMessage}
           groupTotals={groupTotals}
@@ -307,6 +309,28 @@ function TasksInboxLoading() {
         </section>
       ))}
     </SkeletonRegion>
+  );
+}
+
+/**
+ * The inbox before it has answered, without a single live control: the toolbar row as blocks over
+ * the loading groups, in the page the loaded inbox fills. Its one status region is the groups'.
+ */
+export function TasksInboxViewSkeleton() {
+  return (
+    <ListingPage className="bg-canvas">
+      <div aria-hidden="true" className={INBOX_TOOLBAR_CLASS}>
+        <Skeleton className="h-search w-64 max-w-full rounded-md" />
+        <Skeleton className="h-button-sm w-16 rounded-pill" />
+        <div className="ml-auto inline-flex items-center gap-2">
+          <Skeleton className="h-switch-default w-switch-default rounded-pill" />
+          <SkeletonText className="w-20 eyebrow" />
+        </div>
+      </div>
+      <div className={INBOX_BODY_CLASS}>
+        <TasksInboxLoading />
+      </div>
+    </ListingPage>
   );
 }
 

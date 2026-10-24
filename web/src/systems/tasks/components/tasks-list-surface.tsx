@@ -194,7 +194,8 @@ function TasksListTableFrame({ total, children }: { total?: number; children: Re
   );
 }
 
-function TasksListLoading() {
+/** The table before its first rows: header and two groups of placeholder rows, one status region. */
+export function TasksListLoading() {
   return (
     <div
       className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
