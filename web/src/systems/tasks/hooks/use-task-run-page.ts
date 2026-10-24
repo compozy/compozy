@@ -157,12 +157,13 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     isRetryPending: retryMutation.isPending,
     inspect,
     inspectError: inspectQuery.error ?? null,
-    inspectLoading: inspectQuery.isLoading && !inspect,
+    // The secondary reads wait on no data yet too, and on nothing the caller opted out of.
+    inspectLoading: hasRunId && enableInspect && inspectQuery.isPending && !inspect,
     notFound:
       routeTaskMismatch || (runQuery.isError && runQuery.error?.message?.includes("not found")),
     reviews,
     reviewsError: reviewsQuery.error ?? null,
-    reviewsLoading: reviewsQuery.isLoading && reviews.length === 0,
+    reviewsLoading: hasRunId && enableRunReviews && reviewsQuery.isPending && reviews.length === 0,
     run,
     runError: runQuery.error ?? null,
     runId,

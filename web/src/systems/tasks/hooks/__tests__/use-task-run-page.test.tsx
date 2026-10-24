@@ -112,6 +112,27 @@ describe("useTaskRunPage loading", () => {
     expect(getTaskRun).not.toHaveBeenCalled();
   });
 
+  it("Should keep the secondary reads waiting while suspended, and wait on none opted out of", () => {
+    const suspended = renderHook(
+      () => useTaskRunPage("task_001", "run_001", { liveDataEnabled: false }),
+      { wrapper: createWrapper() }
+    );
+    expect(suspended.result.current.inspectLoading).toBe(true);
+    expect(suspended.result.current.reviewsLoading).toBe(true);
+
+    const optedOut = renderHook(
+      () =>
+        useTaskRunPage("task_001", "run_001", {
+          enableInspect: false,
+          enableRunReviews: false,
+          liveDataEnabled: false,
+        }),
+      { wrapper: createWrapper() }
+    );
+    expect(optedOut.result.current.inspectLoading).toBe(false);
+    expect(optedOut.result.current.reviewsLoading).toBe(false);
+  });
+
   it("Should not wait for a run that has no id", () => {
     const { result } = renderHook(() => useTaskRunPage("task_001", ""), {
       wrapper: createWrapper(),
