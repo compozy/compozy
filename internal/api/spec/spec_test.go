@@ -3583,6 +3583,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// Session monitors: optional additive `monitor_summary` on session payloads; no
 	// required/type/removal change.
 	addSessionMonitorSummary(t, baseline)
+	addSessionsKanbanSchemas(t, baseline)
 
 	// Composer mentions: optional additive `mentions` on queued-input payloads; no
 	// required/type/removal change.
@@ -3892,6 +3893,231 @@ func addSessionRuntimeReadSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+// Sessions Kanban DX: add only the declared response fields and query filters.
+// Keep historical properties and required fields so the comparator still detects drift.
+func addSessionsKanbanSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	var additions map[string]any
+	if err := json.Unmarshal([]byte(`{
+		"SessionPullRequestChecksPayload": {
+			"type":"object", "required":["failed","failed_names","passed","pending","state"],
+			"properties": {
+				"state":{"type":"string","enum":["passing","failing","pending","none","unknown"]},
+				"passed":{"type":"integer"},"failed":{"type":"integer"},"pending":{"type":"integer"},
+				"failed_names":{"type":"array","items":{"type":"string"}}
+			}
+		},
+		"SessionPullRequestPayload": {
+			"type":"object",
+			"required":["checks","draft","head_sha","mergeable","number","provider","ready_to_merge","review_decision","state","url"],
+			"properties": {
+				"provider":{"type":"string"},"number":{"type":"integer"},"url":{"type":"string"},
+				"state":{"type":"string","enum":["open","closed","merged"]},
+				"draft":{"type":"boolean","nullable":true},"head_sha":{"type":"string"},
+				"checks":{"$ref":"#/components/schemas/SessionPullRequestChecksPayload"},
+				"review_decision":{"type":"string","enum":["approved","changes_requested","review_required","none","unknown"]},
+				"mergeable":{"type":"string","enum":["mergeable","conflicting","unknown"]},
+				"ready_to_merge":{"type":"boolean"}
+			}
+		},
+		"SessionPullRequestLookupPayload": {
+			"type":"object", "required":["cause","observed_at","stale","state"],
+			"properties": {
+				"state":{"type":"string","enum":["ok","pending","error","incomplete"]},
+				"cause":{"type":"string"},"observed_at":{"type":"string","format":"date-time","nullable":true},
+				"stale":{"type":"boolean"}
+			}
+		},
+		"SessionBoardCountsPayload": {
+			"type":"object", "required":["done","in_review","needs_you","working"],
+			"properties": {
+				"done":{"type":"integer"},"in_review":{"type":"integer"},
+				"needs_you":{"type":"integer"},"working":{"type":"integer"}
+			}
+		},
+		"SessionChildrenPayload": {
+			"type":"object", "required":["done","in_review","needs_you","total","working"],
+			"properties": {
+				"done":{"type":"integer"},"in_review":{"type":"integer"},"needs_you":{"type":"integer"},
+				"total":{"type":"integer"},"working":{"type":"integer"}
+			}
+		}
+	}`), &additions); err != nil {
+		t.Fatalf("decode approved Sessions Kanban schemas: %v", err)
+	}
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	for name, schema := range additions {
+		if components[name] != nil {
+			t.Fatalf("approved Sessions Kanban schema %s already exists", name)
+		}
+		components[name] = schema
+	}
+	ref := func(name string) map[string]any {
+		return map[string]any{"$ref": "#/components/schemas/" + name}
+	}
+	nullable := func(name string) map[string]any {
+		return map[string]any{"oneOf": []any{ref(name), map[string]any{"enum": []any{nil}, "nullable": true}}}
+	}
+	enum := func(values ...string) map[string]any {
+		items := make([]any, len(values))
+		for i, value := range values {
+			items[i] = value
+		}
+		return map[string]any{"type": "string", "enum": items}
+	}
+	badgeValues := enum(
+		"running", "idle", "unhealthy", "hung", "waiting-for-auth", "waiting-for-input",
+		"done", "stopped", "failed", "unknown", "needs-attention", "waiting",
+	)["enum"]
+	counts := make(map[string]int)
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for child := range maps.Values(node) {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["badge"] != nil && properties["attachable"] != nil {
+				// The response now documents all existing badges plus the new waiting value.
+				properties["badge"].(map[string]any)["enum"] = badgeValues
+			}
+
+			if properties["session_id"] != nil && properties["class"] != nil && properties["from"] != nil &&
+				properties["to"] != nil {
+				properties["from"].(map[string]any)["enum"] = badgeValues
+				properties["to"].(map[string]any)["enum"] = badgeValues
+			}
+
+			switch {
+			case properties["subagent_summary"] != nil && properties["badge"] != nil:
+				properties["branch"] = map[string]any{"type": "string"}
+				properties["parent_title"] = map[string]any{"type": "string"}
+				properties["waiting_on"] = enum("sessions", "monitor")
+				properties["board_column"] = enum("needs_you", "working", "in_review", "done")
+				properties["children"] = nullable("SessionChildrenPayload")
+				properties["pull_request"] = nullable("SessionPullRequestPayload")
+				properties["pull_request_lookup"] = nullable("SessionPullRequestLookupPayload")
+
+				node["required"] = append(
+					node["required"].([]any),
+					"board_column",
+					"pull_request",
+					"pull_request_lookup",
+				)
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+				counts["session"]++
+			case properties["terminal_approvals"] != nil && properties["finished"] != nil:
+				properties["board"] = ref("SessionBoardCountsPayload")
+				node["required"] = append(node["required"].([]any), "board")
+				slices.SortFunc(
+					node["required"].([]any),
+					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+				)
+				counts["facets"]++
+			case properties["kind"] != nil && properties["ref"] != nil &&
+				(properties["since"] != nil || properties["state"] != nil):
+				kind := properties["kind"].(map[string]any)
+				values, ok := kind["enum"].([]any)
+				if ok && slices.Contains(values, any("awaiting_reply")) {
+					kind["enum"] = append(values, "active_monitor")
+					counts["work signal"]++
+				}
+			}
+		}
+	}
+	walk(baseline)
+	for _, name := range []string{"session", "facets", "work signal"} {
+		if counts[name] == 0 {
+			t.Fatalf("approved Sessions Kanban addition: no historical %s schemas", name)
+		}
+	}
+	paths := baseline["paths"].(map[string]any)
+	for _, path := range []string{"/api/sessions", "/api/sessions/facets", "/api/workspaces/{workspace_id}/sessions"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		var updated []any
+		for _, parameter := range parameters {
+			updated = append(updated, parameter)
+			switch parameter.(map[string]any)["name"] {
+			case "subagents":
+				updated = append(
+					updated,
+					map[string]any{"in": "query", "name": "children", "schema": enum("include", "exclude")},
+				)
+			case "attention":
+				if path != "/api/sessions/facets" {
+					updated = append(
+						updated,
+						map[string]any{"in": "query", "name": "board_column", "schema": map[string]any{
+							"type": "array", "items": map[string]any{"type": "string"},
+						}},
+					)
+				}
+			}
+		}
+		operation["parameters"] = updated
+	}
+	addSessionsKanbanRoutes(t, paths, nullable)
+}
+
+func addSessionsKanbanRoutes(t *testing.T, paths map[string]any, nullable func(string) map[string]any) {
+	t.Helper()
+	prefix := "/api/workspaces/{workspace_id}"
+	plan := paths[prefix+"/worktrees/{worktree_id}/exit"].(map[string]any)["get"].(map[string]any)
+	paths[prefix+"/worktrees/{worktree_id}/exit/prepare"] = map[string]any{"post": map[string]any{
+		"parameters": plan["parameters"].([]any)[:2], "responses": plan["responses"],
+	}}
+	sessionRead := paths[prefix+"/sessions/{session_id}"].(map[string]any)["get"].(map[string]any)
+	errorResponse := sessionRead["responses"].(map[string]any)["404"]
+	errorSchema := errorResponse.(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+	refreshError := maps.Clone(errorSchema)
+	properties := maps.Clone(errorSchema["properties"].(map[string]any))
+	properties["message"] = map[string]any{"type": "string"}
+	properties["cause"] = map[string]any{"type": "string"}
+	refreshError["properties"] = properties
+	refreshError["required"] = append(slices.Clone(errorSchema["required"].([]any)), "message")
+	slices.SortFunc(
+		refreshError["required"].([]any),
+		func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
+	)
+	response := func(schema any) map[string]any {
+		return map[string]any{"content": map[string]any{"application/json": map[string]any{"schema": schema}}}
+	}
+	paths["/api/sessions/{session_id}/pull-request/refresh"] = map[string]any{"post": map[string]any{
+		"parameters": []any{
+			map[string]any{
+				"in":       "path",
+				"name":     "session_id",
+				"required": true,
+				"schema":   map[string]any{"type": "string"},
+			},
+			map[string]any{"in": "query", "name": "profile", "schema": map[string]any{"type": "string"}},
+		},
+		"responses": map[string]any{
+			"200": response(map[string]any{
+				"type": "object", "required": []any{"branch", "pull_request", "pull_request_lookup", "session_id"},
+				"properties": map[string]any{
+					"session_id": map[string]any{"type": "string"}, "branch": map[string]any{"type": "string"},
+					"pull_request":        nullable("SessionPullRequestPayload"),
+					"pull_request_lookup": nullable("SessionPullRequestLookupPayload"),
+				},
+			}),
+			"404": errorResponse, "409": response(refreshError), "502": response(refreshError),
+		},
+	}}
 }
 
 // addSessionMonitorSummary adds the approved nullable `monitor_summary` to every
