@@ -4,7 +4,9 @@
 // unsettled destination stays idle. A selection in the window's own scope retargets the window;
 // under All projects every selection retargets in place, rebinding the window to the session's
 // scope; otherwise a foreign session goes through the jump coordinator. An open rail that is still
-// waiting on its destination or worktree filter reads as loading, never as an empty list.
+// waiting on its destination or worktree filter reads as loading, never as an empty list, and an
+// in-place retarget animates through React (the window's keyed boundary), not by calling the
+// document's view transition itself.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,7 +56,6 @@ vi.mock("@/systems/workspace", async () => ({
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
-vi.mock("../../../hooks/use-os-reduced-motion", () => ({ useOsReducedMotion: () => true }));
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget }, manager: { getState } }),
 }));
@@ -270,6 +271,25 @@ describe("useSessionWindowSidebar", () => {
       );
     } finally {
       useScopedWorktreeFilter.mockReturnValue({ resolved: true, worktreeId: undefined });
+    }
+  });
+
+  it("Should retarget in place without calling the document's view transition itself", () => {
+    const startViewTransition = vi.fn();
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: startViewTransition,
+    });
+    try {
+      const { result } = renderHook(() =>
+        useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+      );
+      act(() => result.current.onSelectSession(session("workspace-1")));
+
+      expect(userRetarget).toHaveBeenCalledTimes(1);
+      expect(startViewTransition).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, "startViewTransition");
     }
   });
 });
