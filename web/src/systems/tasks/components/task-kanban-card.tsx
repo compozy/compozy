@@ -237,7 +237,7 @@ export function TaskKanbanCardSkeleton({ titleLines = 1 }: TaskKanbanCardSkeleto
         <SkeletonText lastLineWidth={0.55} lines={titleLines} />
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        <SkeletonText className="w-14 font-mono text-mono-id" />
+        <SkeletonText className="w-14 font-mono text-mono-id leading-3" />
       </div>
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">

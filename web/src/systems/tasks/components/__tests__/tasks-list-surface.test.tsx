@@ -194,6 +194,44 @@ describe("TasksListSurface", () => {
     expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
   });
 
+  it("Should hold each status count's place while the facets load, then show the numbers", () => {
+    const statusCounts = countTasksByStatus([]);
+    statusCounts.in_progress = 3;
+    const toolbar = (counts: typeof statusCounts, loading: boolean) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={counts}
+          statusCountsLoading={loading}
+          statusFilter={null}
+        />
+      </UIProvider>
+    );
+    const { rerender } = render(toolbar(countTasksByStatus([]), true));
+
+    // Each pill that will carry a count holds a placeholder for it and no number yet.
+    const pills = screen.getByTestId("tasks-quick-status");
+    expect(pills.querySelectorAll('[data-slot="skeleton-text"]')).toHaveLength(3);
+    expect(within(pills).queryByText(/\d/)).not.toBeInTheDocument();
+
+    rerender(toolbar(statusCounts, false));
+    expect(pills.querySelectorAll('[data-slot="skeleton-text"]')).toHaveLength(0);
+    expect(
+      within(screen.getByTestId("tasks-quick-status-in_progress")).getByText("3")
+    ).toBeVisible();
+  });
+
   it("Should write the quick status pills through the single status filter", () => {
     const handleStatusChange = vi.fn();
     const statusCounts = countTasksByStatus([]);

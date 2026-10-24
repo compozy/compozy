@@ -207,7 +207,7 @@ function TasksDashboardLoading() {
         </div>
       </div>
       <div aria-hidden="true" className={TOTALS_CLASS}>
-        <SkeletonText className="w-32 text-eyebrow" />
+        <SkeletonText className="w-32 eyebrow" />
       </div>
     </SkeletonRegion>
   );

@@ -102,7 +102,14 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
 }
 
 /** Rows a loading panel stands in with; ids are static, the placeholders carry no identity. */
-const LOADING_STATUSES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }] as const;
+const LOADING_STATUSES = [
+  { id: "a" },
+  { id: "b" },
+  { id: "c" },
+  { id: "d" },
+  { id: "e" },
+  { id: "f" },
+] as const;
 
 /**
  * The placeholder twin of the status breakdown: the same panel head and rows (a state dot, a

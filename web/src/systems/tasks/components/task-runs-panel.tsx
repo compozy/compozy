@@ -257,7 +257,7 @@ export function TaskRunsPanel({
 }: TaskRunsPanelProps) {
   if (isLoading && runs.length === 0) {
     return (
-      <SkeletonRegion data-testid="tasks-runs-loading" label="Loading runs">
+      <SkeletonRegion className="w-full" data-testid="tasks-runs-loading" label="Loading runs">
         <TaskRunsTableSkeleton />
       </SkeletonRegion>
     );

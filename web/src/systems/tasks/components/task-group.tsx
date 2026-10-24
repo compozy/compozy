@@ -88,7 +88,7 @@ function TaskGroupSkeleton({ children }: { children: ReactNode }) {
     <TableBody className={GROUP_BODY_CLASS} data-slot="task-group">
       <TaskGroupHead aria-hidden="true" className="animate-skeleton-reveal">
         <Skeleton className="size-3.5 shrink-0 rounded-full" />
-        <SkeletonText className="w-16 text-eyebrow" />
+        <SkeletonText className="w-16 eyebrow" />
       </TaskGroupHead>
       {children}
     </TableBody>

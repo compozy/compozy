@@ -255,7 +255,10 @@ export function TaskPropertiesRailSkeleton() {
       <RailSection label="Properties">
         <PropertyRowSkeleton count={2} />
       </RailSection>
-      <RailSection label="Execution">
+      <RailSection
+        action={<Skeleton className="-mr-2.5 h-button-sm w-16 rounded-pill" />}
+        label="Execution"
+      >
         <PropertyRowSkeleton count={4} />
       </RailSection>
       <RailSection label="Activity">

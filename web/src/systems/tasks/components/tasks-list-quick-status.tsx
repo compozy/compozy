@@ -1,4 +1,4 @@
-import { PillGroup, type PillGroupItem } from "@compozy/ui";
+import { PillGroup, type PillGroupItem, SkeletonText } from "@compozy/ui";
 
 import {
   type TaskQuickStatus,
@@ -10,6 +10,8 @@ import type { TaskStatus } from "../types";
 export interface TasksListQuickStatusProps {
   statusFilter: TaskStatus | null;
   statusCounts: Record<TaskStatus, number>;
+  /** The facet counts are still being read: each pill that will carry one holds its place. */
+  countsLoading?: boolean;
   onStatusChange: (next: TaskStatus | null) => void;
 }
 
@@ -17,6 +19,7 @@ export interface TasksListQuickStatusProps {
 export function TasksListQuickStatus({
   statusFilter,
   statusCounts,
+  countsLoading = false,
   onStatusChange,
 }: TasksListQuickStatusProps) {
   const items: PillGroupItem<TaskQuickStatus | "other">[] = taskQuickStatusItems(
@@ -24,7 +27,17 @@ export function TasksListQuickStatus({
     statusCounts
   ).map(item => ({
     value: item.value,
-    label: item.label,
+    // A pill that will carry a count holds its place while the counts load, so the strip's other
+    // controls do not shift when they arrive.
+    label:
+      countsLoading && item.count !== undefined ? (
+        <>
+          {item.label}
+          <SkeletonText className="w-2.5" />
+        </>
+      ) : (
+        item.label
+      ),
     badge: item.count,
     testId: `tasks-quick-status-${item.value}`,
   }));

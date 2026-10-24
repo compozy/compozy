@@ -94,6 +94,7 @@ export function TasksCatalogLocation({ search }: { search: TasksRouteSearch }) {
               searchQuery={page.searchQuery}
               sortBy={page.sortBy}
               statusCounts={page.statusCounts}
+              statusCountsLoading={page.listLoading}
               statusFilter={page.statusFilter}
             />
           </>

@@ -25,7 +25,7 @@ function SegmentsSkeleton({ widths }: { widths: ReadonlyArray<{ id: string; widt
     <div className="flex flex-wrap items-center gap-1">
       {widths.map(segment => (
         <Skeleton
-          className={cn("h-pill-group-segment-sm rounded-pill", segment.width)}
+          className={cn("h-(--height-pill-group-segment-sm) rounded-pill", segment.width)}
           key={segment.id}
         />
       ))}

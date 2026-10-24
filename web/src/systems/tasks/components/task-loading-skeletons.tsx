@@ -180,7 +180,7 @@ export function TaskExternalResultSkeleton() {
   return (
     <div aria-hidden="true" className="flex min-w-0 flex-col gap-2.5">
       <div className="flex items-center justify-between gap-2">
-        <SkeletonText className="w-44 text-eyebrow" />
+        <SkeletonText className="w-44 eyebrow" />
         <div className="flex items-center gap-2">
           <Skeleton className="h-button-sm w-24 rounded-pill" />
           <Skeleton className="size-button-icon-xs rounded-pill" />

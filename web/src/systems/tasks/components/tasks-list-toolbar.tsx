@@ -21,6 +21,8 @@ const SEARCH_FIELD_MIN_STRIP_WIDTH = 336;
 export interface TasksListToolbarProps {
   statusFilter: TaskStatus | null;
   statusCounts: Record<TaskStatus, number>;
+  /** The facet counts are still being read: the quick status pills hold a place for theirs. */
+  statusCountsLoading?: boolean;
   ownerFilter: TaskFilterOwnerOption | null;
   priorityFilter: TaskPriority | null;
   ownerOptions: TaskFilterOwnerOption[];
@@ -41,6 +43,7 @@ export interface TasksListToolbarProps {
 export function TasksListToolbar({
   statusFilter,
   statusCounts,
+  statusCountsLoading = false,
   ownerFilter,
   priorityFilter,
   ownerOptions,
@@ -71,6 +74,7 @@ export function TasksListToolbar({
       <ListingToolbar.Leading className="flex-nowrap">
         {quickStatusFits ? (
           <TasksListQuickStatus
+            countsLoading={statusCountsLoading}
             onStatusChange={onStatusChange}
             statusCounts={statusCounts}
             statusFilter={statusFilter}

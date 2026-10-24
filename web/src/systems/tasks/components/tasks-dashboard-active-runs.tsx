@@ -165,7 +165,7 @@ export function TasksDashboardActiveRunsSkeleton() {
       aria-hidden="true"
       bodyClassName="p-0"
       className="animate-skeleton-reveal"
-      right={<SkeletonText className="w-40 text-eyebrow" />}
+      right={<SkeletonText className="w-40 eyebrow" />}
       title="Active runs"
     >
       <ul className="divide-y divide-line-soft">

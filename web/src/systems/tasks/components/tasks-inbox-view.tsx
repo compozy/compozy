@@ -291,7 +291,8 @@ function TasksInboxLoading() {
         <section className="flex flex-col gap-2" key={group.id}>
           <header aria-hidden="true" className="flex items-center gap-2">
             <Skeleton className="size-3.5 shrink-0 rounded-full" />
-            <SkeletonText className="w-24 text-eyebrow" />
+            <SkeletonText className="w-24 eyebrow" />
+            <SkeletonText className="w-4 font-mono text-badge" />
           </header>
           <div className="flex flex-col">
             {group.rows.map(row => (

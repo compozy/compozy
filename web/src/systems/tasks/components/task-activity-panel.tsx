@@ -69,7 +69,7 @@ export function TaskActivityFeedSkeleton() {
         <div className="flex items-center gap-1">
           {FILTER_SKELETONS.map(pill => (
             <Skeleton
-              className={cn("h-pill-group-segment-sm rounded-pill", pill.width)}
+              className={cn("h-(--height-pill-group-segment-sm) rounded-pill", pill.width)}
               key={pill.id}
             />
           ))}
@@ -115,7 +115,11 @@ export function TaskActivityPanel({
 
   if (isLoading && items.length === 0) {
     return (
-      <SkeletonRegion data-testid="tasks-activity-loading" label="Loading activity">
+      <SkeletonRegion
+        className="w-full"
+        data-testid="tasks-activity-loading"
+        label="Loading activity"
+      >
         <TaskActivityFeedSkeleton />
       </SkeletonRegion>
     );
