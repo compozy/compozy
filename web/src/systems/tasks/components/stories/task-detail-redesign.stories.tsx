@@ -10,7 +10,8 @@ import {
 import type { TaskNowStripHandlers } from "../task-now-strip";
 import { TaskActivityPanel } from "../task-activity-panel";
 import { TaskOverviewPanel } from "../task-overview-panel";
-import { TaskPropertiesRail, TaskPropertiesRailSkeleton } from "../task-properties-rail";
+import { TaskPropertiesRail } from "../task-properties-rail";
+import { TaskPropertiesRailSkeleton } from "../task-properties-rail-skeleton";
 import { TaskRunsPanel } from "../task-runs-panel";
 import { TasksDetailSubhead } from "../tasks-detail-subhead";
 
