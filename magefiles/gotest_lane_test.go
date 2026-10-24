@@ -48,24 +48,33 @@ func TestGoUnitTestPackageLimitFor(t *testing.T) {
 	}
 }
 
-func TestGoUnitTestSafetyArgs(t *testing.T) {
+func TestGoTestSafetyArgs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should limit disabled checkptr to the modernc dependency", func(t *testing.T) {
 		t.Parallel()
-		got := goUnitTestSafetyArgs(false, false)
+		got := goTestSafetyArgs(false, false)
 		want := []string{"-race", "-gcflags=" + moderncCheckptrFlag, "-parallel=4"}
 		if !slices.Equal(got, want) {
-			t.Fatalf("goUnitTestSafetyArgs(false, false) = %v, want %v", got, want)
+			t.Fatalf("goTestSafetyArgs(false, false) = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("Should serialize the uncached audit without disabling race or checkptr", func(t *testing.T) {
 		t.Parallel()
-		got := goUnitTestSafetyArgs(true, true)
+		got := goTestSafetyArgs(true, true)
 		want := []string{"-race", "-parallel=1", "-count=1"}
 		if !slices.Equal(got, want) {
-			t.Fatalf("goUnitTestSafetyArgs(true, true) = %v, want %v", got, want)
+			t.Fatalf("goTestSafetyArgs(true, true) = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should serialize integration checks while preserving result caching", func(t *testing.T) {
+		t.Parallel()
+		got := goTestSafetyArgs(true, false)
+		want := []string{"-race", "-parallel=1"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("goTestSafetyArgs(true, false) = %v, want %v", got, want)
 		}
 	})
 
