@@ -65,6 +65,7 @@ function laneName(lane: SessionsBoardLane): string {
  * One Group-by swimlane (GitHub Projects style): the group's identity and
  * count, then the same four derived columns read through the group's own scope
  * and profile lens, so every column count is the group's server total.
+ * Cards in a project lane omit the project name its header already shows.
  */
 export function SessionsBoardSwimlane({
   lane,
@@ -85,6 +86,8 @@ export function SessionsBoardSwimlane({
       </header>
       <SessionsBoardColumnsRow
         {...props}
+        // A project lane names its project once, in its header, like a List project group.
+        workspaceNameOf={lane.group.kind === "project" ? () => null : props.workspaceNameOf}
         columns={columns}
         layout="lane"
         regionPrefix={name}

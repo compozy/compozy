@@ -400,11 +400,18 @@ describe("SessionsBoard swimlanes", () => {
       },
       filters: { workspace_id: workspaceId, sort: "created" as const },
     });
-    renderBoard({ ...board(), columns: [], lanes: [lane("ws-alpha", 1), lane("ws-beta", 0)] });
+    renderBoard({
+      ...board(),
+      columns: [],
+      lanes: [lane("ws-alpha", 1), lane("ws-beta", 0)],
+      workspaceNameOf: session => names.get(session.workspace_id ?? "") ?? null,
+    });
 
     const alpha = screen.getByRole("region", { name: "Alpha" });
     expect(screen.getByRole("region", { name: "Beta" })).toBeInTheDocument();
     expect(await within(alpha).findByTestId("session-board-card-alpha-1")).toBeInTheDocument();
+    // The lane header names the project; its cards do not repeat it.
+    expect(within(alpha).getByTestId("session-board-card-alpha-1")).not.toHaveTextContent("Alpha");
     expect(
       within(alpha).getByRole("region", { name: "Alpha, Working, 1 session" })
     ).toBeInTheDocument();
