@@ -180,19 +180,17 @@ export async function preloadLoopRunDetailRoute(
   }
   const profileScope = readProfileScopeParams(queryClient);
 
-  const [result] = await Promise.allSettled([
-    queryClient.ensureQueryData(loopRunDetailOptions(workspaceId, runId, true, profileScope)),
-  ] as const);
-  if (result.status === "rejected") {
-    return;
-  }
-
-  const { executed_definition: executedDefinition, run } = result.value;
-  if (!executedDefinition && run.loop_name) {
-    await settleRouteQueries([
-      queryClient.ensureQueryData(loopDetailOptions(workspaceId, run.loop_name)),
-    ]);
-  }
+  const run = queryClient.ensureQueryData(
+    loopRunDetailOptions(workspaceId, runId, true, profileScope)
+  );
+  // A run that does not pin its executed definition reads the Loop's current one. That read
+  // needs the run, so it chains off it; neither delays the route, which shows its own skeleton.
+  const definition = run.then(({ executed_definition: executedDefinition, run: record }) =>
+    !executedDefinition && record.loop_name
+      ? queryClient.ensureQueryData(loopDetailOptions(workspaceId, record.loop_name))
+      : undefined
+  );
+  await settleRouteQueries([run, definition]);
 }
 
 export async function preloadLoopRunDiffRoute(
