@@ -81,30 +81,30 @@ commit_parsers = [
   { message = "^build(?:\\([^)]*\\))?!?:", skip = true },
   { message = "^ci(?:\\([^)]*\\))?!?:", skip = true },
 
-  { message = "^feat", group = "🎉 Features" },
-  { message = "^feature", group = "🎉 Features" },
+  { message = "^feat", group = "Features" },
+  { message = "^feature", group = "Features" },
 
-  { message = "^fix", group = "🐛 Bug Fixes" },
-  { message = "^bugfix", group = "🐛 Bug Fixes" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^bugfix", group = "Bug Fixes" },
 
-  { message = "^perf", group = "⚡ Performance Improvements" },
+  { message = "^perf", group = "Performance Improvements" },
 
-  { message = "^security", group = "🔒 Security" },
+  { message = "^security", group = "Security" },
 
-  { message = "^refactor", group = "♻️ Refactoring" },
+  { message = "^refactor", group = "Refactoring" },
 
-  { message = "^test", group = "🧪 Testing" },
+  { message = "^test", group = "Testing" },
 
-  { message = "^deps", group = "📦 Dependencies" },
-  { message = "^chore\\(deps\\)", group = "📦 Dependencies" },
+  { message = "^deps", group = "Dependencies" },
+  { message = "^chore\\(deps\\)", group = "Dependencies" },
 
-  { message = "^style", group = "💅 Style" },
+  { message = "^style", group = "Style" },
 
   { message = "^release:", skip = true },
   { message = "^chore\\(release\\):", skip = true },
-  { message = "^chore", group = "🔧 Miscellaneous Tasks" },
+  { message = "^chore", group = "Miscellaneous Tasks" },
 
-  { message = "^revert", group = "⏪ Reverts" },
+  { message = "^revert", group = "Reverts" },
 
   { message = "^Merge branch", skip = true },
   { message = "^Merge pull request", skip = true },
