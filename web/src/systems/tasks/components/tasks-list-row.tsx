@@ -7,6 +7,7 @@ import {
   type StateGlyphState,
   TableCell,
   TableRow,
+  type TableRowSkeletonColumn,
 } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
@@ -136,47 +137,42 @@ function TasksListRow({
   );
 }
 
-export interface TasksListRowSkeletonProps {
-  /** Width utility for the title placeholder, e.g. `w-56`. */
-  titleWidth: string;
-  /** Width utility for the quiet meta placeholder after the title. */
-  metaWidth: string;
-}
+const TITLE_WIDTHS = ["w-56", "w-40", "w-64", "w-48", "w-44", "w-60"] as const;
+const META_WIDTHS = ["w-24", "w-16", "w-28", "w-20", "w-20", "w-24"] as const;
 
 /**
- * The placeholder twin of `TasksListRow`: the same row and the same column cells, with each
- * content slot a block of text, so the data arrives into rows of the same height and columns.
- * Place inside a `TaskGroupSkeleton` and wrap the whole table in a `SkeletonRegion`.
+ * The placeholder twin of `TasksListRow`, as the columns `TableRowSkeleton` draws: each column
+ * carries the real row's own cell classes, including the display class that hides it in a narrow
+ * pane, and a placeholder in the shape of what the cell holds, so the data arrives into rows of
+ * the same height and columns. Fill a `TaskGroupSkeleton` with it and wrap the table in a
+ * `SkeletonRegion`.
  */
-function TasksListRowSkeleton({ titleWidth, metaWidth }: TasksListRowSkeletonProps) {
-  return (
-    <TableRow aria-hidden="true" className="animate-skeleton-reveal hover:bg-transparent">
-      <TableCell className={CELL_CLASS.title}>
-        <div className="flex min-w-0 items-center gap-2">
-          <SkeletonText className={titleWidth} />
-          <SkeletonText className={cn("text-meta", metaWidth)} />
-        </div>
-      </TableCell>
-      <TableCell className={CELL_CLASS.id}>
+const TASKS_LIST_SKELETON_COLUMNS: readonly TableRowSkeletonColumn[] = [
+  {
+    cellClassName: CELL_CLASS.title,
+    placeholder: row => (
+      <div className="flex min-w-0 items-center gap-2">
+        <SkeletonText className={TITLE_WIDTHS[row % TITLE_WIDTHS.length]} />
+        <SkeletonText className={cn("text-meta", META_WIDTHS[row % META_WIDTHS.length])} />
+      </div>
+    ),
+  },
+  { cellClassName: CELL_CLASS.id, className: "w-16" },
+  {
+    cellClassName: CELL_CLASS.status,
+    placeholder: () => (
+      <span className="inline-flex items-center gap-1.75">
+        <Skeleton className="size-3.5 shrink-0 rounded-full" />
         <SkeletonText className="w-16" />
-      </TableCell>
-      <TableCell className={CELL_CLASS.status}>
-        <span className="inline-flex items-center gap-1.75">
-          <Skeleton className="size-3.5 shrink-0 rounded-full" />
-          <SkeletonText className="w-16" />
-        </span>
-      </TableCell>
-      <TableCell className={CELL_CLASS.priority}>
-        <SkeletonText className="w-12" />
-      </TableCell>
-      <TableCell className={CELL_CLASS.owner}>
-        <Skeleton className="size-avatar-sm rounded-full" />
-      </TableCell>
-      <TableCell className={CELL_CLASS.updated}>
-        <SkeletonText className="w-10" />
-      </TableCell>
-    </TableRow>
-  );
-}
+      </span>
+    ),
+  },
+  { cellClassName: CELL_CLASS.priority, className: "w-12" },
+  {
+    cellClassName: CELL_CLASS.owner,
+    placeholder: () => <Skeleton className="size-avatar-sm rounded-full" />,
+  },
+  { cellClassName: CELL_CLASS.updated, className: "w-10" },
+];
 
-export { TasksListRow, TasksListRowSkeleton };
+export { TASKS_LIST_SKELETON_COLUMNS, TasksListRow };

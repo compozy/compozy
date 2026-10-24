@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { BoxesIcon, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { cn } from "../../../lib/utils";
 import { Button } from "../../button";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "../../item";
 import { SkeletonRegion } from "../../skeleton";
@@ -267,12 +268,18 @@ const TABLE_ROWS = [
   ["sess_03", "gemini-cli", "completed", "6m 03s"],
 ] as const;
 
-function SessionTableHead() {
+/** The columns a narrow pane drops: display classes the header, rows and placeholders all carry. */
+const NARROW_HIDDEN = "hidden @2xl:table-cell";
+
+function SessionTableHead({ narrowHides = false }: { narrowHides?: boolean }) {
   return (
     <TableHeader>
       <TableRow>
         {["ID", "Agent", "Status", "Duration"].map((label, index) => (
-          <TableHead key={label} className={COLUMN_WIDTHS[index]}>
+          <TableHead
+            key={label}
+            className={cn(COLUMN_WIDTHS[index], narrowHides && index >= 2 && NARROW_HIDDEN)}
+          >
             {label}
           </TableHead>
         ))}
@@ -312,6 +319,55 @@ export const TableRows: Story = {
                 <TableRow key={row[0]}>
                   {row.map(cell => (
                     <TableCell key={cell}>{cell}</TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      }
+    />
+  ),
+};
+
+/**
+ * A table whose columns come and go with its pane: below `@2xl` Status and Duration drop out of the
+ * header, the rows and the placeholder rows alike, because each placeholder column carries the same
+ * `cellClassName` its real cells do. The two sides stay the same height and the same columns.
+ */
+export const TableRowsNarrowPane: Story = {
+  name: "Table rows (columns hidden in a narrow pane)",
+  render: () => (
+    <Compare
+      loading={
+        <div className={cn(CARD_SURFACE, "@container")}>
+          <Table className="table-fixed">
+            <SessionTableHead narrowHides />
+            <TableBody>
+              <TableRowSkeleton
+                count={3}
+                columns={[
+                  { className: "w-24" },
+                  { className: "w-20" },
+                  { cellClassName: NARROW_HIDDEN, className: "w-16" },
+                  { cellClassName: NARROW_HIDDEN, className: "w-12" },
+                ]}
+              />
+            </TableBody>
+          </Table>
+        </div>
+      }
+      loaded={
+        <div className={cn(CARD_SURFACE, "@container")}>
+          <Table className="table-fixed">
+            <SessionTableHead narrowHides />
+            <TableBody>
+              {TABLE_ROWS.map(row => (
+                <TableRow key={row[0]}>
+                  {row.map((cell, index) => (
+                    <TableCell key={cell} className={index >= 2 ? NARROW_HIDDEN : undefined}>
+                      {cell}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))}

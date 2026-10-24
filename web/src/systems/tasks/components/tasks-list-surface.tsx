@@ -11,6 +11,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableRowSkeleton,
 } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
@@ -19,36 +20,18 @@ import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup, TaskGroupSkeleton } from "./task-group";
-import { TasksListRowSkeleton } from "./tasks-list-row";
+import { TASKS_LIST_SKELETON_COLUMNS } from "./tasks-list-row";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 /**
- * The buckets and rows a loading list stands in with: two groups of varied rows, enough to fill a
- * window, with no bucket named because none is known yet. Ids are static; the placeholders carry
- * no identity of their own.
+ * The buckets a loading list stands in with: two groups of rows, enough to fill a window, with no
+ * bucket named because none is known yet. Ids are static; the placeholders carry no identity of
+ * their own.
  */
 const LOADING_GROUPS = [
-  {
-    id: "first",
-    rows: [
-      { id: "a", titleWidth: "w-56", metaWidth: "w-24" },
-      { id: "b", titleWidth: "w-40", metaWidth: "w-16" },
-      { id: "c", titleWidth: "w-64", metaWidth: "w-28" },
-      { id: "d", titleWidth: "w-48", metaWidth: "w-20" },
-    ],
-  },
-  {
-    id: "second",
-    rows: [
-      { id: "a", titleWidth: "w-44", metaWidth: "w-20" },
-      { id: "b", titleWidth: "w-60", metaWidth: "w-24" },
-      { id: "c", titleWidth: "w-36", metaWidth: "w-16" },
-      { id: "d", titleWidth: "w-52", metaWidth: "w-28" },
-      { id: "e", titleWidth: "w-48", metaWidth: "w-20" },
-      { id: "f", titleWidth: "w-40", metaWidth: "w-24" },
-    ],
-  },
+  { id: "first", rows: 4 },
+  { id: "second", rows: 6 },
 ] as const;
 
 export interface TasksListSurfaceProps {
@@ -226,13 +209,7 @@ function TasksListLoading() {
         <TasksListTableFrame>
           {LOADING_GROUPS.map(group => (
             <TaskGroupSkeleton key={group.id}>
-              {group.rows.map(row => (
-                <TasksListRowSkeleton
-                  key={row.id}
-                  metaWidth={row.metaWidth}
-                  titleWidth={row.titleWidth}
-                />
-              ))}
+              <TableRowSkeleton columns={TASKS_LIST_SKELETON_COLUMNS} count={group.rows} />
             </TaskGroupSkeleton>
           ))}
         </TasksListTableFrame>
