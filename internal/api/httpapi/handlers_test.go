@@ -4193,6 +4193,12 @@ func TestSessionMonitorHandlers(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Fatalf("aggregate cancel status=%d body=%s", response.Code, response.Body.String())
 		}
+		var refused contract.ProfileErrorPayload
+		decodeJSONResponse(t, response, &refused)
+		if refused.Error.Code != "profile_selection_conflict" ||
+			refused.Error.Message != "all_profiles is only available for reads" {
+			t.Fatalf("aggregate cancel error=%#v", refused.Error)
+		}
 		if counts := monitors.ActiveCounts([]string{"sess-marketing"}); counts["sess-marketing"] != 1 {
 			t.Fatalf("active after refused cancel=%v, want the monitor kept", counts)
 		}

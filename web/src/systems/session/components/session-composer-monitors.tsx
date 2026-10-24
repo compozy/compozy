@@ -8,7 +8,7 @@ import type { SessionPayload } from "../types";
 import { MonitorComposerControl } from "./monitor-composer-control";
 
 const MONITOR_CANCEL_FAILED = "Could not cancel the monitor.";
-const MONITOR_ALREADY_SETTLED = "This monitor already fired or was canceled.";
+const MONITOR_NO_LONGER_ACTIVE = "This monitor is no longer active.";
 
 export interface SessionComposerMonitorsProps {
   session: SessionPayload;
@@ -39,9 +39,9 @@ export function SessionComposerMonitors({ session }: SessionComposerMonitorsProp
       cancelingId={model.cancelingId}
       onCancel={monitorId => {
         model.cancel(monitorId).catch(error => {
-          // The session was already resolved to read the list, so a 404 is a settled monitor.
+          // A 404 means the monitor settled, or its session is gone; either way nothing waits.
           if (error instanceof SessionApiError && error.status === 404) {
-            toast.info(MONITOR_ALREADY_SETTLED);
+            toast.info(MONITOR_NO_LONGER_ACTIVE);
             return;
           }
           console.error(MONITOR_CANCEL_FAILED, error);

@@ -101,10 +101,12 @@ describe("MonitorComposerControl", () => {
 
   it("Should say the session is gone without a retry when the list finds no session", async () => {
     const user = userEvent.setup();
-    renderControl({ failed: true, missing: true, onRetry: vi.fn() });
+    // Rows cached from an earlier read must not stay cancelable once the session is gone.
+    renderControl({ failed: true, missing: true, onRetry: vi.fn(), monitors: [monitor()] });
     await user.click(screen.getByRole("button", { name: "Monitors, 1 active" }));
 
     expect(screen.getByText("This session is no longer available.")).toBeInTheDocument();
+    expect(screen.queryByTestId("composer-monitor-mon-1")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 

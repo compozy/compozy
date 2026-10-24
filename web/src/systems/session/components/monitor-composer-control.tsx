@@ -108,6 +108,10 @@ function MonitorComposerBody({
   onCancel,
   cancelingId = null,
 }: Omit<MonitorComposerControlProps, "active" | "onOpenChange">) {
+  // A gone session outranks rows cached from an earlier read.
+  if (missing) {
+    return <MonitorLoadError message="This session is no longer available." />;
+  }
   if (monitors.length > 0) {
     return (
       <div className="flex flex-col gap-1">
@@ -126,9 +130,6 @@ function MonitorComposerBody({
         ) : null}
       </div>
     );
-  }
-  if (missing) {
-    return <MonitorLoadError message="This session is no longer available." />;
   }
   if (failed) {
     return <MonitorLoadError message="Couldn't load monitors." onRetry={onRetry} />;
