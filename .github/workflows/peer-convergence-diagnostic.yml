@@ -22,6 +22,8 @@ jobs:
       - run: |
           bunx turbo run build --filter=./web
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
+      - name: Check window component behavior
+        run: bunx turbo run test --filter=./web -- src/systems/os/components/__tests__/os-window.test.tsx
       - name: Attribute snapshot stages and renders
         working-directory: web
-        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 10
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 20

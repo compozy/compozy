@@ -56,7 +56,10 @@ vi.mock("../../hooks/use-os-window-deck", () => ({
   })),
 }));
 
-function TasksController() {
+const controllerRenders: string[] = [];
+
+function TasksController({ windowId }: { windowId: string }) {
+  controllerRenders.push(windowId);
   const [draft, setDraft] = useState("");
   return (
     <input aria-label="Task draft" onChange={event => setDraft(event.target.value)} value={draft} />
@@ -156,6 +159,7 @@ let windows: Record<string, OsWindowState>;
 let model: OsWindowModel;
 
 beforeEach(() => {
+  controllerRenders.length = 0;
   presentation = "floating";
   partition = "ws_alpha";
   windows = { "window:tasks": windowState() };
@@ -175,6 +179,38 @@ beforeEach(() => {
       },
     } as unknown as OsDesktopRuntimeStore)
   );
+});
+
+describe("OsWindow geometry render isolation", () => {
+  it("Should retain an unchanged sibling while updating the moved frame", () => {
+    const primary = frameModel();
+    const sibling = frameModel({
+      id: "window:other",
+      members: ["window:other"],
+      activeWindowId: "window:other",
+    });
+    windows[sibling.id] = windowState({ id: sibling.id });
+    vi.mocked(useOsWindow).mockImplementation(frame => ({ ...model, rect: frame.rect }));
+    const view = render(
+      <>
+        <OsWindow frame={primary} />
+        <OsWindow frame={sibling} />
+      </>
+    );
+    expect(screen.getAllByRole("textbox", { name: "Task draft" })).toHaveLength(2);
+    controllerRenders.length = 0;
+    const moved = { ...primary, rect: { ...primary.rect, x: 200 } };
+    view.rerender(
+      <>
+        <OsWindow frame={moved} />
+        <OsWindow frame={sibling} />
+      </>
+    );
+    expect(controllerRenders).not.toContain(sibling.id);
+    expect(screen.getByTestId(`os-window-frame-${primary.id}`).parentElement).toHaveStyle({
+      transform: "translate(200px,50px)",
+    });
+  });
 });
 
 describe("OsWindow project badge", () => {
@@ -312,7 +348,8 @@ describe("OsWindow", () => {
     expect(frameHost.parentElement).toHaveStyle({ display: "none" });
 
     presentation = "compact";
-    view.rerender(<OsWindow frame={minimizedFrame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...minimizedFrame }} />);
 
     frameHost = screen.getByTestId("os-window-frame-window:tasks");
     expect(frameHost.parentElement).toHaveStyle({ display: "none" });
@@ -327,12 +364,14 @@ describe("OsWindow", () => {
     fireEvent.change(draft, { target: { value: "Keep this task context" } });
 
     presentation = "compact";
-    view.rerender(<OsWindow frame={frame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...frame }} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
 
     presentation = "floating";
-    view.rerender(<OsWindow frame={frame} />);
+    // This suite stubs subscriptions; a new frame prop delivers the simulated update.
+    view.rerender(<OsWindow frame={{ ...frame }} />);
     expect(screen.getByRole("textbox", { name: "Task draft" })).toBe(draft);
     expect(draft).toHaveValue("Keep this task context");
   });
