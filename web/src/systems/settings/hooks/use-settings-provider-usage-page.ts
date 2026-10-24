@@ -72,7 +72,9 @@ export function useSettingsProviderUsagePage() {
     envelope !== null && draft !== null && !sameProviderUsageConfig(envelope.config, draft);
 
   return {
-    isLoading: query.isPending,
+    // One loading area: the section and the provider list its rows come from arrive together, so
+    // the Providers group is never inserted into a page that has already rendered.
+    isLoading: query.isPending || providersQuery.isPending,
     error: query.error,
     envelope,
     draft,
