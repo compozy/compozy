@@ -92,7 +92,9 @@ function OsWindowBody({
     <div
       data-slot="os-window-body"
       className="flex min-h-0 flex-1 flex-col overflow-auto bg-canvas"
-      style={transitionName ? { viewTransitionName: transitionName } : undefined}
+      // Named only while a window-manager drill runs (tokens-runtime.css): a permanent name made
+      // every in-window <ViewTransition> also capture and cross-fade the whole body.
+      data-view-transition-body={transitionName}
       onScrollCapture={handleScroll}
     >
       {children}
@@ -121,7 +123,8 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   presentation?: "floating" | "compact";
   slotStore?: TopbarSlotStore;
   /**
-   * `view-transition-name` for the body. Only the focused, visible window may
+   * `view-transition-name` the body takes during a window-manager drill (`drill-in` /
+   * `drill-out` transition types) and only then. Only the focused, visible window may
    * carry one — names must be unique per document or the transition aborts.
    */
   bodyTransitionName?: string;
