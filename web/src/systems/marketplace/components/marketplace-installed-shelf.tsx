@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { StatusDot } from "@compozy/ui";
+import { Skeleton, SkeletonRegion, SkeletonText, StatusDot } from "@compozy/ui";
 
 import type { InstalledExtensionView } from "@/systems/extensions";
 
@@ -74,5 +74,24 @@ function MarketplaceInstalledShelf({ items, updates, query }: MarketplaceInstall
   );
 }
 
-export { MarketplaceInstalledShelf };
+/**
+ * The shelf's 40px line while the installed inventory loads, so the grid below does not drop when
+ * it arrives. Most installs have a shelf; one with nothing installed folds the line away.
+ */
+function MarketplaceInstalledShelfSkeleton() {
+  return (
+    <SkeletonRegion
+      className="-mx-1 flex min-h-10 items-center gap-2.5 px-1"
+      data-testid="marketplace-installed-shelf-skeleton"
+      label="Loading installed extensions"
+    >
+      <Skeleton className="size-(--size-catalog-logo) rounded-sm" />
+      <span className="text-small-body font-medium">
+        <SkeletonText className="w-24" />
+      </span>
+    </SkeletonRegion>
+  );
+}
+
+export { MarketplaceInstalledShelf, MarketplaceInstalledShelfSkeleton };
 export type { MarketplaceInstalledShelfProps };

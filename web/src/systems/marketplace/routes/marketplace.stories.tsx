@@ -96,6 +96,24 @@ export const Loading: Story = {
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** The inventory is still loading too: the shelf's line is held as well as the grid. */
+export const LoadingWithShelf: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace"),
+    ...marketplaceStoryHandlers({ catalogDelay: "infinite", extensionsDelay: "infinite" }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The installed inventory never settles: placeholder row-cards in the Installed grid. */
+export const InstalledLoading: Story = {
+  parameters: {
+    ...appRouteParameters("/marketplace/installed"),
+    ...marketplaceStoryHandlers({ catalog: defaultCatalog, extensionsDelay: "infinite" }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
 /** The daemon serves the last projection it could load under one stale line. */
 export const Stale: Story = {
   parameters: {

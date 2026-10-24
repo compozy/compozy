@@ -272,6 +272,42 @@ describe("Marketplace page and cards", () => {
       "true"
     );
   });
+  it("Should hold the shelf line and the grid as placeholders until the inventory and the catalog arrive", async () => {
+    let releaseInventory!: () => void;
+    let releaseCatalog!: () => void;
+    const inventory = new Promise<void>(resolve => (releaseInventory = resolve));
+    const catalogRead = new Promise<void>(resolve => (releaseCatalog = resolve));
+    extensions = [{ ...extensionFixtures[0]!, name: "local-0", marketplace: null }];
+    server.use(
+      http.get("*/api/extensions", async () => {
+        await inventory;
+        return HttpResponse.json({ extensions });
+      }),
+      http.get("*/api/marketplace", async () => {
+        await catalogRead;
+        return HttpResponse.json(catalog);
+      })
+    );
+    setup();
+
+    // Both reads are pending: one busy region per area, in the real grid, with the shelf's line
+    // reserved so the grid does not drop when the installed shelf arrives.
+    const grid = await screen.findByTestId("marketplace-grid-skeleton");
+    expect(grid.closest('[aria-busy="true"]')).toHaveTextContent("Loading marketplace entries");
+    expect(screen.getByTestId("marketplace-installed-shelf-skeleton")).toHaveAttribute(
+      "aria-busy",
+      "true"
+    );
+    expect(screen.queryByTestId("marketplace-installed-shelf")).not.toBeInTheDocument();
+
+    releaseInventory();
+    releaseCatalog();
+    expect(await screen.findByTestId("marketplace-installed-shelf")).toBeVisible();
+    await screen.findByTestId(`marketplace-card-${entry.entry_id}`);
+    expect(screen.queryByTestId("marketplace-grid-skeleton")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-installed-shelf-skeleton")).not.toBeInTheDocument();
+  });
+
   it("Should keep server-matched entries and send the route query instead of re-filtering cards", async () => {
     setup(undefined, "/marketplace?q=semantic-match");
     expect(await screen.findByTestId(`marketplace-card-${entry.entry_id}`)).toBeVisible();

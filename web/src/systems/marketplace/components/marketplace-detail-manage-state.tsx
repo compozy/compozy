@@ -1,6 +1,6 @@
 import { AlertCircle, SlidersHorizontal } from "lucide-react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button, PropertyRowSkeleton, SkeletonRegion } from "@compozy/ui";
 
 import { MarketplaceDetailRailCard } from "./marketplace-detail-shell";
 
@@ -13,7 +13,10 @@ interface MarketplaceDetailManageFallbackBodyProps {
   testId: string;
 }
 
-/** Shared Manage loading/error body while the installed record is unavailable. */
+/**
+ * Shared Manage loading/error body while the installed record is unavailable. Loading holds the
+ * card's three property rows (Enabled, trust, placement); a failure names itself and offers retry.
+ */
 function MarketplaceDetailManageFallbackBody({
   error,
   errorMessage,
@@ -22,30 +25,25 @@ function MarketplaceDetailManageFallbackBody({
   onRetry,
   testId,
 }: MarketplaceDetailManageFallbackBodyProps) {
+  if (isLoading) {
+    return (
+      <SkeletonRegion className="px-3.5" data-testid={testId} label={loadingMessage}>
+        <PropertyRowSkeleton count={3} />
+      </SkeletonRegion>
+    );
+  }
   return (
-    <div
-      className="flex flex-col gap-2 px-3.5 py-1.5"
-      data-testid={testId}
-      role={isLoading ? "status" : "alert"}
-    >
+    <div className="flex flex-col gap-2 px-3.5 py-1.5" data-testid={testId} role="alert">
       <div className="flex items-center gap-2 text-small-body font-medium text-fg">
-        {isLoading ? (
-          <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-        ) : (
-          <AlertCircle aria-hidden="true" className="size-3.5 text-danger" />
-        )}
-        {isLoading ? loadingMessage : errorMessage}
+        <AlertCircle aria-hidden="true" className="size-3.5 text-danger" />
+        {errorMessage}
       </div>
-      {!isLoading && error?.message ? (
-        <p className="text-form-hint text-muted">{error.message}</p>
-      ) : null}
-      {!isLoading ? (
-        <div className="pb-1">
-          <Button onClick={onRetry} size="sm" type="button" variant="secondary">
-            Retry management
-          </Button>
-        </div>
-      ) : null}
+      {error?.message ? <p className="text-form-hint text-muted">{error.message}</p> : null}
+      <div className="pb-1">
+        <Button onClick={onRetry} size="sm" type="button" variant="secondary">
+          Retry management
+        </Button>
+      </div>
     </div>
   );
 }

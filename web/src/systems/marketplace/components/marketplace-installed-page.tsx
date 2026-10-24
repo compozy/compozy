@@ -135,7 +135,12 @@ function MarketplaceInstalledBody({
   query: string;
 }) {
   if (page.isPending)
-    return <MarketplaceGridSkeleton className="@min-[960px]:grid-cols-1" count={4} />;
+    return (
+      <MarketplaceGridSkeleton
+        className="@min-[960px]:grid-cols-1 [&_[data-slot=catalog-card-description]]:line-clamp-2"
+        count={4}
+      />
+    );
 
   if (page.error && page.installedCount === 0) {
     return (
