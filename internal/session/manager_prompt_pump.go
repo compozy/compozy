@@ -272,7 +272,7 @@ func closePromptOutput(out chan<- acp.AgentEvent) {
 }
 
 func (m *Manager) revalidateSettledWorkSignals(ctx context.Context, target *Session) {
-	if target == nil {
+	if target == nil || !m.workSignals.hasExternalSources() {
 		return
 	}
 	state := m.workSignals.Inspect(ctx, target.ID, m.now().UTC())

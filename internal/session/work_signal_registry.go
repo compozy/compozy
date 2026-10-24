@@ -48,6 +48,23 @@ func (r *WorkSignalRegistry) Register(sources ...WorkSignalSource) {
 	}
 }
 
+// hasExternalSources distinguishes daemon-composed supervision from a standalone
+// manager that only owns agent progress. Explicitly registered nil adapters still
+// enable inspection so unavailable sources retain their fail-closed behavior.
+func (r *WorkSignalRegistry) hasExternalSources() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for kind := range r.sources {
+		if kind != WorkSignalAgentProgress {
+			return true
+		}
+	}
+	return false
+}
+
 // Inspect reports unknown sources explicitly; no failed inspection renews a signal.
 func (r *WorkSignalRegistry) Inspect(ctx context.Context, id string, now time.Time) *SupervisionState {
 	r.mu.RLock()
