@@ -95,8 +95,18 @@ func (n *daemonNativeTools) sessionList(
 		}
 		return toolspkg.ToolResult{}, err
 	}
+	return n.sessionListPayload(ctx, req, input.IncludeHealth, page)
+}
+
+func (n *daemonNativeTools) sessionListPayload(
+	ctx context.Context,
+	req toolspkg.CallRequest,
+	includeHealth bool,
+	page session.ListPage,
+) (toolspkg.ToolResult, error) {
+	var err error
 	payload := core.SessionPayloadsFromInfos(page.Sessions)
-	if input.IncludeHealth {
+	if includeHealth {
 		pageReader, ok := n.deps.Sessions.(core.SessionHealthPageReader)
 		if !ok {
 			return toolspkg.ToolResult{}, nativeUnavailableError(
@@ -108,6 +118,9 @@ func (n *daemonNativeTools) sessionList(
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+	}
+	if err := core.DecorateSessionPullRequests(ctx, n.deps.Sessions, page.Sessions, payload); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	payload, err = core.SessionPayloadsWithProfileOwners(ctx, payload, n.deps.Profiles)
 	if err != nil {

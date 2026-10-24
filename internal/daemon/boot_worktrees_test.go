@@ -891,3 +891,76 @@ func (s *subagentWorktreeServiceStub) StatusDetails(
 ) (*worktree.StatusDetails, error) {
 	return &worktree.StatusDetails{ForgeStatus: s.forge}, s.forgeErr
 }
+
+// Invariant: only a named non-default branch is snapshotted, and readiness fails closed.
+// Owner: daemon Git and forge adapters; canonical worktree composition suite.
+func TestSessionPullRequestAdapters(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve branches using real Git without reading the forge", func(t *testing.T) {
+		t.Parallel()
+		runner, err := worktree.NewRealGitRunner(0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		if _, _, err = runner.Run(t.Context(), root, "init", "--initial-branch=main"); err != nil {
+			t.Fatal(err)
+		}
+		reader := sessionBranchAdapter{runner: runner}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "" {
+			t.Fatalf("default=%q %v", branch, err)
+		}
+		if _, _, err = runner.Run(t.Context(), root, "symbolic-ref", "HEAD", "refs/heads/topic"); err != nil {
+			t.Fatal(err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "topic" {
+			t.Fatalf("topic=%q %v", branch, err)
+		}
+		if _, _, err = runner.Run(
+			t.Context(),
+			root,
+			"symbolic-ref",
+			"refs/remotes/origin/HEAD",
+			"refs/remotes/origin/topic",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), root); err != nil || branch != "" {
+			t.Fatalf("origin default=%q %v", branch, err)
+		}
+		if branch, err := reader.CurrentBranch(t.Context(), t.TempDir()); err != nil || branch != "" {
+			t.Fatalf("nonrepo=%q %v", branch, err)
+		}
+	})
+	t.Run("Should require every known fact before declaring a PR ready", func(t *testing.T) {
+		t.Parallel()
+		entry := worktree.PullRequestEntry{
+			LookupState: "ok",
+			Facts: &worktree.ForgeStatus{
+				PRNumber:       new(1),
+				PRState:        new("open"),
+				Draft:          new(false),
+				Checks:         &worktree.ForgeChecks{State: "passing"},
+				ReviewDecision: "approved",
+				Mergeable:      "mergeable",
+			},
+		}
+		if !sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("complete facts not ready")
+		}
+		entry.Stale = true
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("stale facts ready")
+		}
+		entry.Stale = false
+		entry.LookupState = "error"
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("failed lookup ready")
+		}
+		entry.LookupState = "ok"
+		entry.Facts.Draft = nil
+		if sessionPullRequestView(entry).PullRequest.ReadyToMerge {
+			t.Fatal("unknown draft ready")
+		}
+	})
+}

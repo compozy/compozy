@@ -95,8 +95,16 @@ func (c githubClient) request(
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		failure := classifyGitHubStatus(response.StatusCode)
-		if apiErr, ok := errors.AsType[*githubAPIError](failure); ok && apiErr.cause == extensioncontract.ForgeCauseRateLimited {
-			if reset, parseErr := strconv.ParseInt(response.Header.Get("X-RateLimit-Reset"), 10, 64); parseErr == nil && reset > 0 {
+		if apiErr, ok := errors.AsType[*githubAPIError](
+			failure,
+		); ok &&
+			apiErr.cause == extensioncontract.ForgeCauseRateLimited {
+			if reset, parseErr := strconv.ParseInt(
+				response.Header.Get("X-RateLimit-Reset"),
+				10,
+				64,
+			); parseErr == nil &&
+				reset > 0 {
 				apiErr.retryAfter = new(time.Unix(reset, 0).UTC())
 			}
 		}

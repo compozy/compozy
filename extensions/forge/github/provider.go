@@ -116,7 +116,10 @@ func (p *Provider) Status(
 		if graphErr == nil {
 			return response, nil
 		}
-		if apiErr, ok := errors.AsType[*githubAPIError](graphErr); !ok || (apiErr.status != http.StatusNotFound && apiErr.status != http.StatusNotImplemented) {
+		if apiErr, ok := errors.AsType[*githubAPIError](
+			graphErr,
+		); !ok ||
+			(apiErr.status != http.StatusNotFound && apiErr.status != http.StatusNotImplemented) {
 			if cause := githubErrorCause(graphErr); cause != "" {
 				response.Cause = cause
 				if ok {

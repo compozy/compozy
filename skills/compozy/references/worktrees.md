@@ -218,6 +218,16 @@ Settlement fields, including `pull_request_status`, are omitted while the child 
 A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
 that no PR exists.
 
+### Display observations and delivery evidence
+
+Worktree and session displays share canonical PR observations keyed by workspace, normalized origin
+repository and branch. Changing origin never reuses facts from the old repository. The cache favors
+an open PR from that same repository, then the most recently updated terminal PR. Display observations
+expire after 60 seconds for open/no PR results and 10 minutes for terminal PRs. Provider errors retain
+facts, delay automatic retries and expose lookup state. These cached facts never authorize delivery
+or removal: exact delivery queries and current-HEAD cleanup checks obtain action-local evidence.
+Completed actions request a separate canonical display refresh.
+
 ## Teardown on removal
 
 Set `worktrees.teardown_command` to clean up resources started by setup, for example

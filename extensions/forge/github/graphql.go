@@ -63,9 +63,20 @@ type graphResponse struct {
 	Errors []struct{ Type string }
 }
 
-func (p *Provider) graphRequest(ctx context.Context, token, query string, variables map[string]any) (graphResponse, error) {
+func (p *Provider) graphRequest(
+	ctx context.Context,
+	token, query string,
+	variables map[string]any,
+) (graphResponse, error) {
 	var result graphResponse
-	if err := p.api.request(ctx, http.MethodPost, "/graphql", token, map[string]any{"query": query, "variables": variables}, &result); err != nil {
+	if err := p.api.request(
+		ctx,
+		http.MethodPost,
+		"/graphql",
+		token,
+		map[string]any{"query": query, "variables": variables},
+		&result,
+	); err != nil {
 		return result, err
 	}
 	if len(result.Errors) > 0 {
@@ -82,10 +93,18 @@ func (p *Provider) graphRequest(ctx context.Context, token, query string, variab
 	return result, nil
 }
 
-func (p *Provider) graphStatus(ctx context.Context, repo repository, branch, token string) (extensioncontract.ForgeStatusResponse, error) {
+func (p *Provider) graphStatus(
+	ctx context.Context,
+	repo repository,
+	branch, token string,
+) (extensioncontract.ForgeStatusResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	response := extensioncontract.ForgeStatusResponse{Provider: githubProviderName, FetchedAt: p.now().UTC(), Selection: "complete"}
+	response := extensioncontract.ForgeStatusResponse{
+		Provider:  githubProviderName,
+		FetchedAt: p.now().UTC(),
+		Selection: "complete",
+	}
 	pull, incomplete, err := p.selectGraphPull(ctx, repo, branch, token)
 	if err != nil {
 		return response, err
@@ -109,7 +128,12 @@ func (p *Provider) graphStatus(ctx context.Context, repo repository, branch, tok
 	if response.Mergeable == "" {
 		response.Mergeable = "unknown"
 	}
-	result, err := p.graphRequest(ctx, token, checksQuery, map[string]any{"owner": repo.owner, "name": repo.name, "oid": pull.HeadRefOID})
+	result, err := p.graphRequest(
+		ctx,
+		token,
+		checksQuery,
+		map[string]any{"owner": repo.owner, "name": repo.name, "oid": pull.HeadRefOID},
+	)
 	if err != nil {
 		return response, err
 	}
@@ -124,7 +148,11 @@ func (p *Provider) graphStatus(ctx context.Context, repo repository, branch, tok
 	return response, nil
 }
 
-func (p *Provider) selectGraphPull(ctx context.Context, repo repository, branch, token string) (*graphPull, bool, error) {
+func (p *Provider) selectGraphPull(
+	ctx context.Context,
+	repo repository,
+	branch, token string,
+) (*graphPull, bool, error) {
 	incomplete := false
 	for _, states := range [][]string{{"OPEN"}, {"MERGED", "CLOSED"}} {
 		var cursor *string
@@ -137,7 +165,8 @@ func (p *Provider) selectGraphPull(ctx context.Context, repo repository, branch,
 			}
 			page := result.Data.Repository.PullRequests
 			for _, pull := range page.Nodes {
-				if pull.HeadRepository != nil && strings.EqualFold(pull.HeadRepository.NameWithOwner, repo.owner+"/"+repo.name) {
+				if pull.HeadRepository != nil &&
+					strings.EqualFold(pull.HeadRepository.NameWithOwner, repo.owner+"/"+repo.name) {
 					// An incomplete open population cannot justify choosing a terminal PR.
 					if incomplete {
 						return nil, true, nil

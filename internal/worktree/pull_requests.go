@@ -37,24 +37,43 @@ type repoKeyCache struct {
 // PullRequestService is the sole writer of canonical display observations. Exact
 // delivery evidence never enters this cache.
 type PullRequestService struct {
-	store   PullRequestStore
-	forge   ForgeProvider
-	runner  GitRunner
-	ctx     context.Context
-	cancel  context.CancelFunc
-	now     func() time.Time
-	changed func(string)
-	mu      sync.Mutex
-	flights map[PullRequestKey]*pullRequestFlight
-	repos   map[string]repoKeyCache
-	slots   chan struct{}
-	wg      sync.WaitGroup
-	closed  bool
+	store    PullRequestStore
+	forge    ForgeProvider
+	runner   GitRunner
+	ctx      context.Context
+	cancel   context.CancelFunc
+	now      func() time.Time
+	changed  func(string)
+	mu       sync.Mutex
+	flights  map[PullRequestKey]*pullRequestFlight
+	repos    map[string]repoKeyCache
+	defaults map[string]repoKeyCache
+	slots    chan struct{}
+	wg       sync.WaitGroup
+	closed   bool
 }
 
-func NewPullRequestService(ctx context.Context, store PullRequestStore, forge ForgeProvider, runner GitRunner, changed func(string)) *PullRequestService {
+func NewPullRequestService(
+	ctx context.Context,
+	store PullRequestStore,
+	forge ForgeProvider,
+	runner GitRunner,
+	changed func(string),
+) *PullRequestService {
 	ctx, cancel := context.WithCancel(ctx)
-	return &PullRequestService{store: store, forge: forge, runner: runner, ctx: ctx, cancel: cancel, now: time.Now, changed: changed, flights: make(map[PullRequestKey]*pullRequestFlight), repos: make(map[string]repoKeyCache), slots: make(chan struct{}, 4)}
+	return &PullRequestService{
+		store:    store,
+		forge:    forge,
+		runner:   runner,
+		ctx:      ctx,
+		cancel:   cancel,
+		now:      time.Now,
+		changed:  changed,
+		flights:  make(map[PullRequestKey]*pullRequestFlight),
+		repos:    make(map[string]repoKeyCache),
+		defaults: make(map[string]repoKeyCache),
+		slots:    make(chan struct{}, 4),
+	}
 }
 
 func (s *PullRequestService) Close() {
@@ -86,7 +105,8 @@ func (s *PullRequestService) Read(ctx context.Context, keys []PullRequestKey) ma
 
 func pullRequestStale(entry PullRequestEntry, now time.Time) bool {
 	ttl := time.Minute
-	if entry.Facts != nil && entry.Facts.PRState != nil && (*entry.Facts.PRState == "merged" || *entry.Facts.PRState == "closed") {
+	if entry.Facts != nil && entry.Facts.PRState != nil &&
+		(*entry.Facts.PRState == "merged" || *entry.Facts.PRState == "closed") {
 		ttl = 10 * time.Minute
 	}
 	return entry.Facts == nil || entry.Facts.IsStale(now, ttl)
@@ -95,13 +115,19 @@ func pullRequestStale(entry PullRequestEntry, now time.Time) bool {
 func (s *PullRequestService) RequestRefresh(key PullRequestKey) { s.start(key, false) }
 
 func (s *PullRequestService) Refresh(ctx context.Context, key PullRequestKey) (PullRequestEntry, error) {
+	entries, err := s.store.ReadPullRequests(ctx, []PullRequestKey{key})
+	if err != nil {
+		return PullRequestEntry{}, err
+	}
 	flight := s.start(key, true)
 	if flight == nil {
 		return PullRequestEntry{}, context.Canceled
 	}
 	select {
 	case <-ctx.Done():
-		return PullRequestEntry{}, ctx.Err()
+		entry := entries[key]
+		entry.Stale = pullRequestStale(entry, s.now())
+		return entry, ctx.Err()
 	case <-flight.done:
 		return flight.entry, flight.err
 	}
@@ -151,7 +177,14 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 	if s.forge == nil {
 		err = NewForgeFailure(ErrForgeUnavailable, "provider_disabled", nil)
 	} else {
-		facts, err = s.forge.Status(ctx, ForgeStatusRequest{WorkspaceID: key.WorkspaceID, RemoteURLs: []string{"https://" + key.RepoKey + ".git"}, Branch: key.Branch})
+		facts, err = s.forge.Status(
+			ctx,
+			ForgeStatusRequest{
+				WorkspaceID: key.WorkspaceID,
+				RemoteURLs:  []string{"https://" + key.RepoKey + ".git"},
+				Branch:      key.Branch,
+			},
+		)
 	}
 	if err == nil && facts == nil {
 		err = NewForgeFailure(ErrForge, "provider_failed", nil)
@@ -170,7 +203,10 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 		after.FailureCount++
 		delays := []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute, 15 * time.Minute}
 		retry := now.Add(delays[min(after.FailureCount-1, len(delays)-1)])
-		if failure, ok := errors.AsType[*ForgeFailure](err); ok && failure.RetryAfter != nil && failure.RetryAfter.After(now) {
+		if failure, ok := errors.AsType[*ForgeFailure](
+			err,
+		); ok && failure.RetryAfter != nil &&
+			failure.RetryAfter.After(now) {
 			retry = *failure.RetryAfter
 		}
 		after.RetryAfter = &retry
@@ -192,7 +228,8 @@ func (s *PullRequestService) refresh(key PullRequestKey, explicit bool) (PullReq
 	if saveErr := s.store.SavePullRequest(s.ctx, after); saveErr != nil {
 		return before, saveErr
 	}
-	if s.changed != nil && (before.LookupState != after.LookupState || before.LookupCause != after.LookupCause || !reflect.DeepEqual(before.Facts, after.Facts)) {
+	if s.changed != nil &&
+		(before.LookupState != after.LookupState || before.LookupCause != after.LookupCause || !reflect.DeepEqual(before.Facts, after.Facts)) {
 		s.changed(key.WorkspaceID)
 	}
 	return after, err

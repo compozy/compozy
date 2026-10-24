@@ -33,6 +33,9 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 			return nil, err
 		}
 	}
+	if err := DecorateSessionPullRequests(ctx, h.Sessions, infos, payloads); err != nil {
+		return nil, err
+	}
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}

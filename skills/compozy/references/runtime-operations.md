@@ -1581,3 +1581,13 @@ reads for thirty seconds. Request logs include a validated opaque `client_id` fr
 `X-Compozy-Client-ID` so request rates can be grouped by browser instance without inspecting payloads.
 
 Verdict-only daemon-owned `system` sessions are omitted from default public catalogs and operator attention. Use explicit `type=system` / `session list --type system` for audit; add `parent` / `--parent` to inspect the bound Goal session's judges. Existing parentless judges remain discoverable by type. Direct session history reads are unchanged.
+
+### Session pull requests
+
+Use `compozy session pr <id> [-o json]` to read the branch-linked pull request and its lookup status.
+`--refresh` requests a forge observation with a 10-second response budget; ordinary reads use cached
+facts and schedule eligible stale observations in the background. A root session keeps the branch
+captured when its turn settled. A bound session uses its live pending/ready worktree branch; removed
+or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
+no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
+`pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.

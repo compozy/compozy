@@ -5169,3 +5169,62 @@ func TestSessionListAllProjectsColumn(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: PR reads use the cached session projection and refresh explicitly invokes the forge route.
+// Owner: CLI session commands; canonical session suite.
+func TestSessionPullRequestCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should distinguish cached and explicit refresh output", func(t *testing.T) {
+		t.Parallel()
+		client := &pullRequestCLIStub{
+			stubClient: &stubClient{getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+				return SessionRecord{
+					ID:          id,
+					Branch:      "topic",
+					PullRequest: &contract.SessionPullRequestPayload{Number: 42, State: session.PullRequestOpen},
+				}, nil
+			}},
+		}
+		withWorkspaceResolution(client.stubClient)
+		deps := newWorkspaceTestDeps(t, client)
+		stdout, _, err := executeRootCommand(t, deps, "session", "pr", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.SessionPullRequestResponse
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if result.Branch != "topic" || result.PullRequest == nil || result.PullRequest.Number != 42 ||
+			client.refreshed {
+			t.Fatalf("cached=%#v refreshed=%t", result, client.refreshed)
+		}
+		stdout, _, err = executeRootCommand(t, deps, "session", "pr", "sess-1", "--refresh", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatal(err)
+		}
+		if !client.refreshed || result.PullRequest.Number != 43 {
+			t.Fatalf("refresh=%#v", result)
+		}
+	})
+}
+
+type pullRequestCLIStub struct {
+	*stubClient
+	refreshed bool
+}
+
+func (c *pullRequestCLIStub) RefreshSessionPullRequest(
+	_ context.Context,
+	id string,
+) (contract.SessionPullRequestResponse, error) {
+	c.refreshed = true
+	return contract.SessionPullRequestResponse{
+		SessionID:   id,
+		Branch:      "topic",
+		PullRequest: &contract.SessionPullRequestPayload{Number: 43},
+	}, nil
+}

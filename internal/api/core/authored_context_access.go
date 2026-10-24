@@ -128,7 +128,11 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 			return contract.SessionPayload{}, err
 		}
 		payload.Badge = session.BadgeForHealth(info, health)
-		payload.BoardColumn = session.BoardColumnFor(payload.Badge, "")
+		var prState session.PullRequestState
+		if payload.PullRequest != nil {
+			prState = payload.PullRequest.State
+		}
+		payload.BoardColumn = session.BoardColumnFor(payload.Badge, prState)
 		payload.WaitingOn = sessionPayloadWaitingOn(info, payload.Badge)
 		converted, err := contract.SessionHealthPayloadFromDomain(health)
 		if err != nil {
@@ -186,6 +190,11 @@ func SessionPayloadWithQueue(ctx context.Context, reader interface {
 	if err != nil {
 		return contract.SessionPayload{}, err
 	}
+	payloads := []contract.SessionPayload{payload}
+	if err := DecorateSessionPullRequests(ctx, reader, []*session.Info{info}, payloads); err != nil {
+		return contract.SessionPayload{}, err
+	}
+	payload = payloads[0]
 	payload.Queue = &contract.SessionQueueSummaryPayload{Entries: queue.PendingInputs, Cap: queue.Cap}
 	payload.ReplyWatches, err = sessionReplyWatchPayloads(ctx, reader, info.WorkspaceID, info.ID)
 	if err != nil {

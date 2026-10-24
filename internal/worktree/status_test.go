@@ -306,11 +306,18 @@ func statusTestClock() time.Time {
 	return time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
 }
 
-func attachTestPullRequests(t *testing.T, service *Service, item Worktree, forge ForgeProvider) *pullRequestMemoryStore {
+func attachTestPullRequests(
+	t *testing.T,
+	service *Service,
+	item Worktree,
+	forge ForgeProvider,
+) *pullRequestMemoryStore {
 	t.Helper()
 	cache := newPullRequestMemoryStore()
 	service.pullRequests = NewPullRequestService(t.Context(), cache, forge, service.runner, nil)
-	service.resolver = staticWorkspaceResolver{workspaces: map[string]Workspace{item.WorkspaceID: {ID: item.WorkspaceID, Root: item.Path}}}
+	service.resolver = staticWorkspaceResolver{
+		workspaces: map[string]Workspace{item.WorkspaceID: {ID: item.WorkspaceID, Root: item.Path}},
+	}
 	t.Cleanup(service.pullRequests.Close)
 	return cache
 }

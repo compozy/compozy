@@ -140,6 +140,8 @@ type Manager struct {
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map
+	pullRequestReader          PullRequestReader
+	branchSnapshots            SessionBranchReader
 	replyWatches               ReplyWatchService
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings

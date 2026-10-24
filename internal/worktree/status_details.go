@@ -8,7 +8,11 @@ type StatusDetails struct {
 	ForgeStatus *ForgeStatus
 }
 
-func (s *Service) StatusDetails(ctx context.Context, workspaceID, id string, refresh, refreshForge bool) (*StatusDetails, error) {
+func (s *Service) StatusDetails(
+	ctx context.Context,
+	workspaceID, id string,
+	refresh, refreshForge bool,
+) (*StatusDetails, error) {
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if err != nil {
 		return nil, err

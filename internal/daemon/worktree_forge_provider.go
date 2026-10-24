@@ -62,14 +62,31 @@ func (p daemonExtensionForgeProvider) Status(
 	}
 	var checks *worktree.ForgeChecks
 	if response.Checks != nil {
-		checks = &worktree.ForgeChecks{State: response.Checks.State, Passed: response.Checks.Passed, Failed: response.Checks.Failed, Pending: response.Checks.Pending, FailedNames: response.Checks.FailedNames}
+		checks = &worktree.ForgeChecks{
+			State:       response.Checks.State,
+			Passed:      response.Checks.Passed,
+			Failed:      response.Checks.Failed,
+			Pending:     response.Checks.Pending,
+			FailedNames: response.Checks.FailedNames,
+		}
 	}
 	return &worktree.ForgeStatus{
-		Checks: checks, ReviewDecision: response.ReviewDecision, Mergeable: response.Mergeable, UpdatedAt: response.UpdatedAt, Selection: response.Selection,
-		WorktreeID: request.WorktreeID, Provider: response.Provider, PRNumber: response.PRNumber,
-		PRState: response.PRState, PRURL: response.PRURL, Merged: response.Merged,
-		Head: response.Head, Base: response.Base, HeadSHA: response.HeadSHA, Draft: response.Draft,
-		FetchedAt: &response.FetchedAt,
+		Checks:         checks,
+		ReviewDecision: response.ReviewDecision,
+		Mergeable:      response.Mergeable,
+		UpdatedAt:      response.UpdatedAt,
+		Selection:      response.Selection,
+		WorktreeID:     request.WorktreeID,
+		Provider:       response.Provider,
+		PRNumber:       response.PRNumber,
+		PRState:        response.PRState,
+		PRURL:          response.PRURL,
+		Merged:         response.Merged,
+		Head:           response.Head,
+		Base:           response.Base,
+		HeadSHA:        response.HeadSHA,
+		Draft:          response.Draft,
+		FetchedAt:      &response.FetchedAt,
 	}, nil
 }
 

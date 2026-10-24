@@ -1028,7 +1028,12 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 
 	t.Run("Should reject invalid board and child selectors", func(t *testing.T) {
 		t.Parallel()
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
 		for _, query := range []string{"board_column=blocked", "children=only"} {
 			resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&"+query, nil)
 			var payload contract.ErrorPayload
@@ -1040,14 +1045,23 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	})
 	t.Run("Should pass board and child selectors to the catalog owner", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
-			if len(query.Columns) != 2 || query.Columns[0] != "working" || query.Columns[1] != "in_review" || !query.HideChildren {
-				t.Fatalf("query=%#v", query)
-			}
-			return session.ListPage{Sessions: []*session.Info{}, Limit: 50}, nil
-		}}
+		manager := testutil.StubSessionManager{
+			ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+				if len(query.Columns) != 2 || query.Columns[0] != "working" || query.Columns[1] != "in_review" ||
+					!query.HideChildren {
+					t.Fatalf("query=%#v", query)
+				}
+				return session.ListPage{Sessions: []*session.Info{}, Limit: 50}, nil
+			},
+		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&board_column=working&board_column=in_review&children=exclude", nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions?all_workspaces=true&board_column=working&board_column=in_review&children=exclude",
+			nil,
+		)
 		var payload contract.SessionCatalogResponse
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if resp.Code != http.StatusOK || payload.Page.Limit != 50 {
@@ -1920,4 +1934,70 @@ func dialEventStream(t *testing.T, origin, path string) *websocket.Conn {
 		t.Fatal(err)
 	}
 	return connection
+}
+
+// Invariant: explicit refresh distinguishes missing branches, unavailable providers and cached facts.
+// Owner: shared HTTP/UDS handlers; canonical session handler edge suite.
+func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
+	t.Parallel()
+	observed := time.Now().UTC()
+	for _, testCase := range []struct {
+		name   string
+		view   session.SessionPullRequestView
+		err    error
+		status int
+		code   string
+	}{
+		{name: "no branch", status: http.StatusConflict, code: "session_branch_unavailable"},
+		{name: "provider failure", view: session.SessionPullRequestView{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
+		{name: "cached failure", view: session.SessionPullRequestView{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
+	} {
+		t.Run("Should return "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			manager := testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "session-pr", ProfileID: store.DefaultProfileID}, nil
+			}}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			fixture.Handlers.Sessions = pullRequestHandlerManager{
+				StubSessionManager: manager,
+				view:               testCase.view,
+				err:                testCase.err,
+			}
+			fixture.Engine.POST(
+				"/sessions/:session_id/pull-request/refresh",
+				fixture.Handlers.RefreshSessionPullRequest,
+			)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/sessions/session-pr/pull-request/refresh",
+				nil,
+			)
+			if response.Code != testCase.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			var body map[string]any
+			testutil.DecodeJSONResponse(t, response, &body)
+			if testCase.code != "" && body["code"] != testCase.code {
+				t.Fatalf("body=%#v", body)
+			}
+			if testCase.status == 200 && body["pull_request"] == nil {
+				t.Fatalf("cached facts lost: %#v", body)
+			}
+		})
+	}
+}
+
+type pullRequestHandlerManager struct {
+	testutil.StubSessionManager
+	view session.SessionPullRequestView
+	err  error
+}
+
+func (m pullRequestHandlerManager) RefreshSessionPullRequest(
+	context.Context,
+	*session.Info,
+) (session.SessionPullRequestView, error) {
+	return m.view, m.err
 }

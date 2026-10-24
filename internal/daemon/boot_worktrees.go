@@ -165,7 +165,24 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	}
 	var pulls *worktree.PullRequestService
 	if cache, ok := registry.WorktreeStore().(worktree.PullRequestStore); ok && runner != nil {
-		pulls = worktree.NewPullRequestService(ctx, cache, daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime}, runner, nil)
+		pulls = worktree.NewPullRequestService(
+			ctx,
+			cache,
+			daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime},
+			runner,
+			func(workspaceID string) {
+				if publisher, ok := state.sessions.(interface{ PublishWorkspaceCatalogChanged(string, []string) }); ok {
+					if profiles, ok := state.registry.(interface {
+						SessionCatalogProfiles(context.Context, string) ([]string, error)
+					}); ok {
+						owners, err := profiles.SessionCatalogProfiles(ctx, workspaceID)
+						if err == nil {
+							publisher.PublishWorkspaceCatalogChanged(workspaceID, owners)
+						}
+					}
+				}
+			},
+		)
 		cleanup.add(func(context.Context) error { pulls.Close(); return nil })
 	}
 	root := state.cfg.Worktrees.ResolveRoot(d.homePaths)
@@ -190,6 +207,19 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *b
 	)
 	if err := service.RecoverCreations(ctx); err != nil {
 		return fmt.Errorf("daemon: recover worktree lifecycle: %w", err)
+	}
+	if branchStore, ok := state.registry.(sessionBranchStore); ok && pulls != nil {
+		adapter := sessionPullRequestAdapter{
+			service:  pulls,
+			resolver: daemonWorktreeWorkspaceResolver{resolver: state.workspaceResolver, homePaths: d.homePaths},
+		}
+		registerSessionPullRequests(
+			state.sessions,
+			branchStore,
+			adapter,
+			sessionBranchAdapter{runner: runner},
+			state.logger,
+		)
 	}
 	state.worktrees = service
 	state.deps.Worktrees = service

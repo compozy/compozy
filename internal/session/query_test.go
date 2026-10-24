@@ -3971,3 +3971,64 @@ func TestManagerListLive(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a bounded page resolves branches once and deduplicates shared PR lookups.
+// Owner: session read-model projection; canonical query suite.
+func TestSessionPullRequestProjection(t *testing.T) {
+	t.Parallel()
+	reader := &pullRequestQueryReader{}
+	branches := &pullRequestQueryBranches{values: map[string]string{"one": "topic", "two": "topic", "default": "main"}}
+	manager := &Manager{}
+	manager.ConfigurePullRequests(reader, branches)
+	infos := []*Info{
+		{ID: "one", WorkspaceID: "ws"},
+		{ID: "two", WorkspaceID: "ws"},
+		{ID: "default", WorkspaceID: "ws"},
+		{ID: "none", WorkspaceID: "ws"},
+	}
+	got, err := manager.SessionPullRequests(t.Context(), infos)
+	if err != nil || branches.calls != 1 || reader.calls != 1 || len(reader.keys) != 1 || len(got) != 2 ||
+		got["one"].Branch != "topic" ||
+		got["two"].PullRequest.Number != 42 {
+		t.Fatalf(
+			"projection=%#v %v branchReads=%d PRReads=%d keys=%#v",
+			got,
+			err,
+			branches.calls,
+			reader.calls,
+			reader.keys,
+		)
+	}
+}
+
+type pullRequestQueryBranches struct {
+	values map[string]string
+	calls  int
+}
+
+func (b *pullRequestQueryBranches) SessionBranches(context.Context, []string) (map[string]string, error) {
+	b.calls++
+	return b.values, nil
+}
+
+type pullRequestQueryReader struct {
+	calls int
+	keys  []BranchKey
+}
+
+func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
+	r.calls++
+	r.keys = keys
+	result := make(map[BranchKey]PullRequestView)
+	for _, key := range keys {
+		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42}}
+	}
+	return result
+}
+func (r *pullRequestQueryReader) DefaultBranches(_ context.Context, keys []BranchKey) map[BranchKey]bool {
+	result := make(map[BranchKey]bool)
+	for _, key := range keys {
+		result[key] = key.Branch == "main"
+	}
+	return result
+}

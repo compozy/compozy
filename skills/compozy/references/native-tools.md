@@ -799,3 +799,12 @@ Route specifics:
 
 The needs-you bell (`GET /api/notifications/attention`) stays operator-wide across every profile and
 labels User items `"User"` (previously `"Global"`; a display string).
+
+### Session pull-request projection
+
+`compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
+nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
+complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
+branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
+remain visible during provider outages. Explicit refresh is available through
+`POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.

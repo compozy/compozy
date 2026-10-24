@@ -35,7 +35,10 @@ func TestPullRequestService(t *testing.T) {
 		}
 		for i, delay := range []time.Duration{time.Minute, 2 * time.Minute, 5 * time.Minute, 15 * time.Minute, 15 * time.Minute} {
 			got, err := service.Refresh(t.Context(), key)
-			if err == nil || got.Facts.HeadSHA != first.Facts.HeadSHA || got.LookupState != "error" || got.LookupCause != "rate_limited" || got.RetryAfter.Sub(now) != delay || got.FailureCount != i+1 {
+			if err == nil || got.Facts.HeadSHA != first.Facts.HeadSHA || got.LookupState != "error" ||
+				got.LookupCause != "rate_limited" ||
+				got.RetryAfter.Sub(now) != delay ||
+				got.FailureCount != i+1 {
 				t.Fatalf("failure %d: %#v %v", i, got, err)
 			}
 		}
@@ -163,7 +166,11 @@ type pullRequestMemoryStore struct {
 func newPullRequestMemoryStore() *pullRequestMemoryStore {
 	return &pullRequestMemoryStore{entries: make(map[PullRequestKey]PullRequestEntry)}
 }
-func (s *pullRequestMemoryStore) ReadPullRequests(_ context.Context, keys []PullRequestKey) (map[PullRequestKey]PullRequestEntry, error) {
+
+func (s *pullRequestMemoryStore) ReadPullRequests(
+	_ context.Context,
+	keys []PullRequestKey,
+) (map[PullRequestKey]PullRequestEntry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make(map[PullRequestKey]PullRequestEntry)

@@ -20,12 +20,17 @@ func NormalizeRepoKey(remote string) (string, error) {
 		}
 	}
 	parsed, err := url.Parse(remote)
-	if err != nil || parsed.Hostname() == "" || (parsed.Scheme != "https" && parsed.Scheme != "http" && parsed.Scheme != "ssh" && parsed.Scheme != "git") || strings.Contains(parsed.EscapedPath(), "%") || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Hostname() == "" ||
+		(parsed.Scheme != "https" && parsed.Scheme != "http" && parsed.Scheme != "ssh" && parsed.Scheme != "git") ||
+		strings.Contains(parsed.EscapedPath(), "%") ||
+		parsed.RawQuery != "" ||
+		parsed.Fragment != "" {
 		return "", errors.New("worktree: origin repository unavailable")
 	}
 	path := strings.TrimSuffix(strings.Trim(parsed.Path, "/"), ".git")
 	parts := strings.Split(path, "/")
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || parts[0] == "." || parts[0] == ".." || parts[1] == "." || parts[1] == ".." {
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || parts[0] == "." || parts[0] == ".." || parts[1] == "." ||
+		parts[1] == ".." {
 		return "", errors.New("worktree: invalid origin repository")
 	}
 	return strings.ToLower(parsed.Hostname() + "/" + path), nil
@@ -50,4 +55,27 @@ func (s *PullRequestService) RepoKey(ctx context.Context, root string) (string, 
 	s.repos[root] = repoKeyCache{key: key, until: s.now().Add(time.Minute)}
 	s.mu.Unlock()
 	return key, nil
+}
+
+// IsDefaultBranch uses the local origin HEAD; absent metadata falls back to the
+// conventional names. It never contacts the remote and caches each root briefly.
+func (s *PullRequestService) IsDefaultBranch(ctx context.Context, root, branch string) bool {
+	s.mu.Lock()
+	cached, ok := s.defaults[root]
+	s.mu.Unlock()
+	if !ok || !s.now().Before(cached.until) {
+		out, _, err := s.runner.Run(ctx, root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+		name := ""
+		if err == nil {
+			name = strings.TrimPrefix(strings.TrimSpace(string(out)), "origin/")
+		}
+		cached = repoKeyCache{key: name, until: s.now().Add(time.Minute)}
+		s.mu.Lock()
+		s.defaults[root] = cached
+		s.mu.Unlock()
+	}
+	if cached.key == "" {
+		return branch == "main" || branch == "master"
+	}
+	return branch == cached.key
 }

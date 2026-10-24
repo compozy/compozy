@@ -46,6 +46,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	enrichOperationError(&payload, err)
+	if errors.Is(err, session.ErrBoardFilterInvalid) {
+		payload.Code = "session_list_query_invalid"
+	}
 	if code := DeriveErrorCode(err); code != "" {
 		payload.Code = code
 	}
@@ -85,8 +88,6 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 		payload.Code = "workspace_reserved"
 	case errors.Is(err, session.ErrWorkspaceSelectionInvalid):
 		payload.Code = workspaceBreadthInvalidCode
-	case errors.Is(err, session.ErrBoardFilterInvalid):
-		payload.Code = "session_list_query_invalid"
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):
