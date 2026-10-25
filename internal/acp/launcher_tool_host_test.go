@@ -29,6 +29,32 @@ import (
 	shellquote "github.com/kballard/go-shellquote"
 )
 
+// Owner: ACP connection setup. First-read diagnostics must use the configured logger without a race.
+func TestConfigureAgentConnection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should install diagnostics before receiving immediate EOF", func(t *testing.T) {
+		t.Parallel()
+		for range 100 {
+			handle := newFakeHandle(t.TempDir())
+			if err := handle.stdoutWriter.Close(); err != nil {
+				t.Fatal(err)
+			}
+			var logs bytes.Buffer
+			driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+			process := &AgentProcess{}
+			driver.configureAgentConnection(process, handle, nil)
+			select {
+			case <-process.conn.Done():
+			case <-t.Context().Done():
+				t.Fatal("connection did not settle after EOF")
+			}
+			if err := handle.stdoutReader.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
 func TestLocalLauncherLaunchProvidesWorkingPipes(t *testing.T) {
 	t.Parallel()
 
