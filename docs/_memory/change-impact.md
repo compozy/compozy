@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Desktop convergence and tool-event contention tests — 2026-10-25
+
+Owner: E2E-023 and `TestDaemonToolEventSink` CI failures. Web chrome and preloading subscribe
+to window membership, the pager subscribes to derived attention, and the command-context
+subscription compares derived capabilities instead of window geometry. Frame and overview
+geometry subscriptions live in their existing rendering components, not the desktop shell.
+Query retains the complete authoritative snapshot and the stream reconnects against its
+latest cached revision. Pruning still requires a snapshot fresh since mount. Predicate values,
+debouncing, ordering, geometry, focus and authorization remain unchanged. The daemon regression waits
+for an observed SQLite admission deadline before releasing its real writer, then verifies
+exactly one durable event. Native tools, public transports, hooks, extension SDKs, config,
+workspace/profile isolation, persisted shapes and `skills/compozy/` are unchanged; no
+migration or compatibility adapter is needed. QA owner:
+`docs/qa/scenarios/ET-web-desktop-shell-lifecycle.md`; no site copy change is required.
+
 ## Hosted MCP proxy reconnect after a model switch — 2026-10-19
 
 Owner: session `sess-dcba53bda9072a50` nonce-invalid incident. Releasing the authenticated current

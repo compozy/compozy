@@ -1259,7 +1259,12 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_node_controls",
 		"json_valid(gate_revisions_json) AND json_type(gate_revisions_json) = 'object'",
 	)
-	assertTableSQLContains(t, globalDB.db, "loop_ui_annotations", "PRIMARY KEY (workspace_id, profile_id, loop_name, node_id)")
+	assertTableSQLContains(
+		t,
+		globalDB.db,
+		"loop_ui_annotations",
+		"PRIMARY KEY (workspace_id, profile_id, loop_name, node_id)",
+	)
 	assertTableSQLContains(t, globalDB.db, "loop_config", "PRIMARY KEY (workspace_id, profile_id, loop_name)")
 	assertGoalDurableStateSchema(t, globalDB)
 }

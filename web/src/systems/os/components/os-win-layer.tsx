@@ -3,7 +3,7 @@ import { lazy, Suspense, type CSSProperties } from "react";
 
 import { Button, Empty } from "@compozy/ui";
 
-import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
+import { useOsWinLayer, type DesktopLayerModel } from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
@@ -190,7 +190,6 @@ function DesktopLayer({
 
 /** Every desktop tree remains mounted; only the client-active tree is interactive. */
 export function OsWinLayer({
-  model,
   showEmptyDesktop = true,
   reducedMotion,
   transition,
@@ -203,7 +202,6 @@ export function OsWinLayer({
   paletteShortcutLabel,
   canStart,
 }: {
-  model: OsWinLayerModel;
   showEmptyDesktop?: boolean;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
@@ -213,7 +211,7 @@ export function OsWinLayer({
   canStart: boolean;
   /** Global scope has no project: the empty desktop offers the workspace picker instead. */
 } & SeamGestureHandlers) {
-  const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
+  const { layerRef, desktops, presentation, viewportState, activeProjection } = useOsWinLayer();
   return (
     <div
       ref={layerRef}

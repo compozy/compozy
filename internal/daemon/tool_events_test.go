@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +21,8 @@ func TestDaemonToolEventSink(t *testing.T) {
 		t.Parallel()
 		db := openDaemonTestGlobalDB(t)
 		locked, release, writerDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		unlock := sync.OnceFunc(func() { close(release) })
+		defer unlock()
 		go func() {
 			writerDone <- store.ExecuteWriteOperation(t.Context(), db.DB(), "hold tool event writer", func(ctx context.Context, _ *store.WriteTx) error {
 				close(locked)
@@ -36,10 +40,11 @@ func TestDaemonToolEventSink(t *testing.T) {
 				t.Error(err)
 			}
 		})
+		writeErrors := make(chan error, 1)
 		sink := &daemonToolEventSink{
-			writer:                    db,
+			writer:                    &notifyingToolEventSummaryStore{EventSummaryStore: db, writeErrors: writeErrors},
 			lifetime:                  t.Context(),
-			persistenceAttemptTimeout: 20 * time.Millisecond,
+			persistenceAttemptTimeout: 100 * time.Millisecond,
 		}
 		done := make(chan error, 1)
 		go func() {
@@ -49,17 +54,22 @@ func TestDaemonToolEventSink(t *testing.T) {
 		}()
 		select {
 		case err := <-done:
-			close(release)
 			t.Fatalf("event persistence abandoned while writer was held: %v", err)
-		case <-time.After(250 * time.Millisecond):
+		case err := <-writeErrors:
+			contention, ok := errors.AsType[*store.WriteContentionError](err)
+			if !ok || contention.Attempts != 0 || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("persistence error = %v, want a writer admission deadline", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("event persistence did not encounter writer contention")
 		}
-		close(release)
+		unlock()
 		select {
 		case err := <-done:
 			if err != nil {
 				t.Fatal(err)
 			}
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatal("event did not persist after unlock")
 		}
 		var count int
@@ -113,6 +123,22 @@ func TestDaemonToolEventSink(t *testing.T) {
 			t.Fatalf("stored event = %#v, want %#v", stored, event)
 		}
 	})
+}
+
+type notifyingToolEventSummaryStore struct {
+	store.EventSummaryStore
+	writeErrors chan<- error
+}
+
+func (s *notifyingToolEventSummaryStore) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
+	err := s.EventSummaryStore.WriteEventSummary(ctx, summary)
+	if err != nil {
+		select {
+		case s.writeErrors <- err:
+		default:
+		}
+	}
+	return err
 }
 
 type recordingToolEventSummaryStore struct {

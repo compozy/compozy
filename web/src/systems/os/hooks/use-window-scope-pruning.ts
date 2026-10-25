@@ -7,6 +7,14 @@ import { pruneWorktreeScopes } from "@/systems/workspace";
 import type { WindowManagerSnapshot } from "../lib/window-manager-types";
 
 /**
+ * Membership-only projection for the chrome read: geometry revisions must not
+ * re-render the shell, and pruning only needs the live window id set.
+ */
+export function selectWindowScopeSnapshot(snapshot: WindowManagerSnapshot) {
+  return { workspaceId: snapshot.workspaceId, windowIds: Object.keys(snapshot.windows) };
+}
+
+/**
  * Keep persisted per-window state — sessions-rail presentation and worktree
  * picks — aligned with live windows. `query` must be the authoritative
  * snapshot read for exactly this workspace and profile: it lists only that
@@ -19,11 +27,14 @@ import type { WindowManagerSnapshot } from "../lib/window-manager-types";
  */
 export function useWindowScopePruning(
   profileId: string,
-  query: Pick<UseQueryResult<WindowManagerSnapshot>, "data" | "isFetchedAfterMount">
+  query: Pick<
+    UseQueryResult<ReturnType<typeof selectWindowScopeSnapshot>>,
+    "data" | "isFetchedAfterMount"
+  >
 ) {
   const snapshot = query.isFetchedAfterMount ? query.data : undefined;
   const partition = snapshot === undefined ? null : `${snapshot.workspaceId}\u0000${profileId}`;
-  const liveWindowIds = snapshot === undefined ? "" : Object.keys(snapshot.windows).join(" ");
+  const liveWindowIds = snapshot?.windowIds.join(" ") ?? "";
 
   useEffect(() => {
     if (partition === null) return;

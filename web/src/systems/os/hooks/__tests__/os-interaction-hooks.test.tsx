@@ -33,6 +33,8 @@ import { statusKeys } from "@/systems/status";
 import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
 import { usePaletteTabs } from "../use-os-palette-entities";
+import { useCmdPaletteContext } from "../use-cmd-palette-context";
+import { useDesktopShellState } from "../use-desktop-shell-state";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
 import { useAnimationFrameLatest } from "../use-animation-frame-latest";
@@ -367,6 +369,76 @@ describe("usePaletteTabs", () => {
     expect(result.current).toEqual([
       expect.objectContaining({ windowId: primary.id, minimized: false, label: "Reopened title" }),
     ]);
+  });
+});
+
+describe("useDesktopShellState", () => {
+  it("Should ignore geometry changes and still publish window membership and wallpaper", () => {
+    const shell = createShell();
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useDesktopShellState();
+      },
+      { wrapper: shell.wrapper }
+    );
+    const initialRenders = renders;
+    const primary = shell.state.windows["window:primary"]!;
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+        },
+      })
+    );
+    expect(renders).toBe(initialRenders);
+    expect(result.current.windowIds).toContain(primary.id);
+
+    act(() => shell.setRuntimeState({ windows: {}, wallpaper: "mesh" }));
+    expect(result.current.windowIds).toEqual([]);
+    expect(result.current.wallpaper).toBe("mesh");
+  });
+});
+
+describe("useCmdPaletteContext subscriptions", () => {
+  it("Should ignore geometry changes and still publish changed window capabilities", () => {
+    vi.useFakeTimers();
+    const shell = createShell();
+    let renders = 0;
+    const { result } = renderHook(
+      () => {
+        renders += 1;
+        return useCmdPaletteContext({
+          shellDesktop: false,
+          scopeGlobal: false,
+          workspaceTrusted: true,
+          focusedSessionState: "",
+          attached: true,
+        });
+      },
+      { wrapper: shell.wrapper }
+    );
+    const initialRenders = renders;
+    const primary = shell.state.windows["window:primary"]!;
+    act(() =>
+      shell.setRuntimeState({
+        windows: {
+          ...shell.state.windows,
+          [primary.id]: { ...primary, rect: { x: 200, y: 120, w: 700, h: 500 } },
+        },
+      })
+    );
+    expect(renders).toBe(initialRenders);
+    expect(result.current?.["window.floating"]).toBe(true);
+    act(() =>
+      shell.setRuntimeState({
+        windows: { ...shell.state.windows, [primary.id]: { ...primary, placement: "tiled" } },
+      })
+    );
+    act(() => vi.advanceTimersByTime(120));
+    expect(result.current?.["window.floating"]).toBe(false);
   });
 });
 

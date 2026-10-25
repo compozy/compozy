@@ -30,7 +30,6 @@ import type {
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import { useDesktop } from "./use-desktop";
-import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
 import { useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
@@ -47,7 +46,6 @@ import type { PaletteViewId } from "../lib/palette-view-registry";
 import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
-import { useOsWinLayer } from "./use-os-win-layer";
 import { usePaletteRegistry } from "./use-palette-registry";
 
 function subscribeDesktopSummon(
@@ -192,8 +190,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onOpenBell: () => overlays.setOverlayOpen("bell", true),
     bellOpen: overlays.activeOverlay === "bell",
   });
-  const managerSurfaces = useDesktopManagerSurfaces();
-  const winLayer = useOsWinLayer();
+  const presentation = useDesktop(state => state.presentation);
   const reducedMotion = useOsReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
@@ -225,16 +222,19 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     state => ({
       activeDesktopId: state.activeDesktopId,
       desktops: state.desktops,
-      windows: state.windows,
       canSwitchDesktop: windowManagerCommandsAvailable(state),
     }),
+    shallowEqual
+  );
+  const needsYouDesktopIds = useDesktop(
+    state => [...desktopIdsNeedingYou(state.windows, attention.sections.needsYou)],
     shallowEqual
   );
   const pager = {
     activeDesktopId: pagerState.activeDesktopId,
     desktops: pagerState.desktops,
     canSwitchDesktop: pagerState.canSwitchDesktop,
-    needsYouDesktopIds: desktopIdsNeedingYou(pagerState.windows, attention.sections.needsYou),
+    needsYouDesktopIds: new Set(needsYouDesktopIds),
   };
 
   // The shell's half of the dispatch seam: what a `client_op` is allowed to
@@ -380,7 +380,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     desktop,
     desktopRef,
     manager,
-    managerSurfaces,
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
@@ -396,7 +395,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     reducedMotion,
     shortcutLabels,
     transition,
-    winLayer,
+    presentation,
     workingSessionsByWorkspace,
     worktreesByWorkspace,
   };

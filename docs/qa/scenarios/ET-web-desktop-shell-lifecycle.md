@@ -133,3 +133,24 @@ frames must remain outside the render path when a sibling moves. Verify
 that minimize/restore, app retargeting, placement changes, and window removal still
 propagate. The existing OS interaction hook suite covers metadata propagation and
 geometry render isolation. CI owns the browser measurements and delivery gates.
+
+QA impact 2026-10-25: geometry subscriptions belong to the window layer and desktop overview,
+not the shell. Chrome/preloading observe membership, the pager observes attention, and the
+command registry observes derived capabilities. Re-walk E2E-023 with eleven retained windows
+and two peers; retain the 500 ms restore and 50 ms drag/convergence ceilings. Window removal
+must still prune persisted scopes only after a fresh snapshot; reconnects must retain the
+latest Query-owned revision fence. Capability changes must still reach the existing
+availability/debounce path. The chrome and OS interaction suites cover geometry render
+isolation, membership removal, wallpaper and floating-to-tiled capability propagation;
+the existing context and stream suites own attachment, debounce and revision fencing.
+
+Local re-walk 2026-10-25: unmodified E2E-023 passed five consecutive runs (restore
+327.4–397 ms; no drag or convergence long task over 50 ms). E2E-009, E2E-011 and
+E2E-004/E2E-013 also passed. The normal-speed re-walk is the delivery evidence.
+
+Open follow-up (2026-10-25): the 4× CPU-throttled diagnostic passed two of three runs
+with one 129 ms peer-convergence outlier against the 50 ms ceiling, so load-level
+acceptance of E2E-023 remains open. The bar is the one recorded for the original fix:
+three corrected diagnostic repetitions at the same 4× setting with no long task over
+50 ms (see [CI recovery](../reports/2026-09-07-ci-recovery.md)). Until that run passes,
+this note is not stress-level delivery evidence.

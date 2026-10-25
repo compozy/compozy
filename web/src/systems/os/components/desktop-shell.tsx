@@ -192,7 +192,6 @@ function DesktopShellScopedBody({
     desktop,
     desktopRef,
     manager,
-    managerSurfaces,
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange,
@@ -208,7 +207,7 @@ function DesktopShellScopedBody({
     reducedMotion,
     shortcutLabels,
     transition,
-    winLayer,
+    presentation,
     workingSessionsByWorkspace,
     worktreesByWorkspace,
   } = useDesktopShellBody(model, {
@@ -308,7 +307,7 @@ function DesktopShellScopedBody({
           // It clips its children so tiled panes follow the rounded corner; the
           // win-layer sits inside the border, so snap geometry never sees it.
           "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-t border-line",
-          winLayer.presentation !== "compact" && "rounded-tl-lg border-l"
+          presentation !== "compact" && "rounded-tl-lg border-l"
         )}
       >
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -318,11 +317,10 @@ function DesktopShellScopedBody({
             workspaceId={model.activeWorkspaceId}
           />
         ) : null}
-        {Object.keys(desktop.windows).map(windowId => (
+        {desktop.windowIds.map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
         <OsWinLayer
-          model={winLayer}
           showEmptyDesktop={showEmptyDesktop}
           paletteShortcutLabel={shortcutLabels.palette}
           canStart={model.dataScope !== null}
@@ -336,7 +334,6 @@ function DesktopShellScopedBody({
           onSeamPreviewEnd={onSeamPreviewEnd}
         />
         <DesktopManagerSurfaces
-          model={managerSurfaces}
           needsYouDesktopIds={pager.needsYouDesktopIds}
           switchShortcuts={desktopSwitchShortcuts}
           onCreateDesktop={() => manager.createDesktop()}

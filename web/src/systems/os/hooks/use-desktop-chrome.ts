@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "@xstate/store-react";
 import { useEffect, useState } from "react";
@@ -29,7 +29,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
-import { useWindowScopePruning } from "./use-window-scope-pruning";
+import { selectWindowScopeSnapshot, useWindowScopePruning } from "./use-window-scope-pruning";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
@@ -37,7 +37,6 @@ import { useWindowPaletteIntent } from "./use-window-manager-store";
 export interface DesktopChromeModel {
   terminalClose: TerminalWindowClose;
   shell: OsShellHandle;
-  query: UseQueryResult<WindowManagerSnapshot, Error>;
   /** The attachment this shell speaks for; the palette projection needs its context. */
   client: WindowManagerRegisteredClientView | null;
   /** Executes a `client_op` the daemon pushed over the window-manager channel. */
@@ -78,7 +77,10 @@ export function useDesktopChrome(
   // the destination profile, so the desk and the work opened on it stay in the
   // same partition rather than drifting apart (ADR-005, US-026).
   const profileId = useProfileReadScope().destination;
-  const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
+  const query = useQuery({
+    ...windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId),
+    select: selectWindowScopeSnapshot,
+  });
   const client = useWindowManagerClient(activeWorkspaceId, profileId);
   useWindowScopePruning(profileId, query);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
@@ -176,7 +178,11 @@ export function useDesktopChrome(
       globalShortcuts: globalShortcuts.registrations,
     }),
     enabled: client.status === "registered",
-    afterRevision: query.data?.revision ?? 0,
+    // Stream opens also fence against this cache; chrome need not observe geometry revisions.
+    afterRevision:
+      queryClient.getQueryData<WindowManagerSnapshot>(
+        windowManagerKeys.snapshot(activeWorkspaceId ?? "", profileId)
+      )?.revision ?? 0,
     onStatusChange: status => manager.setConnectionStatus(status),
     onSnapshot: () => {
       manager.setLoadError(null);
@@ -202,7 +208,6 @@ export function useDesktopChrome(
   return {
     terminalClose,
     shell,
-    query,
     client: client.client,
     clientCommandChannel,
   };

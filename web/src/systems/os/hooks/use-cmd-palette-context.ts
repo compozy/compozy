@@ -42,23 +42,18 @@ export function useCmdPaletteContext({
   attached,
   debounceMs = CMD_PALETTE_CONTEXT_DEBOUNCE_MS,
 }: UseCmdPaletteContextOptions): CmdPaletteContextSnapshot | null {
-  const topology = useDesktop(
-    state => ({
-      activeDesktopId: state.activeDesktopId,
-      focusedId: state.focusedId,
-      frames: state.frames,
-      windows: state.windows,
-    }),
+  const live = useDesktop(
+    state =>
+      attached
+        ? buildCmdPaletteContextSnapshot(state, {
+            shellDesktop,
+            scopeGlobal,
+            workspaceTrusted,
+            focusedSessionState,
+          })
+        : null,
     shallowEqual
   );
-  const live = attached
-    ? buildCmdPaletteContextSnapshot(topology, {
-        shellDesktop,
-        scopeGlobal,
-        workspaceTrusted,
-        focusedSessionState,
-      })
-    : null;
   const [settled, setSettled] = useState<CmdPaletteContextSnapshot | null>(live);
   const commitLive = useEffectEvent(() => {
     setSettled(current => (sameContextSnapshot(current, live) ? current : live));
