@@ -1,4 +1,9 @@
-import { SessionSidebarSkeleton, SessionSidebarStaticLayout } from "@/systems/session/skeleton";
+import {
+  SessionSidebarSkeleton,
+  SessionSidebarStaticLayout,
+  SessionsBoardSkeleton,
+  useSessionWindowViewState,
+} from "@/systems/session/skeleton";
 
 import { SESSION_EMPTY_PATH } from "../../lib/app-catalog";
 import type { OsWindowRoute } from "../../lib/os-types";
@@ -11,6 +16,9 @@ import { SessionWindowSkeletonShape } from "./session-window-skeleton-shape";
  * route (`/sessions`) names none and keeps the pane clear.
  */
 export function SessionWindowFallback({ route }: { route: OsWindowRoute }) {
+  const { view } = useSessionWindowViewState();
+  if (view === "kanban") return <SessionsBoardSkeleton />;
+
   return (
     <SessionWindowSkeletonShape
       inert

@@ -2,6 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { WindowScopeContext } from "@/hooks/use-window-scope";
+
 import { useTopbarSlot } from "@compozy/ui";
 
 import { OsWindowSurface } from "../../components/os-window-frame";
@@ -304,6 +306,35 @@ describe("app loading fallbacks", () => {
       expect([...(row?.querySelectorAll(FOCUSABLE) ?? [])]).toEqual([]);
     }
   );
+
+  // The loading frame must honor each window's saved presentation before the lazy app loads.
+  // Owner: OS app registry; exercise the real window-scoped store, without network or hook mocks.
+  it("Should restore a Kanban loading frame without changing another window's List frame", () => {
+    const Fallback = OS_APPS.session.LoadingFallback!;
+    act(() => {
+      sessionSidebarStore.trigger.viewChanged({ scopeId: "fallback-board", view: "kanban" });
+      sessionSidebarStore.trigger.viewChanged({ scopeId: "fallback-list", view: "list" });
+    });
+    const { container, rerender } = render(
+      createElement(
+        WindowScopeContext,
+        { value: "fallback-board" },
+        createElement(Fallback, { route: { pathname: "/sessions", search: {} }, aggregate: false })
+      )
+    );
+    expect(screen.getByTestId("sessions-board-skeleton")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="session-sidebar-static-layout"]')).toBeNull();
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    rerender(
+      createElement(
+        WindowScopeContext,
+        { value: "fallback-list" },
+        createElement(Fallback, { route: { pathname: "/sessions", search: {} }, aggregate: false })
+      )
+    );
+    expect(screen.queryByTestId("sessions-board-skeleton")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="session-sidebar-static-layout"]')).not.toBeNull();
+  });
 
   describe("the session rail", () => {
     afterEach(() => {

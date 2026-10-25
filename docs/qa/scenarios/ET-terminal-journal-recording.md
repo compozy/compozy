@@ -52,3 +52,5 @@ and `-race`, covering step 6's home/workspace partition, reopen, retired-file pr
 removal without a project root. The existing HTTP/WebSocket, UDS/WebSocket and ACP terminal
 integration journeys also passed with real terminal processes. This storage slice does not
 replace the historical browser recording/selection verdict.
+
+PR #973 offline regression: open an uncached journal after the browser goes offline. The unlocked journal must keep its loading region visible while its first read is paused; it must not render a blank panel. Reconnect and verify history replaces the placeholder. A journal that has never been opened remains locked and does not fetch.

@@ -24,7 +24,7 @@ function RoutedFallback({
       )?.kind === "all"
   );
   // Hosted in the window's own scope, the way its surface will be, so a frame that reflects a
-  // per-window preference (the session rail's width) reads this window's and not the shell's.
+  // per-window preference (the session view and rail width) reads this window's and not the shell's.
   return route ? (
     <WindowScopeContext value={windowId}>
       <Fallback aggregate={aggregate} route={route} />
@@ -38,7 +38,7 @@ function RoutedFallback({
  * inside the fallback's own subtree, so the window member keeps exactly the subscriptions it has
  * and its geometry and normal navigation never depend on them: only a window that is loading pays
  * for these two reads, and only while it loads. The one preference a frame itself may read is its
- * window's own view state (the session rail's width, from the window scope above), which is what
+ * window's own view state (the session view and rail width, from the window scope above), which is what
  * the loaded window mounts from.
  */
 export function OsWindowLoadingFallback({

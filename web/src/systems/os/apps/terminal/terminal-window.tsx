@@ -232,6 +232,7 @@ function TerminalWindowJournal({
 }) {
   const {
     journal,
+    journalUnlocked,
     journalChips,
     profile,
     replay,
@@ -243,7 +244,7 @@ function TerminalWindowJournal({
   } = useTerminalWindowControllerContext();
   // The host keeps this panel mounted while it is hidden, and nobody has opened a journal that is
   // still locked: it reads nothing and has nothing to show yet.
-  if (journal.isPending && !journal.isLoading) return null;
+  if (!journalUnlocked) return null;
   if (journal.error && replay === null) {
     return (
       <TerminalWindowError
