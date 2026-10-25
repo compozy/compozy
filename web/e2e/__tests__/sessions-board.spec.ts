@@ -15,6 +15,8 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
 // bar; child sessions link to their parent and can be hidden (E2E-005..E2E-007).
 // Owner: public session window + daemon catalog. Durable rows come from the store
 // seeder; mapping rules and rendering states are owned by the Vitest suites.
+// Use the blank page fixture: the seeder restarts the daemon, so loading the app
+// before seeding races its module downloads. openBoardPage owns the first navigation.
 
 const agentName = "browser-lifecycle-agent";
 const fixturePath = path.resolve(
@@ -142,7 +144,7 @@ async function expectColumnCounts(frame: Locator, counts: Record<BoardColumn, nu
 }
 
 test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the view across reloads", async ({
-  appPage,
+  page: appPage,
   browserArtifacts,
   runtime,
 }) => {
@@ -202,7 +204,7 @@ test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the 
 });
 
 test("E2E-006: Done pages 50 cards with Load more and archived sessions stay in the Archive bar", async ({
-  appPage,
+  page: appPage,
   browserArtifacts,
   runtime,
 }) => {
@@ -247,7 +249,7 @@ test("E2E-006: Done pages 50 cards with Load more and archived sessions stay in 
 });
 
 test("E2E-007: a parent shows its highlighted rollup and hiding child sessions drops cards and counts", async ({
-  appPage,
+  page: appPage,
   browserArtifacts,
   runtime,
 }) => {
