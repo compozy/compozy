@@ -18,6 +18,9 @@ import {
   Kbd,
   NativeSelect,
   NativeSelectOption,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   StatusDot,
   TopbarOverflowIcon,
   cn,
@@ -268,8 +271,9 @@ function moveCardFocus(event: React.KeyboardEvent<HTMLElement>): void {
   cards[Math.min(cards.length - 1, Math.max(0, target))]?.focus();
 }
 
-const CARD_CLASS =
-  "group/oc relative flex min-w-0 flex-col gap-2.5 rounded-lg p-2 pb-3 transition-colors duration-fast hover:bg-surface-2";
+const GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5 pb-8";
+const CARD_FRAME_CLASS = "relative flex min-w-0 flex-col gap-2.5 rounded-lg p-2 pb-3";
+const CARD_CLASS = `group/oc ${CARD_FRAME_CLASS} transition-colors duration-fast hover:bg-surface-2`;
 const CARD_BUTTON_CLASS =
   "flex w-full flex-col gap-2.5 rounded-md text-left outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed";
 
@@ -292,11 +296,7 @@ export function DesktopsOverviewGrid({
   const aspectRatio = state.desktops[0]?.aspectRatio ?? DEFAULT_ASPECT;
 
   return (
-    <ol
-      aria-label="Desktops"
-      className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5 pb-8"
-      onKeyDown={moveCardFocus}
-    >
+    <ol aria-label="Desktops" className={GRID_CLASS} onKeyDown={moveCardFocus}>
       {state.desktops.map((desktop, index) => {
         const active = desktop.id === state.activeDesktopId;
         const destinations = state.desktops.filter(candidate => candidate.id !== desktop.id);
@@ -410,5 +410,28 @@ export function DesktopsOverviewGrid({
         </button>
       </li>
     </ol>
+  );
+}
+
+/** Cards a loading overview stands in with: a few desks, as many as a fresh install has. */
+const LOADING_DESKTOP_CARDS = ["first", "second", "third"] as const;
+
+/**
+ * The overview's grid while the layout snapshot is read: cards in the real card frame, a thumbnail
+ * in the work area's default ratio over the name line. No desktop data is invented, and nothing
+ * here can be switched to.
+ */
+export function DesktopsOverviewSkeleton() {
+  return (
+    <SkeletonRegion className={GRID_CLASS} label="Loading desktops">
+      {LOADING_DESKTOP_CARDS.map(card => (
+        <div aria-hidden="true" className={CARD_FRAME_CLASS} key={card}>
+          <Skeleton className="w-full rounded-lg" style={{ aspectRatio: DEFAULT_ASPECT }} />
+          <span className="flex min-h-5 min-w-0 items-center gap-2 px-1 pr-9">
+            <SkeletonText className="w-32 font-medium" />
+          </span>
+        </div>
+      ))}
+    </SkeletonRegion>
   );
 }

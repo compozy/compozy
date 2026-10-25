@@ -9,6 +9,7 @@ import { statusTone } from "@/lib/status-tone";
 import type { CmdPaletteViewAction } from "../../lib/cmd-palette-types";
 import type { PaletteViewContent } from "../../lib/palette-view-registry";
 import { OsPaletteDomainChips } from "../os-palette-domain-chips";
+import { OsPaletteRowsSkeleton, OsPaletteSessionRowsSkeleton } from "../os-palette-skeletons";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
 import {
@@ -158,11 +159,31 @@ export const TasksZeroMatch: Story = {
   },
 };
 
+/** A view's first read is out: result rows' shape under one named busy region. */
 export const ColdLoading: Story = {
   args: {
     content: listContent({
       rows: [],
-      empty: <p className="px-3 py-8 text-center text-small-body text-muted">Loading tasks…</p>,
+      empty: <OsPaletteRowsSkeleton count={5} label="Loading tasks" />,
+    }),
+  },
+};
+
+/** The Sessions view's first read: the two-line session rows' shape. */
+export const SessionsLoading: Story = {
+  args: {
+    content: listContent({
+      rows: [],
+      empty: <OsPaletteSessionRowsSkeleton label="Loading sessions" />,
+    }),
+  },
+};
+
+/** A row's detail is read while the list stays live beside it. */
+export const DetailLoading: Story = {
+  args: {
+    content: listContent({
+      detail: <PaletteDetailView detail={{ is_loading: true }} />,
     }),
   },
 };
@@ -284,6 +305,12 @@ const grid = {
 
 export const Grid: Story = {
   args: { content: body("grid", <PaletteGridView grid={grid} onAction={fn()} />) },
+};
+
+export const GridLoading: Story = {
+  args: {
+    content: body("grid", <PaletteGridView loading grid={{ sections: [] }} onAction={fn()} />),
+  },
 };
 
 export const GridEmpty: Story = {

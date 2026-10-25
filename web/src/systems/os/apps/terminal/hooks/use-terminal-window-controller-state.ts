@@ -263,6 +263,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     replay,
     selectedCommandId,
     setJournalChips,
+    journalUnlocked,
     unlockJournal: () => unlockTerminalJournal(workspaceId),
     setReplay,
     setSelectedCommandId,

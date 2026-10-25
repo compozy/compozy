@@ -2,21 +2,12 @@ import { AlertCircle, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyState } from "@/components/catalog-empty-state";
-import {
-  Button,
-  Empty,
-  ListingRowSkeleton,
-  SkeletonRegion,
-  type ListingViewMode,
-} from "@compozy/ui";
+import { Button, Empty, type ListingViewMode } from "@compozy/ui";
 
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 
-import { AutomationCardSkeleton } from "./automation-card";
-
-// The loading skeleton sits in the same containers as the loaded listing.
-const AUTOMATION_CARDS_CLASS = "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3";
-const AUTOMATION_ROWS_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
+import { AUTOMATION_CARDS_CLASS, AUTOMATION_ROWS_CLASS } from "./automation-catalog-classes";
+import { AutomationCatalogSkeleton } from "./automation-catalog-skeleton";
 
 /** Load-more state for the catalog shell, grouped to avoid boolean-prop sprawl. */
 export interface AutomationCatalogPagination {
@@ -177,21 +168,5 @@ function AutomationCatalogLoadMore({ pagination }: { pagination: AutomationCatal
             : "Load more automations"}
       </Button>
     </div>
-  );
-}
-
-function AutomationCatalogSkeleton({ view }: { view: ListingViewMode }) {
-  return (
-    <SkeletonRegion data-testid="automations-list-loading" label={`Loading automations as ${view}`}>
-      {view === "cards" ? (
-        <div className={AUTOMATION_CARDS_CLASS}>
-          <AutomationCardSkeleton count={6} />
-        </div>
-      ) : (
-        <div className={AUTOMATION_ROWS_CLASS}>
-          <ListingRowSkeleton count={6} description />
-        </div>
-      )}
-    </SkeletonRegion>
   );
 }

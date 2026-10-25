@@ -13,6 +13,7 @@ import {
 import type { MarketplaceSearch } from "../lib/marketplace-search";
 import { MarketplaceAddMenu } from "./marketplace-add-menu";
 import { MarketplaceResults } from "./marketplace-results";
+import { MARKETPLACE_PAGE_BODY_CLASS } from "./marketplace-classes";
 import { useMarketplaceBrowse } from "./use-marketplace-browse";
 
 interface MarketplacePageProps {
@@ -66,7 +67,7 @@ function MarketplacePage({ search, liveDataEnabled = true }: MarketplacePageProp
 
   return (
     <ListingPage data-testid="marketplace-page">
-      <div className="@container flex min-w-0 flex-col gap-3.5">
+      <div className={MARKETPLACE_PAGE_BODY_CLASS}>
         <MarketplaceResults
           actions={actions}
           onAddMarketplace={addMarketplace.open}

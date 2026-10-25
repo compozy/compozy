@@ -199,6 +199,38 @@ describe("TableRowSkeleton", () => {
     );
     expect(slots(container, "table-cell")).toHaveLength(2);
   });
+
+  // Invariant: a column's cell carries the classes the real cell has, so a column the header hides
+  // in a narrow pane is hidden in the placeholder rows too, and a column that brings its own
+  // placeholder gets it in place of the default bar, told which row it is drawing.
+  it("Should give each column's cell its own classes and let a column bring its placeholder", () => {
+    const { container } = render(
+      <Table>
+        <TableBody>
+          <TableRowSkeleton
+            count={2}
+            columns={[
+              { cellClassName: "hidden @3xl:table-cell", className: "w-24" },
+              {
+                cellClassName: "w-14",
+                placeholder: row => <span data-testid={`placeholder-${row}`} />,
+              },
+            ]}
+          />
+        </TableBody>
+      </Table>
+    );
+
+    for (const row of slots(container, "table-row")) {
+      const [first, second] = Array.from(row.querySelectorAll('[data-slot="table-cell"]'));
+      expect(first).toHaveClass("hidden", "@3xl:table-cell");
+      expect(first.querySelector('[data-slot="skeleton-text"]')).toHaveClass("w-24");
+      expect(second).toHaveClass("w-14");
+      expect(second.querySelector('[data-slot="skeleton-text"]')).toBeNull();
+    }
+    expect(screen.getByTestId("placeholder-0")).toBeInTheDocument();
+    expect(screen.getByTestId("placeholder-1")).toBeInTheDocument();
+  });
 });
 
 describe("PropertyRowSkeleton", () => {

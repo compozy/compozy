@@ -13,7 +13,11 @@ const EMPTY_ROWS: readonly LoopBindingRow[] = [];
 
 export interface LoopBindingsResult {
   rows: readonly LoopBindingRow[];
-  isLoading: boolean;
+  /**
+   * Neither list has answered yet. Not "fetching": a read held back until its scope resolves is not
+   * fetching, but it has not said the Loop starts by hand either.
+   */
+  isPending: boolean;
   jobs: LoopBindingPageState;
   triggers: LoopBindingPageState;
 }
@@ -61,7 +65,7 @@ export function useLoopBindings(workspaceId: string, loopName: string): LoopBind
       : EMPTY_ROWS;
   return {
     rows,
-    isLoading: triggersQuery.isLoading || jobsQuery.isLoading,
+    isPending: triggersQuery.isPending || jobsQuery.isPending,
     jobs: {
       error: jobsQuery.error,
       hasMore: Boolean(jobsQuery.hasNextPage),

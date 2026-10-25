@@ -1,55 +1,15 @@
 import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
-import type { ReactNode } from "react";
 
-import {
-  Button,
-  Empty,
-  ListingPage,
-  SkeletonRegion,
-  Spinner,
-  Table,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@compozy/ui";
-import { cn } from "@/lib/utils";
+import { Button, Empty, ListingPage, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
-import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
-import { TaskGroup, TaskGroupSkeleton } from "./task-group";
-import { TasksListRowSkeleton } from "./tasks-list-row";
+import { TaskGroup } from "./task-group";
+import { TasksListLoading } from "./tasks-list-loading";
+import { TasksListTableFrame } from "./tasks-list-table-frame";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
-
-/**
- * The buckets and rows a loading list stands in with: two groups of varied rows, enough to fill a
- * window, with no bucket named because none is known yet. Ids are static; the placeholders carry
- * no identity of their own.
- */
-const LOADING_GROUPS = [
-  {
-    id: "first",
-    rows: [
-      { id: "a", titleWidth: "w-56", metaWidth: "w-24" },
-      { id: "b", titleWidth: "w-40", metaWidth: "w-16" },
-      { id: "c", titleWidth: "w-64", metaWidth: "w-28" },
-      { id: "d", titleWidth: "w-48", metaWidth: "w-20" },
-    ],
-  },
-  {
-    id: "second",
-    rows: [
-      { id: "a", titleWidth: "w-44", metaWidth: "w-20" },
-      { id: "b", titleWidth: "w-60", metaWidth: "w-24" },
-      { id: "c", titleWidth: "w-36", metaWidth: "w-16" },
-      { id: "d", titleWidth: "w-52", metaWidth: "w-28" },
-      { id: "e", titleWidth: "w-48", metaWidth: "w-20" },
-      { id: "f", titleWidth: "w-40", metaWidth: "w-24" },
-    ],
-  },
-] as const;
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
@@ -174,70 +134,6 @@ function TasksListTable({
         tasks={tasks}
       />
     </TasksListTableFrame>
-  );
-}
-
-/**
- * The table and its header, shared by the loaded list and its skeleton so the header renders
- * at once with real labels. `total` is the whole list's size; absent while it is not known yet.
- */
-function TasksListTableFrame({ total, children }: { total?: number; children: ReactNode }) {
-  return (
-    <Table className="table-fixed" data-testid="tasks-list-table" overflowX="hidden">
-      <TableHeader>
-        <TableRow>
-          <TableHead className="pl-4">
-            Task
-            {total === undefined ? null : (
-              <>
-                {" "}
-                <span className="font-normal text-subtle tabular-nums" data-slot="tasks-list-total">
-                  ({total})
-                </span>
-              </>
-            )}
-          </TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.id}>ID</TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.status}>Status</TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.priority}>Priority</TableHead>
-          <TableHead className={cn("pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner)}>
-            <span className="sr-only">Owner</span>
-          </TableHead>
-          <TableHead className={cn("pr-4", TASKS_TABLE_COLUMN_CLASS.updated)}>Updated</TableHead>
-        </TableRow>
-      </TableHeader>
-      {children}
-    </Table>
-  );
-}
-
-function TasksListLoading() {
-  return (
-    <div
-      className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
-      data-slot="tasks-list-surface"
-      data-testid="tasks-list-surface"
-    >
-      <SkeletonRegion
-        className="flex flex-col pb-4"
-        data-testid="tasks-list-surface-loading"
-        label="Loading tasks"
-      >
-        <TasksListTableFrame>
-          {LOADING_GROUPS.map(group => (
-            <TaskGroupSkeleton key={group.id}>
-              {group.rows.map(row => (
-                <TasksListRowSkeleton
-                  key={row.id}
-                  metaWidth={row.metaWidth}
-                  titleWidth={row.titleWidth}
-                />
-              ))}
-            </TaskGroupSkeleton>
-          ))}
-        </TasksListTableFrame>
-      </SkeletonRegion>
-    </div>
   );
 }
 

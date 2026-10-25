@@ -84,7 +84,10 @@ type Story = StoryObj<typeof meta>;
 /** US-002.AC-1/AC-2: header, freshness, one row per target with its tightest window. */
 export const Default: Story = {};
 
-/** US-006.EC-1: first read in flight. */
+/**
+ * US-006.EC-1: first read in flight. The rows hold their place, one collapsed row each, and the
+ * header holds the freshness line, so the popover is the size it will be.
+ */
 export const Loading: Story = { args: { viewModel: null, loading: true } };
 
 /** US-005.AC-1: explicit refresh in flight; rows keep their data. */
@@ -235,4 +238,10 @@ export const UsageAppWindow: Story = {
     onOpenUsage: undefined,
     viewModel: rowsOf([claudeOkTarget(NOW), codexOkTarget(NOW), STATUS.unsupported]),
   },
+};
+
+/** The Usage app before its first read arrives: the same rows' shape in the window chrome. */
+export const UsageAppWindowLoading: Story = {
+  render: UsageAppWindow.render,
+  args: { ...UsageAppWindow.args, viewModel: null, loading: true },
 };

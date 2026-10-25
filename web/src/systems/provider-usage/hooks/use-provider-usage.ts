@@ -13,7 +13,10 @@ export interface UseProviderUsageOptions {
 export interface ProviderUsageState {
   /** `null` until the first envelope arrives. Kept across later read failures. */
   viewModel: ProviderUsageViewModel | null;
-  /** First read in flight with nothing cached. */
+  /**
+   * No envelope yet and no failure either: the first read is in flight, held back, or paused. A
+   * refresh behind a cached envelope is not loading.
+   */
   loading: boolean;
   /**
    * The daemon cannot be reached. Cached rows stay on screen under a banner
@@ -39,7 +42,7 @@ export function useProviderUsage(
   const daemonUnavailable = error instanceof ProviderUsageApiError && error.unreachable;
   return {
     viewModel: query.data ?? null,
-    loading: query.isPending && query.fetchStatus === "fetching",
+    loading: query.isPending,
     daemonUnavailable,
     errorMessage: error instanceof Error && !daemonUnavailable ? error.message : null,
   };

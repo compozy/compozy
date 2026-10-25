@@ -9,10 +9,30 @@ export const OVERVIEW_REFETCH_INTERVAL = 30_000;
 export const ACTIVITY_STALE_TIME = 5_000;
 export const HOME_ACTIVITY_LIMIT = 30;
 
+/**
+ * Placeholder rule for the overview: while another usage window loads, the last window's overview
+ * stays on screen instead of blanking the whole page into its skeleton. Only the usage window may
+ * differ: a new project, profile or lens shows nothing stale.
+ */
+export function keepOverviewAcrossUsageWindow<TData>(
+  previousData: TData | undefined,
+  previousKey: readonly unknown[] | undefined,
+  nextKey: readonly unknown[]
+): TData | undefined {
+  if (!previousKey) return undefined;
+  return JSON.stringify(dashboardKeys.overviewPopulation(previousKey)) ===
+    JSON.stringify(dashboardKeys.overviewPopulation(nextKey))
+    ? previousData
+    : undefined;
+}
+
 export function homeOverviewOptions(filters: HomeOverviewFilter = {}, enabled = true) {
+  const queryKey = dashboardKeys.overview(filters);
   return queryOptions({
-    queryKey: dashboardKeys.overview(filters),
+    queryKey,
     queryFn: ({ signal }) => getHomeOverview(filters, signal),
+    placeholderData: (previousData, previousQuery) =>
+      keepOverviewAcrossUsageWindow(previousData, previousQuery?.queryKey, queryKey),
     staleTime: OVERVIEW_STALE_TIME,
     refetchInterval: OVERVIEW_REFETCH_INTERVAL,
     enabled,

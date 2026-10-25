@@ -1,19 +1,11 @@
 import { ArrowRight } from "lucide-react";
 import { createElement } from "react";
 
-import { SkeletonText } from "@compozy/ui";
-
-import { placeholderSlots } from "../../lib/placeholder-slots";
 import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-graph";
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
 import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { loopNodeClassIcon } from "../../lib/loop-node-kind-icons";
-
-// Shared by the real graph and its skeleton so a step card is the same size either way.
-const DAG_LANE_CLASS = "flex items-stretch gap-0 overflow-x-auto p-4";
-const DAG_CARD_CLASS =
-  "flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md bg-card px-3 py-2.5 shadow-card";
-const DAG_ARROW_CLASS = "flex items-center self-center px-1 text-faint";
+import { DAG_ARROW_CLASS, DAG_CARD_CLASS, DAG_LANE_CLASS } from "./loop-body-dag-classes";
 
 interface LoopBodyDagProps {
   graph: LoopGraph;
@@ -88,33 +80,6 @@ function DagNode({ node }: { node: LoopGraphNode }) {
       <span className="min-w-0 truncate text-form-hint text-faint" title={detail || undefined}>
         {detail}
       </span>
-    </div>
-  );
-}
-
-/**
- * The steps graph while the Loop is being read: a spine of `count` step cards in the graph's own
- * recessed lane. Presentational, so the caller wraps the area in a `SkeletonRegion`.
- */
-export function LoopBodyDagSkeleton({ count = 4 }: { count?: number }) {
-  const slots = placeholderSlots("dag-step", count);
-  return (
-    <div aria-hidden="true" className="rounded-lg bg-sunken" data-testid="loop-dag-loading">
-      <div className={DAG_LANE_CLASS}>
-        {slots.map(slot => (
-          <div className="flex items-stretch" key={slot.id}>
-            <div className={DAG_CARD_CLASS}>
-              <SkeletonText className="w-20 text-small-body" />
-              <SkeletonText className="w-16 text-form-hint" />
-            </div>
-            {slot.position < slots.length - 1 ? (
-              <span aria-hidden="true" className={DAG_ARROW_CLASS}>
-                <ArrowRight className="size-4" />
-              </span>
-            ) : null}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

@@ -192,6 +192,8 @@ export function LoopRunRegisters({
   return (
     <LoopRunInspectRegister
       loadedEventCount={registers.loadedEventCount}
+      rosterPending={rosterRead?.isLoading}
+      eventsPending={events?.isLoading}
       foot={footNotes.length > 0 ? footNotes : undefined}
       generationCount={generations.length}
       isLive={isLive}

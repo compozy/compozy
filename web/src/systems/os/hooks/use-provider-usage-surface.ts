@@ -1,5 +1,6 @@
 import { useProfileReadScope } from "@/systems/profiles";
 import {
+  hasProviderUsageTargets,
   useProviderUsage,
   useProviderUsageActions,
   useProviderUsageOpenRefresh,
@@ -15,6 +16,12 @@ import { useProviderUsageHost, type ProviderUsageHost } from "./use-provider-usa
 export interface ProviderUsageSurfaceModel extends ProviderUsageHost {
   profile: string;
   usage: ProviderUsageState;
+  /**
+   * The tray control is mounted only while the profile has a target. The app route reads the
+   * usage envelope before the shell renders (`preloadAppRoute`), so the control lands with the
+   * shell instead of appearing or vanishing beside the menubar controls next to it.
+   */
+  trayVisible: boolean;
   actions: ProviderUsageActions;
   /** Popover open: a background refresh for rows older than 60 s. */
   openRefresh: () => void;
@@ -45,6 +52,7 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
     ...host,
     profile,
     usage,
+    trayVisible: hasProviderUsageTargets(usage.viewModel),
     actions,
     openRefresh,
     openUsage: launcher.openUsage,

@@ -9,7 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Blocks } from "lucide-react";
 
-import { UIProvider } from "@compozy/ui";
+import { Command, CommandList, UIProvider } from "@compozy/ui";
 
 import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
@@ -25,6 +25,7 @@ import type {
 import type { PaletteViewContent, PaletteViewDefinition } from "../../lib/palette-view-registry";
 import { OsPaletteDomainChips } from "../os-palette-domain-chips";
 import { OsPaletteDomainRow } from "../os-palette-domain-row";
+import { OsPaletteDomainSections } from "../os-palette-domain-sections";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
 import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "../os-palette-virtual-rows-constants";
@@ -254,6 +255,38 @@ describe("command palette view renderers", () => {
     expect(screen.getByText("Ready")).toBeVisible();
     expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
     expect(screen.getByText(/bad \[blocked\]/i)).toBeVisible();
+  });
+
+  it("Should hold the detail pane in one busy region while a detail loads", () => {
+    withUI(<PaletteDetailView detail={{ is_loading: true }} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading details");
+    expect(screen.queryByTestId("palette-detail-pane")).toBeNull();
+  });
+
+  it("Should trail a domain section's loaded rows with its placeholder instead of moving them", () => {
+    const row: DomainRow = {
+      key: "task:one",
+      label: "Ship the release",
+      app: "tasks",
+      route: { pathname: "/tasks/one", search: {} },
+    } as DomainRow;
+    withUI(
+      <Command shouldFilter={false}>
+        <CommandList>
+          <OsPaletteDomainSections
+            onOpen={vi.fn()}
+            sections={[{ title: "Tasks", rows: [row], total: 1, loading: true, error: null }]}
+          />
+        </CommandList>
+      </Command>
+    );
+
+    const loaded = screen.getByTestId("os-palette-domain-row-task:one");
+    const loading = screen.getByRole("status");
+    expect(loading).toHaveTextContent("Loading tasks");
+    expect(loaded.compareDocumentPosition(loading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });
 
   it("Should validate fields in order and preserve masked values after failure [UT-137, UT-138]", async () => {

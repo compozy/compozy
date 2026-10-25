@@ -1,10 +1,11 @@
 import { Bot, ChevronRight, ScrollText, Terminal, UserCheck, type LucideIcon } from "lucide-react";
 
-import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow } from "@compozy/ui";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
 
 import { loopOutcomeLabel } from "../../lib/loop-formatters";
 import type { LoopContract, LoopContractVerification } from "../../types";
 import { LoopSection } from "../loop-section";
+import { ContractRow } from "./loop-contract-row";
 
 const CRITERION_TYPE_ICONS = {
   "agent-judge": Bot,
@@ -141,19 +142,5 @@ function LoopContractRows({ contract, concurrency }: LoopContractPanelProps) {
         </Collapsible>
       ) : null}
     </>
-  );
-}
-
-interface ContractRowProps {
-  label: string;
-  children: React.ReactNode;
-}
-
-export function ContractRow({ label, children }: ContractRowProps) {
-  return (
-    <div className="border-t border-line-soft px-4 py-3 first:border-t-0">
-      <Eyebrow className="mb-1 text-faint">{label}</Eyebrow>
-      {children}
-    </div>
   );
 }

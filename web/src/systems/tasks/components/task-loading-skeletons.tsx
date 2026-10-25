@@ -4,7 +4,6 @@ import {
   Section,
   Skeleton,
   SkeletonText,
-  StatusCard,
   Surface,
   Timeline,
   TimelineEvent,
@@ -103,20 +102,6 @@ export function TaskRunMainSkeleton() {
         </div>
       </Section>
     </main>
-  );
-}
-
-/** One review round, as the status card it arrives in. */
-export function TaskReviewCardSkeleton() {
-  return (
-    <StatusCard aria-hidden="true" className="animate-skeleton-reveal">
-      <StatusCard.Header label={<SkeletonText className="w-32" />}>
-        <SkeletonText className="ml-auto w-12 text-eyebrow" />
-      </StatusCard.Header>
-      <StatusCard.Body>
-        <SkeletonText lines={2} />
-      </StatusCard.Body>
-    </StatusCard>
   );
 }
 

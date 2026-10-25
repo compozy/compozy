@@ -4,6 +4,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteDomainChips } from "../components/os-palette-domain-chips";
 import { OsPaletteDomainRow } from "../components/os-palette-domain-row";
+import { OsPaletteRowsSkeleton } from "../components/os-palette-skeletons";
 import { OsPaletteViewNote } from "../components/os-palette-view-note";
 import { PaletteGridView } from "../components/palette-grid-view";
 import type { CmdPaletteViewAction, CmdPaletteViewGrid } from "../lib/cmd-palette-types";
@@ -71,6 +72,7 @@ export function useOsPaletteDomainView(
       body: (
         <PaletteGridView
           grid={grid}
+          loading={loading}
           empty={{
             title: domainEmptyMessage(domainTitle, query, filter, loading, section?.error ?? null),
           }}
@@ -106,7 +108,10 @@ export function useOsPaletteDomainView(
       chips.length <= 1 ? null : (
         <OsPaletteDomainChips active={filter} chips={chips} onChange={setFilter} />
       ),
-    empty: (
+    // Nothing to show yet and the read is out: the rows' shape, never a sentence about them.
+    empty: loading ? (
+      <OsPaletteRowsSkeleton count={5} label={`Loading ${domainTitle.toLowerCase()}`} />
+    ) : (
       <OsPaletteViewNote placement="empty">
         {domainEmptyMessage(domainTitle, query, filter, loading, section?.error ?? null)}
       </OsPaletteViewNote>

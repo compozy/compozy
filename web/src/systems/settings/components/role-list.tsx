@@ -1,18 +1,14 @@
-import { Button, Skeleton, SkeletonText } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import type { RolesDisclosure } from "../hooks/use-roles-disclosure";
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
-import { ROLE_ORDER, type RoleRuntimeValue } from "../lib/roles-config";
+import { type RoleRuntimeValue } from "../lib/roles-config";
 import type { RoleViewModel } from "../lib/roles-view-model";
 import type { RoleName } from "../types";
 import { RolePanel } from "./role-panel";
-import { RolePanelHeaderSkeleton } from "./role-panel-header";
+import { LIST_CLASS, LIST_HEAD_CLASS, LIST_PANEL_CLASS } from "./role-list-classes";
 
 const TEST_PREFIX = "settings-page-roles";
-const LIST_CLASS = "flex flex-col gap-2.5";
-const LIST_HEAD_CLASS = "flex items-center justify-between gap-3";
-const LIST_PANEL_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
-
 export interface RoleListProps {
   roles: readonly RoleViewModel[];
   options: RolesRuntimeOptions;
@@ -67,25 +63,6 @@ export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
             onOpenChange={open => disclosure.setOpen(vm.role, open)}
             {...panelProps}
           />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** The role list in skeleton form: the count line, the toggle and one collapsed row per known role. */
-export function RoleListSkeleton() {
-  return (
-    <section aria-hidden="true" className={LIST_CLASS}>
-      <header className={LIST_HEAD_CLASS}>
-        <SkeletonText className="w-24 text-small-body" />
-        <Skeleton className="h-button-sm w-20 rounded-pill" />
-      </header>
-      <div className={LIST_PANEL_CLASS}>
-        {ROLE_ORDER.map(role => (
-          <div className="not-last:border-b not-last:border-line-soft" key={role}>
-            <RolePanelHeaderSkeleton />
-          </div>
         ))}
       </div>
     </section>

@@ -15,6 +15,7 @@ export interface TerminalJournalState {
   inline: boolean;
   isLoadingMore: boolean;
   loaded: number | undefined;
+  loading: boolean;
   replay?: React.ReactNode;
   selected: TerminalJournalEntry | null;
   selectedId: string | null;

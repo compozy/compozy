@@ -66,7 +66,7 @@ export function LoopDetailLocation({ name }: { name: string }) {
       recentRuns={runsQuery.data?.runs ?? []}
       recentRunsLoading={runsQuery.isPending}
       bindings={bindings.rows}
-      bindingsLoading={bindings.isLoading}
+      bindingsLoading={bindings.isPending}
       bindingJobs={bindings.jobs}
       bindingTriggers={bindings.triggers}
       successRate={catalogEntry?.success_rate_30d ?? null}

@@ -2,13 +2,6 @@ import { ExtensionsApiError } from "@/systems/extensions";
 import { MarketplaceApiError } from "../adapters/marketplace-api-error";
 import type { MarketplaceCatalogListing } from "../types";
 
-/**
- * The row-card layout every catalog and Installed card shares: logo · text · trail. The entry card
- * and its loading skeleton both take it, so a placeholder card cannot drift from the real one.
- */
-export const MARKETPLACE_ENTRY_CARD_CLASS =
-  "grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5";
-
 export function marketplaceEntrySlug(entry: MarketplaceCatalogListing): string {
   return entry.install_slug?.trim() || entry.entry_id;
 }

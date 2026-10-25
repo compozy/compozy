@@ -1,64 +1,16 @@
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
 
-import {
-  Button,
-  DescriptionCard,
-  Eyebrow,
-  Panel,
-  PillGroup,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
-  type PillGroupItem,
-} from "@compozy/ui";
+import { Button, DescriptionCard, Panel } from "@compozy/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { AgentAuthoredFileEditor } from "./agent-authored-file-editor";
-import { AgentHeartbeatOps, AgentHeartbeatOpsSkeleton } from "./agent-heartbeat-ops";
-import { AuthoredFileLoading } from "./agent-authored-file-parts";
+import { AgentHeartbeatOps } from "./agent-heartbeat-ops";
+import { AgentHeartbeatOpsSkeleton } from "./agent-heartbeat-ops-skeleton";
+import { InstructionsFileRow } from "./agent-instructions-file-row";
 
 export type { AgentInstructionsTabViewModel };
-
-const FILE_ITEMS: PillGroupItem<AgentInstructionFile>[] = [
-  { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
-  {
-    value: "soul",
-    label: <Eyebrow>SOUL.md</Eyebrow>,
-    testId: "agent-file-tab-soul",
-  },
-  {
-    value: "heartbeat",
-    label: <Eyebrow>HEARTBEAT.md</Eyebrow>,
-    testId: "agent-file-tab-heartbeat",
-  },
-];
-
-interface InstructionsFileRowProps {
-  file: AgentInstructionFile;
-  onFileChange: (file: AgentInstructionFile) => void;
-  children?: ReactNode;
-}
-
-/** The authored-file pills with the file's trailing action, shared by the tab and its skeleton. */
-function InstructionsFileRow({ file, onFileChange, children }: InstructionsFileRowProps) {
-  return (
-    <div className="flex flex-wrap items-center gap-2.5">
-      <PillGroup
-        aria-label="Authored files"
-        data-testid="agent-instructions-files"
-        items={FILE_ITEMS}
-        onChange={onFileChange}
-        size="md"
-        value={file}
-      />
-      <span className="min-w-0 flex-1" />
-      {children}
-    </div>
-  );
-}
 
 export interface AgentInstructionsTabProps {
   agent: AgentPayload;
@@ -153,34 +105,6 @@ export function AgentInstructionsTab({
           onRetry={page.heartbeat.onRetry}
         />
       ) : null}
-    </div>
-  );
-}
-
-export type AgentInstructionsSkeletonProps = Pick<
-  AgentInstructionsTabProps,
-  "file" | "onFileChange"
->;
-
-/** The tab while the agent loads: the real file pills over the panel skeleton for that file. */
-export function AgentInstructionsSkeleton({ file, onFileChange }: AgentInstructionsSkeletonProps) {
-  return (
-    <div className="flex flex-col gap-3.5" data-testid="agent-instructions-skeleton">
-      <InstructionsFileRow file={file} onFileChange={onFileChange}>
-        {file === "agent" ? <Skeleton className="h-button-sm w-12" /> : null}
-      </InstructionsFileRow>
-      {file === "agent" ? (
-        <SkeletonRegion label="Loading AGENT.md">
-          <Panel bodyClassName="p-0">
-            <SkeletonText className="px-5 py-4 text-body" lines={6} />
-          </Panel>
-        </SkeletonRegion>
-      ) : (
-        <AuthoredFileLoading
-          headerSlot={file === "heartbeat" ? <AgentHeartbeatOpsSkeleton /> : undefined}
-          kind={file}
-        />
-      )}
     </div>
   );
 }

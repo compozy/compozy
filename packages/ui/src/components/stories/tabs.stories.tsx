@@ -79,6 +79,40 @@ export const Default: Story = {
   ),
 };
 
+export const PendingCount: Story = {
+  args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A `count` of `pending` holds the slot with a placeholder while the number is being read (two digits wide unless `pendingCountDigits` says otherwise), so the tab does not widen and push the tabs after it when the count arrives.",
+      },
+    },
+  },
+  render: () => (
+    <Tabs defaultValue="all" className="w-xl">
+      <TabsList>
+        <TabsTrigger count={42} value="all">
+          All
+        </TabsTrigger>
+        <TabsTrigger count="pending" value="active">
+          Active
+        </TabsTrigger>
+        <TabsTrigger value="done">Done</TabsTrigger>
+      </TabsList>
+      <TabsContent value="all" className="pt-3">
+        <p className="text-sm text-muted-foreground">Showing 42 tasks across every status.</p>
+      </TabsContent>
+      <TabsContent value="active" className="pt-3">
+        <p className="text-sm text-muted-foreground">Reading the active tasks.</p>
+      </TabsContent>
+      <TabsContent value="done" className="pt-3">
+        <p className="text-sm text-muted-foreground">Completed tasks.</p>
+      </TabsContent>
+    </Tabs>
+  ),
+};
+
 export const WithoutCounts: Story = {
   args: {},
   parameters: {

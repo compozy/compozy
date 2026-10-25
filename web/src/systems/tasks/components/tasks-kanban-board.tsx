@@ -2,36 +2,14 @@ import { AlertCircle } from "lucide-react";
 
 import { Button, Empty, SkeletonRegion, Spinner } from "@compozy/ui";
 
-import { TaskKanbanCard, TaskKanbanCardSkeleton } from "./task-kanban-card";
+import { TaskKanbanCard } from "./task-kanban-card";
+import { TaskKanbanCardSkeleton } from "./task-kanban-card-skeleton";
 import { TaskKanbanColumn } from "./task-kanban-column";
+import { KANBAN_BOARD_CLASS, KANBAN_LOADING_CARDS, kanbanBoardStyle } from "./tasks-kanban-grid";
 import { taskStatusFacetTotal, type KanbanColumnGroup } from "../lib/task-grouping";
 import type { TaskListItem, TaskStatus } from "../types";
 import { type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
-
-/**
- * Placeholder cards per column while the board loads, in column order: a backlog-heavy shape that
- * fills the first columns and thins out, with some two-line titles among the one-line ones. Ids
- * are static; the placeholders carry no identity of their own.
- */
-const LOADING_CARDS = [
-  [
-    { id: "a", titleLines: 2 },
-    { id: "b", titleLines: 1 },
-    { id: "c", titleLines: 1 },
-  ],
-  [
-    { id: "a", titleLines: 1 },
-    { id: "b", titleLines: 2 },
-  ],
-  [{ id: "a", titleLines: 1 }],
-  [{ id: "a", titleLines: 2 }],
-  [
-    { id: "a", titleLines: 1 },
-    { id: "b", titleLines: 1 },
-    { id: "c", titleLines: 2 },
-  ],
-] as const;
 
 export interface TasksKanbanBoardProps {
   columns: KanbanColumnGroup[];
@@ -75,16 +53,11 @@ export function TasksKanbanBoard({
   // replace it, however the flag moves.
   const showSkeleton = isLoading && loadedTaskCount === 0;
 
-  // Derive the grid track count from the canonical column set so it can never
-  // drift from `KANBAN_COLUMNS`: a new status column widens the grid instead of
-  // wrapping the last column onto a broken second row.
   const board = (
     <ul
-      className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-6"
+      className={KANBAN_BOARD_CLASS}
       data-testid="tasks-kanban-board"
-      style={{
-        gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
-      }}
+      style={kanbanBoardStyle(columns.length)}
     >
       {columns.map((group, columnIndex) => (
         <TaskKanbanColumn
@@ -97,7 +70,7 @@ export function TasksKanbanBoard({
           }
         >
           {showSkeleton
-            ? (LOADING_CARDS[columnIndex % LOADING_CARDS.length] ?? []).map(card => (
+            ? (KANBAN_LOADING_CARDS[columnIndex % KANBAN_LOADING_CARDS.length] ?? []).map(card => (
                 <TaskKanbanCardSkeleton
                   key={`${group.column.id}-skeleton-${card.id}`}
                   titleLines={card.titleLines}

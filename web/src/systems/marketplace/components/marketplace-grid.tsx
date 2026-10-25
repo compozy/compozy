@@ -9,7 +9,7 @@ import {
   SkeletonText,
 } from "@compozy/ui";
 
-import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-ui";
+import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-classes";
 
 interface MarketplaceGridProps {
   children: ReactNode;
@@ -45,32 +45,45 @@ const SKELETON_CARDS = [
   { id: "skeleton-card-8", title: "w-36", description: "w-4/5" },
 ] as const;
 
+interface MarketplaceGridSkeletonProps {
+  count?: number;
+  className?: string;
+}
+
 /**
  * Placeholder row-cards in the real grid. Each is the real `CatalogCard` surface with the entry
  * card's own layout class, so a card keeps its height and column grid when the catalog arrives.
+ * The caller owns the status region (a page that loads more than the grid wraps all of it in one).
  */
-function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; className?: string }) {
+function MarketplaceGridPlaceholder({ count = 6, className }: MarketplaceGridSkeletonProps) {
+  return (
+    <MarketplaceGrid className={className} data-testid="marketplace-grid-skeleton">
+      {SKELETON_CARDS.slice(0, count).map(card => (
+        <CatalogCardSkeleton className={MARKETPLACE_ENTRY_CARD_CLASS} key={card.id}>
+          <Skeleton className="size-(--size-provider-logo-well) rounded-md" />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <CatalogCard.Title>
+              <SkeletonText className={card.title} />
+            </CatalogCard.Title>
+            <CatalogCard.Description className="text-eyebrow leading-snug">
+              <SkeletonText className={card.description} />
+            </CatalogCard.Description>
+          </div>
+          <Skeleton className="h-button-sm w-16" />
+        </CatalogCardSkeleton>
+      ))}
+    </MarketplaceGrid>
+  );
+}
+
+/** The placeholder grid under its own status region. */
+function MarketplaceGridSkeleton(props: MarketplaceGridSkeletonProps) {
   return (
     <SkeletonRegion label="Loading marketplace entries">
-      <MarketplaceGrid className={className} data-testid="marketplace-grid-skeleton">
-        {SKELETON_CARDS.slice(0, count).map(card => (
-          <CatalogCardSkeleton className={MARKETPLACE_ENTRY_CARD_CLASS} key={card.id}>
-            <Skeleton className="size-(--size-provider-logo-well) rounded-md" />
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <CatalogCard.Title>
-                <SkeletonText className={card.title} />
-              </CatalogCard.Title>
-              <CatalogCard.Description className="text-eyebrow leading-snug">
-                <SkeletonText className={card.description} />
-              </CatalogCard.Description>
-            </div>
-            <Skeleton className="h-button-sm w-16" />
-          </CatalogCardSkeleton>
-        ))}
-      </MarketplaceGrid>
+      <MarketplaceGridPlaceholder {...props} />
     </SkeletonRegion>
   );
 }
 
-export { MarketplaceGrid, MarketplaceGridSkeleton };
+export { MarketplaceGrid, MarketplaceGridPlaceholder, MarketplaceGridSkeleton };
 export type { MarketplaceGridProps };

@@ -13,6 +13,8 @@ export interface HomeAgentRow {
 export interface HomeAgentsModel {
   rows: HomeAgentRow[];
   workspaceId: string;
+  /** The catalog has no answer yet (a refetch with rows in hand is not loading). */
+  loading: boolean;
 }
 
 const HOME_AGENT_LIMIT = 6;
@@ -40,5 +42,5 @@ export function useHomeAgents(): HomeAgentsModel {
     };
   });
 
-  return { rows, workspaceId };
+  return { rows, workspaceId, loading: catalogQuery.isLoading };
 }

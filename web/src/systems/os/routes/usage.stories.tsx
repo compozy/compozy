@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { delay, http } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import {
@@ -10,6 +11,7 @@ import {
   claudeOkTarget,
   codexOkTarget,
   providerUsageHandlers,
+  providerUsageStreamResponse,
   statusTargets,
   usageEnvelope,
 } from "@/systems/provider-usage/mocks";
@@ -55,6 +57,23 @@ export const TurnedOff: Story = {
     ...appRouteParameters("/usage"),
     ...storybookMswParameters({
       "provider-usage": providerUsageHandlers(() => usageEnvelope([], { enabled: false })),
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The first read has not answered: the rows hold their place in the window, under the real header. */
+export const Loading: Story = {
+  parameters: {
+    ...appRouteParameters("/usage"),
+    ...storybookMswParameters({
+      "provider-usage": [
+        http.get("*/api/provider-usage/stream", () => providerUsageStreamResponse()),
+        http.get("*/api/provider-usage", async () => {
+          await delay("infinite");
+          return new Response(null, { status: 204 });
+        }),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

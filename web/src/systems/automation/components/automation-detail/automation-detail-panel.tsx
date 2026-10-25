@@ -14,8 +14,8 @@ import { AutomationDeleteAction } from "../automation-delete-action";
 import { AutomationDetailActions, AutomationDetailOverflow } from "./automation-detail-actions";
 import { AutomationDetailHead } from "./automation-detail-head";
 import { AutomationDetailSection } from "./automation-detail-section";
+import { AutomationDetailSkeleton } from "./automation-detail-skeleton";
 import {
-  AutomationDetailSkeleton,
   AutomationDetailUnavailable,
   type AutomationDetailUnavailableReason,
 } from "./automation-detail-states";

@@ -14,7 +14,8 @@ import {
   PROGRESS_HEADING_CLASS,
   PROGRESS_META_CLASS,
 } from "./loop-run-page-classes";
-import { LoopRunStepRow, LoopRunStepRowsSkeleton } from "./loop-run-step-row";
+import { LoopRunStepRow } from "./loop-run-step-row";
+import { LoopRunStepRowsSkeleton } from "./loop-run-step-rows-skeleton";
 
 interface LoopRunStepsProgressProps {
   progress: LoopStepsProgressModel;

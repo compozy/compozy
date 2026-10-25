@@ -28,3 +28,5 @@ Done history. The asynchronous refresh must discover the old branch and move tha
 into In review on the next catalog read. Repeat with another project/profile in the database;
 its branches must not enter the selected scope's refresh batch. Facet-only reads must also
 schedule discovery. Backend coverage: `TestManagerBoardCatalog` with real SQLite.
+
+PR #973 restore regression: save one window in Kanban and another in List, then cold-reload with the lazy Session app chunk delayed. The Kanban window must show the board skeleton immediately, without a sidebar/transcript flash; the List window retains its saved rail layout.

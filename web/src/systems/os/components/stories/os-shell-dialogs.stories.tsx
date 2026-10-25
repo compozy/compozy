@@ -1,6 +1,11 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { delay, HttpResponse } from "msw";
 import { fn } from "storybook/test";
+
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { statusFixture } from "@/systems/status/mocks";
 
 import {
   cmdPaletteStoryReboundOverrides,
@@ -84,5 +89,21 @@ export const ShortcutsRebound: Story = {
 /** Installation identity: only fields the daemon actually publishes. */
 export const About: Story = {
   args: { open: true, onOpenChange: fn() },
+  render: () => <DialogFixture dialog="about" />,
+};
+
+/** The daemon status is still being read: the real labels over blocks, and the fold closed. */
+export const AboutLoading: Story = {
+  args: { open: true, onOpenChange: fn() },
+  parameters: {
+    ...storybookMswParameters({
+      daemon: [
+        compozyApiMock.get("/api/status", async () => {
+          await delay("infinite");
+          return HttpResponse.json(statusFixture);
+        }),
+      ],
+    }),
+  },
   render: () => <DialogFixture dialog="about" />,
 };

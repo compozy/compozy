@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { CircleDot, CircleStop, Clock3, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { Eyebrow, Skeleton, SkeletonText, cn } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
 import { describeScheduleStarts } from "../../lib/automation-detail";
 import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
@@ -16,6 +16,7 @@ import type { EventIconKey } from "../../lib/trigger-catalog";
 import type { AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
 import { AutomationNextRuns } from "./automation-next-runs";
+import { RuleRow } from "./automation-rule-row";
 import { AutomationRuleDoes } from "./automation-rule-does";
 import { AutomationValueBadge } from "./automation-value-badge";
 import { AutomationWebhookEndpoint } from "./automation-webhook-endpoint";
@@ -27,26 +28,6 @@ const EVENT_ICONS: Record<EventIconKey, LucideIcon> = {
   webhook: Webhook,
   extension: Puzzle,
 };
-
-type RuleRowProps = Omit<ComponentProps<"div">, "children"> & {
-  label: string;
-  children: ReactNode;
-};
-
-function RuleRow({ label, children, className, ...props }: RuleRowProps) {
-  return (
-    <div
-      className={cn(
-        "grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[84px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5",
-        className
-      )}
-      {...props}
-    >
-      <Eyebrow className="pt-0.5 text-subtle">{label}</Eyebrow>
-      <div className="flex min-w-0 flex-col">{children}</div>
-    </div>
-  );
-}
 
 function RuleHeadline({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
@@ -187,58 +168,6 @@ export function AutomationRuleCard({
           loopWorkspaceName={loopWorkspaceName}
           view={view}
         />
-      </RuleRow>
-    </div>
-  );
-}
-
-const NEXT_RUN_SKELETON_IDS = ["next-run-1", "next-run-2", "next-run-3"] as const;
-
-/**
- * "How it works" while the automation loads: the real card and its Starts / Does rows. A schedule
- * lists its upcoming runs under Starts; an event does not.
- */
-export function AutomationRuleCardSkeleton({
-  kind,
-  className,
-  ...props
-}: Omit<ComponentProps<"div">, "children"> & { kind: "job" | "trigger" }) {
-  return (
-    <div
-      aria-hidden="true"
-      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
-      {...props}
-    >
-      <RuleRow label="Starts">
-        <span className="flex flex-wrap items-center gap-2">
-          <Skeleton className="size-3.5" />
-          <b className="text-form-input font-medium">
-            <SkeletonText className="w-48" />
-          </b>
-        </span>
-        <span className="mt-1.5 text-eyebrow leading-normal">
-          <SkeletonText className="w-64" />
-        </span>
-        {kind === "job" ? (
-          <ol className="mt-2.5 flex flex-col">
-            {NEXT_RUN_SKELETON_IDS.map(id => (
-              <li
-                className="flex min-h-7 items-center border-t border-line-soft text-eyebrow first:border-t-0"
-                key={id}
-              >
-                <SkeletonText className="w-full" />
-              </li>
-            ))}
-          </ol>
-        ) : null}
-      </RuleRow>
-      <RuleRow label="Does">
-        <span className="flex flex-wrap items-center gap-2">
-          <Skeleton className="size-3.5" />
-          <b className="text-form-input font-medium">
-            <SkeletonText className="w-40" />
-          </b>
-        </span>
       </RuleRow>
     </div>
   );

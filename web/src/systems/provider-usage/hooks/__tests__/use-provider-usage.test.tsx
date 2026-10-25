@@ -116,6 +116,22 @@ describe("provider usage hooks", () => {
     });
   });
 
+  // Invariant: loading is "no envelope yet", not "a fetch is in flight": a read held back until its
+  // profile resolves is still waiting, and it settles once the first envelope arrives.
+  it("Should be loading until the first envelope arrives, whether or not the read has started", async () => {
+    const { wrapper } = setup();
+    vi.mocked(globalThis.fetch).mockResolvedValue(jsonResponse(defaultUsageEnvelope()));
+
+    const held = renderHook(() => useProviderUsage(""), { wrapper });
+    expect(held.result.current).toMatchObject({ loading: true, viewModel: null });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const { result } = renderHook(() => useProviderUsage("default"), { wrapper });
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.viewModel?.rows).toHaveLength(2);
+  });
+
   it("Should keep cached rows and flag the daemon unavailable after a network error (UT-062)", async () => {
     const { queryClient, wrapper } = setup();
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(jsonResponse(defaultUsageEnvelope()));

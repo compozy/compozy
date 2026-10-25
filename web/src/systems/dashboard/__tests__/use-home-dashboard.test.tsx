@@ -3,7 +3,7 @@
 // Boundary IN: dashboard query composition, liveness, and derived view state.
 // Boundary OUT: card rendering and task transport behavior, owned by their domain suites.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,7 @@ import type { StatusPayload } from "@/systems/status";
 import { statusFixture } from "@/systems/status/mocks";
 
 import { makeEmptyHomeOverview, makeHomeOverview } from "../mocks/fixtures";
+import type { HomeOverview } from "../types";
 
 const liveFreshness = () => ({ ...makeEmptyHomeOverview().freshness, has_live_work: true });
 const singleApproval = () => ({
@@ -326,6 +327,63 @@ describe("useHomeDashboard", () => {
       expect(result.current.overviewStatus).toBe("error");
     });
     expect(result.current.overviewErrorMessage).toBe("daemon unavailable");
+  });
+
+  // Switching the usage window re-keys the overview read; the page keeps what it shows rather
+  // than blanking into its loading shape for a change that only moves one chart.
+  it("Should keep the last overview on screen while another usage window loads", async () => {
+    const thirtyDays = makeHomeOverview();
+    getHomeOverview.mockResolvedValueOnce(thirtyDays);
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+
+    let finishSevenDays: (overview: HomeOverview) => void = () => {};
+    getHomeOverview.mockReturnValueOnce(
+      new Promise<HomeOverview>(resolve => {
+        finishSevenDays = resolve;
+      })
+    );
+    act(() => homePrefsStore.trigger.usageWindowSelected({ usageWindow: 7 }));
+
+    await waitFor(() => expect(getHomeOverview).toHaveBeenCalledTimes(2));
+    expect(result.current.overviewStatus).toBe("ready");
+    expect(result.current.overview).toBe(thirtyDays);
+
+    const sevenDays = makeHomeOverview({ usage: { ...thirtyDays.usage, window_days: 7 } });
+    await act(async () => finishSevenDays(sevenDays));
+    await waitFor(() => expect(result.current.overview).toBe(sevenDays));
+  });
+
+  it("Should not carry an overview into another project while its read loads", async () => {
+    getHomeOverview.mockResolvedValueOnce(makeHomeOverview());
+
+    const { result, rerender } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+
+    getHomeOverview.mockReturnValueOnce(new Promise<HomeOverview>(() => {}));
+    activeWorkspaceState.activeWorkspace = {
+      id: "ws-proj",
+      root_dir: "/Users/tester/dev/proj",
+      name: "proj",
+    };
+    activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
+    activeWorkspaceState.dataScope = { kind: "project", workspaceId: "ws-proj" };
+    rerender();
+
+    await waitFor(() => expect(getHomeOverview).toHaveBeenCalledTimes(2));
+    expect(result.current.overviewStatus).toBe("loading");
+    expect(result.current.overview).toBeUndefined();
+  });
+
+  it("Should hold the system row loading until the daemon status answers", async () => {
+    getHomeOverview.mockResolvedValue(makeHomeOverview());
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    expect(result.current.systemLoading).toBe(true);
+
+    await waitFor(() => expect(result.current.systemLoading).toBe(false));
+    expect(result.current.system.tiles.length).toBeGreaterThan(0);
   });
 });
 

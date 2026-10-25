@@ -33,7 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
   Separator,
-  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Spinner,
   Switch,
   Textarea,
@@ -287,7 +288,9 @@ export function StatusAndMetricSection() {
       <div className="flex flex-col gap-3 pt-6">
         <div className="flex flex-wrap items-center gap-4">
           <Spinner className="size-4 text-success" />
-          <Skeleton className="h-4 w-40" />
+          <SkeletonRegion className="w-40" label="Loading example">
+            <SkeletonText className="text-small-body" lines={2} />
+          </SkeletonRegion>
           <Separator orientation="vertical" className="h-6" />
           <Eyebrow className="text-subtle">spinners · skeletons · separators</Eyebrow>
         </div>

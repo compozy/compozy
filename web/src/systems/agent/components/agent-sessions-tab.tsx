@@ -1,39 +1,9 @@
-import { Button, PillGroup, type PillGroupItem } from "@compozy/ui";
+import { Button, PillGroup } from "@compozy/ui";
 
 import { filterAgentSessionsByStatus, type AgentSessionFilter } from "../lib/agent-detail-search";
-import { AgentSessionsList, AgentSessionsSkeleton } from "./agent-sessions-list";
+import { sessionFilterItems } from "./agent-sessions-filter-items";
+import { AgentSessionsList } from "./agent-sessions-list";
 import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
-
-/** Filter pills carry the catalog counts; counts stay hidden until the aggregate is exact. */
-function sessionFilterItems(
-  counts: {
-    total: number;
-    active: number;
-    failed: number | null;
-  } | null
-): PillGroupItem<AgentSessionFilter>[] {
-  return [
-    {
-      value: "all",
-      label: "All",
-      ...(counts ? { badge: counts.total } : {}),
-      testId: "agent-sessions-filter-all",
-    },
-    {
-      value: "active",
-      label: "Active",
-      ...(counts ? { badge: counts.active } : {}),
-      testId: "agent-sessions-filter-active",
-    },
-    {
-      value: "failed",
-      label: "Failed",
-      ...(counts && counts.failed !== null ? { badge: counts.failed } : {}),
-      testId: "agent-sessions-filter-failed",
-    },
-    { value: "done", label: "Done", testId: "agent-sessions-filter-done" },
-  ];
-}
 
 const EMPTY_ARCHIVED_SESSIONS: SessionPayload[] = [];
 
@@ -140,30 +110,6 @@ export function AgentSessionsTab({
         sessionActions={sessionActions}
         onRetry={onRetry}
       />
-    </div>
-  );
-}
-
-export interface AgentSessionsTabSkeletonProps {
-  filter: AgentSessionFilter;
-  onFilterChange: (filter: AgentSessionFilter) => void;
-}
-
-/** The tab while the agent loads: the real filter pills without counts, over the table skeleton. */
-export function AgentSessionsTabSkeleton({
-  filter,
-  onFilterChange,
-}: AgentSessionsTabSkeletonProps) {
-  return (
-    <div className="flex flex-col gap-4" data-testid="agent-sessions-tab-skeleton">
-      <PillGroup
-        aria-label="Session filter"
-        items={sessionFilterItems(null)}
-        onChange={onFilterChange}
-        size="md"
-        value={filter}
-      />
-      <AgentSessionsSkeleton />
     </div>
   );
 }

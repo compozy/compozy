@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { delay, http } from "msw";
 import { fn, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -8,6 +9,7 @@ import {
   codexOkTarget,
   defaultUsageEnvelope,
   providerUsageHandlers,
+  providerUsageStreamResponse,
   statusTargets,
   usageEnvelope,
   usageTray,
@@ -326,6 +328,24 @@ export const UsagePopoverOpen: Story = {
     });
     await userEvent.click(control);
   },
+};
+
+/**
+ * The first usage read has not answered: the control already holds its slot, with the meter's
+ * shape unmeasured, so the controls beside it do not move when the numbers land.
+ */
+export const UsageTrayLoading: Story = {
+  args: { workspace: { name: "compozy" } },
+  parameters: storybookMswParameters({
+    "provider-usage": [
+      http.get("*/api/provider-usage/stream", () => providerUsageStreamResponse()),
+      http.get("*/api/provider-usage", async () => {
+        await delay("infinite");
+        return new Response(null, { status: 204 });
+      }),
+    ],
+  }),
+  render: () => <MenubarFixture />,
 };
 
 /** Below 80 %: the meter fills in neutral ink. */

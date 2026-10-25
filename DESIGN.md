@@ -1210,7 +1210,9 @@ measures the same height and the data arrives without a layout shift. It lays
 out at once but stays transparent for one `base` beat before it fades in, so a
 fast load never flashes a placeholder, and its sweep is a pseudo-element moved
 on `transform`. One `SkeletonRegion` around the area carries the status
-semantics.
+semantics. A tab count that has not been read yet holds its slot with a
+placeholder (`count: "pending"` on `LaneTabs` and `Tabs`, sized by
+`pendingCountDigits`) instead of appearing late and pushing the tabs after it.
 
 In-window content swaps use React's `<ViewTransition>` with the `vt-*` classes
 in `tokens-runtime.css` (`vt-fade`, `vt-drill-in`, `vt-drill-out`,

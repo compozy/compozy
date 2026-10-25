@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { CatalogCard, cn, Pill } from "@compozy/ui";
 
 import { MarketplaceEntryLogo, type MarketplaceEntryLogoEntry } from "./marketplace-entry-logo";
-import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-ui";
+import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-classes";
 
 interface MarketplaceEntryCardProps {
   /** Identity the logo ladder and the name resolve from. */

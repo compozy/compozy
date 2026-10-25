@@ -16,26 +16,16 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import {
-  Button,
-  Empty,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
-  StateGlyph,
-  Time,
-  cn,
-} from "@compozy/ui";
+import { Button, Empty, SkeletonRegion, StateGlyph, Time, cn } from "@compozy/ui";
 
 import type { AutomationEntity } from "../../lib/automation-entity";
 import { buildAutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRunIcon, AutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRun } from "../../types";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
-import {
-  AutomationDetailSection,
-  AutomationDetailSectionSkeleton,
-} from "./automation-detail-section";
+import { PANEL_SHELL, RUN_ROW_GRID } from "./automation-run-list-classes";
+import { AutomationRunRowsSkeleton } from "./automation-run-list-skeleton";
+import { AutomationDetailSection } from "./automation-detail-section";
 
 const RUN_ICONS = {
   agent: Bot,
@@ -46,11 +36,6 @@ const RUN_ICONS = {
   skip: SkipForward,
   clock: Clock,
 } as const satisfies Record<AutomationRunIcon, LucideIcon>;
-
-const PANEL_SHELL = "overflow-hidden rounded-lg bg-card shadow-card";
-const RUN_ROW_GRID =
-  "grid w-full grid-cols-[6.5rem_minmax(0,1fr)_18px] items-center gap-3 px-4 py-2.75 md:grid-cols-[6.75rem_minmax(0,1fr)_4.5rem_5.5rem_18px]";
-const RUN_SKELETON_IDS = ["run-skeleton-1", "run-skeleton-2", "run-skeleton-3"] as const;
 
 function runLinkProps(link: NonNullable<AutomationRunView["link"]>) {
   switch (link.kind) {
@@ -252,37 +237,6 @@ function RunListError({ error, onRetry }: { error: Error; onRetry: () => void })
   );
 }
 
-/** Three run rows in the real row grid: status, what it did, duration, when. */
-function AutomationRunRowsSkeleton() {
-  return (
-    <ul>
-      {RUN_SKELETON_IDS.map(id => (
-        <li
-          aria-hidden="true"
-          className="animate-skeleton-reveal border-t border-line-soft first:border-t-0"
-          key={id}
-        >
-          <div className={RUN_ROW_GRID}>
-            <span className="text-small-body">
-              <SkeletonText className="w-16" />
-            </span>
-            <span className="text-small-body">
-              <SkeletonText className="w-40" />
-            </span>
-            <span className="hidden text-form-hint md:block">
-              <SkeletonText className="ml-auto w-10" />
-            </span>
-            <span className="hidden text-form-hint md:block">
-              <SkeletonText className="ml-auto w-14" />
-            </span>
-            <Skeleton className="size-3.5" />
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /** Single-open accordion: opening a run closes the one before it. */
 function RunListRows({
   views,
@@ -353,16 +307,5 @@ export function AutomationRunList(props: AutomationRunListProps) {
         <RunListBody {...props} />
       </div>
     </AutomationDetailSection>
-  );
-}
-
-/** The Runs section while the page loads: its real label over the panel of placeholder rows. */
-export function AutomationRunListSkeleton() {
-  return (
-    <AutomationDetailSectionSkeleton icon={History} label="Runs">
-      <div aria-hidden="true" className={PANEL_SHELL}>
-        <AutomationRunRowsSkeleton />
-      </div>
-    </AutomationDetailSectionSkeleton>
   );
 }

@@ -43,7 +43,9 @@ export function TaskKanbanColumn({
       )}
       data-testid={`tasks-kanban-column-${column.id}`}
     >
-      <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
+      {/* The add button sets the header's height; a column without one (a board still loading)
+          keeps the same row so the cards below do not move when it appears. */}
+      <header className="flex min-h-(--size-button-icon-xs) shrink-0 items-center gap-2 box-content px-3 pt-3 pb-2">
         <StateGlyph data-testid={`tasks-kanban-column-glyph-${column.id}`} state={column.glyph} />
         <h2 className="text-item-title font-medium text-fg">{column.label}</h2>
         {countLabel ? (

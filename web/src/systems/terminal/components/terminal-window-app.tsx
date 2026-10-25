@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity } from "react";
-import { BlockLoading, type TerminalEngineLoader } from "@compozy/ui";
+import type { TerminalEngineLoader } from "@compozy/ui";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
 import { useCompactTerminalWindow } from "../hooks/use-compact-terminal-window";
@@ -13,6 +13,7 @@ import type { TerminalRecordingState } from "./terminal-header";
 import { TerminalJournalHostChrome } from "./terminal-journal-host-chrome";
 import { TerminalJournalHead } from "./terminal-journal-panel";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
+import { TerminalWindowSkeleton } from "./terminal-skeletons";
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 import { TerminalWindowBody } from "./terminal-window-body";
 
@@ -255,7 +256,7 @@ function TerminalPrimarySurfaceView({
         />
       );
     case "resolving":
-      return <BlockLoading className="flex-1" label="Opening a terminal" surface="bare" />;
+      return <TerminalWindowSkeleton label="Opening a terminal" />;
     case "empty":
       return <TerminalEmptyState onOpenTerminal={surface.onOpenTerminal} />;
     case "active":

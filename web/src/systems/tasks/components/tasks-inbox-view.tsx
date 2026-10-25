@@ -7,9 +7,6 @@ import {
   FiltersWithSearch,
   ListingPage,
   SearchInput,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
   Spinner,
   StateGlyph,
   Switch,
@@ -24,7 +21,8 @@ import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
 import type { ProjectFilterModel } from "@/systems/workspace";
 import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
-import { TasksInboxRowSkeleton } from "./tasks-inbox-row";
+import { INBOX_BODY_CLASS, INBOX_TOOLBAR_CLASS } from "./tasks-inbox-classes";
+import { TasksInboxLoading } from "./tasks-inbox-loading";
 
 export interface TasksInboxViewProps {
   inbox: TaskInboxView | null;
@@ -99,10 +97,7 @@ export function TasksInboxView({
 
   return (
     <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
-      <div
-        className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
-        data-testid="tasks-inbox-toolbar"
-      >
+      <div className={INBOX_TOOLBAR_CLASS} data-testid="tasks-inbox-toolbar">
         <SearchInput
           containerClassName="w-64 max-w-full"
           data-testid="tasks-inbox-search"
@@ -143,7 +138,7 @@ export function TasksInboxView({
         </label>
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
+      <div className={INBOX_BODY_CLASS} data-testid="tasks-inbox-body">
         <TasksInboxContent
           errorMessage={errorMessage}
           groupTotals={groupTotals}
@@ -254,60 +249,6 @@ function TasksInboxUnloadedState({
     );
   }
   return <TasksInboxEmptyState />;
-}
-
-/**
- * Two placeholder groups: the one that waits on a person, with the approval actions, and the
- * quiet feed. The lanes a person has are unknown until the inbox arrives, so no group is named.
- * Ids are static; the placeholders carry no identity of their own.
- */
-const LOADING_GROUPS = [
-  {
-    id: "first",
-    rows: [
-      { id: "a", titleWidth: "w-56", reason: true, approval: true },
-      { id: "b", titleWidth: "w-44", reason: false, approval: true },
-      { id: "c", titleWidth: "w-64", reason: true, approval: false },
-    ],
-  },
-  {
-    id: "second",
-    rows: [
-      { id: "a", titleWidth: "w-48", reason: false, approval: false },
-      { id: "b", titleWidth: "w-60", reason: false, approval: false },
-      { id: "c", titleWidth: "w-40", reason: false, approval: false },
-    ],
-  },
-] as const;
-
-function TasksInboxLoading() {
-  return (
-    <SkeletonRegion
-      className="flex flex-col gap-6"
-      data-testid="tasks-inbox-loading"
-      label="Loading inbox"
-    >
-      {LOADING_GROUPS.map(group => (
-        <section className="flex flex-col gap-2" key={group.id}>
-          <header aria-hidden="true" className="flex items-center gap-2">
-            <Skeleton className="size-3.5 shrink-0 rounded-full" />
-            <SkeletonText className="w-24 eyebrow" />
-            <SkeletonText className="w-4 font-mono text-badge" />
-          </header>
-          <div className="flex flex-col">
-            {group.rows.map(row => (
-              <TasksInboxRowSkeleton
-                approval={row.approval}
-                key={row.id}
-                reason={row.reason}
-                titleWidth={row.titleWidth}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </SkeletonRegion>
-  );
 }
 
 function TasksInboxEmptyState() {

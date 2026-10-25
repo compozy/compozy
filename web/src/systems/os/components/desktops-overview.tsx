@@ -13,12 +13,11 @@ import {
   DialogTitle,
   Empty,
   OverlayContainerContext,
-  Skeleton,
   TooltipProvider,
   cn,
 } from "@compozy/ui";
 
-import { DesktopsOverviewGrid } from "./desktops-overview-grid";
+import { DesktopsOverviewGrid, DesktopsOverviewSkeleton } from "./desktops-overview-grid";
 
 export interface DesktopOverviewWindow {
   id: string;
@@ -77,8 +76,6 @@ export interface DesktopsOverviewProps {
   onResolveConflict?: () => void;
 }
 
-const LOADING_CARD_IDS = ["desktop-loading-1", "desktop-loading-2", "desktop-loading-3"];
-
 function nearestHiddenDesktopId(
   segment: DesktopOverviewFocusSegment | null | undefined
 ): string | null {
@@ -132,7 +129,6 @@ export function DesktopsOverview({
         <DialogContent
           unframed
           showCloseButton={false}
-          aria-busy={state.status === "loading"}
           data-slot="desktops-overview"
           initialFocus={initialFocusDesktopId ? initialFocusRef : undefined}
           aria-describedby={undefined}
@@ -229,16 +225,7 @@ function DesktopsOverviewStatus({
   onResolveConflict,
 }: DesktopsOverviewStatusProps) {
   if (state.status === "loading") {
-    return (
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5">
-        {LOADING_CARD_IDS.map(id => (
-          <div key={id} className="flex flex-col gap-2.5 p-2 pb-3">
-            <Skeleton className="aspect-video w-full rounded-lg" />
-            <Skeleton className="h-5 w-2/3" />
-          </div>
-        ))}
-      </div>
-    );
+    return <DesktopsOverviewSkeleton />;
   }
   if (state.status === "error") {
     return (

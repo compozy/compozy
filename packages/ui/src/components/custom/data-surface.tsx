@@ -4,8 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 import { Empty, type EmptyProps } from "../empty";
-import { SkeletonRegion } from "../skeleton";
-import { BlockLoading, type BlockLoadingProps } from "./block-loading";
+import { SkeletonRegion, type SkeletonRegionProps } from "../skeleton";
 import type { DataSurfaceState } from "./data-surface-state";
 
 interface DataSurfaceProps extends React.ComponentProps<"div"> {
@@ -16,7 +15,10 @@ type DataSurfaceSlotProps = React.ComponentProps<"div"> & {
   "data-surface-state"?: DataSurfaceState;
 };
 
-type DataSurfaceLoadingProps = BlockLoadingProps;
+type DataSurfaceLoadingProps = SkeletonRegionProps & {
+  /** The content-shaped skeleton that stands in for the loaded content. */
+  children: React.ReactNode;
+};
 type DataSurfaceEmptyProps = EmptyProps;
 type DataSurfaceErrorProps = EmptyProps;
 type DataSurfaceContentProps = React.ComponentProps<"div">;
@@ -56,34 +58,11 @@ function DataSurfaceRoot({ state, children, className, ...props }: DataSurfacePr
  * The loading slot. Pass a content-shaped skeleton as `children` (`ListingRowSkeleton`,
  * `CatalogCardSkeleton`, a `Table` with `TableRowSkeleton`, …): it renders inside a
  * `SkeletonRegion`, which carries the status role, the busy flag and the visually hidden `label`,
- * so the skeleton shapes stay presentational. With no children it falls back to the centered
- * `BlockLoading` spinner; that fallback is transitional, content areas should show a skeleton.
+ * so the skeleton shapes stay presentational.
  */
-function DataSurfaceLoading({
-  children,
-  label = "Loading",
-  size,
-  surface,
-  showLabel,
-  className,
-  ...props
-}: DataSurfaceLoadingProps) {
-  if (React.Children.toArray(children).length === 0) {
-    return (
-      <BlockLoading
-        data-surface-state="loading"
-        label={label}
-        size={size}
-        surface={surface}
-        showLabel={showLabel}
-        className={className}
-        {...props}
-      />
-    );
-  }
-
+function DataSurfaceLoading({ children, label = "Loading", ...props }: DataSurfaceLoadingProps) {
   return (
-    <SkeletonRegion data-surface-state="loading" label={label} className={className} {...props}>
+    <SkeletonRegion data-surface-state="loading" label={label} {...props}>
       {children}
     </SkeletonRegion>
   );

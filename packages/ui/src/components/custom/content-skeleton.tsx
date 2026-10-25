@@ -269,6 +269,19 @@ export interface TableRowSkeletonColumn {
   className?: string;
   /** Pushes the placeholder to the cell's end for right-aligned columns. */
   align?: "start" | "end";
+  /**
+   * Classes for this column's `TableCell`: what the real cell carries on top of the table's own
+   * cell style, such as its padding, a fixed width, or the responsive display that hides the column
+   * in a narrow pane. A column the header hides needs the same display class here, or its
+   * placeholder cell would stay and push the visible columns out of line.
+   */
+  cellClassName?: string;
+  /**
+   * The cell's own placeholder, for a column whose shape is more than one text bar (a glyph beside
+   * a label, an avatar, a title with a meta line). It receives the row's position, so a stack of
+   * rows can vary its widths, and replaces the default bar: `className` and `align` do not apply.
+   */
+  placeholder?: (row: number) => React.ReactNode;
 }
 
 export interface TableRowSkeletonProps extends Omit<React.ComponentProps<"tr">, "children"> {
@@ -283,7 +296,9 @@ export interface TableRowSkeletonProps extends Omit<React.ComponentProps<"tr">, 
  * real `<TableBody>` of the real `<Table>` (keep the real header) so the cell height, padding
  * and type are the table's own, and wrap the whole table in a `SkeletonRegion`: a table body
  * cannot hold a status region of its own. Give columns the widths the real data has, and the
- * same fixed layout, so the columns do not shift when the rows arrive.
+ * same fixed layout, so the columns do not shift when the rows arrive. A table whose columns
+ * come and go with its pane's width passes each column the same `cellClassName` its real cells
+ * and header carry.
  */
 function TableRowSkeleton({ count = 5, columns, className, ...props }: TableRowSkeletonProps) {
   const cells: readonly TableRowSkeletonColumn[] =
@@ -298,17 +313,24 @@ function TableRowSkeleton({ count = 5, columns, className, ...props }: TableRowS
           className={cn("animate-skeleton-reveal hover:bg-transparent", className)}
           {...props}
         >
-          {skeletonSlots(`${row.id}-cell`, cells.length).map(cell => (
-            <TableCell key={cell.id}>
-              <SkeletonText
-                className={cn(
-                  cycleByPosition(CELL_WIDTHS, cell.position + row.position),
-                  cells[cell.position].align === "end" && "ml-auto",
-                  cells[cell.position].className
+          {skeletonSlots(`${row.id}-cell`, cells.length).map(cell => {
+            const column = cells[cell.position];
+            return (
+              <TableCell key={cell.id} className={column.cellClassName}>
+                {column.placeholder ? (
+                  column.placeholder(row.position)
+                ) : (
+                  <SkeletonText
+                    className={cn(
+                      cycleByPosition(CELL_WIDTHS, cell.position + row.position),
+                      column.align === "end" && "ml-auto",
+                      column.className
+                    )}
+                  />
                 )}
-              />
-            </TableCell>
-          ))}
+              </TableCell>
+            );
+          })}
         </TableRow>
       ))}
     </>

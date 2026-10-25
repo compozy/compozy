@@ -167,6 +167,16 @@
   animation-timing-function: var(--ease-out);
 }
 
+/* The focused body is named only while a drill runs. A permanent name made every
+   in-window React <ViewTransition> also snapshot the whole body and lay the UA
+   cross-fade over the boundary's own animation. A window whose content declares
+   `data-owns-view-transition` (sibling navigation such as Settings sections)
+   animates through its own boundary instead, so its body is never drilled. */
+html:active-view-transition-type(drill-in, drill-out)
+  [data-view-transition-body="os-window-body"]:not(:has([data-owns-view-transition])) {
+  view-transition-name: os-window-body;
+}
+
 html:active-view-transition-type(drill-in)::view-transition-new(os-window-body) {
   animation-name: vt-slide-in-from-end;
 }

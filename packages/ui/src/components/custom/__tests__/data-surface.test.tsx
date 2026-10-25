@@ -8,7 +8,9 @@ import { resolveDataSurfaceState } from "../data-surface-state";
 function renderSurface(state: React.ComponentProps<typeof DataSurface>["state"]) {
   return render(
     <DataSurface state={state} data-testid="surface">
-      <DataSurface.Loading data-testid="surface-loading" />
+      <DataSurface.Loading data-testid="surface-loading">
+        <span />
+      </DataSurface.Loading>
       <DataSurface.Error
         data-testid="surface-error"
         icon={KeyRound}
@@ -49,8 +51,8 @@ describe("DataSurface", () => {
     }
   });
 
-  it("Should show skeleton children in a busy status region instead of the spinner", () => {
-    const { container } = render(
+  it("Should show skeleton children in a busy status region", () => {
+    render(
       <DataSurface state="loading">
         <DataSurface.Loading label="Loading records">
           <span data-testid="skeleton-shape" />
@@ -63,19 +65,6 @@ describe("DataSurface", () => {
     expect(region).toHaveAttribute("aria-busy", "true");
     expect(region).toHaveTextContent("Loading records");
     expect(region).toContainElement(screen.getByTestId("skeleton-shape"));
-    expect(container.querySelector('[data-slot="block-loading"]')).toBeNull();
-  });
-
-  it("Should keep the spinner fallback when no skeleton is passed", () => {
-    const { container } = render(
-      <DataSurface state="loading">
-        <DataSurface.Loading label="Loading records" />
-        <DataSurface.Content>ready content</DataSurface.Content>
-      </DataSurface>
-    );
-
-    expect(container.querySelector('[data-slot="block-loading"]')).not.toBeNull();
-    expect(screen.getByLabelText("Loading records")).toBeInTheDocument();
   });
 
   it("Should resolve state using loading, error, empty, ready precedence", () => {

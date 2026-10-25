@@ -30,6 +30,8 @@ import {
   useLoopsAggregate,
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
+import { providerUsageOptions } from "@/systems/provider-usage";
+import { defaultUsageEnvelope } from "@/systems/provider-usage/mocks";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import {
   profileSelectionOptions,
@@ -98,6 +100,7 @@ const adapterMocks = vi.hoisted(() => ({
   getSettingsHooksExtensions: vi.fn(),
   getSettingsObservability: vi.fn(),
   getSettingsPersona: vi.fn(),
+  getProviderUsage: vi.fn(),
   getSettingsSkills: vi.fn(),
   getSettingsUpdate: vi.fn(),
   getSkill: vi.fn(),
@@ -138,6 +141,13 @@ vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
 vi.mock("@/systems/onboarding/adapters/onboarding-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/onboarding/adapters/onboarding-api")>()),
   fetchOnboardingStatus: adapterMocks.fetchOnboardingStatus,
+}));
+
+vi.mock("@/systems/provider-usage/adapters/provider-usage-api", async importOriginal => ({
+  ...(await importOriginal<
+    typeof import("@/systems/provider-usage/adapters/provider-usage-api")
+  >()),
+  getProviderUsage: adapterMocks.getProviderUsage,
 }));
 
 vi.mock("@/systems/profiles/adapters/profiles-api", async importOriginal => ({
@@ -758,6 +768,7 @@ describe("route query preloading", () => {
     adapterMocks.fetchWorkspaces.mockResolvedValue([workspace]);
     adapterMocks.fetchWorkspace.mockResolvedValue({ ...workspace, providers: [] });
     adapterMocks.fetchOnboardingStatus.mockResolvedValue({ completed: true });
+    adapterMocks.getProviderUsage.mockResolvedValue(defaultUsageEnvelope());
     adapterMocks.fetchStatus.mockResolvedValue({ daemon: { user_home_dir: "/home/operator" } });
     adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "default" });
     adapterMocks.fetchAgents.mockResolvedValue([]);
@@ -840,6 +851,36 @@ describe("route query preloading", () => {
       run: { loop_name: "review", status: "running" },
     });
     setActiveWorkspaceId(workspace.id);
+  });
+
+  // The usage tray read is optional to the desktop: an unanswered /api/provider-usage must neither
+  // hold the app route nor delay the warmups beside it, and it still warms the acting profile's key.
+  it("Should settle the app route and start its warmups while the usage read is unanswered", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getProviderUsage.mockImplementation(() => new Promise(() => undefined));
+
+    await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
+
+    for (const warmup of [
+      adapterMocks.fetchAgents,
+      adapterMocks.fetchAgentCatalog,
+      adapterMocks.fetchWorkspace,
+      adapterMocks.fetchSessions,
+    ]) {
+      expect(warmup).toHaveBeenCalledTimes(1);
+    }
+    expect(adapterMocks.getProviderUsage).toHaveBeenCalledTimes(1);
+    const profile = readActingProfile(queryClient);
+    expect(queryClient.getQueryState(providerUsageOptions(profile).queryKey)?.fetchStatus).toBe(
+      "fetching"
+    );
+  });
+
+  it("Should still render the app shell when the usage envelope cannot be read", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getProviderUsage.mockRejectedValue(new Error("usage unavailable"));
+
+    await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
   });
 
   it.each(cases)("Should reuse the preloaded cache for $name", async testCase => {

@@ -1,23 +1,20 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section, SkeletonRegion } from "@compozy/ui";
+import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Section } from "@compozy/ui";
 
 import { TaskRunLoadingTopbar, TaskRunTopbar } from "./task-run-topbar";
 import { TASK_DETAIL_GRID_CLASS, TASK_DETAIL_RAIL_CLASS } from "./task-detail-layout";
+import { TaskPageLoadingFrame, TaskRunLoadingGrid } from "./task-loading-frames";
 import { type TaskRunLocationController, useTaskRunLocation } from "./use-task-run-location";
 import {
   TaskResultSection,
-  TaskReviewCardSkeleton,
   TaskRunActivitySection,
   TaskRunForceFailDialog,
   TaskRunInspectDrawer,
-  TaskRunMainSkeleton,
   TaskRunOutcome,
   TaskRunRail,
-  TaskRunRailSkeleton,
   TaskRunReviewCard,
   TaskRunSubhead,
-  TaskSubheadSkeleton,
   useTaskRunResult,
 } from "@/systems/tasks";
 import type { TaskRun } from "@/systems/tasks";
@@ -28,24 +25,12 @@ import type { TaskRun } from "@/systems/tasks";
  */
 function TaskRunLoading({ controller }: { controller: TaskRunLocationController }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <TaskRunLoadingTopbar controller={controller} />
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <div className={cn(PAGE_CONTENT_GUTTER, "@container pt-5 pb-16")}>
-          <TaskSubheadSkeleton />
-          <SkeletonRegion
-            className={TASK_DETAIL_GRID_CLASS}
-            data-testid="tasks-run-detail-loading"
-            label="Loading run"
-          >
-            <TaskRunMainSkeleton />
-            <aside className={TASK_DETAIL_RAIL_CLASS}>
-              <TaskRunRailSkeleton />
-            </aside>
-          </SkeletonRegion>
-        </div>
-      </div>
-    </div>
+    <TaskPageLoadingFrame
+      bottomPadding="pb-16"
+      head={<TaskRunLoadingTopbar controller={controller} />}
+    >
+      <TaskRunLoadingGrid />
+    </TaskPageLoadingFrame>
   );
 }
 
@@ -182,17 +167,16 @@ function TaskRunResult({ run, workspaceId }: { run: TaskRun; workspaceId: string
 function TaskRunReviews({ page }: { page: ReturnType<typeof useTaskRunLocation>["page"] }) {
   return (
     <>
-      {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
+      {/* Reviews are opt-in, so most runs never have this section: while the read is pending it
+          holds no placeholder (a skeleton for a section that then never appears moved the run
+          activity below it). It renders once reviews or an error arrive. */}
+      {page.reviewsError || page.reviews.length > 0 ? (
         <Section
           count={page.reviews.length || undefined}
           data-testid="tasks-run-reviews"
           label="Reviews"
         >
-          {page.reviewsLoading ? (
-            <SkeletonRegion label="Loading reviews">
-              <TaskReviewCardSkeleton />
-            </SkeletonRegion>
-          ) : page.reviewsError ? (
+          {page.reviewsError ? (
             <p className="text-small-body text-danger" role="alert">
               {page.reviewsError.message}
             </p>

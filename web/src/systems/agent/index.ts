@@ -293,17 +293,17 @@ export {
   AgentConfigurationTab,
   type AgentConfigurationTabProps,
 } from "./components/agent-configuration-tab";
+export { AgentSessionsTab, type AgentSessionsTabProps } from "./components/agent-sessions-tab";
+export { AgentSessionsTabSkeleton } from "./components/agent-sessions-tab-skeleton";
 export {
-  AgentSessionsTab,
-  AgentSessionsTabSkeleton,
-  type AgentSessionsTabProps,
-} from "./components/agent-sessions-tab";
-export {
-  AgentInstructionsSkeleton,
   AgentInstructionsTab,
   type AgentInstructionsTabProps,
   type AgentInstructionsTabViewModel,
 } from "./components/agent-instructions-tab";
+export {
+  AgentInstructionsPlaceholder,
+  AgentInstructionsSkeleton,
+} from "./components/agent-instructions-skeleton";
 export {
   useAgentInstructionsTab,
   type UseAgentInstructionsTabArgs,

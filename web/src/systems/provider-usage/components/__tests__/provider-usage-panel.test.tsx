@@ -76,6 +76,15 @@ describe("Provider usage components", () => {
       expect(button.querySelector("[data-slot=progress]")).toHaveAttribute("data-tone", "neutral");
     });
 
+    it("Should hold the meter's shape, unmeasured, while the first read is pending", () => {
+      render(<ProviderUsageTrayMeter tray={null} loading />);
+      const button = screen.getByRole("button", { name: "Provider usage" });
+
+      expect(button).toHaveAttribute("data-loading", "true");
+      expect(button.querySelector("[data-slot=skeleton]")).not.toBeNull();
+      expect(within(button).queryByRole("progressbar")).toBeNull();
+    });
+
     it("Should map warning and exhausted to their tones and say limit reached", () => {
       const { rerender } = render(
         <ProviderUsageTrayMeter tray={usageTray({ used_percent: 88, severity: "warning" }, NOW)} />
@@ -321,9 +330,15 @@ describe("Provider usage components", () => {
       expect(button).toBeDisabled();
     });
 
-    it("Should show skeleton rows on the first read and the turned-off state", () => {
+    it("Should hold the rows' place on the first read and show the turned-off state", () => {
       const { rerender } = renderPanel({ viewModel: null, loading: true });
-      expect(document.querySelector("[data-slot=skeleton-rows]")).not.toBeNull();
+      // One named loading area in the rows' own shape, claiming nothing about the providers.
+      const region = screen.getByRole("status");
+      expect(region).toHaveAttribute("aria-busy", "true");
+      expect(region).toHaveTextContent("Loading provider usage");
+      expect(region.querySelectorAll("li")).toHaveLength(3);
+      expect(screen.queryByText("No providers to show")).toBeNull();
+      expect(screen.queryByText("Provider usage is turned off")).toBeNull();
       const onOpenSettings = vi.fn();
       rerender(
         <ProviderUsagePanel
@@ -334,6 +349,7 @@ describe("Provider usage components", () => {
           onOpenSettings={onOpenSettings}
         />
       );
+      expect(screen.queryByRole("status")).toBeNull();
       expect(screen.getByText("Provider usage is turned off")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Refresh provider usage/ })).toBeNull();
     });

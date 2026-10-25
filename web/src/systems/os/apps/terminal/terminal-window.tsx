@@ -1,12 +1,14 @@
-import { BlockLoading, Button, Empty, toast } from "@compozy/ui";
+import { Button, Empty, toast } from "@compozy/ui";
 import { AlertCircle, FolderOpen, TerminalSquare } from "lucide-react";
 
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
   TerminalJournalPanel,
   TerminalRecordingPlayer,
+  TerminalRecordingSkeleton,
   TerminalStoreProvider,
   TerminalWindowApp,
+  TerminalWindowSkeleton,
 } from "@/systems/terminal";
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
@@ -89,7 +91,7 @@ function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
     );
   }
   if (catalog.isPending || inputRequests.isPending) {
-    return <BlockLoading className="flex-1" label="Loading terminals" surface="bare" />;
+    return <TerminalWindowSkeleton label="Loading terminals" />;
   }
   const error = catalog.error ?? inputRequests.error;
   if (error) {
@@ -230,6 +232,7 @@ function TerminalWindowJournal({
 }) {
   const {
     journal,
+    journalUnlocked,
     journalChips,
     profile,
     replay,
@@ -239,9 +242,9 @@ function TerminalWindowJournal({
     setSelectedCommandId,
     settings,
   } = useTerminalWindowControllerContext();
-  if (journal.isPending && replay === null) {
-    return <BlockLoading className="flex-1" label="Loading the journal" surface="bare" />;
-  }
+  // The host keeps this panel mounted while it is hidden, and nobody has opened a journal that is
+  // still locked: it reads nothing and has nothing to show yet.
+  if (!journalUnlocked) return null;
   if (journal.error && replay === null) {
     return (
       <TerminalWindowError
@@ -261,6 +264,7 @@ function TerminalWindowJournal({
       entries={journal.data?.pages.flatMap(page => page.entries) ?? []}
       hasMore={journal.hasNextPage}
       isLoadingMore={journal.isFetchingNextPage}
+      loading={journal.isPending}
       onCopyCommand={
         canCopyCommand
           ? command =>
@@ -294,7 +298,7 @@ function TerminalWindowReplay({ retentionDays }: { retentionDays?: number }) {
   const { recording, replay, setReplay } = useTerminalWindowControllerContext();
   if (replay === null) return null;
   if (recording.isPending) {
-    return <BlockLoading className="flex-1" label="Loading the recording" surface="bare" />;
+    return <TerminalRecordingSkeleton />;
   }
   if (recording.error) {
     return (

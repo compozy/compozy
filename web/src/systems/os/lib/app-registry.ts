@@ -10,12 +10,33 @@ import {
   resolveAppDescriptorForPath,
   type OsAppDescriptor,
 } from "./app-catalog";
-import type { OsAppId } from "./os-types";
+import type { OsAppId, OsWindowFallbackProps } from "./os-types";
+import { AgentsWindowFallback } from "../apps/agents/agents-window-fallback";
+import { AutomationsWindowFallback } from "../apps/automations/automations-window-fallback";
+import { LoopsWindowFallback } from "../apps/loops/loops-window-fallback";
+import { MarketplaceWindowFallback } from "../apps/marketplace/marketplace-window-fallback";
+import { NewTabWindowSkeleton } from "../apps/new-tab/new-tab-window-skeleton";
+import { SessionWindowFallback } from "../apps/session/session-window-fallback";
+import { SettingsWindowFallback } from "../apps/settings/settings-window-fallback";
+import { TasksWindowFallback } from "../apps/tasks/tasks-window-fallback";
+import { TerminalWindowFallback } from "../apps/terminal/terminal-window-fallback";
+import { UsageWindowFallback } from "../apps/usage/usage-window-fallback";
+import { VaultWindowFallback } from "../apps/vault/vault-window-fallback";
+import { DashboardWindowSkeleton } from "@/systems/dashboard/skeleton";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
   preload?: (qc: QueryClient, ctx: { workspaceId: string }) => Promise<void>;
   Controller: ComponentType<{ windowId: string }>;
+  /**
+   * The window body while the app's code loads, shaped like the route it is about to render. It is
+   * mounted eagerly in the shell and shown before the app's own providers exist, so it stays
+   * static: no queries, router or app context, and no import of the app's window module. Its one
+   * live input is the window's own view preference (the session rail's width), which it may read
+   * so the frame is the one the loaded window mounts. Apps without one keep the generic loading
+   * rows.
+   */
+  LoadingFallback?: ComponentType<OsWindowFallbackProps>;
 }
 
 const DashboardWindow = lazy(() =>
@@ -94,56 +115,68 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.dashboard,
     preload: preloadDashboard,
     Controller: DashboardWindow,
+    LoadingFallback: DashboardWindowSkeleton,
   },
   session: {
     ...OS_APP_DESCRIPTORS.session,
     Controller: SessionWindow,
+    LoadingFallback: SessionWindowFallback,
   },
   terminal: {
     ...OS_APP_DESCRIPTORS.terminal,
     Controller: TerminalWindow,
+    LoadingFallback: TerminalWindowFallback,
   },
   "new-tab": {
     ...OS_APP_DESCRIPTORS["new-tab"],
     Controller: NewTabWindow,
+    LoadingFallback: NewTabWindowSkeleton,
   },
   agents: {
     ...OS_APP_DESCRIPTORS.agents,
     preload: preloadAgents,
     Controller: AgentsWindow,
+    LoadingFallback: AgentsWindowFallback,
   },
   tasks: {
     ...OS_APP_DESCRIPTORS.tasks,
     preload: preloadTasks,
     Controller: TasksWindow,
+    LoadingFallback: TasksWindowFallback,
   },
   loops: {
     ...OS_APP_DESCRIPTORS.loops,
     preload: preloadLoops,
     Controller: LoopsWindow,
+    LoadingFallback: LoopsWindowFallback,
   },
   automations: {
     ...OS_APP_DESCRIPTORS.automations,
     preload: preloadAutomations,
     Controller: AutomationsWindow,
+    LoadingFallback: AutomationsWindowFallback,
   },
   marketplace: {
     ...OS_APP_DESCRIPTORS.marketplace,
     Controller: MarketplaceWindow,
+    LoadingFallback: MarketplaceWindowFallback,
   },
   vault: {
     ...OS_APP_DESCRIPTORS.vault,
     preload: preloadVault,
     Controller: VaultWindow,
+    LoadingFallback: VaultWindowFallback,
   },
   usage: {
     ...OS_APP_DESCRIPTORS.usage,
     Controller: UsageWindow,
+    LoadingFallback: UsageWindowFallback,
   },
   settings: {
     ...OS_APP_DESCRIPTORS.settings,
     preload: preloadSettings,
     Controller: SettingsWindow,
+    LoadingFallback: SettingsWindowFallback,
   },
 };
 

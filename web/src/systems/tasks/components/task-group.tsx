@@ -81,7 +81,8 @@ function TaskGroup({ id, label, count, totalCount, children, className }: TaskGr
 /**
  * The placeholder twin of `TaskGroup`: the same `tbody` and sunken header row with a glyph and
  * label left as blocks. The bucket is unknown until the rows arrive, so it names none. Children
- * are `TasksListRowSkeleton`s; wrap the whole table in a `SkeletonRegion`.
+ * are placeholder rows (`TableRowSkeleton` over the row's skeleton columns); wrap the whole
+ * table in a `SkeletonRegion`.
  */
 function TaskGroupSkeleton({ children }: { children: ReactNode }) {
   return (

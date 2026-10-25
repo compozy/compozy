@@ -37,6 +37,10 @@ import { MarketplaceEntryCard } from "./marketplace-entry-card";
 import { MarketplaceInstalledTrail } from "./marketplace-entry-trail";
 import { MarketplaceGrid, MarketplaceGridSkeleton } from "./marketplace-grid";
 import { formatMarketplaceVersion, marketplaceErrorMessage } from "./marketplace-ui";
+import {
+  MARKETPLACE_INSTALLED_GRID_CLASS,
+  MARKETPLACE_PAGE_BODY_CLASS,
+} from "./marketplace-classes";
 import type { useMarketplaceActionController } from "./use-marketplace-action-controller";
 import { useMarketplaceInstalled } from "./use-marketplace-installed";
 
@@ -97,7 +101,7 @@ function MarketplaceInstalledPage({
 
   return (
     <ListingPage data-testid="marketplace-installed-page">
-      <div className="@container flex min-w-0 flex-col gap-3.5">
+      <div className={MARKETPLACE_PAGE_BODY_CLASS}>
         {page.updates.length > 0 ? (
           <MarketplaceUpdatesLine actions={actions} updates={page.updates} />
         ) : null}
@@ -135,12 +139,7 @@ function MarketplaceInstalledBody({
   query: string;
 }) {
   if (page.isPending)
-    return (
-      <MarketplaceGridSkeleton
-        className="@min-[960px]:grid-cols-1 [&_[data-slot=catalog-card-description]]:line-clamp-2"
-        count={4}
-      />
-    );
+    return <MarketplaceGridSkeleton className={MARKETPLACE_INSTALLED_GRID_CLASS} count={4} />;
 
   if (page.error && page.installedCount === 0) {
     return (
@@ -197,7 +196,7 @@ function MarketplaceInstalledBody({
 
   return (
     <MarketplaceGrid
-      className="@min-[960px]:grid-cols-1 [&_[data-slot=catalog-card-description]]:line-clamp-2"
+      className={MARKETPLACE_INSTALLED_GRID_CLASS}
       data-testid="marketplace-installed-grid"
     >
       {page.items.map(item => {
