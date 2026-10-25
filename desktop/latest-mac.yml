@@ -1,9 +1,9 @@
-version: 0.4.0
-releaseDate: 2026-10-24T14:44:48.785Z
+version: 0.4.1
+releaseDate: 2026-10-25T06:28:52.521Z
 files:
-  - url: https://github.com/compozy/compozy/releases/download/v0.4.0/CompozyOS-0.4.0-mac-arm64.zip
-    sha512: 9FZKMgkAb14jIaXVBxoX26msBeX1Dg638YitgPLoT1JkLr3vLJDGDLYtv+k9UH9AKTcYyMquv2Kt7KjUalbY7w==
-    size: 220148016
-  - url: https://github.com/compozy/compozy/releases/download/v0.4.0/CompozyOS-0.4.0-mac-x64.zip
-    sha512: nnH5T/hOQ4PXfeP+BPlkALA4CoDIuA7AFAZUTUzFmyiZ//049safXJImOHy1jKFpRdFrEsMY4tsdFVSTNcZnow==
-    size: 232396652
+  - url: https://github.com/compozy/compozy/releases/download/v0.4.1/CompozyOS-0.4.1-mac-arm64.zip
+    sha512: aQxy89kVTnn52Ma6WBXD5qVhQRjUVkhkx0Xjja8wZ9LlRBN4+53K514syuxsg+2SOb76rOrRxyvZ3gTm4nzPvg==
+    size: 220161283
+  - url: https://github.com/compozy/compozy/releases/download/v0.4.1/CompozyOS-0.4.1-mac-x64.zip
+    sha512: nUPx5Zz4vzi9OSasXRh2JwzD/Nr3S9S3Hh5pMLt1gkD7rpQy4mu0nyNMVhyv8IwCqSGeSAAoJ4pE62DHMvRLjQ==
+    size: 232424784
