@@ -124,12 +124,11 @@ ignore_tags = "v[0-9].*-(alpha|beta|rc)"
 sort_commits = "oldest"
 
 [bump]
-# Stable releases: a release with features bumps the minor; fix-only releases bump the patch.
-features_always_bump_minor = true
-# Breaking changes bump the minor while the major version is 0.
+# While the major version is 0, the minor marks breaking changes (the npm/Cargo caret
+# convention): features and fixes bump the patch, breaking changes bump the minor.
+features_always_bump_minor = false
 breaking_always_bump_major = false
 
 initial_tag = "v0.0.2"
 
 custom_major_increment_regex = "MAJOR|BREAKING[- ]CHANGE"
-custom_minor_increment_regex = "feat|feature|MINOR"
