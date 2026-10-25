@@ -459,7 +459,10 @@ export const test = base.extend<DesktopFixtures>({
       for (const step of [
         async () => await terminateRestartedDesktop(home),
         async () => await terminateRuntime(home, environment),
-        async () => await rm(home, { recursive: true, force: true }),
+        // Match the web fixture's bounded retry for transient directory-removal races.
+        // Shell/runtime exit and persistent cleanup failures still fail the scenario.
+        async () =>
+          await rm(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
       ]) {
         try {
           await step();
