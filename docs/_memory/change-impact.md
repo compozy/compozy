@@ -4392,3 +4392,18 @@ and delayed reveals retain their delay under either preference, avoiding fast-lo
 - **Native tools, extensibility/hooks/config, workspace isolation, official skill:** no wire,
   schema, persisted preference, authorization, SDK or `skills/compozy/` change. The DOM attribute
   is an internal rendering boundary and is restored when the shell unmounts.
+
+## Deferred loading skeletons during desktop restoration — 2026-10-25
+
+Owner: v0.4.1 release CI remediation. The Web window host defers app-specific loading
+skeletons with the window body, so react-rnd measures restored frames before their
+layout-heavy descendants mount. The existing lightweight pending indicator covers
+that first commit; suspended bodies retain their app-specific, route-aware fallback.
+Authoritative geometry, focus, routing, and peer convergence remain unchanged.
+
+- **Web/Docs:** the existing E2E-023 performance envelope and OsWindow loading suite own
+  verification. `docs/qa/scenarios/ET-web-desktop-shell-lifecycle.md` records the affected
+  journey and local measurements. Public site documentation does not change.
+- **Native tools, extensibility/hooks/config, workspace isolation, official skill:** no
+  CLI/HTTP/UDS or native tool contract, schema, persisted layout, authorization, extension,
+  hook, config key, SDK, or `skills/compozy/` change. This is client render scheduling only.

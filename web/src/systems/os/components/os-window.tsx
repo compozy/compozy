@@ -238,7 +238,8 @@ function OsWindowMember({
 }) {
   const { coordinator, win, liveDataEnabled, windowBinding } = useOsWindowMember(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
-  // Mount layout-heavy bodies after the restored window frames commit.
+  // Mount layout-heavy bodies, including app skeletons, after the restored
+  // frames commit. react-rnd measures every frame during that first commit.
   const contentHost = useDeferredValue(overlayHost);
   if (!win) return null;
   const appId = osAppId(win.app);
@@ -335,15 +336,9 @@ function OsWindowMember({
             </Suspense>
           </OsWindowErrorBoundary>
         ) : (
-          <OsWindowLoadingFallback
-            app={app}
-            generic={
-              <div className="flex min-h-32 flex-1 items-center justify-center">
-                <Spinner className="size-4 text-subtle" />
-              </div>
-            }
-            windowId={windowId}
-          />
+          <div className="flex min-h-32 flex-1 items-center justify-center">
+            <Spinner className="size-4 text-subtle" />
+          </div>
         )}
       </OverlayContainerContext.Provider>
       <div
