@@ -14,12 +14,14 @@ import {
 /**
  * The section list as the nav shows it, without the controls: the same frame, the real section
  * names and the open section selected, so the rail is final from the first frame. The search
- * field and the daemon status line, which need the live shell, are blocks.
+ * field and the daemon status line, which need the live shell, are blocks. It is not the
+ * navigation: its items are inert, so it keeps its own test id and never answers for the live nav.
  */
 function SettingsNavSkeleton({ activeSlug }: { activeSlug: SettingsSectionSlug }) {
   return (
     <SettingsNavFrame
       aria-hidden="true"
+      data-testid="settings-section-nav-skeleton"
       footer={<SkeletonText className="w-28 text-eyebrow" />}
       search={<Skeleton className="mt-2.5 h-search w-full rounded-md" />}
     >
