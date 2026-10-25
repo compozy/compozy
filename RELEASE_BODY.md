@@ -1,56 +1,36 @@
-## 0.4.0 - 2026-10-24
+## 0.4.1 - 2026-10-25
 
 ### Bug Fixes
 
-- Validate bridge desktop smoke against its update feed
-- Refresh Claude usage after account ownership changes (#931)
-- Revalidate configuration before reusing workspace snapshots
-- Format workspace snapshot configuration checks
-- Align stable release dry-run verification
-- Resume interrupted sessions after daemon restart (#942)
-- Isolate window surfaces from geometry updates (#943)
-- Recover stops after runtime identity release (#948)
-- Reveal native subagent work from session lists (#949)
-- Keep async subagent navigation outside compiler scope
-- Preserve recovered stop reasons and native reveal state
-- Preserve current branch and destination in session board actions
-- Reveal settled native subagents by card identity
-- Wrap current branch queries within source line limits
-- Stop waiting on completed subagent delegations
-- Collect delivery facts independently of PR display cache
+- Strip AppImage runtime state from child environments (#954)
+- Align catalog artifacts and expose version incompatibility (#957)
+- Recover Claude usage from renewed native credentials (#959)
+- Load and cancel session monitors outside the default profile (#961)
+- Recover half-removed worktree checkouts instead of failing with 500 (#964)
+- Prevent contention in GlobalDB integration upgrades (#965)
+- Keep authored line breaks and full composer links in user messages (#968)
+- Preserve worktree locks and finish interrupted removal cleanup
+- Preserve authored inline code spacing
+- Honor app reduced motion in content transitions
+- Preserve skeleton delay under reduced motion
+- Synchronize ACP connection startup and align tray coverage
+- Keep the settings loading rail out of the live navigation
 
 ### Features
 
-- Add managed worktree teardown commands (#937)
-- Link session pull requests, add waiting badge and sessions Kanban (#944)
+- Add Kanban card actions, board group/sort, and per-window session order (#963)
+- Add content-shaped loading states and React view transitions (#972)
+- Finish loading states, window fallbacks and transition fixes for every route (#973)
 
 ### Performance Improvements
 
-- Share hosted MCP projections across equivalent peers (#938)
-- Make session inventory reads cheap and side-effect free (#940)
-- Reduce idle skill watcher and workspace resolver scans (#936)
-
-### Refactoring
-
-- Group session catalog exports with board surface
+- Suspend closed palette topology updates (#960)
+- Avoid palette context updates for window geometry (#971)
+- Defer loading skeletons until restored frames commit
 
 ### Testing
 
-- Align restart fixtures with explicit restart admission
-- Include pull request columns in CLI round-trip contract
-- Attach successor approval to the named wake turn
-- Separate migration verification from upgrade budget
-
-### Release Notes
-
-#### Highlights
-
-##### CompozyOS is stable
-
-v0.4.0 is the first stable CompozyOS release. It closes the v0.3.0 beta line, and every release from here on is a stable release.
-
-- **On a v0.3.0 beta:** update in place from the app's Update action or with `compozy update`. No reinstall, and your sessions, projects, and settings carry over.
-- **On v0.2:** v0.2 has reached end of life and receives no further releases. Homebrew and npm now install v0.4.0, which starts from clean runtime state. Read the [migration guide](https://compozy.com/docs/migration) before upgrading.
-- **New installs:** `brew install compozy/compozy/compozy`, `npm install -g @compozy/cli`, or the verified installer at `curl -fsSL https://compozy.com/install.sh | sh`.
-
-These notes cover the changes since the last beta. The full beta trail lives in the [GitHub releases](https://github.com/compozy/compozy/releases) and the [changelog](https://compozy.com/changelog).
+- Align catalog fixtures and runtime readiness with current contracts
+- Synchronize clarify keepalive log capture
+- Retry transient desktop fixture removal failures
+- Seed Kanban data before opening the browser page
