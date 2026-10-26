@@ -17,6 +17,9 @@ type claudeExecKeychain struct{}
 var _ KeychainReader = claudeExecKeychain{}
 
 // The system JXA bridge supports Security.framework without requiring cgo in release binaries.
+// Non-interactive reads disable both prompt paths: the LAContext flags cover data-protection items,
+// while SecKeychainSetUserInteractionAllowed covers the legacy login keychain ACL dialog that
+// Claude Code's item uses; without it every background poll asks for the keychain password.
 const claudeKeychainScript = `
 ObjC.import('Foundation');
 ObjC.import('Security');
@@ -29,6 +32,7 @@ function run(argv) {
   query.setObjectForKey($(argv[1]), c($.kSecAttrAccount));
   query.setObjectForKey($.NSNumber.numberWithBool(true), c($.kSecReturnData));
   if (argv[2] !== 'true') {
+    $.SecKeychainSetUserInteractionAllowed(false);
     var context = $.LAContext.alloc.init;
     context.interactionNotAllowed = true;
     query.setObjectForKey(context, c($.kSecUseAuthenticationContext));
