@@ -64,7 +64,7 @@ func TestPublishCatalog(t *testing.T) {
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("Should emit only the current catalog family with nineteen extensions [UT-054]", func(t *testing.T) {
+	t.Run("Should emit only the current catalog family with twenty extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
 		files, err := os.ReadDir(output)
 		if err != nil {
@@ -83,7 +83,7 @@ func TestPublishCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if document.ManifestVersion != 3 || len(document.Entries) != 19 {
+		if document.ManifestVersion != 3 || len(document.Entries) != 20 {
 			t.Fatalf("v3 version/count = %d/%d", document.ManifestVersion, len(document.Entries))
 		}
 		for _, entry := range document.Entries {

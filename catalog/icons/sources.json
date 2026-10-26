@@ -121,6 +121,14 @@
             "bytes": 908,
             "conversion": null
         },
+        "keenable": {
+            "page": "https://github.com/keenableai/keenable-mcp",
+            "asset": "https://raw.githubusercontent.com/keenableai/keenable-mcp/main/assets/logo.png",
+            "file": "catalog/icons/keenable.png",
+            "sha256": "a2d59d7979168810c52a2991aa6186632bd7378aa52c1d2bc5b1041763882403",
+            "bytes": 10974,
+            "conversion": null
+        },
         "github": {
             "page": "packages/ui/src/logos/github.tsx",
             "asset": "packages/ui/src/logos/github.tsx",

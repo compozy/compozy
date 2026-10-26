@@ -1,9 +1,9 @@
 ---
 title: Packaged MCP servers
-description: The 17 MCP servers packaged as extensions, their authored inputs and authorization.
+description: The 18 MCP servers packaged as extensions, their authored inputs and authorization.
 ---
 
-The Marketplace publishes these 17 MCP integrations as extension packages in
+The Marketplace publishes these 18 MCP integrations as extension packages in
 `v3/extensions.json`. Each has an extension manifest, typed inputs and a digest-pinned
 artifact. Installation uses the existing extension lifecycle and preserves separate
 manual MCP configuration and credentials.
@@ -38,6 +38,7 @@ package set. A package can require configuration or OAuth after installation.
 | Grafana               | Pinned uvx package `mcp-grafana==1.0.0`                   | Workspace scope; requires a Grafana URL and service-account token, and launches with `--disable-write`.                                  |
 | Cal.com               | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
 | Cloudflare Code Mode  | Hosted Streamable HTTP                                    | Workspace scope; OAuth discovery and registration are automatic.                                                                         |
+| Keenable              | Hosted Streamable HTTP                                    | Workspace scope; keyless, so it needs no input or sign-in.                                                                               |
 
 Pinned local distributions are exact so a catalog refresh cannot silently select a different
 package. A Docker distribution is additionally pinned to a verified image digest. Hosted integrations carry a package version for the authored configuration; the provider owns
@@ -75,6 +76,9 @@ default. [Yaw Labs PostgreSQL MCP](https://www.npmjs.com/package/@yawlabs/postgr
 Cloudflare's Code Mode design exposes a small progressive-discovery interface and keeps
 credentials in the host callback rather than generated code. [Cloudflare Code
 Mode](https://developers.cloudflare.com/agents/model-context-protocol/codemode/)
+
+Keenable documents its hosted Streamable HTTP endpoint and a keyless public tier; an API key
+only raises rate limits. [Keenable MCP server](https://docs.keenable.ai/mcp-server)
 
 ## Deliberate omissions
 
