@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.2 - 2026-10-26
+
+### Bug Fixes
+
+- Stop background Claude usage reads from prompting for the keychain (#977)
+
+### Testing
+
+- Allow cold PowerShell startup when reading the Windows grandchild PID
+
 ## 0.4.1 - 2026-10-25
 
 ### Bug Fixes
@@ -859,6 +869,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.4.2]: https://github.com/compozy/compozy/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/compozy/compozy/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/compozy/compozy/compare/v0.2.15...v0.4.0
 [0.2.15]: https://github.com/compozy/compozy/compare/v0.2.14...v0.2.15
