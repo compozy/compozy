@@ -1,0 +1,109 @@
+diff --git a/dist/runtimes/external-store/external-store-thread-runtime-core.js b/dist/runtimes/external-store/external-store-thread-runtime-core.js
+index ed88bcd0ad099293e0877d76d503e1fa89ad46e0..253d9042f995156b932f6ea0fa7c7f4a208d5b10 100644
+--- a/dist/runtimes/external-store/external-store-thread-runtime-core.js
++++ b/dist/runtimes/external-store/external-store-thread-runtime-core.js
+@@ -6,7 +6,7 @@ import { getContentAutoStatus, isAutoStatus } from "../../runtime/utils/auto-sta
+ import { ExportedMessageRepository, MessageRepository } from "../../runtime/utils/message-repository.js";
+ import { EMPTY_QUEUE_ITEMS } from "../../runtime/queue/queue-item.js";
+ import { walkToolCallTree } from "../../runtime/utils/tool-call-tree.js";
+-import { captureThreadRuntimeGeneration } from "../../runtime/utils/thread-runtime-lifecycle.js";
++import { captureThreadRuntimeDisposal, captureThreadRuntimeGeneration } from "../../runtime/utils/thread-runtime-lifecycle.js";
+ import { BaseThreadRuntimeCore } from "../../runtime/base/base-thread-runtime-core.js";
+ import { ThreadMessageConverter } from "./thread-message-converter.js";
+ import { shallowArrayEqual } from "../../runtime/utils/external-message-conversion.js";
+@@ -128,6 +128,7 @@ var ExternalStoreThreadRuntimeCore = class extends BaseThreadRuntimeCore {
+ 	constructor(contextProvider, store) {
+ 		super(contextProvider);
+ 		this.__internal_setAdapter(store);
++		captureThreadRuntimeDisposal(this).addEventListener("abort", () => this._toolInvocations?.dispose(), { once: true });
+ 	}
+ 	__internal_setAdapter(store) {
+ 		if (this._store === store) return;
+@@ -310,7 +311,7 @@ var ExternalStoreThreadRuntimeCore = class extends BaseThreadRuntimeCore {
+ 	_driveToolInvocations() {
+ 		if (!this._store.unstable_enableToolInvocations) {
+ 			if (this._toolInvocations) {
+-				this._toolInvocations.reset();
++				this._toolInvocations.dispose();
+ 				this._toolInvocations = null;
+ 				this._toolStatuses = /* @__PURE__ */ new Map();
+ 				this._store.setToolStatuses?.({});
+diff --git a/dist/runtimes/tool-invocations/ToolInvocationTracker.js b/dist/runtimes/tool-invocations/ToolInvocationTracker.js
+index 15abc8de792fed4cad1d2ab7010c2f77d2c1eb4b..ed3e0365ae36630e06e558655c6d009641a07ee8 100644
+--- a/dist/runtimes/tool-invocations/ToolInvocationTracker.js
++++ b/dist/runtimes/tool-invocations/ToolInvocationTracker.js
+@@ -71,6 +71,7 @@ var ToolInvocationTracker = class {
+ 	_lastSnapshot = null;
+ 	_isRunning = false;
+ 	_controller;
++	_pipelineAbort = new AbortController();
+ 	/**
+ 	* Set when the assistant-stream pipeline has died (errored out via
+ 	* `.pipeTo(...).catch(...)`). The next `setState` re-initializes the
+@@ -87,10 +88,9 @@ var ToolInvocationTracker = class {
+ 		this._getTools = getTools;
+ 		this._callbacks = callbacks;
+ 		this._isClientToolCall = isClientToolCall;
+-		this._initPipeline();
+ 	}
+ 	/**
+-	* Build the assistant-stream pipeline. Called once from the constructor
++	* Build the assistant-stream pipeline lazily for the first live tool call
+ 	* and at most once again if `_pipelineDead` is set (see F.4 in
+ 	* EDGE_CASES.md).
+ 	*/
+@@ -109,7 +109,8 @@ var ToolInvocationTracker = class {
+ 			} catch (err) {
+ 				console.error("[ToolInvocationTracker] result chunk handling failed", err);
+ 			}
+-		} })).catch((err) => {
++		} }), { signal: this._pipelineAbort.signal }).catch((err) => {
++			if (this._pipelineAbort.signal.aborted) return;
+ 			console.error("[ToolInvocationTracker] stream pipeline failed; will attempt single restart on next setState", err);
+ 			this._pipelineDead = true;
+ 		});
+@@ -119,6 +120,7 @@ var ToolInvocationTracker = class {
+ 	* runtime whenever its message list / running state changes.
+ 	*/
+ 	setState(snapshot) {
++		if (this._pipelineAbort.signal.aborted) return;
+ 		try {
+ 			if (this._pipelineDead) {
+ 				if (this._pipelineRestartUsed) return;
+@@ -145,6 +147,12 @@ var ToolInvocationTracker = class {
+ 			console.error("[ToolInvocationTracker] setState failed; snapshot dropped", err);
+ 		}
+ 	}
++	/** Permanently release the pipeline when its thread owner is discarded. */
++	dispose() {
++		if (this._pipelineAbort.signal.aborted) return;
++		this._pipelineAbort.abort();
++		this.reset();
++	}
+ 	/**
+ 	* Reset the tracker so the next observed snapshot is treated as historical.
+ 	* Clears entries and aborts any in-flight executions. Used by callers like
+@@ -339,6 +347,7 @@ var ToolInvocationTracker = class {
+ 		});
+ 	}
+ 	_invokeOnResult(command) {
++		if (this._pipelineAbort.signal.aborted) return;
+ 		try {
+ 			this._callbacks.onResult(command);
+ 		} catch (err) {
+@@ -346,6 +355,7 @@ var ToolInvocationTracker = class {
+ 		}
+ 	}
+ 	_invokeOnStatusesChange() {
++		if (this._pipelineAbort.signal.aborted) return;
+ 		try {
+ 			this._callbacks.onStatusesChange(this._statuses);
+ 		} catch (err) {
+@@ -385,6 +395,7 @@ var ToolInvocationTracker = class {
+ 		return clientOwned || !this._isRunning;
+ 	}
+ 	_startActiveEntry(toolCallId, toolName, skipExecute, clientOwned) {
++		if (!this._controller) this._initPipeline();
+ 		const entry = {
+ 			toolName,
+ 			controller: this._controller.addToolCallPart({

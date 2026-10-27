@@ -167,3 +167,14 @@ Review follow-up 2026-10-23: with discovery failing and no live bindings, Claude
 admission retain `model_unavailable` and the discovery diagnostic without launching a provider.
 The existing HTTP negotiation mapping remains 422. The focused session admission suite passed;
 final-head CI owns the HTTP/integration verification.
+
+
+QA impact 2026-10-27 (session responsiveness): model option and source-issue projections
+now retain their collections across unrelated renders. Change the mounted selector's
+provider order/authentication and authoritative model rows; the visible options,
+disabled state, stale state and provider guidance must update immediately. Preserve
+one aggregate read, initial missing-provider refresh, explicit forced refresh and
+failure/recovery semantics. The existing hook suite owns these transitions; the
+agent create and session provider-override browser journeys own the daemon/UI slice.
+Current-head CI evidence is recorded in PR #983. This change does not claim a new
+live-vendor authentication or discovery walk.

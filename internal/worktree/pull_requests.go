@@ -37,6 +37,7 @@ type pullRequestFlight struct {
 }
 type repoKeyCache struct {
 	key   string
+	err   error
 	until time.Time
 }
 

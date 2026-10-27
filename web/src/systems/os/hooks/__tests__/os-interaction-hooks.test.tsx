@@ -54,6 +54,9 @@ import { windowManagerStore } from "../../stores/window-manager-store";
 import { createWindowManagerProjectionAtom } from "../../lib/window-manager-projection";
 import { useGlobalShortcutReconciliation } from "../use-global-shortcut-reconciliation";
 import { useOsDocumentReducedMotion } from "../use-os-reduced-motion";
+import { useDesktopPager, useDesktopShellState } from "../use-desktop-shell-state";
+import { useDesktopManagerSurfaces } from "../use-desktop-manager-surfaces";
+import type { OsSessionAttentionRow } from "../../lib/attention-model";
 
 const TEST_KEYMAP = {
   "palette.open": ["meta+KeyK", "meta+shift+KeyP"],
@@ -376,6 +379,110 @@ describe("document reduced motion", () => {
     unmount();
     expect(document.documentElement).toHaveAttribute("data-reduce-motion", "false");
     document.documentElement.removeAttribute("data-reduce-motion");
+  });
+});
+
+// Invariant: shell metadata ignores geometry, while window membership, attention,
+// and an opened overview immediately reflect the latest authoritative projection.
+// Owning layer: OS projection subscriptions; canonical suite: OS interaction hooks.
+describe("desktop chrome projection subscriptions", () => {
+  it("Should ignore geometry and publish window membership and desktop attention", () => {
+    const shell = createShell();
+    const primary: OsWindow = {
+      ...shell.state.windows["window:primary"]!,
+      app: "session",
+      instanceKey: "session:attention",
+    };
+    shell.setRuntimeState({ windows: { [primary.id]: primary } });
+    const row: OsSessionAttentionRow = {
+      kind: "session",
+      id: primary.instanceKey!,
+      title: "Needs input",
+      agentName: "agent",
+      workspaceId: "workspace:test",
+      workspaceLabel: "Test",
+      badge: "waiting-for-input",
+      reason: "Waiting for input",
+      changedAt: "2026-10-27T00:00:00Z",
+      muted: false,
+      stale: false,
+    };
+    let renders = 0;
+    const { result, rerender } = renderHook(
+      ({ needsYou }: { needsYou: OsSessionAttentionRow[] }) => {
+        renders += 1;
+        return { chrome: useDesktopShellState(), pager: useDesktopPager(needsYou) };
+      },
+      { wrapper: shell.wrapper, initialProps: { needsYou: [row] } }
+    );
+    const initialRenders = renders;
+    const moved = { ...primary, rect: { ...primary.rect, x: 200 } };
+    act(() => shell.setRuntimeState({ windows: { [primary.id]: moved } }));
+    expect(renders).toBe(initialRenders);
+    expect(result.current.chrome.windowIds).toEqual([primary.id]);
+    expect([...result.current.pager.needsYouDesktopIds]).toEqual(["desktop:main"]);
+
+    act(() =>
+      shell.setRuntimeState({
+        windows: { [primary.id]: { ...moved, desktopId: "desktop:other" } },
+      })
+    );
+    expect([...result.current.pager.needsYouDesktopIds]).toEqual(["desktop:other"]);
+    rerender({ needsYou: [{ ...row, stale: true }] });
+    expect(result.current.pager.needsYouDesktopIds.size).toBe(0);
+    act(() => shell.setRuntimeState({ windows: {}, presentation: "compact" }));
+    expect(result.current.chrome.windowIds).toEqual([]);
+    expect(result.current.chrome.presentation).toBe("compact");
+  });
+
+  it("Should suspend closed overview projections and read the latest state when opened", () => {
+    const shell = createShell();
+    const primary = shell.state.windows["window:primary"]!;
+    const desktop = {
+      id: "desktop:main",
+      name: "Main",
+      order: 0,
+      groups: [],
+      floating: [primary.id],
+      floatingStacks: [],
+    };
+    shell.setRuntimeState({ desktops: [desktop], windows: { [primary.id]: primary } });
+    let renders = 0;
+    const { result, unmount } = renderHook(
+      () => {
+        renders += 1;
+        return useDesktopManagerSurfaces();
+      },
+      { wrapper: shell.wrapper }
+    );
+    try {
+      const initialRenders = renders;
+      act(() =>
+        shell.setRuntimeState({
+          desktops: [{ ...desktop, name: "Renamed while closed" }],
+          windows: { [primary.id]: { ...primary, rect: { ...primary.rect, x: 200 } } },
+        })
+      );
+      expect(renders).toBe(initialRenders);
+      act(() =>
+        windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
+      );
+      expect(result.current.desktops[0]?.name).toBe("Renamed while closed");
+      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(200);
+      act(() => shell.setRuntimeState({ windows: {} }));
+      expect(result.current.desktops[0]?.windows).toEqual([]);
+      act(() => windowManagerStore.trigger.overlayClosed());
+      const closedRenders = renders;
+      act(() => shell.setRuntimeState({ windows: { [primary.id]: primary } }));
+      expect(renders).toBe(closedRenders);
+      act(() =>
+        windowManagerStore.trigger.overlayOpened({ overlay: { kind: "desktops-overview" } })
+      );
+      expect(result.current.desktops[0]?.windowRecords[0]?.rect.x).toBe(primary.rect.x);
+    } finally {
+      unmount();
+      act(() => windowManagerStore.trigger.overlayClosed());
+    }
   });
 });
 

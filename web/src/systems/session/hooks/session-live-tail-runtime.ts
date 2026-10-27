@@ -3,7 +3,10 @@ import type { QueryClient } from "@tanstack/react-query";
 import { buildSessionStreamUrl, fetchSessionTranscript } from "../adapters/session-api";
 import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
-import { invalidateSessionLiveQueries } from "../lib/session-query-invalidation";
+import {
+  invalidateSessionLiveQueries,
+  invalidateSessionUsageQueries,
+} from "../lib/session-query-invalidation";
 import {
   formatSessionDebugError,
   recordSessionDebugEvent,
@@ -319,8 +322,9 @@ export function createSessionLiveTailRuntime({
     let usageTimer: ReturnType<typeof setTimeout> | undefined;
     const flushUsageChanges = () => {
       usageTimer = undefined;
-      invalidateExact(sessionKeys.usage(workspaceId, sessionId), "session usage");
-      invalidateExact(sessionKeys.usageTurns(workspaceId, sessionId), "session usage turns");
+      void invalidateSessionUsageQueries(queryClient, workspaceId, sessionId).catch(error =>
+        reportInvalidationFailure("session usage", error)
+      );
     };
     const usageChangedListener: EventListener = () => {
       if (usageTimer !== undefined) clearTimeout(usageTimer);

@@ -9,7 +9,8 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
-import { isLiveSessionState } from "../lib/query-options";
+import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
+import { createSessionReadReconciler } from "./session-catalog-reconciliation";
 import type {
   OperatorNotificationEventPayload,
   SessionAttentionEventPayload,
@@ -223,95 +224,6 @@ function createSubagentListReconciler(queryClient: QueryClient) {
   };
 }
 
-/**
- * Re-reads the session detail, then wakes a stopped session's mounted transcript.
- *
- * A catalog upsert is the only signal for a transcript entry appended after the
- * session stopped (the post-stop discard marker): the transcript stream has already
- * ended on the terminal frame and a stopped session never polls. The decision is
- * taken from the authoritative detail read, never from the cached state — the wake
- * can arrive while the cache still says active/stopping although the daemon has
- * already stopped — so the transcript is re-read only after the detail invalidation
- * settles as non-live. Live sessions keep the live tail as the transcript's sole
- * owner, and an unknown state is left to the live tail's own detail read.
- */
-async function refreshSessionDetail(
-  queryClient: QueryClient,
-  payload: SessionCatalogEventPayload,
-  isOpen: () => boolean
-): Promise<void> {
-  const detailKey = sessionKeys.detail(payload.workspace_id, payload.session_id);
-  await queryClient.invalidateQueries(
-    { queryKey: detailKey, exact: true },
-    { cancelRefetch: false }
-  );
-  if (!isOpen() || payload.kind !== "upserted") return;
-  const state = queryClient.getQueryData<SessionPayload>(detailKey)?.state;
-  if (state === undefined || isLiveSessionState(state)) return;
-  await queryClient.invalidateQueries({
-    queryKey: sessionKeys.transcript(payload.workspace_id, payload.session_id),
-    exact: true,
-  });
-}
-
-/** Let a session read finish, then reconcile any wake that arrived during it. */
-function createSessionReadReconciler(queryClient: QueryClient) {
-  const pending = new Map<string, SessionCatalogEventPayload | undefined>();
-  const running = new Set<string>();
-  let closed = false;
-  const flush = async (sessionId: string) => {
-    try {
-      while (!closed && pending.has(sessionId)) {
-        const payload = pending.get(sessionId);
-        pending.delete(sessionId);
-        const byIdKey = sessionKeys.byIdRoot(sessionId);
-        // A read already in progress can predate this wake. Joining it is safe
-        // only if one trailing read observes the change after that read settles.
-        const cache = queryClient.getQueryCache();
-        const reads = [
-          ...cache.findAll({ queryKey: byIdKey }),
-          ...(payload
-            ? cache.findAll({
-                queryKey: sessionKeys.detail(payload.workspace_id, sessionId),
-                exact: true,
-              })
-            : []),
-        ].flatMap(query =>
-          query.state.fetchStatus === "fetching" && query.promise ? [query.promise] : []
-        );
-        if (reads.length > 0) {
-          pending.set(sessionId, payload);
-          await Promise.allSettled(reads);
-          continue;
-        }
-        await Promise.all([
-          ...(payload ? [refreshSessionDetail(queryClient, payload, () => !closed)] : []),
-          queryClient.invalidateQueries({ queryKey: byIdKey }, { cancelRefetch: false }),
-        ]);
-      }
-    } finally {
-      running.delete(sessionId);
-    }
-  };
-  return {
-    wake(sessionId: string, payload?: SessionCatalogEventPayload) {
-      if (closed) return;
-      // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
-      const queued = pending.get(sessionId);
-      if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {
-        pending.set(sessionId, payload);
-      }
-      if (running.has(sessionId)) return;
-      running.add(sessionId);
-      void flush(sessionId);
-    },
-    close() {
-      closed = true;
-      pending.clear();
-    },
-  };
-}
-
 function isSessionMonitorsQuery(query: { queryKey: QueryKey }): boolean {
   const key = query.queryKey;
   return key[0] === sessionKeys.all[0] && key.at(-1) === "monitors" && key.includes("detail");
@@ -377,10 +289,7 @@ function openSessionCatalogStream(
     subagentLists.wake(payload.workspace_id, payload.session_id);
     // Only an open monitor popover observes this small read; elsewhere it is just
     // marked stale. An in-flight read may predate the change, so it is replaced.
-    void queryClient.invalidateQueries({
-      queryKey: sessionKeys.monitors(payload.workspace_id, payload.session_id),
-      exact: true,
-    });
+    void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

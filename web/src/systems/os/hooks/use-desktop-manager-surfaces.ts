@@ -22,26 +22,29 @@ export function useDesktopManagerSurfaces() {
   const connectionStatus = useDesktop(state => state.connectionStatus);
   const activeDesktopId = useDesktop(state => state.activeDesktopId);
   const canMutate = useDesktop(windowManagerCommandsAvailable);
+  const overviewOpen = overlay?.kind === "desktops-overview";
   const projection = useDesktop(
-    state => ({
-      desktops: state.desktops,
-      projections: state.projections,
-      windows: state.windows,
-    }),
+    state =>
+      overviewOpen
+        ? { desktops: state.desktops, projections: state.projections, windows: state.windows }
+        : null,
     shallowEqual
   );
-  const windowsByDesktop = new Map<string, Array<(typeof projection.windows)[string]>>();
-  for (const windowRecord of Object.values(projection.windows)) {
+  const windowsByDesktop = new Map<
+    string,
+    Array<NonNullable<typeof projection>["windows"][string]>
+  >();
+  for (const windowRecord of Object.values(projection?.windows ?? {})) {
     const records = windowsByDesktop.get(windowRecord.desktopId);
     if (records) records.push(windowRecord);
     else windowsByDesktop.set(windowRecord.desktopId, [windowRecord]);
   }
-  const desktops = projection.desktops.map(desktop => {
+  const desktops = (projection?.desktops ?? []).map(desktop => {
     const windowRecords = windowsByDesktop.get(desktop.id) ?? [];
     return {
       id: desktop.id,
       name: desktop.name,
-      projection: projection.projections[desktop.id],
+      projection: projection?.projections[desktop.id],
       windowRecords,
       windows: windowRecords.flatMap(window => {
         const app = osAppId(window.app);

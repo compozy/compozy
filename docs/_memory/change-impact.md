@@ -1,5 +1,44 @@
 # Compozy Change Impact
 
+## Session responsiveness — 2026-10-26
+
+Owner: branch `perf/session-responsiveness`; measured evidence and remaining work in
+`docs/qa/reports/2026-10-26-session-responsiveness.md`.
+
+- **Runtime and database:** compute catalog sort keys once, resolve board PR/default
+  branch facts by workspace JSON key, and hydrate only active family members for detail
+  relations. Session scope, ordering, exact totals, cursor fences and active overlay
+  remain authoritative. Reuse the existing one-minute repository identity window for
+  missing/local origins; cancellation, deadlines and runner-start failures do not enter
+  that cache. No schema or persisted-data change.
+- **Web:** combine each session cache wake into one TanStack invalidation. Live, usage,
+  mutation, inactive-cache and profile-lens reread semantics remain intact; stream
+  debounce/detach behavior is unchanged. Catalog reconciliation retains its trailing
+  read and stopped-transcript obligations with fewer cache traversals. A pinned core
+  dependency patch lazily creates tool pipelines and disposes them with their runtime,
+  including abandoned React renders and normal session closure. Authoritative geometry
+  subscribes at the window layer; shell chrome reads window membership and attention
+  indicators, and the closed desktops overview suspends its geometry projection. Opening
+  the overview reads current state immediately. Model-catalog projections retain their
+  collections until provider/catalog inputs change, and agent create/duplicate callbacks
+  capture stable mutation functions. Provider order, auth gating, refresh/recovery, and
+  draft behavior are unchanged. Profile-selection writes survive document reload using the
+  existing settings transport's keepalive pattern, retaining optimistic switching and failure
+  rollback. Window persistence and live-data ownership are unchanged.
+- **Native tools / CLI / HTTP / UDS:** existing session list/status/board results retain
+  their schemas and semantics. No generator, SDK contract or public tool ID changes.
+- **Extensibility / hooks / config / isolation:** no new hooks, extension behavior,
+  settings, credentials or cross-workspace reads. Repository identity errors use the
+  existing per-root bounded freshness window; provider/forge response freshness is unchanged.
+- **Official skill / public docs:** `skills/compozy/` and product instructions need no
+  change because public workflows are unchanged. The performance report and existing
+  streaming/board QA scenarios co-ship. Browser memory, API and board evidence are recorded
+  in the owning report; the existing desktop-shell lifecycle scenario also covers the
+  unchanged 11-window performance envelope. Model-catalog cold-open and agent-create
+  scenarios record the projection follow-up; the profile-switcher scenario records immediate
+  reload persistence. Complete delivery gates are tracked on PR #983.
+
+
 ## Authored inline code whitespace review repair — 2026-10-24
 
 Owner: post-merge audit of PR #968. `StreamMarkdown` authored mode preserves consecutive spaces

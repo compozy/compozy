@@ -20,6 +20,11 @@ import {
 } from "../query-options";
 import { sessionKeys } from "../query-keys";
 import {
+  invalidateSessionLiveQueries,
+  invalidateSessionMutationQueries,
+  invalidateSessionUsageQueries,
+} from "../session-query-invalidation";
+import {
   rescheduleSessionStreamBackedReads,
   retainSessionStreamLiveness,
   sessionStreamBackedRefetchInterval,
@@ -390,4 +395,84 @@ describe("stream-backed session reads", () => {
     }
     expect(cadences("sess_stream", "active")).toEqual(fallback);
   });
+});
+
+// Invariant: each wake rereads its active read models once, invalidates inactive siblings,
+// and preserves all other workspace/session data. Owner: canonical Query cache boundaries.
+describe("session read invalidation", () => {
+  const keys = {
+    detail: sessionKeys.detail("ws", "session"),
+    history: sessionKeys.history("ws", "session"),
+    inputs: sessionKeys.inputQueue("ws", "session"),
+    usage: sessionKeys.usage("ws", "session"),
+    usageTurns: sessionKeys.usageTurns("ws", "session"),
+    transcript: sessionKeys.transcript("ws", "session"),
+    goal: sessionKeys.goal("ws", "session"),
+    profile: sessionKeys.byId("session", "profile"),
+    otherProfile: sessionKeys.byId("session", "other-profile"),
+    catalog: sessionKeys.list({ workspace_id: "ws" }),
+    folders: sessionKeys.folders("ws", "profile"),
+    aggregate: sessionKeys.list(),
+    otherCatalog: sessionKeys.list({ workspace_id: "other-ws" }),
+    otherSession: sessionKeys.detail("ws", "other-session"),
+    otherWorkspace: sessionKeys.detail("other-ws", "session"),
+    otherUsage: sessionKeys.usage("ws", "other-session"),
+    otherOwner: sessionKeys.byId("other-session", "profile"),
+    usageDescendant: [...sessionKeys.usage("ws", "session"), "descendant"],
+  };
+  for (const testCase of [
+    {
+      name: "live",
+      invalidate: invalidateSessionLiveQueries,
+      affected: ["detail", "history", "inputs", "profile", "otherProfile", "catalog", "folders"],
+    },
+    {
+      name: "mutation",
+      invalidate: invalidateSessionMutationQueries,
+      affected: [
+        "detail",
+        "history",
+        "inputs",
+        "usage",
+        "usageTurns",
+        "transcript",
+        "goal",
+        "profile",
+        "otherProfile",
+        "catalog",
+        "folders",
+        "usageDescendant",
+      ],
+    },
+    { name: "usage", invalidate: invalidateSessionUsageQueries, affected: ["usage", "usageTurns"] },
+  ]) {
+    it(`Should preserve the ${testCase.name} wake scope for active and inactive reads`, async () => {
+      const client = new QueryClient({
+        defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+      });
+      const unsubscribers: (() => void)[] = [];
+      const reads = Object.entries(keys).map(([name, queryKey], index) => {
+        client.setQueryData(queryKey, "before");
+        const queryFn = vi.fn(async () => "after");
+        const active = index % 2 === 0;
+        if (active) {
+          const observer = new QueryObserver(client, { queryKey, queryFn });
+          unsubscribers.push(observer.subscribe(() => undefined));
+        }
+        return { name, queryKey, queryFn, active };
+      });
+      try {
+        await testCase.invalidate(client, "ws", "session");
+        for (const { name, queryKey, queryFn, active } of reads) {
+          const affected = testCase.affected.includes(name);
+          expect(queryFn, name).toHaveBeenCalledTimes(active && affected ? 1 : 0);
+          expect(client.getQueryData(queryKey), name).toBe(active && affected ? "after" : "before");
+          expect(client.getQueryState(queryKey)?.isInvalidated, name).toBe(!active && affected);
+        }
+      } finally {
+        for (const unsubscribe of unsubscribers) unsubscribe();
+        client.clear();
+      }
+    });
+  }
 });

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -106,6 +107,86 @@ func TestPullRequestService(t *testing.T) {
 				}
 				service.Close()
 				<-flight.done
+			})
+		}
+	})
+
+	// Invariant: unavailable repository identities share the per-root freshness window.
+	// Owner: PullRequestService; repository identity belongs to this canonical suite.
+	t.Run("Should cache unavailable origins per root and recover after the identity window", func(t *testing.T) {
+		t.Parallel()
+		for _, remote := range []string{"missing", "local"} {
+			t.Run("Should recover from "+remote+" origin", func(t *testing.T) {
+				t.Parallel()
+				runner, err := NewRealGitRunner(0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				root := t.TempDir()
+				git := func(dir string, args ...string) {
+					t.Helper()
+					if _, _, err := runner.Run(t.Context(), dir, args...); err != nil {
+						t.Fatal(err)
+					}
+				}
+				git(root, "init", "--initial-branch=main")
+				if remote == "local" {
+					git(root, "remote", "add", "origin", "/tmp/local-repository.git")
+				}
+				service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), nil, runner, nil)
+				t.Cleanup(service.Close)
+				now := statusTestClock()
+				service.now = func() time.Time { return now }
+				assertUnavailableOrigin := func() {
+					t.Helper()
+					key, err := service.RepoKey(t.Context(), root)
+					if key != "" {
+						t.Fatalf("unsupported origin key = %q", key)
+					}
+					if remote == "missing" {
+						if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+							t.Fatalf("missing origin error = %v; want Git exit error", err)
+						}
+					} else if err == nil || err.Error() != "worktree: origin repository unavailable" {
+						t.Fatalf("local origin error = %v; want unavailable repository", err)
+					}
+				}
+				assertUnavailableOrigin()
+				command := "add"
+				if remote == "local" {
+					command = "set-url"
+				}
+				git(root, "remote", command, "origin", "https://github.com/acme/recovered.git")
+				assertUnavailableOrigin()
+				other := t.TempDir()
+				git(other, "init", "--initial-branch=main")
+				git(other, "remote", "add", "origin", "https://github.com/acme/other.git")
+				if key, err := service.RepoKey(t.Context(), other); err != nil || key != "github.com/acme/other" {
+					t.Fatalf("other root identity = %q, %v", key, err)
+				}
+				now = now.Add(time.Minute)
+				if key, err := service.RepoKey(t.Context(), root); err != nil || key != "github.com/acme/recovered" {
+					t.Fatalf("recovered identity = %q, %v", key, err)
+				}
+			})
+		}
+	})
+	t.Run("Should retry repository identity after interruption or an unavailable runner", func(t *testing.T) {
+		t.Parallel()
+		for _, failure := range []error{context.Canceled, context.DeadlineExceeded, ErrGitUnavailable} {
+			t.Run("Should retry after "+failure.Error(), func(t *testing.T) {
+				t.Parallel()
+				runner := &scriptedGitRunner{err: fmt.Errorf("git interrupted: %w", failure)}
+				service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), nil, runner, nil)
+				t.Cleanup(service.Close)
+				if _, err := service.RepoKey(t.Context(), "/workspace"); !errors.Is(err, failure) {
+					t.Fatalf("interrupted read = %v", err)
+				}
+				runner.err = nil
+				runner.stdout = []byte("https://github.com/acme/repo.git")
+				if key, err := service.RepoKey(t.Context(), "/workspace"); err != nil || key != "github.com/acme/repo" {
+					t.Fatalf("retry identity = %q, %v", key, err)
+				}
 			})
 		}
 	})
@@ -336,4 +417,42 @@ func (f pullRequestTestForge) Capabilities(context.Context, []string) (*ForgeCap
 }
 func (f pullRequestTestForge) CreatePR(context.Context, ForgePRRequest) (*ForgePRResult, error) {
 	return nil, nil
+}
+
+func BenchmarkPullRequestRepositoryIdentity(b *testing.B) {
+	for _, remote := range []string{"missing", "local", "hosted"} {
+		b.Run(remote, func(b *testing.B) {
+			runner, err := NewRealGitRunner(0)
+			if err != nil {
+				b.Fatal(err)
+			}
+			root := b.TempDir()
+			if _, _, err := runner.Run(b.Context(), root, "init", "--initial-branch=main"); err != nil {
+				b.Fatal(err)
+			}
+			if remote != "missing" {
+				origin := "/tmp/local-repository.git"
+				if remote == "hosted" {
+					origin = "https://github.com/acme/repo.git"
+				}
+				if _, _, err := runner.Run(b.Context(), root, "remote", "add", "origin", origin); err != nil {
+					b.Fatal(err)
+				}
+			}
+			service := NewPullRequestService(b.Context(), newPullRequestMemoryStore(), nil, runner, nil)
+			b.Cleanup(service.Close)
+			// Compare warm identity reads. Unsupported origins must stay unsupported.
+			_, err = service.RepoKey(b.Context(), root)
+			if (err == nil) != (remote == "hosted") {
+				b.Fatalf("unexpected initial identity error: %v", err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				_, err = service.RepoKey(b.Context(), root)
+				if (err == nil) != (remote == "hosted") {
+					b.Fatalf("unexpected identity error: %v", err)
+				}
+			}
+		})
+	}
 }

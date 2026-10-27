@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import { ModelCatalogApiError } from "../adapters/model-catalog-api";
 import { modelSourceFailureMessage, modelRefreshErrorMessage } from "../lib/model-source-failure";
 import { allModelsListOptions, modelSourceStatusOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
-import type { ProviderModelPayload } from "../types";
+import type { ProviderModelPayload, ProviderModelSourceStatus } from "../types";
 import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
 import { useRefreshAllModels } from "./use-refresh-all-models";
 import type { RuntimeModelOption } from "@/systems/runtime";
@@ -60,8 +61,63 @@ export function useRuntimeModelCatalog(
   const { enabled = true, includeStale = true } = options;
   const query = useQuery(allModelsListOptions({ view: "all", includeStale, enabled }));
   const refreshMutation = useRefreshAllModels();
+  const { mutate: refreshAllModels } = refreshMutation;
   const sourceStatus = useQuery(modelSourceStatusOptions(enabled));
 
+  // Without explicit memoization, React Compiler rebuilds these Map/array
+  // projections on unrelated shell renders and wakes their consumers.
+  const payloads = query.data?.models;
+  const projection = useMemo(
+    () => projectRuntimeModels(providers, payloads),
+    [providers, payloads]
+  );
+  const missingAllowedProvider = query.isSuccess && projection.missingAllowedProvider;
+  const initialRefresh = useInitialModelCatalogRefresh({
+    enabled,
+    missingAllowedProvider,
+  });
+
+  // A user-initiated refresh must re-run discovery: an unforced refresh is a no-op
+  // while the daemon's cached source status (even a failed one) is within its TTL.
+  const refresh = () => refreshAllModels({ force: true });
+
+  const refreshFailure = refreshMutation.isIdle
+    ? missingAllowedProvider
+      ? initialRefresh.error
+      : null
+    : refreshMutation.error;
+  const failureSources =
+    refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : [];
+  const failureIsCurrent =
+    refreshFailure instanceof ModelCatalogApiError &&
+    refreshFailure.observedAt >= sourceStatus.dataUpdatedAt;
+  const sources =
+    sourceStatus.isError && failureIsCurrent && failureSources.length > 0
+      ? failureSources
+      : (sourceStatus.data?.sources ?? refreshMutation.data?.sources ?? failureSources);
+  const { displayedSources, providerIssues } = useMemo(
+    () => projectProviderIssues(projection.allowed, projection.payloadsByProvider, sources),
+    [projection, sources]
+  );
+
+  return {
+    models: projection.models,
+    payloadsByProvider: projection.payloadsByProvider,
+    loading: query.isLoading,
+    loaded: query.isSuccess,
+    error: query.error ? describeCatalogError(query.error) : null,
+    stale: projection.stale,
+    refresh,
+    refreshing: refreshMutation.isPending || initialRefresh.isFetching,
+    providerIssues,
+    refreshError: modelRefreshErrorMessage(refreshFailure, displayedSources),
+  };
+}
+
+function projectRuntimeModels(
+  providers: readonly RuntimeCatalogProvider[],
+  payloads: readonly ProviderModelPayload[] | undefined
+) {
   // Ordered allow-list: preserves the surface's provider order and carries each
   // provider's auth state so rows for a signed-out provider render disabled.
   const allowed = new Map<string, boolean>();
@@ -69,8 +125,6 @@ export function useRuntimeModelCatalog(
     const id = provider.id.trim();
     if (id.length > 0 && !allowed.has(id)) allowed.set(id, Boolean(provider.needsAuth));
   }
-
-  const payloads = query.data?.models;
 
   const payloadsByProvider: Record<string, ProviderModelPayload[]> = {};
   for (const model of payloads ?? []) {
@@ -88,34 +142,17 @@ export function useRuntimeModelCatalog(
   }
 
   const stale = Object.values(payloadsByProvider).some(bucket => bucket.some(model => model.stale));
-  const missingAllowedProvider =
-    query.isSuccess &&
-    [...allowed].some(
-      ([providerId, needsAuth]) => !needsAuth && payloadsByProvider[providerId] === undefined
-    );
-  const initialRefresh = useInitialModelCatalogRefresh({
-    enabled,
-    missingAllowedProvider,
-  });
+  const missingAllowedProvider = [...allowed].some(
+    ([providerId, needsAuth]) => !needsAuth && payloadsByProvider[providerId] === undefined
+  );
+  return { allowed, payloadsByProvider, models, stale, missingAllowedProvider };
+}
 
-  // A user-initiated refresh must re-run discovery: an unforced refresh is a no-op
-  // while the daemon's cached source status (even a failed one) is within its TTL.
-  const refresh = () => refreshMutation.mutate({ force: true });
-
-  const refreshFailure = refreshMutation.isIdle
-    ? missingAllowedProvider
-      ? initialRefresh.error
-      : null
-    : refreshMutation.error;
-  const failureSources =
-    refreshFailure instanceof ModelCatalogApiError ? refreshFailure.sources : [];
-  const failureIsCurrent =
-    refreshFailure instanceof ModelCatalogApiError &&
-    refreshFailure.observedAt >= sourceStatus.dataUpdatedAt;
-  const sources =
-    sourceStatus.isError && failureIsCurrent && failureSources.length > 0
-      ? failureSources
-      : (sourceStatus.data?.sources ?? refreshMutation.data?.sources ?? failureSources);
+function projectProviderIssues(
+  allowed: ReadonlyMap<string, boolean>,
+  payloadsByProvider: Readonly<Record<string, ProviderModelPayload[]>>,
+  sources: readonly ProviderModelSourceStatus[]
+) {
   const providerIssues: Record<string, string> = {};
   const displayedSources = sources.filter(source => allowed.has(source.provider_id));
   for (const source of displayedSources) {
@@ -144,16 +181,5 @@ export function useRuntimeModelCatalog(
     }
   }
 
-  return {
-    models,
-    payloadsByProvider,
-    loading: query.isLoading,
-    loaded: query.isSuccess,
-    error: query.error ? describeCatalogError(query.error) : null,
-    stale,
-    refresh,
-    refreshing: refreshMutation.isPending || initialRefresh.isFetching,
-    providerIssues,
-    refreshError: modelRefreshErrorMessage(refreshFailure, displayedSources),
-  };
+  return { displayedSources, providerIssues };
 }

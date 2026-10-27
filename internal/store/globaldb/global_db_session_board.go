@@ -36,14 +36,14 @@ func sessionCatalogBoardSource(
  AND board_worktree.workspace_id = sessions.workspace_id
  LEFT JOIN worktree_status AS board_status ON board_status.worktree_id = board_worktree.id
  LEFT JOIN forge_pull_requests AS board_pr ON board_pr.workspace_id = sessions.workspace_id
- AND board_pr.repo_key = (SELECT value FROM json_each(?) WHERE key = sessions.workspace_id)
+ AND board_pr.repo_key = json_extract(?, '$.' || json_quote(sessions.workspace_id))
  AND board_pr.branch = CASE WHEN COALESCE(sessions.worktree_id, '') <> ''
  THEN CASE WHEN board_worktree.state IN ('pending','ready')
  THEN CASE WHEN board_status.detached = 1 THEN NULL
  ELSE NULLIF(COALESCE(board_status.branch, board_worktree.branch), '') END END
  ELSE NULLIF(sessions.branch, '') END
- AND NOT EXISTS (SELECT 1 FROM json_each(?) AS default_workspace, json_each(default_workspace.value) AS default_branch
- WHERE default_workspace.key = sessions.workspace_id AND default_branch.value = board_pr.branch)
+ AND NOT EXISTS (SELECT 1 FROM json_each(?, '$.' || json_quote(sessions.workspace_id)) AS default_branch
+ WHERE default_branch.value = board_pr.branch)
 ) AS sessions`, []any{string(encoded), string(defaults)}, nil
 }
 
