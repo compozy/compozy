@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -124,6 +125,15 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
+func (r managerSubagentRuntime) NativeTaskEvents(
+	ctx context.Context, parentID, turnID string, limit int,
+) ([]store.SessionEvent, error) {
+	events, err := r.m.Events(ctx, parentID, store.EventQuery{
+		Type: acp.EventTypeNativeTask, TurnID: turnID, Limit: limit, Forward: true,
+	})
+	slices.SortFunc(events, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	return events, err
+}
 func (r managerSubagentRuntime) Result(ctx context.Context, id string) (subagentTurnResult, error) {
 	query := store.EventQuery{Limit: 200}
 	var turn string

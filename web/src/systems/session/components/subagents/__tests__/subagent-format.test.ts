@@ -4,8 +4,10 @@ import {
   subagentCardLines,
   subagentChipState,
   subagentCounts,
+  subagentDisplay,
   subagentElapsedClock,
   subagentGroupClock,
+  subagentGroupGlyph,
   subagentGroupSummary,
   subagentHoverPreview,
   subagentLocationRows,
@@ -13,8 +15,7 @@ import {
   subagentRosterTitle,
   subagentRuntimeLabel,
   subagentWaitingBannerRows,
-  SUBAGENT_STATUS_GLYPH,
-  SUBAGENT_STATUS_WORD,
+  sortSubagentsByUrgency,
 } from "../subagent-format";
 import {
   middleTruncate,
@@ -67,69 +68,177 @@ const withStatus = (status: SubagentStatus, id: string, created = 0) =>
   });
 
 describe("subagentCardLines (UT-W05)", () => {
-  it("Should show live progress on line 2 with the status word beside the title", () => {
+  it("Should show live progress on line 2, whitespace collapsed", () => {
     expect(
       subagentCardLines(subagent({ progress: "Reading   internal/payments/webhook.go" }))
-    ).toEqual({
-      titleWord: "Running",
-      lineTwo: "Reading internal/payments/webhook.go",
+    ).toEqual({ lineTwo: "Reading internal/payments/webhook.go", lineTwoTone: "default" });
+  });
+
+  it("Should leave line 2 empty while live without progress: the trail carries the word", () => {
+    expect(subagentCardLines(subagent({ progress: "" }))).toEqual({
+      lineTwo: "",
       lineTwoTone: "default",
     });
+    expect(subagentCardLines(subagent({ status: "waiting" })).lineTwo).toBe("");
   });
 
-  it("Should fall back to the status word on line 2 while live without progress", () => {
-    expect(subagentCardLines(subagent({ progress: "" }))).toEqual({
-      titleWord: null,
-      lineTwo: "Running",
-      lineTwoTone: "word",
-    });
-    expect(subagentCardLines(subagent({ status: "waiting" })).lineTwo).toBe("Waiting for you");
-  });
-
-  it("Should show the result's first line once completed, without a title word", () => {
+  it("Should show the result's first line once completed", () => {
     const lines = subagentCardLines(
       subagent({
         status: "completed",
         result_preview: "\n\nDrafted notes: 6 changes.\nMore detail",
       })
     );
-    expect(lines).toEqual({
-      titleWord: null,
-      lineTwo: "Drafted notes: 6 changes.",
-      lineTwoTone: "default",
-    });
+    expect(lines).toEqual({ lineTwo: "Drafted notes: 6 changes.", lineTwoTone: "default" });
   });
 
   it("Should show the error's first line in danger when failed", () => {
     expect(
       subagentCardLines(subagent({ status: "failed", error: "3 of 41 specs failed\nstack…" }))
-    ).toEqual({ titleWord: "Failed", lineTwo: "3 of 41 specs failed", lineTwoTone: "danger" });
+    ).toEqual({ lineTwo: "3 of 41 specs failed", lineTwoTone: "danger" });
     expect(subagentCardLines(subagent({ status: "failed" }))).toEqual({
-      titleWord: null,
-      lineTwo: "Failed",
+      lineTwo: "",
       lineTwoTone: "danger",
     });
   });
+});
 
-  it("Should keep the fixed status word list and glyph canon", () => {
-    expect(Object.values(SUBAGENT_STATUS_WORD)).toEqual([
-      "Queued",
-      "Running",
-      "Waiting for you",
-      "Completed",
-      "Failed",
-      "Canceled",
-      "Interrupted",
-    ]);
-    expect(SUBAGENT_STATUS_GLYPH).toEqual({
-      queued: "queued",
-      running: "running",
-      waiting: "attention",
-      completed: "done",
-      failed: "failed",
-      canceled: "stopped",
-      interrupted: "stopped",
+// Invariant: one derived display state per row (glyph, word, tone, settled, clock) drives every
+// subagent surface; running and completed never share a glyph or a word.
+describe("subagentDisplay", () => {
+  const settled = (overrides: Partial<SubagentView>) =>
+    subagent({ settled_at: at(125), ...overrides });
+
+  it.each<[string, Partial<SubagentView>, string, string, boolean]>([
+    ["queued", { status: "queued" }, "queued", "Queued", false],
+    ["running", { status: "running", work_state: "working" }, "running", "Working", false],
+    [
+      "running, waiting on its own children",
+      { status: "running", work_state: "waiting_for_children" },
+      "delegated",
+      "Waiting on subagents",
+      false,
+    ],
+    ["waiting", { status: "waiting" }, "attention", "Waiting for you", false],
+    ["completed", { status: "completed", settled_at: at(125) }, "done", "Done", true],
+    [
+      "completed, child resumed",
+      { status: "completed", settled_at: at(125), child_activity: "working" },
+      "running",
+      "Working",
+      false,
+    ],
+    [
+      "canceled, child resumed",
+      { status: "canceled", settled_at: at(125), child_activity: "working" },
+      "running",
+      "Working",
+      false,
+    ],
+    [
+      "completed, child idle after delivery",
+      { status: "completed", settled_at: at(125), child_activity: "idle", delivery: "delivered" },
+      "idle",
+      "Idle",
+      true,
+    ],
+    [
+      "completed, child idle after acknowledgement",
+      {
+        status: "completed",
+        settled_at: at(125),
+        child_activity: "idle",
+        delivery: "acknowledged",
+      },
+      "idle",
+      "Idle",
+      true,
+    ],
+    [
+      "completed, child idle with the result still pending",
+      { status: "completed", settled_at: at(125), child_activity: "idle", delivery: "pending" },
+      "done",
+      "Done",
+      true,
+    ],
+    ["failed", { status: "failed", settled_at: at(125) }, "failed", "Failed", false],
+    ["canceled", { status: "canceled", settled_at: at(125) }, "stopped", "Canceled", true],
+    ["interrupted", { status: "interrupted", settled_at: at(125) }, "stopped", "Interrupted", true],
+  ])("Should read %s as its glyph and word", (_name, overrides, glyph, word, isSettled) => {
+    const display = subagentDisplay(subagent(overrides));
+    expect(display).toMatchObject({ glyph, word, settled: isSettled });
+  });
+
+  it("Should give running and completed distinct glyphs, words and clocks", () => {
+    const running = subagentDisplay(subagent());
+    const done = subagentDisplay(settled({ status: "completed" }));
+    expect(running.glyph).not.toBe(done.glyph);
+    expect(running.word).not.toBe(done.word);
+    expect(running.clock).toEqual({ kind: "ticking", startMs: Date.parse(T0) });
+    expect(done.clock).toEqual({ kind: "frozen", ms: 125_000 });
+  });
+
+  it("Should carry the elapsed clock only for Working and Done, frozen when stale", () => {
+    expect(subagentDisplay(subagent({ updated_at: at(40) }), { stale: true }).clock).toEqual({
+      kind: "frozen",
+      ms: 40_000,
     });
+    for (const status of ["queued", "waiting"] as const) {
+      expect(subagentDisplay(subagent({ status })).clock).toEqual({ kind: "none" });
+    }
+    for (const status of ["failed", "canceled", "interrupted"] as const) {
+      expect(subagentDisplay(settled({ status })).clock).toEqual({ kind: "none" });
+    }
+  });
+
+  it("Should read provider-native rows with the same glyphs as delegated ones", () => {
+    for (const status of ["running", "completed", "failed"] as const) {
+      const delegated = subagentDisplay(settled({ status }));
+      const native = subagentDisplay(
+        settled({ status, origin: "provider_native", child_session_id: null })
+      );
+      expect(native.glyph).toBe(delegated.glyph);
+      expect(native.word).toBe(delegated.word);
+    }
+  });
+
+  it("Should rank the group glyph attention > failed > working > done", () => {
+    const done = withStatus("completed", "a");
+    const running = withStatus("running", "b");
+    const failed = withStatus("failed", "c");
+    const waiting = withStatus("waiting", "d");
+    expect(subagentGroupGlyph([done])).toBe("done");
+    expect(subagentGroupGlyph([done, running])).toBe("running");
+    expect(subagentGroupGlyph([done, running, failed])).toBe("failed");
+    expect(subagentGroupGlyph([done, running, failed, waiting])).toBe("attention");
+    expect(subagentGroupGlyph([withStatus("canceled", "e")])).toBe("stopped");
+  });
+
+  it("Should order rows waiting > failed > working > queued > settled, newest first within", () => {
+    const rows = [
+      withStatus("completed", "done", 5),
+      withStatus("queued", "queued", 4),
+      withStatus("running", "old-run", 1),
+      withStatus("running", "new-run", 3),
+      withStatus("failed", "failed", 0),
+      withStatus("waiting", "waiting", 2),
+      subagent({
+        id: "resumed",
+        status: "completed",
+        settled_at: at(60),
+        created_at: at(0),
+        child_activity: "working",
+      }),
+    ];
+    expect(sortSubagentsByUrgency(rows).map(row => row.id)).toEqual([
+      "waiting",
+      "failed",
+      "new-run",
+      "old-run",
+      "resumed",
+      "queued",
+      "done",
+    ]);
   });
 });
 

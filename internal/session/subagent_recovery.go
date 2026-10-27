@@ -35,6 +35,7 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	if err := s.recoverRunning(ctx); err != nil {
 		return err
 	}
+	s.recoveryResult(ctx, "", "child_activity", s.recoverChildActivity(ctx))
 	native, err := s.store.ListUnfinalizedNative(ctx)
 	if err != nil {
 		return err
@@ -42,6 +43,7 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	for _, row := range native {
 		s.recoveryResult(ctx, row.ID, "native_interrupted", s.recoverNative(ctx, row))
 	}
+	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	if err := s.recoverWakes(ctx); err != nil {
 		return err
 	}
@@ -167,7 +169,12 @@ func (s *subagentService) recoverNative(ctx context.Context, row store.SessionSu
 		unlock()
 		return nil
 	}
-	err = s.finalizeInterruptedNative(ctx, row)
+	// Committed task evidence wins over interruption; a row it settled makes
+	// the interrupt below a no-op.
+	err = s.replayNativeTasks(ctx, row)
+	if err == nil {
+		err = s.finalizeInterruptedNative(ctx, row)
+	}
 	if err == nil {
 		err = s.settleParent(ctx, row.ParentSessionID)
 	}

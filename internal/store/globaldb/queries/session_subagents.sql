@@ -13,13 +13,24 @@ SELECT * FROM session_subagents WHERE parent_session_id = ? AND idempotency_key 
 SELECT * FROM session_subagents WHERE child_session_id = ?;
 
 -- name: LinkSubagentChild :execrows
-UPDATE session_subagents SET child_session_id = sqlc.arg(child_id), status = 'running', started_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status = 'queued';
+UPDATE session_subagents SET child_session_id = sqlc.arg(child_id), status = 'running', child_activity = 'working', started_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status = 'queued';
 
 -- name: UpdateSubagentProgress :execrows
 UPDATE session_subagents SET progress = ?, updated_at = ? WHERE id = ? AND status IN ('queued','running','waiting');
 
 -- name: FinalizeSubagent :execrows
-UPDATE session_subagents SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), result = sqlc.narg(result), error = sqlc.narg(error), result_truncated = sqlc.arg(result_truncated), settled_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting');
+UPDATE session_subagents SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), result = sqlc.narg(result), error = sqlc.narg(error), result_truncated = sqlc.arg(result_truncated), child_activity = sqlc.arg(child_activity), settled_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting');
+
+-- name: UpdateSubagentChildActivity :execrows
+UPDATE session_subagents SET child_activity = sqlc.arg(child_activity), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND origin = 'delegated' AND child_activity <> sqlc.arg(child_activity);
+
+-- name: ReconcileStoppedSubagentChildActivity :many
+UPDATE session_subagents SET child_activity = 'stopped', updated_at = sqlc.arg(now)
+WHERE origin = 'delegated' AND child_activity IN ('working','idle')
+ AND status IN ('completed','failed','canceled','interrupted')
+ AND child_session_id IN (SELECT id FROM sessions WHERE state = 'stopped')
+RETURNING *;
 
 -- name: ListSubagentsByParent :many
 SELECT * FROM session_subagents
@@ -160,6 +171,20 @@ ORDER BY created_at,wake_message_id;
 
 -- name: ListUnfinalizedNativeSubagents :many
 SELECT * FROM session_subagents WHERE origin = 'provider_native' AND status IN ('queued','running','waiting') ORDER BY parent_session_id,id;
+
+-- name: EnrichNativeSubagentResult :execrows
+UPDATE session_subagents SET result = sqlc.arg(result), result_truncated = sqlc.arg(result_truncated),
+ error = COALESCE(error, sqlc.narg(error)), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND parent_session_id = sqlc.arg(parent_session_id)
+ AND parent_turn_id = sqlc.arg(parent_turn_id) AND provider_tool_call_id = sqlc.arg(provider_tool_call_id)
+ AND origin = 'provider_native' AND status = sqlc.arg(status) AND status IN ('completed','failed','canceled')
+ AND result IS NULL;
+
+-- name: ListNativeMissingResultSubagents :many
+SELECT * FROM session_subagents
+WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
+ AND settled_at >= sqlc.arg(since)
+ORDER BY settled_at DESC, id DESC LIMIT sqlc.arg(row_limit);
 
 -- name: InheritSubagentWakeAttempts :exec
 UPDATE session_subagent_wakes SET attempts = MAX(attempts, COALESCE((

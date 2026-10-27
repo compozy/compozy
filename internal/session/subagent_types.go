@@ -162,7 +162,26 @@ type NativeSubagentEvent struct {
 	Background bool
 	Result     string
 	Error      string
-	At         time.Time
+	// Progress is a nested (child tool-call or thought) event's line: the
+	// native subagent's heartbeat. Empty on the Agent/Task call itself.
+	Progress string
+	// Task is a provider task lifecycle observation for the row of the
+	// Agent/Task call ProviderToolCallID; nil on tool and nested events.
+	Task *NativeSubagentTask
+	At   time.Time
+}
+
+// NativeSubagentTask is one provider task observation joined to a native row.
+type NativeSubagentTask struct {
+	Kind   acp.NativeTaskKind
+	Status string // provider status: pending|running|paused|completed|failed|killed|stopped
+	// Summary is nil when the provider supplied none.
+	Summary *string
+	Error   string
+	// Progress is the observation's one-line status (summary, description, or last tool).
+	Progress string
+	// Background is nil unless the observation reports the task's backgrounding.
+	Background *bool
 }
 
 // SubagentService owns subagent records, delivery, and lifecycle. Transition

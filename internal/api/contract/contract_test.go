@@ -2238,5 +2238,24 @@ func TestSubagentWorktreePayload(t *testing.T) {
 		if contract.SubagentFromDomain(&row).Worktree != nil {
 			t.Fatal("shared checkout exposed worktree facts")
 		}
+	}) // Invariant: child activity is additive on the wire and absent while unknown.
+	t.Run("Should map child activity and omit it when unknown", func(t *testing.T) {
+		t.Parallel()
+		row := session.Subagent{}
+		raw, err := json.Marshal(contract.SubagentFromDomain(&row))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(raw, []byte(`"child_activity"`)) {
+			t.Fatalf("unknown child activity was emitted: %s", raw)
+		}
+		row.ChildActivity = store.SubagentChildActivityStopped
+		raw, err = json.Marshal(contract.SubagentFromDomain(&row))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(raw, []byte(`"child_activity":"stopped"`)) {
+			t.Fatalf("child activity = %s", raw)
+		}
 	})
 }

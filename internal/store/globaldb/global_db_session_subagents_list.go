@@ -2,8 +2,10 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -174,6 +176,27 @@ func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.Sessio
 		return nil, err
 	}
 	rows, err := g.queries.ListUnfinalizedNativeSubagents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return subagentsFromSQL(rows)
+}
+
+func (g *SessionRepo) ListNativeMissingResult(
+	ctx context.Context,
+	since time.Time,
+	limit int,
+) ([]store.SessionSubagent, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("store: invalid native missing-result limit %d", limit)
+	}
+	if err := g.checkReady(ctx, "list native subagents missing results"); err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListNativeMissingResultSubagents(ctx, sqlcgen.ListNativeMissingResultSubagentsParams{
+		Since:    sql.NullString{String: store.FormatTimestamp(since), Valid: true},
+		RowLimit: int64(limit),
+	})
 	if err != nil {
 		return nil, err
 	}

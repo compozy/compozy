@@ -44,7 +44,10 @@ func (s *subagentService) finalize(ctx context.Context, row store.SessionSubagen
 		return nil
 	}
 	if store.IsSubagentStatusTerminal(current.Status) {
-		return s.persistTerminalWorktreeFacts(ctx, row, current)
+		if err := s.persistTerminalWorktreeFacts(ctx, row, current); err != nil {
+			return err
+		}
+		return s.updateChildActivity(ctx, current)
 	}
 	facts := row.WorktreeState().Facts
 	row = current
@@ -152,6 +155,10 @@ func (s *subagentService) finalizeAvailable(
 	if truncated {
 		result = string(runes[:limit])
 	}
+	activity := store.SubagentChildActivityIdle
+	if child.Info.State == StateStopped {
+		activity = store.SubagentChildActivityStopped
+	}
 	settled, changed, err := s.store.FinalizeSubagent(
 		ctx,
 		store.SubagentFinalize{
@@ -159,6 +166,7 @@ func (s *subagentService) finalizeAvailable(
 			WorktreeFacts:   subagentFinalFacts(row),
 			Status:          status,
 			WorkState:       store.SubagentWorkStateResultAvailable,
+			ChildActivity:   activity,
 			Result:          &result,
 			Error:           failure,
 			ResultTruncated: truncated,

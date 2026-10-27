@@ -10,7 +10,7 @@ export type SubagentAvatarSize = "md" | "sm";
 export interface SubagentAvatarProps {
   /** Provider id for the `KindIcon` registry; unknown or missing renders the bot glyph. */
   provider: string | null | undefined;
-  /** Omit to drop the dot (stacked group avatars). */
+  /** Outcome dot (reply cards); subagent rows omit it and carry a `StateGlyph` in their trail. */
   status?: SubagentStatus;
   /** `md` = 24 px (cards, groups); `sm` = 20 px (roster, chip preview). */
   size?: SubagentAvatarSize;
@@ -28,8 +28,8 @@ const RING_SURFACE = {
 } as const;
 
 /**
- * Round provider tile with a bottom-right status dot (transcript VC-02 ①). The
- * dot carries the state; the label beside the avatar carries the word.
+ * Round provider tile, with an optional bottom-right status dot. Subagent rows
+ * show the provider alone; their state reads from the trail's glyph and word.
  */
 export function SubagentAvatar({
   provider,

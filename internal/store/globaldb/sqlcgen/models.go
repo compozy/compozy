@@ -1708,6 +1708,7 @@ type SessionSubagent struct {
 	PrStatus               sql.NullString `json:"pr_status"`
 	PrUrl                  sql.NullString `json:"pr_url"`
 	PrNumber               sql.NullInt64  `json:"pr_number"`
+	ChildActivity          string         `json:"child_activity"`
 }
 
 type SessionSubagentWake struct {

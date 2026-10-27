@@ -292,6 +292,9 @@ type SubagentCancelRequest struct {
 	Reason string `json:"reason"`
 }
 
+// SubagentChildActivity is a daemon API value.
+type SubagentChildActivity string
+
 // SubagentListPayload is a daemon API value.
 type SubagentListPayload struct {
 	Subagents  []SubagentPayload `json:"subagents"`
@@ -313,6 +316,7 @@ type SubagentPayload struct {
 	Role               string                   `json:"role"`
 	Status             string                   `json:"status"`
 	WorkState          string                   `json:"work_state"`
+	ChildActivity      SubagentChildActivity    `json:"child_activity,omitempty"`
 	Runtime            SubagentRuntimePayload   `json:"runtime"`
 	Depth              int                      `json:"depth"`
 	Progress           string                   `json:"progress"`

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"maps"
@@ -16,18 +17,28 @@ func (s *subagentService) OnNativeToolEvent(ctx context.Context, parent string, 
 	if ev.ProviderToolCallID == "" {
 		return nil
 	}
+	if ev.Task != nil {
+		return s.onNativeTask(ctx, parent, ev)
+	}
 	if ev.ToolName != nativeSubagentAgentTool && ev.ToolName != nativeSubagentTaskTool {
 		s.mu.Lock()
 		_, known := s.nativeKnown[parent][ev.ProviderToolCallID]
 		s.mu.Unlock()
 		if !known {
 			s.nativeStitchMiss(ctx, parent, ev.ProviderToolCallID)
+			return nil
 		}
+		// A nested event is the native subagent's heartbeat: it records progress
+		// and bumps updated_at without changing the row's status.
+		s.queueProgress(ev.WorkspaceID, parent, subagentID(parent, ev.ProviderToolCallID), ev.Progress)
 		return nil
 	}
 	unlock := s.lock(parent)
 	changed, err := s.ingestNative(ctx, parent, ev)
 	unlock()
+	if err == nil {
+		err = s.drainNativeTasks(ctx, parent, ev.ProviderToolCallID)
+	}
 	if err != nil || !changed {
 		return err
 	}
@@ -62,7 +73,8 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 		return created, nil
 	}
 	// A background launch completes with the provider's receipt, not the
-	// subagent's outcome; the row runs until the launching turn ends.
+	// subagent's outcome; the row runs until its task reports a terminal state
+	// (subagent_native_task.go) or, as a fallback, the launching turn ends.
 	if call.background && ev.Status == store.SubagentStatusCompleted {
 		return created, nil
 	}
@@ -114,11 +126,13 @@ func (s *subagentService) rememberNativeCall(parent string, ev NativeSubagentEve
 	return call
 }
 
-// OnNativeTurnDone settles the background native subagents of a turn the
-// provider ended. claude-agent-acp holds a prompt's response until every
-// background subagent that turn spawned has settled, and reports each outcome
-// only to the model, so the rows complete without a result.
+// OnNativeTurnDone is the fallback for background native subagents of a turn
+// the provider ended. Task lifecycle observations settle each row as its task
+// finishes; claude-agent-acp holds a prompt's response until every background
+// subagent that turn spawned has settled, so a row still live here lacked that
+// evidence (an older adapter, or a dropped frame) and completes without a result.
 func (s *subagentService) OnNativeTurnDone(ctx context.Context, parent, turn string, at time.Time) error {
+	s.dropNativeTasks(ctx, parent, turn)
 	unlock := s.lock(parent)
 	changed, err := s.settleBackgroundNative(ctx, parent, turn, at)
 	unlock()
@@ -209,6 +223,7 @@ func (s *subagentService) interruptNative(ctx context.Context, parent, turn stri
 	}
 	s.mu.Lock()
 	delete(s.nativeKnown, parent)
+	delete(s.nativeQueued, parent)
 	s.mu.Unlock()
 	if changed {
 		return s.settleParent(ctx, parent)
@@ -325,11 +340,11 @@ func (m *Manager) publishNativeSubagentEvent(
 		err = service.OnNativeToolEvent(ctx, child.ID, native)
 	}
 	if err == nil && !ok && event.ParentToolCallID() != "" {
-		err = service.OnNativeToolEvent(
-			ctx,
-			child.ID,
-			NativeSubagentEvent{WorkspaceID: info.WorkspaceID, ProviderToolCallID: event.ParentToolCallID()},
-		)
+		nested := NativeSubagentEvent{WorkspaceID: info.WorkspaceID, ProviderToolCallID: event.ParentToolCallID()}
+		if event.Type == acp.EventTypeToolCall || event.Type == acp.EventTypeThought {
+			nested.Progress = cmp.Or(event.Title, event.Text)
+		}
+		err = service.OnNativeToolEvent(ctx, child.ID, nested)
 	}
 	if err != nil {
 		m.sessionLogger(child).

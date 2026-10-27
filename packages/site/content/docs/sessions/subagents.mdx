@@ -118,7 +118,7 @@ compozy session subagents show sub-3c9e1f0a7b2d4e61
 Subagent      sub-3c9e1f0a7b2d4e61
 Title         Sol: diff panel default and base diff design
 Parent        sess-7f3a2c11d09e4b58 (turn turn-91aa04c2)
-Child         sess-b41d77e05a3c9f12
+Child         sess-b41d77e05a3c9f12 (idle)
 Runtime       codex · gpt-6.1-sol · high · normal
 Status        completed (result available) · acknowledged
 Started       2026-10-08 21:14:03 · settled 2026-10-08 21:16:51 (2m 48s)
@@ -129,6 +129,10 @@ Recommendation: default the panel to 'branch' when the session has a worktree ..
 
 Your ids, model names, and times will differ. "acknowledged" means the parent agent already read the
 answer.
+
+The word after the child id is the child session's own activity: `working`, `idle`, or `stopped`. A
+finished subagent keeps its `completed` status even when someone prompts its child session again; the
+child then shows `working` until it goes quiet. Subagents recorded by older versions show no activity.
 
 Cancel a subagent that is still running:
 
@@ -175,9 +179,11 @@ compozy session list --subagents exclude
 Claude can also start its own built-in subagents (its Agent or Task tool). CompozyOS shows those as
 the same kind of card with their inner steps tucked inside, so they no longer mix into the parent's
 work. They can't be canceled on their own; stop the parent's turn instead. When Claude runs one in
-the background, the card stays **Running** until Claude ends the turn that started it, then reads
-**Completed**. Claude tells only itself how a background subagent went, so that card has no answer
-preview; the parent's reply has it. Stopping the turn early marks it interrupted.
+the background, the card stays **Running** while it works and changes as soon as that subagent
+finishes, even if Claude and other subagents keep going: **Completed**, **Failed**, or **Canceled**
+when Claude stopped it. Its answer preview is Claude's short summary of the subagent's work, which can
+arrive a moment after the status. If Claude never reports how one went, the card reads **Completed**
+without a preview when the turn ends. Stopping the turn early marks a still-running one interrupted.
 
 ## Limit the size of answers
 

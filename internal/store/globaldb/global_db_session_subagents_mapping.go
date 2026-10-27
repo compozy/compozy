@@ -61,6 +61,9 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 		AcknowledgedTurnID: row.AcknowledgedTurnID,
 	}
 	var err error
+	if out.ChildActivity, err = store.ParseSubagentChildActivity(row.ChildActivity); err != nil {
+		return out, err
+	}
 	if row.GitObservedAt.Valid {
 		out.Worktree.Facts.ObservedAt, err = store.ParseTimestamp(row.GitObservedAt.String)
 		if err != nil {

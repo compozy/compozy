@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -577,6 +578,97 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: child_activity changes only on delegated rows, never touches the terminal outcome,
+	// and boot reconciliation marks settled rows whose child session is stopped.
+	t.Run("Should record delegated child activity and reconcile stopped children", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		rows := map[string]store.SessionSubagent{}
+		for _, id := range []string{"stopped-child", "active-child", "live-row"} {
+			registerSubagentSession(t, db, workspace, "child-"+id, parent, store.SubagentSpawnRole, now)
+			reserveSubagent(t, db.SessionRepo, workspace, parent, id, now)
+			linked, err := db.LinkChild(ctx, id, "child-"+id, now)
+			if err != nil || linked.ChildActivity != store.SubagentChildActivityWorking {
+				t.Fatal(linked, err)
+			}
+			rows[id] = linked
+		}
+		if _, err := db.DB().
+			ExecContext(ctx, `UPDATE sessions SET state = 'active' WHERE id = 'child-active-child'`); err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"stopped-child", "active-child"} {
+			settled, changed, err := db.FinalizeSubagent(ctx, store.SubagentFinalize{
+				ID: id, Status: store.SubagentStatusCompleted, Result: new("done"),
+				ChildActivity: store.SubagentChildActivityIdle, SettledAt: now,
+			})
+			if err != nil || !changed || settled.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(settled, changed, err)
+			}
+			rows[id] = settled
+		}
+		later := now.Add(time.Minute)
+		working, changed, err := db.UpdateSubagentChildActivity(
+			ctx,
+			"active-child",
+			store.SubagentChildActivityWorking,
+			later,
+		)
+		if err != nil || !changed || working.ChildActivity != store.SubagentChildActivityWorking ||
+			working.Status != store.SubagentStatusCompleted || *working.Result != "done" ||
+			!working.SettledAt.Equal(*rows["active-child"].SettledAt) || !working.UpdatedAt.Equal(later) {
+			t.Fatal(working, changed, err)
+		}
+		replayed, changed, err := db.UpdateSubagentChildActivity(
+			ctx, "active-child", store.SubagentChildActivityWorking, later.Add(time.Minute),
+		)
+		if err != nil || changed || !replayed.UpdatedAt.Equal(later) {
+			t.Fatal(replayed, changed, err)
+		}
+		if _, _, err := db.UpdateSubagentChildActivity(
+			ctx,
+			"active-child",
+			store.SubagentChildActivity(9),
+			later,
+		); err == nil {
+			t.Fatal("invalid child activity was accepted")
+		}
+		native := store.SessionSubagent{
+			ID: "native", WorkspaceID: workspace, ParentSessionID: parent, ParentTurnID: "turn",
+			Origin: store.SubagentOriginProviderNative, ProviderToolCallID: "tool", IdempotencyKey: "tool",
+			RequestFingerprint: "native:tool", Title: "Task", Depth: 1, WakePolicy: store.SubagentWakePolicySettledOnly,
+		}
+		if _, _, err := db.ReserveSubagent(ctx, native); err != nil {
+			t.Fatal(err)
+		}
+		if row, changed, err := db.UpdateSubagentChildActivity(
+			ctx,
+			"native",
+			store.SubagentChildActivityIdle,
+			later,
+		); err != nil || changed ||
+			row.ChildActivity != store.SubagentChildActivityUnknown {
+			t.Fatal(row, changed, err)
+		}
+		reconciled, err := db.ReconcileStoppedChildActivity(ctx)
+		if err != nil || len(reconciled) != 1 || reconciled[0].ID != "stopped-child" ||
+			reconciled[0].ChildActivity != store.SubagentChildActivityStopped ||
+			reconciled[0].Status != store.SubagentStatusCompleted {
+			t.Fatal(reconciled, err)
+		}
+		for id, want := range map[string]store.SubagentChildActivity{
+			"active-child": store.SubagentChildActivityWorking,
+			"live-row":     store.SubagentChildActivityWorking,
+		} {
+			if row, err := db.GetSubagent(ctx, workspace, id); err != nil || row.ChildActivity != want {
+				t.Fatal(id, row, err)
+			}
+		}
+		if again, err := db.ReconcileStoppedChildActivity(ctx); err != nil || len(again) != 0 {
+			t.Fatal(again, err)
+		}
+	})
 	t.Run("Should update only nonterminal state and preserve unchanged timestamps", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -886,6 +978,77 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 			t.Fatal(row, err)
 		}
 	})
+	// Invariant: result enrichment fills only a matching terminal native row's NULL result, never its outcome.
+	t.Run("Should enrich only a matching terminal native row with a missing result", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		ctx := t.Context()
+		reserveSubagent(t, s, ws, parent, "delegated", now)
+		finalizeSubagent(t, s, "delegated", now)
+		for _, id := range []string{"native-null", "native-old"} {
+			if _, _, err := s.ReserveSubagent(ctx, store.SessionSubagent{
+				ID: id, WorkspaceID: ws, ParentSessionID: parent, ParentTurnID: "turn",
+				Origin: store.SubagentOriginProviderNative, ProviderToolCallID: id, IdempotencyKey: id,
+				RequestFingerprint: id, Title: id, Depth: 1, Status: store.SubagentStatusRunning,
+				WakePolicy: store.SubagentWakePolicySettledOnly, CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		settledAt := map[string]time.Time{"native-null": now, "native-old": now.Add(-48 * time.Hour)}
+		for id, at := range settledAt {
+			if _, changed, err := s.FinalizeSubagent(ctx, store.SubagentFinalize{
+				ID: id, Status: store.SubagentStatusCompleted, SettledAt: at,
+			}); err != nil || !changed {
+				t.Fatal(id, changed, err)
+			}
+		}
+		missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), 10)
+		if err != nil || len(missing) != 1 || missing[0].ID != "native-null" {
+			t.Fatal(missing, err)
+		}
+		if _, err := s.ListNativeMissingResult(ctx, now, 0); err == nil {
+			t.Fatal("unbounded missing-result list was accepted")
+		}
+		want := store.NativeSubagentResultEnrichment{
+			ID: "native-null", WorkspaceID: ws, ParentSessionID: parent, ParentTurnID: "turn",
+			ProviderToolCallID: "native-null", Status: store.SubagentStatusCompleted, Result: "summary",
+			At: now.Add(time.Minute),
+		}
+		for name, mismatch := range map[string]store.NativeSubagentResultEnrichment{
+			"workspace": {WorkspaceID: "other"}, "turn": {ParentTurnID: "other"},
+			"call": {ProviderToolCallID: "other"}, "status": {Status: store.SubagentStatusFailed},
+		} {
+			in := want
+			in.WorkspaceID = cmp.Or(mismatch.WorkspaceID, in.WorkspaceID)
+			in.ParentTurnID = cmp.Or(mismatch.ParentTurnID, in.ParentTurnID)
+			in.ProviderToolCallID = cmp.Or(mismatch.ProviderToolCallID, in.ProviderToolCallID)
+			in.Status = cmp.Or(mismatch.Status, in.Status)
+			if row, changed, err := s.EnrichNativeSubagentResult(ctx, in); err != nil || changed || row.Result != nil {
+				t.Fatal(name, row, changed, err)
+			}
+		}
+		delegated := want
+		delegated.ID, delegated.ProviderToolCallID, delegated.ParentTurnID = "delegated", "", "turn"
+		if _, changed, err := s.EnrichNativeSubagentResult(ctx, delegated); err != nil || changed {
+			t.Fatal("delegated row enriched", changed, err)
+		}
+		row, changed, err := s.EnrichNativeSubagentResult(ctx, want)
+		if err != nil || !changed || row.Result == nil || *row.Result != "summary" ||
+			row.Status != store.SubagentStatusCompleted || !row.SettledAt.Equal(now) ||
+			row.Delivery != store.SubagentDeliveryNone || !row.UpdatedAt.Equal(want.At) {
+			t.Fatal(row, changed, err)
+		}
+		want.Result = "replacement"
+		if again, changed, err := s.EnrichNativeSubagentResult(ctx, want); err != nil || changed ||
+			*again.Result != "summary" {
+			t.Fatal("populated result replaced", again, changed, err)
+		}
+		if missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), 10); err != nil || len(missing) != 0 {
+			t.Fatal(missing, err)
+		}
+	})
 }
 
 // Invariant: isolation anchors and nullable settlement facts survive SQLite round trips.
@@ -934,6 +1097,7 @@ func TestSubagentWorktreePersistence(t *testing.T) {
 		}
 		row, err := upgraded.GetSubagent(t.Context(), ws, "sub-old")
 		if err != nil || row.Isolation != "shared" || row.PendingTask == nil || *row.PendingTask != "task" ||
+			row.ChildActivity != store.SubagentChildActivityUnknown ||
 			row.WorktreeState().ID != "" ||
 			row.WorktreeState().Facts.CommitsAhead != nil {
 			t.Fatal(row, err)

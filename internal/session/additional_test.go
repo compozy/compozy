@@ -1187,6 +1187,39 @@ func TestNativeSubagentEventFromStored(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: a committed task observation converts to a task event for its launching call, with a
+	// one-line progress preferring summary, then description, then the last tool.
+	t.Run("Should convert committed native task observations for their launching call", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
+		for _, tc := range []struct {
+			summary                     *string
+			description, lastTool, want string
+		}{
+			{summary: new("Reading files"), description: "Survey", lastTool: "Grep", want: "Reading files"},
+			{description: "Survey", lastTool: "Grep", want: "Survey"},
+			{lastTool: "Grep", want: "Grep"},
+		} {
+			event := acp.AgentEvent{
+				Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: "toolu_agent",
+			}.WithNativeTask(&acp.NativeTaskObservation{
+				Kind: acp.NativeTaskKindProgress, TaskID: "agent-a", ToolCallID: "toolu_agent", Summary: tc.summary,
+				Description: tc.description, LastToolName: tc.lastTool,
+			})
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := NativeSubagentEventFromStored(
+				"workspace", store.SessionEvent{TurnID: "turn", Timestamp: at, Content: payload},
+			)
+			if err != nil || !ok || got.Task == nil || got.ProviderToolCallID != "toolu_agent" ||
+				got.ToolName != "" || got.ParentTurnID != "turn" || got.WorkspaceID != "workspace" ||
+				got.Task.Kind != acp.NativeTaskKindProgress || got.Task.Progress != tc.want || !got.At.Equal(at) {
+				t.Fatalf("task event = %#v %#v, %v, %v", got, got.Task, ok, err)
+			}
+		}
+	})
 	// Issue #766: either the background input flag or the persisted async receipt marks a launch.
 	t.Run("Should mark background launches from the input flag or the persisted receipt", func(t *testing.T) {
 		t.Parallel()

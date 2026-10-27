@@ -57,11 +57,26 @@ const TITLES = [
   "Draft the migration plan",
   "Backfill audit rows",
 ];
-const STATUSES = ["running", "waiting", "running", "completed", "failed", "completed"] as const;
+// A mixed set: working, waiting, done, failed, idle (delivered, child quiet), queued.
+const STATES = [
+  { status: "running" },
+  { status: "waiting" },
+  { status: "running" },
+  { status: "completed" },
+  { status: "failed" },
+  { status: "completed", child_activity: "idle", delivery: "delivered" },
+  { status: "queued" },
+] as const;
+
+const LOADED_AT = Date.now();
 
 function subagent(parentId: string, index: number) {
-  const status = STATUSES[index % STATUSES.length]!;
-  const at = new Date(Date.parse("2026-10-23T12:00:00Z") - index * 90_000).toISOString();
+  const state = STATES[index % STATES.length]!;
+  const { status } = state;
+  // Relative to story load, so Working ticks from minutes ago and Done freezes at a real span.
+  const startMs = LOADED_AT - (index + 2) * 90_000;
+  const at = new Date(startMs).toISOString();
+  const settledAt = new Date(startMs + 45_000 + index * 7_000).toISOString();
   return {
     subagent_id: `${parentId}-sub-${index}`,
     workspace_id: "ws-product",
@@ -79,12 +94,13 @@ function subagent(parentId: string, index: number) {
     result_preview: "",
     result_truncated: false,
     error: null,
-    delivery: "none",
+    delivery: "delivery" in state ? state.delivery : "none",
+    ...("child_activity" in state ? { child_activity: state.child_activity } : {}),
     depth: 1,
     wait_timed_out: false,
     runtime: { agent: "coder", provider: "claude", model: "", reasoning_effort: "", speed: "" },
-    started_at: at,
-    settled_at: status === "completed" || status === "failed" ? at : null,
+    started_at: status === "queued" ? null : at,
+    settled_at: status === "completed" || status === "failed" ? settledAt : null,
     created_at: at,
     updated_at: at,
   };

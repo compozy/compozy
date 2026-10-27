@@ -40,6 +40,9 @@ type subagentRuntime interface {
 	Steer(context.Context, string, string, string, string) (acp.SteerResult, error)
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error
+	// NativeTaskEvents returns at most limit committed native-task observations
+	// of one parent turn, in sequence order.
+	NativeTaskEvents(ctx context.Context, parentID, turnID string, limit int) ([]store.SessionEvent, error)
 }
 
 // subagentTurnResult is what the child's settling turn left behind: its last
@@ -97,6 +100,7 @@ type subagentService struct {
 	progress     map[string]*subagentProgress
 	nativeMisses map[string]bool
 	nativeKnown  map[string]map[string]nativeCall
+	nativeQueued map[string]map[string][]NativeSubagentEvent
 	steerTurns   map[string]string
 	wakeRetries  map[string]bool
 	// awaitingFacts holds canceled isolated rows whose subagent.settled hook waits for the final Git and PR

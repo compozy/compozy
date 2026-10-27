@@ -212,7 +212,7 @@
    Not a ToolCallRow — borrows its 24px line rhythm; adds a quiet frame so a
    delegation reads as an object, not a log line. */
 .subagent-card{
-  position:relative;display:grid;grid-template-columns:24px minmax(0,1fr) auto 14px;align-items:center;gap:10px;
+  position:relative;display:grid;grid-template-columns:24px minmax(0,1fr) auto auto 14px;align-items:center;gap:10px;
   width:100%;max-width:560px;min-height:46px;padding:7px 10px 7px 9px;text-align:left;
   border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-soft);color:var(--fg);
   transition:background var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease)
@@ -416,3 +416,15 @@ button.subagent-card:hover .subagent-card__chev{color:var(--muted)}
 .subagent-roster__prev .acc{margin-left:auto;font-size:10.5px;color:var(--danger)}
 .subagent-roster__more{align-self:flex-start;margin-top:2px}
 .subagent-roster [hidden]{display:none}
+
+/* 2026-10-27 status grammar revision: the status lives in the trailing slot as
+   StateGlyph + word (Working / Done), never as an avatar dot. Settled titles dim. */
+.sa-state{display:inline-flex;align-items:center;gap:5px;flex:none;font-size:10.5px;color:var(--subtle);white-space:nowrap}
+.sa-state[data-state="running"] .sa-state__w{color:var(--fg-2)}
+.sa-state + .subagent-elapsed{margin-left:0}
+.subagent-card:has(.sa-state[data-state="done"]) .subagent-card__title,
+.subagent-card:has(.sa-state[data-state="stopped"]) .subagent-card__title,
+.subagent-roster__row:has(.sa-state[data-state="done"]) .subagent-roster__t,
+.subagent-roster__row:has(.sa-state[data-state="stopped"]) .subagent-roster__t,
+.subagent-chip-list__row:has(.sa-state[data-state="done"]) .subagent-chip-list__t{color:var(--muted)}
+.subagent-group__summary{display:flex;align-items:center;gap:5px}

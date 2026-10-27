@@ -13568,6 +13568,13 @@ func TestNativeSubagentBindings(t *testing.T) {
 		if _, ok := output["worktree"]; ok {
 			t.Fatal(output)
 		}
+		if _, ok := output["child_activity"]; ok {
+			t.Fatal("unknown child activity was emitted", output)
+		}
+		row.ChildActivity = store.SubagentChildActivityIdle
+		if output = subagentPayload(&row); output["child_activity"] != "idle" {
+			t.Fatal(output)
+		}
 	})
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()

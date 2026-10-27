@@ -16058,6 +16058,8 @@ export interface components {
       subagents: components["schemas"]["SubagentPayload"][];
     };
     SubagentPayload: {
+      /** @enum {string} */
+      child_activity?: "working" | "idle" | "stopped";
       child_session_id: string | null;
       /** Format: date-time */
       created_at: string;

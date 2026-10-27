@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -2024,7 +2025,8 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		t.Helper()
 		var meta struct {
 			ClaudeCode struct {
-				Options struct {
+				EmitRawSDKMessages []map[string]string `json:"emitRawSDKMessages"`
+				Options            struct {
 					DisallowedTools []string          `json:"disallowedTools"`
 					Env             map[string]string `json:"env"`
 					Settings        struct {
@@ -2071,6 +2073,16 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
 			t.Fatalf("%s PreToolUse hooks = %#v, want one shell run_in_background deny hook", method, hooks)
 		}
+		// Only the four SDK task lifecycle messages are forwarded, never every raw SDK message.
+		wantFilters := []map[string]string{
+			{"type": "system", "subtype": "task_started"},
+			{"type": "system", "subtype": "task_progress"},
+			{"type": "system", "subtype": "task_updated"},
+			{"type": "system", "subtype": "task_notification"},
+		}
+		if !slices.EqualFunc(meta.ClaudeCode.EmitRawSDKMessages, wantFilters, maps.Equal) {
+			t.Fatalf("%s emitRawSDKMessages = %#v, want %#v", method, meta.ClaudeCode.EmitRawSDKMessages, wantFilters)
+		}
 	}
 
 	t.Run("Should send Claude background-wake options on session/new", func(t *testing.T) {
@@ -2082,6 +2094,9 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		})
 		defer stopProcess(t, New(), proc)
 		assertClaudeOptions(t, "session/new", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew))
+		if !proc.claudeTasks.enabled.Load() {
+			t.Fatal("Claude bridge process does not accept the task messages it requested")
+		}
 	})
 
 	t.Run("Should send Claude background-wake options on session/load", func(t *testing.T) {
@@ -2094,6 +2109,18 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		})
 		defer stopProcess(t, New(), proc)
 		assertClaudeOptions(t, "session/load", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad))
+	})
+
+	t.Run("Should send Claude options and task filters on session/resume", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-resume.jsonl")
+		proc := startHelperProcess(t, New(), "resume_session", "", StartOpts{
+			Command:         claudeBridge,
+			ResumeSessionID: "sess-existing",
+			Env:             helperEnvWithCapture("resume_session", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		assertClaudeOptions(t, "session/resume", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionResume))
 	})
 
 	t.Run("Should give Windows a PowerShell hook that does not need Git Bash", func(t *testing.T) {
@@ -2119,6 +2146,9 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		defer stopProcess(t, New(), proc)
 		if meta, exists := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)["_meta"]; exists {
 			t.Fatalf("session/new _meta = %#v, want absent for codex-acp", meta)
+		}
+		if proc.claudeTasks.enabled.Load() {
+			t.Fatal("non-Claude process accepts Claude task messages")
 		}
 	})
 }

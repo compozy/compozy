@@ -46,22 +46,25 @@ Same grammar as `automations/` and `session-context/`:
 
 `_uiux.md` says "token names follow `tokens.css`; the design pass confirms exact names." The boards follow the shipped `StateGlyph` canon (`state-glyph.tsx` header), not the spec's draft, wherever the two differ:
 
-| State | Glyph | Avatar dot (`StatusDot`) | Word |
-| --- | --- | --- | --- |
-| queued | `queued` (dashed ring, `--color-indicator`) | hollow ring, indicator | Queued |
-| running | `running` (mint ring, `--color-success`) — **spec draft said info** | `success`, pulsing | Running |
-| waiting for you | `attention` (accent dot) | `accent` | Waiting for you |
-| completed | `done` (mint check) | `success`, still | Completed |
-| failed | `failed` (danger ×) | `danger`; line 2 + word `danger` | Failed |
-| canceled · interrupted | `stopped` (subtle square) | `faint` | Canceled · Interrupted |
-| parent waiting on subagents | `delegated` (info ring + dot) | — | — |
+| State | Glyph (`StateGlyph`, trailing slot; mark column in the sidebar branch) | Word |
+| --- | --- | --- |
+| queued | `queued` (dashed ring, `--color-indicator`) | Queued |
+| running · working | `running` (mint ring, spins) | Working |
+| running · waiting on its own subagents | `delegated` (info ring + dot) | Waiting on subagents |
+| waiting for you | `attention` (accent dot) | Waiting for you |
+| completed | `done` (mint check) | Done |
+| completed · result delivered · child session alive and quiet | `idle` (subtle dot) | Idle |
+| any settled row whose child session was resumed | `running` | Working |
+| failed | `failed` (danger ×) | Failed |
+| canceled · interrupted | `stopped` (subtle square) | Canceled · Interrupted |
+| parent waiting on subagents | `delegated` | — |
 
-Running and completed share mint. They differ by motion (pulse vs still), by the word, and by elapsed ticking vs frozen. State is never shown by colour alone. Accent appears only for "Waiting for you". Danger appears only for failures.
+Revision 2026-10-27 (Pedro): the avatar dot is gone. Working and Done both read mint at 6–8px, so every list looked finished. Status now uses the session `StateGlyph` grammar: shape (spinner vs check), the word, and the elapsed clock (ticking vs frozen) beside it. Settled titles dim to `muted`. The group summary leads with one aggregate glyph, ranked attention > failed > working > done. The avatar carries only the provider. State is never shown by colour alone. Accent appears only for "Waiting for you". Danger appears only for failures.
 
 ## Geometry
 
 - **Card**: grid `24px · 1fr · auto · 14px`, gap 10, padding 7/10/7/9, min-height 46, max-width 560, `canvas-soft` + `line-soft` hairline, radius-md; hover `surface-2` + `line`. Title 12/510 `fg-strong`; word 10.5 `subtle`; line 2 11.5 `muted`; elapsed mono 10.5 tabular. Inside a group panel, cards lose their frame.
-- **Avatar**: 24px round, `surface-2` + `line-strong`, 13px mark, 8px dot bottom-right on a 2px ring matching the host surface. 20px variant in the chip preview and the roster.
+- **Avatar**: 24px round, `surface-2` + `line-strong`, 13px mark, no status dot (status is the trailing glyph + word). 20px variant in the chip preview and the roster.
 - **Group**: same trigger height as a card; avatars overlap by 7px; max 3 + `+N`; collapsed + all settled → opacity .62, restored on hover/focus.
 - **HoverCard**: 300px, `elevated` + `line-strong` + `shadow-overlay`, radius-md, padding 10/12. Opens in 200 ms, closes in 120 ms.
 - **Banner**: docks on the composer's top edge like `SessionQueueStrip` (10px inset, radius-lg top, no bottom border), two lines: title 12/510, names 11.5 `subtle` with `fg-2` underlined name buttons; ghost sm Stop.
@@ -103,3 +106,4 @@ Items 1–5 were decided by Pedro on 2026-10-09. The boards were updated to matc
 
 - 2026-10-08 · first pass: 3 boards, 13 specimen sections, 7 + 3 + 3 VC rows.
 - 2026-10-09 · Pedro's answers to gaps 1–5. Navigation board: failed roster rows moved above the live list in nav VC-01 and VC-03, and the `Previous subagents` counts updated; the chip with no live subagents shows the total only (nav VC-02); "Click to see all" removed from the chip hover.
+- 2026-10-27 · status grammar revision: avatar `StatusDot` replaced by trailing `StateGlyph` + word on cards, roster and chip rows, and by the mark-column glyph on sidebar branch rows. Running reads Working, completed reads Done. New Idle and Waiting on subagents states. Settled titles dim. Group summaries lead with an aggregate glyph.

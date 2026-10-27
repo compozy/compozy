@@ -17,8 +17,8 @@ import { SubagentAvatar } from "./subagent-avatar";
 import { SubagentBranch, type SubagentOpenOptions } from "./subagent-card";
 import {
   SUBAGENT_ROW_STOP_FAILED,
-  SUBAGENT_STATUS_WORD,
   isSubagentStoppable,
+  subagentDisplay,
   subagentRosterGroups,
 } from "./subagent-format";
 import { SubagentHoverContent } from "./subagent-hover-content";
@@ -63,28 +63,31 @@ interface RosterRowProps {
 interface RosterRowLabelProps {
   subagent: SubagentView;
   branch: string | undefined;
-  stale: boolean;
+  settled: boolean;
 }
 
-// Isolated rows grow a branch line (S5) under the title.
-function RosterRowLabel({ subagent, branch, stale }: RosterRowLabelProps) {
+// Isolated rows grow a branch line (S5) under the title; settled titles dim in place.
+function RosterRowLabel({ subagent, branch, settled }: RosterRowLabelProps) {
+  const title = (
+    <span className={cn("truncate text-transcript-meta", settled && "text-muted")}>
+      {subagent.title}
+    </span>
+  );
   return (
     <>
       <SubagentAvatar
         provider={subagent.runtime.provider}
-        status={subagent.status}
         size="sm"
         surface="rail"
-        still={stale}
         className={branch ? "mt-px" : undefined}
       />
       {branch ? (
         <span className="flex min-w-0 flex-col gap-px">
-          <span className="truncate text-transcript-meta">{subagent.title}</span>
+          {title}
           <SubagentBranch branch={branch} className="min-w-0 text-micro" />
         </span>
       ) : (
-        <span className="truncate text-transcript-meta">{subagent.title}</span>
+        title
       )}
     </>
   );
@@ -120,7 +123,8 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
   const drillable =
     (subagent.child_session_id !== null || subagent.origin === "provider_native") &&
     onOpen !== undefined;
-  const word = SUBAGENT_STATUS_WORD[subagent.status];
+  const display = subagentDisplay(subagent, { stale });
+  const word = display.word;
   // Isolated rows grow a branch line (S5); the PR link stays a sibling of the open control.
   const branch = subagentWorktree(subagent)?.branch;
   const pullRequest = subagentPullRequest(subagent);
@@ -137,6 +141,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
     <li
       data-slot="subagent-roster-row"
       data-status={subagent.status}
+      data-state={display.glyph}
       data-stopping={pending ? "true" : undefined}
       className={SUBAGENT_ROSTER_ROW_FRAME}
     >
@@ -164,7 +169,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
             )
           }
         >
-          <RosterRowLabel subagent={subagent} branch={branch} stale={stale} />
+          <RosterRowLabel subagent={subagent} branch={branch} settled={display.settled} />
         </HoverCardTrigger>
         <HoverCardContent side={hoverSide} align="start">
           <SubagentHoverContent subagent={subagent} stale={stale} />
@@ -177,6 +182,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
         <SubagentRowTrail
           subagent={subagent}
           stale={stale}
+          glyph
           className={cn(
             stoppable && "group-hover/roster-row:hidden group-has-focus-visible/roster-row:hidden",
             pending && "hidden"
