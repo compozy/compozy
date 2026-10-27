@@ -1,7 +1,15 @@
 import { Fragment } from "react";
 import { Check, KeyRound } from "lucide-react";
 
-import { Eyebrow, Field, FieldLabel, Input, RadioCard, Spinner } from "@compozy/ui";
+import {
+  Eyebrow,
+  Field,
+  FieldLabel,
+  Input,
+  RadioCard,
+  Skeleton,
+  SkeletonRegion,
+} from "@compozy/ui";
 
 import type { OnboardingDefaultModelApi } from "../hooks/use-onboarding-default-model";
 import type { OnboardingModelFact } from "../lib/model-facts";
@@ -58,9 +66,9 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
           Model
         </Eyebrow>
         {model.providersLoading ? (
-          <div className="flex items-center gap-2 text-small-body text-muted">
-            <Spinner /> Loading providers…
-          </div>
+          <SkeletonRegion label="Loading providers">
+            <Skeleton className="h-button-lg w-64 rounded-pill" />
+          </SkeletonRegion>
         ) : model.providersError ? (
           <p className="text-small-body text-danger" role="alert">
             {model.providersError}

@@ -1,6 +1,14 @@
 import { KeyRound, Trash2 } from "lucide-react";
 
-import { Button, CatalogCard, Pill, Time } from "@compozy/ui";
+import {
+  Button,
+  CatalogCard,
+  CatalogCardSkeleton,
+  Pill,
+  Skeleton,
+  SkeletonText,
+  Time,
+} from "@compozy/ui";
 
 import { vaultSecretLocation, vaultSecretTitle } from "../lib/vault-secret-title";
 import type { VaultSecret } from "../types";
@@ -80,5 +88,44 @@ export function VaultSecretsCard({
         </div>
       </CatalogCard.Actions>
     </CatalogCard>
+  );
+}
+
+const SECRET_CARD_SKELETONS = [
+  { id: "secret-card-skeleton-1", title: "w-40", location: "w-32" },
+  { id: "secret-card-skeleton-2", title: "w-32", location: "w-40" },
+  { id: "secret-card-skeleton-3", title: "w-48", location: "w-28" },
+  { id: "secret-card-skeleton-4", title: "w-36", location: "w-36" },
+  { id: "secret-card-skeleton-5", title: "w-44", location: "w-32" },
+  { id: "secret-card-skeleton-6", title: "w-28", location: "w-40" },
+] as const;
+
+/**
+ * `count` placeholder cards with the secret card's own header (glyph, name and one location line)
+ * and its foot: the kind pill opposite the updated time and the delete control.
+ */
+export function VaultSecretsCardSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <>
+      {SECRET_CARD_SKELETONS.slice(0, count).map(card => (
+        <CatalogCardSkeleton key={card.id}>
+          <div className="flex items-start gap-2.5">
+            <Skeleton className="size-(--size-catalog-logo) shrink-0 rounded-sm" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <CatalogCard.Title>
+                <SkeletonText className={card.title} />
+              </CatalogCard.Title>
+              <span className="block truncate text-eyebrow">
+                <SkeletonText className={card.location} />
+              </span>
+            </div>
+          </div>
+          <CatalogCard.Actions className="justify-between">
+            <Skeleton className="h-pill-sm w-16 rounded-pill" />
+            <Skeleton className="ml-auto size-button-icon-sm" />
+          </CatalogCard.Actions>
+        </CatalogCardSkeleton>
+      ))}
+    </>
   );
 }

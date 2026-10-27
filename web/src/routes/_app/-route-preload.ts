@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import { CancelledError, type QueryClient } from "@tanstack/react-query";
 
 import {
   activeWorkspaceStore,
@@ -19,6 +19,29 @@ import {
 export function settleRouteQueries(queries: readonly Promise<unknown>[]): Promise<void> {
   void Promise.allSettled(queries);
   return Promise.resolve();
+}
+
+const ROUTE_QUERY_CANCEL_RETRIES = 3;
+
+/**
+ * `ensureQueryData` for a read the route genuinely awaits. A loader joins the
+ * fetch a mounted observer may own; when that observer unmounts mid-flight
+ * (a deferred window switch, a hidden deck body) TanStack cancels the shared
+ * fetch and every joined promise rejects with `CancelledError`, which would
+ * fail the whole route match. The read is still wanted, so ensure it again:
+ * that joins a live successor or starts a fresh fetch. Bounded so repeated
+ * cancellation still surfaces instead of looping.
+ */
+export async function ensureRouteQueryData<TData>(ensure: () => Promise<TData>): Promise<TData> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await ensure();
+    } catch (error) {
+      if (!(error instanceof CancelledError) || attempt >= ROUTE_QUERY_CANCEL_RETRIES) {
+        throw error;
+      }
+    }
+  }
 }
 
 export async function resolveActiveWorkspaceSelection(
@@ -58,6 +81,6 @@ function loadWorkspaceSelection(queryClient: QueryClient) {
 
   return Promise.allSettled([
     hydration,
-    queryClient.ensureQueryData(workspacesListOptions()),
+    ensureRouteQueryData(() => queryClient.ensureQueryData(workspacesListOptions())),
   ] as const);
 }

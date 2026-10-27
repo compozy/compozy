@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import type { ComponentProps } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -28,6 +27,7 @@ import {
   retiredCwdDetail,
   revealNodeEnvironment,
 } from "./loop-editor-environment-story-helpers";
+import { EditorHarness } from "./loop-editor-story-harness";
 
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import {
@@ -110,19 +110,6 @@ function editorHandlers(detail: LoopDetail) {
     ),
     ...loopHandlers,
   ];
-}
-
-function EditorHarness({
-  heightClass = "h-[880px]",
-  ...args
-}: ComponentProps<typeof LoopEditor> & { heightClass?: string }) {
-  return (
-    <StoryTopbarHost title="Editor">
-      <StorySurface className={`flex ${heightClass} p-0`}>
-        <LoopEditor {...args} />
-      </StorySurface>
-    </StoryTopbarHost>
-  );
 }
 
 const meta: Meta<typeof LoopEditor> = {

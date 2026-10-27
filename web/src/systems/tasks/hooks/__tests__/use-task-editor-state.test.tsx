@@ -12,6 +12,7 @@ const editorMocks = vi.hoisted(() => ({
   activeWorkspaceId: "ws_alpha" as string | null,
   scope: "workspace" as "global" | "workspace",
   detail: undefined as unknown,
+  detailPending: false,
   detailOptions: undefined as unknown,
   profile: undefined as unknown,
   profileOptions: undefined as unknown,
@@ -50,6 +51,7 @@ vi.mock("../use-tasks", () => ({
     return {
       data: editorMocks.detail,
       isLoading: false,
+      isPending: editorMocks.detailPending,
     };
   },
 }));
@@ -94,6 +96,7 @@ beforeEach(() => {
   editorMocks.activeWorkspaceId = "ws_alpha";
   editorMocks.scope = "workspace";
   editorMocks.detail = buildEditorDetail("task_alpha", "Alpha source", "2026-07-25T10:00:00Z");
+  editorMocks.detailPending = false;
   editorMocks.profile = buildTaskExecutionProfileFixture({
     task_id: "task_alpha",
     updated_at: "2026-07-25T10:00:00Z",
@@ -277,6 +280,22 @@ describe("task editor state identity", () => {
     await act(async () => {
       await first;
     });
+  });
+
+  it("Should keep an edit waiting, not unavailable, while its read has no data yet", () => {
+    editorMocks.detail = undefined;
+    editorMocks.detailPending = true;
+    const { result, rerender } = renderHook(() => useTaskEditState("task_alpha", vi.fn()), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isInitialized).toBe(false);
+
+    // Answered with nothing to bind, it is no longer waiting: the host reports it unavailable.
+    editorMocks.detailPending = false;
+    rerender();
+    expect(result.current.isLoading).toBe(false);
   });
 
   it("Should disable task reads and polling while the edit window is inactive", () => {

@@ -2,14 +2,7 @@
 
 import { AlertCircle, ClipboardCheck } from "lucide-react";
 
-import {
-  BlockLoading,
-  Dialog,
-  DialogContent,
-  Empty,
-  EntityDialogHeader,
-  dialogShellClass,
-} from "@compozy/ui";
+import { Dialog, DialogContent, Empty, EntityDialogHeader, dialogShellClass } from "@compozy/ui";
 
 import {
   TaskEditorSurface,
@@ -17,6 +10,7 @@ import {
   type TaskEditorSurfaceProps,
 } from "./task-editor-surface";
 import { TASK_DESCRIPTION } from "./task-editor-copy";
+import { TaskEditorLoading } from "./task-editor-skeleton";
 
 export type TaskEditorModalMode = TaskEditorSurfaceMode;
 
@@ -73,12 +67,7 @@ export function TaskEditorModal({
           <section className={SHELL_CLASS} data-mode={surfaceProps.mode}>
             {header}
             {status === "loading" ? (
-              <BlockLoading
-                data-testid="task-editor-modal-loading"
-                label="Loading task"
-                size="md"
-                surface="bare"
-              />
+              <TaskEditorLoading onCancel={close} />
             ) : (
               <div
                 className="flex min-h-0 flex-1 items-center justify-center p-6"

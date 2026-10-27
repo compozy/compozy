@@ -23,6 +23,7 @@ import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-l
 import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections } from "./session-list-sections";
+import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 import type { SessionSelectionDrag } from "../../hooks/use-session-list-dnd";
 import type { SessionListPair } from "../../lib/session-list-groups";
@@ -129,7 +130,7 @@ function SessionListGroupSplit({
       />
     );
   }
-  if (split.loading) return <GroupNote>Loading sessions…</GroupNote>;
+  if (split.loading) return <SessionGroupRowsSkeleton />;
   const subgroups = split.groups.map(subgroup => ({
     ...subgroup,
     key: `${group.key}/${subgroup.key}`,
@@ -221,7 +222,7 @@ function SessionListPairGroupBody({
       />
     );
   }
-  if (catalog.loading) return <GroupNote>Loading sessions…</GroupNote>;
+  if (catalog.loading) return <SessionGroupRowsSkeleton />;
   return (
     <div className="flex flex-col gap-0.5 pl-2.5">
       {layout.layout && layout.sections ? (

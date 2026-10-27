@@ -810,8 +810,17 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
     "json",
   ]);
 
-  await window.getByTestId("terminal-journal-toggle").click();
-  await expect(window.getByTestId("terminal-journal")).toBeVisible();
+  // Owner: browser terminal host (E2E-007). An unlocked, uncached journal keeps its
+  // loading region while the first read is offline, then resumes without reopening.
+  await appPage.context().setOffline(true);
+  try {
+    await window.getByTestId("terminal-journal-toggle").click();
+    await expect(window.getByTestId("terminal-journal")).toBeVisible();
+    await expect(window.getByRole("status")).toContainText("Loading the journal");
+  } finally {
+    await appPage.context().setOffline(false);
+  }
+  await expect(window.getByTestId(`terminal-journal-row-${failedRow.command_id}`)).toBeVisible();
   await window.getByTestId("terminal-journal-filters-add").click();
   await appPage.getByRole("option", { name: "Who" }).click();
   await appPage.getByRole("option", { name: "A person" }).click();

@@ -2,9 +2,11 @@ import type { ComponentProps } from "react";
 import { createElement, useEffect, useRef } from "react";
 import { useReducedMotionConfig } from "motion/react";
 
-import { cn, Empty, PillDot } from "@compozy/ui";
+import { cn, Empty, PillDot, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
+
+import { placeholderSlots } from "../../../lib/placeholder-slots";
 
 import type { LoopDagEdgeState } from "../../../lib/loop-run-dag-edges";
 import type { LoopDagColumn, LoopDagNode, LoopRunDagModel } from "../../../lib/loop-run-dag-view";
@@ -42,6 +44,12 @@ interface LoopRunDagProps extends Omit<ComponentProps<"div">, "children" | "onSe
  * removed from the render entirely — not paused mid-frame — while the live
  * edge keeps its accent fill, so liveness stays readable without animation.
  */
+// Shared by the live graph and its skeleton so a step card is the same size either way.
+const DAG_LANE_CLASS = "flex items-stretch gap-0 overflow-x-auto bg-sunken px-4 py-4";
+const DAG_CARD_CLASS = "flex w-40 shrink-0 flex-col gap-1.5 rounded-md bg-card px-3 py-2.5";
+const DAG_GUTTER_CLASS =
+  "relative flex w-7 shrink-0 flex-col justify-center gap-1 self-stretch py-6";
+
 const EDGE_CLASS: Record<LoopDagEdgeState, string> = {
   live: "bg-accent",
   taken: "bg-success/60",
@@ -59,7 +67,7 @@ function LoopDagGutter({ column, reduced }: { column: LoopDagColumn; reduced: bo
   return (
     <span
       aria-hidden="true"
-      className="relative flex w-7 shrink-0 flex-col justify-center gap-1 self-stretch py-6"
+      className={DAG_GUTTER_CLASS}
       data-state={column.gutterState}
       data-testid={`loop-dag-edge-${column.gutterState}`}
     >
@@ -107,7 +115,8 @@ function LoopDagCard({
       // pressed state to report at all.
       aria-pressed={selectable ? selected : undefined}
       className={cn(
-        "flex w-40 shrink-0 flex-col gap-1.5 rounded-md bg-card px-3 py-2.5 text-left",
+        DAG_CARD_CLASS,
+        "text-left",
         "outline-none focus-visible:shadow-focus-ring",
         // A card lifts with its hairline ring; a step not reached yet is only an
         // outline of where it will be. The open step holds the selected plate —
@@ -210,11 +219,9 @@ export function LoopRunDag({
     }
     if (read?.isLoading) {
       return (
-        <Empty
-          data-testid="loop-dag-loading"
-          description="Reading this run's shape…"
-          title="Still reading"
-        />
+        <SkeletonRegion data-testid="loop-dag-loading" label="Loading graph">
+          <LoopRunDagSkeleton />
+        </SkeletonRegion>
       );
     }
     return (
@@ -233,7 +240,7 @@ export function LoopRunDag({
   return (
     <div
       // Recessed inside the Inspect card, so the step cards on it read as cards.
-      className={cn("flex items-stretch gap-0 overflow-x-auto bg-sunken px-4 py-4", className)}
+      className={cn(DAG_LANE_CLASS, className)}
       data-testid="loop-run-dag"
       ref={laneRef}
       {...props}
@@ -262,6 +269,33 @@ export function LoopRunDag({
           </div>
           {index < dag.columns.length - 1 ? (
             <LoopDagGutter column={column} reduced={reduced} />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The graph lane before the roster has answered: three columns of step cards in the lane's own
+ * recessed surface, one line between them. Presentational; the caller owns the `SkeletonRegion`.
+ */
+export function LoopRunDagSkeleton() {
+  const columns = placeholderSlots("dag-column", 3);
+  return (
+    <div aria-hidden="true" className={DAG_LANE_CLASS}>
+      {columns.map(column => (
+        <div className="flex items-stretch" key={column.id}>
+          <div className="flex flex-col justify-center gap-2">
+            <div className={cn(DAG_CARD_CLASS, "shadow-card")}>
+              <SkeletonText className="w-24 text-small-body font-medium" />
+              <SkeletonText className="w-16 text-small-body" />
+            </div>
+          </div>
+          {column.position < columns.length - 1 ? (
+            <span aria-hidden="true" className={DAG_GUTTER_CLASS}>
+              <span className="h-px w-full bg-line" />
+            </span>
           ) : null}
         </div>
       ))}

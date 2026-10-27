@@ -39,6 +39,13 @@ import { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "../../lib/sessio
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
+import {
+  SESSION_BOARD_CARD_FOOTER_ROW,
+  SESSION_BOARD_CARD_FRAME,
+  SESSION_BOARD_CARD_META_ROW,
+  SESSION_BOARD_CARD_TITLE_ROW,
+  SESSION_BOARD_CARD_TITLE_TYPE,
+} from "./sessions-board-frame";
 
 const SHAPE_ICON: Record<SessionBoardPrShape | "branch", LucideIcon> = {
   open: GitPullRequest,
@@ -121,7 +128,8 @@ function SessionBoardCardButton({
       aria-current={current ? "true" : undefined}
       aria-label={label}
       className={cn(
-        "relative flex w-full min-w-0 shrink-0 cursor-pointer flex-col gap-2 rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring",
+        SESSION_BOARD_CARD_FRAME,
+        "cursor-pointer text-left transition-colors duration-base ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring",
         current && "bg-selected shadow-inset-strong",
         archived && "bg-transparent shadow-hairline-inset"
       )}
@@ -132,7 +140,7 @@ function SessionBoardCardButton({
       type="button"
     >
       <SessionBoardCardMetaRow meta={meta} sessionId={session.id} status={status} />
-      <span className="flex min-w-0 items-start gap-1.75">
+      <span className={SESSION_BOARD_CARD_TITLE_ROW}>
         {sessionBoardCardUnread(session) ? (
           <span
             aria-hidden="true"
@@ -142,7 +150,8 @@ function SessionBoardCardButton({
         ) : null}
         <span
           className={cn(
-            "line-clamp-2 min-w-0 text-small-body leading-snug font-medium text-fg",
+            "line-clamp-2 min-w-0",
+            SESSION_BOARD_CARD_TITLE_TYPE,
             untitled && "font-normal text-subtle",
             archived && "text-muted"
           )}
@@ -167,7 +176,7 @@ function SessionBoardCardMetaRow({
   if (meta.shape === null && meta.workspaceName === null && status === null) return null;
   const Icon = meta.shape ? SHAPE_ICON[meta.shape] : null;
   return (
-    <span className="flex h-4.5 min-w-0 items-center gap-2">
+    <span className={SESSION_BOARD_CARD_META_ROW}>
       <span
         className="flex min-w-0 flex-1 items-center gap-1.25 font-mono text-mono-id tracking-mono-id whitespace-nowrap text-faint tabular-nums"
         data-testid={`session-board-card-meta-${sessionId}`}
@@ -216,7 +225,7 @@ function SessionBoardCardFooter({
   const rollup = sessionBoardCardRollup(session);
   const parentTitle = session.parent_title?.trim();
   return (
-    <span className="flex h-4.5 min-w-0 items-center gap-2 text-eyebrow tracking-eyebrow text-subtle">
+    <span className={SESSION_BOARD_CARD_FOOTER_ROW}>
       <span className="flex max-w-28 min-w-0 shrink-0 items-center gap-1.25 overflow-hidden">
         <SessionListProviderMark runtime={runtime} sessionId={session.id} />
         <span className="min-w-0 truncate font-medium text-muted">{session.agent_name}</span>

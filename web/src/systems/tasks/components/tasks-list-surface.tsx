@@ -1,23 +1,13 @@
 import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
 
-import {
-  Button,
-  Empty,
-  ListingPage,
-  Spinner,
-  Table,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@compozy/ui";
-import { cn } from "@/lib/utils";
+import { Button, Empty, ListingPage, Spinner } from "@compozy/ui";
 
 import { groupTasksForList, taskStatusFacetTotal } from "../lib/task-grouping";
-import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
 import type { TaskListItem, TaskRecordsFilter, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
-import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
+import { TasksListLoading } from "./tasks-list-loading";
+import { TasksListTableFrame } from "./tasks-list-table-frame";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
@@ -65,6 +55,10 @@ export function TasksListSurface({
   const hasTasks = tasks.length > 0;
   const hasFilters = filterState === "active" || searchQuery.trim() !== "";
 
+  // No rows yet and the read is still out: stand in with the table itself, in the container the
+  // rows will fill, rather than a generic placeholder in the empty-state page.
+  if (!hasTasks && isLoading) return <TasksListLoading />;
+
   if (!hasTasks) {
     return (
       <ListingPage data-testid="tasks-list-surface">
@@ -72,7 +66,6 @@ export function TasksListSurface({
           <TasksListEmptyBody
             errorMessage={errorMessage}
             hasFilters={hasFilters}
-            isLoading={isLoading}
             onClearFilters={onClearFilters}
             onRetryLoad={onRetryLoad}
             onShowWorkItems={onShowWorkItems}
@@ -132,24 +125,7 @@ function TasksListTable({
 }: TasksListTableProps) {
   const total = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
   return (
-    <Table className="table-fixed" data-testid="tasks-list-table" overflowX="hidden">
-      <TableHeader>
-        <TableRow>
-          <TableHead className="pl-4">
-            Task{" "}
-            <span className="font-normal text-subtle tabular-nums" data-slot="tasks-list-total">
-              ({Math.max(total, tasks.length)})
-            </span>
-          </TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.id}>ID</TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.status}>Status</TableHead>
-          <TableHead className={TASKS_TABLE_COLUMN_CLASS.priority}>Priority</TableHead>
-          <TableHead className={cn("pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner)}>
-            <span className="sr-only">Owner</span>
-          </TableHead>
-          <TableHead className={cn("pr-4", TASKS_TABLE_COLUMN_CLASS.updated)}>Updated</TableHead>
-        </TableRow>
-      </TableHeader>
+    <TasksListTableFrame total={Math.max(total, tasks.length)}>
       <TasksListGroups
         onOpenLoopRun={onOpenLoopRun}
         profile={profile}
@@ -157,7 +133,7 @@ function TasksListTable({
         statusCounts={statusCounts}
         tasks={tasks}
       />
-    </Table>
+    </TasksListTableFrame>
   );
 }
 
@@ -201,9 +177,8 @@ function TasksListRetryButton({ onRetryLoad }: { onRetryLoad: () => void }) {
   );
 }
 
-/** Body shown while the listing has no rows: loading, failed, or genuinely empty. */
+/** Body shown when the listing has no rows: failed, filtered to nothing, or genuinely empty. */
 function TasksListEmptyBody({
-  isLoading,
   errorMessage,
   hasFilters,
   recordsFilter,
@@ -212,7 +187,6 @@ function TasksListEmptyBody({
   onShowWorkItems,
   onClearFilters,
 }: {
-  isLoading: boolean;
   errorMessage: string | null;
   hasFilters: boolean;
   recordsFilter: TaskRecordsFilter;
@@ -221,11 +195,6 @@ function TasksListEmptyBody({
   onShowWorkItems?: () => void;
   onClearFilters?: () => void;
 }) {
-  if (isLoading) {
-    return (
-      <TaskRowsLoadingSkeleton label="Loading tasks" rows={4} testId="tasks-list-surface-loading" />
-    );
-  }
   if (errorMessage) {
     return (
       <Empty

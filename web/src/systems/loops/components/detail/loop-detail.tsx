@@ -18,14 +18,13 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Button,
   buttonVariants,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   HelpTip,
-  PAGE_CONTENT_GUTTER,
+  SkeletonRegion,
   TopbarOverflowIcon,
   useTopbarSlot,
 } from "@compozy/ui";
@@ -50,8 +49,11 @@ import { LoopBodyDag } from "./loop-body-dag";
 import { LoopContractPanel } from "./loop-contract-panel";
 import { LoopDeclaredInputs } from "./loop-declared-inputs";
 import { LoopDeleteAction } from "./loop-delete-action";
+import { LoopDetailFrame } from "./loop-detail-frame";
+import { loopDetailTopbarIdentity } from "./loop-detail-topbar";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
+import { LoopRecentRunsSkeleton } from "./loop-recent-runs-skeleton";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
 
 interface LoopDetailProps {
@@ -59,6 +61,8 @@ interface LoopDetailProps {
   effectiveConfig: LoopEffectiveConfig;
   graph: LoopGraph;
   recentRuns: readonly LoopRun[];
+  /** The recent-runs read has not answered; the list shows its skeleton, not "has not run yet". */
+  recentRunsLoading?: boolean;
   bindings: readonly LoopBindingRow[];
   bindingsLoading: boolean;
   bindingJobs?: LoopBindingPagination;
@@ -81,6 +85,7 @@ export function LoopDetailView({
   effectiveConfig,
   graph,
   recentRuns,
+  recentRunsLoading = false,
   bindings,
   bindingsLoading,
   bindingJobs,
@@ -107,9 +112,7 @@ export function LoopDetailView({
     void navigate({ to: "/loops" });
   };
   useTopbarSlot({
-    onBack: backToLoops,
-    crumbs: [{ id: "loops", label: "Loops", onSelect: backToLoops }],
-    crumb: loop.name,
+    ...loopDetailTopbarIdentity(loop.name, backToLoops),
     actions: (
       <div className="flex items-center gap-1.5" data-testid="loop-detail-actions">
         <Button
@@ -165,20 +168,9 @@ export function LoopDetailView({
     ),
   });
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loop-detail">
-      {writable ? (
-        <LoopDeleteAction
-          error={deleteError}
-          hideTrigger
-          isPending={deletePending}
-          loopName={loop.name}
-          onConfirm={onDelete}
-          onOpenChange={setDeleteOpen}
-          onReset={onDeleteReset}
-          open={deleteOpen}
-        />
-      ) : null}
-      <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col")}>
+    <LoopDetailFrame
+      data-testid="loop-detail"
+      lede={
         <LoopPageLede
           lede={loop.description}
           meta={[
@@ -192,71 +184,87 @@ export function LoopDetailView({
           tags={[sourceLabel, `v${loop.version}`]}
           testId="loop-detail-header"
         />
-        <div className="py-6">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-            <div className="flex flex-col gap-7">
-              <LoopContractPanel
-                contract={definition.contract}
-                concurrency={definition.concurrency}
-              />
-              <LoopSection
-                icon={<Workflow aria-hidden="true" />}
-                right={
-                  <span className="flex items-center gap-1">
-                    {writable ? null : (
-                      <HelpTip label="About copying built-in Loops">
-                        Built-in Loops are read-only. Editing makes your own copy in this project.
-                      </HelpTip>
-                    )}
-                    <Button
-                      data-testid="loop-open-builder"
-                      onClick={onOpenEditor}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      {writable ? <PencilLine aria-hidden="true" /> : <Copy aria-hidden="true" />}
-                      {writable ? "Edit steps" : "Copy and edit"}
-                    </Button>
-                  </span>
-                }
-                title="Steps"
+      }
+      main={
+        <>
+          <LoopContractPanel contract={definition.contract} concurrency={definition.concurrency} />
+          <LoopSection
+            icon={<Workflow aria-hidden="true" />}
+            right={
+              <span className="flex items-center gap-1">
+                {writable ? null : (
+                  <HelpTip label="About copying built-in Loops">
+                    Built-in Loops are read-only. Editing makes your own copy in this project.
+                  </HelpTip>
+                )}
+                <Button
+                  data-testid="loop-open-builder"
+                  onClick={onOpenEditor}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  {writable ? <PencilLine aria-hidden="true" /> : <Copy aria-hidden="true" />}
+                  {writable ? "Edit steps" : "Copy and edit"}
+                </Button>
+              </span>
+            }
+            title="Steps"
+          >
+            <LoopBodyDag graph={graph} />
+          </LoopSection>
+          <LoopSection
+            icon={<History aria-hidden="true" />}
+            right={
+              <Link
+                to="/loop-runs"
+                className={buttonVariants({ size: "sm", variant: "ghost" })}
+                data-testid="loop-all-runs"
               >
-                <LoopBodyDag graph={graph} />
-              </LoopSection>
-              <LoopSection
-                icon={<History aria-hidden="true" />}
-                right={
-                  <Link
-                    to="/loop-runs"
-                    className={buttonVariants({ size: "sm", variant: "ghost" })}
-                    data-testid="loop-all-runs"
-                  >
-                    All Loop runs
-                    <ArrowRight aria-hidden="true" className="size-3" />
-                  </Link>
-                }
-                title="Recent runs"
-              >
-                <LoopRecentRuns runs={recentRuns} />
-              </LoopSection>
-            </div>
-            <aside className="flex flex-col gap-6">
-              <LoopDeclaredInputs inputs={definition.inputs} />
-              <LoopStartBindingsPanel
-                loopName={loop.name}
-                declaredKinds={declaredKinds}
-                bindings={bindings}
-                jobs={bindingJobs}
-                isLoading={bindingsLoading}
-                triggers={bindingTriggers}
-              />
-              <LoopLimitsPanel effectiveConfig={effectiveConfig} />
-            </aside>
-          </div>
-        </div>
-      </div>
-    </div>
+                All Loop runs
+                <ArrowRight aria-hidden="true" className="size-3" />
+              </Link>
+            }
+            title="Recent runs"
+          >
+            {recentRunsLoading ? (
+              <SkeletonRegion label="Loading recent runs">
+                <LoopRecentRunsSkeleton />
+              </SkeletonRegion>
+            ) : (
+              <LoopRecentRuns runs={recentRuns} />
+            )}
+          </LoopSection>
+        </>
+      }
+      rail={
+        <>
+          <LoopDeclaredInputs inputs={definition.inputs} />
+          <LoopStartBindingsPanel
+            loopName={loop.name}
+            declaredKinds={declaredKinds}
+            bindings={bindings}
+            jobs={bindingJobs}
+            isLoading={bindingsLoading}
+            triggers={bindingTriggers}
+          />
+          <LoopLimitsPanel effectiveConfig={effectiveConfig} />
+        </>
+      }
+    >
+      {writable ? (
+        <LoopDeleteAction
+          error={deleteError}
+          hideTrigger
+          isPending={deletePending}
+          loopName={loop.name}
+          onConfirm={onDelete}
+          onOpenChange={setDeleteOpen}
+          onReset={onDeleteReset}
+          open={deleteOpen}
+        />
+      ) : null}
+    </LoopDetailFrame>
   );
 }
 

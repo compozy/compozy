@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
 
-import { cn, Skeleton } from "@compozy/ui";
+import {
+  CatalogCard,
+  CatalogCardSkeleton,
+  cn,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
+} from "@compozy/ui";
+
+import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-classes";
 
 interface MarketplaceGridProps {
   children: ReactNode;
@@ -25,45 +34,56 @@ function MarketplaceGrid({
   );
 }
 
-const SKELETON_WIDTHS = [
-  [38, 78],
-  [52, 64],
-  [30, 84],
-  [44, 70],
-  [36, 76],
-  [48, 62],
+const SKELETON_CARDS = [
+  { id: "skeleton-card-1", title: "w-40", description: "w-3/4" },
+  { id: "skeleton-card-2", title: "w-32", description: "w-2/3" },
+  { id: "skeleton-card-3", title: "w-48", description: "w-4/5" },
+  { id: "skeleton-card-4", title: "w-36", description: "w-3/5" },
+  { id: "skeleton-card-5", title: "w-44", description: "w-2/3" },
+  { id: "skeleton-card-6", title: "w-28", description: "w-3/4" },
+  { id: "skeleton-card-7", title: "w-52", description: "w-3/5" },
+  { id: "skeleton-card-8", title: "w-36", description: "w-4/5" },
 ] as const;
 
-/** Skeleton rows in the real grid: static blocks, no shimmer — the row grammar is the signal. */
-function MarketplaceGridSkeleton({ count = 6, className }: { count?: number; className?: string }) {
+interface MarketplaceGridSkeletonProps {
+  count?: number;
+  className?: string;
+}
+
+/**
+ * Placeholder row-cards in the real grid. Each is the real `CatalogCard` surface with the entry
+ * card's own layout class, so a card keeps its height and column grid when the catalog arrives.
+ * The caller owns the status region (a page that loads more than the grid wraps all of it in one).
+ */
+function MarketplaceGridPlaceholder({ count = 6, className }: MarketplaceGridSkeletonProps) {
   return (
-    <MarketplaceGrid
-      className={cn(
-        "[&_[data-slot=skeleton]]:animate-none [&_[data-slot=skeleton]]:bg-surface-2 [&_[data-slot=skeleton]]:bg-none",
-        className
-      )}
-      data-testid="marketplace-grid-skeleton"
-    >
-      {Array.from({ length: count }, (_, index) => {
-        const [title, description] = SKELETON_WIDTHS[index % SKELETON_WIDTHS.length]!;
-        return (
-          <div
-            aria-hidden="true"
-            className="grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-card px-3 py-2.5 shadow-card"
-            key={index}
-          >
-            <Skeleton className="size-(--size-provider-logo-well) rounded-md" />
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <Skeleton className="h-2.75" style={{ width: `${title}%` }} />
-              <Skeleton className="h-2.5" style={{ width: `${description}%` }} />
-            </div>
-            <Skeleton className="h-6 w-13 rounded-md" />
+    <MarketplaceGrid className={className} data-testid="marketplace-grid-skeleton">
+      {SKELETON_CARDS.slice(0, count).map(card => (
+        <CatalogCardSkeleton className={MARKETPLACE_ENTRY_CARD_CLASS} key={card.id}>
+          <Skeleton className="size-(--size-provider-logo-well) rounded-md" />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <CatalogCard.Title>
+              <SkeletonText className={card.title} />
+            </CatalogCard.Title>
+            <CatalogCard.Description className="text-eyebrow leading-snug">
+              <SkeletonText className={card.description} />
+            </CatalogCard.Description>
           </div>
-        );
-      })}
+          <Skeleton className="h-button-sm w-16" />
+        </CatalogCardSkeleton>
+      ))}
     </MarketplaceGrid>
   );
 }
 
-export { MarketplaceGrid, MarketplaceGridSkeleton };
+/** The placeholder grid under its own status region. */
+function MarketplaceGridSkeleton(props: MarketplaceGridSkeletonProps) {
+  return (
+    <SkeletonRegion label="Loading marketplace entries">
+      <MarketplaceGridPlaceholder {...props} />
+    </SkeletonRegion>
+  );
+}
+
+export { MarketplaceGrid, MarketplaceGridPlaceholder, MarketplaceGridSkeleton };
 export type { MarketplaceGridProps };

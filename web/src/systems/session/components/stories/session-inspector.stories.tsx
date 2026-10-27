@@ -177,6 +177,20 @@ export const ActivityLive: Story = {
     activity: { ...meta.args.activity, warning: "Runtime warning · provider slow to respond" },
   },
 };
+/**
+ * Context, usage and turns reads in flight: each section holds its place with placeholders of its
+ * own shape (meter figure and tiers, usage tiles, turn rows), never "No usage yet".
+ */
+export const Loading: Story = {
+  args: {
+    context: deriveSessionContext(undefined, { loading: true }),
+    usage: null,
+    turns: undefined,
+    turnsLoading: true,
+    turnsDefaultOpen: true,
+    activity: undefined,
+  },
+};
 export const Empty: Story = {
   args: {
     context: deriveSessionContext(),

@@ -1,19 +1,12 @@
 import { AlertTriangle, Users2 } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Empty,
-  Skeleton,
-  SkeletonRows,
-  Spinner,
-  type ListingViewMode,
-} from "@compozy/ui";
+import { Alert, AlertDescription, Button, Empty, Spinner, type ListingViewMode } from "@compozy/ui";
 
 import type { AgentFleetRowModel } from "../lib/agent-fleet-projection";
 import { AgentFleetCard } from "./agent-fleet-card";
+import { FLEET_CARDS_CLASS, FLEET_ROWS_CLASS } from "./agent-fleet-classes";
 import { AgentFleetRow } from "./agent-fleet-row";
+import { AgentFleetSkeleton } from "./agent-fleet-skeleton";
 
 export interface AgentFleetListProps {
   rows: readonly AgentFleetRowModel[];
@@ -43,58 +36,7 @@ function AgentFleetList({
   onOpenAgent,
   onLoadMore,
 }: AgentFleetListProps) {
-  if (status === "loading") {
-    if (view === "cards") {
-      return (
-        <div
-          aria-busy="true"
-          aria-label="Loading agents"
-          className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3"
-          data-testid="agent-fleet-loading"
-        >
-          {Array.from({ length: 6 }, (_, index) => (
-            <div
-              className="flex flex-col gap-3 rounded-lg bg-card p-4 shadow-card"
-              key={`agent-fleet-card-skeleton-${index}`}
-            >
-              <div className="flex items-start gap-3">
-                <Skeleton className="size-6 shrink-0 rounded" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                  <Skeleton className="h-3 w-32" />
-                  <Skeleton className="h-2.5 w-48 max-w-full" />
-                </div>
-              </div>
-              <Skeleton className="h-px w-full" />
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="size-button-icon-default rounded-md" />
-              </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <div
-        aria-busy="true"
-        aria-label="Loading agents"
-        className="min-h-0 flex-1 overflow-hidden rounded-lg bg-card shadow-card"
-        data-testid="agent-fleet-loading"
-      >
-        <SkeletonRows count={8} className="gap-0" rowClassName="px-4 py-3">
-          <div className="flex items-center gap-3.5">
-            <Skeleton className="size-icon-well-row shrink-0 rounded-md" />
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <Skeleton className="h-3 w-40" />
-              <Skeleton className="h-2.5 w-64 max-w-full" />
-            </div>
-            <Skeleton className="h-3 w-24" />
-          </div>
-        </SkeletonRows>
-      </div>
-    );
-  }
+  if (status === "loading") return <AgentFleetSkeleton view={view} />;
 
   if (status === "first-run-empty") {
     return (
@@ -157,7 +99,7 @@ function AgentFleetList({
       ) : null}
       {view === "cards" ? (
         <div
-          className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3"
+          className={FLEET_CARDS_CLASS}
           data-slot="agent-fleet-cards"
           data-testid="agent-fleet-card-grid"
         >
@@ -172,10 +114,7 @@ function AgentFleetList({
           ))}
         </div>
       ) : (
-        <div
-          className="overflow-hidden rounded-lg bg-card shadow-card"
-          data-slot="agent-fleet-rows"
-        >
+        <div className={FLEET_ROWS_CLASS} data-slot="agent-fleet-rows">
           {rows.map(row => (
             <AgentFleetRow
               key={row.key}

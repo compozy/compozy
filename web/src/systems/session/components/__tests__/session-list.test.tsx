@@ -686,6 +686,31 @@ describe("SessionList subagents", () => {
       { headers: { "Content-Type": "application/json" } }
     );
 
+  // Invariant: an opened branch keeps the rows' place while its first page is read, sized by the
+  // parent's summary, and hands it to the real rows. Owner: the rail's subagent branch.
+  it("Should hold an opened branch's place with placeholder rows until its list answers", async () => {
+    let answer: (page: Response) => void = () => undefined;
+    vi.mocked(globalThis.fetch).mockImplementation(
+      () =>
+        new Promise<Response>(resolve => {
+          answer = resolve;
+        })
+    );
+    renderList({ sessions: [row("parent", summary(0, 3))], subagentThreadIds: ["parent"] });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    const loading = within(branch).getByRole("status");
+    expect(loading).toHaveTextContent("Loading subagents");
+    expect(loading.querySelectorAll(':scope > [aria-hidden="true"]')).toHaveLength(3);
+
+    answer(subagentPage(0, 3));
+
+    expect(await within(branch).findAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(
+      3
+    );
+    expect(within(branch).queryByRole("status")).not.toBeInTheDocument();
+  });
+
   // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
   it("UT-W17: opens a bounded subagent branch that reads one page and pages with Show more", async () => {
     const user = userEvent.setup();
@@ -2203,5 +2228,75 @@ describe("SessionList breadth and Group by", () => {
     expect(await screen.findByTestId("session-sidebar-selection-move-blocked")).toHaveTextContent(
       "Select sessions from one project and profile to move them."
     );
+  });
+});
+
+// Invariant: a rail that has not answered yet says so with row-shaped placeholders under one busy
+// status. It never poses as an empty list, and a refetch over rows it already has never swaps them
+// for placeholders. Owner: SessionList through its sidebar host (the canonical suite above).
+describe("SessionList loading", () => {
+  const loadingView = (overrides: Partial<SessionListViewModel> = {}) => ({
+    ...view,
+    catalog: sessionListCatalogFixture({ loading: true }),
+    ...overrides,
+  });
+
+  it("Should hold the rail's place with placeholder rows until the first page lands", () => {
+    const { update } = renderList({ sessions: [], view: loadingView() });
+
+    const region = screen.getByTestId("session-list-skeleton");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading sessions");
+    expect(
+      region.querySelectorAll('[data-slot="session-list-row-skeleton"]').length
+    ).toBeGreaterThan(3);
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
+    // The rail's own controls are real and already usable while its rows load.
+    expect(screen.getByRole("searchbox", { name: "Filter sessions" })).toBeEnabled();
+    expect(screen.getByTestId("session-sidebar-new-session")).toBeEnabled();
+
+    update(sessions, { ...view, catalog: sessionListCatalogFixture({ sessions }) });
+
+    expect(screen.queryByTestId("session-list-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+  });
+
+  it("Should say a settled empty list is empty once nothing is loading", () => {
+    renderList({ sessions: [], view: { ...view, catalog: sessionListCatalogFixture() } });
+
+    expect(screen.queryByTestId("session-list-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByText(/^No sessions/)).toBeVisible();
+  });
+
+  it("Should keep the rows it has while a loaded page refetches or pages", () => {
+    renderList({
+      sessions,
+      view: { ...view, catalog: sessionListCatalogFixture({ sessions, paging: true }) },
+    });
+
+    expect(screen.queryByTestId("session-list-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+  });
+
+  it("Should hold grouped lists' place with header and row placeholders while their facets load", () => {
+    renderList({
+      sessions: [],
+      view: sessionListViewFixture({
+        ...view,
+        storedGroupBy: "project",
+        groupBy: "project",
+        groupByOptions: ["none", "project"],
+        groupsLoading: true,
+      }),
+    });
+
+    const region = screen.getByTestId("session-list-groups-skeleton");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveTextContent("Loading sessions");
+    expect(
+      region.querySelectorAll('[data-slot="session-list-row-skeleton"]').length
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
   });
 });

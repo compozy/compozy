@@ -20,6 +20,8 @@ export interface SessionInspectorProps {
   usage?: InspectorUsage | null;
   turns?: SessionUsageTurnsResponse;
   turnsUnavailable?: boolean;
+  /** The first turns read is in flight. */
+  turnsLoading?: boolean;
   activity?: SessionActivityView;
   /**
    * The inspected session; a continued or forked one gains its Origin rows, and
@@ -40,6 +42,7 @@ export function SessionInspector({
   usage,
   turns,
   turnsUnavailable,
+  turnsLoading,
   activity,
   session,
   onOpenSubagent,
@@ -64,10 +67,11 @@ export function SessionInspector({
           showBars={context.used != null}
           defaultOpen={injectedDefaultOpen}
         />
-        <SessionInspectorUsageSection usage={usage} />
+        <SessionInspectorUsageSection usage={usage} loading={context.loading} />
         <SessionContextTurnsSection
           data={turns}
           unavailable={turnsUnavailable}
+          loading={turnsLoading}
           defaultOpen={turnsDefaultOpen}
         />
         <SessionActivitySection activity={activity} />

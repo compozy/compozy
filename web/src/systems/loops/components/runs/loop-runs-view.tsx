@@ -9,12 +9,11 @@ import {
   cn,
   Empty,
   formatRelativeTime,
-  Skeleton,
-  SkeletonRows,
 } from "@compozy/ui";
 
 import { buildRunsRoster, type LoopOutcomeValue } from "../../lib/loop-runs-view";
 import type { LoopRun } from "../../types";
+import { LoopRunsTableSkeleton } from "./loop-runs-roster";
 import { LoopRunsTable } from "./loop-runs-table";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
@@ -226,14 +225,9 @@ function RosterBody({
   // what is coming rather than claiming the workspace is empty.
   if (degraded) {
     return (
-      <SkeletonRows
-        aria-hidden="true"
-        className="gap-3 rounded-lg bg-card shadow-card px-4 py-3"
-        count={3}
-        data-testid="loop-runs-skeleton"
-      >
-        <Skeleton className="h-3.5 w-1/2" />
-      </SkeletonRows>
+      <div aria-hidden="true" className="flex flex-col gap-3" data-testid="loop-runs-skeleton">
+        <LoopRunsTableSkeleton withProject={projectOf !== undefined} />
+      </div>
     );
   }
   if (!roster.emptyState) return null;

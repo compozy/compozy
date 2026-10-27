@@ -1,6 +1,15 @@
 import { ChartBar } from "lucide-react";
 
-import { cn, Empty, Eyebrow, Panel, Pill, type PillTone } from "@compozy/ui";
+import {
+  cn,
+  Empty,
+  Eyebrow,
+  Panel,
+  Pill,
+  type PillTone,
+  Skeleton,
+  SkeletonText,
+} from "@compozy/ui";
 
 import { formatPercent, taskStatusLabel, taskStatusTone } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -88,6 +97,41 @@ export function TasksDashboardStatusBreakdown({ dashboard }: TasksDashboardStatu
           })}
         </ul>
       )}
+    </Panel>
+  );
+}
+
+/** Rows a loading panel stands in with; ids are static, the placeholders carry no identity. */
+const LOADING_STATUSES = [
+  { id: "a" },
+  { id: "b" },
+  { id: "c" },
+  { id: "d" },
+  { id: "e" },
+  { id: "f" },
+] as const;
+
+/**
+ * The placeholder twin of the status breakdown: the same panel head and rows (a state dot, a
+ * label, a count and share, and the share bar), with the figures left as blocks. Wrap the
+ * dashboard area in a `SkeletonRegion`.
+ */
+export function TasksDashboardStatusBreakdownSkeleton() {
+  return (
+    <Panel aria-hidden="true" className="animate-skeleton-reveal" title="Status breakdown">
+      <ul className="flex flex-col gap-3">
+        {LOADING_STATUSES.map(status => (
+          <li className="flex flex-col gap-1.5" key={status.id}>
+            <div className="flex min-w-0 items-center gap-2 text-form-label">
+              <Skeleton className="size-1.5 shrink-0 rounded-full" />
+              <SkeletonText className="w-24 flex-1" />
+              <SkeletonText className="w-6 shrink-0 font-mono text-mono-id" />
+              <SkeletonText className="w-12 shrink-0 font-mono text-eyebrow" />
+            </div>
+            <Skeleton className="ml-4 h-1 rounded-xs" />
+          </li>
+        ))}
+      </ul>
     </Panel>
   );
 }

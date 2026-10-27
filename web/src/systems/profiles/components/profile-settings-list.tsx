@@ -1,6 +1,6 @@
 import { Archive, Palette } from "lucide-react";
 
-import { Button, Pill } from "@compozy/ui";
+import { Button, Pill, Skeleton, SkeletonText } from "@compozy/ui";
 
 import { workItemsLabel } from "../lib/profile-copy";
 import { canDelete, PERMANENT_PROFILE } from "../lib/profile-rows";
@@ -20,8 +20,10 @@ export interface ProfileSettingsListProps {
   variant: "active" | "archived";
 }
 
+const LIST_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
 const ROW_CLASS =
   "flex min-h-[var(--height-profile-row)] items-center gap-3 border-t border-line-soft px-3 first:border-t-0";
+const SKELETON_ROWS = ["first", "second", "third", "fourth"] as const;
 
 /** Profile rows whose controls mirror the daemon's lifecycle rules. */
 export function ProfileSettingsList({
@@ -36,10 +38,7 @@ export function ProfileSettingsList({
   variant,
 }: ProfileSettingsListProps) {
   return (
-    <div
-      className="overflow-hidden rounded-lg bg-card shadow-card"
-      data-testid={`profiles-${variant}-list`}
-    >
+    <div className={LIST_CLASS} data-testid={`profiles-${variant}-list`}>
       {profiles.map(profile => {
         const permanent = profile.name === PERMANENT_PROFILE;
         const archived = variant === "archived";
@@ -135,6 +134,29 @@ export function ProfileSettingsList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The profile list in skeleton form: the real list frame and row, with a placeholder for the
+ * identity glyph, the name, the work count and the lifecycle actions.
+ */
+export function ProfileSettingsListSkeleton() {
+  return (
+    <div aria-hidden="true" className={LIST_CLASS}>
+      {SKELETON_ROWS.map(row => (
+        <div className={ROW_CLASS} key={row}>
+          <Skeleton className="size-7 shrink-0 rounded-md" />
+          <SkeletonText className="w-28 text-body font-medium" />
+          <SkeletonText className="ml-auto w-16 shrink-0 text-meta" />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Skeleton className="size-button-icon-sm rounded-pill" />
+            <Skeleton className="h-button-sm w-16 rounded-pill" />
+            <Skeleton className="h-button-sm w-16 rounded-pill" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

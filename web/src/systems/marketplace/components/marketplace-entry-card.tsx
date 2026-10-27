@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { CatalogCard, cn, Pill } from "@compozy/ui";
 
 import { MarketplaceEntryLogo, type MarketplaceEntryLogoEntry } from "./marketplace-entry-logo";
+import { MARKETPLACE_ENTRY_CARD_CLASS } from "./marketplace-classes";
 
 interface MarketplaceEntryCardProps {
   /** Identity the logo ladder and the name resolve from. */
@@ -56,7 +57,7 @@ function MarketplaceEntryCard({
       actionable={!pending}
       aria-busy={pending || undefined}
       className={cn(
-        "grid min-h-15 grid-cols-[var(--size-provider-logo-well)_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5",
+        MARKETPLACE_ENTRY_CARD_CLASS,
         flashing ? "marketplace-card-flash" : pending ? "opacity-55" : undefined,
         className
       )}

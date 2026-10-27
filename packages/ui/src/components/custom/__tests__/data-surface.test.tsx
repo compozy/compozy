@@ -8,7 +8,9 @@ import { resolveDataSurfaceState } from "../data-surface-state";
 function renderSurface(state: React.ComponentProps<typeof DataSurface>["state"]) {
   return render(
     <DataSurface state={state} data-testid="surface">
-      <DataSurface.Loading data-testid="surface-loading" />
+      <DataSurface.Loading data-testid="surface-loading">
+        <span />
+      </DataSurface.Loading>
       <DataSurface.Error
         data-testid="surface-error"
         icon={KeyRound}
@@ -47,6 +49,22 @@ describe("DataSurface", () => {
         expect(screen.queryByTestId(candidate)).not.toBeInTheDocument();
       }
     }
+  });
+
+  it("Should show skeleton children in a busy status region", () => {
+    render(
+      <DataSurface state="loading">
+        <DataSurface.Loading label="Loading records">
+          <span data-testid="skeleton-shape" />
+        </DataSurface.Loading>
+        <DataSurface.Content>ready content</DataSurface.Content>
+      </DataSurface>
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading records");
+    expect(region).toContainElement(screen.getByTestId("skeleton-shape"));
   });
 
   it("Should resolve state using loading, error, empty, ready precedence", () => {

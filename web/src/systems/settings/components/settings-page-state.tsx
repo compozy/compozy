@@ -1,9 +1,10 @@
 import { AlertCircle } from "lucide-react";
 
-import { BlockLoading, Button, Empty } from "@compozy/ui";
+import { Button, Empty, SkeletonRegion } from "@compozy/ui";
 
 import { findSettingsSection } from "../lib/sections";
 import type { SettingsSectionSlug } from "../types";
+import { SettingsSectionSkeleton } from "./settings-section-skeletons";
 
 export interface SettingsPageStateProps {
   slug: SettingsSectionSlug;
@@ -22,8 +23,9 @@ function errorCause(error: unknown): string | undefined {
 }
 
 /**
- * Whole-page loading or load-failure state for a settings section. Keeps the
- * `settings-page-<slug>-loading` / `-error` test ids every page exposes.
+ * Whole-page loading or load-failure state for a settings section. Loading is the section's own
+ * content-shaped skeleton under one status region; keeps the `settings-page-<slug>-loading` /
+ * `-error` test ids every page exposes.
  */
 export function SettingsPageState({
   slug,
@@ -36,12 +38,13 @@ export function SettingsPageState({
 
   if (state === "loading") {
     return (
-      <div
-        className="flex flex-1 items-center justify-center"
+      <SkeletonRegion
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
         data-testid={`settings-page-${slug}-loading`}
+        label={`Loading ${label}`}
       >
-        <BlockLoading label={`Loading ${label}`} surface="bare" />
-      </div>
+        <SettingsSectionSkeleton slug={slug} />
+      </SkeletonRegion>
     );
   }
 

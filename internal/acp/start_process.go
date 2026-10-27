@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -108,13 +109,26 @@ func (d *Driver) configureAgentConnection(process *AgentProcess, handle Handle, 
 	if localHandle, ok := handle.(*localProcessHandle); ok {
 		process.managed = localHandle.process
 	}
+	ready := make(chan struct{})
 	process.conn = acpsdk.NewConnectionWithOptions(
 		process.handleInbound,
 		handle.Stdin(),
-		handle.Stdout(),
+		&connectionStartupReader{reader: handle.Stdout(), ready: ready},
 		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
 	)
 	process.conn.SetLogger(d.logger)
+	close(ready)
+}
+
+// The SDK starts receiving in its constructor, before SetLogger is safe to call.
+type connectionStartupReader struct {
+	reader io.Reader
+	ready  <-chan struct{}
+}
+
+func (r *connectionStartupReader) Read(p []byte) (int, error) {
+	<-r.ready
+	return r.reader.Read(p)
 }
 
 func (d *Driver) newAgentProcess(

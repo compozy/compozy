@@ -85,6 +85,27 @@ export function taskListStableFilter(filters: TaskListFilter = {}): TaskListStab
   };
 }
 
+/**
+ * Names the list a read belongs to before anyone refines it: its breadth, project and worktree
+ * scope, drafts, the Loop reveal, parent and profile lens. Status, priority, owner, text, sort
+ * and the Project narrowing refine the same list, so they stay out. Equal populations may bridge
+ * a refinement with the previous rows; a different one never inherits them.
+ */
+export function taskListPopulation(filters: TaskListStableFilter): string {
+  return JSON.stringify([
+    filters.all_workspaces ?? null,
+    filters.scope ?? null,
+    filters.workspace ?? null,
+    filters.worktree ?? null,
+    filters.include_drafts ?? null,
+    filters.include_loop ?? null,
+    filters.loop_run_id ?? null,
+    filters.parent_task_id ?? null,
+    filters.profile ?? null,
+    filters.all_profiles ?? null,
+  ]);
+}
+
 export function taskListPageRequest(
   filters: TaskListStableFilter,
   cursor?: string

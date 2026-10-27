@@ -103,6 +103,14 @@ function wrapper() {
 
 const toView = (entity: AutomationJob | AutomationTrigger) => toAutomationView(entity);
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(next => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 describe("useAutomationsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -270,6 +278,53 @@ describe("useAutomationsPage", () => {
     await waitFor(() => expect(result.current.enabledCount).toBe(6));
     expect(mocks.listJobs.mock.calls[1]?.[0]).toMatchObject({ cursor: "jobs-2" });
     expect(mocks.listTriggers).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep the previous rows while an edited search loads and offer no next page for them", async () => {
+    mocks.listJobs.mockResolvedValueOnce(page("jobs", automationStoryJobs, true));
+    const { result, rerender } = renderHook(({ q }: { q?: string }) => useAutomationsPage({ q }), {
+      initialProps: {} as { q?: string },
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.canLoadMore).toBe(true));
+
+    const jobsRead = createDeferred<ReturnType<typeof page>>();
+    mocks.listJobs.mockReturnValueOnce(jobsRead.promise);
+    mocks.listTriggers.mockResolvedValueOnce(page("triggers", []));
+    rerender({ q: "digest" });
+    await waitFor(() => expect(mocks.listJobs).toHaveBeenCalledTimes(2));
+
+    // The search is in flight: the listing keeps its rows (no skeleton, no topbar churn), and the
+    // cursor those rows hold is not the new search's, so there is nothing to load more of yet.
+    expect(result.current.items).toHaveLength(7);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.canLoadMore).toBe(false);
+
+    const digest = automationStoryJobs.filter(job => job.id === "morning-digest");
+    jobsRead.resolve(page("jobs", digest));
+    await waitFor(() =>
+      expect(result.current.items.map(item => item.id)).toEqual(["morning-digest"])
+    );
+  });
+
+  it("Should read an empty previous search as loading, not as no matches, while the next loads", async () => {
+    mocks.listJobs.mockResolvedValueOnce(page("jobs", []));
+    mocks.listTriggers.mockResolvedValueOnce(page("triggers", []));
+    const { result, rerender } = renderHook(({ q }: { q: string }) => useAutomationsPage({ q }), {
+      initialProps: { q: "zzzz" },
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.items).toEqual([]);
+
+    const jobsRead = createDeferred<ReturnType<typeof page>>();
+    mocks.listJobs.mockReturnValueOnce(jobsRead.promise);
+    rerender({ q: "digest" });
+    await waitFor(() => expect(mocks.listJobs).toHaveBeenCalledTimes(2));
+
+    expect(result.current.isLoading).toBe(true);
+    jobsRead.resolve(page("jobs", automationStoryJobs.slice(0, 1)));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
   });
 
   it("Should keep loaded rows under a partial failure and blank that view count", async () => {

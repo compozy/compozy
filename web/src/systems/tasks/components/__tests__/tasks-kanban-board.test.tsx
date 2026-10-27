@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -178,6 +178,23 @@ describe("TasksKanbanBoard", () => {
     expect(onRetryTask).toHaveBeenCalledWith("run_fail");
   });
 
+  it("Should keep loaded cards when the read reports loading", () => {
+    const tasks = [buildTask({ id: "live", status: "in_progress" })];
+
+    render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban(tasks)}
+        isLoading
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+      />
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-kanban-card-skeleton")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-kanban-card-live")).toBeInTheDocument();
+  });
+
   it("Should render loading and error states without crashing", () => {
     const { rerender } = render(
       <TasksKanbanBoard
@@ -187,7 +204,15 @@ describe("TasksKanbanBoard", () => {
         selectedTaskId={null}
       />
     );
-    expect(screen.getByTestId("tasks-kanban-loading")).toBeInTheDocument();
+    // One named loading area around the board, with every column already in place under its real
+    // heading and a placeholder where each card will go.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-kanban-loading"));
+    expect(region).toHaveTextContent("Loading kanban board");
+    expect(within(region).getByRole("heading", { name: "Pending" })).toBeInTheDocument();
+    expect(within(region).getByRole("heading", { name: "Done" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("tasks-kanban-card-skeleton").length).toBeGreaterThan(0);
+    expect(screen.queryByText("No tasks")).not.toBeInTheDocument();
     expect(screen.queryByTestId("tasks-kanban-column-count-pending")).not.toBeInTheDocument();
 
     rerender(

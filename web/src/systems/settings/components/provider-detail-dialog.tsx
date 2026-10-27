@@ -1,5 +1,5 @@
 import { Pencil, Save, Settings2, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { ViewTransition, type ReactNode } from "react";
 
 import {
   Alert,
@@ -14,11 +14,11 @@ import {
   EntityModeToolbar,
   LaneTabs,
   Pill,
-  runViewTransition,
-  viewTransitionName,
+  VIEW_TRANSITION_CLASS,
   type EntityMode,
 } from "@compozy/ui";
 
+import { useProviderDetailBody, type ProviderDetailMode } from "../hooks/use-provider-detail-body";
 import { useProviderEditorTier } from "../hooks/use-provider-editor-tier";
 import { getProviderStateView, type ProviderStateView } from "../lib/provider-state";
 import type { ProviderDraft, SettingsProviderEntry } from "../types";
@@ -26,7 +26,7 @@ import { ProviderEditForm } from "./provider-edit-form";
 import { ProviderInspectView } from "./provider-inspect-view";
 import { SettingsSourceBadge } from "./settings-source-badge";
 
-type DetailMode = "inspect" | "edit" | "create";
+type DetailMode = ProviderDetailMode;
 
 type DetailTab = "overview" | "configure";
 
@@ -69,13 +69,12 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
   const [tier, setTier] = useProviderEditorTier(`${mode}:${provider?.name ?? "new"}`);
   const isEditing = mode === "edit" || mode === "create";
 
-  // Overview and Configure differ a lot in height; a view transition morphs the
-  // body instead of letting the dialog jump.
-  const switchToEdit = () => void runViewTransition(onSwitchToEdit);
-  const cancelEdit = () => void runViewTransition(onCancelEdit);
+  // Overview and Configure differ a lot in height; the body follows a deferred copy of the view
+  // and cross-fades between the two (its boundary below), instead of letting the dialog jump.
+  const body = useProviderDetailBody({ mode, provider, draft: props.draft });
   const handleTabChange = (next: DetailTab) => {
-    if (next === "configure" && mode === "inspect") switchToEdit();
-    if (next === "overview" && mode === "edit") cancelEdit();
+    if (next === "configure" && mode === "inspect") onSwitchToEdit();
+    if (next === "overview" && mode === "edit") onCancelEdit();
   };
 
   return (
@@ -105,36 +104,34 @@ export function ProviderDetailDialog(props: ProviderDetailDialogProps) {
           ) : null}
         </div>
 
-        <EntityDialogBody
-          className="flex flex-col"
-          data-testid="provider-detail-body"
-          style={{ viewTransitionName: viewTransitionName("provider-detail-body") }}
-        >
-          <ProviderDetailNotices error={props.error} warnings={props.warnings} />
-          <ProviderDetailContent
-            draft={props.draft}
-            mode={mode}
-            onDraftChange={props.onDraftChange}
-            onRefreshCatalog={props.onRefreshCatalog}
-            onSwitchToEdit={switchToEdit}
-            provider={provider}
-            tier={tier}
-          />
-        </EntityDialogBody>
+        <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
+          <EntityDialogBody className="flex flex-col" data-testid="provider-detail-body">
+            <ProviderDetailNotices error={props.error} warnings={props.warnings} />
+            <ProviderDetailContent
+              draft={body.draft}
+              mode={body.mode}
+              onDraftChange={props.onDraftChange}
+              onRefreshCatalog={props.onRefreshCatalog}
+              onSwitchToEdit={onSwitchToEdit}
+              provider={body.provider}
+              tier={tier}
+            />
+          </EntityDialogBody>
+        </ViewTransition>
 
         {isEditing ? (
           <ProviderEditFooter
             canSave={props.canSave}
             isCreate={mode === "create"}
             isSaving={isSaving}
-            onCancel={mode === "create" ? () => onOpenChange(false) : cancelEdit}
+            onCancel={mode === "create" ? () => onOpenChange(false) : onCancelEdit}
             onSave={props.onSave}
           />
         ) : (
           <ProviderInspectFooter
             isDeleting={props.isDeleting}
             onClose={() => onOpenChange(false)}
-            onEdit={switchToEdit}
+            onEdit={onSwitchToEdit}
             onRequestDelete={props.onRequestDelete}
             provider={provider}
           />

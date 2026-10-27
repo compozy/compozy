@@ -2,7 +2,17 @@ import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  OwnerAvatar,
+  PropertyRow,
+  PropertyRowSkeleton,
+  SkeletonRegion,
+  SkeletonText,
+  StateGlyph,
+  Time,
+} from "@compozy/ui";
 
 import {
   computeElapsed,
@@ -19,11 +29,16 @@ import type { TaskDetailView, TaskExecutionProfile, TaskPriority, TaskRun } from
 import { TaskLoopProvenance } from "./task-loop-provenance";
 import { TaskAutoEnqueueSwitch, TaskPriorityEditor } from "./task-rail-editors";
 import { TaskRailSection as RailSection } from "./task-rail-section";
+import { TASK_RAIL_CLASS, TASK_RAIL_FOOTER_CLASS } from "./task-surface-classes";
 
 export interface TaskPropertiesRailProps extends ComponentPropsWithoutRef<"div"> {
   detail: TaskDetailView;
   runs: readonly TaskRun[];
   profile?: TaskExecutionProfile | null;
+  /** The execution profile is still being read: its agent and model rows are placeholders. */
+  profileLoading?: boolean;
+  /** The run history is still being read: what derives from it is a placeholder. */
+  runsLoading?: boolean;
   onEditSetup: () => void;
   onInspect: () => void;
   updatePending?: boolean;
@@ -42,6 +57,8 @@ export function TaskPropertiesRail({
   detail,
   runs,
   profile,
+  profileLoading = false,
+  runsLoading = false,
   onEditSetup,
   onInspect,
   updatePending = false,
@@ -57,15 +74,16 @@ export function TaskPropertiesRail({
   const { attemptsLabel, lastFailedRun, stuckRun } = taskPropertiesRunSummary(detail, runs);
 
   return (
-    <div
-      {...props}
-      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
-      data-testid="tasks-detail-rail"
-    >
+    <div {...props} className={cn(TASK_RAIL_CLASS, className)} data-testid="tasks-detail-rail">
       {/* Leads the rail: "what is this record, which run owns it" comes first. */}
       {record.loop ? <TaskLoopProvenance loop={record.loop} /> : null}
 
-      <TaskRunHistorySections stuckRun={stuckRun} lastFailedRun={lastFailedRun} />
+      <TaskRunHistorySections
+        // A failed task with no live run gets a "Last run" band once its runs arrive.
+        lastRunPending={runsLoading && !lastFailedRun && record.status === "failed"}
+        lastFailedRun={lastFailedRun}
+        stuckRun={stuckRun}
+      />
 
       <RailSection label="Properties">
         <PropertyRow
@@ -110,41 +128,17 @@ export function TaskPropertiesRail({
         ) : null}
       </RailSection>
 
-      <RailSection
-        action={
-          <Button
-            // Optical: the link's text lands on the rail's value edge.
-            className="-mr-2.5"
-            data-testid="tasks-rail-edit-setup"
-            onClick={onEditSetup}
-            size="sm"
-            type="button"
-            variant="link"
-          >
-            Edit setup
-          </Button>
-        }
-        label="Execution"
-      >
-        {worker ? <PropertyRow label="Agent">{worker}</PropertyRow> : null}
-        {model ? (
-          <PropertyRow label="Model" mono>
-            {model}
-          </PropertyRow>
-        ) : null}
-
-        <PropertyRow label="Attempts">{attemptsLabel}</PropertyRow>
-        <PropertyRow
-          editor={
-            <TaskAutoEnqueueSwitch
-              enabled={Boolean(record.auto_enqueue_on_ready)}
-              onChange={onAutoEnqueueChange}
-              pending={updatePending}
-            />
-          }
-          label="Start automatically"
-        />
-      </RailSection>
+      <TaskExecutionSection
+        attemptsLabel={attemptsLabel}
+        autoEnqueue={Boolean(record.auto_enqueue_on_ready)}
+        model={model}
+        onAutoEnqueueChange={onAutoEnqueueChange}
+        onEditSetup={onEditSetup}
+        profileLoading={profileLoading}
+        runsLoading={runsLoading}
+        updatePending={updatePending}
+        worker={worker}
+      />
 
       <RailSection label="Activity">
         <PropertyRow label="Created">
@@ -161,7 +155,7 @@ export function TaskPropertiesRail({
         <PropertyRow label="Created by">{record.created_by?.ref ?? "unknown"}</PropertyRow>
       </RailSection>
 
-      <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
+      <footer className={TASK_RAIL_FOOTER_CLASS}>
         <Button
           data-testid="tasks-rail-inspect"
           onClick={onInspect}
@@ -177,12 +171,96 @@ export function TaskPropertiesRail({
   );
 }
 
+interface TaskExecutionSectionProps {
+  worker: string | null;
+  model: string | null;
+  attemptsLabel: string;
+  autoEnqueue: boolean;
+  profileLoading: boolean;
+  runsLoading: boolean;
+  updatePending: boolean;
+  onEditSetup: () => void;
+  onAutoEnqueueChange: (enabled: boolean) => void;
+}
+
+/** Who works on the task and how it starts. The agent and model rows wait on the profile read. */
+function TaskExecutionSection({
+  worker,
+  model,
+  attemptsLabel,
+  autoEnqueue,
+  profileLoading,
+  runsLoading,
+  updatePending,
+  onEditSetup,
+  onAutoEnqueueChange,
+}: TaskExecutionSectionProps) {
+  return (
+    <RailSection
+      action={
+        <Button
+          // Optical: the link's text lands on the rail's value edge.
+          className="-mr-2.5"
+          data-testid="tasks-rail-edit-setup"
+          onClick={onEditSetup}
+          size="sm"
+          type="button"
+          variant="link"
+        >
+          Edit setup
+        </Button>
+      }
+      label="Execution"
+    >
+      {profileLoading ? (
+        <SkeletonRegion label="Loading setup">
+          <PropertyRowSkeleton count={2} />
+        </SkeletonRegion>
+      ) : (
+        <>
+          {worker ? <PropertyRow label="Agent">{worker}</PropertyRow> : null}
+          {model ? (
+            <PropertyRow label="Model" mono>
+              {model}
+            </PropertyRow>
+          ) : null}
+        </>
+      )}
+
+      <PropertyRow label="Attempts">
+        {runsLoading ? <SkeletonText className="w-10" /> : attemptsLabel}
+      </PropertyRow>
+      <PropertyRow
+        editor={
+          <TaskAutoEnqueueSwitch
+            enabled={autoEnqueue}
+            onChange={onAutoEnqueueChange}
+            pending={updatePending}
+          />
+        }
+        label="Start automatically"
+      />
+    </RailSection>
+  );
+}
+
 function TaskRunHistorySections({
   stuckRun,
   lastFailedRun,
-}: Pick<ReturnType<typeof taskPropertiesRunSummary>, "stuckRun" | "lastFailedRun">) {
+  lastRunPending,
+}: Pick<ReturnType<typeof taskPropertiesRunSummary>, "stuckRun" | "lastFailedRun"> & {
+  lastRunPending: boolean;
+}) {
   return (
     <>
+      {lastRunPending ? (
+        <RailSection label="Last run">
+          <SkeletonRegion label="Loading last run">
+            <PropertyRowSkeleton count={3} />
+          </SkeletonRegion>
+        </RailSection>
+      ) : null}
+
       {stuckRun ? (
         <RailSection label="Current run">
           <PropertyRow label="Status">

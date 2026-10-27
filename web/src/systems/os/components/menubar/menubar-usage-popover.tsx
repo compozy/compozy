@@ -43,6 +43,7 @@ export function MenubarUsagePopover({
           <ProviderUsageTrayMeter
             tray={viewModel?.tray ?? null}
             measuredAt={viewModel?.trayMeasuredAt ?? null}
+            loading={usage.loading}
             className={triggerClassName}
           />
         }

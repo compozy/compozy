@@ -1,19 +1,13 @@
 import type { ComponentProps } from "react";
 
-import {
-  cn,
-  ListGroupHeader,
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@compozy/ui";
+import { cn, ListGroupHeader, Table, TableBody } from "@compozy/ui";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import type { LoopRunGroup } from "../../lib/loop-runs-view";
 import { LoopRunRow } from "./loop-run-row";
+import { RosterHead } from "./loop-runs-roster";
+import { rosterColumns } from "./loop-runs-roster-columns";
 
 interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children"> {
   group: LoopRunGroup;
@@ -25,35 +19,12 @@ interface LoopRunsTableProps extends Omit<ComponentProps<"section">, "children">
 }
 
 /**
- * The roster's closed column set; a further column is a design decision, not a
- * typo. Project is the All projects listing's identity column (`_uiux.md` S5).
- */
-type LoopRunColumnKey = "loop" | "project" | "status" | "progress" | "started" | "duration";
-
-interface LoopRunColumn {
-  key: LoopRunColumnKey;
-  label: string;
-  className?: string;
-}
-
-/** Gens / Best / Budget are demoted to the run page. */
-const COLUMNS: readonly LoopRunColumn[] = [
-  { key: "loop", label: "Loop", className: "w-full" },
-  { key: "status", label: "Status" },
-  { key: "progress", label: "Progress" },
-  { key: "started", label: "Started" },
-  { key: "duration", label: "Duration" },
-];
-
-/**
  * One roster group (Needs you / Active / Recent) as a labeled table.
  *
  * The heading is the shared list-group header plus a count: no glyph, because an
  * icon beside every group heading is decoration rather than wayfinding. Groups arrive
  * already ranked by the daemon, so this renders the order it is handed.
  */
-const PROJECT_COLUMN: LoopRunColumn = { key: "project", label: "Project" };
-
 export function LoopRunsTable({
   group,
   ownerOf,
@@ -63,7 +34,7 @@ export function LoopRunsTable({
   ...props
 }: LoopRunsTableProps) {
   const headingId = `loop-runs-group-${group.id}-heading`;
-  const columns = projectOf ? [COLUMNS[0], PROJECT_COLUMN, ...COLUMNS.slice(1)] : COLUMNS;
+  const columns = rosterColumns(projectOf !== undefined);
   return (
     <section
       aria-labelledby={headingId}
@@ -78,15 +49,7 @@ export function LoopRunsTable({
           label={<span id={headingId}>{group.label}</span>}
         />
         <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              {columns.map(column => (
-                <TableHead className={column.className} key={column.key}>
-                  {column.label}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
+          <RosterHead columns={columns} />
           <TableBody>
             {group.rows.map(row => (
               <LoopRunRow
@@ -103,3 +66,5 @@ export function LoopRunsTable({
     </section>
   );
 }
+
+/** Placeholder widths per column, close to what the cells print so the columns keep their size. */

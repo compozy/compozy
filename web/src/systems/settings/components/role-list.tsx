@@ -2,13 +2,13 @@ import { Button } from "@compozy/ui";
 
 import type { RolesDisclosure } from "../hooks/use-roles-disclosure";
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
-import type { RoleRuntimeValue } from "../lib/roles-config";
+import { type RoleRuntimeValue } from "../lib/roles-config";
 import type { RoleViewModel } from "../lib/roles-view-model";
 import type { RoleName } from "../types";
 import { RolePanel } from "./role-panel";
+import { LIST_CLASS, LIST_HEAD_CLASS, LIST_PANEL_CLASS } from "./role-list-classes";
 
 const TEST_PREFIX = "settings-page-roles";
-
 export interface RoleListProps {
   roles: readonly RoleViewModel[];
   options: RolesRuntimeOptions;
@@ -39,8 +39,8 @@ export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
   const allExpanded = roles.every(role => disclosure.isOpen(role.role));
 
   return (
-    <section className="flex flex-col gap-2.5">
-      <header className="flex items-center justify-between gap-3">
+    <section className={LIST_CLASS}>
+      <header className={LIST_HEAD_CLASS}>
         <span className="text-small-body text-muted" data-testid={`${TEST_PREFIX}-count`}>
           {summarize(roles)}
         </span>
@@ -54,7 +54,7 @@ export function RoleList({ roles, disclosure, ...panelProps }: RoleListProps) {
           {allExpanded ? "Collapse all" : "Expand all"}
         </Button>
       </header>
-      <div className="overflow-hidden rounded-lg bg-card shadow-card">
+      <div className={LIST_PANEL_CLASS}>
         {roles.map(vm => (
           <RolePanel
             key={vm.role}

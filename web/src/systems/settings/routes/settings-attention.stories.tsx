@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 
 import { appRouteParameters } from "@/storybook/route-story-meta";
 import { StorybookRouteCanvas, StorybookWorkspaceSetup } from "@/storybook/route-story";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
+import { settingsAttentionSectionFixture } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/settings/routes/SettingsAttention",
@@ -64,6 +65,22 @@ export const Error: Story = {
         compozyApiMock.get("/api/settings/attention", () =>
           HttpResponse.json({ error: "settings unavailable" }, { status: 500 })
         ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Loading state: the delivery and mute groups hold their place while the policy resolves. */
+export const Loading: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/attention"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/attention", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsAttentionSectionFixture);
+        }),
       ],
     }),
   },

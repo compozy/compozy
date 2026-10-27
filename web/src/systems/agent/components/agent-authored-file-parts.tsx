@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 
-import { Button, Empty, Panel, Pill, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, Panel, Pill, Spinner } from "@compozy/ui";
 
 import type {
   AuthoredFileKind,
@@ -42,15 +42,6 @@ export function AuthoredFileWriteRecovery({
           Reload
         </Button>
       ) : null}
-    </div>
-  );
-}
-
-export function AuthoredFileLoading({ kind }: { kind: AuthoredFileKind }) {
-  return (
-    <div className="flex flex-col gap-3" data-testid={`agent-${kind}-loading`}>
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="h-64 rounded-md" />
     </div>
   );
 }

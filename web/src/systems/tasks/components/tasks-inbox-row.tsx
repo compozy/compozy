@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { StateGlyph, type StateGlyphState } from "@compozy/ui";
+import { Skeleton, SkeletonText, StateGlyph, type StateGlyphState } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import type { InboxGroupId } from "../lib/inbox-grouping";
@@ -11,6 +11,8 @@ export interface TasksInboxRowProps extends Omit<React.ComponentProps<"div">, "o
   group: InboxGroupId;
   /** Leading state glyph for the item (canonical StateGlyph mapping). */
   state: StateGlyphState;
+  /** Replaces the state glyph in its column, e.g. with a placeholder while the item loads. */
+  leading?: React.ReactNode;
   unread?: boolean;
   onSelect?: () => void;
   /** Top row content -- title + identifier + status/lane badges. */
@@ -31,6 +33,7 @@ function TasksInboxRow({
   taskId,
   group,
   state,
+  leading,
   unread = false,
   onSelect,
   top,
@@ -72,7 +75,7 @@ function TasksInboxRow({
       )}
       {...props}
     >
-      <StateGlyph className="mt-1" data-slot="tasks-inbox-row-glyph" state={state} />
+      {leading ?? <StateGlyph className="mt-1" data-slot="tasks-inbox-row-glyph" state={state} />}
 
       <div className="flex min-w-0 flex-col gap-1" data-slot="tasks-inbox-row-main">
         <div className="flex min-w-0 flex-wrap items-center gap-2" data-slot="tasks-inbox-row-top">
@@ -109,4 +112,56 @@ function stopPropagation(event: React.SyntheticEvent) {
   event.stopPropagation();
 }
 
-export { TasksInboxRow };
+export interface TasksInboxRowSkeletonProps {
+  /** Width utility for the title placeholder, e.g. `w-56`. */
+  titleWidth: string;
+  /** Adds the second detail line (a blocking reason or error) above the owner and time line. */
+  reason?: boolean;
+  /** Adds the approve / reject pair the approval lane shows before Open. */
+  approval?: boolean;
+}
+
+/**
+ * The placeholder twin of `TasksInboxRow`: the same grid with the glyph, title and status,
+ * detail lines and action buttons left as blocks, so the item arrives into a row of the same box.
+ * Wrap the inbox area in a `SkeletonRegion`.
+ */
+function TasksInboxRowSkeleton({
+  titleWidth,
+  reason = false,
+  approval = false,
+}: TasksInboxRowSkeletonProps) {
+  return (
+    <TasksInboxRow
+      actions={
+        <>
+          {approval ? <Skeleton className="h-button-xs w-14 rounded-pill" /> : null}
+          {approval ? <Skeleton className="h-button-xs w-16 rounded-pill" /> : null}
+          <Skeleton className="h-button-xs w-12 rounded-pill" />
+          <Skeleton className="size-button-icon-xs rounded-pill" />
+        </>
+      }
+      aria-hidden="true"
+      className="animate-skeleton-reveal"
+      data-testid="tasks-inbox-row-skeleton"
+      detail={
+        <>
+          {reason ? <SkeletonText className="w-2/5" /> : null}
+          <SkeletonText className="w-44" />
+        </>
+      }
+      group="updates"
+      leading={<Skeleton className="mt-1 size-3.5 shrink-0 rounded-full" />}
+      state="idle"
+      taskId="skeleton"
+      top={
+        <>
+          <SkeletonText className={cn("text-small-body", titleWidth)} />
+          <SkeletonText className="w-16 text-small-body" />
+        </>
+      }
+    />
+  );
+}
+
+export { TasksInboxRow, TasksInboxRowSkeleton };

@@ -26,7 +26,7 @@ the Keychain lookup uses the local username and would prompt for the operator's 
 
 Codex end to end (file credential store, `codex login` done):
 
-- the meter sits between **All desktops** and the bell; its tooltip and accessible name read like
+- the meter leads the right-aligned tray, before the desktop pager and **All desktops**, so its arrival consumes spacer width without moving the existing controls; its tooltip and accessible name read like
   `Codex · Weekly 72% used · resets in 2d 4h`; tones are neutral below 80, warning 80–99, danger at
   ≥ 100 with "limit reached";
 - the popover lists providers in catalog order, with `unsupported`/`disabled` rows folded into one

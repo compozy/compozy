@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   workspacesIsLoading: false,
   workspacesError: null as Error | null,
   refetchWorkspaces: vi.fn(),
+  browse: { isLoading: false, isFetching: false },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
@@ -57,8 +58,8 @@ vi.mock("../use-directory-browser", () => ({
       entries: [],
     },
     error: null,
-    isFetching: false,
-    isLoading: false,
+    isFetching: mocks.browse.isFetching,
+    isLoading: mocks.browse.isLoading,
   }),
 }));
 
@@ -83,7 +84,19 @@ describe("useOnboardingWorkspaces", () => {
     mocks.registeredWorkspaces = [];
     mocks.workspacesIsLoading = false;
     mocks.workspacesError = null;
+    mocks.browse = { isLoading: false, isFetching: false };
     onboardingDraftStore.trigger.draftCleared();
+  });
+
+  it("reports browsing for a folder it has no listing of, not for a refetch of one it has", () => {
+    // Loading UI follows "no data yet", so a background refetch never swaps the listing for a skeleton.
+    mocks.browse = { isLoading: true, isFetching: true };
+    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
+    expect(result.current.isBrowsing).toBe(true);
+
+    mocks.browse = { isLoading: false, isFetching: true };
+    rerender();
+    expect(result.current.isBrowsing).toBe(false);
   });
 
   it("hydrates an empty onboarding draft from project workspaces only", async () => {

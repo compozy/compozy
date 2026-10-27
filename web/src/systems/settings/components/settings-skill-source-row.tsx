@@ -7,11 +7,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Pill,
+  Skeleton,
+  SkeletonText,
   Switch,
 } from "@compozy/ui";
 
 import type { SkillSourceRootView, SkillSourceView } from "../lib/skill-sources-view";
 import { SettingsSkillSourceDiagnostics } from "./settings-skill-source-diagnostics";
+
+const SOURCE_ROW_CLASS = "flex min-w-0 flex-col border-b border-line last:border-b-0";
+const SOURCE_SUMMARY_CLASS = "flex min-h-11 min-w-0 items-center gap-2 px-3";
 
 interface SettingsSkillSourceRowProps {
   source: SkillSourceView;
@@ -45,11 +50,8 @@ export function SettingsSkillSourceRow({
 }: SettingsSkillSourceRowProps) {
   const testId = `settings-page-skills-source-${source.slug}`;
   return (
-    <Collapsible
-      className="flex min-w-0 flex-col border-b border-line last:border-b-0"
-      data-testid={testId}
-    >
-      <div className="flex min-h-11 min-w-0 items-center gap-2 px-3">
+    <Collapsible className={SOURCE_ROW_CLASS} data-testid={testId}>
+      <div className={SOURCE_SUMMARY_CLASS}>
         <CollapsibleTrigger
           className={cn(
             "group/skill-source flex min-w-0 flex-1 items-center gap-2 py-2 text-left",
@@ -156,5 +158,30 @@ function SkillSourceRootLine({ root, testId }: { root: SkillSourceRootView; test
         />
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Source lines in skeleton form, one per entry of `rows` (stable ids, never copy): chevron, name,
+ * count and switch. Siblings, so put them in the sources panel.
+ */
+export function SettingsSkillSourceRowSkeletons({ rows }: { rows: readonly string[] }) {
+  return (
+    <>
+      {rows.map(row => (
+        <div aria-hidden="true" className={SOURCE_ROW_CLASS} key={row}>
+          <div className={SOURCE_SUMMARY_CLASS}>
+            <div className="flex min-w-0 flex-1 items-center gap-2 py-2">
+              <Skeleton className="size-3.5 shrink-0 rounded-xs" />
+              <SkeletonText className="w-36 text-body" />
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Skeleton className="h-pill-xs w-14 rounded-pill" />
+              <Skeleton className="h-switch-default w-switch-default rounded-pill" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
   );
 }

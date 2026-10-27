@@ -1,4 +1,5 @@
 import { AlertCircle, Compass } from "lucide-react";
+import { useDeferredValue, ViewTransition, type ReactNode } from "react";
 
 import {
   Button,
@@ -6,25 +7,40 @@ import {
   Empty,
   LaneTabs,
   PAGE_CONTENT_GUTTER,
-  Skeleton,
+  SkeletonRegion,
   TabsContent,
+  VIEW_TRANSITION_CLASS,
+  type LaneTabsItem,
 } from "@compozy/ui";
 
+import {
+  AGENT_DETAIL_BODY_CLASS,
+  AGENT_DETAIL_PAGE_CLASS,
+  AGENT_DETAIL_ROOT_CLASS,
+  AGENT_DETAIL_TABS_CLASS,
+  AGENT_TAB_PANEL_CLASS,
+} from "./agent-detail-frame-classes";
 import { agentDetailTabItems, agentSessionsStatus } from "./agent-detail-view";
 import { listPaginationStatus } from "./list-pagination-status";
 import { useAgentDetail, type UseAgentDetailResult } from "./use-agent-detail";
 import { useAgentDetailTopbar } from "./use-agent-detail-topbar";
 import {
+  AgentConfigurationSkeleton,
   AgentConfigurationTab,
   AgentDetailHeader,
+  AgentDetailHeaderSkeleton,
   type AgentDetailSearch,
+  type AgentDetailTab,
   AgentDiagnosticsBanner,
   type AgentInstructionFile,
+  AgentInstructionsSkeleton,
   AgentInstructionsTab,
+  AgentOverviewSkeleton,
   AgentOverviewTab,
   type AgentPayload,
   AgentRuntimeControl,
   AgentSessionsTab,
+  AgentSessionsTabSkeleton,
   useAgentInstructionsTab,
 } from "@/systems/agent";
 import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
@@ -63,21 +79,89 @@ function AgentInstructionsSection({
   );
 }
 
-function AgentDetailLoading() {
+interface AgentDetailFrameProps {
+  /** Test id of the page root: the loaded page and its skeleton are told apart by it. */
+  testId: string;
+  diagnostics?: ReactNode;
+  header: ReactNode;
+  tabItems: LaneTabsItem<AgentDetailTab>[];
+  tab: AgentDetailTab;
+  onTabChange: (tab: AgentDetailTab) => void;
+  /** The tab panels. */
+  children: ReactNode;
+}
+
+/**
+ * The agent page chrome: header meta, the tab list and the scrolling tab body. The loaded page and
+ * its loading state both render it, so the tab bar and body hold the same place when the agent
+ * arrives.
+ */
+function AgentDetailFrame({
+  testId,
+  diagnostics,
+  header,
+  tabItems,
+  tab,
+  onTabChange,
+  children,
+}: AgentDetailFrameProps) {
+  // The tab lives in the window route, an external store whose updates are never transitions, so a
+  // `ViewTransition` could not see the swap. A deferred read turns it into one: the old panel
+  // cross-fades into the new one while the tab list stays put.
+  const activeTab = useDeferredValue(tab);
   return (
-    <div
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-4 py-5")}
-      data-testid="agent-detail-loading"
-    >
-      <Skeleton className="h-10 w-64" />
-      <Skeleton className="h-8 w-80" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Skeleton key={index} className="h-20 rounded-md" />
-        ))}
+    <div className={AGENT_DETAIL_ROOT_CLASS} data-testid={testId}>
+      <div className={AGENT_DETAIL_PAGE_CLASS}>
+        {diagnostics}
+        {header}
+        <LaneTabs
+          ariaLabel="Agent detail panels"
+          className={AGENT_DETAIL_TABS_CLASS}
+          items={tabItems}
+          listClassName="w-full"
+          onChange={onTabChange}
+          value={activeTab}
+          data-testid="agent-detail-tabs"
+        >
+          <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
+            <div className={AGENT_DETAIL_BODY_CLASS} data-testid="agent-detail-body">
+              {children}
+            </div>
+          </ViewTransition>
+        </LaneTabs>
       </div>
-      <Skeleton className="h-48 rounded-md" />
     </div>
+  );
+}
+
+/** The page while the agent loads: the real frame and tab list over the skeleton of the open tab. */
+function AgentDetailLoading({ page }: { page: UseAgentDetailResult }) {
+  const { tab, file, filter } = page.search;
+  return (
+    <AgentDetailFrame
+      header={<AgentDetailHeaderSkeleton />}
+      onTabChange={page.setTab}
+      tab={tab}
+      tabItems={agentDetailTabItems(page)}
+      testId="agent-detail-loading"
+    >
+      <TabsContent value="overview" className={AGENT_TAB_PANEL_CLASS}>
+        <SkeletonRegion label="Loading agent">
+          <AgentOverviewSkeleton />
+        </SkeletonRegion>
+      </TabsContent>
+      <TabsContent value="instructions" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentInstructionsSkeleton file={file} onFileChange={page.setFile} />
+      </TabsContent>
+      <TabsContent value="configuration" className={AGENT_TAB_PANEL_CLASS}>
+        <SkeletonRegion label="Loading configuration">
+          <AgentConfigurationSkeleton />
+        </SkeletonRegion>
+      </TabsContent>
+      <TabsContent value="sessions" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentSessionsTabSkeleton filter={filter} onFilterChange={page.setFilter} />
+      </TabsContent>
+    </AgentDetailFrame>
   );
 }
 
@@ -207,79 +291,71 @@ interface AgentDetailBodyProps {
 
 function AgentDetailBody({ agent, name, page, workspaceId }: AgentDetailBodyProps) {
   return (
-    <div
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-      data-testid="agent-detail-page"
-    >
+    <>
       {page.deleteDialog}
-      <div className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col")}>
-        <AgentDiagnosticsSlot agent={agent} />
-        <AgentDetailHeader agent={agent} />
-        <LaneTabs
-          ariaLabel="Agent detail panels"
-          className="min-h-0 flex-1 gap-0"
-          items={agentDetailTabItems(page)}
-          listClassName="w-full"
-          onChange={page.setTab}
-          value={page.search.tab}
-          data-testid="agent-detail-tabs"
-        >
-          <div
-            // The inline 4px pad keeps card hairlines (shadow rings) clear of the scroll clip.
-            className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1 py-5"
-            data-testid="agent-detail-body"
-          >
-            <TabsContent value="overview" className="flex flex-col gap-6">
-              <AgentOverviewTab
-                agent={agent}
-                sessions={page.sessions}
-                sessionsTotal={page.sessionsTotal}
-                activeSessionsTotal={page.activeSessionsTotal}
-                failedSessionsTotal={page.failedSessionsTotal}
-                runtimeSeconds={page.runtimeSeconds}
-                metricsUnavailable={page.metricsUnavailable}
-                metricsLoading={page.metricsLoading}
-                lastSessionActivityAt={page.lastSessionActivityAt}
-                sessionsLoading={page.sessionsLoading}
-                sessionsError={page.sessionsError}
-                runtimeControl={
-                  <AgentRuntimeControl
-                    agent={agent}
-                    labelledBy="agent-overview-model-label"
-                    workspaceId={workspaceId}
-                  />
-                }
-                onEditRuntime={() => page.onEditSettings("runtime")}
-                onViewAllSessions={() => page.setTab("sessions")}
-              />
-            </TabsContent>
+      <AgentDetailLoadedFrame agent={agent} name={name} page={page} workspaceId={workspaceId} />
+    </>
+  );
+}
 
-            <TabsContent value="instructions" className="flex flex-col gap-6">
-              <AgentInstructionsSection
-                agent={agent}
-                file={page.search.file}
-                onFileChange={page.setFile}
-                onEditAgentPrompt={() => page.onEditSettings("instructions")}
-                workspaceId={workspaceId}
-                sessions={page.sessions}
-                onNewSession={page.onNewSession}
-              />
-            </TabsContent>
+function AgentDetailLoadedFrame({ agent, name, page, workspaceId }: AgentDetailBodyProps) {
+  return (
+    <AgentDetailFrame
+      diagnostics={<AgentDiagnosticsSlot agent={agent} />}
+      header={<AgentDetailHeader agent={agent} />}
+      onTabChange={page.setTab}
+      tab={page.search.tab}
+      tabItems={agentDetailTabItems(page)}
+      testId="agent-detail-page"
+    >
+      <TabsContent value="overview" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentOverviewTab
+          agent={agent}
+          sessions={page.sessions}
+          sessionsTotal={page.sessionsTotal}
+          activeSessionsTotal={page.activeSessionsTotal}
+          failedSessionsTotal={page.failedSessionsTotal}
+          runtimeSeconds={page.runtimeSeconds}
+          metricsUnavailable={page.metricsUnavailable}
+          metricsLoading={page.metricsLoading}
+          lastSessionActivityAt={page.lastSessionActivityAt}
+          sessionsLoading={page.sessionsLoading}
+          sessionsError={page.sessionsError}
+          runtimeControl={
+            <AgentRuntimeControl
+              agent={agent}
+              labelledBy="agent-overview-model-label"
+              workspaceId={workspaceId}
+            />
+          }
+          onEditRuntime={() => page.onEditSettings("runtime")}
+          onViewAllSessions={() => page.setTab("sessions")}
+        />
+      </TabsContent>
 
-            <TabsContent value="configuration" className="flex flex-col gap-6">
-              <AgentConfigurationTab
-                agent={agent}
-                onEditSection={section => page.onEditSettings(section)}
-              />
-            </TabsContent>
+      <TabsContent value="instructions" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentInstructionsSection
+          agent={agent}
+          file={page.search.file}
+          onFileChange={page.setFile}
+          onEditAgentPrompt={() => page.onEditSettings("instructions")}
+          workspaceId={workspaceId}
+          sessions={page.sessions}
+          onNewSession={page.onNewSession}
+        />
+      </TabsContent>
 
-            <TabsContent value="sessions" className="flex flex-col gap-6">
-              <AgentSessionsPanel page={page} name={name} workspaceId={workspaceId} />
-            </TabsContent>
-          </div>
-        </LaneTabs>
-      </div>
-    </div>
+      <TabsContent value="configuration" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentConfigurationTab
+          agent={agent}
+          onEditSection={section => page.onEditSettings(section)}
+        />
+      </TabsContent>
+
+      <TabsContent value="sessions" className={AGENT_TAB_PANEL_CLASS}>
+        <AgentSessionsPanel page={page} name={name} workspaceId={workspaceId} />
+      </TabsContent>
+    </AgentDetailFrame>
   );
 }
 
@@ -295,7 +371,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
   useAgentDetailTopbar(page, name);
 
   if (page.agentLoading) {
-    return <AgentDetailLoading />;
+    return <AgentDetailLoading page={page} />;
   }
 
   if (page.agentError || !page.agent) {

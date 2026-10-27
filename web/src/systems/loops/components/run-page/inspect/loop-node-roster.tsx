@@ -5,12 +5,14 @@ import { Link } from "@tanstack/react-router";
 import {
   Empty,
   PillGroup,
+  SkeletonRegion,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableRowSkeleton,
   Time,
   cn,
 } from "@compozy/ui";
@@ -90,6 +92,50 @@ function LoopRosterUsageCell({ row }: { row: LoopRosterRow }) {
   );
 }
 
+function RosterHead({ showsRound, withActions }: { showsRound: boolean; withActions: boolean }) {
+  return (
+    <TableHeader>
+      <TableRow>
+        <TableHead>Step</TableHead>
+        {showsRound ? <TableHead>Round</TableHead> : null}
+        <TableHead>State</TableHead>
+        <TableHead>Attempt</TableHead>
+        <TableHead>Duration</TableHead>
+        {/* Labelled once, in the header, so no row has to carry "est." */}
+        <TableHead>Tokens · est. cost</TableHead>
+        <TableHead>Session</TableHead>
+        {withActions ? <TableHead>Actions</TableHead> : null}
+      </TableRow>
+    </TableHeader>
+  );
+}
+
+/**
+ * The steps table before the roster has answered: the real column header over placeholder rows.
+ * Presentational; the caller owns the `SkeletonRegion`.
+ */
+export function LoopNodeRosterSkeleton({ withActions }: { withActions: boolean }) {
+  const columns = [
+    { className: "w-32" },
+    { className: "w-16" },
+    { className: "w-10" },
+    { className: "w-16" },
+    { className: "w-20" },
+    { className: "w-12" },
+    ...(withActions ? [{ className: "w-16" }] : []),
+  ];
+  return (
+    <div aria-hidden="true">
+      <Table>
+        <RosterHead showsRound={false} withActions={withActions} />
+        <TableBody>
+          <TableRowSkeleton columns={columns} count={4} />
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export function LoopNodeRoster({
   roster,
   round,
@@ -116,11 +162,9 @@ export function LoopNodeRoster({
     }
     if (read?.isLoading) {
       return (
-        <Empty
-          data-testid="loop-node-roster-loading"
-          description="Reading this run's steps…"
-          title="Still reading"
-        />
+        <SkeletonRegion data-testid="loop-node-roster-loading" label="Loading steps">
+          <LoopNodeRosterSkeleton withActions={renderActions !== undefined} />
+        </SkeletonRegion>
       );
     }
     return (
@@ -152,19 +196,7 @@ export function LoopNodeRoster({
         </div>
       ) : null}
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Step</TableHead>
-            {showsRound ? <TableHead>Round</TableHead> : null}
-            <TableHead>State</TableHead>
-            <TableHead>Attempt</TableHead>
-            <TableHead>Duration</TableHead>
-            {/* Labelled once, in the header, so no row has to carry "est." */}
-            <TableHead>Tokens · est. cost</TableHead>
-            <TableHead>Session</TableHead>
-            {renderActions ? <TableHead>Actions</TableHead> : null}
-          </TableRow>
-        </TableHeader>
+        <RosterHead showsRound={showsRound} withActions={renderActions !== undefined} />
         <TableBody>
           {roster.rows.map(row => (
             <TableRow

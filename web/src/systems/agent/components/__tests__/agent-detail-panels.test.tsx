@@ -237,7 +237,15 @@ describe("agent detail panels", () => {
         })}
       />
     );
-    expect(screen.getByTestId("agent-overview-metrics-skeleton").children).toHaveLength(4);
+    const loading = screen.getByTestId("agent-overview-metrics-skeleton");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading).toHaveTextContent("Loading agent metrics");
+    // The real tiles keep their labels; only the values wait.
+    expect(
+      within(loading).getAllByText(/^(Active|Time working|Failed|Last activity)$/)
+    ).toHaveLength(4);
+    expect(screen.queryByTestId("agent-stats-grid")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-overview-live-sess-active")).toBeInTheDocument();
   });
 

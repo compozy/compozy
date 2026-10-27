@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { CircleDot, CircleStop, Clock3, Filter, Puzzle, Unplug, Webhook } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
-import { Eyebrow, cn } from "@compozy/ui";
+import { cn } from "@compozy/ui";
 
 import { describeScheduleStarts } from "../../lib/automation-detail";
 import { isAutomationTrigger, type AutomationEntity } from "../../lib/automation-entity";
@@ -16,6 +16,7 @@ import type { EventIconKey } from "../../lib/trigger-catalog";
 import type { AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
 import { AutomationNextRuns } from "./automation-next-runs";
+import { RuleRow } from "./automation-rule-row";
 import { AutomationRuleDoes } from "./automation-rule-does";
 import { AutomationValueBadge } from "./automation-value-badge";
 import { AutomationWebhookEndpoint } from "./automation-webhook-endpoint";
@@ -27,26 +28,6 @@ const EVENT_ICONS: Record<EventIconKey, LucideIcon> = {
   webhook: Webhook,
   extension: Puzzle,
 };
-
-type RuleRowProps = Omit<ComponentProps<"div">, "children"> & {
-  label: string;
-  children: ReactNode;
-};
-
-function RuleRow({ label, children, className, ...props }: RuleRowProps) {
-  return (
-    <div
-      className={cn(
-        "grid grid-cols-[56px_minmax(0,1fr)] gap-3 border-t border-line-soft px-3 py-3 first:border-t-0 md:grid-cols-[84px_minmax(0,1fr)] md:gap-3.5 md:px-4 md:py-3.5",
-        className
-      )}
-      {...props}
-    >
-      <Eyebrow className="pt-0.5 text-subtle">{label}</Eyebrow>
-      <div className="flex min-w-0 flex-col">{children}</div>
-    </div>
-  );
-}
 
 function RuleHeadline({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (

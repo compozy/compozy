@@ -24,6 +24,7 @@ import type {
   SettingsSectionGroup,
   SettingsSectionSlug,
 } from "../types";
+import { DEFAULT_SETTINGS_SECTION_SLUG, retiredSettingsSectionReplacement } from "./section-paths";
 
 /**
  * Daemon sections + browser Appearance, grouped so the nav reads as a mental
@@ -190,6 +191,16 @@ export function findSettingsSection(
   }
 
   return SETTINGS_SECTIONS.find(section => section.slug === slug);
+}
+
+/**
+ * The section a settings window route names (`/settings/<slug>`): a retired slug resolves to the
+ * section that absorbed it, and a bare or unknown segment opens the first section.
+ */
+export function settingsSectionSlugFromPathname(pathname: string): SettingsSectionSlug {
+  const raw = pathname.split("/")[2] ?? "";
+  const segment = retiredSettingsSectionReplacement(raw) ?? raw;
+  return findSettingsSection(segment)?.slug ?? DEFAULT_SETTINGS_SECTION_SLUG;
 }
 
 export { SETTINGS_ROOT_PATH, settingsSectionPath } from "./section-paths";

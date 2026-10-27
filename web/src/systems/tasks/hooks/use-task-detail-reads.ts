@@ -59,14 +59,27 @@ function detailReadModel(taskId: string, detailQuery: DetailQuery) {
   };
 }
 
-function timelineReadModel(timelineQuery: TimelineQuery, timelineLimit: number) {
+/**
+ * A read waits on no data yet (`isPending`), never on a fetch in flight (`isLoading`): a
+ * suspended window disables its reads, and a disabled read with no data yet is still waiting,
+ * not an empty list. A read the caller opted out of (`enable*: false`) waits on nothing.
+ */
+function waitsOn(query: { isPending: boolean }, hasData: boolean, optedIn: boolean): boolean {
+  return optedIn && query.isPending && !hasData;
+}
+
+function timelineReadModel(
+  timelineQuery: TimelineQuery,
+  timelineLimit: number,
+  options: TaskDetailReadOptions
+) {
   const timeline = timelineQuery.data ?? [];
   return {
     isTimelineSaturated: timeline.length >= timelineLimit,
     timeline,
     timelineError: timelineQuery.error ?? null,
     timelineLimit,
-    timelineLoading: timelineQuery.isLoading && timeline.length === 0,
+    timelineLoading: waitsOn(timelineQuery, timeline.length > 0, options.enableTimeline !== false),
   };
 }
 
@@ -74,7 +87,8 @@ function sideReadModel(
   runsQuery: RunsQuery,
   inspectQuery: InspectQuery,
   profileQuery: ProfileQuery,
-  reviewsQuery: ReviewsQuery
+  reviewsQuery: ReviewsQuery,
+  options: TaskDetailReadOptions
 ) {
   const runs = runsQuery.data ?? [];
   const inspect = inspectQuery.data ?? null;
@@ -83,16 +97,16 @@ function sideReadModel(
   return {
     inspect,
     inspectError: inspectQuery.error ?? null,
-    inspectLoading: inspectQuery.isLoading && !inspect,
+    inspectLoading: waitsOn(inspectQuery, inspect !== null, options.enableInspect !== false),
     profile,
     profileError: profileQuery.error ?? null,
-    profileLoading: profileQuery.isLoading && !profile,
+    profileLoading: waitsOn(profileQuery, profile !== null, true),
     reviews,
     reviewsError: reviewsQuery.error ?? null,
-    reviewsLoading: reviewsQuery.isLoading && reviews.length === 0,
+    reviewsLoading: waitsOn(reviewsQuery, reviews.length > 0, true),
     runs,
     runsError: runsQuery.error ?? null,
-    runsLoading: runsQuery.isLoading && runs.length === 0,
+    runsLoading: waitsOn(runsQuery, runs.length > 0, options.enableRuns !== false),
   };
 }
 
@@ -138,8 +152,8 @@ function useTaskDetailReads(taskId: string, options: TaskDetailReadOptions) {
 
   return {
     ...detailReadModel(taskId, detailQuery),
-    ...timelineReadModel(timelineQuery, timelineLimit),
-    ...sideReadModel(runsQuery, inspectQuery, profileQuery, reviewsQuery),
+    ...timelineReadModel(timelineQuery, timelineLimit, options),
+    ...sideReadModel(runsQuery, inspectQuery, profileQuery, reviewsQuery, options),
     activeRun,
     handleTimelineLoadMore: () => setTimelineLimit(current => current + TIMELINE_PAGE_SIZE),
     isLive,

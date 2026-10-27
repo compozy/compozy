@@ -12,11 +12,11 @@ import {
   AuthoredFileHistory,
   AuthoredFileLiveStatus,
   AuthoredFileLoadError,
-  AuthoredFileLoading,
   AuthoredFileMeta,
   AuthoredFileMissing,
   AuthoredFileWriteRecovery,
 } from "./agent-authored-file-parts";
+import { AuthoredFileLoading } from "./agent-authored-file-loading";
 import type {
   AgentHeartbeatHistoryResponse,
   AgentHeartbeatPayload,
@@ -76,7 +76,7 @@ export function AgentAuthoredFileEditor(props: AgentAuthoredFileEditorProps) {
   );
 
   if (isLoading) {
-    return <AuthoredFileLoading kind={kind} />;
+    return <AuthoredFileLoading headerSlot={headerSlot} kind={kind} />;
   }
 
   if (isError) {

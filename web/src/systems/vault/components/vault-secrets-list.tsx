@@ -1,11 +1,15 @@
 import { KeyRound } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { DataSurface, type ListingViewMode } from "@compozy/ui";
+import { DataSurface, ListingRowSkeleton, type ListingViewMode } from "@compozy/ui";
 
 import type { VaultSecret } from "../types";
-import { VaultSecretsCard } from "./vault-secrets-card";
+import { VaultSecretsCard, VaultSecretsCardSkeleton } from "./vault-secrets-card";
 import { VaultSecretsRow } from "./vault-secrets-row";
+
+// The loading skeleton sits in the same containers as the loaded list.
+const VAULT_CARDS_CLASS = "grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3";
+const VAULT_ROWS_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
 
 interface VaultSecretsListProps {
   secrets: VaultSecret[];
@@ -39,7 +43,17 @@ export function VaultSecretsList({
       className="flex min-h-0 flex-1 flex-col"
       state={isLoading ? "loading" : error ? "error" : secrets.length === 0 ? "empty" : "ready"}
     >
-      <DataSurface.Loading data-testid={`${testId}-loading`} label="Loading secrets" />
+      <DataSurface.Loading data-testid={`${testId}-loading`} label="Loading secrets">
+        {view === "cards" ? (
+          <div className={VAULT_CARDS_CLASS}>
+            <VaultSecretsCardSkeleton count={6} />
+          </div>
+        ) : (
+          <div className={VAULT_ROWS_CLASS}>
+            <ListingRowSkeleton count={5} trail="pill" />
+          </div>
+        )}
+      </DataSurface.Loading>
       <DataSurface.Error
         description={error?.message}
         icon={KeyRound}
@@ -55,10 +69,7 @@ export function VaultSecretsList({
       />
       <DataSurface.Content className="min-w-0" data-testid={testId}>
         {view === "cards" ? (
-          <div
-            className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3"
-            data-testid={`${testId}-card-grid`}
-          >
+          <div className={VAULT_CARDS_CLASS} data-testid={`${testId}-card-grid`}>
             {secrets.map(secret => (
               <VaultSecretsCard
                 key={secret.ref}
@@ -70,10 +81,7 @@ export function VaultSecretsList({
             ))}
           </div>
         ) : (
-          <div
-            className="overflow-hidden rounded-lg bg-card shadow-card"
-            data-testid={`${testId}-rows`}
-          >
+          <div className={VAULT_ROWS_CLASS} data-testid={`${testId}-rows`}>
             {secrets.map(secret => (
               <VaultSecretsRow
                 key={secret.ref}

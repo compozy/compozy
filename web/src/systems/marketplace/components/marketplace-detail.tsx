@@ -1,6 +1,6 @@
 import { PackageX } from "lucide-react";
 
-import { Button, cn, Empty, PAGE_CONTENT_GUTTER, Skeleton } from "@compozy/ui";
+import { Button, cn, Empty, PAGE_CONTENT_GUTTER } from "@compozy/ui";
 
 import type { MarketplaceCatalogEntryResponse } from "../types";
 import { MarketplaceDetailExtensionView } from "./marketplace-detail-extension";
@@ -27,47 +27,6 @@ function MarketplaceDetail({ data, liveDataEnabled = true }: MarketplaceDetailPr
   );
 }
 
-function MarketplaceDetailSkeleton() {
-  return (
-    <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pt-6 pb-20")} role="status">
-      <div className="mb-6 flex items-start gap-3.5 border-b border-line pb-5">
-        <Skeleton className="size-14 shrink-0 rounded-lg" />
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <Skeleton className="h-5.5 w-55 max-w-full" />
-          <Skeleton className="h-3 w-75 max-w-full" />
-          <Skeleton className="h-3 w-95 max-w-full" />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-        <div className="flex flex-col gap-2.5 rounded-lg bg-card p-5 shadow-card">
-          {[78, 91, 66, 82, 94, 72].map(width => (
-            <Skeleton className="h-2.5" key={width} style={{ width: `${width}%` }} />
-          ))}
-        </div>
-        <aside className="flex flex-col gap-3">
-          {[0, 1].map(card => (
-            <div className="overflow-hidden rounded-lg bg-card shadow-card" key={card}>
-              <div className="border-b border-line-soft px-3.5 py-3">
-                <Skeleton className="h-2.5 w-24" />
-              </div>
-              <div className="flex flex-col gap-2.5 px-3.5 py-3">
-                {[38, 54, 46].map(width => (
-                  <Skeleton
-                    className="h-2.5"
-                    key={width}
-                    style={{ width: `${width + card * 8}%` }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </aside>
-      </div>
-      <span className="sr-only">Loading marketplace entry</span>
-    </div>
-  );
-}
-
 function MarketplaceDetailNotFound({ onBack }: { onBack: () => void }) {
   return (
     <div className={cn(PAGE_CONTENT_GUTTER, "flex flex-col pb-20")}>
@@ -88,5 +47,5 @@ function MarketplaceDetailNotFound({ onBack }: { onBack: () => void }) {
   );
 }
 
-export { MarketplaceDetail, MarketplaceDetailNotFound, MarketplaceDetailSkeleton };
+export { MarketplaceDetail, MarketplaceDetailNotFound };
 export type { MarketplaceDetailProps };

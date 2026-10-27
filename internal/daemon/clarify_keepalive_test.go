@@ -23,6 +23,48 @@ type recordingClarifyKeepalive struct {
 	fail  error
 }
 
+// clarifyLogSink is a goroutine-safe log writer: the keepalive sender logs a
+// failed ping after Ping returns, concurrently with the test reading the logs.
+type clarifyLogSink struct {
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	wrote chan struct{}
+}
+
+func newClarifyLogSink() *clarifyLogSink {
+	return &clarifyLogSink{wrote: make(chan struct{}, 1)}
+}
+
+func (s *clarifyLogSink) Write(payload []byte) (int, error) {
+	s.mu.Lock()
+	n, err := s.buf.Write(payload)
+	s.mu.Unlock()
+	select {
+	case s.wrote <- struct{}{}:
+	default:
+	}
+	return n, err
+}
+
+func (s *clarifyLogSink) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+func (s *clarifyLogSink) awaitContains(t *testing.T, want string) {
+	t.Helper()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for !strings.Contains(s.String(), want) {
+		select {
+		case <-s.wrote:
+		case <-deadline.C:
+			t.Fatalf("bridge logs = %q, want a line containing %q", s.String(), want)
+		}
+	}
+}
+
 func newRecordingClarifyKeepalive() *recordingClarifyKeepalive {
 	return &recordingClarifyKeepalive{wake: make(chan ClarifyPingParams, 64)}
 }
@@ -306,8 +348,8 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 	t.Run("Should keep waiting and resolve a late answer when every ping fails", func(t *testing.T) {
 		t.Parallel()
 
-		var logs bytes.Buffer
-		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		logs := newClarifyLogSink()
+		logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		publisher := newClarifyPublisherStub()
 		keepalive := newRecordingClarifyKeepalive()
 		keepalive.fail = errors.New("agent gone")
@@ -343,9 +385,7 @@ func TestClarifyBridgeKeepaliveTicker(t *testing.T) {
 		if got := awaitClarifyResult(t, result); got.err != nil || got.answer.Text != "staging" {
 			t.Fatalf("Ask() result = %#v, want staging", got)
 		}
-		if logged := logs.String(); !strings.Contains(logged, "clarification keepalive ping failed") {
-			t.Fatalf("bridge logs = %q, want a debug line per failed ping", logged)
-		}
+		logs.awaitContains(t, "clarification keepalive ping failed")
 	})
 
 	t.Run("Should stop pinging after answer expiry and cancel", func(t *testing.T) {

@@ -23,7 +23,10 @@ import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { SessionSidebar } from "../session-sidebar";
-import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
+import {
+  sessionListCatalogFixture,
+  sessionListViewFixture,
+} from "../../mocks/session-list-view-fixtures";
 
 const meta: Meta<typeof SessionSidebar> = {
   title: "systems/session/components/SessionSidebar",
@@ -84,6 +87,37 @@ export const ProvenanceThreads: Story = {
       onStop: fn(),
       onUnarchive: fn(),
     },
+  },
+};
+
+/**
+ * The first catalog page is still loading: placeholder rows in the live row's frame, a root with
+ * two children on its tree elbows among them, under the real toolbar and filter. Never the
+ * empty state.
+ */
+export const Loading: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [],
+    view: sessionListViewFixture({
+      ...ProvenanceThreads.args!.view!,
+      catalog: sessionListCatalogFixture({ loading: true }),
+    }),
+  },
+};
+
+/** Grouped by project: group headers with their first rows hold the place while the facets load. */
+export const GroupsLoading: Story = {
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [],
+    view: sessionListViewFixture({
+      ...ProvenanceThreads.args!.view!,
+      storedGroupBy: "project",
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      groupsLoading: true,
+    }),
   },
 };
 

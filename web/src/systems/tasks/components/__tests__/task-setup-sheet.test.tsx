@@ -96,6 +96,32 @@ describe("TaskSetupSheet", () => {
     expect(screen.getByTestId("tasks-setup-editor-save")).toHaveTextContent("Saving…");
   });
 
+  it("Should stand in with the profile's groups while the setup loads", () => {
+    render(
+      <TaskSetupSheet
+        clearOpen={false}
+        editor={buildEditor()}
+        hasActiveRun={false}
+        onClearOpenChange={vi.fn()}
+        onClearProfile={vi.fn()}
+        onOpenChange={vi.fn()}
+        open
+        profile={null}
+        profileLoading
+        runtime={runtime}
+      />
+    );
+
+    // One named loading area holding the four real groups, not a line of text.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-setup-loading"));
+    expect(region).toHaveTextContent("Loading setup");
+    for (const group of ["Worker", "Coordinator", "Review", "Environment"]) {
+      expect(within(region).getByText(group)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId("tasks-setup-empty")).not.toBeInTheDocument();
+  });
+
   it("Should block saving an incomplete named-worktree draft", () => {
     render(
       <TaskSetupSheet

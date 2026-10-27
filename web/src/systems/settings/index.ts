@@ -20,6 +20,7 @@ export {
   filterSettingsSections,
   SETTINGS_SECTION_SLUGS,
   settingsSectionPath,
+  settingsSectionSlugFromPathname,
 } from "./lib/sections";
 export {
   DEFAULT_SETTINGS_SECTION_SLUG,
@@ -240,12 +241,14 @@ export {
   MCPServerEditor,
   MCPOverrideEditor,
   MCPServersTable,
+  MCPServersTableSkeleton,
   mcpServerRowTestId,
   isExtensionOwnedMCPServer,
   mcpAllocatedRuntimeName,
   mcpOwnerExtensionName,
   mcpServerProvenanceLine,
   ProviderCard,
+  ProviderCardGrid,
   ProviderEditForm,
   ProviderDetailDialog,
   ProviderInspectView,

@@ -41,7 +41,9 @@ describe("GatewayProviderSection", () => {
   it("Should not claim the inventory is empty while it is still loading", () => {
     renderSection(buildGatewayProviderModel(gatewayStatusFixture(), []), { isLoading: true });
 
-    expect(screen.getByRole("status", { name: "Loading connectivity providers" })).toBeVisible();
+    const loading = screen.getByRole("status");
+    expect(loading).toBeVisible();
+    expect(loading).toHaveTextContent("Loading connectivity providers");
     expect(screen.queryByText("No connectivity provider installed")).not.toBeInTheDocument();
   });
 

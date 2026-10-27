@@ -2,11 +2,22 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, MessageSquare } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, Empty, MetadataList, Panel, Pill, Skeleton, StateGlyph } from "@compozy/ui";
+import {
+  Button,
+  Empty,
+  MetadataList,
+  Panel,
+  Pill,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
+  StateGlyph,
+  cn,
+} from "@compozy/ui";
 
 import { permissionLabel } from "../lib/agent-permissions";
 import type { AgentPayload } from "../types";
-import { AgentStatsGrid } from "./agent-stats-grid";
+import { AgentStatsGrid, AgentStatsGridSkeleton } from "./agent-stats-grid";
 import { formatAgentRuntimeDuration } from "../lib/format-agent-runtime-duration";
 import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
@@ -49,14 +60,9 @@ export function AgentOverviewTab({
   return (
     <div className="flex flex-col gap-6" data-testid="agent-overview-tab">
       {metricsLoading ? (
-        <div
-          className="grid grid-cols-2 gap-3 md:grid-cols-4"
-          data-testid="agent-overview-metrics-skeleton"
-        >
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-20 rounded-md" />
-          ))}
-        </div>
+        <SkeletonRegion data-testid="agent-overview-metrics-skeleton" label="Loading agent metrics">
+          <AgentStatsGridSkeleton />
+        </SkeletonRegion>
       ) : (
         <AgentStatsGrid
           active={activeSessionsTotal}
@@ -121,10 +127,9 @@ export function AgentOverviewTab({
         title="Live sessions"
       >
         {sessionsLoading ? (
-          <div className="flex flex-col gap-2 p-4">
-            <Skeleton className="h-10 rounded-md" />
-            <Skeleton className="h-10 rounded-md" />
-          </div>
+          <SkeletonRegion data-testid="agent-overview-sessions-skeleton" label="Loading sessions">
+            <LiveSessionRowsSkeleton />
+          </SkeletonRegion>
         ) : sessionsError ? (
           <p
             className="p-4 text-small-body text-muted"
@@ -154,7 +159,7 @@ export function AgentOverviewTab({
                   <Link
                     to="/agents/$name/sessions/$id"
                     params={{ name: agent.name, id: session.id }}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 hover:bg-hover"
+                    className={cn(LIVE_SESSION_ROW_CLASS, "hover:bg-hover")}
                     data-testid={`agent-overview-live-${session.id}`}
                   >
                     <span className="min-w-0">
@@ -182,6 +187,72 @@ export function AgentOverviewTab({
 
 const metadataRowClassName =
   "flex-col items-start gap-1.5 border-t border-line-soft px-4 py-3.5 first:border-t-0";
+
+const LIVE_SESSION_ROW_CLASS = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3";
+// One row: most agents have a single live session or none, so the panel is not overshot.
+const LIVE_SESSION_SKELETON_IDS = ["live-session-skeleton-1"] as const;
+
+/** A live-session row in the real row grid; the same list renders while the page loads. */
+function LiveSessionRowsSkeleton() {
+  return (
+    <ul>
+      {LIVE_SESSION_SKELETON_IDS.map(id => (
+        <li
+          aria-hidden="true"
+          className="animate-skeleton-reveal border-t border-line-soft first:border-t-0"
+          key={id}
+        >
+          <div className={LIVE_SESSION_ROW_CLASS}>
+            <span className="min-w-0">
+              <span className="block text-body font-medium">
+                <SkeletonText className="w-48" />
+              </span>
+              <span className="mt-1 block text-small-body">
+                <SkeletonText className="w-10" />
+              </span>
+            </span>
+            <Skeleton className="h-pill-sm w-16 rounded-pill" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Overview while the agent itself loads: the real tile grid and the two panels, with the head
+ * actions and values held by placeholders. Wrap in one `SkeletonRegion`.
+ */
+export function AgentOverviewSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" data-testid="agent-overview-skeleton">
+      <AgentStatsGridSkeleton />
+      <Panel bodyClassName="p-0" right={<Skeleton className="h-button-sm w-12" />} title="Setup">
+        <MetadataList className="gap-0">
+          <MetadataList.Row className={metadataRowClassName}>
+            <MetadataList.Term>Model</MetadataList.Term>
+            <MetadataList.Value className="w-full">
+              <Skeleton className="h-button-lg w-56" />
+            </MetadataList.Value>
+          </MetadataList.Row>
+          <MetadataList.Row className={metadataRowClassName}>
+            <MetadataList.Term>Permissions</MetadataList.Term>
+            <MetadataList.Value>
+              <SkeletonText className="w-32" />
+            </MetadataList.Value>
+          </MetadataList.Row>
+        </MetadataList>
+      </Panel>
+      <Panel
+        bodyClassName="p-0"
+        right={<Skeleton className="h-button-sm w-16" />}
+        title="Live sessions"
+      >
+        <LiveSessionRowsSkeleton />
+      </Panel>
+    </div>
+  );
+}
 
 function formatElapsed(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "";

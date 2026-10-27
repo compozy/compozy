@@ -147,7 +147,7 @@ function useAgentSettingsProviders(origin: string | undefined, runtimeWorkspaceI
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
   const providersLoading = useWorkspaceProviders
     ? runtimeWorkspaceId !== null && workspaceDetail.isLoading
-    : settingsProviders.isLoading || settingsProviders.isFetching;
+    : settingsProviders.isLoading;
 
   return { providerOptions, providersLoading };
 }

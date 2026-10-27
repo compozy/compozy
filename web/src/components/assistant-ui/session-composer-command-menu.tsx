@@ -22,6 +22,7 @@ import {
 import { sessionCommandOpenLogic } from "./session-command-open-store";
 import {
   TriggerMenuDivider,
+  TriggerMenuLoading,
   TriggerMenuGroupHeader,
   TriggerMenuMessage,
   TriggerMenuRow,
@@ -123,11 +124,14 @@ function CommandMenuItemRow({
 
 function CommandMenuEmptyState() {
   const { query, isLoading } = useTriggerPopoverScopeContext();
-  const message = isLoading
-    ? "Loading commands…"
-    : query.length > 0
-      ? "No matching commands"
-      : "No commands available";
+  if (isLoading) {
+    return (
+      <TriggerMenuLoading data-testid="composer-command-empty">
+        Loading commands…
+      </TriggerMenuLoading>
+    );
+  }
+  const message = query.length > 0 ? "No matching commands" : "No commands available";
   return <TriggerMenuMessage data-testid="composer-command-empty">{message}</TriggerMenuMessage>;
 }
 

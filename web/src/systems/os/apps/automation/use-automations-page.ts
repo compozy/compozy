@@ -110,7 +110,9 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       fetched: true,
       error: jobsQuery.error,
       loaded: Boolean(jobsQuery.data),
-      loading: jobsQuery.isLoading,
+      // No answer yet, however it is pending: still fetching, or idle until the scope settles. A
+      // placeholder keeps the previous search's rows on screen, but with none it is no answer.
+      loading: jobsQuery.isPending || jobsQuery.isPlaceholderData,
       total: jobsQuery.total,
     },
     triggers: {
@@ -118,7 +120,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
       fetched: lists.fetchTriggers,
       error: triggersQuery.error,
       loaded: Boolean(triggersQuery.data),
-      loading: triggersQuery.isLoading,
+      loading: triggersQuery.isPending || triggersQuery.isPlaceholderData,
       total: triggersQuery.total,
     },
     unavailableMessage,

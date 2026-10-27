@@ -1,7 +1,12 @@
 import { Check } from "lucide-react";
 import { useRef } from "react";
 
-import { RadioCard } from "@compozy/ui";
+import { RadioCard, SkeletonText } from "@compozy/ui";
+
+const CHOICE_GRID_CLASS = "grid gap-2 p-3 @min-settings-takeover:grid-cols-3";
+
+/** One placeholder card per rung of the three-way choices this group serves. */
+const CHOICE_SKELETON_CARDS = ["first", "second", "third"] as const;
 
 export interface SettingsChoiceOption<V extends string> {
   value: V;
@@ -56,7 +61,7 @@ export function SettingsChoiceGroup<V extends string>({
   return (
     <div
       aria-label={ariaLabel}
-      className="grid gap-2 p-3 @min-settings-takeover:grid-cols-3"
+      className={CHOICE_GRID_CLASS}
       data-testid={testId}
       role="radiogroup"
     >
@@ -96,6 +101,34 @@ export function SettingsChoiceGroup<V extends string>({
           />
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The choice cards in skeleton form: the real group grid and `RadioCard` shell with placeholder
+ * title and description. The cards are disabled and out of the tab order, and the group is hidden
+ * from assistive technology; the page's `SkeletonRegion` announces the loading.
+ */
+export function SettingsChoiceGroupSkeleton() {
+  return (
+    <div aria-hidden="true" className={CHOICE_GRID_CLASS}>
+      {CHOICE_SKELETON_CARDS.map(card => (
+        <RadioCard
+          className="pointer-events-none"
+          description={
+            <span className="block leading-snug">
+              <SkeletonText lines={2} />
+            </span>
+          }
+          disabled
+          key={card}
+          onSelect={() => undefined}
+          selected={false}
+          tabIndex={-1}
+          title={<SkeletonText className="w-24" />}
+        />
+      ))}
     </div>
   );
 }

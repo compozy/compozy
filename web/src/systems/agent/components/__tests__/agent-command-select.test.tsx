@@ -203,3 +203,109 @@ describe("AgentCommandSelect", () => {
     expect(trigger).toHaveTextContent("Not available");
   });
 });
+
+// Invariant: a picker whose catalog has not answered holds its place with shapes — a text bar
+// named for assistive technology in the trigger, row-shaped placeholders in the popup — and never
+// a "Loading…" sentence, an unavailable claim about a configured name, or an empty-result claim.
+// Agents already in hand stay listed and selectable, and loaded agents replace the placeholders.
+describe("AgentCommandSelect loading", () => {
+  const writer = makeAgent({ name: "writer" });
+  const coder = makeAgent({ name: "coder", provider: "codex" });
+  const select = (props: Partial<React.ComponentProps<typeof AgentCommandSelect>>) => (
+    <UIProvider reducedMotion="never" skipAnimations>
+      <AgentCommandSelect
+        agents={[]}
+        value={null}
+        onChange={() => undefined}
+        triggerTestId="trigger"
+        {...props}
+      />
+    </UIProvider>
+  );
+
+  it("Should hold the trigger's place with a text bar that still names the control", () => {
+    const { rerender } = render(select({ loading: true, placeholder: "Choose an agent" }));
+
+    const trigger = screen.getByRole("button", { name: "Loading agents" });
+    expect(trigger).toBe(screen.getByTestId("trigger"));
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
+    expect(trigger).not.toHaveTextContent("Choose an agent");
+    expect(screen.queryByText(/Loading agents…/)).not.toBeInTheDocument();
+
+    rerender(select({ agents: [writer], placeholder: "Choose an agent" }));
+
+    expect(trigger).toBeEnabled();
+    expect(trigger).toHaveTextContent("Choose an agent");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).toBeNull();
+  });
+
+  it("Should keep a configured name readable instead of calling it unavailable while loading", () => {
+    const { rerender } = render(select({ agents: [], value: "writer", loading: true }));
+
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toHaveTextContent("writer");
+    expect(trigger).not.toHaveTextContent("Not available");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
+
+    rerender(select({ agents: [writer], value: "writer" }));
+    expect(trigger).toHaveTextContent("claude");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).toBeNull();
+
+    // Once the catalog has answered without it, the claim is true.
+    rerender(select({ agents: [coder], value: "writer" }));
+    expect(trigger).toHaveTextContent("Not available");
+  });
+
+  it("Should fill an open popup with row placeholders, not a sentence, until the catalog lands", async () => {
+    const user = userEvent.setup();
+    const clearLabel = "Role default";
+    const { rerender } = render(select({ agents: [writer], clearLabel }));
+    await user.click(screen.getByTestId("trigger"));
+    expect(await screen.findByTestId("agent-command-item-writer")).toBeInTheDocument();
+
+    rerender(select({ agents: [], clearLabel, loading: true }));
+
+    const region = await screen.findByTestId("agent-command-loading");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveTextContent("Loading agents");
+    expect(
+      region.querySelectorAll('[data-slot="agent-command-row-skeleton"]').length
+    ).toBeGreaterThan(3);
+    // The leading choice stays real, and a listbox holds only options, so the region sits beside it.
+    expect(screen.getByRole("listbox")).toContainElement(
+      screen.getByTestId("agent-command-item-clear")
+    );
+    expect(screen.getByRole("listbox")).not.toContainElement(region);
+    expect(screen.queryByTestId("agent-command-empty")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Loading agents…/)).not.toBeInTheDocument();
+
+    rerender(select({ agents: [writer, coder], clearLabel }));
+
+    expect(screen.queryByTestId("agent-command-loading")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("agent-command-item-coder")).toBeInTheDocument();
+  });
+
+  it("Should keep agents in hand selectable while the catalog is read again", async () => {
+    const user = userEvent.setup();
+    render(select({ agents: [writer, coder], loading: true, placeholder: "Choose an agent" }));
+
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toBeEnabled();
+    expect(trigger).toHaveTextContent("Choose an agent");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).toBeNull();
+
+    await user.click(trigger);
+    expect(await screen.findByTestId("agent-command-item-coder")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-command-loading")).not.toBeInTheDocument();
+  });
+
+  it("Should let a failed read replace the placeholders with its message", () => {
+    render(select({ loading: true, error: "Catalog offline" }));
+
+    const trigger = screen.getByTestId("trigger");
+    expect(trigger).toHaveTextContent("Unable to load agents");
+    expect(trigger.querySelector('[data-slot="skeleton-text"]')).toBeNull();
+  });
+});

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
@@ -59,6 +59,22 @@ export const AllArchived: Story = {
             )
           )
         ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Loading state: the sentence, the create action and the profile rows hold their place. */
+export const Loading: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/profiles"),
+    ...storybookMswParameters({
+      profiles: [
+        compozyApiMock.get("/api/profiles", async () => {
+          await delay("infinite");
+          return HttpResponse.json(profileFixtures);
+        }),
       ],
     }),
   },

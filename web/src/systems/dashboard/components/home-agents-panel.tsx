@@ -1,16 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
-import { Button, cn, Empty, Eyebrow, OwnerAvatar, Panel, Section } from "@compozy/ui";
+import { Button, cn, Empty, OwnerAvatar, Panel, Section, SkeletonRegion } from "@compozy/ui";
 
 import type { HomeAgentRow } from "../hooks/use-home-agents";
+import { HomeAgentsHeader } from "./home-zone-parts";
+import { HOME_AGENTS_NAME_CLASS, HOME_AGENTS_ROW_CLASS } from "./home-zone-shape";
+import { HomeAgentsPanelSkeleton } from "./home-zone-skeletons";
 
 export interface HomeAgentsPanelProps {
   rows: HomeAgentRow[];
+  /** The agent catalog has not answered yet: the zone shows its loading shape, never "no agents". */
+  loading?: boolean;
 }
-
-const ROW_GRID = "grid-cols-[minmax(0,1.1fr)_52px_64px_52px_minmax(0,1fr)]";
-const ROW_GRID_NARROW = "max-[760px]:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)]";
 
 function formatRuntimeHours(runtimeSeconds: number): string {
   return `${(runtimeSeconds / 3600).toFixed(1)}h`;
@@ -20,7 +22,15 @@ function formatRuntimeHours(runtimeSeconds: number): string {
  * Zone 5a — the agent fleet with exact lifetime session metrics; the runtime
  * bar normalizes against the busiest agent in neutral ink.
  */
-export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
+export function HomeAgentsPanel({ rows, loading = false }: HomeAgentsPanelProps) {
+  if (loading && rows.length === 0) {
+    return (
+      <SkeletonRegion label="Loading agents">
+        <HomeAgentsPanelSkeleton />
+      </SkeletonRegion>
+    );
+  }
+
   return (
     <Section
       bodyClassName="flex flex-1 flex-col"
@@ -46,26 +56,20 @@ export function HomeAgentsPanel({ rows }: HomeAgentsPanelProps) {
           />
         ) : (
           <div className="flex flex-1 flex-col">
-            <div
-              aria-hidden="true"
-              className={`grid ${ROW_GRID} items-center gap-3 border-b border-line-soft px-4 py-2 max-[760px]:hidden`}
-            >
-              <Eyebrow className="text-subtle">Agent</Eyebrow>
-              <Eyebrow className="text-right text-subtle">Active</Eyebrow>
-              <Eyebrow className="text-right text-subtle">Sessions</Eyebrow>
-              <Eyebrow className="text-right text-subtle">Failed</Eyebrow>
-              <Eyebrow className="text-subtle">Runtime</Eyebrow>
-            </div>
+            <HomeAgentsHeader />
             <div className="flex flex-1 flex-col divide-y divide-line-soft">
               {rows.map(row => (
                 <Link
-                  className={`grid ${ROW_GRID} ${ROW_GRID_NARROW} flex-1 items-center gap-3 px-4 py-2.5 transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none`}
+                  className={cn(
+                    HOME_AGENTS_ROW_CLASS,
+                    "transition-colors duration-base hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none"
+                  )}
                   data-slot="home-agent-row"
                   key={row.name}
                   params={{ name: row.name }}
                   to="/agents/$name"
                 >
-                  <span className="flex min-w-0 items-center gap-2 text-body font-medium text-fg-strong">
+                  <span className={HOME_AGENTS_NAME_CLASS}>
                     <OwnerAvatar name={row.name} ownerId={row.name} ownerKind="agent" size="sm" />
                     <span className="truncate">{row.name}</span>
                   </span>

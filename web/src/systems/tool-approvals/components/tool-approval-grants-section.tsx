@@ -1,6 +1,13 @@
 import { Plus, Shield, Trash2 } from "lucide-react";
 
-import { Button, ConfirmDialog, DataSurface, ListGroup, Section } from "@compozy/ui";
+import {
+  Button,
+  ConfirmDialog,
+  DataSurface,
+  ListGroup,
+  ListingRowSkeleton,
+  Section,
+} from "@compozy/ui";
 
 // Narrow entry: this section must not pull the emulator into settings.
 import { humanizeToolId } from "@/systems/session";
@@ -12,6 +19,7 @@ import { ToolApprovalGrantSetDialog } from "./tool-approval-grant-set-dialog";
 import { ToolApprovalGrantRow } from "./tool-approval-grant-row";
 
 const TEST_ID = "settings-page-general-tool-approvals";
+const LIST_CLASS = "overflow-hidden rounded-lg bg-card shadow-card";
 
 /**
  * Permissions → "Remembered decisions": the active workspace's remembered native-tool
@@ -45,9 +53,12 @@ export function ToolApprovalGrantsSection() {
     >
       <DataSurface state={state}>
         <DataSurface.Loading
+          className={LIST_CLASS}
           data-testid={`${TEST_ID}-loading`}
           label="Loading remembered decisions"
-        />
+        >
+          <ListingRowSkeleton count={3} trail="pill" />
+        </DataSurface.Loading>
         <DataSurface.Error
           action={
             <Button onClick={onRetry} size="sm" type="button" variant="secondary">
@@ -67,10 +78,7 @@ export function ToolApprovalGrantsSection() {
           size="compact"
           title="No remembered decisions yet"
         />
-        <DataSurface.Content
-          className="overflow-hidden rounded-lg bg-card shadow-card"
-          data-testid={`${TEST_ID}-list`}
-        >
+        <DataSurface.Content className={LIST_CLASS} data-testid={`${TEST_ID}-list`}>
           {renderGrantRows(grants, revoke.open)}
         </DataSurface.Content>
       </DataSurface>

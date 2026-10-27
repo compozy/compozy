@@ -1,15 +1,15 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
+import { Button, Empty, SkeletonRegion, Spinner } from "@compozy/ui";
 
 import { TaskKanbanCard } from "./task-kanban-card";
+import { TaskKanbanCardSkeleton } from "./task-kanban-card-skeleton";
 import { TaskKanbanColumn } from "./task-kanban-column";
+import { KANBAN_BOARD_CLASS, KANBAN_LOADING_CARDS, kanbanBoardStyle } from "./tasks-kanban-grid";
 import { taskStatusFacetTotal, type KanbanColumnGroup } from "../lib/task-grouping";
 import type { TaskListItem, TaskStatus } from "../types";
 import { type ProfileListingScope } from "@/systems/profiles";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
-
-const KANBAN_SKELETON_KEYS = ["a", "b", "c"] as const;
 
 export interface TasksKanbanBoardProps {
   columns: KanbanColumnGroup[];
@@ -49,52 +49,62 @@ export function TasksKanbanBoard({
   if (errorMessage && loadedTaskCount === 0) {
     return <KanbanLoadError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />;
   }
+  // Placeholders stand in for cards that are not here yet; once any card has loaded they never
+  // replace it, however the flag moves.
+  const showSkeleton = isLoading && loadedTaskCount === 0;
 
-  // Derive the grid track count from the canonical column set so it can never
-  // drift from `KANBAN_COLUMNS`: a new status column widens the grid instead of
-  // wrapping the last column onto a broken second row.
+  const board = (
+    <ul
+      className={KANBAN_BOARD_CLASS}
+      data-testid="tasks-kanban-board"
+      style={kanbanBoardStyle(columns.length)}
+    >
+      {columns.map((group, columnIndex) => (
+        <TaskKanbanColumn
+          column={group.column}
+          count={group.tasks.length}
+          key={group.column.id}
+          onAdd={onCreate}
+          totalCount={
+            showSkeleton ? undefined : taskStatusFacetTotal(group.column.statuses, statusCounts)
+          }
+        >
+          {showSkeleton
+            ? (KANBAN_LOADING_CARDS[columnIndex % KANBAN_LOADING_CARDS.length] ?? []).map(card => (
+                <TaskKanbanCardSkeleton
+                  key={`${group.column.id}-skeleton-${card.id}`}
+                  titleLines={card.titleLines}
+                />
+              ))
+            : group.tasks.map(task => (
+                <TaskKanbanCard
+                  key={task.id}
+                  onRetry={onRetryTask}
+                  onSelect={onSelectTask}
+                  profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
+                  projectBadge={projectBadgeOf?.(task)}
+                  selected={task.id === selectedTaskId}
+                  task={task}
+                />
+              ))}
+        </TaskKanbanColumn>
+      ))}
+    </ul>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {isLoading ? (
-        <span aria-live="polite" className="sr-only" data-testid="tasks-kanban-loading">
-          Loading kanban board
-        </span>
-      ) : null}
-      <ul
-        className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-4 pt-4 pb-6"
-        data-testid="tasks-kanban-board"
-        style={{
-          gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))`,
-        }}
-      >
-        {columns.map(group => (
-          <TaskKanbanColumn
-            column={group.column}
-            count={group.tasks.length}
-            key={group.column.id}
-            onAdd={onCreate}
-            totalCount={
-              isLoading ? undefined : taskStatusFacetTotal(group.column.statuses, statusCounts)
-            }
-          >
-            {isLoading
-              ? KANBAN_SKELETON_KEYS.map(slot => (
-                  <KanbanCardSkeleton key={`${group.column.id}-skeleton-${slot}`} />
-                ))
-              : group.tasks.map(task => (
-                  <TaskKanbanCard
-                    key={task.id}
-                    onRetry={onRetryTask}
-                    onSelect={onSelectTask}
-                    profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
-                    projectBadge={projectBadgeOf?.(task)}
-                    selected={task.id === selectedTaskId}
-                    task={task}
-                  />
-                ))}
-          </TaskKanbanColumn>
-        ))}
-      </ul>
+      {showSkeleton ? (
+        <SkeletonRegion
+          className="flex min-h-0 flex-1 flex-col"
+          data-testid="tasks-kanban-loading"
+          label="Loading kanban board"
+        >
+          {board}
+        </SkeletonRegion>
+      ) : (
+        board
+      )}
       {errorMessage ? (
         <KanbanPaginationError errorMessage={errorMessage} onRetryLoad={onRetryLoad} />
       ) : null}
@@ -175,23 +185,6 @@ function KanbanLoadMore({
         ) : null}
         {isLoadingMore ? "Loading more" : "Load more"}
       </Button>
-    </div>
-  );
-}
-
-function KanbanCardSkeleton() {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex w-full min-w-0 shrink-0 flex-col gap-2 rounded-lg bg-card p-3 shadow-card"
-      data-testid="tasks-kanban-card-skeleton"
-    >
-      <Skeleton className="h-3 w-4/5 rounded-xs" />
-      <Skeleton className="h-2.5 w-12 rounded-xs" />
-      <div className="flex items-center justify-between gap-2">
-        <Skeleton className="h-2.5 w-24 rounded-xs" />
-        <Skeleton className="h-2.5 w-8 rounded-xs" />
-      </div>
     </div>
   );
 }

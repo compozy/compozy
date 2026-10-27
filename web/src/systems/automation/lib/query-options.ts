@@ -16,6 +16,7 @@ import {
 import { automationKeys } from "./query-keys";
 import {
   automationJobRequest,
+  automationListPopulation,
   automationTriggerRequest,
   normalizeAutomationJobFilter,
   normalizeAutomationTriggerFilter,
@@ -68,12 +69,16 @@ export function automationSuggestionsSourceOptions(
 
 export function automationJobsListOptions(filters: AutomationJobStableFilter = {}) {
   const normalizedFilters = normalizeAutomationJobFilter(filters);
+  const population = automationListPopulation(normalizedFilters);
   return infiniteQueryOptions({
     queryKey: automationKeys.jobList(normalizedFilters),
     queryFn: ({ pageParam, signal }) =>
       listAutomationJobs(automationJobRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    meta: { population },
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.meta?.population === population ? previousData : undefined,
     staleTime: DEFAULT_STALE_TIME,
   });
 }
@@ -104,12 +109,16 @@ export function automationJobRunsOptions(
 
 export function automationTriggersListOptions(filters: AutomationTriggerStableFilter = {}) {
   const normalizedFilters = normalizeAutomationTriggerFilter(filters);
+  const population = automationListPopulation(normalizedFilters);
   return infiniteQueryOptions({
     queryKey: automationKeys.triggerList(normalizedFilters),
     queryFn: ({ pageParam, signal }) =>
       listAutomationTriggers(automationTriggerRequest(normalizedFilters, pageParam), signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    meta: { population },
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.meta?.population === population ? previousData : undefined,
     staleTime: DEFAULT_STALE_TIME,
   });
 }

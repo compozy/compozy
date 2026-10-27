@@ -1,36 +1,16 @@
 import { ChevronRight } from "lucide-react";
 
-import {
-  Button,
-  DescriptionCard,
-  Eyebrow,
-  Panel,
-  PillGroup,
-  Skeleton,
-  type PillGroupItem,
-} from "@compozy/ui";
+import { Button, DescriptionCard, Panel } from "@compozy/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
 import type { AgentPayload } from "../types";
 import { AgentAuthoredFileEditor } from "./agent-authored-file-editor";
 import { AgentHeartbeatOps } from "./agent-heartbeat-ops";
+import { AgentHeartbeatOpsSkeleton } from "./agent-heartbeat-ops-skeleton";
+import { InstructionsFileRow } from "./agent-instructions-file-row";
 
 export type { AgentInstructionsTabViewModel };
-
-const FILE_ITEMS: PillGroupItem<AgentInstructionFile>[] = [
-  { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
-  {
-    value: "soul",
-    label: <Eyebrow>SOUL.md</Eyebrow>,
-    testId: "agent-file-tab-soul",
-  },
-  {
-    value: "heartbeat",
-    label: <Eyebrow>HEARTBEAT.md</Eyebrow>,
-    testId: "agent-file-tab-heartbeat",
-  },
-];
 
 export interface AgentInstructionsTabProps {
   agent: AgentPayload;
@@ -51,16 +31,7 @@ export function AgentInstructionsTab({
 }: AgentInstructionsTabProps) {
   return (
     <div className="flex flex-col gap-3.5" data-testid="agent-instructions-tab">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <PillGroup
-          aria-label="Authored files"
-          data-testid="agent-instructions-files"
-          items={FILE_ITEMS}
-          onChange={onFileChange}
-          size="md"
-          value={file}
-        />
-        <span className="min-w-0 flex-1" />
+      <InstructionsFileRow file={file} onFileChange={onFileChange}>
         {file === "agent" ? (
           <Button
             type="button"
@@ -73,7 +44,7 @@ export function AgentInstructionsTab({
             <ChevronRight aria-hidden="true" data-icon="inline-end" />
           </Button>
         ) : null}
-      </div>
+      </InstructionsFileRow>
 
       {file === "agent" ? (
         <Panel bodyClassName="p-0" data-testid="agent-file-agent">
@@ -110,7 +81,7 @@ export function AgentInstructionsTab({
           history={page.heartbeat.history}
           headerSlot={
             page.heartbeat.statusLoading && !page.heartbeat.status ? (
-              <Skeleton className="h-32 rounded-md" />
+              <AgentHeartbeatOpsSkeleton />
             ) : (
               <AgentHeartbeatOps
                 status={page.heartbeat.status}

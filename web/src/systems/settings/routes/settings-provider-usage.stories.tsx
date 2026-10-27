@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -97,4 +97,20 @@ export const ApplyValidationError: Story = {
       await canvas.findByText(/refresh_interval must be between 1m and 1h/)
     ).toBeInTheDocument();
   },
+};
+
+/** Loading state: the collection, providers and privacy groups hold their place. */
+export const Loading: Story = {
+  parameters: {
+    ...appRouteParameters(PATH),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/provider-usage", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsProviderUsageSectionFixture);
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
 };

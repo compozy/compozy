@@ -9,14 +9,20 @@ import { describe, expect, it, vi } from "vitest";
 import type { TaskResultPageController } from "../task-result-section";
 import { TaskResultSection } from "../task-result-section";
 
-function ExternalResultFixture({ onCopy }: { onCopy: () => Promise<void> }) {
+function ExternalResultFixture({
+  onCopy,
+  isLoading = false,
+}: {
+  onCopy: () => Promise<void>;
+  isLoading?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const controller: TaskResultPageController = {
     canGoNext: true,
     canGoPrevious: false,
     copyState: "idle",
     errorMessage: null,
-    isLoading: false,
+    isLoading,
     onCopy,
     onNextPage: vi.fn(),
     onOpenChange: setOpen,
@@ -47,6 +53,16 @@ function ExternalResultFixture({ onCopy }: { onCopy: () => Promise<void> }) {
 }
 
 describe("TaskResultSection", () => {
+  it("Should hold a named loading area for the page being read once requested", () => {
+    const onCopy = vi.fn<() => Promise<void>>().mockResolvedValue();
+    render(<ExternalResultFixture isLoading onCopy={onCopy} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "View result" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading result");
+    expect(screen.queryByText("first bounded page")).toBeNull();
+  });
+
   it("Should keep an external page closed until requested and expose bounded controls", () => {
     const onCopy = vi.fn<() => Promise<void>>().mockResolvedValue();
     render(<ExternalResultFixture onCopy={onCopy} />);

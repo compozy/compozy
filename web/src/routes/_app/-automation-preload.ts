@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import type { AutomationsRouteSearch } from "@/systems/automation";
+import type { AutomationEntity, AutomationsRouteSearch } from "@/systems/automation";
 
 import {
   resolveActiveWorkspaceId,
@@ -68,38 +68,54 @@ export async function preloadAutomationsRoute(
   );
 }
 
-export async function preloadAutomationJobDetailRoute(
+/**
+ * Starts the entity read at once and, only for an entity the active workspace owns, warms its
+ * runs. Nothing here holds navigation: the detail window owns the loading presentation, and
+ * waiting on the entity would leave the desktop blank until it answers.
+ */
+async function prefetchAutomationDetail(
+  queryClient: QueryClient,
+  readEntity: () => Promise<AutomationEntity>,
+  readRuns: () => Promise<unknown>
+): Promise<void> {
+  const [entity, activeWorkspaceId] = await Promise.all([
+    readEntity().catch(() => null),
+    resolveActiveWorkspaceId(queryClient),
+  ]);
+  if (!entity || !automationMatchesActiveWorkspace(entity, activeWorkspaceId)) return;
+  await readRuns();
+}
+
+export function preloadAutomationJobDetailRoute(
   queryClient: QueryClient,
   jobId: string
 ): Promise<void> {
-  if (!jobId) return;
+  if (!jobId) return Promise.resolve();
   const profileScope = readProfileScopeParams(queryClient);
-  const [job, activeWorkspaceId] = await Promise.all([
-    queryClient.ensureQueryData(automationJobDetailOptions(jobId, profileScope)).catch(() => null),
-    resolveActiveWorkspaceId(queryClient),
-  ]);
-  if (!job || !automationMatchesActiveWorkspace(job, activeWorkspaceId)) return;
-  await settleRouteQueries([
-    queryClient.ensureQueryData(automationJobRunsOptions(jobId, { limit: 10, ...profileScope })),
+  return settleRouteQueries([
+    prefetchAutomationDetail(
+      queryClient,
+      () => queryClient.ensureQueryData(automationJobDetailOptions(jobId, profileScope)),
+      () =>
+        queryClient.ensureQueryData(automationJobRunsOptions(jobId, { limit: 10, ...profileScope }))
+    ),
   ]);
 }
 
-export async function preloadAutomationTriggerDetailRoute(
+export function preloadAutomationTriggerDetailRoute(
   queryClient: QueryClient,
   triggerId: string
 ): Promise<void> {
-  if (!triggerId) return;
+  if (!triggerId) return Promise.resolve();
   const profileScope = readProfileScopeParams(queryClient);
-  const [trigger, activeWorkspaceId] = await Promise.all([
-    queryClient
-      .ensureQueryData(automationTriggerDetailOptions(triggerId, profileScope))
-      .catch(() => null),
-    resolveActiveWorkspaceId(queryClient),
-  ]);
-  if (!trigger || !automationMatchesActiveWorkspace(trigger, activeWorkspaceId)) return;
-  await settleRouteQueries([
-    queryClient.ensureQueryData(
-      automationTriggerRunsOptions(triggerId, { limit: 10, ...profileScope })
+  return settleRouteQueries([
+    prefetchAutomationDetail(
+      queryClient,
+      () => queryClient.ensureQueryData(automationTriggerDetailOptions(triggerId, profileScope)),
+      () =>
+        queryClient.ensureQueryData(
+          automationTriggerRunsOptions(triggerId, { limit: 10, ...profileScope })
+        )
     ),
   ]);
 }

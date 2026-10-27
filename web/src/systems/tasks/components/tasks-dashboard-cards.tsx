@@ -1,4 +1,4 @@
-import { Metric } from "@compozy/ui";
+import { Metric, SkeletonText } from "@compozy/ui";
 
 import { formatDurationMs, formatPercent } from "../lib/task-formatters";
 import type { TaskDashboardView } from "../types";
@@ -6,6 +6,16 @@ import type { TaskDashboardView } from "../types";
 export interface TasksDashboardCardsProps {
   dashboard: TaskDashboardView;
 }
+
+const GRID_CLASS = "grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-4";
+
+/** The four KPI labels, static and shared by the cards and their skeleton. */
+const CARD_LABELS = {
+  activeRuns: "Running now",
+  successRate: "Success rate",
+  pickup: "Time to pick up",
+  waiting: "Waiting",
+} as const;
 
 /**
  * Dashboard KPI strip — four flat `<Metric>` neutrals with eyebrow labels. The
@@ -43,38 +53,56 @@ export function TasksDashboardCards({ dashboard }: TasksDashboardCardsProps) {
       : "nothing waiting";
 
   return (
-    <div
-      className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-4"
-      data-testid="tasks-dashboard-cards"
-    >
+    <div className={GRID_CLASS} data-testid="tasks-dashboard-cards">
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-active-runs"
         subtext={activeDetail}
-        label="Running now"
+        label={CARD_LABELS.activeRuns}
         value={activeRuns}
       />
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-success-rate"
         subtext="last 24h"
-        label="Success rate"
+        label={CARD_LABELS.successRate}
         value={successRate === null ? "—" : formatPercent(successRate)}
       />
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-average-duration"
         subtext={pickupDetail}
-        label="Time to pick up"
+        label={CARD_LABELS.pickup}
         value={pickupSamples > 0 ? formatDurationMs(pickupMs) : "—"}
       />
       <Metric
         labelCase="eyebrow"
         data-testid="tasks-dashboard-card-queue-depth"
         subtext={queueDetail}
-        label="Waiting"
+        label={CARD_LABELS.waiting}
         value={queueDepth}
       />
+    </div>
+  );
+}
+
+/**
+ * The placeholder twin of the KPI strip: the same four tiles with their real labels, and the
+ * value and subtext left as blocks of text. Wrap the dashboard area in a `SkeletonRegion`.
+ */
+export function TasksDashboardCardsSkeleton() {
+  return (
+    <div aria-hidden="true" className={GRID_CLASS}>
+      {Object.values(CARD_LABELS).map(label => (
+        <Metric
+          className="animate-skeleton-reveal"
+          key={label}
+          label={label}
+          labelCase="eyebrow"
+          subtext={<SkeletonText className="w-28" />}
+          value={<SkeletonText className="w-12" />}
+        />
+      ))}
     </div>
   );
 }

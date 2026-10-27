@@ -63,9 +63,13 @@ export function useMarketplacePage(query = "", liveDataEnabled = true) {
     diagnostic: first?.error,
     catalogError: catalog.error ?? unavailable,
     installedError: inventory.error,
-    isLoading: catalog.isPending || Boolean(first?.refreshing && first.total === 0),
+    // An edited search keeps the previous results on screen; a placeholder with none is no answer.
+    isLoading:
+      catalog.isPending ||
+      (catalog.isPlaceholderData && catalogItems.length === 0) ||
+      Boolean(first?.refreshing && first.total === 0),
     isInstalledLoading: inventory.isPending,
-    isRefreshing: refresh.isPending || catalog.isRefetching,
+    isRefreshing: refresh.isPending || (catalog.isRefetching && !catalog.isPlaceholderData),
     refresh: refreshCatalog,
     profileName: inventory.profileName,
     workspaceId: inventory.workspaceId,

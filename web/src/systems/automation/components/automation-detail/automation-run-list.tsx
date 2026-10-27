@@ -16,13 +16,15 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
-import { Button, Empty, SkeletonRows, StateGlyph, Time, cn } from "@compozy/ui";
+import { Button, Empty, SkeletonRegion, StateGlyph, Time, cn } from "@compozy/ui";
 
 import type { AutomationEntity } from "../../lib/automation-entity";
 import { buildAutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRunIcon, AutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRun } from "../../types";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+import { PANEL_SHELL, RUN_ROW_GRID } from "./automation-run-list-classes";
+import { AutomationRunRowsSkeleton } from "./automation-run-list-skeleton";
 import { AutomationDetailSection } from "./automation-detail-section";
 
 const RUN_ICONS = {
@@ -34,8 +36,6 @@ const RUN_ICONS = {
   skip: SkipForward,
   clock: Clock,
 } as const satisfies Record<AutomationRunIcon, LucideIcon>;
-
-const PANEL_SHELL = "overflow-hidden rounded-lg bg-card shadow-card";
 
 function runLinkProps(link: NonNullable<AutomationRunView["link"]>) {
   switch (link.kind) {
@@ -110,7 +110,8 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
         aria-controls={drawerId}
         aria-expanded={open}
         className={cn(
-          "grid w-full grid-cols-[6.5rem_minmax(0,1fr)_18px] items-center gap-3 px-4 py-2.75 text-left transition-colors duration-base ease-out md:grid-cols-[6.75rem_minmax(0,1fr)_4.5rem_5.5rem_18px]",
+          RUN_ROW_GRID,
+          "text-left transition-colors duration-base ease-out",
           "hover:bg-surface-2 focus-visible:shadow-focus-inset focus-visible:outline-none",
           open && "bg-selected"
         )}
@@ -272,9 +273,9 @@ function RunListBody({
 }: AutomationRunListProps) {
   if (isLoading) {
     return (
-      <div className="px-4 py-3" data-testid="automation-run-list-loading">
-        <SkeletonRows count={3} />
-      </div>
+      <SkeletonRegion data-testid="automation-run-list-loading" label="Loading runs">
+        <AutomationRunRowsSkeleton />
+      </SkeletonRegion>
     );
   }
   if (error) return <RunListError error={error} onRetry={onRetry} />;

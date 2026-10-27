@@ -34,7 +34,8 @@ export function SessionComposerSubagents({ session, onOpen }: SessionComposerSub
     <SubagentComposerControl
       subagents={roster.subagents}
       counts={counts}
-      loading={!roster.complete && counts.total > 0}
+      // Until the roster answers, the popover holds rows' place rather than claim nothing was delegated.
+      loading={!roster.complete && !roster.failed}
       failed={roster.failed}
       onRetry={roster.retry}
       onOpen={onOpen}

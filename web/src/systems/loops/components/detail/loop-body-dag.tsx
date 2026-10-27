@@ -5,6 +5,7 @@ import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-grap
 import type { LoopGraph, LoopGraphNode } from "../../lib/loop-graph";
 import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { loopNodeClassIcon } from "../../lib/loop-node-kind-icons";
+import { DAG_ARROW_CLASS, DAG_CARD_CLASS, DAG_LANE_CLASS } from "./loop-body-dag-classes";
 
 interface LoopBodyDagProps {
   graph: LoopGraph;
@@ -27,12 +28,12 @@ export function LoopBodyDag({ graph }: LoopBodyDagProps) {
   }
   return (
     <div className="rounded-lg bg-sunken" data-testid="loop-dag">
-      <div className="flex items-stretch gap-0 overflow-x-auto p-4">
+      <div className={DAG_LANE_CLASS}>
         {graph.nodes.map((node, index) => (
           <div key={node.id} className="flex items-stretch">
             <DagNode node={node} />
             {index < graph.nodes.length - 1 ? (
-              <span aria-hidden="true" className="flex items-center self-center px-1 text-faint">
+              <span aria-hidden="true" className={DAG_ARROW_CLASS}>
                 <ArrowRight className="size-4" />
               </span>
             ) : null}
@@ -61,11 +62,7 @@ function DagNode({ node }: { node: LoopGraphNode }) {
       })
     : undefined;
   return (
-    <div
-      className="flex w-31 shrink-0 flex-col gap-1 overflow-hidden rounded-md bg-card px-3 py-2.5 shadow-card"
-      data-testid="loop-dag-node"
-      data-node-id={node.id}
-    >
+    <div className={DAG_CARD_CLASS} data-testid="loop-dag-node" data-node-id={node.id}>
       <span className="flex min-w-0 items-center gap-1.5">
         {classIcon
           ? createElement(classIcon, {

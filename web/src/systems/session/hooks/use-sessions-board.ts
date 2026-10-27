@@ -3,7 +3,11 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace, workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
 
-import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
+import {
+  SESSION_BOARD_COLUMNS,
+  type SessionBoardColumnId,
+  type SessionBoardPayload,
+} from "../lib/session-board-contract";
 import {
   SESSION_BOARD_REFETCH_MS,
   sessionBoardPageOptions,
@@ -20,13 +24,6 @@ import {
 } from "../lib/session-list-preferences";
 import type { SessionListFilters } from "../types";
 import { useSessionListGroups } from "./use-session-list-groups";
-
-export const SESSION_BOARD_COLUMNS: readonly { id: SessionBoardColumnId; label: string }[] = [
-  { id: "needs_you", label: "Needs you" },
-  { id: "working", label: "Working" },
-  { id: "in_review", label: "In review" },
-  { id: "done", label: "Done" },
-];
 
 /**
  * Which read of a page failed. `initial`: nothing loaded, so the error takes

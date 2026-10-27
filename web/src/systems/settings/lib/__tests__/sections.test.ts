@@ -7,6 +7,7 @@ import {
   SETTINGS_ROOT_PATH,
   SETTINGS_SECTIONS,
   settingsSectionPath,
+  settingsSectionSlugFromPathname,
 } from "../sections";
 
 describe("settings sections metadata", () => {
@@ -83,5 +84,13 @@ describe("settings sections metadata", () => {
     expect(retiredSettingsSectionReplacement("defaults")).toBe("general");
     expect(retiredSettingsSectionReplacement("general")).toBeNull();
     expect(retiredSettingsSectionReplacement("toString")).toBeNull();
+  });
+
+  it("Should resolve a settings window route to its section, following retired and unknown slugs", () => {
+    expect(settingsSectionSlugFromPathname("/settings/providers")).toBe("providers");
+    expect(settingsSectionSlugFromPathname("/settings/defaults")).toBe("general");
+    expect(settingsSectionSlugFromPathname("/settings")).toBe("general");
+    expect(settingsSectionSlugFromPathname("/settings/not-a-section")).toBe("general");
+    expect(settingsSectionSlugFromPathname("/settings/constructor")).toBe("general");
   });
 });

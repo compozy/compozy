@@ -20,6 +20,14 @@ import type {
   SessionRowDropEdge,
 } from "../../hooks/use-session-list-dnd";
 import { SessionListProviderMark } from "./session-list-provider-mark";
+import {
+  SESSION_ROW_END_SLOT_FRAME,
+  SESSION_ROW_FRAME,
+  SESSION_ROW_META_FRAME,
+  SESSION_ROW_TARGET_FRAME,
+  SESSION_ROW_TRAILING_FRAME,
+  SESSION_ROW_WHO_FRAME,
+} from "./session-list-row-frame";
 import { SessionListRowWho } from "./session-list-row-meta";
 import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
 import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
@@ -73,7 +81,8 @@ export function SessionListRow(props: SessionListRowProps) {
   const row = (
     <SessionRowDragFrame
       className={cn(
-        "group/session-row relative grid grid-cols-[12px_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.75 rounded-md px-2 py-1.5 transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
+        SESSION_ROW_FRAME,
+        "group/session-row transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
         (selected || props.current) && "bg-selected"
       )}
       data-slot="session-list-row"
@@ -191,7 +200,8 @@ function SessionRowTarget({
     <button
       type="button"
       className={cn(
-        "col-span-2 col-start-1 row-start-1 grid min-w-0 grid-cols-[12px_minmax(0,1fr)] items-center gap-x-2 text-left text-body text-fg outline-none after:absolute after:inset-0 after:rounded-md",
+        SESSION_ROW_TARGET_FRAME,
+        "outline-none after:absolute after:inset-0 after:rounded-md",
         emphasized && "font-medium"
       )}
       data-slot="session-row-target"
@@ -242,8 +252,8 @@ function SessionRowMetaLine({
   trailing: React.ReactNode;
 }) {
   return (
-    <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2">
-      <span className="flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle">
+    <span className={SESSION_ROW_META_FRAME}>
+      <span className={SESSION_ROW_WHO_FRAME}>
         {badge ? (
           <WorkspaceBadge
             identity={badge}
@@ -272,7 +282,7 @@ function SessionRowEndSlot({
   actions: SessionLifecycleActionHandlers | null;
 }) {
   return (
-    <span className="col-start-3 row-start-1 grid min-w-6 items-center justify-items-end *:col-start-1 *:row-start-1">
+    <span className={SESSION_ROW_END_SLOT_FRAME}>
       <Time
         iso={session.updated_at}
         mode="compact"
@@ -293,9 +303,7 @@ function SessionRowEndSlot({
 
 /** The meta line's trailing cluster, lifted above the row target. */
 function SessionRowTrailing({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">{children}</span>
-  );
+  return <span className={SESSION_ROW_TRAILING_FRAME}>{children}</span>;
 }
 
 /** With a selection available, the badge gives way to the checkbox on hover or focus. */

@@ -1,9 +1,13 @@
 import type { ComponentProps } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { Button, cn, Empty, MonoId, Time } from "@compozy/ui";
+import { Button, cn, Empty, MonoId, SkeletonRegion, SkeletonText, Time } from "@compozy/ui";
 
+import { placeholderSlots } from "../../../lib/placeholder-slots";
 import type { LoopStoryBeat } from "../../../lib/loop-run-story-beats";
+
+// An event row, shared with the lane's skeleton so a placeholder row is the same height.
+const EVENT_ROW_CLASS = "flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2";
 
 /** Which durable timeline view produced these beats. */
 export type LoopEventsView = "notable" | "all";
@@ -48,6 +52,13 @@ interface LoopRunEventsLaneProps extends Omit<ComponentProps<"div">, "children">
  */
 export function LoopRunEventsLane({ read, className, ...props }: LoopRunEventsLaneProps) {
   const { beats, view, hasOlder, isLoading, isError, isLoadingOlder, onLoadOlder } = read;
+  if (beats.length === 0 && isLoading && !isError) {
+    return (
+      <SkeletonRegion data-testid="loop-run-events-loading" label="Loading events">
+        <LoopRunEventsRowsSkeleton />
+      </SkeletonRegion>
+    );
+  }
   if (beats.length === 0) {
     return (
       <Empty
@@ -55,9 +66,7 @@ export function LoopRunEventsLane({ read, className, ...props }: LoopRunEventsLa
         description={
           isError
             ? "This run's events could not be read. The run itself is unaffected."
-            : isLoading
-              ? "Reading this run's events…"
-              : "Nothing has been recorded for this run yet."
+            : "Nothing has been recorded for this run yet."
         }
         title={isError ? "Events unavailable" : "No events"}
       />
@@ -68,7 +77,7 @@ export function LoopRunEventsLane({ read, className, ...props }: LoopRunEventsLa
       <ul className="flex flex-col divide-y divide-line-soft" data-testid="loop-run-events-lane">
         {beats.map(beat => (
           <li
-            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2"
+            className={EVENT_ROW_CLASS}
             data-seq={beat.seq}
             data-testid={`loop-run-event-${beat.seq}`}
             key={beat.key}
@@ -112,5 +121,21 @@ export function LoopRunEventsLane({ read, className, ...props }: LoopRunEventsLa
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Event rows before the raw timeline has answered. Presentational; the caller owns the region. */
+function LoopRunEventsRowsSkeleton() {
+  return (
+    <ul aria-hidden="true" className="flex flex-col divide-y divide-line-soft">
+      {placeholderSlots("event", 5).map(slot => (
+        <li className={EVENT_ROW_CLASS} key={slot.id}>
+          <SkeletonText className="w-8 font-mono text-mono-id" />
+          <SkeletonText className="w-24 font-mono text-mono-id" />
+          <SkeletonText className="min-w-0 flex-1 text-small-body" />
+          <SkeletonText className="w-12 text-form-hint" />
+        </li>
+      ))}
+    </ul>
   );
 }

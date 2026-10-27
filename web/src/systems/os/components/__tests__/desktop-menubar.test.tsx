@@ -263,7 +263,10 @@ describe("DesktopMenubar provider usage control", () => {
     ).map(element => element.getAttribute("data-slot") ?? "");
   }
 
-  it("Should sit right after All desktops while the profile has targets", () => {
+  // The control leads the right-aligned cluster: it is known only once the usage read answers, so
+  // arriving there takes the spacer's room and the controls already on screen keep their place.
+  // DOM order is the visual and tab order.
+  it("Should lead the tray cluster while the profile has targets", () => {
     const { container } = renderMenubar({ usage: codexWeekly });
 
     expect(
@@ -274,11 +277,33 @@ describe("DesktopMenubar provider usage control", () => {
     const usageButton = screen.getByRole("button", { name: /^Codex · Weekly/ });
     expect([...footprint].filter(token => !usageButton.classList.contains(token))).toEqual([]);
     expect(trayOrder(container)).toEqual([
-      "os-menubar-desktops",
       "os-menubar-usage",
+      "os-menubar-desktops",
       "os-menubar-bell",
       "os-menubar-command",
     ]);
+  });
+
+  // Invariant: the tray control never mounts on an unknown answer, so a pending read never holds a
+  // slot that a no-target answer would then take away.
+  it("Should mount the control only once the read answers with a target", async () => {
+    let answer!: (response: Response) => void;
+    vi.mocked(globalThis.fetch).mockImplementation(
+      input =>
+        new Promise<Response>(resolve => {
+          const url = input instanceof Request ? input.url : String(input);
+          if (url.includes("/api/provider-usage")) answer = resolve;
+          else resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+        })
+    );
+    const { container } = renderMenubar();
+
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
+
+    answer(jsonResponse(usageEnvelope([], { enabled: false }, NOW)));
+    await waitFor(() => expect(answer).toBeTypeOf("function"));
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
   });
 
   it.each([

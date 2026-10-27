@@ -22,12 +22,35 @@ describe("SchedulerControlsPanel", () => {
       />
     );
 
-    expect(screen.getByTestId("scheduler-controls-state")).toHaveTextContent("Loading");
+    expect(screen.getByTestId("scheduler-controls-state")).not.toHaveTextContent(/running|paused/i);
     expect(screen.queryByTestId("scheduler-controls-meta")).not.toBeInTheDocument();
     expect(screen.getByTestId("scheduler-controls-pause")).toBeDisabled();
     expect(screen.getByTestId("scheduler-controls-drain")).toBeDisabled();
-    expect(screen.getByRole("status", { name: "Loading scheduler status" })).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "Loading scheduler backlog" })).toBeInTheDocument();
+    expect(screen.getByTestId("scheduler-controls-meta-loading")).toHaveTextContent(
+      "Loading scheduler status"
+    );
+    expect(screen.getByTestId("scheduler-backlog-loading")).toHaveTextContent(
+      "Loading scheduler backlog"
+    );
+  });
+
+  it("keeps the status and backlog it has while a refresh is in flight", () => {
+    // Invariant: loading UI follows "no data yet", never a refetch of data already shown.
+    render(
+      <SchedulerControlsPanel
+        backlog={schedulerBacklogFixture}
+        isBacklogLoading
+        isLoading
+        status={schedulerStatusFixture}
+      />
+    );
+
+    expect(screen.getByTestId("scheduler-controls-state")).toHaveTextContent("Running");
+    expect(screen.getByTestId("scheduler-controls-meta")).toBeInTheDocument();
+    expect(screen.getByTestId("scheduler-backlog-row-run_014")).toBeInTheDocument();
+    expect(screen.queryByTestId("scheduler-controls-meta-loading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("scheduler-backlog-loading")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("scheduler-controls-loading")).not.toBeInTheDocument();
   });
 
   it("renders scheduler status and backlog pressure", () => {

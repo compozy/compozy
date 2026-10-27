@@ -112,3 +112,8 @@ export const TargetsUnavailable: Story = {
     targetsError: "Source policy unavailable",
   },
 };
+
+/** The sources are still loading: the "Expose to…" trigger's footprint holds its place. */
+export const TargetsLoading: Story = {
+  args: { exposures: [], model: exposeModel(), targets: [], targetsLoading: true },
+};

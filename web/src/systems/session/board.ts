@@ -5,6 +5,8 @@
  */
 export { SessionViewToggle } from "./components/session-board/session-view-toggle";
 export { SessionsBoard } from "./components/session-board/sessions-board";
+// The board's loading shape also lives on its own light entry, `@/systems/session/skeleton`.
+export { SessionsBoardSkeleton } from "./components/session-board/sessions-board-skeleton";
 export { SessionGroupByMenu, SessionSortMenu } from "./components/session-order-menus";
 export type { SessionBoardColumnId, SessionBoardPayload } from "./lib/session-board-contract";
 export { sessionWaitingOn, type SessionWaitingOn } from "./lib/session-pull-request";

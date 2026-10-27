@@ -12,6 +12,7 @@ import {
   type LoopLintState,
 } from "../../lib/loop-editor-lint";
 import type { LoopValidationIssue } from "../../types";
+import { DOCK_BAR_CLASS, DOCK_CLASS } from "./loop-editor-chrome-parts";
 
 interface LoopLinterDockProps {
   lint: LoopLintState;
@@ -36,14 +37,11 @@ export function LoopLinterDock({
   const counters = lintDockCounters(lint, validateFailed);
 
   return (
-    <div
-      className="flex max-h-48 flex-none flex-col border-t border-line bg-sunken"
-      data-testid="loop-linter-dock"
-    >
+    <div className={DOCK_CLASS} data-testid="loop-linter-dock">
       <button
         type="button"
         onClick={toggleCollapsed}
-        className="flex h-9 items-center gap-2 px-4"
+        className={DOCK_BAR_CLASS}
         aria-expanded={!collapsed}
         data-testid="loop-linter-toggle"
       >

@@ -3,10 +3,13 @@ import { useState } from "react";
 
 import {
   Button,
+  cn,
   Empty,
   LiveBadge,
   PillGroup,
   Section,
+  Skeleton,
+  SkeletonRegion,
   Timeline,
   type PillGroupItem,
 } from "@compozy/ui";
@@ -19,7 +22,8 @@ import {
 } from "../lib/task-activity-copy";
 import type { TaskTimelineItem } from "../types";
 import { TaskActivityItem } from "./task-activity-item";
-import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
+import { TaskTimelineSkeleton } from "./task-loading-skeletons";
+import { TASK_TIMELINE_CARD_CLASS } from "./task-surface-classes";
 
 export interface TaskActivityPanelProps {
   items: readonly TaskTimelineItem[];
@@ -44,6 +48,40 @@ const FILTER_ITEMS: ReadonlyArray<PillGroupItem<TaskActivityFilter>> = TASK_ACTI
     testId: `tasks-activity-filter-${value}`,
   })
 );
+
+/** The filter pills a loading feed stands in with, one per real filter and as wide as its label. */
+const FILTER_SKELETONS = [
+  { id: "all", width: "w-8" },
+  { id: "runs", width: "w-12" },
+  { id: "reviews", width: "w-16" },
+  { id: "changes", width: "w-16" },
+] as const;
+
+/**
+ * The placeholder twin of the feed: the same section head, with the four filter pills and the
+ * timeline card as blocks. The call site owns the `SkeletonRegion` around it.
+ */
+export function TaskActivityFeedSkeleton() {
+  return (
+    <Section
+      aria-hidden="true"
+      tabs={
+        <div className="flex items-center gap-1">
+          {FILTER_SKELETONS.map(pill => (
+            <Skeleton
+              className={cn("h-(--height-pill-group-segment-sm) rounded-pill", pill.width)}
+              key={pill.id}
+            />
+          ))}
+        </div>
+      }
+    >
+      <div className={TASK_TIMELINE_CARD_CLASS}>
+        <TaskTimelineSkeleton events={5} />
+      </div>
+    </Section>
+  );
+}
 
 function emptyCopyFor(filter: TaskActivityFilter): { title: string; description: string } {
   if (filter === "reviews") {
@@ -76,7 +114,15 @@ export function TaskActivityPanel({
   const [filter, setFilter] = useState<TaskActivityFilter>("all");
 
   if (isLoading && items.length === 0) {
-    return <TaskRowsLoadingSkeleton label="Loading activity" testId="tasks-activity-loading" />;
+    return (
+      <SkeletonRegion
+        className="w-full"
+        data-testid="tasks-activity-loading"
+        label="Loading activity"
+      >
+        <TaskActivityFeedSkeleton />
+      </SkeletonRegion>
+    );
   }
 
   if (errorMessage && items.length === 0) {
@@ -124,7 +170,7 @@ export function TaskActivityPanel({
         />
       }
     >
-      <div className="rounded-lg bg-card px-4 pt-3 shadow-card">
+      <div className={TASK_TIMELINE_CARD_CLASS}>
         {visible.length === 0 ? (
           <Empty
             className="pt-2 pb-5"

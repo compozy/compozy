@@ -1,6 +1,7 @@
 import { DayStackedBars, Empty, Panel, Section } from "@compozy/ui";
 
 import type { HomeOverview } from "../types";
+import { HOME_OUTCOMES_HEADLINE_CLASS, HOME_OUTCOMES_LEGEND_CLASS } from "./home-zone-shape";
 
 export interface HomeOutcomesChartProps {
   outcomes: HomeOverview["outcomes"];
@@ -34,7 +35,7 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
         {hasData ? (
           <>
-            <div className="flex items-baseline gap-2.5">
+            <div className={HOME_OUTCOMES_HEADLINE_CLASS}>
               <span className="text-kpi-value font-semibold text-fg-strong tabular-nums">
                 {Math.round(outcomes.success_pct)}%
               </span>
@@ -48,7 +49,7 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
               data={outcomes.days}
               series={OUTCOME_SERIES}
             />
-            <div className="flex flex-wrap items-center gap-4 text-small-body text-muted">
+            <div className={HOME_OUTCOMES_LEGEND_CLASS}>
               <LegendEntry
                 color="var(--color-success)"
                 count={outcomes.completed}

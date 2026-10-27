@@ -112,6 +112,8 @@ export function useAutomationDetailPage(
     isJob: kind === "job",
     panel: {
       status,
+      kind,
+      entityId: id,
       statusMessage: automationDetailStatusMessage(status, accessError, detailQuery.error),
       entity,
       view,

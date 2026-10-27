@@ -21,7 +21,8 @@ import { useTasksInboxView } from "../hooks/use-tasks-inbox-view";
 import type { ProjectFilterModel } from "@/systems/workspace";
 import type { TaskInboxItem, TaskInboxView, TaskPriority, TaskStatus } from "../types";
 import { TasksInboxItem, type TasksInboxItemProps } from "./tasks-inbox-item";
-import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
+import { INBOX_BODY_CLASS, INBOX_TOOLBAR_CLASS } from "./tasks-inbox-classes";
+import { TasksInboxLoading } from "./tasks-inbox-loading";
 
 export interface TasksInboxViewProps {
   inbox: TaskInboxView | null;
@@ -96,10 +97,7 @@ export function TasksInboxView({
 
   return (
     <ListingPage className="bg-canvas" data-testid="tasks-inbox-view">
-      <div
-        className="flex flex-wrap items-center gap-2 border-b border-line-soft pb-3"
-        data-testid="tasks-inbox-toolbar"
-      >
+      <div className={INBOX_TOOLBAR_CLASS} data-testid="tasks-inbox-toolbar">
         <SearchInput
           containerClassName="w-64 max-w-full"
           data-testid="tasks-inbox-search"
@@ -140,7 +138,7 @@ export function TasksInboxView({
         </label>
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col gap-6" data-testid="tasks-inbox-body">
+      <div className={INBOX_BODY_CLASS} data-testid="tasks-inbox-body">
         <TasksInboxContent
           errorMessage={errorMessage}
           groupTotals={groupTotals}
@@ -238,9 +236,7 @@ function TasksInboxUnloadedState({
   errorMessage: string | null;
   onRetryQuery?: () => void;
 }) {
-  if (isLoading) {
-    return <TaskRowsLoadingSkeleton label="Loading inbox" testId="tasks-inbox-loading" />;
-  }
+  if (isLoading) return <TasksInboxLoading />;
   if (errorMessage) {
     return (
       <Empty

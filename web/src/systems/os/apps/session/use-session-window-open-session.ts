@@ -6,10 +6,7 @@ import {
   useWindowDataWorkspace,
 } from "@/systems/workspace";
 
-import { runViewTransition } from "@compozy/ui";
-
 import { useAttentionJump } from "../../hooks/use-attention-jump";
-import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { boundRoute } from "../../lib/open-target";
 
@@ -37,7 +34,6 @@ export function useSessionWindowOpenSession({
   const windowScope = useWindowDataWorkspace();
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
-  const reducedMotion = useOsReducedMotion();
 
   return (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
     if (target.subagentId) {
@@ -64,18 +60,14 @@ export function useSessionWindowOpenSession({
       pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
       search: {},
     };
-    // Same window, different conversation: the pane (named per window in
-    // session-window-content) cross-fades instead of snapping to the skeleton.
-    void runViewTransition(
-      () => {
-        void coordinator.userRetarget(windowId, {
-          app: "session",
-          instanceKey: target.sessionId,
-          // Under All projects the window follows the session it now shows.
-          route: allProjects ? boundRoute({ binding: targetScope, route }) : route,
-        });
-      },
-      { reduced: reducedMotion }
-    );
+    // Same window, different conversation. The shell's store applies the retarget, and
+    // `useSessionWindowRuntime` defers the session identity it feeds, so the switch is the
+    // one transition `SessionWindowView`'s boundary animates; there is nothing to wrap here.
+    void coordinator.userRetarget(windowId, {
+      app: "session",
+      instanceKey: target.sessionId,
+      // Under All projects the window follows the session it now shows.
+      route: allProjects ? boundRoute({ binding: targetScope, route }) : route,
+    });
   };
 }

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -133,5 +133,53 @@ export const TriggerDetailLocked: Story = {
     });
     await expect(canvas.getByTestId("automation-pause-line")).toBeVisible();
     await expect(canvas.queryByTestId("automation-edit-btn")).toBeNull();
+  },
+};
+
+/** The job read never settles: the page grid holds the head, the rule card, the runs and the rail. */
+export const JobDetailLoading: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: {
+    ...appRouteParameters("/automations/jobs/job_launch_command_digest"),
+    ...storybookMswParameters({
+      automation: [
+        compozyApiMock.get("/api/automation/jobs/{id}", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ error: "never" }, { status: 500 });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId("automation-detail-loading")).toBeVisible(), {
+      timeout: 5000,
+    });
+  },
+};
+
+/** The trigger read never settles: an event has no next runs and no Schedule band. */
+export const TriggerDetailLoading: Story = {
+  args: {},
+  tags: ["play-fn"],
+  parameters: {
+    ...appRouteParameters("/automations/triggers/trg_summarize_failures"),
+    ...storybookMswParameters({
+      automation: [
+        compozyApiMock.get("/api/automation/triggers/{id}", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ error: "never" }, { status: 500 });
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId("automation-detail-loading")).toBeVisible(), {
+      timeout: 5000,
+    });
   },
 };

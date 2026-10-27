@@ -413,30 +413,6 @@ export const SessionsLoading: Story = {
 };
 
 /**
- * Agent detail loading branch: `/api/agents/:name` is in flight while the shell stays mounted.
- */
-export const AgentLoading: Story = {
-  args: {},
-  parameters: {
-    ...appRouteParameters(fraudAgentRoute),
-    ...storybookMswParameters({
-      agent: [
-        compozyApiMock.get("/api/agents/{name}", async () => {
-          await delay(120_000);
-          return HttpResponse.json({ agent: agentFixtures[0]! });
-        }),
-      ],
-    }),
-  },
-  render: () => <AgentWorkspaceSetup />,
-  tags: ["play-fn"],
-  play: async ({ canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await expect(await body.findByTestId("agent-detail-loading")).toBeInTheDocument();
-  },
-};
-
-/**
  * Not-found branch: the agent name does not match anything in the workspace.
  */
 export const NotFound: Story = {

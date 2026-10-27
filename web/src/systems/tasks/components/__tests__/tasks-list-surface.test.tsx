@@ -194,6 +194,44 @@ describe("TasksListSurface", () => {
     expect(handleRecordsFilterChange).toHaveBeenCalledWith("loop");
   });
 
+  it("Should hold each status count's place while the facets load, then show the numbers", () => {
+    const statusCounts = countTasksByStatus([]);
+    statusCounts.in_progress = 3;
+    const toolbar = (counts: typeof statusCounts, loading: boolean) => (
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TasksListToolbar
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onRecordsFilterChange={() => {}}
+          onSearchQueryChange={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          recordsFilter="work"
+          searchQuery=""
+          sortBy="recent"
+          statusCounts={counts}
+          statusCountsLoading={loading}
+          statusFilter={null}
+        />
+      </UIProvider>
+    );
+    const { rerender } = render(toolbar(countTasksByStatus([]), true));
+
+    // Each pill that will carry a count holds a placeholder for it and no number yet.
+    const pills = screen.getByTestId("tasks-quick-status");
+    expect(pills.querySelectorAll('[data-slot="skeleton-text"]')).toHaveLength(3);
+    expect(within(pills).queryByText(/\d/)).not.toBeInTheDocument();
+
+    rerender(toolbar(statusCounts, false));
+    expect(pills.querySelectorAll('[data-slot="skeleton-text"]')).toHaveLength(0);
+    expect(
+      within(screen.getByTestId("tasks-quick-status-in_progress")).getByText("3")
+    ).toBeVisible();
+  });
+
   it("Should write the quick status pills through the single status filter", () => {
     const handleStatusChange = vi.fn();
     const statusCounts = countTasksByStatus([]);
@@ -516,9 +554,29 @@ describe("TasksListSurface", () => {
     );
   });
 
-  it("Should render the loading skeleton when isLoading and no tasks", () => {
+  it("Should stand in with the table itself while the first page loads", () => {
     renderSurface({ tasks: [], isLoading: true });
-    expect(screen.getByTestId("tasks-list-surface-loading")).toBeInTheDocument();
+
+    // One named loading area in the container the rows will fill, not the empty-state page.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-list-surface-loading"));
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading tasks");
+    // The header is the real one already, without a total it cannot know yet.
+    for (const name of ["Task", "ID", "Status", "Priority", "Owner", "Updated"]) {
+      expect(within(region).getByRole("columnheader", { name })).toBeInTheDocument();
+    }
+    expect(within(region).queryByText(/^\(\d+\)$/)).not.toBeInTheDocument();
+    // The rows are placeholders: nothing in them can be opened.
+    expect(within(region).queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-list-surface-empty")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the rows when the read reports loading but rows already exist", () => {
+    renderSurface({ tasks: [buildTask()], isLoading: true });
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
   });
 
   it("Should render the error state when errorMessage is set and no tasks", () => {

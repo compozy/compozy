@@ -41,6 +41,25 @@ describe("ExtensionKitInventoryPanel", () => {
     expect(within(rows[1]!).getByText("live")).toBeInTheDocument();
   });
 
+  it("Should hold the group head and rows as placeholders while the inventory loads", () => {
+    render(
+      <ExtensionKitInventoryPanel
+        error={null}
+        isLoading
+        items={undefined}
+        onRetry={() => undefined}
+      />
+    );
+
+    // One busy region in the real row layout, not a spinner line.
+    const panel = screen.getByTestId("extension-kit-inventory");
+    const region = within(panel).getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading kit inventory");
+    expect(panel.querySelectorAll('[data-slot="listing-row"]').length).toBeGreaterThan(0);
+    expect(within(panel).queryByText("This extension ships no static kit resources.")).toBeNull();
+  });
+
   it("Should state that no kit resources ship rather than render an empty panel", () => {
     render(
       <ExtensionKitInventoryPanel

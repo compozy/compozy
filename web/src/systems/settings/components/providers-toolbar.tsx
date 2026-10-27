@@ -6,6 +6,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
   ListingToolbar,
+  Skeleton,
 } from "@compozy/ui";
 
 import type { ProviderStateLabel } from "../lib/provider-state";
@@ -78,6 +79,18 @@ export function ProvidersToolbar({
             </DropdownMenuContent>
           </DropdownMenu>
         </ListingToolbar.Filters>
+      </ListingToolbar.Leading>
+    </ListingToolbar>
+  );
+}
+
+/** The toolbar in skeleton form: a search field and the status filter, as blocks of their size. */
+export function ProvidersToolbarSkeleton() {
+  return (
+    <ListingToolbar aria-hidden="true">
+      <ListingToolbar.Leading>
+        <Skeleton className="h-search min-w-search-input-floor shrink basis-search-input rounded-pill" />
+        <Skeleton className="h-button-sm w-28 rounded-pill" />
       </ListingToolbar.Leading>
     </ListingToolbar>
   );

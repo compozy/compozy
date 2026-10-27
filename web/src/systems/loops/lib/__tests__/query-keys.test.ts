@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loopsKeys } from "../query-keys";
+import { bridgeFilterChange, LOOP_AGGREGATE_KEY, loopsKeys, loopsPopulation } from "../query-keys";
 
 describe("loopsKeys", () => {
   it("Should scope every read key by workspace so a workspace switch never serves another cache", () => {
@@ -242,5 +242,106 @@ describe("loopsKeys", () => {
     expect(loopsKeys.runTimeline("ws_a", "run_1", { view: "all" })).not.toEqual(
       loopsKeys.runTimeline("ws_a", "run_1", { view: "notable" })
     );
+  });
+});
+
+// A list may bridge a filter change with its previous rows only inside one population: the same
+// scope, page shape and profile lens. These cases pin which key segments that means, so a key that
+// gains a segment cannot silently start serving one scope's rows under another's.
+describe("loopsPopulation", () => {
+  it("Should hold a catalog's population through search and filters, not through scope, page or profile", () => {
+    const shape = { limit: 50, profile: "default", sort: "name" } as const;
+    const base = loopsPopulation.catalog(loopsKeys.catalog("ws_a", shape));
+    const narrowed = loopsKeys.catalog("ws_a", {
+      ...shape,
+      category: "Engineering",
+      kind: "workspace",
+      q: "ship",
+      status: "running",
+    });
+    expect(loopsPopulation.catalog(narrowed)).toEqual(base);
+
+    for (const other of [
+      loopsKeys.catalog("ws_b", shape),
+      loopsKeys.catalog("ws_a", { ...shape, limit: 100 }),
+      loopsKeys.catalog("ws_a", { ...shape, sort: undefined }),
+      loopsKeys.catalog("ws_a", { ...shape, profile: "engineering" }),
+      loopsKeys.catalog("ws_a", { limit: 50, sort: "name", all_profiles: true }),
+    ]) {
+      expect(loopsPopulation.catalog(other)).not.toEqual(base);
+    }
+  });
+
+  it("Should hold the All projects batch's population through its Project filter", () => {
+    const filters = { limit: 50, sort: "name" } as const;
+    const key = (projects: string) => [...loopsKeys.catalog(LOOP_AGGREGATE_KEY, filters), projects];
+    expect(loopsPopulation.catalog(key("ws_a"))).toEqual(loopsPopulation.catalog(key("ws_a,ws_b")));
+    expect(loopsPopulation.catalog(key("ws_a"))).not.toEqual(
+      loopsPopulation.catalog(loopsKeys.catalog("ws_a", filters))
+    );
+  });
+
+  it("Should hold a roster's population through origin filters, not through loop, status or scope", () => {
+    const base = loopsPopulation.runs(loopsKeys.runs("ws_a", { limit: 50, profile: "default" }));
+    expect(
+      loopsPopulation.runs(
+        loopsKeys.runs("ws_a", {
+          limit: 50,
+          origin: "session",
+          origin_session: "ses_1",
+          profile: "default",
+        })
+      )
+    ).toEqual(base);
+
+    for (const other of [
+      loopsKeys.runs("ws_b", { limit: 50, profile: "default" }),
+      loopsKeys.runs("ws_a", { limit: 50, loop: "delivery", profile: "default" }),
+      loopsKeys.runs("ws_a", { limit: 50, profile: "default", status: "running" }),
+      loopsKeys.runs("ws_a", { limit: 50, live: true, profile: "default" }),
+      loopsKeys.runs("ws_a", { limit: 5, profile: "default" }),
+      loopsKeys.runs("ws_a", { limit: 50, profile: "engineering" }),
+    ]) {
+      expect(loopsPopulation.runs(other)).not.toEqual(base);
+    }
+  });
+
+  it("Should hold an inventory state's population through its loop and run filters only", () => {
+    const base = loopsPopulation.nodeInventory(
+      loopsKeys.nodeInventory("ws_a", { limit: 50, profile: "default", state: "waiting" })
+    );
+    expect(
+      loopsPopulation.nodeInventory(
+        loopsKeys.nodeInventory("ws_a", {
+          limit: 50,
+          loop: "delivery",
+          profile: "default",
+          run_id: "run_1",
+          state: "waiting",
+        })
+      )
+    ).toEqual(base);
+
+    for (const other of [
+      loopsKeys.nodeInventory("ws_a", { limit: 50, profile: "default", state: "attention" }),
+      loopsKeys.nodeInventory("ws_b", { limit: 50, profile: "default", state: "waiting" }),
+      loopsKeys.nodeInventory("ws_a", { limit: 50, profile: "other", state: "waiting" }),
+    ]) {
+      expect(loopsPopulation.nodeInventory(other)).not.toEqual(base);
+    }
+  });
+});
+
+describe("bridgeFilterChange", () => {
+  it("Should hand the previous rows to the next read inside one population and nothing otherwise", () => {
+    const next = loopsKeys.catalog("ws_a", { limit: 50, q: "b" });
+    const bridge = bridgeFilterChange(loopsPopulation.catalog, next);
+    const rows = { pages: [{ loops: [] }] };
+
+    expect(bridge(rows, { queryKey: loopsKeys.catalog("ws_a", { limit: 50, q: "a" }) })).toBe(rows);
+    expect(
+      bridge(rows, { queryKey: loopsKeys.catalog("ws_b", { limit: 50, q: "a" }) })
+    ).toBeUndefined();
+    expect(bridge(rows, undefined)).toBeUndefined();
   });
 });

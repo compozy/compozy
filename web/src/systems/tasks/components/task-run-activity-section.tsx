@@ -1,10 +1,12 @@
 import { Activity } from "lucide-react";
 
-import { Empty, LiveBadge, Section, Skeleton, Timeline } from "@compozy/ui";
+import { Empty, LiveBadge, Section, SkeletonRegion, Timeline } from "@compozy/ui";
 
 import { taskRunTimelineItems } from "../lib/task-run-presentation";
 import type { TaskTimelineItem } from "../types";
 import { TaskActivityItem } from "./task-activity-item";
+import { TaskTimelineSkeleton } from "./task-loading-skeletons";
+import { TASK_TIMELINE_CARD_CLASS } from "./task-surface-classes";
 
 export interface TaskRunActivitySectionProps {
   errorMessage?: string | null;
@@ -30,13 +32,19 @@ export function TaskRunActivitySection({
       right={isLive ? <LiveBadge data-testid="tasks-run-activity-live" /> : undefined}
     >
       {isLoading ? (
-        <Skeleton className="h-20 rounded-lg" />
+        <SkeletonRegion
+          className={TASK_TIMELINE_CARD_CLASS}
+          data-testid="tasks-run-activity-loading"
+          label="Loading run activity"
+        >
+          <TaskTimelineSkeleton events={3} />
+        </SkeletonRegion>
       ) : errorMessage ? (
         <p className="text-small-body text-danger" role="alert">
           {errorMessage}
         </p>
       ) : (
-        <div className="rounded-lg bg-card px-4 pt-3 shadow-card">
+        <div className={TASK_TIMELINE_CARD_CLASS}>
           {items.length === 0 ? (
             <Empty
               className="pt-2 pb-5"

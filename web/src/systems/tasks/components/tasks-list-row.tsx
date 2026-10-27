@@ -1,9 +1,30 @@
 import * as React from "react";
 
-import { StateGlyph, type StateGlyphState, TableCell, TableRow } from "@compozy/ui";
+import {
+  Skeleton,
+  SkeletonText,
+  StateGlyph,
+  type StateGlyphState,
+  TableCell,
+  TableRow,
+  type TableRowSkeletonColumn,
+} from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import { TASKS_TABLE_COLUMN_CLASS } from "../lib/tasks-table-columns";
+
+/** Cell classes per column, shared by the row and its skeleton so their columns cannot drift. */
+const CELL_CLASS = {
+  title: "max-w-0 pl-4",
+  id: cn("max-w-0", TASKS_TABLE_COLUMN_CLASS.id),
+  status: TASKS_TABLE_COLUMN_CLASS.status,
+  priority: cn("text-muted", TASKS_TABLE_COLUMN_CLASS.priority),
+  owner: cn("relative z-1 pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner),
+  updated: cn(
+    "pr-4 font-mono text-meta tabular-nums text-subtle",
+    TASKS_TABLE_COLUMN_CLASS.updated
+  ),
+} as const;
 
 export interface TasksListRowProps extends Omit<React.ComponentProps<"tr">, "title" | "id"> {
   /**
@@ -66,7 +87,7 @@ function TasksListRow({
       data-slot="tasks-list-row"
       {...props}
     >
-      <TableCell className="max-w-0 pl-4">
+      <TableCell className={CELL_CLASS.title}>
         <div className="flex min-w-0 items-center gap-2">
           {link
             ? React.cloneElement(
@@ -88,7 +109,7 @@ function TasksListRow({
           ) : null}
         </div>
       </TableCell>
-      <TableCell className={cn("max-w-0", TASKS_TABLE_COLUMN_CLASS.id)}>
+      <TableCell className={CELL_CLASS.id}>
         {id ? (
           <span
             className="block truncate font-mono text-meta tabular-nums text-fg-2"
@@ -98,7 +119,7 @@ function TasksListRow({
           </span>
         ) : null}
       </TableCell>
-      <TableCell className={TASKS_TABLE_COLUMN_CLASS.status}>
+      <TableCell className={CELL_CLASS.status}>
         <span
           className="inline-flex items-center gap-1.75 text-fg-2"
           data-slot="tasks-list-row-status"
@@ -107,23 +128,51 @@ function TasksListRow({
           {statusLabel}
         </span>
       </TableCell>
-      <TableCell className={cn("text-muted", TASKS_TABLE_COLUMN_CLASS.priority)}>
-        {priority}
-      </TableCell>
-      <TableCell className={cn("relative z-1 pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner)}>
-        {owner}
-      </TableCell>
-      <TableCell
-        className={cn(
-          "pr-4 font-mono text-meta tabular-nums text-subtle",
-          TASKS_TABLE_COLUMN_CLASS.updated
-        )}
-        data-slot="tasks-list-row-updated"
-      >
+      <TableCell className={CELL_CLASS.priority}>{priority}</TableCell>
+      <TableCell className={CELL_CLASS.owner}>{owner}</TableCell>
+      <TableCell className={CELL_CLASS.updated} data-slot="tasks-list-row-updated">
         {updated}
       </TableCell>
     </TableRow>
   );
 }
 
-export { TasksListRow };
+const TITLE_WIDTHS = ["w-56", "w-40", "w-64", "w-48", "w-44", "w-60"] as const;
+const META_WIDTHS = ["w-24", "w-16", "w-28", "w-20", "w-20", "w-24"] as const;
+
+/**
+ * The placeholder twin of `TasksListRow`, as the columns `TableRowSkeleton` draws: each column
+ * carries the real row's own cell classes, including the display class that hides it in a narrow
+ * pane, and a placeholder in the shape of what the cell holds, so the data arrives into rows of
+ * the same height and columns. Fill a `TaskGroupSkeleton` with it and wrap the table in a
+ * `SkeletonRegion`.
+ */
+const TASKS_LIST_SKELETON_COLUMNS: readonly TableRowSkeletonColumn[] = [
+  {
+    cellClassName: CELL_CLASS.title,
+    placeholder: row => (
+      <div className="flex min-w-0 items-center gap-2">
+        <SkeletonText className={TITLE_WIDTHS[row % TITLE_WIDTHS.length]} />
+        <SkeletonText className={cn("text-meta", META_WIDTHS[row % META_WIDTHS.length])} />
+      </div>
+    ),
+  },
+  { cellClassName: CELL_CLASS.id, className: "w-16" },
+  {
+    cellClassName: CELL_CLASS.status,
+    placeholder: () => (
+      <span className="inline-flex items-center gap-1.75">
+        <Skeleton className="size-3.5 shrink-0 rounded-full" />
+        <SkeletonText className="w-16" />
+      </span>
+    ),
+  },
+  { cellClassName: CELL_CLASS.priority, className: "w-12" },
+  {
+    cellClassName: CELL_CLASS.owner,
+    placeholder: () => <Skeleton className="size-avatar-sm rounded-full" />,
+  },
+  { cellClassName: CELL_CLASS.updated, className: "w-10" },
+];
+
+export { TASKS_LIST_SKELETON_COLUMNS, TasksListRow };

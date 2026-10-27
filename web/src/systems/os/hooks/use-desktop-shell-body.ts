@@ -43,7 +43,7 @@ import { useOsAttention } from "./use-os-attention";
 import { openPaletteView } from "./use-os-palette-view-stack";
 import { subscribePaletteViewRaise } from "../lib/raise-palette-view";
 import type { PaletteViewId } from "../lib/palette-view-registry";
-import { useOsReducedMotion } from "./use-os-reduced-motion";
+import { useOsDocumentReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
 import { usePaletteRegistry } from "./use-palette-registry";
@@ -191,7 +191,9 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     bellOpen: overlays.activeOverlay === "bell",
   });
   const presentation = useDesktop(state => state.presentation);
-  const reducedMotion = useOsReducedMotion();
+  const managerSurfaces = useDesktopManagerSurfaces();
+  const winLayer = useOsWinLayer();
+  const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
   const paletteRegistry = usePaletteRegistry();

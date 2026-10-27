@@ -9,6 +9,9 @@ function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
 }
 
+/** Where the usage window sits in an overview key: after the root and the scope. */
+const OVERVIEW_USAGE_WINDOW_SLOT = 3;
+
 export const dashboardKeys = {
   all: ["dashboard"] as const,
 
@@ -24,6 +27,13 @@ export const dashboardKeys = {
       // Two profiles reading the same window are two answers, never one entry.
       filters.allProfiles === true ? PROFILE_AGGREGATE : normalizeText(filters.profile),
     ] as const,
+
+  /**
+   * An overview key without its usage window: the scope and profile lens a window switch leaves
+   * unchanged. Two keys with the same population read the same project and profile.
+   */
+  overviewPopulation: (queryKey: readonly unknown[]) =>
+    queryKey.filter((_, index) => index !== OVERVIEW_USAGE_WINDOW_SLOT),
 
   activityRoot: () => [...dashboardKeys.all, "activity"] as const,
   activity: (filters: HomeActivityFilter = {}) =>

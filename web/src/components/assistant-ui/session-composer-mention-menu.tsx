@@ -18,6 +18,7 @@ import {
   TriggerMenuDivider,
   TriggerMenuFooter,
   TriggerMenuGroupHeader,
+  TriggerMenuLoading,
   TriggerMenuMessage,
   TriggerMenuRow,
   TriggerMenuRowSecondary,
@@ -153,6 +154,11 @@ function MentionMenuGroupView({
             highlightable={highlightable}
           />
         ))
+      ) : group.status === "loading" ? (
+        // Its first answer is on its way: placeholder rows, the loading copy announced.
+        <TriggerMenuLoading data-testid="composer-mention-message" rows={2}>
+          {group.message}
+        </TriggerMenuLoading>
       ) : (
         <TriggerMenuMessage data-testid="composer-mention-message">
           {group.message}

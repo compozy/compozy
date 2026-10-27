@@ -309,6 +309,14 @@ export function OsMenuBar({
           data-slot="os-menubar-tray"
           className={cn("flex min-w-0 items-center gap-0.5", WINDOW_NO_DRAG)}
         >
+          {/* The usage tray leads the cluster: it is known only once the usage read answers, and
+              the cluster is right-aligned, so arriving (or leaving) at its leading edge takes the
+              spacer's room instead of moving the controls already on screen. */}
+          {usageControl ? (
+            <div data-slot="os-menubar-usage" className="contents">
+              {usageControl(cn(INTERACTIVE, ICON_BUTTON))}
+            </div>
+          ) : null}
           {pager}
           <ControlTooltip label="All desktops">
             <Control
@@ -322,11 +330,6 @@ export function OsMenuBar({
               <Icon as={LayoutGrid} className="size-4" />
             </Control>
           </ControlTooltip>
-          {usageControl ? (
-            <div data-slot="os-menubar-usage" className="contents">
-              {usageControl(cn(INTERACTIVE, ICON_BUTTON))}
-            </div>
-          ) : null}
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}

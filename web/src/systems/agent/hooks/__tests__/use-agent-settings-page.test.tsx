@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   refetch: vi.fn(),
   toastSuccess: vi.fn(),
   workspaceId: "ws-test",
+  settingsProviders: { isLoading: false, isFetching: false },
 }));
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
@@ -32,7 +33,7 @@ vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
   useWorkspace: () => ({ data: { providers: [] }, isLoading: false }),
 }));
 vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
-  useSettingsProviders: () => ({ data: { providers: [] }, isLoading: false, isFetching: false }),
+  useSettingsProviders: () => ({ data: { providers: [] }, ...mocks.settingsProviders }),
 }));
 vi.mock("@/systems/model-catalog/hooks/use-runtime-model-catalog", () => ({
   useRuntimeModelCatalog: () => ({
@@ -91,6 +92,7 @@ describe("useAgentSettingsPage", () => {
     mocks.refetch = vi.fn();
     mocks.agent = { ...primaryAgentFixture, origin: "workspace" };
     mocks.workspaceId = "ws-test";
+    mocks.settingsProviders = { isLoading: false, isFetching: false };
     resetProfileViews();
     mocks.refetch.mockResolvedValue({
       data: { ...primaryAgentFixture, origin: "workspace", prompt: "Reloaded prompt" },
@@ -194,6 +196,22 @@ describe("useAgentSettingsPage", () => {
     await waitFor(() => expect(result.current.phase).toBe("denied"));
     expect(result.current.saveBlocked).toBe(true);
     expect(result.current.saveBlockedCaption).toBe("Editing is not permitted for this agent.");
+  });
+
+  it("Should report global providers as loading only until they first arrive, not while they refetch", () => {
+    mocks.agent = { ...primaryAgentFixture, origin: "global" };
+    mocks.settingsProviders = { isLoading: false, isFetching: true };
+    const { result, rerender } = renderHook(
+      () => useAgentSettingsPage({ name: primaryAgentFixture.name, section: "runtime" }),
+      { wrapper: createWrapper() }
+    );
+
+    // A background refetch keeps the provider control as it is.
+    expect(result.current.providersLoading).toBe(false);
+
+    mocks.settingsProviders = { isLoading: true, isFetching: true };
+    rerender();
+    expect(result.current.providersLoading).toBe(true);
   });
 
   it("Should navigate between sections, detail, and provider settings", async () => {

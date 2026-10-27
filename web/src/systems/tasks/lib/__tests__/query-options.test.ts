@@ -67,6 +67,74 @@ describe("tasks list options", () => {
   });
 });
 
+type Bridge = (previous: unknown, previousQuery: { meta?: unknown } | undefined) => unknown;
+
+/** What the observer asks a read: may the last real rows stand in for this one's own? */
+function bridged(next: { placeholderData?: unknown }, previous: { meta?: unknown }) {
+  return (next.placeholderData as Bridge)("rows", { meta: previous.meta });
+}
+
+describe("list and inbox placeholder rows", () => {
+  const scope = { scope: "workspace", workspace: "ws_alpha", worktree: "wt_main" } as const;
+
+  it.each([
+    ["status", { status: "failed" }],
+    ["priority", { priority: "high" }],
+    ["owner", { owner_kind: "human", owner_ref: "pedro" }],
+    ["search text", { query: "review" }],
+    ["sort", { sort: "priority" }],
+  ] as const)(
+    "Should bridge a list refined by %s with the rows already on screen",
+    (_, refinement) => {
+      expect(bridged(tasksListOptions({ ...scope, ...refinement }), tasksListOptions(scope))).toBe(
+        "rows"
+      );
+    }
+  );
+
+  it.each([
+    ["project", { scope: "workspace", workspace: "ws_beta", worktree: "wt_main" }],
+    ["worktree", { ...scope, worktree: "wt_feature" }],
+    ["profile", { ...scope, profile: "marketing" }],
+    ["every profile", { ...scope, all_profiles: true }],
+    ["breadth", { all_workspaces: true }],
+    ["Loop reveal", { ...scope, include_loop: true }],
+  ] as const)("Should not carry rows across a different %s", (_, other) => {
+    expect(bridged(tasksListOptions(other), tasksListOptions(scope))).toBeUndefined();
+  });
+
+  it("Should not bridge from a read that never had rows to offer", () => {
+    // The observer asks with nothing at all before its first real read lands.
+    const bridge = tasksListOptions(scope).placeholderData as Bridge;
+    expect(bridge(undefined, undefined)).toBeUndefined();
+    expect(bridged(tasksListOptions(scope), {})).toBeUndefined();
+  });
+
+  it.each([
+    ["lane", { lane: "approvals" }],
+    ["status", { status: "failed" }],
+    ["priority", { priority: "high" }],
+    ["unread", { unread: true }],
+    ["search text", { query: "rotate" }],
+  ] as const)(
+    "Should bridge an inbox refined by %s with the rows already on screen",
+    (_, refinement) => {
+      expect(bridged(taskInboxOptions({ ...scope, ...refinement }), taskInboxOptions(scope))).toBe(
+        "rows"
+      );
+    }
+  );
+
+  it.each([
+    ["project", { scope: "workspace", workspace: "ws_beta", worktree: "wt_main" }],
+    ["worktree", { ...scope, worktree: "wt_feature" }],
+    ["profile", { ...scope, profile: "marketing" }],
+    ["breadth", { all_workspaces: true }],
+  ] as const)("Should not carry inbox rows across a different %s", (_, other) => {
+    expect(bridged(taskInboxOptions(other), taskInboxOptions(scope))).toBeUndefined();
+  });
+});
+
 describe("tasks detail and run options", () => {
   it("stops detail polling after the active run becomes terminal", () => {
     const options = taskDetailOptions("task_1", { profile: "default" });

@@ -106,6 +106,36 @@ describe("AttentionBell sections", () => {
     expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
   });
 
+  it("Should wait in one busy region instead of saying all quiet while notifications load", () => {
+    render(
+      <AttentionBell
+        loading
+        onSelect={vi.fn()}
+        sections={{ needsYou: [], finished: [] }}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading notifications");
+    expect(screen.queryByTestId("os-bell-empty")).not.toBeInTheDocument();
+  });
+
+  it("Should keep loaded rows through a refresh instead of replacing them with the placeholder", () => {
+    render(
+      <AttentionBell
+        loading
+        onSelect={vi.fn()}
+        sections={{ needsYou: [sessionRow()], finished: [] }}
+        sessionsDisconnected={false}
+        tasksDisconnected={false}
+      />
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("os-bell-needs-you")).toBeInTheDocument();
+  });
+
   it("Should keep finished-unseen work in its own section", () => {
     renderBell({
       needsYou: [sessionRow()],

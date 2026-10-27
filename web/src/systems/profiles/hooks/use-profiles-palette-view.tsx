@@ -1,6 +1,6 @@
 import { Layers, Plus } from "lucide-react";
 
-import { Button, Spinner } from "@compozy/ui";
+import { Button, ItemSkeleton, SkeletonRegion } from "@compozy/ui";
 
 import { ProfilePaletteRow } from "../components/profile-palette-row";
 import {
@@ -145,10 +145,9 @@ export function useProfilesPaletteView({
     rows,
     header: null,
     empty: profiles.isLoading ? (
-      <span className="flex items-center justify-center gap-2" role="status">
-        <Spinner className="size-3.5" />
-        Loading profiles
-      </span>
+      <SkeletonRegion label="Loading profiles">
+        <ItemSkeleton className="py-1.5" count={4} description={false} size="xs" />
+      </SkeletonRegion>
     ) : profiles.error instanceof Error ? (
       <span className="flex flex-col items-center gap-2">
         <span role="alert">{profiles.error.message}</span>

@@ -699,5 +699,25 @@ describe("AutomationDetailPanel", () => {
       expect(screen.getByTestId("automation-detail-loading")).toBeInTheDocument();
       expect(screen.queryByTestId("automation-detail-sentence")).not.toBeInTheDocument();
     });
+
+    it.each([
+      { kind: "job" as const, schedule: true },
+      { kind: "trigger" as const, schedule: false },
+    ])(
+      "Should hold one busy region with the bands of a $kind (schedule band: $schedule)",
+      ({ kind, schedule }) => {
+        renderPanel(undefined, { status: "loading", kind });
+
+        const loading = screen.getByTestId("automation-detail-loading");
+        const region = within(loading).getByRole("status");
+        expect(region).toHaveAttribute("aria-busy", "true");
+        expect(region).toHaveTextContent("Loading automation details");
+        // Real labels over placeholder rows; only a schedule has a Schedule band.
+        expect(within(loading).getByText("How it works")).toBeVisible();
+        expect(within(loading).getByText("Runs")).toBeVisible();
+        expect(within(loading).getByText("Reliability")).toBeVisible();
+        expect(within(loading).queryByText("Schedule") !== null).toBe(schedule);
+      }
+    );
   });
 });

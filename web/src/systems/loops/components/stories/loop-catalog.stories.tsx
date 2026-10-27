@@ -7,6 +7,7 @@ import { Repeat2 } from "lucide-react";
 import { LoopCatalog } from "../catalog/loop-catalog";
 import { LoopCatalogFilters } from "../catalog/loop-catalog-filters";
 import { LoopCatalogLede } from "../catalog/loop-catalog-lede";
+import { LoopCatalogSkeleton } from "../catalog/loop-catalog-skeleton";
 import type { LoopCatalogFilter, LoopStatusFilter } from "../../lib/loop-catalog";
 import { hasActiveLoopFilters, loopCategory, matchesLoopFilter } from "../../lib/loop-catalog";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
@@ -123,6 +124,29 @@ export const EmptyRoster: Story = {
           onRun={() => {}}
           view="rows"
         />
+      </ListingPage>
+    </LoopsStoryShell>
+  ),
+};
+
+/** The first read has not answered: the lede and one group in the shape the view shows. */
+export const Loading: Story = {
+  args: {},
+  render: () => (
+    <LoopsStoryShell crumb="Loops" glyph={<Repeat2 />}>
+      <ListingPage data-testid="loops-loading">
+        <LoopCatalogSkeleton view="rows" workspaceLabel="launch-hq" />
+      </ListingPage>
+    </LoopsStoryShell>
+  ),
+};
+
+export const LoadingCards: Story = {
+  args: {},
+  render: () => (
+    <LoopsStoryShell crumb="Loops" glyph={<Repeat2 />}>
+      <ListingPage data-testid="loops-loading">
+        <LoopCatalogSkeleton view="cards" workspaceLabel="launch-hq" />
       </ListingPage>
     </LoopsStoryShell>
   ),

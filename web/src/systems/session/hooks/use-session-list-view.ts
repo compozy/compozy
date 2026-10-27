@@ -112,6 +112,11 @@ export function useSessionListView(
     scope?: DataScope | null;
     worktreeId?: string;
     enabled?: boolean;
+    /**
+     * The list is open but still waiting on what it reads under (the destination or its
+     * worktree filter): it reads as loading, not as an empty list, until they settle.
+     */
+    pending?: boolean;
   } = {}
 ): SessionListViewModel {
   const preferences = useSessionWindowOrder();
@@ -152,6 +157,11 @@ export function useSessionListView(
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
   });
+  const awaiting = awaitingReads(
+    flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
+    grouping.loading,
+    options.pending === true
+  );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
   const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
@@ -172,7 +182,7 @@ export function useSessionListView(
     layout: flatLayout ? folders.layout : undefined,
     layoutError: flatLayout ? folders.loadError : undefined,
     worktreeId: options.worktreeId,
-    catalog: flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
+    catalog: awaiting.catalog,
     search,
     setSearch,
     sort: preferences.sort,
@@ -186,7 +196,7 @@ export function useSessionListView(
     setGroupBy: preferences.setGroupBy,
     setArchived,
     groups: grouping.groups,
-    groupsLoading: grouping.loading,
+    groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
     collapsedGroupKeys: new Set(
       grouping.groups.flatMap(group =>
@@ -216,6 +226,21 @@ function sessionListGroupFiltersFor(
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
     ...(archived ? { archive: "only" as const } : {}),
+  };
+}
+
+/**
+ * An open list still waiting on what it reads under (`pending`) reads as loading, never as empty:
+ * the flat catalog, or the group facets of a grouped list, stand in for an answer not yet asked for.
+ */
+function awaitingReads<C extends { loading: boolean }>(
+  catalog: C | undefined,
+  groupsLoading: boolean,
+  pending: boolean
+): { catalog: C | undefined; groupsLoading: boolean } {
+  return {
+    catalog: catalog ? { ...catalog, loading: catalog.loading || pending } : undefined,
+    groupsLoading: groupsLoading || (pending && catalog === undefined),
   };
 }
 

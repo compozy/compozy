@@ -3,7 +3,7 @@
 // Boundary IN: TanStack route loader, QueryClient, query-options factory, and query hook.
 // Boundary OUT: HTTP adapters, which have their own contract suites.
 import type { PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRouteWithContext,
@@ -30,6 +30,8 @@ import {
   useLoopsAggregate,
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
+import { providerUsageOptions } from "@/systems/provider-usage";
+import { defaultUsageEnvelope } from "@/systems/provider-usage/mocks";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
 import {
   profileSelectionOptions,
@@ -98,6 +100,7 @@ const adapterMocks = vi.hoisted(() => ({
   getSettingsHooksExtensions: vi.fn(),
   getSettingsObservability: vi.fn(),
   getSettingsPersona: vi.fn(),
+  getProviderUsage: vi.fn(),
   getSettingsSkills: vi.fn(),
   getSettingsUpdate: vi.fn(),
   getSkill: vi.fn(),
@@ -138,6 +141,13 @@ vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
 vi.mock("@/systems/onboarding/adapters/onboarding-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/onboarding/adapters/onboarding-api")>()),
   fetchOnboardingStatus: adapterMocks.fetchOnboardingStatus,
+}));
+
+vi.mock("@/systems/provider-usage/adapters/provider-usage-api", async importOriginal => ({
+  ...(await importOriginal<
+    typeof import("@/systems/provider-usage/adapters/provider-usage-api")
+  >()),
+  getProviderUsage: adapterMocks.getProviderUsage,
 }));
 
 vi.mock("@/systems/profiles/adapters/profiles-api", async importOriginal => ({
@@ -228,6 +238,7 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
 }));
 
 import { Route as AppRoute } from "../../_app";
+import { ensureRouteQueryData } from "../-route-preload";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
 import { Route as AgentSettingsRoute } from "../agents.$name.settings";
 import { Route as AgentsRoute } from "../agents.index";
@@ -757,6 +768,7 @@ describe("route query preloading", () => {
     adapterMocks.fetchWorkspaces.mockResolvedValue([workspace]);
     adapterMocks.fetchWorkspace.mockResolvedValue({ ...workspace, providers: [] });
     adapterMocks.fetchOnboardingStatus.mockResolvedValue({ completed: true });
+    adapterMocks.getProviderUsage.mockResolvedValue(defaultUsageEnvelope());
     adapterMocks.fetchStatus.mockResolvedValue({ daemon: { user_home_dir: "/home/operator" } });
     adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "default" });
     adapterMocks.fetchAgents.mockResolvedValue([]);
@@ -839,6 +851,36 @@ describe("route query preloading", () => {
       run: { loop_name: "review", status: "running" },
     });
     setActiveWorkspaceId(workspace.id);
+  });
+
+  // The usage tray read is optional to the desktop: an unanswered /api/provider-usage must neither
+  // hold the app route nor delay the warmups beside it, and it still warms the acting profile's key.
+  it("Should settle the app route and start its warmups while the usage read is unanswered", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getProviderUsage.mockImplementation(() => new Promise(() => undefined));
+
+    await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
+
+    for (const warmup of [
+      adapterMocks.fetchAgents,
+      adapterMocks.fetchAgentCatalog,
+      adapterMocks.fetchWorkspace,
+      adapterMocks.fetchSessions,
+    ]) {
+      expect(warmup).toHaveBeenCalledTimes(1);
+    }
+    expect(adapterMocks.getProviderUsage).toHaveBeenCalledTimes(1);
+    const profile = readActingProfile(queryClient);
+    expect(queryClient.getQueryState(providerUsageOptions(profile).queryKey)?.fetchStatus).toBe(
+      "fetching"
+    );
+  });
+
+  it("Should still render the app shell when the usage envelope cannot be read", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getProviderUsage.mockRejectedValue(new Error("usage unavailable"));
+
+    await expect(invokeLoader(AppRoute, context(queryClient))).resolves.toBeUndefined();
   });
 
   it.each(cases)("Should reuse the preloaded cache for $name", async testCase => {
@@ -1604,11 +1646,45 @@ describe("route query preloading", () => {
       ...context(queryClient),
       params: { triggerId: "trigger-foreign" },
     });
+    // The loaders release navigation before the reads settle; the ownership check follows them.
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
     expect(adapterMocks.getAutomationJob).toHaveBeenCalledTimes(1);
     expect(adapterMocks.getAutomationTrigger).toHaveBeenCalledTimes(1);
     expect(adapterMocks.listAutomationJobRuns).not.toHaveBeenCalled();
     expect(adapterMocks.listAutomationTriggerRuns).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should release navigation while an automation detail read remains in flight, then warm its runs", async () => {
+    const queryClient = createQueryClient();
+    const jobRead = createDeferred<{ id: string; scope: string }>();
+    const triggerRead = createDeferred<{ id: string; scope: string }>();
+    adapterMocks.getAutomationJob.mockReturnValueOnce(jobRead.promise);
+    adapterMocks.getAutomationTrigger.mockReturnValueOnce(triggerRead.promise);
+
+    await expect(
+      invokeLoader(JobDetailRoute, { ...context(queryClient), params: { jobId: "job-1" } })
+    ).resolves.toBeUndefined();
+    await expect(
+      invokeLoader(TriggerDetailRoute, {
+        ...context(queryClient),
+        params: { triggerId: "trigger-1" },
+      })
+    ).resolves.toBeUndefined();
+
+    // Navigation is released while both entity reads are pending: a window opening on the detail
+    // shows its own loading state instead of waiting for the daemon behind a blank desktop.
+    expect(queryClient.isFetching()).toBeGreaterThan(0);
+    expect(adapterMocks.listAutomationJobRuns).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationTriggerRuns).not.toHaveBeenCalled();
+
+    jobRead.resolve({ id: "job-1", scope: "global" });
+    triggerRead.resolve({ id: "trigger-1", scope: "global" });
+    await waitFor(() => {
+      expect(adapterMocks.listAutomationJobRuns).toHaveBeenCalledTimes(1);
+      expect(adapterMocks.listAutomationTriggerRuns).toHaveBeenCalledTimes(1);
+    });
     queryClient.clear();
   });
 
@@ -1669,6 +1745,34 @@ describe("route query preloading", () => {
     for (const key of globalKeys) {
       expect(queryClient.getQueryState(key)).toBeUndefined();
     }
+    queryClient.clear();
+  });
+});
+
+describe("route reads joined to an observer's fetch", () => {
+  it("Should follow a cancelled joined fetch with a fresh read instead of failing the route", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let reads = 0;
+    const options = {
+      queryKey: ["route-read-cancelled-join"],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        new Promise<string>((resolve, reject) => {
+          reads += 1;
+          const read = reads;
+          const timer = setTimeout(() => resolve(`read-${read}`), 10);
+          signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    };
+    // A mounted consumer owns the fetch; the loader joins it, then the consumer
+    // unmounts mid-flight (a deferred window switch), which cancels the shared fetch.
+    const unsubscribe = new QueryObserver(queryClient, options).subscribe(() => {});
+    const routeRead = ensureRouteQueryData(() => queryClient.ensureQueryData(options));
+    unsubscribe();
+
+    await expect(routeRead).resolves.toBe("read-2");
     queryClient.clear();
   });
 });

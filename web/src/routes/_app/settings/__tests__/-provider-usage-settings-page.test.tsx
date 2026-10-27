@@ -6,7 +6,7 @@
 // Boundary IN: the route page, its page hook, and the settings/usage adapters
 // over a stubbed `fetch`. Boundary OUT: the router (only route matching).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,6 +48,8 @@ const NOW = Date.now();
 interface Daemon {
   /** The shell's remembered profile. */
   activeProfile?: string;
+  /** The configured-providers answer; held back to keep that read pending. */
+  providers?: Promise<Response>;
   section: SettingsProviderUsageSection;
   usage: ProviderUsageEnvelope;
   patch: (body: unknown) => Response;
@@ -77,7 +79,7 @@ function serve(daemon: Daemon) {
         ? daemon.patch(await request.clone().json())
         : json(daemon.section);
     }
-    if (pathname === "/api/settings/providers") return json(PROVIDERS);
+    if (pathname === "/api/settings/providers") return daemon.providers ?? json(PROVIDERS);
     if (pathname === "/api/profiles/selection") {
       return json([{ scope: "global", profile: daemon.activeProfile ?? "default" }]);
     }
@@ -101,6 +103,7 @@ function patchBodies(): Promise<unknown[]> {
 function renderPage(daemon: Partial<Daemon> = {}) {
   serve({
     activeProfile: daemon.activeProfile,
+    providers: daemon.providers,
     section: daemon.section ?? SECTION,
     usage: daemon.usage ?? usageEnvelope([codexOkTarget(NOW)], {}, NOW),
     patch: daemon.patch ?? (() => json(APPLIED)),
@@ -159,6 +162,40 @@ describe("ProviderUsageSettingsPage", () => {
         /applied/
       )
     );
+  });
+
+  // Invariant: the page is one loading area. Its section and the provider list its rows come from
+  // arrive together, so the Providers group is never inserted into a page that already rendered.
+  it("Should hold the loading shape until the provider list has answered too", async () => {
+    let release!: (response: Response) => void;
+    const providers = new Promise<Response>(resolve => {
+      release = resolve;
+    });
+    renderPage({ providers });
+
+    const loading = await screen.findByTestId("settings-page-provider-usage-loading");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    // The section itself answers at once; the page still waits for the provider list.
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(globalThis.fetch)
+          .mock.calls.some(([input]) =>
+            (input as Request).url.endsWith("/api/settings/provider-usage")
+          )
+      ).toBe(true)
+    );
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+    expect(screen.getByTestId("settings-page-provider-usage-loading")).toBe(loading);
+    expect(screen.queryByTestId("settings-page-provider-usage")).toBeNull();
+
+    release(json(PROVIDERS));
+
+    expect(await screen.findByTestId("settings-provider-usage-provider-codex")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-provider-usage-loading")).toBeNull();
+    expect(screen.getByTestId("settings-provider-usage-provider-cursor")).toBeInTheDocument();
   });
 
   it("Should keep the draft and show the daemon's message when the apply is rejected", async () => {

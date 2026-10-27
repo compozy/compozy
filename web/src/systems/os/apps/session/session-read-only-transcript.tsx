@@ -1,6 +1,4 @@
-import { Suspense } from "react";
-
-import { Spinner, useTopbarSlot } from "@compozy/ui";
+import { useTopbarSlot } from "@compozy/ui";
 import {
   getSessionDisplayTitle,
   SessionChatRuntimeProvider,
@@ -29,25 +27,17 @@ export function SessionReadOnlyTranscript({
       liveTailEnabled={liveDataEnabled}
       readOnly
     >
-      <Suspense
-        fallback={
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <Spinner className="size-5 text-subtle" />
-          </div>
-        }
-      >
-        <SessionThread
-          readOnly
-          canPrompt={false}
-          liveDataEnabled={liveDataEnabled}
-          sessionId={session.id}
-          workspaceId={workspaceId}
-          agentName={session.agent_name || agentName}
-          acpSessionId={session.runtime.acp_session_id}
-          sessionState={session.state}
-          failure={session.failure}
-        />
-      </Suspense>
+      <SessionThread
+        readOnly
+        canPrompt={false}
+        liveDataEnabled={liveDataEnabled}
+        sessionId={session.id}
+        workspaceId={workspaceId}
+        agentName={session.agent_name || agentName}
+        acpSessionId={session.runtime.acp_session_id}
+        sessionState={session.state}
+        failure={session.failure}
+      />
     </SessionChatRuntimeProvider>
   );
 }

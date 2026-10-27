@@ -11,6 +11,12 @@ import {
 
 const implementTasksLoopRoute = "/loops/implement-tasks";
 
+/** A read that never answers, so a story can hold a surface in its loading state. */
+async function neverAnswers(): Promise<never> {
+  await delay("infinite");
+  throw new Error("unreachable");
+}
+
 const meta: Meta<typeof StorybookRouteCanvas> = {
   title: "systems/loops/routes/Loops",
   component: StorybookRouteCanvas,
@@ -92,6 +98,63 @@ export const LoadingCatalog: Story = {
           });
         }),
       ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+const implementTasksLoopApi = "/api/workspaces/{workspace_id}/loops/{name}";
+
+/** The Loop's definition and settings are still being read: the detail page's own skeleton. */
+export const LoadingDetail: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(implementTasksLoopRoute),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get(implementTasksLoopApi, neverAnswers),
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", neverAnswers),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The configure dialog opens at once; its form takes the same dialog when the settings arrive. */
+export const LoadingConfigure: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${implementTasksLoopRoute}/configure`),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", neverAnswers),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The run form waits for the Loop, its settings and the live-run check together. */
+export const LoadingRunForm: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${implementTasksLoopRoute}/run`),
+    ...storybookMswParameters({
+      loops: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", neverAnswers),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The editor's own chrome (toolbar, palette, inspector tabs) over a canvas still being read. */
+export const LoadingEditor: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${implementTasksLoopRoute}/editor`),
+    ...storybookMswParameters({
+      loops: [compozyApiMock.get(implementTasksLoopApi, neverAnswers)],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

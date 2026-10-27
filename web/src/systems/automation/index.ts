@@ -209,6 +209,8 @@ export { AutomationDeleteAction } from "./components/automation-delete-action";
 export { AutomationEditorDialog } from "./components/automation-editor-dialog";
 export { AutomationListFilters } from "./components/automation-list-filters";
 export { AutomationCatalogShell } from "./components/automation-catalog-shell";
+export { AutomationCatalogSkeleton } from "./components/automation-catalog-skeleton";
+export { AutomationDetailSkeleton } from "./components/automation-detail/automation-detail-skeleton";
 export { AutomationRow, type AutomationItemControls } from "./components/automation-row";
 export { AutomationCard } from "./components/automation-card";
 export { AutomationStartViews } from "./components/automation-start-views";

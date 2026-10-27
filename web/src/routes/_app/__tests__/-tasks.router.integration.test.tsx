@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RouterProvider,
@@ -36,7 +36,7 @@ import {
   type OsShellHandle,
 } from "@/systems/os";
 import { buildDetailFixture } from "@/systems/tasks/mocks/fixtures";
-import { validateTaskDetailSearch } from "@/systems/tasks";
+import { tasksKeys, validateTaskDetailSearch, type TaskDetailView } from "@/systems/tasks";
 
 const productionManagers: WindowManagerRuntime[] = [];
 
@@ -72,10 +72,19 @@ function buildProductionDetailRouter(initialUrl: string) {
       return <TaskDetailLocation search={detailRoute.useSearch()} taskId={id} />;
     },
   });
-  return createRouter({
+  const router = createRouter({
     routeTree: rootRoute.addChildren([detailRoute]),
     history: createMemoryHistory({ initialEntries: [initialUrl] }),
   });
+  return { queryClient, router };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(settle => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 }
 
 describe("production task detail route (integration)", () => {
@@ -101,7 +110,7 @@ describe("production task detail route (integration)", () => {
   });
 
   it("Should mount TaskDetailLocation and preserve the validated Activity tab", async () => {
-    const router = buildProductionDetailRouter("/tasks/task_abc?tab=activity");
+    const { router } = buildProductionDetailRouter("/tasks/task_abc?tab=activity");
     render(<RouterProvider router={router} />);
 
     await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
@@ -110,5 +119,73 @@ describe("production task detail route (integration)", () => {
       "aria-selected",
       "true"
     );
+  });
+
+  it("Should swap the tab panel when the location's tab changes, and leave only that panel", async () => {
+    const { router } = buildProductionDetailRouter("/tasks/task_abc");
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
+    expect(screen.getByTestId("tasks-detail-overview")).toBeInTheDocument();
+
+    await act(async () => {
+      await router.navigate({
+        to: "/tasks/$id",
+        params: { id: "task_abc" },
+        search: { tab: "runs" },
+      });
+    });
+
+    // The tabs and their panel follow the location together, as a deferred swap that settles.
+    await waitFor(() =>
+      expect(screen.getByTestId("tasks-detail-tab-runs")).toHaveAttribute("aria-selected", "true")
+    );
+    expect(await screen.findByTestId("tasks-runs-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-overview")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tasks-detail-tab-overview")).toHaveAttribute(
+      "aria-selected",
+      "false"
+    );
+  });
+
+  it("Should stand in with the task's own shape while it loads, and not again on a refetch", async () => {
+    const detail = buildDetailFixture({
+      task: { id: "task_abc", title: "Production route task", latest_event_seq: undefined },
+      summary: { id: "task_abc", title: "Production route task" },
+    } as never);
+    const record = deferred<TaskDetailView>();
+    vi.mocked(taskApi.getTask).mockReturnValueOnce(record.promise);
+    const { queryClient, router } = buildProductionDetailRouter("/tasks/task_abc?tab=runs");
+    render(<RouterProvider router={router} />);
+
+    // One named loading area under the real tabs, on the tab the location asked for, and a head
+    // that already shows the way back to the list.
+    const region = await screen.findByTestId("tasks-detail-loading");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toHaveTextContent("Loading task");
+    expect(screen.getByTestId("tasks-detail-tab-runs")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("tasks-detail-tab-overview")).toBeInTheDocument();
+    expect(within(region).getByText("Attempt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tasks" })).toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-content")).not.toBeInTheDocument();
+    // The Runs tab already holds its count's slot, so the strip is the width it will be.
+    const runsCount = () =>
+      screen.getByTestId("tasks-detail-tab-runs").querySelector('[data-slot="tabs-trigger-count"]');
+    expect(runsCount()).toHaveAttribute("data-pending");
+
+    record.resolve(detail);
+    await waitFor(() => expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument());
+    expect(screen.queryByTestId("tasks-detail-loading")).not.toBeInTheDocument();
+    await waitFor(() => expect(runsCount()).toHaveTextContent("0"));
+    expect(runsCount()).not.toHaveAttribute("data-pending");
+
+    // A later refetch has data to show: the record stays and no loading area comes back.
+    const refetch = deferred<TaskDetailView>();
+    vi.mocked(taskApi.getTask).mockReturnValueOnce(refetch.promise);
+    const reads = vi.mocked(taskApi.getTask).mock.calls.length;
+    void queryClient.invalidateQueries({ queryKey: tasksKeys.all });
+    await waitFor(() => expect(vi.mocked(taskApi.getTask).mock.calls.length).toBe(reads + 1));
+    expect(screen.getByTestId("tasks-detail-content")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await act(async () => refetch.resolve(detail));
   });
 });

@@ -375,6 +375,10 @@
   --duration-slow: 260ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  /* View-transition travel — how far a collection item nudges while it fades in
+     or out (`vt-item-enter` / `vt-item-exit`). Drill swaps reuse the 8px
+     window-body slide keyframes. */
+  --distance-item-enter: 4px;
 
   /* Shadows — whitelist. Every other surface stays flat. card = the `line`
      hairline plus a soft drop (cards, tiles, composer); elevated = floating

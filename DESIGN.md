@@ -286,6 +286,7 @@ tokens:
       deck-tab: "9px"
     motion:
       distance:
+        item-enter: "4px"
         desk-slide: "4%"
         workspaces-stage-entry: "8px"
         workspaces-menu-entry: "-3px"
@@ -1190,25 +1191,48 @@ Motion is short, functional, and interruptible. It clarifies state changes,
 panel entry, hover feedback, and activity. It should not create spectacle.
 
 Use the named duration and easing tokens. Reduced motion is global and
-implemented in `tokens.css` with a near-zero duration so animation lifecycle
-callbacks still fire.
+implemented in `tokens-runtime.css` with a near-zero duration so animation
+lifecycle callbacks still fire. An endless loop would spin at that duration, so
+a looping animation stops outright under reduced motion (`animation: none`).
+
+Animate only `opacity` and `transform`: they run on the compositor, so a long
+list can move without repainting or reflowing.
 
 Shell chrome adds one tier above the base ladder for spatial transitions —
 window entry, desktop switches, and minimize travel — at chrome scale with a
 single spring ease. Window-body content keeps the base ladder.
 
+A content area that is still loading shows a skeleton, never a centered
+spinner. A skeleton is a content-shaped copy of the real primitive
+(`ListingRowSkeleton`, `ItemSkeleton`, `CatalogCardSkeleton`, `TableRowSkeleton`,
+`PropertyRowSkeleton`), built from the real container and slot classes so it
+measures the same height and the data arrives without a layout shift. It lays
+out at once but stays transparent for one `base` beat before it fades in, so a
+fast load never flashes a placeholder, and its sweep is a pseudo-element moved
+on `transform`. One `SkeletonRegion` around the area carries the status
+semantics. A tab count that has not been read yet holds its slot with a
+placeholder (`count: "pending"` on `LaneTabs` and `Tabs`, sized by
+`pendingCountDigits`) instead of appearing late and pushing the tabs after it.
+
+In-window content swaps use React's `<ViewTransition>` with the `vt-*` classes
+in `tokens-runtime.css` (`vt-fade`, `vt-drill-in`, `vt-drill-out`,
+`vt-item-enter`, `vt-item-exit`; `VIEW_TRANSITION_CLASS` names them). A boundary
+starts from `default="none"` and opts in to the triggers it needs, so unrelated
+transitions never snapshot its subtree, and none wraps a high-frequency surface
+(streaming transcript, terminal, drag, resize).
+
 <!-- BEGIN:tokens:motion -->
 
-| Token                                 | Value                               | Token                              | Value                            |
-| ------------------------------------- | ----------------------------------- | ---------------------------------- | -------------------------------- |
-| `--duration-fast`                     | `120ms`                             | `--duration-base`                  | `180ms`                          |
-| `--duration-slow`                     | `260ms`                             | `--ease-out`                       | `cubic-bezier(0.22, 1, 0.36, 1)` |
-| `--ease-in-out`                       | `cubic-bezier(0.4, 0, 0.2, 1)`      | `--duration-shell-fast`            | `120ms`                          |
-| `--duration-shell-base`               | `240ms`                             | `--duration-shell-slow`            | `320ms`                          |
-| `--ease-spring`                       | `cubic-bezier(0.32, 0.72, 0.28, 1)` | `--distance-desk-slide`            | `4%`                             |
-| `--distance-workspaces-stage-entry`   | `8px`                               | `--scale-workspaces-stage-entry`   | `0.985`                          |
-| `--scale-workspaces-tile-press`       | `0.96`                              | `--distance-workspaces-menu-entry` | `-3px`                           |
-| `--distance-workspaces-caption-entry` | `3px`                               |                                    |                                  |
+| Token                              | Value                          | Token                                 | Value                               |
+| ---------------------------------- | ------------------------------ | ------------------------------------- | ----------------------------------- |
+| `--duration-fast`                  | `120ms`                        | `--duration-base`                     | `180ms`                             |
+| `--duration-slow`                  | `260ms`                        | `--ease-out`                          | `cubic-bezier(0.22, 1, 0.36, 1)`    |
+| `--ease-in-out`                    | `cubic-bezier(0.4, 0, 0.2, 1)` | `--distance-item-enter`               | `4px`                               |
+| `--duration-shell-fast`            | `120ms`                        | `--duration-shell-base`               | `240ms`                             |
+| `--duration-shell-slow`            | `320ms`                        | `--ease-spring`                       | `cubic-bezier(0.32, 0.72, 0.28, 1)` |
+| `--distance-desk-slide`            | `4%`                           | `--distance-workspaces-stage-entry`   | `8px`                               |
+| `--scale-workspaces-stage-entry`   | `0.985`                        | `--scale-workspaces-tile-press`       | `0.96`                              |
+| `--distance-workspaces-menu-entry` | `-3px`                         | `--distance-workspaces-caption-entry` | `3px`                               |
 
 <!-- END:tokens:motion -->
 

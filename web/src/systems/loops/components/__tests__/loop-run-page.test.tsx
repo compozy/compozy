@@ -65,6 +65,8 @@ const { LoopRunUsageRail } = await import("../run-page/loop-run-usage-rail");
 const { LoopRunStepsProgress } = await import("../run-page/loop-run-steps-progress");
 const { LoopRunAboutRail } = await import("../run-page/loop-run-about-rail");
 const { LoopRunRegisters } = await import("../run-page/loop-run-registers");
+const { LoopRunPageBody } = await import("../run-page/loop-run-page-body");
+const { LoopRunPageSkeleton } = await import("../run-page/loop-run-page-skeleton");
 const { projectLoopRunRegisters } = await import("../../lib/loop-run-registers-view");
 const { buildRunUsage } = await import("../../lib/loop-run-usage");
 const { loopRunDetailByRunId } = await import("../../mocks/fixtures");
@@ -1495,6 +1497,232 @@ describe("run-page reads that failed", () => {
   });
 });
 
+/** What `LoopRunRegisters` needs besides its projection; an open Inspect over an empty run. */
+const registersProps = {
+  generations: [],
+  graph: null,
+  isLive: true,
+  isReconnecting: false,
+  nodeLifecycles: [],
+  nodes: [],
+  nowMs: Date.parse("2026-08-19T18:50:00Z"),
+  onOpenChange: () => undefined,
+  onSelectionChange: () => undefined,
+  open: true,
+  rollups: [],
+  runStatus: "running",
+  selection: null,
+};
+
+// A read still in flight is a third kind of silence, apart from "nothing happened" and "could not
+// be read". The page holds the place of what is coming: placeholders in the loaded section's own
+// frame, inside one named status region, and it prints neither of the other two sentences.
+describe("run-page reads that are still pending", () => {
+  const pagingProps = {
+    hasOlder: false,
+    isLoading: false,
+    isLoadingOlder: false,
+    onLoadOlder: () => undefined,
+  };
+  const emptyRegisters = () =>
+    projectLoopRunRegisters({ briefing: null, nodes: [], rollups: [], timeline: [], graph: null });
+
+  it("Should hold the activity's place instead of calling an unread story empty", () => {
+    render(<LoopRunStory beats={[]} paging={{ ...pagingProps, isLoading: true }} />);
+
+    const pending = screen.getByTestId("loop-run-story-empty");
+    expect(pending).toHaveAttribute("data-state", "loading");
+    expect(pending).toHaveAttribute("role", "status");
+    expect(pending).toHaveAttribute("aria-busy", "true");
+    expect(within(pending).getByText("Loading activity")).toBeInTheDocument();
+    expect(pending).not.toHaveTextContent("Nothing has happened in this run yet.");
+    // The section keeps its real heading; only what the read supplies is a placeholder.
+    expect(screen.getByText("Activity")).toBeInTheDocument();
+  });
+
+  it("Should not call a roster still being read a run without steps, a graph, or events", () => {
+    const empty: LoopRosterTableModel = { rows: [], rounds: [], reachedNothing: true };
+    const read = { isLoading: true, isError: false };
+    const { unmount } = render(
+      <LoopNodeRoster
+        onRoundChange={() => undefined}
+        onSelect={() => undefined}
+        read={read}
+        round={null}
+        roster={empty}
+        selectedKey={null}
+      />
+    );
+    const steps = screen.getByTestId("loop-node-roster-loading");
+    expect(steps).toHaveAttribute("role", "status");
+    // The column headings are static, so the table prints its real header over placeholder rows.
+    expect(within(steps).getByText("Duration")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-roster-empty")).toBeNull();
+    unmount();
+
+    const dag = buildRunDag({ graph: null, nodes: [], rollups: [], round: 1 });
+    const { unmount: unmountDag } = render(
+      <LoopRunDag dag={dag} onSelect={() => undefined} read={read} selection={null} />
+    );
+    expect(screen.getByTestId("loop-dag-loading")).toHaveAttribute("role", "status");
+    expect(screen.queryByTestId("loop-dag-empty")).toBeNull();
+    unmountDag();
+
+    render(
+      <LoopRunRegisters
+        {...registersProps}
+        events={{ ...pagingProps, beats: [], isError: false, isLoading: true }}
+        lane="events"
+        registers={emptyRegisters()}
+      />
+    );
+    expect(screen.getByTestId("loop-run-events-loading")).toHaveAttribute("role", "status");
+    expect(screen.queryByTestId("loop-run-events-empty")).toBeNull();
+  });
+
+  it("Should hold the briefing, progress and activity in place until their reads answer", () => {
+    const base = buildScenarioProps(registerPartialOutputsScenario());
+    const pending = {
+      ...base,
+      registers: emptyRegisters(),
+      briefingRead: { isLoading: true },
+      rosterRead: { isLoading: true, isError: false },
+      storyPaging: { ...pagingProps, isLoading: true },
+    };
+    const { rerender } = render(
+      <LoopRunPageBody
+        {...pending}
+        inspect={{ open: false, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+
+    // Each is a placeholder in the section's own frame, so nothing below it moves later.
+    expect(screen.getByTestId("loop-run-briefing-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-progress-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-story-empty")).toHaveAttribute("data-state", "loading");
+    expect(screen.queryByTestId("loop-run-briefing")).toBeNull();
+    expect(screen.queryByTestId("loop-run-progress")).toBeNull();
+
+    // The reads answer: the real sections take their place and no placeholder is left behind.
+    rerender(
+      <LoopRunPageBody
+        {...base}
+        briefingRead={{ isLoading: false }}
+        inspect={{ open: false, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+    expect(screen.getByTestId("loop-run-briefing")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-progress")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-briefing-loading")).toBeNull();
+    expect(screen.queryByTestId("loop-run-progress-loading")).toBeNull();
+  });
+
+  it("Should hold the Inspect lane counts until the roster and events reads answer", () => {
+    const base = buildScenarioProps(registerPartialOutputsScenario());
+    const pendingEvents = { ...pagingProps, beats: [], isError: false, isLoading: true };
+    const count = (testId: string) =>
+      screen.getByTestId(testId).querySelector('[data-slot="tabs-trigger-count"]');
+    const { rerender } = render(
+      <LoopRunPageBody
+        {...base}
+        registers={emptyRegisters()}
+        rosterRead={{ isLoading: true, isError: false }}
+        events={pendingEvents}
+        inspect={{ open: true, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+
+    // Unread counts hold their slot instead of claiming the run has no steps, rounds or events.
+    for (const lane of ["loop-lane-nodes", "loop-lane-generations", "loop-lane-events"]) {
+      expect(count(lane)).toHaveAttribute("data-pending", "true");
+      expect(count(lane)).not.toHaveTextContent("0");
+    }
+
+    rerender(
+      <LoopRunPageBody
+        {...base}
+        rosterRead={{ isLoading: false, isError: false }}
+        events={{ ...pendingEvents, isLoading: false }}
+        inspect={{ open: true, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+    for (const lane of ["loop-lane-nodes", "loop-lane-generations", "loop-lane-events"]) {
+      expect(count(lane)).not.toHaveAttribute("data-pending");
+    }
+  });
+
+  // A refresh behind rows the page already has is not a loading state: the pending flag only
+  // means something while there is nothing yet to show.
+  it("Should keep showing the briefing it has while that read refreshes", () => {
+    const base = buildScenarioProps(registerPartialOutputsScenario());
+    render(
+      <LoopRunPageBody
+        {...base}
+        briefingRead={{ isLoading: true }}
+        inspect={{ open: false, onOpenChange: () => undefined }}
+        nodeSelection={null}
+        onNodeSelectionChange={() => undefined}
+      />
+    );
+
+    expect(screen.getByTestId("loop-run-briefing")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-run-briefing-loading")).toBeNull();
+  });
+
+  it("Should hold the whole page's frame while the run record is read", () => {
+    render(<LoopRunPageSkeleton />);
+
+    const page = screen.getByTestId("loop-run-detail-loading");
+    expect(page).toHaveAttribute("role", "status");
+    expect(within(page).getByText("Loading run")).toBeInTheDocument();
+    // The sections' headings and the rail's labels are static, so they are the real ones.
+    for (const heading of ["Progress", "Activity", "Usage", "About this run"]) {
+      expect(within(page).getByText(heading)).toBeInTheDocument();
+    }
+    // Inspect is folded and its action waits: nothing here can be used before the run is read.
+    expect(within(page).getAllByText("Inspect")).toHaveLength(2);
+    const action = page.querySelector("button");
+    expect(action).toHaveTextContent("Inspect");
+    expect(action).toBeDisabled();
+  });
+});
+
+// Only a lane switch may animate the Inspect lane, and only through React's own boundary. A
+// permanent `view-transition-name` on the lane would be captured by every transition anywhere in
+// the document, so the lane carries none at rest.
+describe("LoopRunRegisters lane transition", () => {
+  it("Should switch lanes without leaving a permanent view-transition-name on the lane", async () => {
+    render(
+      <LoopRunRegisters
+        {...registersProps}
+        registers={projectLoopRunRegisters({
+          briefing: null,
+          nodes: [],
+          rollups: [],
+          timeline: [],
+          graph: null,
+        })}
+      />
+    );
+    const lane = () => screen.getByTestId(/^loop-run-inspect-lane-/);
+    expect(lane()).toHaveAttribute("data-lane", "graph");
+    expect(lane().style.viewTransitionName).toBe("");
+
+    await userEvent.click(screen.getByTestId("loop-lane-events"));
+
+    expect(lane()).toHaveAttribute("data-lane", "events");
+    expect(lane().style.viewTransitionName).toBe("");
+  });
+});
+
 // Truthful UI: the page must not offer a control the runtime cannot honour, and
 // must not paint a deliberate cancellation as a success.
 describe("run-page affordances that have to be real", () => {
@@ -2602,6 +2830,37 @@ describe("Loop run dialogs and diff", () => {
     expect(screen.getByTestId("loop-diff-inputs")).toBeVisible();
     rerender(<LoopRunDiffView view={projectLoopDiff(emptyDiffFixture)} />);
     expect(screen.getByTestId("loop-diff-empty")).toBeVisible();
+  });
+
+  // Invariant: a comparison still being read holds its groups' place, under the real pickers, in
+  // one named status region; before the run is read the page also holds the pickers' frame, and a
+  // route that names no comparison shows the static prompt rather than a placeholder for nothing.
+  it("Should hold the comparison's place while the diff and the run are being read", async () => {
+    const { LoopRunDiffView } = await import("../run-diff/loop-run-diff-view");
+    const { LoopRunDiffPageSkeleton } = await import("../run-diff/loop-run-diff-skeleton");
+    const { rerender, unmount } = render(
+      <LoopRunDiffView isLoading pickers={<div data-testid="loop-diff-pickers" />} view={null} />
+    );
+    const region = screen.getByText("Loading comparison").closest('[role="status"]');
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("loop-diff-pickers")).toBeVisible();
+    expect(screen.queryByTestId("loop-diff-empty")).not.toBeInTheDocument();
+    rerender(<LoopRunDiffView error="boom" isLoading view={null} />);
+    expect(screen.queryByText("Loading comparison")).not.toBeInTheDocument();
+    unmount();
+
+    const { rerender: rerenderPage } = render(<LoopRunDiffPageSkeleton hasComparison />);
+    const page = screen.getByTestId("loop-run-diff-loading");
+    expect(page).toHaveAttribute("role", "status");
+    expect(within(page).getByText("Compare")).toBeInTheDocument();
+    expect(page.querySelectorAll('[data-slot="list-group-header"]')).toHaveLength(2);
+    expect(screen.queryByTestId("loop-run-diff-unselected")).not.toBeInTheDocument();
+
+    rerenderPage(<LoopRunDiffPageSkeleton hasComparison={false} />);
+    expect(screen.getByTestId("loop-run-diff-unselected")).toHaveTextContent(
+      "Nothing compared yet"
+    );
+    expect(page.querySelectorAll('[data-slot="list-group-header"]')).toHaveLength(0);
   });
 });
 

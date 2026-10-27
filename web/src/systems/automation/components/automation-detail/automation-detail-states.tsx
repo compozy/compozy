@@ -1,40 +1,7 @@
 import { AlertCircle, FolderLock, Search } from "lucide-react";
 import type { ComponentProps } from "react";
 
-import { Button, Empty, PAGE_CONTENT_GUTTER, Skeleton, cn } from "@compozy/ui";
-
-/**
- * Loading keeps the shape of the answer, not a spinner: one sentence-width bar
- * where the sentence will be, one subhead bar, then the card geometry. Never a
- * guessed sentence.
- */
-export function AutomationDetailSkeleton({ className, ...props }: ComponentProps<"div">) {
-  return (
-    <div
-      aria-busy="true"
-      className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col overflow-hidden", className)}
-      data-testid="automation-detail-loading"
-      role="status"
-      {...props}
-    >
-      {/* Same container query as the loaded page, so the columns don't jump on load. */}
-      <div className="@container min-h-0 flex-1">
-        <div className="flex flex-col gap-3 border-b border-line pt-5 pb-4.5">
-          <Skeleton className="h-5.5 w-[min(32.5rem,90%)]" />
-          <Skeleton className="h-3 w-70" />
-        </div>
-        <div className="grid items-start gap-8 pt-5.5 @3xl:grid-cols-[minmax(0,1fr)_var(--width-detail-inspector-inline)]">
-          <div className="flex flex-col gap-6">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </div>
-      <span className="sr-only">Loading automation details</span>
-    </div>
-  );
-}
+import { Button, Empty, PAGE_CONTENT_GUTTER, cn } from "@compozy/ui";
 
 /** Why the daemon will not hand this automation over; each reason has its own next step. */
 export type AutomationDetailUnavailableReason = "missing" | "elsewhere" | "error";

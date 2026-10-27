@@ -193,6 +193,21 @@ describe("LoopEditor", () => {
     expect(screen.queryByTestId("loop-editor-not-found")).not.toBeInTheDocument();
   });
 
+  // Invariant: while the Loop is read the editor shows its own chrome (toolbar, validation bar)
+  // in one named status region, made inert: it holds the toolbar's place without offering a
+  // control that has no Loop to act on.
+  it("Should hold the editor's inert chrome in one named region while the Loop is read", async () => {
+    renderEditor("quality-gate-demo", [], undefined, WS, false);
+
+    const region = await screen.findByTestId("loop-editor-loading");
+    expect(region).toHaveAttribute("role", "status");
+    expect(within(region).getByText("Loading Loop editor")).toBeInTheDocument();
+    const inert = region.querySelector("[inert]");
+    expect(inert).not.toBeNull();
+    expect(inert).toContainElement(within(region).getByTestId("loop-editor-view-graph"));
+    expect(inert).toContainElement(within(region).getByText("Validation"));
+  });
+
   it("Should preserve route identity and editor actions in one topbar publication", async () => {
     const onBack = vi.fn();
     const onOpenLoops = vi.fn();

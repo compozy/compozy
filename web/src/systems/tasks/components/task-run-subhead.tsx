@@ -1,6 +1,7 @@
 import { Time } from "@compozy/ui";
 
 import type { TaskRunDetailView } from "../types";
+import { TASK_SUBHEAD_CLASS } from "./task-surface-classes";
 
 function MetaDot() {
   return (
@@ -15,10 +16,7 @@ export function TaskRunSubhead({ run, duration }: { run: TaskRunDetailView; dura
   const record = run.run;
 
   return (
-    <div
-      className="mb-5 flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-4 text-form-label text-subtle"
-      data-testid="tasks-run-subhead"
-    >
+    <div className={TASK_SUBHEAD_CLASS} data-testid="tasks-run-subhead">
       {record.ended_at ? (
         <span className="inline-flex items-center gap-1">
           Ended <Time iso={record.ended_at} mode="relative" />

@@ -214,6 +214,13 @@ export {
   type TerminalWindowActions,
   type TerminalWindowAppProps,
 } from "./components/terminal-window-app";
+export {
+  TerminalAggregateSkeleton,
+  TerminalRecordingSkeleton,
+  TerminalWindowSkeleton,
+  type TerminalAggregateSkeletonProps,
+  type TerminalWindowSkeletonProps,
+} from "./components/terminal-skeletons";
 
 export type {
   TerminalApproval,

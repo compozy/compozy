@@ -17,6 +17,7 @@ import { Button, cn, PillGroup, type PillGroupItem } from "@compozy/ui";
 import type { LoopEditorView } from "../../hooks/use-loop-editor-state";
 import type { PaletteItem } from "../../lib/loop-palette";
 import type { LoopEditorPaletteMode } from "../../lib/loop-editor-types";
+import { EDITOR_TOOLBAR_CLASS } from "./loop-editor-chrome-parts";
 import { LoopEditorPaletteMenu } from "./loop-editor-palette-menu";
 
 interface LoopEditorToolbarProps {
@@ -77,7 +78,7 @@ export function LoopEditorToolbar({
   const paletteExpanded = paletteMode === "expanded";
 
   return (
-    <div className="flex min-h-12 flex-none items-center gap-2.5 border-b border-line bg-canvas px-3.5">
+    <div className={EDITOR_TOOLBAR_CLASS}>
       {paletteMode === "menu" ? null : (
         <Button
           aria-label={paletteExpanded ? "Close step list" : "Open step list"}

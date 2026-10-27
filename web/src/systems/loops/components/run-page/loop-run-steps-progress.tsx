@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { ChevronDown, Gauge } from "lucide-react";
 
-import { Button, HelpTip, cn } from "@compozy/ui";
+import { Button, HelpTip, SkeletonRegion, cn } from "@compozy/ui";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 
@@ -9,7 +9,13 @@ import type { LoopStepsProgressModel } from "../../lib/loop-run-progress";
 import { type LoopRosterReach, loopRosterReachNote } from "../../lib/loop-run-registers-view";
 import { LoopSection } from "../loop-section";
 import { LOOP_PROGRESS_SEGMENT_CLASS } from "./loop-progress-segment-class";
+import {
+  PROGRESS_CARD_CLASS,
+  PROGRESS_HEADING_CLASS,
+  PROGRESS_META_CLASS,
+} from "./loop-run-page-classes";
 import { LoopRunStepRow } from "./loop-run-step-row";
+import { LoopRunStepRowsSkeleton } from "./loop-run-step-rows-skeleton";
 
 interface LoopRunStepsProgressProps {
   progress: LoopStepsProgressModel;
@@ -18,6 +24,8 @@ interface LoopRunStepsProgressProps {
   doneWhen?: string;
   /** How much of the roster the step list below was built from. */
   reach?: LoopRosterReach;
+  /** The roster has not answered: the step list shows its skeleton rather than being absent. */
+  stepsPending?: boolean;
 }
 
 /**
@@ -34,6 +42,7 @@ export function LoopRunStepsProgress({
   goal,
   doneWhen,
   reach,
+  stepsPending = false,
 }: LoopRunStepsProgressProps) {
   // The served counts above stay exact whatever the roster read (SI-12). The step
   // list below is built from the roster itself, so a partial read makes it short —
@@ -52,13 +61,10 @@ export function LoopRunStepsProgress({
       icon={<Gauge aria-hidden="true" />}
       title="Progress"
     >
-      <div className="overflow-hidden rounded-lg bg-card shadow-card">
+      <div className={PROGRESS_CARD_CLASS}>
         <div className="p-4">
           <div className="flex items-start gap-1">
-            <h2
-              className="text-item-title font-medium tracking-tight text-pretty text-fg-strong"
-              data-testid="loop-run-progress-label"
-            >
+            <h2 className={PROGRESS_HEADING_CLASS} data-testid="loop-run-progress-label">
               {goal ?? progress.label}
             </h2>
             {/* The finish line is reference, not headline: one tap away. */}
@@ -86,7 +92,7 @@ export function LoopRunStepsProgress({
               )}
             </div>
           ) : null}
-          <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-form-label text-muted">
+          <div className={PROGRESS_META_CLASS}>
             <span data-testid="loop-run-progress-meta">{progress.leftMeta}</span>
             {progress.rightMeta ? (
               <span className="whitespace-nowrap text-subtle" data-testid="loop-run-progress-right">
@@ -100,6 +106,10 @@ export function LoopRunStepsProgress({
                 <LoopRunStepRow key={step.key} step={step} />
               ))}
             </ul>
+          ) : stepsPending ? (
+            <SkeletonRegion label="Loading steps">
+              <LoopRunStepRowsSkeleton />
+            </SkeletonRegion>
           ) : null}
           {fold ? (
             // The summary keeps the folded rows' fates on screen while hidden.

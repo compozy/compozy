@@ -170,7 +170,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     home: browse.home,
     roots: browse.roots,
     entries: data?.entries ?? [],
-    isBrowsing: browse.isLoading || browse.isFetching,
+    isBrowsing: browse.isLoading,
     browseError: browse.error
       ? browse.error instanceof Error
         ? browse.error.message

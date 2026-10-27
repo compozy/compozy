@@ -374,7 +374,10 @@ describe("SubagentComposerControl (issue #766)", () => {
     const trigger = screen.getByRole("button", { name: "Subagents, none running" });
     await user.click(trigger);
     const popover = await screen.findByRole("dialog");
-    expect(popover.querySelector('[data-slot="skeleton-rows"]')).not.toBeNull();
+    // The summary's two rows hold their place under one busy status.
+    const loadingRows = within(popover).getByRole("status");
+    expect(loadingRows).toHaveTextContent("Loading subagents");
+    expect(loadingRows.querySelectorAll("li")).toHaveLength(2);
     rerender(
       <TestUI>
         <SubagentComposerControl

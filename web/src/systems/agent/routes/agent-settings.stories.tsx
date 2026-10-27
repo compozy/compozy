@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { fireEvent, expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyAgentNames, storyWorkspaceIds } from "@/storybook/fintech-scenario";
@@ -45,6 +45,29 @@ export const Basics: Story = {
     await expect(canvas.findByTestId("agent-settings-page")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-settings-basics")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-settings-name")).resolves.toHaveAttribute("readonly");
+  },
+};
+
+/** The agent read never settles: the real section nav and footer frame a form-shaped skeleton. */
+export const Loading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=runtime`),
+    ...storybookMswParameters({
+      agent: [
+        compozyApiMock.get("/api/agents/{name}", async () => {
+          await delay("infinite");
+          return HttpResponse.json({ agent: agentFixtures[0]! });
+        }),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-loading")).toBeInTheDocument();
+    await expect(await body.findByTestId("agent-settings-section-nav")).toBeInTheDocument();
   },
 };
 

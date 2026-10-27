@@ -74,6 +74,8 @@ export function useSessionWindowSidebar({
     scope,
     worktreeId: worktree.worktreeId,
     enabled: sidebar.open && worktree.resolved && scope !== null,
+    // An open rail waiting on its destination or worktree filter is loading, not empty.
+    pending: sidebar.open && (!worktree.resolved || scope === null),
   });
 
   const openSession = useSessionWindowOpenSession({ windowId, sessionId });

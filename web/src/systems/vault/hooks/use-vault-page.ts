@@ -101,8 +101,9 @@ export function useVaultPage(search: VaultRouteSearch = {}) {
     ...inspect,
     ...vaultSearchSetters(updateSearch),
     filter,
-    isLoading: query.isLoading,
-    isRefetching: query.isFetching && !query.isLoading,
+    // Typing a prefix keeps the previous rows on screen; a placeholder with none is no answer.
+    isLoading: query.isLoading || (query.isPlaceholderData && secrets.length === 0),
+    isRefetching: query.isFetching && !query.isLoading && !query.isPlaceholderData,
     namespace,
     prefix,
     queryError: vaultErrorMessage(query.error),

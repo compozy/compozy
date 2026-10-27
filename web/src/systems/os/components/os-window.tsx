@@ -34,6 +34,7 @@ import { windowVisualLayer } from "../lib/window-visual-layer";
 import { OsWindowDeck } from "./os-window-deck";
 import { OsWindowErrorBoundary } from "./os-window-error-boundary";
 import { OsWindowChrome, OsWindowSurface } from "./os-window-frame";
+import { OsWindowLoadingFallback } from "./os-window-loading-fallback";
 import { OsZoomMenu } from "./os-zoom-menu";
 
 export interface OsWindowProps {
@@ -237,7 +238,8 @@ function OsWindowMember({
 }) {
   const { coordinator, win, liveDataEnabled, windowBinding } = useOsWindowMember(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
-  // Mount layout-heavy bodies after the restored window frames commit.
+  // Mount layout-heavy bodies, including app skeletons, after the restored
+  // frames commit. react-rnd measures every frame during that first commit.
   const contentHost = useDeferredValue(overlayHost);
   if (!win) return null;
   const appId = osAppId(win.app);
@@ -312,7 +314,15 @@ function OsWindowMember({
         {contentHost ? (
           <OsWindowErrorBoundary title={app.title}>
             <Suspense
-              fallback={<SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />}
+              fallback={
+                <OsWindowLoadingFallback
+                  app={app}
+                  generic={
+                    <SkeletonRows role="status" aria-label="Loading" className="gap-4 p-4" />
+                  }
+                  windowId={windowId}
+                />
+              }
             >
               <WindowLiveDataContext value={liveDataEnabled}>
                 {/* Scopes per-window selection (e.g. active worktree) without

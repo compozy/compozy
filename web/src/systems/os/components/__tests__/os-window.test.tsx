@@ -3,19 +3,26 @@
 // across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
 // frame order onto visual layers where floating windows remain above tiled resize seams. On the
 // All projects desktop a bound item window names its project (or User) in the chrome; catalog
-// windows and project desktops show no badge.
+// windows and project desktops show no badge. While an app's surface loads, the window body shows
+// the app's registered loading frame for the window's route, in that window's own scope, or the
+// generic rows for an app without one.
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { StrictMode, useState } from "react";
+import { StrictMode, useContext, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
-import type { OsDesktopRuntimeStore, OsWindow as OsWindowState } from "../../lib/os-types";
+import type {
+  OsDesktopRuntimeStore,
+  OsWindow as OsWindowState,
+  OsWindowRoute,
+} from "../../lib/os-types";
 import type { LayoutProjection, ProjectedSeam } from "../../lib/window-manager-types";
 import { WINDOW_VISUAL_LAYER, windowVisualLayer } from "../../lib/window-visual-layer";
 import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindow } from "../os-window";
+import { WindowScopeContext } from "@/hooks/use-window-scope";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
 vi.mock("@/systems/workspace", async importOriginal => ({
@@ -24,10 +31,12 @@ vi.mock("@/systems/workspace", async importOriginal => ({
     registeredWorkspaces: [{ id: "ws_beta", name: "beta" }],
   }),
 }));
+const navigation = vi.hoisted(() => ({ noteNavigateMode: vi.fn() }));
+
 vi.mock("../../hooks/use-os-shell", () => {
   const manager = {};
   return {
-    useOsShell: () => ({ coordinator: { noteNavigateMode: vi.fn() }, manager }),
+    useOsShell: () => ({ coordinator: navigation, manager }),
   };
 });
 vi.mock("../../hooks/use-os-window", () => ({
@@ -66,6 +75,23 @@ function TasksController({ windowId }: { windowId: string }) {
   );
 }
 
+/**
+ * Two body links: a plain one (a drill) and one inside content that owns its own in-window
+ * transitions (Settings sections). Both are pushes; ownership only changes the animation.
+ */
+function LinksController() {
+  return (
+    <div>
+      <a href="/tasks/task-1">Open task</a>
+      <div data-owns-view-transition="">
+        <a href="/settings/terminal">Terminal section</a>
+      </div>
+    </div>
+  );
+}
+
+let linksController = false;
+
 const pendingController = new Promise<never>(() => undefined);
 
 function PendingController(): never {
@@ -73,15 +99,31 @@ function PendingController(): never {
 }
 
 let pendingJobsController = false;
+let jobsLoadingFallback = false;
 let deckOpenNewTab = vi.fn();
+
+function JobsLoadingFallback({ route }: { route: OsWindowRoute }) {
+  return (
+    <div
+      aria-label="Loading Automations"
+      data-route={route.pathname}
+      data-scope={useContext(WindowScopeContext) ?? ""}
+      role="status"
+    />
+  );
+}
 
 vi.mock("../../lib/app-registry", () => ({
   OS_APPS: {},
   getOsApp: (app: string) => ({
     title: app === "automations" ? "Automations" : "Tasks",
     icon: () => null,
-    Controller:
-      pendingJobsController && app === "automations" ? PendingController : TasksController,
+    Controller: linksController
+      ? LinksController
+      : pendingJobsController && app === "automations"
+        ? PendingController
+        : TasksController,
+    LoadingFallback: jobsLoadingFallback && app === "automations" ? JobsLoadingFallback : undefined,
   }),
   getOsAppMinimum: () => ({ width: 280, height: 180 }),
   resolveAppForPath: () => null,
@@ -165,6 +207,9 @@ beforeEach(() => {
   windows = { "window:tasks": windowState() };
   model = hookModel(frameModel());
   pendingJobsController = false;
+  linksController = false;
+  navigation.noteNavigateMode.mockReset();
+  jobsLoadingFallback = false;
   deckOpenNewTab = vi.fn();
   vi.mocked(useOsWindow).mockImplementation(() => model);
   vi.mocked(useDesktop).mockImplementation(selector =>
@@ -450,5 +495,50 @@ describe("OsWindow", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "New tab (⌘T)" }));
     expect(deckOpenNewTab).toHaveBeenCalledOnce();
+  });
+
+  it("Should show the app's loading frame for the window's route while its surface suspends, in place of the generic rows", () => {
+    pendingJobsController = true;
+    jobsLoadingFallback = true;
+    windows = {
+      "window:jobs": windowState({
+        id: "window:jobs",
+        app: "automations",
+        route: { pathname: "/automations/jobs/morning-digest", search: {} },
+      }),
+    };
+    render(
+      <OsWindow
+        frame={frameModel({
+          id: "window:jobs",
+          members: ["window:jobs"],
+          activeWindowId: "window:jobs",
+        })}
+      />
+    );
+
+    const body = screen.getByTestId("os-window-window:jobs");
+    const fallback = within(body).getByRole("status", { name: "Loading Automations" });
+    expect(fallback).toHaveAttribute("data-route", "/automations/jobs/morning-digest");
+    // Hosted in its own window's scope, like the surface it stands in for.
+    expect(fallback).toHaveAttribute("data-scope", "window:jobs");
+    expect(within(body).queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+  });
+});
+
+// History semantics of in-window navigation: a link inside the window body is a push (the window's
+// back stack keeps it), including links in content that owns its own view transition; ownership
+// only exempts the body from the drill's snapshot (tokens-runtime.css), never from history.
+describe("OsWindow navigation classification", () => {
+  it.each([
+    ["a plain body link", "Open task"],
+    ["a link inside content that owns its view transition", "Terminal section"],
+  ])("Should record %s as a push", (_case, linkName) => {
+    linksController = true;
+    render(<OsWindow frame={frameModel()} />);
+
+    fireEvent.click(screen.getByRole("link", { name: linkName }));
+
+    expect(navigation.noteNavigateMode).toHaveBeenCalledExactlyOnceWith("push");
   });
 });

@@ -209,3 +209,47 @@ export const loopsKeys = {
       normalizeText(filters.after_sequence),
     ] as const,
 };
+
+/**
+ * What a list read holds fixed while its filters change: the scope (workspace or All projects),
+ * the page shape and the profile lens, but not the filters the toolbar edits. Two keys with the
+ * same population are one list narrowed differently, so the previous rows may stand in for the
+ * next ones while they load; across populations they never do, or one workspace's or profile's
+ * rows would show under another's.
+ *
+ * Positions mirror the segment order of `loopsKeys.catalog`, `loopsKeys.runs` and
+ * `loopsKeys.nodeInventory` above, and the aggregate keys that extend them.
+ */
+export const loopsPopulation = {
+  /** Scope, sort, page size, profile lens; not search text, kind, category or status. */
+  catalog: (key: readonly unknown[]): readonly unknown[] => [key[2], key[7], key[8], key[9]],
+  /** Scope, loop, status, live, page size, profile lens; not origin or origin session. */
+  runs: (key: readonly unknown[]): readonly unknown[] => [
+    key[2],
+    key[3],
+    key[4],
+    key[7],
+    key[8],
+    key[9],
+  ],
+  /** Scope, state, page size, profile lens; not the loop or run filters. */
+  nodeInventory: (key: readonly unknown[]): readonly unknown[] => [key[2], key[3], key[6], key[7]],
+};
+
+/**
+ * `placeholderData` for a list that keeps its previous rows through a filter change inside one
+ * population (see `loopsPopulation`), and shows nothing for the next read otherwise.
+ */
+export function bridgeFilterChange(
+  populationOf: (key: readonly unknown[]) => readonly unknown[],
+  nextKey: readonly unknown[]
+) {
+  const next = JSON.stringify(populationOf(nextKey));
+  return <TData>(
+    previousData: TData | undefined,
+    previousQuery: { queryKey: readonly unknown[] } | undefined
+  ): TData | undefined =>
+    previousQuery !== undefined && JSON.stringify(populationOf(previousQuery.queryKey)) === next
+      ? previousData
+      : undefined;
+}

@@ -1,6 +1,7 @@
 import { AlertCircle } from "lucide-react";
+import { useDeferredValue, ViewTransition } from "react";
 
-import { BlockLoading, Empty } from "@compozy/ui";
+import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";
 
 import {
   TasksDashboardView,
@@ -23,18 +24,33 @@ export interface TasksCatalogBodyProps {
   openTask: (taskId: string) => void;
 }
 
-/** Active catalog view once the task scope resolves; scope gates lead, then the mode. */
+/**
+ * The catalog body, with a mode swap cross-faded: keyed by mode so only the swap triggers it and
+ * never a data update inside one view. The mode arrives from the window-manager store, whose
+ * updates are never React transitions, so the body reads it deferred: the strip highlights the
+ * new view at once and the swap renders as the transition the boundary animates. Push and pop
+ * navigations keep the window manager's own drill, so no surface-level boundary sits here.
+ */
+export function TasksCatalogContent({ mode, ...bodyProps }: TasksCatalogBodyProps) {
+  const bodyMode = useDeferredValue(mode);
+  return (
+    <ViewTransition
+      key={bodyMode}
+      default="none"
+      enter={VIEW_TRANSITION_CLASS.fade}
+      exit={VIEW_TRANSITION_CLASS.fade}
+    >
+      <TasksCatalogBody mode={bodyMode} {...bodyProps} />
+    </ViewTransition>
+  );
+}
+
+/**
+ * Active catalog view; a scope that cannot resolve leads, then the mode. A scope still resolving
+ * is not a gate of its own: every mode folds it into its loading flag and shows its own
+ * content-shaped skeleton in its own container.
+ */
 export function TasksCatalogBody({ mode, page, openCreate, openTask }: TasksCatalogBodyProps) {
-  if (page.scopeLoading) {
-    return (
-      <BlockLoading
-        data-testid="tasks-scope-loading"
-        label="Loading tasks…"
-        size="md"
-        surface="bare"
-      />
-    );
-  }
   if (page.scopeError) {
     return (
       <Empty

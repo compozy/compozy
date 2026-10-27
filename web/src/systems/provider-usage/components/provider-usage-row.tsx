@@ -20,6 +20,10 @@ import {
 import type { ProviderUsageRowModel } from "../lib/view-model";
 
 import { ProviderUsageDetail } from "./provider-usage-detail";
+import {
+  PROVIDER_USAGE_ROW_FRAME,
+  PROVIDER_USAGE_ROW_TRIGGER_FRAME,
+} from "./provider-usage-row-frame";
 import { ProviderUsageStatusLine } from "./provider-usage-status-line";
 
 export interface ProviderUsageRowProps {
@@ -114,13 +118,14 @@ export function ProviderUsageRow({
       data-status={target.status}
       data-severity={row.severity ?? undefined}
       data-stale={row.stale || undefined}
-      className="flex min-w-0 flex-col rounded-lg"
+      className={PROVIDER_USAGE_ROW_FRAME}
     >
       <CollapsibleTrigger
         aria-label={rowAccessibleName(row, plan, status, now)}
         className={cn(
-          "group/usage-row flex w-full min-w-0 items-center gap-2",
-          "rounded-lg px-2 py-1.5 text-left transition-colors duration-base hover:bg-surface-2",
+          "group/usage-row",
+          PROVIDER_USAGE_ROW_TRIGGER_FRAME,
+          "text-left transition-colors duration-base hover:bg-surface-2",
           "focus-visible:shadow-focus-ring focus-visible:outline-none"
         )}
       >

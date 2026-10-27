@@ -8,6 +8,7 @@ import { expect, fireEvent, userEvent, within } from "storybook/test";
 import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
 
 import { LoopRunForm } from "../run-form/loop-run-form";
+import { LoopRunFormSkeleton } from "../run-form/loop-run-form-skeleton";
 import type { LoopDetail } from "../../types";
 import {
   loopDetailByName,
@@ -195,6 +196,16 @@ export const NoInputs: Story = {
           iteration_cap: 0,
         }}
       />
+    </RunFormShell>
+  ),
+};
+
+/** The Loop, its settings and the live-run check have not answered: the form's frame, waiting. */
+export const Loading: Story = {
+  args: {},
+  render: () => (
+    <RunFormShell>
+      <LoopRunFormSkeleton name="implement-tasks" />
     </RunFormShell>
   ),
 };

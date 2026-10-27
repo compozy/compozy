@@ -69,7 +69,7 @@ export const Default: Story = {
 };
 
 /**
- * Loading state keeps the inspector panel centered.
+ * Loading state holds the item rows: a glyph, a title line and a ref line, as the secrets read.
  */
 export const Loading: Story = {
   args: {

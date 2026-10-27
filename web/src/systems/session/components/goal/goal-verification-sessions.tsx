@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 
-import { Button } from "@compozy/ui";
+import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { useGoalVerificationSessions } from "../../hooks/use-goal-verification-sessions";
 
@@ -9,7 +9,12 @@ function VerificationSessionList({ sessionId }: { sessionId: string }) {
   const query = useGoalVerificationSessions(sessionId);
   return (
     <span className="flex flex-col gap-1">
-      {query.isPending ? <span>Loading verification sessions…</span> : null}
+      {query.isPending ? (
+        <SkeletonRegion label="Loading verification sessions" className="flex flex-col gap-1">
+          <SkeletonText className="w-44" />
+          <SkeletonText className="w-36" />
+        </SkeletonRegion>
+      ) : null}
       {query.isError ? (
         <Button variant="ghost" size="xs" onClick={() => void query.refetch()}>
           Retry verification sessions

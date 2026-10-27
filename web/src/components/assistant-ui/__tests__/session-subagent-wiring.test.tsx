@@ -6,7 +6,7 @@ import {
   fromThreadMessageLike,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { act, createElement, Profiler, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -574,6 +574,30 @@ describe("composer subagents control (issue #766 wiring)", () => {
     );
     await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
     expect(screen.getByRole("button", { name: "Subagents, 3 running" })).toBeInTheDocument();
+  });
+
+  it("Should hold the opened popover's place while the roster is read, never claim nothing was delegated", async () => {
+    // Invariant: until the roster answers, the popover reads as loading rather than empty.
+    // Owner: the composer control's cold read, reusing this suite's adapter boundary.
+    vi.mocked(fetchSessionSubagents)
+      .mockReset()
+      .mockReturnValue(new Promise(() => undefined));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider>
+          <SessionComposerSubagents session={parent()} />
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Subagents, none yet" }));
+
+    const popover = await screen.findByRole("dialog");
+    await waitFor(() => expect(fetchSessionSubagents).toHaveBeenCalled());
+    expect(within(popover).getByRole("status")).toHaveTextContent("Loading subagents");
+    expect(within(popover).queryByText("Nothing delegated yet.")).not.toBeInTheDocument();
+    queryClient.clear();
   });
 
   it("Should stop a failed cold page walk until the operator retries", async () => {

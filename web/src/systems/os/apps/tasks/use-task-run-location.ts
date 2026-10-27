@@ -67,10 +67,10 @@ function useTaskRunRelatedData(
   return {
     taskRuns: runsQuery.data ?? [],
     taskRunsError: runsQuery.error ?? null,
-    taskRunsLoading: runsQuery.isLoading && !runsQuery.data,
+    taskRunsLoading: runsQuery.isPending && !runsQuery.data,
     timelineItems: timelineQuery.data ?? [],
     timelineError: timelineQuery.error ?? null,
-    timelineLoading: timelineQuery.isLoading && !timelineQuery.data,
+    timelineLoading: timelineQuery.isPending && !timelineQuery.data,
   };
 }
 

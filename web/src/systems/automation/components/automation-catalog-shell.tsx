@@ -2,9 +2,12 @@ import { AlertCircle, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CatalogEmptyState } from "@/components/catalog-empty-state";
-import { Button, Empty, Skeleton, SkeletonRows, type ListingViewMode } from "@compozy/ui";
+import { Button, Empty, type ListingViewMode } from "@compozy/ui";
 
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
+
+import { AUTOMATION_CARDS_CLASS, AUTOMATION_ROWS_CLASS } from "./automation-catalog-classes";
+import { AutomationCatalogSkeleton } from "./automation-catalog-skeleton";
 
 /** Load-more state for the catalog shell, grouped to avoid boolean-prop sprawl. */
 export interface AutomationCatalogPagination {
@@ -131,17 +134,11 @@ export function AutomationCatalogShell({
   return (
     <div className="flex flex-col gap-3">
       {view === "cards" ? (
-        <div
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
-          data-testid="automations-list-card-grid"
-        >
+        <div className={AUTOMATION_CARDS_CLASS} data-testid="automations-list-card-grid">
           {children}
         </div>
       ) : (
-        <div
-          className="overflow-hidden rounded-lg bg-card shadow-card"
-          data-testid="automations-list-rows"
-        >
+        <div className={AUTOMATION_ROWS_CLASS} data-testid="automations-list-rows">
           {children}
         </div>
       )}
@@ -170,40 +167,6 @@ function AutomationCatalogLoadMore({ pagination }: { pagination: AutomationCatal
             ? "Loading more automations…"
             : "Load more automations"}
       </Button>
-    </div>
-  );
-}
-
-function AutomationCatalogSkeleton({ view }: { view: ListingViewMode }) {
-  return (
-    <div
-      aria-busy="true"
-      aria-label={`Loading automations as ${view}`}
-      data-testid="automations-list-loading"
-      role="status"
-    >
-      {view === "cards" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map(index => (
-            <Skeleton className="h-36 w-full rounded-lg" key={index} />
-          ))}
-        </div>
-      ) : (
-        <SkeletonRows
-          className="overflow-hidden rounded-lg border border-line"
-          count={5}
-          rowClassName="border-b border-line-soft p-3 last:border-b-0"
-        >
-          <div className="flex items-center gap-3">
-            <Skeleton className="size-8 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Skeleton className="h-3.5 w-2/5" />
-              <Skeleton className="h-3 w-3/5" />
-            </div>
-            <Skeleton className="h-5 w-20" />
-          </div>
-        </SkeletonRows>
-      )}
     </div>
   );
 }

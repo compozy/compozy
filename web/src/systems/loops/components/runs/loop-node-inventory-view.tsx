@@ -1,22 +1,19 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, Layers } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import {
   Button,
   CatalogCard,
   Empty,
-  Eyebrow,
   ListingToolbar,
   type ListingViewMode,
   StateGlyph,
   PillGroup,
-  Section,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  SkeletonRows,
 } from "@compozy/ui";
 
 import {
@@ -29,6 +26,15 @@ import {
 } from "../../lib/loop-node-inventory";
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
 import { useWindowBindingSearch } from "@/systems/workspace";
+import { LoopNodeInventorySection } from "./loop-node-inventory-section";
+import { LoopNodeInventorySkeleton } from "./loop-node-inventory-skeleton";
+import {
+  INVENTORY_CARDS_CLASS,
+  INVENTORY_FOOT_CLASS,
+  INVENTORY_ROW_CLASS,
+  INVENTORY_ROWS_CLASS,
+} from "./loop-node-inventory-classes";
+import { InventoryHeadRow } from "./loop-node-inventory-parts";
 
 export interface LoopNodeInventoryViewProps {
   state: LoopNodeInventoryState;
@@ -36,6 +42,7 @@ export interface LoopNodeInventoryViewProps {
   /** Rows currently loaded. Never a population total — the route publishes none. */
   loadedCount: number;
   hasMore: boolean;
+  /** The first read has not answered: the results show the inventory's skeleton, not "Nothing is waiting". */
   isLoading: boolean;
   isFetchingNextPage: boolean;
   loopFilter: string;
@@ -90,12 +97,7 @@ export function LoopNodeInventoryView({
   const rows = items.map(item => buildInventoryRow(item, nowMs));
   const filtered = loopFilter !== "" || runFilter !== "";
   return (
-    <Section
-      data-testid="loop-node-inventory"
-      icon={Layers}
-      label="Inventory"
-      bodyClassName="gap-4"
-    >
+    <LoopNodeInventorySection>
       <ListingToolbar>
         <ListingToolbar.Leading>
           {/* No count badges: the route publishes `{items, next_cursor}` and no
@@ -148,7 +150,7 @@ export function LoopNodeInventoryView({
         state={state}
         view={view}
       />
-    </Section>
+    </LoopNodeInventorySection>
   );
 }
 
@@ -225,18 +227,7 @@ function InventoryResults({
   onClearFilters: () => void;
   onLoadMore: () => void;
 }) {
-  if (isLoading) {
-    return (
-      <div
-        aria-busy="true"
-        aria-label={`Loading ${LOOP_NODE_INVENTORY_LABELS[state].toLowerCase()} steps`}
-        className="rounded-lg bg-card shadow-card p-4"
-        data-testid="loop-node-inventory-loading"
-      >
-        <SkeletonRows className="gap-4" count={4} />
-      </div>
-    );
-  }
+  if (isLoading) return <LoopNodeInventorySkeleton state={state} view={view} />;
   if (rows.length === 0) {
     const empty = inventoryEmptyCopy(state, filtered);
     return (
@@ -272,7 +263,7 @@ function InventoryFoot({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-line-soft px-4 py-2.5">
+    <div className={INVENTORY_FOOT_CLASS}>
       <span
         className="font-mono text-pill-group-badge text-faint"
         data-testid="loop-node-inventory-foot"
@@ -310,17 +301,11 @@ function InventoryRows({
 }) {
   const bindingSearch = useWindowBindingSearch();
   return (
-    <div className="overflow-hidden rounded-lg bg-card shadow-card">
-      <div className="flex items-center gap-4 border-b border-line px-4 py-2">
-        <Eyebrow className="min-w-0 flex-1 text-muted">Step</Eyebrow>
-        <Eyebrow className="hidden min-w-0 flex-1 text-muted lg:block">Loop</Eyebrow>
-        <Eyebrow className="hidden min-w-0 flex-1 text-muted md:block">Reason</Eyebrow>
-        <Eyebrow className="w-24 shrink-0 text-right text-muted">Time in state</Eyebrow>
-        <span aria-hidden="true" className="size-3.5 shrink-0" />
-      </div>
+    <div className={INVENTORY_ROWS_CLASS}>
+      <InventoryHeadRow />
       {rows.map((row, index) => (
         <Link
-          className={`flex items-center gap-4 px-4 py-3 hover:bg-surface-2 focus-visible:bg-surface-2 ${
+          className={`${INVENTORY_ROW_CLASS} hover:bg-surface-2 focus-visible:bg-surface-2 ${
             index > 0 ? "border-t border-line-soft" : ""
           }`}
           data-testid={`loop-node-inventory-row-${row.key}`}
@@ -382,10 +367,7 @@ function InventoryCards({
   const bindingSearch = useWindowBindingSearch();
   return (
     <div>
-      <div
-        className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3"
-        data-testid="loop-node-inventory-card-grid"
-      >
+      <div className={INVENTORY_CARDS_CLASS} data-testid="loop-node-inventory-card-grid">
         {rows.map(row => (
           <CatalogCard actionable data-testid={`loop-node-inventory-card-${row.key}`} key={row.key}>
             <Link

@@ -4,6 +4,7 @@ import {
   cn,
   Icon,
   Progress,
+  Skeleton,
   StatusDot,
   Tooltip,
   TooltipContent,
@@ -24,6 +25,12 @@ export interface ProviderUsageTrayMeterProps extends Omit<
   tray: ProviderUsageTraySignal | null;
   /** When the tray window was measured, for the stale tooltip ("updated 25 min ago"). */
   measuredAt?: string | null;
+  /**
+   * The first usage read has not answered. The control holds its slot with the meter's shape,
+   * unmeasured, and stays transparent for a beat (as a skeleton does), so an answer that comes
+   * quickly never flashes it and the controls beside it do not move when it lands.
+   */
+  loading?: boolean;
 }
 
 /**
@@ -39,6 +46,7 @@ export interface ProviderUsageTrayMeterProps extends Omit<
 export function ProviderUsageTrayMeter({
   tray,
   measuredAt = null,
+  loading = false,
   className,
   ref,
   ...props
@@ -57,20 +65,25 @@ export function ProviderUsageTrayMeter({
             data-slot="provider-usage-tray-meter"
             data-severity={tray?.severity}
             data-stale={tray?.stale || undefined}
-            className={className}
+            data-loading={loading || undefined}
+            className={cn(className, loading && "animate-skeleton-reveal")}
             {...props}
           >
-            {tray ? (
+            {tray || loading ? (
               <span aria-hidden="true" className="flex flex-col items-center gap-0.75">
                 <Icon as={Gauge} className="size-3.5" />
-                <Progress
-                  value={clampPercent(tray.used_percent)}
-                  tone={toneForSeverity(tray.severity)}
-                  className={cn(
-                    "w-4 [&_[data-slot=progress-track]]:h-0.75",
-                    tray.stale && "opacity-50"
-                  )}
-                />
+                {tray ? (
+                  <Progress
+                    value={clampPercent(tray.used_percent)}
+                    tone={toneForSeverity(tray.severity)}
+                    className={cn(
+                      "w-4 [&_[data-slot=progress-track]]:h-0.75",
+                      tray.stale && "opacity-50"
+                    )}
+                  />
+                ) : (
+                  <Skeleton className="h-0.75 w-4 rounded-pill" />
+                )}
               </span>
             ) : (
               <Icon as={Gauge} aria-hidden="true" className="size-4" />

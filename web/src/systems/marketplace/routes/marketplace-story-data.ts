@@ -335,6 +335,12 @@ export function marketplaceStoryHandlers(options: {
   catalogOverrides?: Partial<MarketplaceCatalogResponse>;
   catalogStatus?: number;
   catalogDelay?: "infinite";
+  /** The installed inventory (`/api/extensions`) never settles: shelf, Installed and Manage wait. */
+  extensionsDelay?: "infinite";
+  /** The catalog entry read (the detail page) never settles. */
+  entryDelay?: "infinite";
+  /** The installed extension's kit inventory never settles. */
+  inventoryDelay?: "infinite";
   extensions?: ExtensionEntry[];
   /** Per-entry detail payload overrides (servers, inputs, contents) keyed by entry id. */
   details?: Record<string, Partial<StoryExtensionDetail>>;
@@ -371,7 +377,8 @@ export function marketplaceStoryHandlers(options: {
         );
       }),
       ...marketplaceSourceHandlers(sources),
-      compozyApiMock.get("/api/marketplace/entries/{entry_id}", ({ params }) => {
+      compozyApiMock.get("/api/marketplace/entries/{entry_id}", async ({ params }) => {
+        if (options.entryDelay === "infinite") await delay("infinite");
         const entry = catalog.find(item => item.entry_id === String(params.entry_id));
         if (!entry) {
           return HttpResponse.json({ error: "Marketplace entry not found" }, { status: 404 });
@@ -398,8 +405,12 @@ export function marketplaceStoryHandlers(options: {
             ),
           ]
         : []),
-      compozyApiMock.get("/api/extensions", () => HttpResponse.json({ extensions })),
-      compozyApiMock.get("/api/extensions/{name}/inventory", ({ params }) => {
+      compozyApiMock.get("/api/extensions", async () => {
+        if (options.extensionsDelay === "infinite") await delay("infinite");
+        return HttpResponse.json({ extensions });
+      }),
+      compozyApiMock.get("/api/extensions/{name}/inventory", async ({ params }) => {
+        if (options.inventoryDelay === "infinite") await delay("infinite");
         const extension = extensions.find(item => item.name === params.name);
         if (!extension) return HttpResponse.json({ error: "Extension not found" }, { status: 404 });
         return HttpResponse.json({

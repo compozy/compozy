@@ -1,14 +1,21 @@
-import { Suspense, lazy, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  Suspense,
+  ViewTransition,
+  lazy,
+  useDeferredValue,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
 
-import { Spinner, viewTransitionName } from "@compozy/ui";
+import { VIEW_TRANSITION_CLASS } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
 
 import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDesktop } from "../../hooks/use-desktop";
+import { useOsShell } from "../../hooks/use-os-shell";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
-import { useSettingsNavigation } from "./use-settings-navigation";
-import { retiredSettingsSectionReplacement, SETTINGS_SECTIONS } from "@/systems/settings";
+import { SettingsPageState, settingsSectionSlugFromPathname } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
@@ -99,42 +106,21 @@ const SECTION_LOADERS = {
 
 type MappedSectionSlug = keyof typeof SECTION_LOADERS;
 
-const loadedSections = new Set<MappedSectionSlug>();
-
-function loadSection(slug: MappedSectionSlug): Promise<{ default: SectionComponent }> {
-  const load: () => Promise<{ default: SectionComponent }> = SECTION_LOADERS[slug];
-  return load().then(module => {
-    loadedSections.add(slug);
-    return module;
-  });
-}
-
-/** Warms a section chunk (link hover/focus) so the switch has no spinner frame. */
+/** Warms a section chunk (link hover/focus) so the switch has no wait. */
 function preloadSettingsSection(slug: string): void {
   if (!(slug in SECTION_LOADERS)) return;
-  void loadSection(slug as MappedSectionSlug).catch(() => undefined);
+  const load: () => Promise<{ default: SectionComponent }> =
+    SECTION_LOADERS[slug as MappedSectionSlug];
+  void load().catch(() => undefined);
 }
 
 const SECTION_PAGES = Object.fromEntries(
-  (Object.keys(SECTION_LOADERS) as MappedSectionSlug[]).map(slug => [
-    slug,
-    lazy(() => loadSection(slug)),
-  ])
+  (Object.keys(SECTION_LOADERS) as MappedSectionSlug[]).map(slug => {
+    const load: () => Promise<{ default: SectionComponent }> = SECTION_LOADERS[slug];
+    return [slug, lazy(load)];
+  })
 ) as Record<MappedSectionSlug, LazyExoticComponent<SectionComponent>>;
 
-function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
-  const raw = pathname.split("/")[2] ?? "";
-  const segment = retiredSettingsSectionReplacement(raw) ?? raw;
-  return segment in SECTION_PAGES
-    ? (segment as MappedSectionSlug)
-    : (SETTINGS_SECTIONS[0].slug as MappedSectionSlug);
-}
-
-/**
- * The settings window: section nav + the active section page, driven by the
- * window's WM location (not router matches) so an unfocused settings window
- * keeps showing its own section (ADR-002 rule 6).
- */
 const DEFAULT_SETTINGS_ROUTE = { pathname: "/settings", search: {} } as const;
 
 function focusCommandFromSearch(search: Record<string, unknown>): string | undefined {
@@ -144,6 +130,51 @@ function focusCommandFromSearch(search: Record<string, unknown>): string | undef
   return normalized === "" ? undefined : normalized;
 }
 
+/**
+ * The section page area. The window's route lives in an external store, whose updates always
+ * render urgently and so never animate; the deferred slug is the one React can move in a
+ * transition. The nav follows the route at once, while the page keeps showing the previous section
+ * (never a loading frame) until the next one's code is ready, then cross-fades to it. The boundary
+ * is keyed by section and listens for enter and exit only: an `update` boundary here would also
+ * fade the whole page for every transition-lane change inside it (a dialog opening, a deferred
+ * value settling), which is a large snapshot for no swap.
+ */
+function SettingsSectionOutlet({
+  activeSlug,
+  search,
+}: {
+  activeSlug: MappedSectionSlug;
+  search: Record<string, unknown>;
+}) {
+  const shownSlug = useDeferredValue(activeSlug);
+  const SectionPage = SECTION_PAGES[shownSlug];
+  const focusCommandId = shownSlug === "layouts" ? focusCommandFromSearch(search) : undefined;
+
+  return (
+    <div
+      aria-busy={activeSlug === shownSlug ? undefined : true}
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      data-testid="settings-shell-outlet"
+    >
+      <Suspense fallback={<SettingsPageState slug={shownSlug} state="loading" />}>
+        <ViewTransition
+          key={shownSlug}
+          default="none"
+          enter={VIEW_TRANSITION_CLASS.fade}
+          exit={VIEW_TRANSITION_CLASS.fade}
+        >
+          <SectionPage focusCommandId={focusCommandId} />
+        </ViewTransition>
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * The settings window: section nav + the active section page, driven by the
+ * window's WM location (not router matches) so an unfocused settings window
+ * keeps showing its own section (ADR-002 rule 6).
+ */
 export function SettingsWindow({ windowId }: { windowId: string }) {
   const { route, searchEnabled } = useDesktop(state => {
     const win = state.windows[windowId];
@@ -161,15 +192,8 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   // bubbling path. Reuse the document shortcut while this window owns focus.
   const searchInputRef = useListingSearchShortcut(searchEnabled);
   const connection = useDaemonConnectionStatus();
-  const activeSlug = sectionSlugFromPathname(route.pathname);
-  const navigate = useSettingsNavigation(next => {
-    // Unloaded sections switch immediately to avoid snapshotting their spinner.
-    const nextSlug = sectionSlugFromPathname(next.pathname);
-    return nextSlug !== activeSlug && loadedSections.has(nextSlug);
-  });
-  const SectionPage = SECTION_PAGES[activeSlug];
-  const focusCommandId =
-    activeSlug === "layouts" ? focusCommandFromSearch(route.search) : undefined;
+  const { coordinator } = useOsShell();
+  const activeSlug = settingsSectionSlugFromPathname(route.pathname);
   useProfileFlowIntent(windowId, activeSlug === "profiles" ? route : undefined);
 
   // The container declaration lives on the outer wrapper: an element cannot
@@ -177,32 +201,22 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
     <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Section switches are sibling navigation: the outlet's <ViewTransition> owns their
+          animation and the nav rail stays put, so the window-manager drill must not also
+          snapshot and slide the whole body (tokens-runtime.css). History is unchanged. */}
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
+        data-owns-view-transition=""
         data-testid="settings-shell"
       >
         <SettingsWindowNav
           activeSlug={activeSlug}
           connection={connection}
-          onNavigate={navigate}
+          onNavigate={next => coordinator.userNavigate(next)}
           onPreload={preloadSettingsSection}
           searchInputRef={searchInputRef}
         />
-        <div
-          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-          data-testid="settings-shell-outlet"
-          style={{ viewTransitionName: viewTransitionName("settings-content", windowId) }}
-        >
-          <Suspense
-            fallback={
-              <div className="flex flex-1 items-center justify-center py-12">
-                <Spinner className="size-4 text-subtle" />
-              </div>
-            }
-          >
-            <SectionPage focusCommandId={focusCommandId} />
-          </Suspense>
-        </div>
+        <SettingsSectionOutlet activeSlug={activeSlug} search={route.search} />
       </div>
     </div>
   );

@@ -38,6 +38,16 @@ describe("TaskRunActivitySection", () => {
     expect(timeline).toContainElement(screen.getByText("Current attempt event"));
   });
 
+  it("Should hold the feed's card as a named loading area until the activity arrives", () => {
+    render(<TaskRunActivitySection isLive={false} isLoading runId="run_current" timeline={[]} />);
+
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-run-activity-loading"));
+    expect(region).toHaveTextContent("Loading run activity");
+    expect(screen.getByText("Run activity")).toBeInTheDocument();
+    expect(screen.queryByText("No events recorded for this attempt yet.")).toBeNull();
+  });
+
   it("Should explain when the current run has no activity yet", () => {
     render(<TaskRunActivitySection isLive runId="run_current" timeline={[]} />);
 

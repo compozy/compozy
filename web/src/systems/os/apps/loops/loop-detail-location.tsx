@@ -1,10 +1,10 @@
 import { AlertCircle, Repeat2 } from "lucide-react";
 
-import { Empty, PAGE_CONTENT_GUTTER, Skeleton, SkeletonRows, cn } from "@compozy/ui";
+import { Empty } from "@compozy/ui";
 
 import { LoopUnboundState } from "./loop-unbound-state";
 import { useLoopDetail } from "./use-loop-detail";
-import { LoopDetailView } from "@/systems/loops";
+import { LoopDetailSkeleton, LoopDetailView } from "@/systems/loops";
 
 export function LoopDetailLocation({ name }: { name: string }) {
   const {
@@ -28,17 +28,10 @@ export function LoopDetailLocation({ name }: { name: string }) {
       />
     );
   }
-  if (loopQuery.isLoading || configQuery.isLoading) {
-    return (
-      <div
-        aria-busy="true"
-        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
-        data-testid="loop-detail-loading"
-      >
-        <Skeleton className="h-7 w-48" />
-        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
-      </div>
-    );
+  // "No data yet" rather than "fetching": a window outside the live-data budget has not
+  // started its reads, and must not read as a missing Loop.
+  if (loopQuery.isPending || configQuery.isPending) {
+    return <LoopDetailSkeleton name={name} />;
   }
   if (loopQuery.error || configQuery.error || !loopQuery.data) {
     return (
@@ -71,8 +64,9 @@ export function LoopDetailLocation({ name }: { name: string }) {
       effectiveConfig={configQuery.effectiveConfig}
       graph={readGraph(loop.definition)}
       recentRuns={runsQuery.data?.runs ?? []}
+      recentRunsLoading={runsQuery.isPending}
       bindings={bindings.rows}
-      bindingsLoading={bindings.isLoading}
+      bindingsLoading={bindings.isPending}
       bindingJobs={bindings.jobs}
       bindingTriggers={bindings.triggers}
       successRate={catalogEntry?.success_rate_30d ?? null}

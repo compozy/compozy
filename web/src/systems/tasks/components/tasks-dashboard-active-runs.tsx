@@ -14,6 +14,7 @@ import {
 } from "../lib/task-formatters";
 import { taskWindowBinding } from "../lib/task-detail-search";
 import type { TaskDashboardView } from "../types";
+import { RUN_LINE_CLASS, RUN_ROW_CLASS } from "./tasks-dashboard-active-runs-classes";
 
 export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
@@ -59,13 +60,14 @@ export function TasksDashboardActiveRuns({
             const projectBadge = projectBadgeOf?.(run);
             return (
               <li
-                className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-surface-2"
+                className={cn(RUN_ROW_CLASS, "transition-colors hover:bg-surface-2")}
                 data-testid={`tasks-dashboard-active-run-${run.run_id}`}
                 key={run.run_id}
               >
                 <Link
                   className={cn(
-                    "group flex min-w-0 items-center gap-3 text-form-label outline-none",
+                    "group outline-none",
+                    RUN_LINE_CLASS,
                     "focus-visible:rounded-xs focus-visible:shadow-focus-ring"
                   )}
                   data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}

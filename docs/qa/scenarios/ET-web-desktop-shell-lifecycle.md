@@ -154,3 +154,20 @@ acceptance of E2E-023 remains open. The bar is the one recorded for the original
 three corrected diagnostic repetitions at the same 4× setting with no long task over
 50 ms (see [CI recovery](../reports/2026-09-07-ci-recovery.md)). Until that run passes,
 this note is not stress-level delivery evidence.
+QA impact 2026-10-25 (v0.4.1 release): app-specific loading skeletons must join the
+deferred window body, after the initial frame measurements. Restore eleven saved
+windows with their authoritative geometry, routes, and focus; suspended bodies must
+still show their app-specific fallback. Re-walk E2E-023 without changing its 500 ms
+restore or 50 ms convergence limits, plus the profile and Terminal settings journeys.
+The existing OsWindow component suite owns route-aware loading and responsive decks.
+
+Focused local profiling at 4x CPU slowdown reproduced a 565 ms restore before the
+change. Three runs with deferred skeletons passed at 320.7, 345.0, and 346.7 ms,
+including the unchanged drag and peer-convergence assertions. CPU samples attributed
+165.1 ms to the resizable component's initial measurement before the change versus
+12.0–14.3 ms afterward. Temporary profiler instrumentation was removed; full current-head
+CI and release publication remain separate delivery gates. This is focused evidence,
+not a re-walk of the complete lifecycle scenario.
+The unmodified browser scenarios then passed (7 tests): restoration took 75.2 ms, and
+profile switching, profile settings, Terminal settings, appearance, floating geometry,
+and alternate-screen reflow retained their existing assertions.

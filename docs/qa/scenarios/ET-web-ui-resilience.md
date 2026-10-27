@@ -19,6 +19,16 @@ overlaps: TA-039; ET-web-loop-editor-topbar; ET-web-marketplace-landing-browse; 
 Added by the 2026-07-21 full frontend systems audit. Flag only: the next QA cycle owns live
 keyboard, filters, loading, mutation-race, error-announcement, reduced-motion, and responsive retesting.
 
+2026-10-24, PR #972 post-merge review A-972-01: the shell publishes the effective reduced-motion
+preference to document CSS, including React view-transition snapshots. With system motion enabled,
+turn on Appearance → Reduce motion and switch loaded Settings sections and sessions; content must
+update without animation. Repeat with only system reduced motion enabled and with both enabled.
+Turn both off and verify content transitions resume. Check that toggling the preference does not
+change the daemon window-manager revision. With either preference enabled, skeleton sweeps must
+stop completely while the delayed reveal keeps its normal delay, so fast loads do not flash.
+The canonical E2E-004 / E2E-013 Appearance journey
+covers the real browser snapshot animations; the complete resilience scenario remains pending.
+
 2026-09-10, issue #593: shared settings Save bars retain retry and discard actions for a valid dirty
 draft after failure, while invalid drafts remain unsavable. Verify error announcement, retry after
 network recovery, edit-after-failure, and discard in Layouts; keep saving actions disabled in flight.

@@ -57,6 +57,37 @@ function snapshot(overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnap
 }
 
 describe("SessionGoalStrip", () => {
+  // Invariant: the audit list holds its place with placeholder lines while it loads, then hands
+  // them to the real links. Owner: the goal strip's expanded body, canonical suite below.
+  it("Should hold the audit list's place with placeholder lines until it arrives", async () => {
+    let release: (page: unknown) => void = () => undefined;
+    fetchSessions.mockReturnValue(
+      new Promise(resolve => {
+        release = resolve;
+      })
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SessionGoalStrip snapshot={snapshot()} />
+      </QueryClientProvider>
+    );
+    fireEvent.click(screen.getByTestId("goal-strip-line"));
+    fireEvent.click(screen.getByRole("button", { name: "Verification sessions" }));
+
+    const loading = await screen.findByRole("status");
+    expect(loading).toHaveTextContent("Loading verification sessions");
+    expect(loading.querySelectorAll('[data-slot="skeleton-text"]').length).toBeGreaterThan(0);
+
+    release({
+      sessions: [{ id: "sess-judge", name: "Verification judge", state: "stopped" }],
+      page: { total: 1, limit: 50, has_more: false },
+    });
+    expect(await screen.findByRole("link", { name: "Verification judge · stopped" })).toBeVisible();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    client.clear();
+  });
+
   it("Should load the bound session's explicit system audit and open a judge transcript", async () => {
     fetchSessions.mockResolvedValue({
       sessions: [{ id: "sess-judge", name: "Verification judge", state: "stopped" }],

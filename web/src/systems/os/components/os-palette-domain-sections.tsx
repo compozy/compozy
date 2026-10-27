@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 
-import { CommandGroup, CommandItem, Spinner } from "@compozy/ui";
+import { CommandGroup, CommandItem } from "@compozy/ui";
 
 import { ProfileOwnerTag } from "@/systems/profiles";
 
@@ -14,6 +14,7 @@ import {
   paletteGroupFollowClass,
   paletteRowClass,
 } from "../lib/palette-view-inset";
+import { OsPaletteRowsSkeleton } from "./os-palette-skeletons";
 
 const GROUP_CLASS = `${paletteGroupClass} ${paletteGroupFollowClass}`;
 
@@ -32,17 +33,6 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
         heading={section.title}
         key={section.title}
       >
-        {section.loading ? (
-          <CommandItem
-            className={`${paletteRowClass} text-eyebrow text-subtle`}
-            disabled
-            forceMount
-            value={`${section.title}:loading`}
-          >
-            <Spinner className="size-3.5" />
-            Loading…
-          </CommandItem>
-        ) : null}
         {section.error === null ? null : (
           <CommandItem
             className={`${paletteRowClass} text-eyebrow text-danger`}
@@ -81,6 +71,13 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
             </CommandItem>
           );
         })}
+        {section.loading ? (
+          // Rows already in place stay put: a read still out for the rest trails them as one row.
+          <OsPaletteRowsSkeleton
+            count={section.rows.length === 0 ? 3 : 1}
+            label={`Loading ${section.title.toLowerCase()}`}
+          />
+        ) : null}
         {section.total > section.rows.length ? (
           <div className="px-3 py-1 text-eyebrow text-faint">
             {section.rows.length} of {section.total} shown

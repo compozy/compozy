@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 
-import { cn, Eyebrow, SkeletonRows } from "@compozy/ui";
+import { cn, Eyebrow, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { ModelRow } from "./model-row";
 import type {
@@ -14,6 +14,10 @@ const AVAILABILITY_TONE: Record<GroupAvailability["tone"], string> = {
   warning: "text-warning",
   danger: "text-danger",
 };
+
+const GROUP_HEAD_CLASS = "flex items-center gap-1.5 bg-popover px-2 pt-[7px] pb-[3px]";
+const MODEL_ROW_CLASS = "flex h-7 w-full items-center gap-2 pr-0.5 pl-2";
+const SKELETON_MODEL_ROWS = ["first", "second", "third", "fourth"] as const;
 
 /**
  * Compact sticky group head (design ref: runtime-selector-variations.html,
@@ -30,10 +34,7 @@ function GroupHead({
   availability?: GroupAvailability;
 }) {
   return (
-    <div
-      role="presentation"
-      className="sticky top-0 z-[1] flex items-center gap-1.5 bg-popover px-2 pt-[7px] pb-[3px]"
-    >
+    <div role="presentation" className={cn("sticky top-0 z-[1]", GROUP_HEAD_CLASS)}>
       <Eyebrow className="text-faint">{name}</Eyebrow>
       {harnessBadge ? (
         <span className="rounded-xs bg-surface-2 px-[5px] py-px text-subtle">
@@ -96,13 +97,16 @@ function ModelListContents({
 }) {
   if (loading) {
     return (
-      <SkeletonRows
-        aria-label="Loading models"
-        className="px-2 py-2"
-        count={5}
-        data-testid="runtime-selector-loading"
-        rowClassName="border-b border-line-soft px-2 py-2.5"
-      />
+      <SkeletonRegion data-testid="runtime-selector-loading" label="Loading models">
+        <div aria-hidden="true" className={GROUP_HEAD_CLASS}>
+          <SkeletonText className="w-20 text-eyebrow" />
+        </div>
+        {SKELETON_MODEL_ROWS.map(row => (
+          <div aria-hidden="true" className={MODEL_ROW_CLASS} key={row}>
+            <SkeletonText className="w-40 text-small-body" />
+          </div>
+        ))}
+      </SkeletonRegion>
     );
   }
   if (listModel.flatRows.length === 0) {

@@ -1,4 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { delay, HttpResponse } from "msw";
+
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { settingsGeneralSectionFixture } from "@/systems/settings/mocks";
 
 import { appRouteParameters } from "@/storybook/route-story-meta";
 import { StorybookRouteCanvas, StorybookWorkspaceSetup } from "@/storybook/route-story";
@@ -24,5 +29,22 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters("/settings/terminal"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Loading state: the shell, retention and recording groups hold their place. */
+export const Loading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/terminal"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get("/api/settings/general", async () => {
+          await delay("infinite");
+          return HttpResponse.json(settingsGeneralSectionFixture);
+        }),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { KeyRound } from "lucide-react";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../table";
+import { ListingRowSkeleton } from "../content-skeleton";
 import { DataSurface, type DataSurfaceState } from "../data-surface";
 
 const meta: Meta<typeof DataSurface> = {
@@ -18,7 +19,12 @@ type Story = StoryObj<typeof meta>;
 function Surface({ state }: { state: DataSurfaceState }) {
   return (
     <DataSurface state={state} className="w-full max-w-3xl">
-      <DataSurface.Loading label="Loading records" />
+      <DataSurface.Loading
+        label="Loading records"
+        className="overflow-hidden rounded-lg border border-line"
+      >
+        <ListingRowSkeleton count={4} />
+      </DataSurface.Loading>
       <DataSurface.Error
         icon={KeyRound}
         title="Unable to load records"
@@ -49,6 +55,10 @@ function Surface({ state }: { state: DataSurfaceState }) {
   );
 }
 
+/**
+ * The loading slot with a content-shaped skeleton as children: it renders inside a busy status
+ * region named by `label`, and the skeleton shapes stay presentational.
+ */
 export const Loading: Story = {
   args: {
     state: "loading",

@@ -15,6 +15,7 @@ import { PaletteListRow } from "../components/palette-list-row";
 import { PaletteViewChips } from "../components/palette-view-chips";
 import { OsPaletteViewNote } from "../components/os-palette-view-note";
 import { OsPaletteProgramBand } from "../components/os-palette-program-status";
+import { OsPaletteRowsSkeleton } from "../components/os-palette-skeletons";
 import type { CmdPaletteDispatch } from "./use-cmd-palette-dispatch";
 import { usePaletteRegistry } from "./use-palette-registry";
 import type {
@@ -130,7 +131,9 @@ export function useCmdPaletteDeclarativeView({
         setSelectedRow: value => setSelectedRowState({ value, viewId }),
         filterLocally: hostFiltersLocally(envelope.payload.chrome),
       })
-    : emptyFrame(request.isPending ? "Loading view…" : "View unavailable");
+    : request.isPending
+      ? loadingFrame("Loading view")
+      : emptyFrame("View unavailable");
 
   return {
     definition,
@@ -301,6 +304,14 @@ function bodyContent(
     backHint: "back",
     resetKey: kind,
     onEmptyQueryBackspace: () => false,
+  };
+}
+
+/** A view whose first read is out: rows' shape under one busy region, never a sentence. */
+export function loadingFrame(label: string): PaletteViewContent {
+  return {
+    ...emptyFrame(label),
+    empty: <OsPaletteRowsSkeleton count={5} label={label} />,
   };
 }
 

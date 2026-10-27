@@ -1,4 +1,4 @@
-import { Field, FieldLabel, FormSection, Input, PillGroup } from "@compozy/ui";
+import { Field, FieldLabel, FormSection, Input, PillGroup, Skeleton } from "@compozy/ui";
 
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
@@ -79,6 +79,22 @@ export function LoopWorktreeSection({
           </Field>
         ) : null}
         {hint ? <p className="mt-2 text-form-hint leading-relaxed text-subtle">{hint}</p> : null}
+      </div>
+    </FormSection>
+  );
+}
+
+/**
+ * The environment default's mode picker while it is being read: the real section heading over
+ * segment-shaped placeholders. Presentational, so the caller wraps the area in a `SkeletonRegion`.
+ */
+export function LoopWorktreeSectionSkeleton() {
+  return (
+    <FormSection title="Environment default">
+      <div aria-hidden="true" className="inline-flex items-center gap-1">
+        <Skeleton className="h-(--height-pill-group-segment-sm) w-16 rounded-pill" />
+        <Skeleton className="h-(--height-pill-group-segment-sm) w-14 rounded-pill" />
+        <Skeleton className="h-(--height-pill-group-segment-sm) w-20 rounded-pill" />
       </div>
     </FormSection>
   );

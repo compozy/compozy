@@ -3,7 +3,8 @@ import { Pill, RadioCard } from "@compozy/ui";
 import type { LoopReattemptStrategy } from "../../lib/loop-config-draft";
 
 interface LoopConfigureStrategyProps {
-  value: LoopReattemptStrategy;
+  /** `null` while the stored choice is still being read: the cards show, none is selected. */
+  value: LoopReattemptStrategy | null;
   disabled?: boolean;
   onChange: (strategy: LoopReattemptStrategy) => void;
 }

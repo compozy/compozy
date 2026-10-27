@@ -149,6 +149,31 @@ describe("VaultPage", () => {
     expect(setPrefix).toHaveBeenCalledWith("vault:sessions/sess_123/");
   });
 
+  it("keeps the security note and the search controls while the list loads", () => {
+    mockUseVaultPage.mockReturnValue(makeState({ isLoading: true, secrets: [] }));
+
+    render(<VaultPage />);
+
+    // Loading is one busy region inside the same page, not a page of its own: the note and the
+    // search, namespace and view controls hold still, so typing never remounts them.
+    expect(screen.getByTestId("vault-page-sec-note")).toBeInTheDocument();
+    expect(screen.getByTestId("vault-page-prefix")).toBeInTheDocument();
+    expect(screen.getByTestId("listing-view-toggle")).toBeInTheDocument();
+    const loading = screen.getByTestId("vault-page-list-loading");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading).toHaveTextContent("Loading secrets");
+    expect(screen.queryByTestId("vault-page-list")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty list, not a loading state, when a background refetch finds no secrets", () => {
+    mockUseVaultPage.mockReturnValue(makeState({ isRefetching: true, secrets: [] }));
+
+    render(<VaultPage />);
+
+    expect(screen.getByTestId("vault-page-list-empty")).toBeInTheDocument();
+    expect(screen.queryByTestId("vault-page-list-loading")).not.toBeInTheDocument();
+  });
+
   it("opens the create action and renders the write-only editor state", () => {
     const draft: VaultDraft = {
       ref: "vault:sessions/sess_123/github-token",

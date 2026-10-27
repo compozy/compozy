@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useDeferredValue, ViewTransition, type ReactNode } from "react";
 import { Activity, AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
@@ -9,8 +9,8 @@ import {
   ListingPage,
   ListingToolbar,
   PillGroup,
-  SkeletonRows,
   useTopbarSlot,
+  VIEW_TRANSITION_CLASS,
 } from "@compozy/ui";
 import { loopRunsTrail } from "./loop-window-crumbs";
 import { useLoopRunsRoute, type LoopRunsRouteSearch } from "./use-loop-runs-route";
@@ -19,6 +19,7 @@ import {
   LOOP_NODE_INVENTORY_STATES,
   LoopNodeInventoryView,
   LoopRunsFilters,
+  LoopRunsSkeleton,
   LoopRunsView,
   useNowTick,
 } from "@/systems/loops";
@@ -28,6 +29,10 @@ type LoopRunsRoute = ReturnType<typeof useLoopRunsRoute>;
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const route = useLoopRunsRoute(search);
   const { ready, inventoryState } = route;
+  // The window route arrives through a store, whose updates are never transitions. Deferring the
+  // pane choice lets React render the swap as one, so the pane cross-fades instead of cutting;
+  // the segmented switch in the toolbar still answers at once.
+  const pane = useDeferredValue(inventoryState);
   const navigate = useNavigate();
   const openLoops = () => {
     void navigate({ to: "/loops" });
@@ -49,12 +54,15 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
 
   // The inventory is a peer view of the same runs area, not a nested state of
   // the roster — it owns its own loading, empty, and paging surfaces.
-  if (inventoryState !== undefined) {
-    return (
-      <LoopRunsInventoryPane nowMs={nowMs} route={route} search={search} state={inventoryState} />
-    );
-  }
-  return <LoopRunsRosterPane nowMs={nowMs} openLoops={openLoops} route={route} search={search} />;
+  return (
+    <ViewTransition default="none" update={VIEW_TRANSITION_CLASS.fade}>
+      {pane !== undefined ? (
+        <LoopRunsInventoryPane nowMs={nowMs} route={route} search={search} state={pane} />
+      ) : (
+        <LoopRunsRosterPane nowMs={nowMs} openLoops={openLoops} route={route} search={search} />
+      )}
+    </ViewTransition>
+  );
 }
 
 function LoopRunsToolbar({ route, search }: { route: LoopRunsRoute; search: LoopRunsRouteSearch }) {
@@ -128,7 +136,7 @@ function LoopRunsInventoryPane({
       <LoopNodeInventoryView
         hasMore={inventory.hasMore}
         isFetchingNextPage={inventory.isFetchingNextPage}
-        isLoading={inventory.isLoading}
+        isLoading={inventory.isPending}
         items={inventory.items}
         loadedCount={inventory.loadedCount}
         loopFilter={search.nodes_loop ?? ""}
@@ -170,11 +178,11 @@ function LoopRunsRosterPane({
     setOriginFilter({});
     projectFilter.clear();
   };
-  if (runsQuery.isLoading) {
+  if (runsQuery.isPending) {
     return (
-      <div className="min-h-0 flex-1 overflow-hidden p-5" data-testid="loop-runs-loading">
-        <SkeletonRows count={6} rowClassName="border-b border-line-soft py-3" />
-      </div>
+      <ListingPage>
+        <LoopRunsSkeleton withProject={route.allProjects} />
+      </ListingPage>
     );
   }
   // This roster is polled, not streamed, so "reconnecting" cannot mean a dropped

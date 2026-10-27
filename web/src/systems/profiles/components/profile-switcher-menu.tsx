@@ -9,7 +9,8 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  Spinner,
+  ItemSkeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import { PROFILE_BOUNDARY_ANSWER } from "../lib/profile-copy";
@@ -54,9 +55,9 @@ export function ProfileSwitcherMenu({
     <Command className="bg-transparent p-0 shadow-none" ref={ref}>
       <CommandList className="max-h-none">
         {isLoading ? (
-          <div className="flex items-center justify-center px-2 py-4" role="status">
-            <Spinner className="size-4 text-subtle" />
-          </div>
+          <SkeletonRegion label="Loading profiles">
+            <ItemSkeleton className="py-1.5" count={3} description={false} size="xs" />
+          </SkeletonRegion>
         ) : error ? (
           <div
             className="flex flex-col items-center gap-2 px-2 py-4 text-center text-small-body text-danger"

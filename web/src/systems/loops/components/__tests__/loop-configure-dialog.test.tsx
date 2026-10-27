@@ -88,6 +88,52 @@ describe("LoopConfigureDialog", () => {
     vi.unstubAllGlobals();
   });
 
+  // Invariant: the dialog's chrome opens at once and the settings arriving fills the SAME dialog.
+  // A different dialog would close and reopen it (and replay its open animation) at the moment the
+  // content lands, which is the flash this placeholder exists to prevent.
+  it("Should open over placeholders and fill the same dialog when the settings arrive", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const onOpenChange = vi.fn<(open: boolean) => void>();
+    const view = render(
+      <LoopConfigureDialog
+        name={delivery.name}
+        onOpenChange={onOpenChange}
+        open
+        workspaceId={WS}
+      />,
+      { wrapper }
+    );
+
+    const dialog = screen.getByTestId("loop-configure-dialog");
+    expect(within(dialog).getByText(`Configure ${delivery.name}`)).toBeInTheDocument();
+    const body = within(dialog).getByTestId("loop-configure-loading");
+    expect(within(body).getByText("Loading settings")).toBeInTheDocument();
+    // Nothing can be saved or reset before the stored settings are known; Cancel still works.
+    expect(within(dialog).getByTestId("loop-configure-save")).toBeDisabled();
+    expect(within(dialog).getByTestId("loop-configure-reset")).toBeDisabled();
+    fireEvent.click(within(dialog).getByTestId("loop-configure-cancel"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+
+    view.rerender(
+      <LoopConfigureDialog
+        config={loopConfigFixture}
+        effectiveConfig={loopEffectiveConfigFixture}
+        loop={delivery}
+        name={delivery.name}
+        onOpenChange={onOpenChange}
+        open
+        workspaceId={WS}
+      />
+    );
+
+    expect(screen.getByTestId("loop-configure-dialog")).toBe(dialog);
+    expect(screen.queryByTestId("loop-configure-loading")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-configure-body")).toBeInTheDocument();
+    expect(screen.getByTestId("loop-configure-save")).toBeEnabled();
+  });
+
   it("Should lock structural edits and label the workspace editor action truthfully", () => {
     const { onOpenEditor } = renderSheet({ config: null });
     expect(screen.getByTestId("loop-configure-structural-note")).toHaveTextContent(

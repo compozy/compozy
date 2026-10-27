@@ -9,6 +9,7 @@ import {
 } from "@/systems/settings/hooks/use-settings-providers-page";
 import {
   ProviderCard,
+  ProviderCardGrid,
   ProviderDetailDialog,
   ProvidersToolbar,
   SettingsPageFrame,
@@ -20,21 +21,22 @@ import {
 export function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
   const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
+  // The action holds its place in the head while the list loads, so it does not pop in.
   useSettingsTopbar({
-    actions:
-      !page.isLoading && !page.error && page.envelope ? (
-        <Button
-          data-testid="settings-page-providers-create"
-          onClick={page.openCreate}
-          ref={createProviderButtonRef}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Plus aria-hidden="true" />
-          New provider
-        </Button>
-      ) : undefined,
+    actions: page.error ? undefined : (
+      <Button
+        data-testid="settings-page-providers-create"
+        disabled={page.isLoading || !page.envelope}
+        onClick={page.openCreate}
+        ref={createProviderButtonRef}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        <Plus aria-hidden="true" />
+        New provider
+      </Button>
+    ),
   });
 
   if (page.isLoading) {
@@ -141,14 +143,11 @@ function ProvidersCatalog({ page }: { page: ProvidersPage }) {
           title="No providers match"
         />
       ) : (
-        <section
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-          data-testid="settings-page-providers-list"
-        >
+        <ProviderCardGrid data-testid="settings-page-providers-list">
           {page.filteredProviders.map(provider => (
             <ProviderCard key={provider.name} onOpen={page.openInspect} provider={provider} />
           ))}
-        </section>
+        </ProviderCardGrid>
       )}
     </>
   );

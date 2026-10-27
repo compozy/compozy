@@ -9,6 +9,9 @@ import {
   ItemGroup,
   ItemTitle,
   Pill,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Spinner,
   Time,
 } from "@compozy/ui";
@@ -21,6 +24,9 @@ import {
   useProviderModelStatus,
   useRefreshProviderModels,
 } from "@/systems/model-catalog";
+
+const SOURCE_ITEM_CLASS = "items-start gap-2 rounded-none border-0 p-0";
+const SKELETON_SOURCES = ["first", "second"] as const;
 
 interface ProviderModelCatalogStatusProps {
   providerId: string;
@@ -51,10 +57,29 @@ export function ProviderModelCatalogStatus({
 
   if (statusQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-form-hint text-subtle">
-        <Spinner className="size-3" />
-        <span data-testid={`${testId}-loading`}>Loading catalog status…</span>
-      </div>
+      <SkeletonRegion
+        className="flex flex-col gap-3"
+        data-testid={`${testId}-loading`}
+        label="Loading catalog status"
+      >
+        <div className="flex flex-col gap-1.5">
+          {SKELETON_SOURCES.map(source => (
+            <Item aria-hidden="true" className={SOURCE_ITEM_CLASS} key={source} size="xs">
+              <ItemContent className="min-w-0 flex-1 gap-1">
+                <ItemTitle className="text-small-body text-fg">
+                  <SkeletonText className="w-40" />
+                </ItemTitle>
+                <SkeletonText className="w-28 text-form-hint" />
+              </ItemContent>
+              <ItemActions className="flex-wrap items-center gap-1.5">
+                <Skeleton className="h-pill-sm w-16 rounded-pill" />
+                <SkeletonText className="w-16 text-form-hint" />
+              </ItemActions>
+            </Item>
+          ))}
+        </div>
+        <Skeleton className="h-button-sm w-32 rounded-pill" />
+      </SkeletonRegion>
     );
   }
 
@@ -82,7 +107,7 @@ export function ProviderModelCatalogStatus({
           {sources.map(source => (
             <Item
               key={source.source_id}
-              className="items-start gap-2 rounded-none border-0 p-0"
+              className={SOURCE_ITEM_CLASS}
               size="xs"
               data-testid={`${testId}-source-${source.source_id}`}
             >

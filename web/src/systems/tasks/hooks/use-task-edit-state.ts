@@ -78,7 +78,9 @@ export function useTaskEditState(
     draft,
     handleSubmit,
     isInitialized: task !== null,
-    isLoading: detailQuery.isLoading && !task,
+    // `isPending`, not `isLoading`: a suspended window disables the read, and a disabled read with
+    // no data yet is still waiting, not an unavailable task.
+    isLoading: Boolean(id) && detailQuery.isPending && !task,
     isSubmitting: submissionPhase === "submitting" || updateMutation.isPending,
     setDraft,
     task,

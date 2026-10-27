@@ -13,7 +13,8 @@ import {
   DialogTitle,
   Eyebrow,
   MonoId,
-  Spinner,
+  SkeletonRegion,
+  SkeletonText,
 } from "@compozy/ui";
 
 import { useExtensionProvenance } from "../hooks/use-extensions";
@@ -46,10 +47,7 @@ export function ExtensionProvenanceDialog({
         </DialogHeader>
         <div className="px-5 py-4" data-testid="extension-provenance-content">
           {query.isLoading ? (
-            <div className="flex items-center gap-2 text-small-body text-muted">
-              <Spinner className="size-3.5" />
-              Loading provenance
-            </div>
+            <ProvenanceSkeleton />
           ) : query.error ? (
             <p className="text-small-body text-danger">{query.error.message}</p>
           ) : query.data ? (
@@ -66,10 +64,37 @@ export function ExtensionProvenanceDialog({
   );
 }
 
+const PROVENANCE_TERM = {
+  sourceKind: "Source kind",
+  source: "Source",
+  checksum: "Checksum",
+  archiveDigest: "Archive digest",
+  trust: "Integrity and trust",
+  registryTier: "Registry tier",
+  installedBy: "Installed by",
+} as const;
+
+/** The provenance list while it loads: the real terms and row rhythm over placeholder values. */
+function ProvenanceSkeleton() {
+  return (
+    <SkeletonRegion label="Loading provenance">
+      <dl className="divide-y divide-line-soft">
+        {Object.values(PROVENANCE_TERM).map(term => (
+          <ProvenanceRow key={term} term={term}>
+            <span className="text-small-body">
+              <SkeletonText className="w-56" />
+            </span>
+          </ProvenanceRow>
+        ))}
+      </dl>
+    </SkeletonRegion>
+  );
+}
+
 function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
   return (
     <dl className="divide-y divide-line-soft" data-testid="extension-provenance-fields">
-      <ProvenanceRow term="Source kind">
+      <ProvenanceRow term={PROVENANCE_TERM.sourceKind}>
         <span className="text-small-body text-fg" data-testid="extension-provenance-source-kind">
           {extensionSourceKindLabel(provenance.installed_from)}
         </span>
@@ -77,35 +102,35 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
           {provenance.installed_from || "—"}
         </code>
       </ProvenanceRow>
-      <ProvenanceRow term="Source">
+      <ProvenanceRow term={PROVENANCE_TERM.source}>
         <code className="break-all font-mono text-eyebrow text-fg">
           {provenance.source_url ?? provenance.slug ?? "—"}
         </code>
       </ProvenanceRow>
-      <ProvenanceRow term="Checksum">
+      <ProvenanceRow term={PROVENANCE_TERM.checksum}>
         {provenance.checksum_sha256 ? (
           <MonoId value={provenance.checksum_sha256} />
         ) : (
           <code className="font-mono text-eyebrow text-fg">—</code>
         )}
       </ProvenanceRow>
-      <ProvenanceRow term="Archive digest">
+      <ProvenanceRow term={PROVENANCE_TERM.archiveDigest}>
         {provenance.archive_digest_sha256 ? (
           <MonoId value={provenance.archive_digest_sha256} />
         ) : (
           <code className="font-mono text-eyebrow text-fg">—</code>
         )}
       </ProvenanceRow>
-      <ProvenanceRow term="Integrity and trust">
+      <ProvenanceRow term={PROVENANCE_TERM.trust}>
         <ExtensionTrustBadges facts={extensionTrustFacts(provenance)} showRegistryTier={false} />
         {!provenance.digest_matched && !provenance.checksum_verified ? (
           <span className="text-eyebrow text-muted">No integrity evidence was recorded.</span>
         ) : null}
       </ProvenanceRow>
-      <ProvenanceRow term="Registry tier">
+      <ProvenanceRow term={PROVENANCE_TERM.registryTier}>
         <code className="font-mono text-eyebrow text-fg">{provenance.registry_tier || "—"}</code>
       </ProvenanceRow>
-      <ProvenanceRow term="Installed by">
+      <ProvenanceRow term={PROVENANCE_TERM.installedBy}>
         <code className="font-mono text-eyebrow text-fg">{provenance.installed_by || "—"}</code>
       </ProvenanceRow>
     </dl>

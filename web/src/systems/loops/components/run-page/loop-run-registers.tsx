@@ -1,10 +1,9 @@
 import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { LoopRunTurnsDisclosure } from "./loop-run-turns-disclosure";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
-import { useReducedMotionConfig } from "motion/react";
 
-import { Button, cn, runViewTransition } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
 
 import { buildGenerationHistory } from "../../lib/loop-generation-presentation";
 import type { LoopNodeLifecycle } from "../../lib/loop-node-lifecycle";
@@ -129,16 +128,14 @@ export function LoopRunRegisters({
 }: LoopRunRegistersProps) {
   const [localLane, setLocalLane] = useState<LoopInspectLane>("graph");
   const lane = controlledLane ?? localLane;
-  const reducedMotion = useReducedMotionConfig() === true;
-  // A short crossfade so a tall lane never hard-cuts into the next one.
+  // A transition, so the lane's `<ViewTransition>` crossfades a tall lane into the next one
+  // rather than hard-cutting. The state it sets is plain React state, which is what lets a
+  // transition carry it; live updates to the lane's data are urgent and never animate.
   const changeLane = (nextLane: LoopInspectLane) => {
-    void runViewTransition(
-      () => {
-        if (controlledLane === undefined) setLocalLane(nextLane);
-        onLaneChange?.(nextLane);
-      },
-      { reduced: reducedMotion }
-    );
+    startTransition(() => {
+      if (controlledLane === undefined) setLocalLane(nextLane);
+      onLaneChange?.(nextLane);
+    });
   };
   // `null` means "whatever round the run is on"; `"all"` is an explicit choice.
   // Following the run beats defaulting to every round, which makes two rows of
@@ -195,6 +192,8 @@ export function LoopRunRegisters({
   return (
     <LoopRunInspectRegister
       loadedEventCount={registers.loadedEventCount}
+      rosterPending={rosterRead?.isLoading}
+      eventsPending={events?.isLoading}
       foot={footNotes.length > 0 ? footNotes : undefined}
       generationCount={generations.length}
       isLive={isLive}

@@ -1,10 +1,10 @@
 import { AlertCircle } from "lucide-react";
 
-import { Button, ConfirmDialog, Pill, Spinner } from "@compozy/ui";
+import { Button, ConfirmDialog, Pill, SkeletonRegion } from "@compozy/ui";
 
 import { useMarketplaceSources } from "@/systems/marketplace";
 
-import { MarketplaceSourceRow } from "./marketplace-source-row";
+import { MarketplaceSourceRow, MarketplaceSourceRowSkeletons } from "./marketplace-source-row";
 import { SettingsGroup } from "./settings-group";
 import { useMarketplaceSourceActions } from "./use-marketplace-source-actions";
 
@@ -52,15 +52,13 @@ export function SettingsMarketplaceSourcesSection({
       }
     >
       {query.isPending ? (
-        <div
-          aria-label="Loading plugin marketplaces"
-          className="flex min-h-11 items-center gap-2 px-3 text-form-hint text-subtle"
+        <SkeletonRegion
+          className="flex min-w-0 flex-col"
           data-testid={`${TEST_ID}-loading`}
-          role="status"
+          label="Loading plugin marketplaces"
         >
-          <Spinner aria-hidden="true" className="size-3" />
-          Reading sources…
-        </div>
+          <MarketplaceSourceRowSkeletons />
+        </SkeletonRegion>
       ) : query.isError ? (
         <div
           className="flex min-h-11 flex-wrap items-center gap-2 px-3 py-2 text-form-hint text-danger"

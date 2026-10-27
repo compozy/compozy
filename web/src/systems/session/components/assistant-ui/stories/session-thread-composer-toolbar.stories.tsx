@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
+import { expect, screen, userEvent, within } from "storybook/test";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import type { SessionMonitorPayload } from "@/systems/session/adapters/session-monitor-api";
+import { MonitorComposerControl } from "@/systems/session/components/monitor-composer-control";
 import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
 import { primarySessionFixture } from "@/systems/session/mocks";
 
@@ -75,5 +78,90 @@ export const Busy: Story = {
     onQueuePrompt: () => undefined,
     onInterruptPrompt: () => undefined,
     onSteerPrompt: () => undefined,
+  },
+};
+
+/**
+ * The subagents popover while its roster loads: placeholder rows in the roster's own frame, one
+ * per row the session's summary reports, under the real heading and count.
+ */
+export const SubagentsLoading: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    subagentControl: (
+      <SubagentComposerControl
+        subagents={[]}
+        counts={{ live: 0, total: 3, failed: 0, attention: 0 }}
+        loading
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-subagents-button"));
+    await expect(await screen.findByText("Loading subagents")).toBeInTheDocument();
+  },
+};
+
+const IN_TWELVE_MINUTES = new Date(Date.now() + 12 * 60_000).toISOString();
+
+const STORY_MONITORS: readonly SessionMonitorPayload[] = [
+  {
+    monitor_id: "mon-1",
+    session_id: primarySessionFixture.id,
+    kind: "timer",
+    description: "Check CI on PR #875",
+    status: "active",
+    created_at: new Date().toISOString(),
+    deadline_at: IN_TWELVE_MINUTES,
+  },
+  {
+    monitor_id: "mon-2",
+    session_id: primarySessionFixture.id,
+    kind: "terminal",
+    description: "Wait for the release build",
+    status: "active",
+    until: "match",
+    pattern: "published v\\d+",
+    created_at: new Date().toISOString(),
+    deadline_at: IN_TWELVE_MINUTES,
+  },
+];
+
+/** The monitors popover with its rows: what each one watches, when it fires or gives up, Cancel. */
+export const Monitors: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    monitorControl: (
+      <MonitorComposerControl
+        active={STORY_MONITORS.length}
+        monitors={STORY_MONITORS}
+        onCancel={() => undefined}
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-monitors-button"));
+    await expect(await screen.findByTestId("composer-monitor-mon-1")).toBeInTheDocument();
+  },
+};
+
+/**
+ * The monitors popover while its list loads: one placeholder row per active monitor the session's
+ * summary reports, in the live row's own frame, under the real heading.
+ */
+export const MonitorsLoading: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    monitorControl: <MonitorComposerControl active={STORY_MONITORS.length} monitors={[]} loading />,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-monitors-button"));
+    await expect(await screen.findByText("Loading monitors")).toBeInTheDocument();
   },
 };

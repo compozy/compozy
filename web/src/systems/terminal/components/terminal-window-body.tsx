@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle } from "lucide-react";
-import { BlockLoading, Button, Empty, type TerminalEngineLoader } from "@compozy/ui";
+import { Button, Empty, type TerminalEngineLoader } from "@compozy/ui";
 import { useQuery } from "@tanstack/react-query";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
@@ -19,6 +19,7 @@ import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
 import { TerminalInputRequestStack } from "./terminal-input-request-stack";
 import { TerminalPane, type TerminalPaneSelectionActions } from "./terminal-pane";
 import { TerminalPipeLogPane } from "./terminal-pipe-log-pane";
+import { TerminalPipeLogSkeleton } from "./terminal-skeletons";
 import type { TerminalWindowActions } from "../lib/terminal-window-actions";
 
 const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
@@ -228,7 +229,7 @@ function TerminalPipeFetchedOutput({
   // Waiting and failing must never read as an empty log — an empty log is a
   // real state that means the command printed nothing.
   if (output.isPending) {
-    return <BlockLoading className="flex-1" label="Loading the captured output" surface="bare" />;
+    return <TerminalPipeLogSkeleton />;
   }
   if (output.error) {
     return (

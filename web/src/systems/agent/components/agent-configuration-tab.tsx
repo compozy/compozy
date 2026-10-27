@@ -1,7 +1,15 @@
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button, MetadataList, Panel, Pill } from "@compozy/ui";
+import {
+  Button,
+  ListingRowSkeleton,
+  MetadataList,
+  Panel,
+  Pill,
+  Skeleton,
+  SkeletonText,
+} from "@compozy/ui";
 
 import { formatAbsentOverride } from "../lib/agent-absent-value";
 import { agentShadowLayers, formatAgentLayer } from "../lib/agent-fleet-projection";
@@ -151,5 +159,41 @@ function AccessTokenRow({
         </span>
       )}
     </ConfigRow>
+  );
+}
+
+const CONFIG_SKELETON_ROWS = {
+  runtime: ["Defined in", "Command", "Permissions"],
+  access: ["Allowed tools", "Blocked tools", "Tool groups"],
+} as const;
+
+function ConfigPanelSkeleton({ title, labels }: { title: string; labels: readonly string[] }) {
+  return (
+    <Panel bodyClassName="p-0" right={<Skeleton className="h-button-sm w-12" />} title={title}>
+      <MetadataList className="gap-0">
+        {labels.map(label => (
+          <ConfigRow key={label} label={label}>
+            <SkeletonText className="w-40" />
+          </ConfigRow>
+        ))}
+      </MetadataList>
+    </Panel>
+  );
+}
+
+/** Configuration while the agent loads: the three panels with their real titles and row labels. */
+export function AgentConfigurationSkeleton() {
+  return (
+    <div className="flex flex-col gap-6" data-testid="agent-configuration-skeleton">
+      <ConfigPanelSkeleton labels={CONFIG_SKELETON_ROWS.runtime} title="Runtime" />
+      <ConfigPanelSkeleton labels={CONFIG_SKELETON_ROWS.access} title="Access" />
+      <Panel
+        bodyClassName="p-0"
+        right={<Skeleton className="h-button-sm w-12" />}
+        title="MCP servers"
+      >
+        <ListingRowSkeleton count={2} description trail="pill" />
+      </Panel>
+    </div>
   );
 }

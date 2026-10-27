@@ -52,6 +52,22 @@ export const Paused: Story = {
   ),
 };
 
+/** First load: the state, counts and backlog rows hold their place while the queue is read. */
+export const Loading: Story = {
+  render: () => (
+    <Frame>
+      <SchedulerControlsPanel
+        backlog={null}
+        isBacklogLoading
+        isLoading
+        onDrain={() => undefined}
+        onPause={() => undefined}
+        status={null}
+      />
+    </Frame>
+  ),
+};
+
 export const AttentionPressure: Story = {
   render: () => (
     <Frame>

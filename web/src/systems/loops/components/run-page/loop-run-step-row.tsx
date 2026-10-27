@@ -10,6 +10,7 @@ import { humanizeLoopNodeId } from "../../lib/loop-node-labels";
 import { LOOP_PROGRESS_SEGMENT_CLASS } from "./loop-progress-segment-class";
 import { LoopNodeStateChip } from "./loop-node-state-chip";
 import { LoopRunChildRuns } from "./loop-run-child-runs";
+import { STEP_ROW_CLASS } from "./loop-run-page-classes";
 
 interface LoopRunStepRowProps extends Omit<ComponentProps<"li">, "children"> {
   step: LoopStepRow;
@@ -83,10 +84,7 @@ function LoopStepFanOutBand({ band, className, ...props }: LoopStepFanOutBandPro
 export function LoopRunStepRow({ step, className, ...props }: LoopRunStepRowProps) {
   return (
     <li
-      className={cn(
-        "flex items-start gap-2.5 border-t border-line-soft py-2 first:border-t-0",
-        className
-      )}
+      className={cn(STEP_ROW_CLASS, className)}
       data-node-class={step.nodeClass ?? undefined}
       data-node-id={step.nodeId}
       data-quiet={step.quiet ? "true" : undefined}

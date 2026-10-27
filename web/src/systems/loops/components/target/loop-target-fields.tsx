@@ -1,6 +1,14 @@
 import { useId } from "react";
 
-import { Alert, AlertDescription, Button, Field, FieldLabel, Spinner } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Field,
+  FieldLabel,
+  Skeleton,
+  SkeletonRegion,
+} from "@compozy/ui";
 
 import {
   setLoopTargetInput,
@@ -131,10 +139,9 @@ function LoopTargetSelector({
   const empty = catalog.options.length === 0 && !selected;
   if (catalog.isLoading && empty) {
     return (
-      <div className="flex h-input items-center gap-2 text-form-hint text-subtle">
-        <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-        Loading Loops…
-      </div>
+      <SkeletonRegion label="Loading Loops">
+        <Skeleton className="h-input w-full" />
+      </SkeletonRegion>
     );
   }
   if (catalog.error && empty) {

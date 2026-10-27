@@ -636,12 +636,12 @@ describe("SessionThread transcript states", () => {
   it("Should render the transcript skeleton on pending without empty-state copy", async () => {
     renderThreadState({ status: "pending" });
 
-    expect(
-      await screen.findByRole("status", {
-        name: /loading transcript/i,
-      })
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("thread-transcript-skeleton")).toBeInTheDocument();
+    // One busy status names the loading area; the message-shaped placeholders stay silent.
+    const region = await screen.findByRole("status");
+    expect(region).toHaveTextContent(/loading transcript/i);
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("thread-transcript-skeleton")).toBe(region);
+    expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
   });
 
@@ -8466,6 +8466,12 @@ describe("SessionThread composer mentions", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-mention-group-files")).toHaveTextContent("Loading files…")
     );
+    // The loading row is placeholder rows in the live row's frame, announced by the status surface.
+    expect(
+      screen
+        .getByTestId("composer-mention-group-files")
+        .querySelectorAll('[data-slot="skeleton-text"]').length
+    ).toBeGreaterThan(0);
     expect(screen.queryByRole("listbox", { name: "Mentions" })).not.toBeInTheDocument();
     expect(screen.getByRole("status", { name: "Mentions" })).toBeInTheDocument();
 

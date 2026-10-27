@@ -68,6 +68,20 @@ describe("TaskRunsPanel", () => {
     expect(screen.getByTestId("tasks-runs-row-run_001")).toBeInTheDocument();
   });
 
+  it("Should stand in with the table while the first runs load", () => {
+    render(<TaskRunsPanel isLoading runs={[]} taskId="task_001" />);
+
+    // One named loading area holding the real column headings, not the empty state's prompt. The
+    // table inside is presentational, so the area is announced once rather than cell by cell.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-runs-loading"));
+    expect(region).toHaveTextContent("Loading runs");
+    for (const name of ["Attempt", "Status", "Agent", "Started", "Duration", "Result"]) {
+      expect(within(region).getByText(name)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId("tasks-runs-empty")).not.toBeInTheDocument();
+  });
+
   it("Should expose pending state on the empty Start run action", () => {
     const onStartRun = vi.fn();
     render(<TaskRunsPanel isStartPending onStartRun={onStartRun} runs={[]} taskId="task_001" />);

@@ -318,15 +318,29 @@ describe("TaskEditorModal", () => {
     );
   });
 
-  it("Should hold the edit host on a loading state instead of a half-bound form", () => {
-    renderModal({ mode: "edit", status: "loading" });
+  it("Should hold the edit host on the form's own shape instead of a half-bound form", async () => {
+    const user = userEvent.setup();
+    const { onOpenChange } = renderModal({ mode: "edit", status: "loading" });
 
-    expect(screen.getByTestId("task-editor-modal-loading")).toBeInTheDocument();
+    // The form is not bound yet, but its sections already stand under their real titles, in one
+    // named loading area, inside the same dialog.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("task-editor-modal-loading"));
+    expect(region).toHaveTextContent("Loading task");
+    for (const title of ["What needs doing", "Priority", "Who works on it"]) {
+      expect(within(region).getByText(title)).toBeInTheDocument();
+    }
     expect(screen.queryByTestId("task-editor-modal-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-title-input")).not.toBeInTheDocument();
     const header = screen
       .getByTestId("task-editor-modal")
       .querySelector('[data-slot="entity-dialog-header"]');
     expect(within(header as HTMLElement).getByText("Edit task")).toBeInTheDocument();
+
+    // Saving is held until there is something to save; leaving stays possible.
+    expect(screen.getByTestId("task-editor-modal-submit")).toBeDisabled();
+    await user.click(screen.getByTestId("task-editor-modal-cancel"));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("Should report an unreadable task instead of rendering an empty editor", async () => {

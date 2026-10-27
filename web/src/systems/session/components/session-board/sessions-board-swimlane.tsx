@@ -11,6 +11,12 @@ import {
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionListGroupIdentity } from "../session-list/session-list-group-header";
 import { SessionsBoardColumn } from "./sessions-board-column";
+import {
+  SESSIONS_BOARD_COLUMNS_ROW,
+  SESSIONS_BOARD_LANE,
+  SESSIONS_BOARD_LANE_COUNT,
+  SESSIONS_BOARD_LANE_HEADER,
+} from "./sessions-board-frame";
 
 export interface SessionsBoardColumnsRowProps {
   columns: SessionsBoardColumnView[];
@@ -35,13 +41,7 @@ export function SessionsBoardColumnsRow({
   ...props
 }: SessionsBoardColumnsRowProps) {
   return (
-    <div
-      className={
-        layout === "fill"
-          ? "flex min-h-full w-max items-stretch gap-3"
-          : "flex w-max items-start gap-3"
-      }
-    >
+    <div className={SESSIONS_BOARD_COLUMNS_ROW[layout]}>
       {columns.map(column => (
         <SessionsBoardColumn
           {...props}
@@ -77,10 +77,10 @@ export function SessionsBoardSwimlane({
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
   return (
-    <section aria-label={name} className="flex flex-col gap-2" data-testid={testId}>
-      <header className="flex h-7 items-center gap-2 px-1">
+    <section aria-label={name} className={SESSIONS_BOARD_LANE} data-testid={testId}>
+      <header className={SESSIONS_BOARD_LANE_HEADER}>
         <SessionListGroupIdentity group={lane.group} />
-        <span className="text-small-body text-subtle tabular-nums" data-testid={`${testId}-count`}>
+        <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
           {lane.group.total}
         </span>
       </header>

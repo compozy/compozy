@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { HttpResponse } from "msw";
+import { delay, HttpResponse } from "msw";
 import { expect, userEvent, within } from "storybook/test";
 
 import { storybookMswParameters } from "@/storybook/msw";
@@ -122,4 +122,28 @@ export const NoWorkspace: Story = {
   args: {},
   parameters: appRouteParameters("/settings/layouts"),
   render: () => <StorybookRouteCanvas />,
+};
+
+/**
+ * Loading state: the layout stage, saved layouts and window settings hold their place while the
+ * saved layouts resolve. The shell itself reads the window-manager settings, so this page-only
+ * read is the one that stays pending.
+ */
+export const Loading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/settings/layouts"),
+    ...storybookMswParameters({
+      settings: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/window-manager/layout-profiles",
+          async () => {
+            await delay("infinite");
+            return HttpResponse.json({ records: [] });
+          }
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
 };

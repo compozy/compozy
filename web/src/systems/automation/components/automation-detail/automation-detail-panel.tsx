@@ -14,8 +14,8 @@ import { AutomationDeleteAction } from "../automation-delete-action";
 import { AutomationDetailActions, AutomationDetailOverflow } from "./automation-detail-actions";
 import { AutomationDetailHead } from "./automation-detail-head";
 import { AutomationDetailSection } from "./automation-detail-section";
+import { AutomationDetailSkeleton } from "./automation-detail-skeleton";
 import {
-  AutomationDetailSkeleton,
   AutomationDetailUnavailable,
   type AutomationDetailUnavailableReason,
 } from "./automation-detail-states";
@@ -38,6 +38,10 @@ export interface AutomationDetailState {
 
 export interface AutomationDetailPanelProps {
   status: AutomationDetailStatus;
+  /** The entity the route names; the loading skeleton holds the bands that kind has. */
+  kind?: "job" | "trigger";
+  /** The routed id: the topbar names it until the automation's own name arrives. */
+  entityId?: string;
   /** Shown by the missing / other-project / error states. */
   statusMessage: string;
   entity: AutomationEntity | undefined;
@@ -70,7 +74,7 @@ export interface AutomationDetailPanelProps {
  */
 export function AutomationDetailPanel(props: AutomationDetailPanelProps) {
   // `status`/`statusMessage` belong to the unavailable states; the loaded page spreads the rest.
-  const { status, statusMessage, ...loaded } = props;
+  const { status, statusMessage, kind, entityId, ...loaded } = props;
   const { entity, view, onBack } = loaded;
   // Transient overlays live above the branch that unmounts: a refetch that
   // briefly empties the record must not slam a sheet shut mid-read.
@@ -78,7 +82,14 @@ export function AutomationDetailPanel(props: AutomationDetailPanelProps) {
   const [inspectOverlay, setInspectOverlay] = useState({ open: false, id: "" });
   const id = entity?.id ?? "";
 
-  if (status === "loading") return <AutomationDetailSkeleton />;
+  if (status === "loading") {
+    return (
+      <>
+        <AutomationDetailLoadingChrome entityId={entityId} onBack={onBack} />
+        <AutomationDetailSkeleton kind={kind} />
+      </>
+    );
+  }
   if (status !== "ready" || !entity || !view) {
     return (
       <AutomationDetailUnavailable
@@ -102,9 +113,25 @@ export function AutomationDetailPanel(props: AutomationDetailPanelProps) {
   );
 }
 
+/** The topbar while the automation loads: the way back and the routed id, as the router names it. */
+function AutomationDetailLoadingChrome({
+  entityId,
+  onBack,
+}: {
+  entityId?: string;
+  onBack: () => void;
+}) {
+  useTopbarSlot({
+    onBack,
+    crumbs: [{ id: "catalog", label: "Automations", onSelect: onBack }],
+    crumb: entityId,
+  });
+  return null;
+}
+
 type LoadedProps = Omit<
   AutomationDetailPanelProps,
-  "entity" | "view" | "status" | "statusMessage"
+  "entity" | "view" | "status" | "statusMessage" | "kind" | "entityId"
 > &
   Omit<ComponentProps<"section">, "children"> & {
     entity: AutomationEntity;

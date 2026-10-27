@@ -1,6 +1,7 @@
 import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { CARD_SURFACE_CLASS } from "./task-kanban-card-classes";
 
 import {
   formatRelativeTime,
@@ -24,6 +25,10 @@ export interface TaskKanbanCardProps {
   projectBadge?: WorkspaceBadgeIdentity;
 }
 
+/**
+ * A card on the sunken column: `card` plus shadow-card (its hairline). The real card and its
+ * skeleton share this surface, so the placeholder measures the same box.
+ */
 export function TaskKanbanCard({
   task,
   selected = false,
@@ -41,9 +46,9 @@ export function TaskKanbanCard({
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
       className={cn(
-        // A card on the sunken column: `card` plus shadow-card (its hairline),
-        // stepping to surface-2 on hover and to the selected plate when chosen.
-        "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out",
+        // Steps to surface-2 on hover and to the selected plate when chosen.
+        CARD_SURFACE_CLASS,
+        "transition-colors duration-base ease-out",
         clickable &&
           "cursor-pointer hover:bg-surface-2 has-[[data-card-open]:focus-visible]:shadow-focus-ring",
         selected && "bg-selected inset-ring-1 inset-ring-line-strong"

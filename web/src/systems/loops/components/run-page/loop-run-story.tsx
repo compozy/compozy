@@ -3,11 +3,13 @@ import { ChevronDown, History, PlugZap, TriangleAlert } from "lucide-react";
 
 import { Link } from "@tanstack/react-router";
 
-import { Button, cn, Pill, Time } from "@compozy/ui";
+import { Button, cn, Pill, SkeletonRegion, Time } from "@compozy/ui";
 
 import type { LoopStoryBeat } from "../../lib/loop-run-story-beats";
 import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
 import { LoopSection } from "../loop-section";
+import { BEAT_ROW_CLASS, STORY_CARD_CLASS } from "./loop-run-page-classes";
+import { LoopRunStoryRowsSkeleton } from "./loop-run-story-rows-skeleton";
 import { useWindowBindingSearch } from "@/systems/workspace";
 
 /**
@@ -68,7 +70,7 @@ function LoopRunStoryBeat({ beat }: { beat: LoopStoryBeat }) {
   const icon = LOOP_STORY_ICONS[beat.icon];
   return (
     <li
-      className="flex items-start gap-2.5 py-2"
+      className={BEAT_ROW_CLASS}
       data-kind={beat.kind}
       data-seq={beat.seq}
       data-testid={`loop-run-beat-${beat.seq}`}
@@ -123,7 +125,7 @@ export function LoopRunStory({ beats, paging, isReconnecting = false }: LoopRunS
       right={<LoopRunStoryStatusPill isError={isError} isReconnecting={isReconnecting} />}
       title="Activity"
     >
-      <div className="overflow-hidden rounded-lg bg-card shadow-card px-4 py-2">
+      <div className={STORY_CARD_CLASS}>
         {beats.length === 0 ? (
           <LoopRunStoryEmpty isError={isError} isLoading={isLoading} />
         ) : (
@@ -188,12 +190,22 @@ function LoopRunStoryStatusPill({
 // and the reader has to be told which one they are looking at.
 const EMPTY_STORY_LINE = {
   error: "This run's activity could not be loaded. The run itself is unaffected.",
-  loading: "Loading activity…",
   empty: "Nothing has happened in this run yet.",
 } as const;
 
 function LoopRunStoryEmpty({ isError, isLoading }: { isError: boolean; isLoading: boolean }) {
-  const state = isError ? "error" : isLoading ? "loading" : "empty";
+  if (!isError && isLoading) {
+    return (
+      <SkeletonRegion
+        data-state="loading"
+        data-testid="loop-run-story-empty"
+        label="Loading activity"
+      >
+        <LoopRunStoryRowsSkeleton />
+      </SkeletonRegion>
+    );
+  }
+  const state = isError ? "error" : "empty";
   return (
     <p
       className={cn("py-2 text-small-body", isError ? "text-danger" : "text-muted")}

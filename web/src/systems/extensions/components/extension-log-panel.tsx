@@ -1,4 +1,13 @@
-import { Button, cn, Eyebrow, Section, Spinner, Switch } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  Eyebrow,
+  Section,
+  SkeletonRegion,
+  SkeletonText,
+  Spinner,
+  Switch,
+} from "@compozy/ui";
 
 import type { ExtensionLogsModel, ExtensionLogStreamStatus } from "../hooks/use-extension-logs";
 
@@ -70,13 +79,31 @@ export function ExtensionLogPanel({
   return <Section label="Logs">{body}</Section>;
 }
 
+const LOG_SKELETON_IDS = ["log-skeleton-1", "log-skeleton-2", "log-skeleton-3"] as const;
+
+/** Retained-line placeholders in the real two-line row: the clock and sequence, then the message. */
+function ExtensionLogSkeleton() {
+  return (
+    <SkeletonRegion label="Loading logs">
+      <ol className="divide-y divide-line-soft">
+        {LOG_SKELETON_IDS.map(id => (
+          <li aria-hidden="true" className="grid animate-skeleton-reveal gap-1 px-4 py-2" key={id}>
+            <span className="font-mono text-mono-id">
+              <SkeletonText className="w-24" />
+            </span>
+            <span className="font-mono text-eyebrow">
+              <SkeletonText className="w-full" />
+            </span>
+          </li>
+        ))}
+      </ol>
+    </SkeletonRegion>
+  );
+}
+
 function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
   if (logs.isLoading && logs.entries.length === 0) {
-    return (
-      <p className="px-4 py-3 text-small-body text-muted" role="status">
-        Loading logs…
-      </p>
-    );
+    return <ExtensionLogSkeleton />;
   }
   if (logs.error && logs.entries.length === 0) {
     return (

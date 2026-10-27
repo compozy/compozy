@@ -11,6 +11,7 @@ import type { TaskNowStripHandlers } from "../task-now-strip";
 import { TaskActivityPanel } from "../task-activity-panel";
 import { TaskOverviewPanel } from "../task-overview-panel";
 import { TaskPropertiesRail } from "../task-properties-rail";
+import { TaskPropertiesRailSkeleton } from "../task-properties-rail-skeleton";
 import { TaskRunsPanel } from "../task-runs-panel";
 import { TasksDetailSubhead } from "../tasks-detail-subhead";
 
@@ -158,6 +159,89 @@ export const PropertiesRail: Story = {
         onPriorityChange={() => undefined}
         runs={runningRuns}
       />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Runs tab while the first runs load: the real column headings over attempt-shaped rows, in the
+ * same card the table arrives in.
+ */
+export const RunsTableLoading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[860px] p-6">
+      <TaskRunsPanel isLoading runs={[]} taskId="task_001" />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Activity tab while the first events load: the filter pills and the timeline card, as
+ * placeholders in the feed's own frame.
+ */
+export const ActivityFeedLoading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[860px] p-6">
+      <TaskActivityPanel isLoading items={[]} />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Overview while the timeline loads: the recent-activity section holds its place instead of
+ * appearing late below the description.
+ */
+export const OverviewTimelineLoading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[860px] p-6">
+      <TasksDetailSubhead detail={runningDetail} />
+      <TaskOverviewPanel
+        detail={runningDetail}
+        isLive
+        nowHandlers={noopHandlers}
+        onViewAllActivity={() => undefined}
+        runs={runningRuns}
+        timeline={[]}
+        timelineLoading
+      />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * Properties rail while the execution profile and the run history are still being read: the
+ * agent and model rows and the attempts count hold placeholders.
+ */
+export const PropertiesRailLoading: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[360px] p-5">
+      <TaskPropertiesRail
+        detail={runningDetail}
+        onAutoEnqueueChange={() => undefined}
+        onEditSetup={() => undefined}
+        onInspect={() => undefined}
+        onPriorityChange={() => undefined}
+        profileLoading
+        runs={[]}
+        runsLoading
+      />
+    </PanelSurface>
+  ),
+};
+
+/**
+ * The rail as a whole while the task record itself loads: the three real section labels over
+ * row placeholders.
+ */
+export const PropertiesRailSkeleton: Story = {
+  args: {},
+  render: () => (
+    <PanelSurface className="max-w-[360px] p-5">
+      <TaskPropertiesRailSkeleton />
     </PanelSurface>
   ),
 };

@@ -9,6 +9,7 @@ import type { LoopRunOutcomeModel } from "../../lib/loop-run-artifacts";
 import type { LoopBriefingView } from "../../lib/loop-run-briefing-view";
 import { LoopRunArtifactList } from "./loop-run-artifact-list";
 import { LOOP_NEEDS_YOU_ANCHOR_ID } from "./loop-run-briefing-constants";
+import { BRIEFING_FRAME_CLASS, WEIGHT_CLASS } from "./loop-run-page-classes";
 
 /**
  * The anchor the briefing's quiet action points at.
@@ -36,13 +37,6 @@ interface LoopRunBriefingProps extends Omit<ComponentProps<"section">, "children
  * so and points down to the card that owns Approve and Reject — one primary per
  * decision, in one viewport.
  */
-// Needs-you leads in the accent (amber is kept for real warnings); a
-// calm verdict sits in the sunken inset.
-const WEIGHT_CLASS = {
-  calm: "border-transparent bg-sunken",
-  lead: "border-accent/40 bg-accent-tint",
-  danger: "border-danger/40 bg-danger-tint",
-} as const;
 
 /**
  * How a terminal run's outcome is toned.
@@ -90,11 +84,7 @@ export function LoopRunBriefing({
     action?.target === "needs-you" ? () => focusNeedsYou(reduced) : onOpenInspect;
   return (
     <section
-      className={cn(
-        "flex items-start gap-3 rounded-lg border px-4 py-4",
-        WEIGHT_CLASS[briefing.weight],
-        className
-      )}
+      className={cn(BRIEFING_FRAME_CLASS, WEIGHT_CLASS[briefing.weight], className)}
       data-testid="loop-run-briefing"
       data-tone={briefing.tone}
       {...props}

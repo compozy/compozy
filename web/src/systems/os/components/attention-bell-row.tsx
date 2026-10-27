@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Icon, Time } from "@compozy/ui";
+import { Icon, Skeleton, SkeletonText, Time } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { SessionBadgeGlyph } from "@/systems/session";
@@ -100,6 +100,10 @@ function rowIsStale(row: OsAttentionRow): boolean {
   }
 }
 
+/** The row's frame: mark, two lines, trailing time. Shared by the live row and its placeholder. */
+const BELL_ROW_CLASS =
+  "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5";
+
 export interface AttentionBellRowProps {
   row: OsAttentionRow;
   onSelect: (row: OsAttentionRow) => void;
@@ -122,7 +126,8 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
     <button
       type="button"
       className={cn(
-        "grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
+        BELL_ROW_CLASS,
+        "text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none",
         stale && "opacity-60"
       )}
       data-testid={`os-attention-${row.kind}-${row.id}`}
@@ -159,5 +164,26 @@ export function AttentionBellRow({ row, onSelect }: AttentionBellRowProps) {
         ) : null}
       </span>
     </button>
+  );
+}
+
+/**
+ * One placeholder row: the live row's grid with the mark, the two lines and the time as blocks.
+ * The live row sits beside the acknowledge button, so the placeholder reserves that button's
+ * slot too. Presentational: the caller owns the busy region.
+ */
+export function AttentionBellRowSkeleton() {
+  return (
+    <div aria-hidden="true" className="flex min-w-0 animate-skeleton-reveal items-center">
+      <div className={BELL_ROW_CLASS}>
+        <Skeleton className="size-4.5 rounded-full" />
+        <span className="flex min-w-0 flex-col gap-px">
+          <SkeletonText className="w-40 text-small-body font-medium" />
+          <SkeletonText className="w-28 text-eyebrow" />
+        </span>
+        <SkeletonText className="w-8 text-eyebrow" />
+      </div>
+      <Skeleton className="size-button-icon-sm shrink-0 rounded-md" />
+    </div>
   );
 }

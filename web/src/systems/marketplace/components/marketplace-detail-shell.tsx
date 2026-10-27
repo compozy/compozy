@@ -9,6 +9,8 @@ import {
   Eyebrow,
   Panel,
   PropertyRow,
+  PropertyRowSkeleton,
+  SkeletonText,
 } from "@compozy/ui";
 
 /**
@@ -138,6 +140,68 @@ function MarketplaceDetailRailCard({
   );
 }
 
+interface MarketplaceDetailSectionSkeletonProps {
+  icon: LucideIcon;
+  /** The placeholder rows inside the panel. */
+  children: ReactNode;
+}
+
+/**
+ * A main-column section while the entry loads: the real head layout (icon, title, chevron) on a
+ * non-interactive row, over the framed panel. The title is a placeholder because the section a
+ * given entry shows is only known once it arrives.
+ */
+function MarketplaceDetailSectionSkeleton({
+  icon: Icon,
+  children,
+}: MarketplaceDetailSectionSkeletonProps) {
+  return (
+    <section aria-hidden="true" className="flex min-w-0 flex-col">
+      <div className="flex w-full items-center gap-2 pb-2.5">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+        <Eyebrow className="text-subtle">
+          <SkeletonText className="w-24" />
+        </Eyebrow>
+        <span aria-hidden="true" className="flex-1" />
+        <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 -rotate-90 text-faint" />
+      </div>
+      <Panel bodyClassName="p-0" className="overflow-hidden">
+        {children}
+      </Panel>
+    </section>
+  );
+}
+
+/**
+ * A rail card while the entry loads: the real icon and title on the card's head, over property
+ * row placeholders.
+ */
+function MarketplaceDetailRailCardSkeleton({
+  icon: Icon,
+  title,
+  rows = 4,
+}: {
+  icon: LucideIcon;
+  title: string;
+  rows?: number;
+}) {
+  return (
+    <Panel aria-hidden="true" bodyClassName="p-0" className="overflow-hidden">
+      <div className="flex w-full items-center gap-2 px-3.5 py-2.5">
+        <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
+        <span className="shrink-0 text-item-title font-medium text-fg">{title}</span>
+        <span className="min-w-0 flex-1" />
+        <ChevronDown aria-hidden="true" className="size-3 shrink-0 -rotate-90 text-faint" />
+      </div>
+      <div className="border-t border-line-soft pt-1 pb-2">
+        <div className="px-3.5">
+          <PropertyRowSkeleton count={rows} />
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 /** Quiet explanatory note inside a rail card body. */
 function MarketplaceDetailRailNote({ children }: { children: ReactNode }) {
   return <p className="px-3.5 pt-1.5 pb-1 text-eyebrow leading-relaxed text-faint">{children}</p>;
@@ -174,8 +238,10 @@ function formatRepositorySlug(url: string): string {
 export {
   MarketplaceDetailColumns,
   MarketplaceDetailRailCard,
+  MarketplaceDetailRailCardSkeleton,
   MarketplaceDetailRailNote,
   MarketplaceDetailSection,
+  MarketplaceDetailSectionSkeleton,
   MarketplaceRepositoryRow,
 };
 export type { MarketplaceDetailRailCardProps, MarketplaceDetailSectionProps };

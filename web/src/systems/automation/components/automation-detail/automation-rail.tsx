@@ -1,6 +1,5 @@
-import type { LucideIcon } from "lucide-react";
 import { CalendarClock, Globe, Hash, Info, KeyRound, Search, ShieldCheck } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps } from "react";
 
 import { Button, MonoId, PropertyRow, StatusDot, Time, cn } from "@compozy/ui";
 
@@ -18,31 +17,10 @@ import {
 import { describeTriggerWhen } from "../../lib/automation-rule";
 import { describeSchedule, type SentenceContext } from "../../lib/automation-sentence";
 import { projectAutomationTarget } from "../../lib/automation-target";
+import { RailSection } from "./automation-rail-section";
 import { automationLocationLabel, type AutomationView } from "../../lib/automation-view";
 import type { AutomationJob, AutomationTrigger } from "../../types";
 import { ingressReachabilityCopy } from "@/systems/gateway";
-
-interface RailSectionProps extends Omit<ComponentProps<"section">, "title"> {
-  icon: LucideIcon;
-  title: string;
-  children: ReactNode;
-}
-
-/** One band of the one-card rail; bands are separated by hairlines (patterns §03). */
-function RailSection({ icon: Icon, title, children, className, ...props }: RailSectionProps) {
-  return (
-    <section
-      className={cn("border-t border-line-soft px-4 py-3.5 first:border-t-0", className)}
-      {...props}
-    >
-      <h3 className="mb-2 flex items-center gap-1.5 text-eyebrow text-muted">
-        <Icon aria-hidden="true" className="size-3 text-muted" />
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
 
 const SOURCE_COPY = {
   dynamic: "You created this",

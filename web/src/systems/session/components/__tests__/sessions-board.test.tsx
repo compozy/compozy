@@ -13,6 +13,10 @@
 // right-click and behind a `…` button that never opens the session; a grouped
 // board renders one swimlane per group, each reading the four columns through
 // the group's own scope.
+// #958: a board or column that has not answered yet holds its place with
+// card-shaped placeholders under one busy status region — never a "Loading…"
+// sentence, never an empty-state claim — and loaded cards replace them. The
+// standalone board skeleton needs no query client.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -28,6 +32,7 @@ import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { primarySessionFixture } from "../../testing";
 import type { SessionPayload } from "../../types";
 import { SessionsBoard } from "../session-board/sessions-board";
+import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
 
 vi.mock("../../adapters/session-catalog-api", () => ({
   fetchSessionCatalogPage: vi.fn(),
@@ -90,16 +95,21 @@ function board(
   };
 }
 
+function boardWrapper() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+}
+
 function renderBoard(
   view: SessionsBoardView,
   onOpen = vi.fn(),
   actions?: SessionLifecycleActionHandlers
 ) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-  render(<SessionsBoard actions={actions} board={view} onOpen={onOpen} />, { wrapper });
+  render(<SessionsBoard actions={actions} board={view} onOpen={onOpen} />, {
+    wrapper: boardWrapper(),
+  });
   return onOpen;
 }
 
@@ -259,7 +269,11 @@ describe("SessionsBoard", () => {
     renderBoard(board({}, { count: undefined, loading: true }));
     const status = screen.getByTestId("sessions-board-archive-status");
     expect(status).toHaveTextContent("Archive");
-    expect(within(status).getByRole("status", { name: "Loading archived sessions" })).toBeVisible();
+    // The count's place is a text bar under one busy region, not a spinner.
+    const loading = within(status).getByRole("status");
+    expect(loading).toHaveTextContent("Loading archived sessions");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading.querySelector('[data-slot="skeleton-text"]')).not.toBeNull();
   });
 
   it("Should keep the Archive bar with a retry when its first read fails", async () => {
@@ -418,5 +432,102 @@ describe("SessionsBoard swimlanes", () => {
     const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
     expect(reads.filter(query => query?.workspace_id === "ws-beta")).toHaveLength(4);
     expect(reads.every(query => query?.sort === "created")).toBe(true);
+  });
+});
+
+describe("SessionsBoard loading", () => {
+  const PLACEHOLDER_CARD = '[data-slot="session-board-card-skeleton"]';
+
+  function groupedBoard(overrides: Partial<SessionsBoardView> = {}): SessionsBoardView {
+    return {
+      ...board(),
+      columns: [],
+      lanes: [],
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      ...overrides,
+    };
+  }
+
+  it("Should hold a grouped board's place with lane and card placeholders until its lanes land", () => {
+    const wrapper = boardWrapper();
+    const { rerender } = render(
+      <SessionsBoard board={groupedBoard({ lanesLoading: true })} onOpen={vi.fn()} />,
+      { wrapper }
+    );
+
+    const region = screen.getByRole("status");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading sessions");
+    expect(region.querySelectorAll('[data-slot="sessions-board-lane-skeleton"]')).toHaveLength(2);
+    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(8);
+    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(8);
+    // A pending read is not an answer: no sentence, and no claim that there is nothing.
+    expect(screen.queryByText("Loading sessions…")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sessions-board-lanes-empty")).not.toBeInTheDocument();
+
+    rerender(<SessionsBoard board={groupedBoard()} onOpen={vi.fn()} />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sessions-board-lanes-empty")).toHaveTextContent("No sessions yet.");
+  });
+
+  it("Should show cards where a column is loading and keep every column that has answered", () => {
+    const wrapper = boardWrapper();
+    const working = { sessions: [card("w1")], count: 1 };
+    const { rerender } = render(
+      <SessionsBoard
+        board={board({ needs_you: { loading: true, count: undefined }, working })}
+        onOpen={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    const needsYou = screen.getByTestId("sessions-board-column-needs_you");
+    const region = within(needsYou).getByRole("status");
+    expect(region).toHaveTextContent("Loading sessions");
+    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(0);
+    expect(within(needsYou).queryByTestId("sessions-board-column-empty-needs_you")).toBeNull();
+    expect(within(needsYou).queryByTestId("sessions-board-column-count-needs_you")).toBeNull();
+    // The columns that already answered keep their cards, with no placeholder beside them.
+    const loaded = screen.getByTestId("sessions-board-column-working");
+    expect(within(loaded).getByTestId("session-board-card-w1")).toBeInTheDocument();
+    expect(within(loaded).queryByRole("status")).not.toBeInTheDocument();
+
+    rerender(
+      <SessionsBoard
+        board={board({ needs_you: { sessions: [], count: 0 }, working })}
+        onOpen={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sessions-board-column-empty-needs_you")).toHaveTextContent(
+      "Nothing needs you"
+    );
+  });
+
+  it("Should render the whole board's skeleton as one busy region without a query client", () => {
+    const { rerender } = render(<SessionsBoardSkeleton />);
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-busy", "true");
+    expect(region).toHaveTextContent("Loading sessions");
+    // The four columns keep their real names, so only the cards are placeholders; the Archive
+    // bar holds its place under them.
+    for (const name of [...Object.values(LABELS), "Archive"]) {
+      expect(region).toHaveTextContent(name);
+    }
+    expect(region.querySelectorAll('[data-slot="sessions-board-column-skeleton"]')).toHaveLength(4);
+    expect(region.querySelectorAll(PLACEHOLDER_CARD).length).toBeGreaterThan(4);
+    expect(region.querySelector("button, a, input, [tabindex]")).toBeNull();
+
+    rerender(<SessionsBoardSkeleton layout="lanes" />);
+
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(
+      screen.getByRole("status").querySelectorAll('[data-slot="sessions-board-lane-skeleton"]')
+    ).toHaveLength(2);
   });
 });

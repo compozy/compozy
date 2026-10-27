@@ -1,4 +1,5 @@
 export { DesktopShell } from "./components/desktop-shell";
+export { DesktopShellSkeleton } from "./components/desktop-shell-skeleton";
 export {
   ShortcutBindingKeys,
   type ShortcutBindingKeysProps,

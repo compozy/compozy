@@ -211,6 +211,14 @@ const taskFixtures = [
   }),
 ];
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(settle => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 function taskListPage(tasks = taskFixtures, total = 21): TaskListPage {
   return {
     facets: {
@@ -716,6 +724,98 @@ describe("useTasksPage", () => {
       }),
       expect.any(AbortSignal)
     );
+  });
+
+  it("Should keep the rows on screen while a refined list loads, without a continuation", async () => {
+    const { result } = renderHook(() => useControlledTasksPage(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
+    expect(result.current.hasMoreTasks).toBe(true);
+
+    const refined = deferred<TaskListPage>();
+    vi.mocked(listTasks).mockImplementationOnce(() => refined.promise);
+    act(() => result.current.handleStatusChange("failed"));
+    await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(2));
+
+    // The refined page is still out: the operator keeps the rows they were reading, not a skeleton.
+    expect(result.current.listLoading).toBe(false);
+    expect(result.current.visibleTasks).toHaveLength(3);
+    // Those rows no longer describe the list being read, so they offer no continuation.
+    expect(result.current.hasMoreTasks).toBe(false);
+    act(() => result.current.loadMoreTasks());
+    expect(listTasks).toHaveBeenCalledTimes(2);
+
+    await act(async () => refined.resolve(taskListPage([failedTaskFixture], 1)));
+    await waitFor(() =>
+      expect(result.current.visibleTasks.map(task => task.id)).toEqual(["task_002"])
+    );
+    expect(result.current.hasMoreTasks).toBe(false);
+  });
+
+  it("Should not call the project empty while clearing filters bridges an empty result", async () => {
+    vi.mocked(listTasks).mockResolvedValueOnce(taskListPage([], 0));
+    const { result } = renderHook(() => useControlledTasksPage({ status: "failed" }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.listLoading).toBe(false));
+    expect(result.current.visibleTasks).toEqual([]);
+    expect(result.current.isEmpty).toBe(false);
+
+    const unfiltered = deferred<TaskListPage>();
+    vi.mocked(listTasks).mockImplementationOnce(() => unfiltered.promise);
+    act(() => result.current.clearListFilters());
+    await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(2));
+
+    // The bridged result has zero rows, and no filters are active any more: still not an empty
+    // project, because the unfiltered read has not answered.
+    expect(result.current.listLoading).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+
+    await act(async () => unfiltered.resolve(taskListPage()));
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("Should not carry another project's rows into a project switch", async () => {
+    const { result, rerender } = renderHook(() => useControlledTasksPage(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(3));
+
+    const beta = deferred<TaskListPage>();
+    vi.mocked(listTasks).mockImplementationOnce(() => beta.promise);
+    workspaceMockState.selectedWorkspaceId = "ws_beta";
+    rerender();
+    await waitFor(() => expect(listTasks).toHaveBeenCalledTimes(2));
+
+    // A different project is a different list: nothing of Alpha's stands in for it.
+    expect(result.current.visibleTasks).toEqual([]);
+    expect(result.current.listLoading).toBe(true);
+
+    await act(async () => beta.resolve(taskListPage([failedTaskFixture], 1)));
+    await waitFor(() => expect(result.current.visibleTasks).toHaveLength(1));
+    expect(result.current.listLoading).toBe(false);
+  });
+
+  it("Should keep the inbox on screen across a lane change, without a continuation", async () => {
+    vi.mocked(getTaskInbox).mockResolvedValue(buildInboxFixture({ unread_total: 6 }));
+    const { result } = renderHook(() => useControlledTasksPage({ mode: "inbox" }), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.inbox?.unread_total).toBe(6));
+
+    const lane = deferred<ReturnType<typeof buildInboxFixture>>();
+    vi.mocked(getTaskInbox).mockImplementationOnce(() => lane.promise);
+    const reads = vi.mocked(getTaskInbox).mock.calls.length;
+    act(() => result.current.handleInboxLaneChange("approvals"));
+    await waitFor(() => expect(vi.mocked(getTaskInbox).mock.calls.length).toBe(reads + 1));
+
+    // The lane's page is still out: the inbox the operator was reading stays, not a skeleton.
+    expect(result.current.inboxLoading).toBe(false);
+    expect(result.current.inbox?.unread_total).toBe(6);
+    expect(result.current.hasMoreInbox).toBe(false);
+
+    await act(async () => lane.resolve(buildInboxFixture({ unread_total: 1 })));
+    await waitFor(() => expect(result.current.inbox?.unread_total).toBe(1));
   });
 
   it("Should keep the search draft responsive and publish only the latest debounced query", async () => {

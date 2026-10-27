@@ -52,7 +52,11 @@ export function loopsCatalogAggregate(
   };
 }
 
-/** One loading/paging contract for the paged project catalog and the bounded batch. */
+/**
+ * One loading/paging contract for the paged project catalog and the bounded batch.
+ * `isPending` is "no rows yet and no failure", so a read that has not started (a window
+ * outside the live-data budget) shows the catalog's skeleton rather than a false empty.
+ */
 export function loopsCatalogQueryState(
   allProjects: boolean,
   batchQuery: LoopsBatchQuery,
@@ -60,7 +64,7 @@ export function loopsCatalogQueryState(
 ) {
   if (allProjects) {
     return {
-      isLoading: batchQuery.isLoading,
+      isPending: batchQuery.isPending,
       error: batchQuery.error,
       hasNextPage: false,
       isFetchingNextPage: false,
@@ -68,12 +72,17 @@ export function loopsCatalogQueryState(
       retry: () => void batchQuery.refetch(),
     };
   }
+  // While a search or filter change is loading, the rows are the previous ones; their cursor
+  // belongs to the previous filters, so paging waits for the new first page.
+  const paging = !loopsQuery.isPlaceholderData;
   return {
-    isLoading: loopsQuery.isLoading,
+    isPending: loopsQuery.isPending,
     error: loopsQuery.error,
-    hasNextPage: loopsQuery.hasNextPage,
+    hasNextPage: paging && loopsQuery.hasNextPage,
     isFetchingNextPage: loopsQuery.isFetchingNextPage,
-    fetchNextPage: () => void loopsQuery.fetchNextPage(),
+    fetchNextPage: () => {
+      if (paging) void loopsQuery.fetchNextPage();
+    },
     retry: () => void loopsQuery.refetch(),
   };
 }

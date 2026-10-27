@@ -2,13 +2,24 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Search } from "lucide-react";
 import type * as React from "react";
 
-import { Button, cn, OwnerAvatar, PropertyRow, StateGlyph, Time } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  OwnerAvatar,
+  PropertyRow,
+  PropertyRowSkeleton,
+  Skeleton,
+  SkeletonRegion,
+  StateGlyph,
+  Time,
+} from "@compozy/ui";
 
 import { describeCost } from "@/lib/cost-provenance";
 import { ownerAvatarKindFor, taskRunStateGlyph, taskRunStatusLabel } from "../lib/task-formatters";
 import { taskRunLineage } from "../lib/task-run-presentation";
 import type { TaskRun, TaskRunDetailView } from "../types";
 import { TaskRailSection } from "./task-rail-section";
+import { TASK_RAIL_CLASS, TASK_RAIL_FOOTER_CLASS } from "./task-surface-classes";
 
 export interface TaskRunRailProps extends React.ComponentProps<"div"> {
   run: TaskRunDetailView;
@@ -62,11 +73,7 @@ export function TaskRunRail({
   ...props
 }: TaskRunRailProps) {
   return (
-    <div
-      {...props}
-      className={cn("overflow-hidden rounded-lg bg-card shadow-card", className)}
-      data-testid="tasks-run-rail"
-    >
+    <div {...props} className={cn(TASK_RAIL_CLASS, className)} data-testid="tasks-run-rail">
       <TaskRunSessionSection run={run} />
       <TaskRunTimingSection duration={duration} record={run.run} />
       <TaskRunLineageSection
@@ -76,7 +83,7 @@ export function TaskRunRail({
         taskId={taskId}
         taskRuns={taskRuns}
       />
-      <footer className="flex items-center gap-2 border-t border-line-soft px-3 py-2.5">
+      <footer className={TASK_RAIL_FOOTER_CLASS}>
         <Button
           data-testid="tasks-run-inspect"
           onClick={onInspect}
@@ -87,6 +94,29 @@ export function TaskRunRail({
           <Search aria-hidden="true" data-icon="inline-start" />
           Inspect
         </Button>
+      </footer>
+    </div>
+  );
+}
+
+/**
+ * The placeholder twin of the run rail: the same card, the three real section labels, a few
+ * rows each and the Inspect footer as a block. The call site owns the `SkeletonRegion`.
+ */
+export function TaskRunRailSkeleton() {
+  return (
+    <div aria-hidden="true" className={TASK_RAIL_CLASS}>
+      <TaskRailSection label="Session">
+        <PropertyRowSkeleton count={2} />
+      </TaskRailSection>
+      <TaskRailSection label="Timing">
+        <PropertyRowSkeleton count={4} />
+      </TaskRailSection>
+      <TaskRailSection label="Other attempts">
+        <PropertyRowSkeleton count={1} />
+      </TaskRailSection>
+      <footer className={TASK_RAIL_FOOTER_CLASS}>
+        <Skeleton className="h-button-sm w-20 rounded-pill" />
       </footer>
     </div>
   );
@@ -203,11 +233,11 @@ function TaskRunLineageSection({
   const { previous, next } = taskRunLineage(record, taskRuns);
   const hasLineage = Boolean(previous || next);
   return (
-    <TaskRailSection aria-busy={loading || undefined} label="Other attempts">
+    <TaskRailSection label="Other attempts">
       {loading ? (
-        <p className="py-1 text-form-label text-muted" role="status">
-          Loading attempts…
-        </p>
+        <SkeletonRegion label="Loading attempts">
+          <PropertyRowSkeleton count={1} />
+        </SkeletonRegion>
       ) : null}
       {errorMessage ? (
         <p className="py-1 text-form-label text-danger" role="alert">

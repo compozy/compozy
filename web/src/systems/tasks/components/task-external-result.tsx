@@ -7,10 +7,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Eyebrow,
-  Skeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { TaskRunResultPage } from "../types";
+import { TaskExternalResultSkeleton } from "./task-loading-skeletons";
 import type { TaskResultPageController } from "./task-result-types";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
@@ -62,10 +63,9 @@ function TaskExternalResultBody({
 }) {
   if (controller.isLoading) {
     return (
-      <div aria-label="Loading result" className="flex flex-col gap-2" role="status">
-        <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-40 rounded-lg" />
-      </div>
+      <SkeletonRegion label="Loading result">
+        <TaskExternalResultSkeleton />
+      </SkeletonRegion>
     );
   }
   if (controller.errorMessage) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   agentCatalogRequest,
   flattenAgentAggregatePages,
+  keepCatalogAcrossSearch,
   normalizeAgentCatalogFilter,
 } from "../agent-catalog-query";
 import { agentKeys } from "../query-keys";
@@ -72,5 +73,44 @@ describe("agent-catalog-query", () => {
       pageParams: [undefined, "c1", "c2"],
     } as never);
     expect(flattened.map(entry => entry.agent.workspace_id ?? "")).toEqual(["", "ws_a"]);
+  });
+
+  // A search edit keeps the previous rows on screen; a change of scope or population never does.
+  it("Should keep the previous catalog rows across a search edit only", () => {
+    const rows = ["rows"];
+    const keyOf = (workspace: string, filters: Parameters<typeof agentKeys.catalog>[1] = {}) =>
+      agentKeys.catalog(workspace, filters);
+
+    expect(
+      keepCatalogAcrossSearch(rows, keyOf("ws_a", { q: "rev" }), keyOf("ws_a", { q: "revi" }))
+    ).toBe(rows);
+    expect(keepCatalogAcrossSearch(rows, keyOf("ws_a"), keyOf("ws_a", { q: "rev" }))).toBe(rows);
+    expect(keepCatalogAcrossSearch(rows, undefined, keyOf("ws_a"))).toBeUndefined();
+    // Another workspace, profile, category or status is another population: nothing stale shows.
+    expect(keepCatalogAcrossSearch(rows, keyOf("ws_a"), keyOf("ws_b"))).toBeUndefined();
+    expect(
+      keepCatalogAcrossSearch(rows, keyOf("ws_a"), keyOf("ws_a", { profile: "growth" }))
+    ).toBeUndefined();
+    expect(
+      keepCatalogAcrossSearch(rows, keyOf("ws_a"), keyOf("ws_a", { category: "Ops" }))
+    ).toBeUndefined();
+    expect(
+      keepCatalogAcrossSearch(rows, keyOf("ws_a"), keyOf("ws_a", { status: "active" }))
+    ).toBeUndefined();
+    // The All projects aggregate follows the same rule, per Project-filter selection.
+    expect(
+      keepCatalogAcrossSearch(
+        rows,
+        agentKeys.aggregate(["ws_a"], { q: "rev" }),
+        agentKeys.aggregate(["ws_a"], { q: "revi" })
+      )
+    ).toBe(rows);
+    expect(
+      keepCatalogAcrossSearch(
+        rows,
+        agentKeys.aggregate(["ws_a"], { q: "rev" }),
+        agentKeys.aggregate(["ws_a", "ws_b"], { q: "rev" })
+      )
+    ).toBeUndefined();
   });
 });

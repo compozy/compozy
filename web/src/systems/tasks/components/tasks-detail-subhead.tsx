@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 import { projectTaskExceptionPills } from "../lib/task-detail-pills";
 import type { TaskDetailView } from "../types";
+import { TASK_SUBHEAD_CLASS } from "./task-surface-classes";
 
 /**
  * Demoted meta line under the window head: exception pills, then freshness.
@@ -22,10 +23,7 @@ export function TasksDetailSubhead({ detail, className, ...props }: TasksDetailS
 
   return (
     <div
-      className={cn(
-        "mb-5 flex min-w-0 flex-wrap items-center gap-2 border-b border-line pb-4 text-form-label text-subtle",
-        className
-      )}
+      className={cn(TASK_SUBHEAD_CLASS, className)}
       data-testid="tasks-detail-subhead"
       {...props}
     >

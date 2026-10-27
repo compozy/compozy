@@ -9,20 +9,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Pill,
-  Skeleton,
   StateGlyph,
   Spinner,
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
   Time,
   formatDuration as formatCanonicalDuration,
 } from "@compozy/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
+import { AgentSessionsSkeleton } from "./agent-sessions-skeleton";
+import { AgentSessionsTableHead } from "./agent-sessions-table-head";
 
 import {
   getSessionDisplayTitle,
@@ -148,17 +147,7 @@ function AgentSessionsTable({
     <div className="flex flex-col" data-testid="agent-sessions-table-wrapper">
       <div className="overflow-x-auto">
         <Table data-testid="agent-sessions-table">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-2/5">Session</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Duration</TableHead>
-              <TableHead className="text-right">Last activity</TableHead>
-              <TableHead className="w-10">
-                <span className="sr-only">Actions</span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
+          <AgentSessionsTableHead />
           <TableBody>
             {sessions.map(session => (
               <AgentSessionRow
@@ -286,28 +275,6 @@ function ArchivedSessionsSection({
     </Collapsible>
   );
 }
-
-function AgentSessionsSkeleton() {
-  return (
-    <div
-      className="flex flex-col gap-2 px-1 py-2"
-      data-testid="agent-sessions-loading"
-      role="status"
-      aria-live="polite"
-    >
-      {AGENT_SESSION_SKELETON_IDS.map(id => (
-        <Skeleton key={id} className="h-9 w-full rounded-md" />
-      ))}
-    </div>
-  );
-}
-
-const AGENT_SESSION_SKELETON_IDS = [
-  "agent-session-skeleton-1",
-  "agent-session-skeleton-2",
-  "agent-session-skeleton-3",
-  "agent-session-skeleton-4",
-];
 
 function LastActivity({ iso }: { iso: string | null | undefined }) {
   if (!iso || !Number.isFinite(new Date(iso).getTime())) return <>—</>;

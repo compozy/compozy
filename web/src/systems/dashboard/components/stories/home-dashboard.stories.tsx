@@ -1,16 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { DataSurface } from "@compozy/ui";
+
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 
 import type { HomeAgentRow } from "../../hooks/use-home-agents";
 import type { HomeSystemModel } from "../../lib/home-system";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../../types";
 import { makeHomeOverview } from "../../mocks/fixtures";
-import type { HomeActivityEvent } from "../../types";
+import type { HomeActivityEvent, HomeSurfaceStatus } from "../../types";
 import { HomeActivityFeed } from "../home-activity-feed";
 import { HomeAgentsPanel } from "../home-agents-panel";
 import { useHomeAttentionActions } from "../../hooks/use-home-attention-actions";
 import { HomeAttentionZone } from "../home-attention-zone";
+import { HomeDashboardSkeleton } from "../home-dashboard-skeleton";
 import { HomeFirstRun } from "../home-first-run";
 import { HomeKpiStrip } from "../home-kpi-strip";
 import { HomeOutcomesChart } from "../home-outcomes-chart";
@@ -19,6 +22,7 @@ import { HomePulseHeatmap } from "../home-pulse-heatmap";
 import { HomeSystemPanel } from "../home-system-panel";
 import { HomeUsageChart } from "../home-usage-chart";
 import { HomeWorkingNow } from "../home-working-now";
+import { HOME_ZONE_STACK_CLASS } from "../home-zone-shape";
 
 const NOW = Date.parse("2026-07-23T12:00:00Z");
 
@@ -244,16 +248,23 @@ interface HomeDashboardStoryProps {
   systemOpen?: boolean;
   workingNowStatus?: HomeWorkingNowStatus;
   workingNowErrorMessage?: string;
+  /** Zones that read on their own while the overview is in hand. */
+  activityStatus?: HomeSurfaceStatus;
+  agentsLoading?: boolean;
+  systemLoading?: boolean;
 }
 
 function HomeDashboardStory({
   systemOpen = false,
   workingNowStatus = "ready",
   workingNowErrorMessage,
+  activityStatus = "ready",
+  agentsLoading = false,
+  systemLoading = false,
 }: HomeDashboardStoryProps) {
   const attentionActions = useHomeAttentionActions();
-  const workingNowIsError = workingNowStatus === "error";
-  const visibleWorkingNowCards = workingNowIsError ? [] : workingNowCards;
+  const workingNowIsEmpty = workingNowStatus === "error" || workingNowStatus === "loading";
+  const visibleWorkingNowCards = workingNowIsEmpty ? [] : workingNowCards;
   return (
     <SessionCreateProvider store={STORY_SESSION_CREATE_STORE}>
       <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
@@ -263,6 +274,7 @@ function HomeDashboardStory({
           <HomeKpiStrip
             overview={overview}
             workingNowDetail="2 sessions · 1 task run"
+            workingNowLoading={workingNowStatus === "loading"}
             workingNowTotal={3}
           />
 
@@ -278,10 +290,18 @@ function HomeDashboardStory({
             <HomeUsageChart onWindowChange={() => {}} usage={overview.usage} window={30} />
           </div>
           <div className="grid grid-cols-1 items-stretch gap-5 min-[1080px]:grid-cols-2">
-            <HomeAgentsPanel rows={agentRows} />
-            <HomeActivityFeed events={activityEvents} />
+            <HomeAgentsPanel loading={agentsLoading} rows={agentsLoading ? [] : agentRows} />
+            <HomeActivityFeed
+              events={activityStatus === "loading" ? [] : activityEvents}
+              status={activityStatus}
+            />
           </div>
-          <HomeSystemPanel onOpenChange={() => {}} open={systemOpen} system={systemModel} />
+          <HomeSystemPanel
+            loading={systemLoading}
+            onOpenChange={() => {}}
+            open={systemOpen}
+            system={systemModel}
+          />
         </div>
       </div>
     </SessionCreateProvider>
@@ -346,5 +366,32 @@ export const WorkingNowError: Story = {
   args: {
     workingNowStatus: "error",
     workingNowErrorMessage: "CompozyOS did not return active work.",
+  },
+};
+
+/**
+ * The overview read is out: every zone a busy desk shows, in its real frame, behind the one
+ * named loading region. Compare with FullPage; the zones sit where the loaded ones will.
+ */
+export const Loading: Story = {
+  render: () => (
+    <div className="mx-auto w-full max-w-[1240px] px-9 pt-6 pb-20">
+      <HomePageMeta today={new Date(NOW)} workspaceName="launch-hq" />
+      <DataSurface state="loading">
+        <DataSurface.Loading className={HOME_ZONE_STACK_CLASS} label="Loading home dashboard">
+          <HomeDashboardSkeleton usageWindow={30} />
+        </DataSurface.Loading>
+      </DataSurface>
+    </div>
+  ),
+};
+
+/** The overview is in hand while the zones with their own reads are still out: each waits in its own frame. */
+export const ZonesLoading: Story = {
+  args: {
+    workingNowStatus: "loading",
+    activityStatus: "loading",
+    agentsLoading: true,
+    systemLoading: true,
   },
 };

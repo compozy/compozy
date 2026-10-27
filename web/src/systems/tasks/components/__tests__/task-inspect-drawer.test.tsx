@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -48,6 +48,28 @@ describe("TaskInspectDrawer", () => {
     if (state === "error") {
       expect(screen.getByText("Stream unavailable")).toBeInTheDocument();
     }
+  });
+
+  it("Should stand in with the snapshot tiles while the inspect read loads", () => {
+    render(
+      <TaskInspectDrawer
+        activeTab="diagnostics"
+        detail={buildDetailFixture()}
+        inspect={null}
+        inspectLoading
+        onOpenChange={vi.fn()}
+        onTabChange={vi.fn()}
+        open
+        stream={{ errorMessage: null, latestEventSeq: null, seedSequence: 0, state: "idle" }}
+      />
+    );
+
+    const region = screen.getByRole("status");
+    expect(region).toHaveTextContent("Loading inspect snapshot");
+    for (const label of ["Next action", "Current run", "Session", "Scheduler"]) {
+      expect(within(region).getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.queryByTestId("tasks-inspect-diagnostics-empty")).toBeNull();
   });
 
   it("Should render an inspect failure instead of the empty-snapshot message", () => {

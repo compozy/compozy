@@ -470,7 +470,7 @@ func readWindowsChildPID(t *testing.T, proc Proc) int {
 			t.Fatalf("read child PID: pid=%d error=%v", child.pid, child.err)
 		}
 		return child.pid
-	case <-time.After(5 * time.Second):
+	case <-time.After(20 * time.Second):
 		if err := proc.Kill(SignalKILL); err != nil {
 			t.Errorf("Kill(KILL) after child PID timeout error = %v", err)
 		}

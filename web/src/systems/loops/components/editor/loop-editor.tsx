@@ -1,11 +1,10 @@
 import { AlertCircle } from "lucide-react";
 import { ReactFlowProvider } from "@xyflow/react";
 
-import { cn, Empty, Skeleton, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
+import { cn, Empty, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";
 
 import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
 
-import { useLoopEditorChrome } from "../../hooks/use-loop-editor-chrome";
 import { useLoopEditor, type UseLoopEditorResult } from "../../hooks/use-loop-editor";
 import { useLoopEditorReadyActions } from "../../hooks/use-loop-editor-ready-actions";
 import { useLoopFork } from "../../hooks/use-loop-fork";
@@ -14,12 +13,13 @@ import type { LoopDefinition, LoopDetail, LoopEnvironmentSpec } from "../../type
 import { LoopEditorCanvas } from "./loop-editor-canvas";
 import { LoopEditorConnectionPicker } from "./loop-editor-connection-picker";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
+import { editorGridClass } from "./loop-editor-grid";
 import { LoopEditorNodeActionsProvider } from "./loop-editor-node";
 import { LoopEditorPalette } from "./loop-editor-palette";
-import type { LoopEditorPaletteMode } from "../../lib/loop-editor-types";
 import { LoopEditorPublishRejectedStrip } from "./loop-editor-publish-rejected-strip";
 import { LoopEditorQuickAdd } from "./loop-editor-quick-add";
 import { LoopEditorSidebar } from "./loop-editor-sidebar";
+import { LoopEditorSkeleton } from "./loop-editor-skeleton";
 import { LoopEditorSourceStrip } from "./loop-editor-source-strip";
 import { LoopEditorStartSummary } from "./loop-editor-start-summary";
 import { LoopEditorToolbar } from "./loop-editor-toolbar";
@@ -39,19 +39,6 @@ type ReadyEditor = UseLoopEditorResult & {
   loop: LoopDetail;
   definition: LoopDefinition;
 };
-
-const EDITOR_GRID_CLASS = {
-  "rail:inspector":
-    "grid-cols-[190px_minmax(0,1fr)_320px] xl:grid-cols-[210px_minmax(0,1fr)_344px]",
-  "rail:canvas": "grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)]",
-  "none:inspector": "grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_344px]",
-  "none:canvas": "grid-cols-[minmax(0,1fr)]",
-} as const;
-
-function editorGridClass(paletteMode: LoopEditorPaletteMode, inspectorOpen: boolean): string {
-  const rail = paletteMode === "expanded" ? "rail" : "none";
-  return EDITOR_GRID_CLASS[`${rail}:${inspectorOpen ? "inspector" : "canvas"}`];
-}
 
 export function LoopEditor({
   workspaceId,
@@ -289,51 +276,6 @@ function LoopEditorReady({
         sourceNodeId={overlays.connectionDrop?.source ?? ""}
       />
     </LoopEditorNodeActionsProvider>
-  );
-}
-
-function LoopEditorSkeleton() {
-  const { paletteMode, inspectorOpen } = useLoopEditorChrome();
-  return (
-    <div
-      aria-busy="true"
-      className="flex min-h-0 flex-1 flex-col"
-      data-testid="loop-editor-loading"
-      role="status"
-    >
-      <div className="flex h-10.5 items-center gap-2 border-b border-line px-3.5">
-        <Skeleton className="h-7 w-40" />
-        <Skeleton className="h-7 w-28" />
-        <Skeleton className="h-7 w-32" />
-      </div>
-      <div className={cn("grid min-h-0 flex-1", editorGridClass(paletteMode, inspectorOpen))}>
-        {paletteMode === "expanded" ? (
-          <div className="space-y-3 border-r border-line p-3">
-            <Skeleton className="h-3 w-20" />
-            {[0, 1, 2, 3, 4].map(index => (
-              <Skeleton className="h-9 w-full" key={index} />
-            ))}
-          </div>
-        ) : null}
-        <div className="relative p-8">
-          <Skeleton className="absolute top-16 left-16 h-24 w-44" />
-          <Skeleton className="absolute top-44 left-72 h-24 w-44" />
-          <Skeleton className="absolute top-72 left-28 h-24 w-44" />
-        </div>
-        {inspectorOpen ? (
-          <div className="space-y-4 border-l border-line p-4">
-            <div className="flex gap-2">
-              <Skeleton className="h-7 w-20" />
-              <Skeleton className="h-7 w-16" />
-            </div>
-            <Skeleton className="h-3 w-48" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-20 w-full" />
-          </div>
-        ) : null}
-      </div>
-      <span className="sr-only">Loading Loop editor</span>
-    </div>
   );
 }
 

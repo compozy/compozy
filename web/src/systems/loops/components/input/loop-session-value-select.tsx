@@ -8,11 +8,14 @@ import {
   CommandSelectGroup,
   CommandSelectShell,
   CommandSelectTrigger,
+  SkeletonRegion,
+  SkeletonText,
 } from "@compozy/ui";
 
 import { getSessionDisplayTitle } from "@/systems/session";
 
 import { useLoopSessionCatalog } from "../../hooks/use-loop-session-catalog";
+import { placeholderSlots } from "../../lib/placeholder-slots";
 
 interface LoopSessionValueSelectProps {
   workspaceId: string;
@@ -23,6 +26,24 @@ interface LoopSessionValueSelectProps {
   invalid?: boolean;
   describedBy?: string;
   onChange: (value: string) => void;
+}
+
+/** Session rows before the first page has answered, in a `CommandItem`'s own frame. */
+function SessionRowsSkeleton() {
+  return (
+    <SkeletonRegion label="Loading sessions">
+      {placeholderSlots("session", 4).map(slot => (
+        <div
+          aria-hidden="true"
+          className="flex min-h-8 w-full min-w-0 items-center gap-2 px-2.5 py-1.5 text-small-body"
+          key={slot.id}
+        >
+          <SkeletonText className="min-w-0 flex-1" />
+          <SkeletonText className="w-20 font-mono text-mono-id" />
+        </div>
+      ))}
+    </SkeletonRegion>
+  );
 }
 
 export function LoopSessionValueSelect({
@@ -63,13 +84,13 @@ export function LoopSessionValueSelect({
       >
         {catalog.paging ? <span role="status">Loading sessions…</span> : null}
         <CommandList>
-          <CommandEmpty>
-            {catalog.loading
-              ? "Loading sessions…"
-              : catalog.failed
-                ? "Sessions could not be loaded."
-                : "No sessions match your search."}
-          </CommandEmpty>
+          {catalog.loading ? (
+            <SessionRowsSkeleton />
+          ) : (
+            <CommandEmpty>
+              {catalog.failed ? "Sessions could not be loaded." : "No sessions match your search."}
+            </CommandEmpty>
+          )}
           <CommandSelectGroup>
             {catalog.sessions.map(session => (
               <CommandItem

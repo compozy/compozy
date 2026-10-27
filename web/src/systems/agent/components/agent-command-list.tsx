@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@compozy/ui";
 
+import { AgentCommandListSkeleton } from "./agent-command-list-skeleton";
 import { AgentIcon } from "./agent-icon";
 import {
   buildAgentCategoryTree,
@@ -56,6 +57,11 @@ export interface AgentCommandListProps {
   itemTestId?: (agent: AgentPayload) => string;
   /** Items rendered above the catalog groups, inside the same command list. */
   leadingItems?: ReactNode;
+  /**
+   * The catalog has not answered: row-shaped placeholders stand where the groups will be, and
+   * the list never claims that nothing matches. Agents already in hand are listed as usual.
+   */
+  loading?: boolean;
 }
 
 export function AgentCommandList({
@@ -65,8 +71,20 @@ export function AgentCommandList({
   emptyState = "No agents match your search.",
   itemTestId,
   leadingItems,
+  loading = false,
 }: AgentCommandListProps) {
   const groups = collectGroups(buildAgentCategoryTree(agents));
+
+  if (loading && groups.length === 0) {
+    // A listbox may hold only options, so the busy region follows the list instead of sitting in
+    // it. The list stays mounted, empty or not: the search field's `aria-controls` points at it.
+    return (
+      <>
+        <CommandList aria-busy="true">{leadingItems}</CommandList>
+        <AgentCommandListSkeleton />
+      </>
+    );
+  }
 
   return (
     <CommandList>

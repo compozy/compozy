@@ -1,4 +1,4 @@
-import { Pill } from "@compozy/ui";
+import { Pill, Skeleton } from "@compozy/ui";
 
 import { formatAgentOriginLabel, formatCategoryMetaSegment } from "../lib/agent-fleet-projection";
 import type { AgentPayload } from "../types";
@@ -36,6 +36,19 @@ export function AgentDetailHeader({ agent }: AgentDetailHeaderProps) {
           {category}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/** The header meta row while the agent loads: one pill-height placeholder where the origin pill goes. */
+export function AgentDetailHeaderSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex flex-wrap items-center gap-1.5 pt-4"
+      data-testid="agent-detail-header-skeleton"
+    >
+      <Skeleton className="h-pill-sm w-16 rounded-pill" />
     </div>
   );
 }

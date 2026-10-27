@@ -80,7 +80,7 @@ async function runCLI(runtime: BrowserRuntime, args: string[]) {
   });
 }
 
-test("glances at Codex Weekly in the tray right after All desktops (E2E-001)", async ({
+test("glances at Codex Weekly at the leading edge of the tray (E2E-001)", async ({
   appPage,
   runtime,
 }) => {
@@ -88,7 +88,9 @@ test("glances at Codex Weekly in the tray right after All desktops (E2E-001)", a
 
   const tray = appPage.locator('[data-slot="os-menubar-tray"] [data-slot^="os-menubar-"]');
   const slots = await tray.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-slot")));
-  expect(slots.indexOf("os-menubar-usage")).toBe(slots.indexOf("os-menubar-desktops") + 1);
+  // The optional meter leads the cluster so arriving usage cannot displace desktop controls.
+  expect(slots.indexOf("os-menubar-usage")).toBe(0);
+  expect(slots.indexOf("os-menubar-desktops")).toBeGreaterThan(0);
   expect(slots.indexOf("os-menubar-usage")).toBeLessThan(slots.indexOf("os-menubar-bell"));
 
   const control = usageControl(appPage);

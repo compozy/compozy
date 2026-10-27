@@ -25,8 +25,11 @@ export function useAutomationLists({
   const showTriggers = start !== "schedule" && fetchTriggers;
   const jobsQuery = useAutomationJobs(filters, { enabled });
   const triggersQuery = useAutomationTriggers(filters, { enabled: enabled && fetchTriggers });
-  const jobsMore = Boolean(jobsQuery.hasNextPage);
-  const triggersMore = fetchTriggers && Boolean(triggersQuery.hasNextPage);
+  // While an edited search loads, the previous rows stay on screen; their cursor is not the new
+  // search's, so there is no next page to offer yet.
+  const jobsMore = Boolean(jobsQuery.hasNextPage) && !jobsQuery.isPlaceholderData;
+  const triggersMore =
+    fetchTriggers && Boolean(triggersQuery.hasNextPage) && !triggersQuery.isPlaceholderData;
 
   return {
     fetchTriggers,

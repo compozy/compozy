@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,7 +15,25 @@ import { buildDashboardFixture } from "../test-fixtures";
 describe("TasksDashboardView", () => {
   it("renders loading state when no dashboard is available", () => {
     render(<TasksDashboardView dashboard={null} dashboardStatus="loading" />);
-    expect(screen.getByTestId("tasks-dashboard-loading")).toBeInTheDocument();
+
+    // One named loading area; every section is already in place under its real heading, with
+    // the figures left as placeholders, and nothing interactive sits inside it.
+    const region = screen.getByRole("status");
+    expect(region).toBe(screen.getByTestId("tasks-dashboard-loading"));
+    expect(region).toHaveTextContent("Loading tasks dashboard");
+    for (const text of [
+      "Running now",
+      "Success rate",
+      "Time to pick up",
+      "Waiting",
+      "Active runs",
+      "Queue health",
+      "Status breakdown",
+    ]) {
+      expect(within(region).getByText(text)).toBeInTheDocument();
+    }
+    expect(within(region).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-dashboard-view")).not.toBeInTheDocument();
   });
 
   it("renders error state with message when no dashboard is available", () => {

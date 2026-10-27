@@ -5,8 +5,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Eyebrow,
+  Skeleton,
+  SkeletonRegion,
+  SkeletonText,
   Spinner,
 } from "@compozy/ui";
+import { placeholderSlots } from "../../lib/placeholder-slots";
 import type { GoalTurnsRead } from "../../hooks/use-goal-turns";
 import { GoalTurnTimeline } from "./goal-turn-timeline";
 
@@ -38,10 +42,17 @@ export function LoopRunTurnsDisclosure({ read, isLive }: { read: GoalTurnsRead; 
           </div>
         ) : null}
         {read.isLoading ? (
-          <p role="status" className="mt-3 text-small-body text-muted">
-            <Spinner className="mr-2 inline-block size-3" />
-            Loading Goal turns…
-          </p>
+          <SkeletonRegion className="mt-3 flex flex-col gap-3" label="Loading Goal turns">
+            {placeholderSlots("turn", 2).map(slot => (
+              <div aria-hidden="true" className="flex items-start gap-3" key={slot.id}>
+                <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <SkeletonText className="w-40 text-small-body" />
+                  <SkeletonText className="mt-1 w-3/4 text-form-label" />
+                </div>
+              </div>
+            ))}
+          </SkeletonRegion>
         ) : null}
         {read.turns.length > 0 || (!read.isLoading && !read.isError) ? (
           <GoalTurnTimeline turns={read.turns} live={isLive} className="mt-3" />

@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-router";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -55,7 +55,7 @@ afterEach(() => {
   server.resetHandlers();
   resetSettingsRestartStore();
 });
-async function openSettings() {
+function renderSettings() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -76,10 +76,35 @@ async function openSettings() {
       <RouterProvider router={router} />
     </QueryClientProvider>
   );
+}
+
+async function openSettings() {
+  renderSettings();
   await screen.findByRole("button", { name: "Select github from github" });
 }
 
 describe("MCP Settings page", () => {
+  it("Should hold the table's place with a skeleton, and claim no server count, while the servers load", async () => {
+    server.use(
+      http.get("*/api/settings/mcp-servers", async () => {
+        await delay("infinite");
+        return HttpResponse.json({});
+      })
+    );
+    renderSettings();
+
+    const loading = await screen.findByTestId("settings-page-mcp-loading");
+    expect(loading).toHaveAttribute("role", "status");
+    expect(loading).toHaveTextContent("Loading MCP servers");
+    expect(loading.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    // The head and toolbar are live at once; only the count and the rows wait.
+    expect(screen.getByTestId("settings-page-mcp-search")).toBeVisible();
+    expect(screen.queryByTestId("settings-page-mcp-count")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-mcp-subhead").querySelector('[data-slot="skeleton"]')
+    ).not.toBeNull();
+  });
+
   it("Should keep same-name owners separate and save or reset only the extension override", async () => {
     const user = userEvent.setup();
     const writes: Array<{ url: URL; body: SettingsMCPServerRequest }> = [];

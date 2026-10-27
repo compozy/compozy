@@ -401,13 +401,13 @@ export type {
 // prettier-ignore
 export {
   TaskActivityItem, TaskActivityPanel, TaskAutoEnqueueSwitch,
-  TaskCard, TaskDeleteAction, TaskDependenciesSection, TaskEditorModal, TaskFanOutDialog,
+  TaskCard, TaskDeleteAction, TaskDependenciesSection, TaskDetailPanelsSkeleton, TaskEditorModal, TaskFanOutDialog,
   TaskGroup, TaskInspectDrawer, TaskLinkedRow, TaskLoopProvenance, TaskLoopRow, TaskNowStrip, TaskOverviewPanel, TaskPageActions,
-  TaskPageOverflow, TaskPageStatus, TaskPauseDialog, TaskPriorityEditor, TaskPropertiesRail,
+  TaskPageOverflow, TaskPageStatus, TaskPauseDialog, TaskPriorityEditor, TaskPropertiesRail, TaskPropertiesRailSkeleton,
   TaskRawPane, TaskResultSection, TaskRunActivitySection, TaskRunForceFailDialog,
-  TaskRunInspectDrawer, TaskRunOutcome, TaskRunPageActions, TaskRunPageOverflow,
-  TaskRunPageStatus, TaskRunRail, TaskRunReviewCard, TaskRunSubhead, TaskRunsPanel,
-  TaskSetupSheet, TaskStateBand, TaskSubtasksSection, TasksDashboardActiveRuns,
+  TaskRunInspectDrawer, TaskRunMainSkeleton, TaskRunOutcome, TaskRunPageActions, TaskRunPageOverflow,
+  TaskRunPageStatus, TaskRunRail, TaskRunRailSkeleton, TaskRunReviewCard, TaskRunSubhead, TaskRunsPanel,
+  TaskSetupSheet, TaskStateBand, TaskSubheadSkeleton, TaskSubtasksSection, TasksCatalogSkeleton, TasksDashboardActiveRuns,
   TasksDashboardCards, TasksDashboardQueueHealth, TasksDashboardStatusBreakdown,
   TasksDashboardView, TasksDetailSubhead, TasksEmptyState, TasksInboxItem, TasksInboxView,
   TasksKanbanBoard, TasksListFilters, TasksListRecordsFilter, TasksListRow, TasksListSort,

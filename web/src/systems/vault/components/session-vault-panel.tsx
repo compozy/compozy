@@ -8,11 +8,14 @@ import {
   ItemDescription,
   ItemGroup,
   ItemMedia,
+  ItemSkeleton,
   ItemTitle,
   Time,
 } from "@compozy/ui";
 
 import type { VaultSecret } from "../types";
+
+const SESSION_VAULT_SKELETON_IDS = ["vault-skeleton-1", "vault-skeleton-2"] as const;
 
 interface SessionVaultPanelProps {
   secrets: readonly VaultSecret[];
@@ -42,9 +45,13 @@ export function SessionVaultPanel({
       <DataSurface.Loading
         data-testid="session-inspector-vault-loading"
         label="Loading session vault metadata"
-        size="sm"
-        surface="bare"
-      />
+      >
+        <ItemGroup>
+          {SESSION_VAULT_SKELETON_IDS.map(id => (
+            <ItemSkeleton count={1} key={id} />
+          ))}
+        </ItemGroup>
+      </DataSurface.Loading>
       <DataSurface.Error
         icon={KeyRound}
         size="compact"

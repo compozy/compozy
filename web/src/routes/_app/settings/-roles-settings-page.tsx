@@ -1,5 +1,4 @@
 import {
-  ROLE_ORDER,
   RoleList,
   SettingsPageFrame,
   SettingsPageState,
@@ -8,7 +7,6 @@ import {
   useSettingsRolesPage,
   useSettingsTopbar,
 } from "@/systems/settings";
-import { SkeletonRows } from "@compozy/ui";
 
 const TEST_PREFIX = "settings-page-roles";
 
@@ -25,22 +23,7 @@ export function RolesSettingsPage() {
   });
 
   if (page.isLoading) {
-    return (
-      <div className="mx-auto flex w-full max-w-settings-page-wide flex-col px-6 pt-5">
-        <div
-          aria-busy="true"
-          className="rounded-lg bg-card shadow-card px-4"
-          data-testid={`${TEST_PREFIX}-loading`}
-          role="status"
-        >
-          <SkeletonRows
-            count={ROLE_ORDER.length}
-            rowClassName="border-t border-line-soft py-3 first:border-t-0"
-          />
-          <span className="sr-only">Loading roles</span>
-        </div>
-      </div>
-    );
+    return <SettingsPageState slug="roles" state="loading" />;
   }
 
   if (page.error) {

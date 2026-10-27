@@ -7,7 +7,7 @@
 // Boundary OUT: inventory rows and query transport, owned by their component and adapter suites.
 
 import { createElement, type ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopbarSlot } from "@compozy/ui";
@@ -166,6 +166,117 @@ describe("LoopRunsLocation", () => {
     await user.click(screen.getByTestId("loop-node-inventory-loop-filter"));
     expect(await screen.findByText("catalog-only-loop")).toBeInTheDocument();
   });
+  // Invariant: a read that has not answered is not an empty roster. The first read holds the
+  // roster's own frame (its real column header over placeholder rows) in one named status region,
+  // inside the page the rows will fill; a refresh behind rows already in hand never draws it.
+  it("Should hold the roster's frame, not an empty state, while the first read is pending", () => {
+    const route = useLoopRunsRouteMock();
+    useLoopRunsRouteMock.mockReturnValue({
+      ...route,
+      inventoryState: undefined,
+      runsQuery: { data: undefined, isPending: true, isLoading: false, error: null },
+    });
+
+    const { container, rerender } = render(<LoopRunsLocation search={{}} />);
+
+    const pending = screen.getByTestId("loop-runs-loading");
+    expect(pending).toHaveAttribute("role", "status");
+    expect(pending).toHaveTextContent("Loading runs");
+    for (const column of ["Loop", "Status", "Progress", "Started", "Duration"]) {
+      expect(within(pending).getByText(column)).toBeInTheDocument();
+    }
+    expect(within(pending).queryByText("Project")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="listing-page"]')).toContainElement(pending);
+    expect(screen.queryByTestId("loop-runs-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs-view")).not.toBeInTheDocument();
+
+    // Under All projects the roster has its Project column, so the placeholder does too.
+    useLoopRunsRouteMock.mockReturnValue({
+      ...useLoopRunsRouteMock(),
+      allProjects: true,
+      projectOf: () => ({ kind: "user", name: "User" }),
+    });
+    rerender(<LoopRunsLocation search={{}} />);
+    expect(within(screen.getByTestId("loop-runs-loading")).getByText("Project")).toBeVisible();
+  });
+
+  it("Should keep the rows it has while a refresh is in flight", () => {
+    const route = useLoopRunsRouteMock();
+    useLoopRunsRouteMock.mockReturnValue({
+      ...route,
+      inventoryState: undefined,
+      runsQuery: {
+        data: {
+          runs: [
+            {
+              id: "looprun-77aa01b2c3d4e5f6",
+              loop_name: "revisao-paralela",
+              status: "done",
+              generation: 1,
+              created_at: "2026-08-19T18:40:00Z",
+              attention: null,
+              progress: { round: 1, steps_done: 6, steps_total: 6 },
+            },
+          ],
+        },
+        isPending: false,
+        isFetching: true,
+        isLoading: false,
+        error: null,
+      },
+    });
+
+    render(<LoopRunsLocation search={{}} />);
+
+    expect(screen.getByText("revisao-paralela")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs-loading")).not.toBeInTheDocument();
+  });
+
+  it("Should hold the inventory's frame, not 'Nothing is waiting', while its first read is pending", () => {
+    const route = useLoopRunsRouteMock();
+    useLoopRunsRouteMock.mockReturnValue({
+      ...route,
+      inventory: {
+        ...route.inventory,
+        isError: false,
+        error: null,
+        isLoading: false,
+        isPending: true,
+      },
+    });
+
+    render(<LoopRunsLocation search={{ nodes: "waiting" }} />);
+
+    const pending = screen.getByTestId("loop-node-inventory-loading");
+    expect(pending).toHaveAttribute("role", "status");
+    expect(pending).toHaveTextContent("Loading waiting steps");
+    expect(within(pending).getByText("Time in state")).toBeInTheDocument();
+    // The state tabs above are static, so they are the real ones and stay usable.
+    expect(screen.getByTestId("loop-node-inventory-state-waiting")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-node-inventory-empty")).not.toBeInTheDocument();
+  });
+
+  // The window route reaches the page through a store, whose updates are never transitions; the
+  // pane choice is deferred so React can render the swap as one and cross-fade it. What the swap
+  // owes the reader is that the pane the route names is the pane on screen.
+  it("Should end on the pane the route names after the Runs and Steps switch", async () => {
+    const base = useLoopRunsRouteMock();
+    const route = { ...base, inventory: { ...base.inventory, isError: false, error: null } };
+    useLoopRunsRouteMock.mockReturnValue({ ...route, inventoryState: undefined });
+    const { rerender } = render(<LoopRunsLocation search={{}} />);
+    expect(screen.getByTestId("loop-runs")).toBeInTheDocument();
+
+    useLoopRunsRouteMock.mockReturnValue({ ...route, inventoryState: "waiting" });
+    rerender(<LoopRunsLocation search={{ nodes: "waiting" }} />);
+    expect(await screen.findByTestId("loop-runs-inventory")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs")).not.toBeInTheDocument();
+
+    useLoopRunsRouteMock.mockReturnValue({ ...route, inventoryState: undefined });
+    rerender(<LoopRunsLocation search={{}} />);
+    expect(await screen.findByTestId("loop-runs")).toBeInTheDocument();
+    expect(screen.queryByTestId("loop-runs-inventory")).not.toBeInTheDocument();
+  });
+
   // task_05 requirement 5 / VC-36: transport-degraded never renders as empty.
   // The roster component implements the degraded notice; the route has to hand it
   // the failure and the retry instead of swallowing both behind its own state.

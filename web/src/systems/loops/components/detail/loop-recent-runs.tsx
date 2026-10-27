@@ -8,6 +8,7 @@ import { loopStatusLabel } from "../../lib/loop-formatters";
 import { formatClockDuration, runElapsedSeconds } from "../../lib/loop-run-usage";
 import type { LoopRun } from "../../types";
 import { LoopStatusMark } from "../loop-status-mark";
+import { RECENT_RUN_ROW_CLASS, RECENT_RUNS_CLASS } from "./loop-recent-runs-classes";
 import { useWindowBindingSearch } from "@/systems/workspace";
 
 interface LoopRecentRunsProps {
@@ -33,7 +34,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
     );
   }
   return (
-    <div className="flex flex-col rounded-lg bg-card shadow-card" data-testid="loop-recent-runs">
+    <div className={RECENT_RUNS_CLASS} data-testid="loop-recent-runs">
       {runs.map(run => (
         <Link
           key={run.id}
@@ -41,7 +42,7 @@ export function LoopRecentRuns({ runs }: LoopRecentRunsProps) {
           search={bindingSearch}
           to="/loop-runs/$runId"
           params={{ runId: run.id }}
-          className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 border-t border-line-soft px-4 py-3 transition-colors first:border-t-0 hover:bg-surface-2"
+          className={`${RECENT_RUN_ROW_CLASS} transition-colors hover:bg-surface-2`}
           data-testid="loop-recent-run-row"
           title={run.id}
         >

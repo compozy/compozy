@@ -102,6 +102,15 @@ export const Loading: Story = {
   },
 };
 
+/** The cards view holds placeholder cards in the same grid. */
+export const LoadingCards: Story = {
+  args: {
+    secrets: [],
+    isLoading: true,
+    view: "cards",
+  },
+};
+
 /** Empty state uses caller-provided copy for scoped vault views. */
 export const Empty: Story = {
   args: {

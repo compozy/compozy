@@ -3,6 +3,7 @@ import { CancelledError, type QueryClient } from "@tanstack/react-query";
 import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import { agentCatalogOptions, agentsListOptions } from "@/systems/agent";
 import { onboardingStatusOptions } from "@/systems/onboarding";
+import { providerUsageOptions } from "@/systems/provider-usage";
 import { sessionsListOptions } from "@/systems/session";
 import {
   isActiveWorkspaceStoreHydrated,
@@ -71,6 +72,9 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
     queryClient.ensureQueryData(agentsListOptions(workspaceId, profile)),
     queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1, profile })),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
+    // Warms the menubar usage tray under the same profile key; never waited on, so an unanswered
+    // usage read cannot hold the desktop or the reads beside it.
+    ...(profile === "" ? [] : [queryClient.ensureQueryData(providerUsageOptions(profile))]),
     queryClient.ensureInfiniteQueryData(
       sessionsListOptions({ workspace_id: workspaceId, state: "active", limit: 1, ...profileScope })
     ),

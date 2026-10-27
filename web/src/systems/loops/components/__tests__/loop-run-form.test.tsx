@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ vi.mock("@/systems/profiles", async importOriginal => ({
 import { createMswFetch } from "@/test/msw-fetch";
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { LoopRunForm } from "../run-form/loop-run-form";
+import { LoopRunFormSkeleton } from "../run-form/loop-run-form-skeleton";
 import { handlers } from "../../mocks";
 import { worktreeBehindFixture } from "@/systems/workspace/mocks";
 import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
@@ -96,6 +97,30 @@ describe("LoopRunForm", () => {
   function openSection(name: RegExp) {
     fireEvent.click(screen.getByRole("button", { name }));
   }
+
+  // Invariant: while the Loop, its settings and the live-run check are read, the page keeps the
+  // form's frame: the lede already names the Loop, the section headings and the action bar are the
+  // real ones, and the fields and what depends on them are placeholders in one named region.
+  it("Should hold the form's frame, with its actions waiting, while the reads are pending", () => {
+    render(<LoopRunFormSkeleton name="implement-tasks" />);
+
+    const page = screen.getByTestId("loop-run-form-loading");
+    expect(page).toHaveAttribute("role", "status");
+    expect(within(page).getByText("Loading run form")).toBeInTheDocument();
+    expect(within(page).getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Run implement-tasks"
+    );
+    for (const heading of ["Inputs", "Environment", "Limits"]) {
+      expect(within(page).getByText(heading)).toBeInTheDocument();
+    }
+    // The idle note and the two actions are static, but nothing can run before the form exists.
+    expect(
+      within(page).getByText("Dry run checks your inputs without starting anything.")
+    ).toBeInTheDocument();
+    expect(within(page).getByTestId("loop-run-dry-button")).toBeDisabled();
+    expect(within(page).getByTestId("loop-run-submit-button")).toBeDisabled();
+    expect(within(page).queryByRole("textbox")).not.toBeInTheDocument();
+  });
 
   // Invariant: the initial scoped form offers typed inputs without unsupported controls.
   // Owner: LoopRunForm; canonical suite: this file.

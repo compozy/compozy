@@ -1,18 +1,10 @@
 import { AlertCircle, Repeat2, X } from "lucide-react";
 
-import {
-  Button,
-  Empty,
-  PAGE_CONTENT_GUTTER,
-  Skeleton,
-  SkeletonRows,
-  cn,
-  useTopbarSlot,
-} from "@compozy/ui";
+import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { LoopUnboundState } from "./loop-unbound-state";
 import { useLoopRunFormPage } from "./use-loop-run-form-page";
-import { LoopRunForm } from "@/systems/loops";
+import { LoopRunForm, LoopRunFormSkeleton } from "@/systems/loops";
 
 /**
  * Run-form entry for a Loop (design §4.3): the auto-generated typed input form, the
@@ -21,7 +13,7 @@ import { LoopRunForm } from "@/systems/loops";
  */
 export function LoopRunFormLocation({ name }: { name: string }) {
   const page = useLoopRunFormPage(name);
-  const { configQuery, loopQuery, openLoop, openLoops, scope, workspaceId } = page;
+  const { configQuery, liveRunPending, loopQuery, openLoop, openLoops, scope, workspaceId } = page;
   useTopbarSlot({
     onBack: openLoop,
     crumbs: [
@@ -54,17 +46,10 @@ export function LoopRunFormLocation({ name }: { name: string }) {
       />
     );
   }
-  if (loopQuery.isLoading || configQuery.isLoading) {
-    return (
-      <div
-        aria-busy="true"
-        className={cn(PAGE_CONTENT_GUTTER, "flex min-h-0 flex-1 flex-col gap-6 pt-6")}
-        data-testid="loop-run-form-loading"
-      >
-        <Skeleton className="h-7 w-48" />
-        <SkeletonRows count={3} rowClassName="border-b border-line-soft py-3" />
-      </div>
-    );
+  // "No data yet", not "fetching": a window outside the live-data budget has not started its
+  // reads and must not read as a missing Loop.
+  if (loopQuery.isPending || configQuery.isPending || liveRunPending) {
+    return <LoopRunFormSkeleton name={name} />;
   }
   if (loopQuery.error || configQuery.error || !loopQuery.data) {
     return (

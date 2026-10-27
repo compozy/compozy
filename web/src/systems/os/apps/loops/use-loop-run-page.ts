@@ -203,6 +203,9 @@ export function useLoopRunPage(
     // to tell "this run reached no step" from "we have not read its steps yet";
     // without it a pending or failed read renders as `No steps ran`.
     rosterRead: { isLoading: rosterRead.isLoading, isError: rosterRead.isError },
+    // The briefing feeds the strip and the progress card; until it answers they hold their
+    // place as skeletons rather than being absent and then pushing the page down.
+    briefingRead: { isLoading: briefingRead.isLoading },
     ...nodeSelection,
     storyPaging: {
       hasOlder: timelineRead.hasOlder,

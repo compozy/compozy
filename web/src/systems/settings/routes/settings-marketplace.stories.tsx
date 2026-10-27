@@ -10,7 +10,11 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import { marketplaceSourceHandlers, marketplaceSourceFixtures } from "@/systems/marketplace/mocks";
+import {
+  marketplaceSourceHandlers,
+  marketplaceSourceFixtures,
+  marketplaceSourcesFixture,
+} from "@/systems/marketplace/mocks";
 import { settingsMarketplaceSectionFixture } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
@@ -116,6 +120,22 @@ export const Loading: Story = {
         compozyApiMock.get("/api/settings/marketplace", async () => {
           await delay("infinite");
           return HttpResponse.json(settingsMarketplaceSectionFixture);
+        }),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** The catalog keys loaded while the sources list is still resolving: only its rows hold their place. */
+export const SourcesLoading: Story = {
+  parameters: {
+    ...appRouteParameters("/settings/marketplace"),
+    ...storybookMswParameters({
+      marketplace: [
+        compozyApiMock.get("/api/marketplace/sources", async () => {
+          await delay("infinite");
+          return HttpResponse.json(marketplaceSourcesFixture);
         }),
       ],
     }),

@@ -7,6 +7,8 @@ import {
   CommandSelectShell,
   CommandSelectTrigger,
   Eyebrow,
+  Skeleton,
+  SkeletonText,
 } from "@compozy/ui";
 
 import { AgentIcon } from "./agent-icon";
@@ -127,17 +129,56 @@ function ComposerAgentValue({
   );
 }
 
+/**
+ * The label's place before any agent is known: a bar about as wide as the placeholder text, named
+ * for assistive technology since the trigger has no other text to take its name from.
+ */
+function AgentLabelPlaceholder() {
+  return (
+    <span className="flex min-w-0 items-center">
+      <span className="sr-only">Loading agents</span>
+      <SkeletonText className="w-24" />
+    </span>
+  );
+}
+
 function EmptySelectionLabel({
   catalogError,
-  loading,
+  awaitingCatalog,
   label,
 }: {
   catalogError: string | null;
-  loading: boolean;
+  awaitingCatalog: boolean;
   label: string;
 }) {
   if (catalogError) return <span className="truncate text-danger">Unable to load agents</span>;
-  return <span className="truncate text-muted">{loading ? "Loading agents…" : label}</span>;
+  if (awaitingCatalog) return <AgentLabelPlaceholder />;
+  return <span className="truncate text-muted">{label}</span>;
+}
+
+/**
+ * A configured name before the catalog can say who it is: the name is known, so it shows as the
+ * resolved value does (mark, name, provider) with only the provider as a placeholder, rather than
+ * claiming the agent is unavailable while the catalog is still being read.
+ */
+function PendingAgentValue({ name, variant }: { name: string; variant: "field" | "composer" }) {
+  const composer = variant === "composer";
+  return (
+    <span className={cn("flex min-w-0 items-center gap-2 text-left", !composer && "flex-1")}>
+      <Skeleton className="size-3 shrink-0 rounded-xs" />
+      <span
+        className={cn(
+          "min-w-0 truncate text-small-body",
+          composer ? "max-w-56 font-medium text-fg-2" : "text-fg"
+        )}
+      >
+        {name}
+      </span>
+      <Eyebrow className="shrink-0">
+        <SkeletonText className="w-12" />
+      </Eyebrow>
+    </span>
+  );
 }
 
 interface AgentCommandSelectValueProps {
@@ -145,6 +186,8 @@ interface AgentCommandSelectValueProps {
   selectedName: string | null;
   catalogError: string | null;
   loading: boolean;
+  /** The first catalog page is still out and nothing is in hand to resolve a name against. */
+  awaitingCatalog: boolean;
   emptyLabel: string;
   variant: "field" | "composer";
 }
@@ -154,6 +197,7 @@ function AgentCommandSelectValue({
   selectedName,
   catalogError,
   loading,
+  awaitingCatalog,
   emptyLabel,
   variant,
 }: AgentCommandSelectValueProps) {
@@ -164,8 +208,20 @@ function AgentCommandSelectValue({
       <SelectedAgentValue agent={selectedAgent} catalogError={catalogError} loading={loading} />
     );
   }
-  if (selectedName) return <UnknownAgentValue name={selectedName} />;
-  return <EmptySelectionLabel catalogError={catalogError} loading={loading} label={emptyLabel} />;
+  if (selectedName) {
+    return awaitingCatalog ? (
+      <PendingAgentValue name={selectedName} variant={variant} />
+    ) : (
+      <UnknownAgentValue name={selectedName} />
+    );
+  }
+  return (
+    <EmptySelectionLabel
+      catalogError={catalogError}
+      awaitingCatalog={awaitingCatalog}
+      label={emptyLabel}
+    />
+  );
 }
 
 function ClearAgentItem({
@@ -208,6 +264,8 @@ export function AgentCommandSelect({
   const selectedAgent = agents.find(agent => agent.name === selectedName) ?? null;
   const catalogError = error?.trim() || null;
   const loadingFirstPage = loading && agents.length === 0;
+  // A failed read is an answer: the error owns the trigger and the list, not a placeholder.
+  const awaitingCatalog = loadingFirstPage && !catalogError;
   const isSelected = (agent: AgentPayload) => agent.name === selectedName;
   const choose = (next: string | null) => {
     onChange(next);
@@ -232,6 +290,7 @@ export function AgentCommandSelect({
           selectedName={selectedName}
           catalogError={catalogError}
           loading={loading}
+          awaitingCatalog={awaitingCatalog}
           emptyLabel={clearLabel ?? placeholder}
           variant={variant}
         />
@@ -243,7 +302,8 @@ export function AgentCommandSelect({
       >
         <AgentCommandList
           agents={agents}
-          emptyState={catalogError ?? (loading ? "Loading agents…" : undefined)}
+          emptyState={catalogError ?? undefined}
+          loading={awaitingCatalog}
           isSelected={isSelected}
           onSelect={agent => choose(agent.name)}
           leadingItems={

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
-import { LaneTabs } from "../lane-tabs";
+import { LaneTabs, type LaneTabsItem } from "../lane-tabs";
 
 const meta: Meta<typeof LaneTabs> = {
   title: "components/custom/LaneTabs",
@@ -11,7 +11,7 @@ const meta: Meta<typeof LaneTabs> = {
     docs: {
       description: {
         component:
-          "Dense lane tab strip — TechSpec composite. Bottom-rule on `--line`, active lane gets a 1.5px `--accent` underline anchored to the rule. Counts render in a flat `--canvas-soft` mono-badge. Arrow / Home / End keyboard navigation is wired natively.",
+          'Dense lane tab strip — TechSpec composite. Bottom-rule on `--line`, active lane gets a 1.5px `--accent` underline anchored to the rule. Counts render in a flat `--canvas-soft` mono-badge; a count of `"pending"` holds the slot with a placeholder until the number is read. Arrow / Home / End keyboard navigation is wired natively.',
       },
     },
   },
@@ -49,6 +49,40 @@ export const WithCounts: Story = {
         value={value}
         onChange={setValue}
       />
+    );
+  },
+};
+
+/**
+ * The Runs count is still being read: its slot is held by a placeholder, two digits wide here
+ * (`pendingCountDigits` sets the usual size), so the strip already has the width it will have and
+ * the tabs after it stay put when the number arrives. The settled strip sits underneath to compare.
+ */
+export const PendingCount: Story = {
+  args: {},
+  render: () => {
+    type Tab = "overview" | "runs" | "activity";
+    const [value, setValue] = useState<Tab>("overview");
+    const items = (runs: number | "pending"): LaneTabsItem<Tab>[] => [
+      { value: "overview", label: "Overview" },
+      { value: "runs", label: "Runs", count: runs, pendingCountDigits: 2 },
+      { value: "activity", label: "Activity" },
+    ];
+    return (
+      <div className="flex flex-col gap-6">
+        <LaneTabs<Tab>
+          ariaLabel="Task views, count pending"
+          items={items("pending")}
+          value={value}
+          onChange={setValue}
+        />
+        <LaneTabs<Tab>
+          ariaLabel="Task views, count settled"
+          items={items(12)}
+          value={value}
+          onChange={setValue}
+        />
+      </div>
     );
   },
 };

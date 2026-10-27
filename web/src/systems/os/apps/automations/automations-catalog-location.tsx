@@ -41,10 +41,9 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
         New automation
       </Button>
     ),
-    toolbar:
-      page.isLoading || page.loadError || firstRun ? undefined : (
-        <AutomationsCatalogToolbar page={page} />
-      ),
+    // Search, filters and the view toggle are static controls: they stay while the list loads, so
+    // the topbar does not grow when the rows arrive. Counts read "—" until both lists answer.
+    toolbar: page.loadError || firstRun ? undefined : <AutomationsCatalogToolbar page={page} />,
   });
 
   const controls: AutomationItemControls = {

@@ -7,7 +7,8 @@ import {
   NativeSelectOption,
   Pill,
   RadioCard,
-  Spinner,
+  Skeleton,
+  SkeletonRegion,
 } from "@compozy/ui";
 
 import type { MCPSecretBinding } from "../lib/mcp-editor-model";
@@ -121,13 +122,9 @@ export function MCPSecretBindingControl({
             Existing Vault ref
           </label>
           {vaultInventory.status === "loading" ? (
-            <p
-              className="flex items-center gap-2 text-caption text-muted"
-              data-testid={`${idPrefix}-ref-loading`}
-            >
-              <Spinner className="size-3" />
-              Loading Vault inventory…
-            </p>
+            <SkeletonRegion data-testid={`${idPrefix}-ref-loading`} label="Loading Vault inventory">
+              <Skeleton className="h-input w-full rounded-md" />
+            </SkeletonRegion>
           ) : vaultInventory.status === "error" ? (
             <div
               className="flex items-center justify-between gap-3"

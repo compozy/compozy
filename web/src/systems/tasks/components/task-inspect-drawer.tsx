@@ -6,6 +6,7 @@ import {
   Pill,
   Sheet,
   SheetContent,
+  SkeletonRegion,
   StatusCard,
   TabsContent,
   Time,
@@ -16,7 +17,7 @@ import {
 import { taskRunStatusLabel } from "../lib/task-formatters";
 import type { TaskDetailView, TaskInspectView } from "../types";
 import { TaskOperatorSheetHeader } from "./task-operator-sheet-header";
-import { TaskInspectLoadingSkeleton } from "./task-loading-skeletons";
+import { TaskDiagnosticsSkeleton } from "./task-loading-skeletons";
 import { TaskRawPane } from "./task-raw-pane";
 
 import type { TaskInspectTarget } from "../lib/task-detail-search";
@@ -121,7 +122,11 @@ function DiagnosticsPane({
   errorMessage: string | null;
 }) {
   if (isLoading && !inspect) {
-    return <TaskInspectLoadingSkeleton label="Loading inspect snapshot" />;
+    return (
+      <SkeletonRegion label="Loading inspect snapshot">
+        <TaskDiagnosticsSkeleton />
+      </SkeletonRegion>
+    );
   }
   if (errorMessage && !inspect) {
     return (
