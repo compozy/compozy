@@ -1,6 +1,3 @@
-diff --git a/node_modules/@assistant-ui/core/.bun-tag-aec61600f11e41c2 b/.bun-tag-aec61600f11e41c2
-new file mode 100644
-index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/runtimes/external-store/external-store-thread-runtime-core.js b/dist/runtimes/external-store/external-store-thread-runtime-core.js
 index ed88bcd0ad099293e0877d76d503e1fa89ad46e0..253d9042f995156b932f6ea0fa7c7f4a208d5b10 100644
 --- a/dist/runtimes/external-store/external-store-thread-runtime-core.js

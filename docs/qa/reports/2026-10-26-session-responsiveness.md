@@ -216,7 +216,7 @@ frames. Heap snapshots are sanitized and are not committed.
 | Go formatting/lint | Scoped owning lane, 0 issues | PASS |
 | React Doctor | Pinned 0.9.17, score 93, no new diagnostics | PASS for scanned production files |
 | Production Web build | Root Turbo, repository-pinned Bun 1.4.0 | PASS |
-| Full Go/Web suites, generation, real daemon/browser E2E | Current-head PR CI | Pending |
+| Full Go/Web suites, generation, real daemon/browser E2E | CI `40441416318`, production head `1765f46cc` | All lanes passed except Web shard 2: E2E-023 peer convergence was 57 ms against the unchanged 50 ms limit |
 | Browser navigation and retained memory | Controlled production-browser before/after, repeated patched run, 64 active idle sessions | PASS within the measured fixture |
 | Board paging, archive, family and event reconciliation | Final local daemon/Web build: 64 newly active sessions, 1,140 retained rows, 128 real rename events and 80 selections; Done pages 50 → 100 → 150 → 195, archive 3, child counts and reload | PASS |
 
@@ -225,6 +225,16 @@ Its Frontend lane found three action tests asserting the old `invalidateQueries`
 argument shape. Those tests now assert actual cache invalidation and retain their
 request/profile/rename checks; all 43 action tests pass. The behavioral cache suite
 already covered the invalidation contract. This was not a production behavior failure.
+
+The next complete CI run (`40441416318`, `1765f46cc`) passed Frontend, all Go/race
+lanes, generation, Windows, runtime E2E, desktop E2E, and Web shards 1, 3 and 4.
+Web shard 2 passed 70 scenarios, including E2E-006 visible-window streaming and
+restore, but failed E2E-023 at 57 ms for peer convergence. Restore was 285.2 ms and
+the measured drag had no long tasks. The unchanged 50 ms peer budget remains a
+delivery blocker. A diagnostic 20-repeat run (`40444806962`) reproduced five peer
+failures (51–89 ms), with work attributed to the window-manager JSON continuation
+and Query notifications. Targeted CPU attribution is in progress. Instrumented
+measurements are diagnostic evidence, not final performance acceptance.
 
 The first standalone Web typecheck failed because this new checkout lacked the client
 SDK's generated build output. Building `@compozy/client` through root Turbo restored that
