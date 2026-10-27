@@ -82,6 +82,7 @@ type commandDeps struct {
 	signalProcess               func(pid int, sig syscall.Signal) error
 	processAlive                func(pid int) bool
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
+	processOwnsFileLock         func(pid int, path string) (bool, error)
 	executable                  func() (string, error)
 	getwd                       func() (string, error)
 	getenv                      func(string) string

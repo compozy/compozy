@@ -4,9 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 func TestAliveCurrentProcess(t *testing.T) {
@@ -156,6 +162,60 @@ func TestVerifyProcessExit(t *testing.T) {
 			if verified, err := VerifyProcessExit(pid, time.Time{}); verified || err == nil {
 				t.Fatalf("VerifyProcessExit(%d, zero) = %v, %v", pid, verified, err)
 			}
+		}
+	})
+}
+
+func TestFileLockIdentity(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, row string
+		want      bool
+	}{
+		{"Should match the exclusive kernel lock owner", "1: FLOCK ADVISORY WRITE 42 00:1a:123 0 EOF", true},
+		{"Should reject a different PID", "1: FLOCK ADVISORY WRITE 43 00:1a:123 0 EOF", false},
+		{"Should reject another home inode", "1: FLOCK ADVISORY WRITE 42 00:1a:124 0 EOF", false},
+		{"Should reject another device", "1: FLOCK ADVISORY WRITE 42 00:1b:123 0 EOF", false},
+		{"Should reject shared locks", "1: FLOCK ADVISORY READ 42 00:1a:123 0 EOF", false},
+		{"Should reject blocked waiters", "1: -> FLOCK ADVISORY WRITE 42 00:1a:123 0 EOF", false},
+		{"Should reject POSIX locks", "1: POSIX ADVISORY WRITE 42 00:1a:123 0 EOF", false},
+		{"Should reject malformed identities", "1: FLOCK ADVISORY WRITE 42 00:1a:bad 0 EOF", false},
+		{"Should reject incomplete records", "1: FLOCK ADVISORY WRITE 42", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ownsFileLock(strings.NewReader(tc.row), 42, 0, 26, 123)
+			if err != nil || got != tc.want {
+				t.Fatalf("ownsFileLock() = %v, %v; want %v", got, err, tc.want)
+			}
+		})
+	}
+	t.Run("Should verify a real Linux flock and reject its released owner", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("kernel lock ownership is Linux-specific")
+		}
+		path := filepath.Join(t.TempDir(), "daemon.lock")
+		lock := flock.New(path)
+		t.Cleanup(func() {
+			if err := lock.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		locked, err := lock.TryLock()
+		if err != nil || !locked {
+			t.Fatalf("TryLock() = %v, %v", locked, err)
+		}
+		owned, err := OwnsFileLock(os.Getpid(), path)
+		if err != nil || !owned {
+			t.Fatalf("OwnsFileLock() = %v, %v", owned, err)
+		}
+		if err := lock.Unlock(); err != nil {
+			t.Fatal(err)
+		}
+		owned, err = OwnsFileLock(os.Getpid(), path)
+		if err != nil || owned {
+			t.Fatalf("released OwnsFileLock() = %v, %v", owned, err)
 		}
 	})
 }

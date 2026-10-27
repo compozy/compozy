@@ -10,6 +10,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/procutil"
 
 	"github.com/compozy/compozy/internal/version"
 )
@@ -91,7 +92,12 @@ func daemonInfo(homePaths compozyconfig.HomePaths, deps commandDeps) (compozydae
 		return info, false, nil
 	}
 	if !deps.processMatchesStartTime(info.PID, info.StartedAt) {
-		return info, false, nil
+		ownsLock := deps.processOwnsFileLock
+		if ownsLock == nil {
+			ownsLock = procutil.OwnsFileLock
+		}
+		running, err := ownsLock(info.PID, homePaths.DaemonLock)
+		return info, running, err
 	}
 	return info, true, nil
 }

@@ -646,6 +646,28 @@ func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
 }
 
 func TestBootstrapRemovesOnlyStaleDaemonRecords(t *testing.T) {
+	t.Run("Should preserve a record published after an absent lookup", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		paths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.readDaemonInfo = func(path string) (compozydaemon.Info, error) {
+			if err := compozydaemon.WriteInfo(path, info); err != nil {
+				t.Fatal(err)
+			}
+			return compozydaemon.Info{}, os.ErrNotExist
+		}
+		if err := cleanupStaleBootstrapDaemonRecord(paths, deps); err != nil {
+			t.Fatal(err)
+		}
+		got, err := compozydaemon.ReadInfo(paths.DaemonInfo)
+		if err != nil || got != info {
+			t.Fatalf("concurrently published info = %#v, %v; want %#v", got, err, info)
+		}
+	})
 	t.Run("Should remove a daemon record whose process identity is stale", func(t *testing.T) {
 		t.Parallel()
 
