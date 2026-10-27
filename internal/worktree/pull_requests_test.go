@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os/exec"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -136,17 +137,27 @@ func TestPullRequestService(t *testing.T) {
 				t.Cleanup(service.Close)
 				now := statusTestClock()
 				service.now = func() time.Time { return now }
-				if key, err := service.RepoKey(t.Context(), root); err == nil || key != "" {
-					t.Fatalf("unsupported origin = %q, %v", key, err)
+				assertUnavailableOrigin := func() {
+					t.Helper()
+					key, err := service.RepoKey(t.Context(), root)
+					if key != "" {
+						t.Fatalf("unsupported origin key = %q", key)
+					}
+					if remote == "missing" {
+						if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+							t.Fatalf("missing origin error = %v; want Git exit error", err)
+						}
+					} else if err == nil || err.Error() != "worktree: origin repository unavailable" {
+						t.Fatalf("local origin error = %v; want unavailable repository", err)
+					}
 				}
+				assertUnavailableOrigin()
 				command := "add"
 				if remote == "local" {
 					command = "set-url"
 				}
 				git(root, "remote", command, "origin", "https://github.com/acme/recovered.git")
-				if key, err := service.RepoKey(t.Context(), root); err == nil || key != "" {
-					t.Fatalf("negative identity expired early = %q, %v", key, err)
-				}
+				assertUnavailableOrigin()
 				other := t.TempDir()
 				git(other, "init", "--initial-branch=main")
 				git(other, "remote", "add", "origin", "https://github.com/acme/other.git")
