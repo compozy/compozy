@@ -26,3 +26,12 @@ Accessibility regression: inspect the card button's accessible name. A child inc
 {parent title}"; a parent includes "3 child sessions, A child needs you". One child reads
 "1 child session". No family metadata means no family phrase. Existing title, status, waiting
 signal and relative time remain in the name. Covered by `sessions-board.test.tsx`.
+
+
+QA impact 2026-10-26 (session responsiveness): repeat this journey while many sessions
+are active. Confirm that detail, parent/child titles and counts, board pages, exact
+totals, and usage updates remain current across profiles and workspaces. Exercise
+usage bursts and hide/restore the streaming window; unrelated transcript/Goal reads
+must not refetch for usage-only signals. Current measurements and verification limits
+are in the [responsiveness report](../reports/2026-10-26-session-responsiveness.md).
+The final-source integrated re-walk is pending; earlier passes remain historical.

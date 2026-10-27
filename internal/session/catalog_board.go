@@ -56,7 +56,7 @@ func (m *Manager) PopulateSessionRelations(ctx context.Context, info *Info) erro
 	query := ListQuery{ReadScope: store.ReadScope{ProfileID: info.ProfileID}, WorkspaceID: workspace}
 	active := make(map[string]*Info)
 	children := make([]*Info, 0)
-	for _, candidate := range m.List() {
+	for _, candidate := range m.activeSessionFamily(info) {
 		if !catalogRelationVisible(candidate, query) {
 			continue
 		}
@@ -87,6 +87,30 @@ func (m *Manager) PopulateSessionRelations(ctx context.Context, info *Info) erro
 		m.catalogRepositoryKeys(ctx, query),
 		m.catalogDefaultBranches(ctx, query),
 	)
+}
+
+func (m *Manager) activeSessionFamily(info *Info) []*Info {
+	parentID := ""
+	if info.Lineage != nil {
+		parentID = info.Lineage.ParentSessionID
+	}
+	m.mu.RLock()
+	sessions := make([]*Session, 0, len(m.sessions))
+	for _, candidate := range m.sessions {
+		sessions = append(sessions, candidate)
+	}
+	m.mu.RUnlock()
+	family := make([]*Info, 0)
+	for _, candidate := range sessions {
+		candidate.mu.RLock()
+		related := parentID != "" && candidate.ID == parentID ||
+			candidate.Lineage != nil && candidate.Lineage.ParentSessionID == info.ID
+		candidate.mu.RUnlock()
+		if related {
+			family = append(family, m.sessionInfoForRead(candidate))
+		}
+	}
+	return family
 }
 
 func catalogWorkspaceIDs(query ListQuery) []string {

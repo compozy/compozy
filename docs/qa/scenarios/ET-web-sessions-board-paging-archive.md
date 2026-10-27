@@ -27,3 +27,12 @@ session in a second window, switch that window to Kanban, then click its card
 from the first window. The existing destination must receive focus in List mode.
 Focused evidence: the existing session-window navigation suite covers the
 destination-window presentation change before retargeting.
+
+
+QA impact 2026-10-26 (session responsiveness): repeat this journey while many sessions
+are active. Confirm that detail, parent/child titles and counts, board pages, exact
+totals, and usage updates remain current across profiles and workspaces. Exercise
+usage bursts and hide/restore the streaming window; unrelated transcript/Goal reads
+must not refetch for usage-only signals. Current measurements and verification limits
+are in the [responsiveness report](../reports/2026-10-26-session-responsiveness.md).
+The final-source integrated re-walk is pending; earlier passes remain historical.

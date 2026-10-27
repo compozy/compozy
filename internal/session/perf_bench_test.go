@@ -22,6 +22,50 @@ import (
 
 var benchmarkSessionTime = time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
 
+func BenchmarkManagerCatalog(b *testing.B) {
+	manager := newWorkspaceSessionReadFixture(b, 1024, 16)
+	for index := range 64 {
+		target := &Session{
+			ID: fmt.Sprintf("sess-read-%03d", index), AgentName: "coder", Provider: "claude",
+			ProfileID: store.DefaultProfileID, WorkspaceID: fmt.Sprintf("ws-read-%02d", index%16),
+			State: StateActive, RuntimeStatus: store.SessionRuntimeReady,
+			CreatedAt: benchmarkSessionTime.Add(time.Duration(index) * time.Minute), UpdatedAt: benchmarkSessionTime,
+		}
+		manager.sessions[target.ID] = target
+	}
+	query := ListQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true,
+		Archive: ArchiveExclude, Sort: ListSortNavigator, Limit: 50, SkipTotal: true,
+	}
+	b.Run("Page", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			page, err := manager.ListPage(b.Context(), query)
+			if err != nil || len(page.Sessions) != 50 || !page.HasMore {
+				b.Fatalf("page rows=%d has_more=%v error=%v", len(page.Sessions), page.HasMore, err)
+			}
+		}
+	})
+	b.Run("Facets", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			facets, err := manager.CatalogFacets(b.Context(), query)
+			if err != nil || facets.Facets.All != 1024 {
+				b.Fatalf("facets total=%d error=%v", facets.Facets.All, err)
+			}
+		}
+	})
+	b.Run("DetailRelations", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			info := manager.sessionInfoForRead(manager.sessions["sess-read-000"])
+			if err := manager.PopulateSessionRelations(b.Context(), info); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 func BenchmarkManagerPersistSessionHealth(b *testing.B) {
 	ctx := b.Context()
 	database, err := openSessionTestGlobalDB(ctx, filepath.Join(b.TempDir(), store.GlobalDatabaseName))
