@@ -156,6 +156,7 @@ func (e *bootstrapExecution) resolveAndStart() error {
 		if !replaced {
 			return writeAttachedBootstrap(e.cmd, e.options, status)
 		}
+		return e.start(bootstrapResolutionProvision, e.installedPath, true)
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)

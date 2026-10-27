@@ -14,6 +14,10 @@ restart over local UDS. The existing checkpoint, prompt admission and delegated 
 preserve context and resume eligible work once. Backup cleanup follows restart. Provisioning
 failure leaves live work alone; restart failure retains the recovery copy and reports the error.
 Linux relaunch retains the original installed path across atomic executable replacement.
+The daemon caches its launch path, and Linux bootstrap preserves that path even for released
+daemons that resolve it late: hard-link the recovery copy before atomically publishing the new
+binary. The existing provisioning suite runs a copied executable that resolves its path only
+after replacement, covering the first upgrade as well as subsequent upgrades.
 Bootstrap probes, restart requests and final update readiness honor the configured local socket
 even when a remote connection is selected. The live provider lab exposed this additional failure:
 the hard-coded default socket made bootstrap provision the candidate without coordinating the
@@ -35,7 +39,15 @@ running daemon on its custom socket. The same update journey now covers that con
 The bootstrap suite owns provision-before-restart, local target selection and failure handling.
 The daemon restart suite owns stable executable identity during binary swaps. E2E-016 owns the
 actual native app installation/relaunch crossing into runtime replacement and public session
-readback, including another restart to detect duplicated work. No assertion or timeout is weakened.
+readback, including another restart to detect duplicated work. The parent must contain exactly
+one child-result `synthetic_reentry` before and after that restart, independently of the
+session continuation count. Each recovered session must retain its original nonempty ACP
+conversation ID. No assertion or timeout is weakened.
+
+The first PR CI run also exposed a bootstrap reporting regression in the existing native shell
+replacement scenario: after coordinated restart, bootstrap re-resolved the now-current binary
+and reported `start` instead of `provision`. Production now carries the completed provisioning
+resolution directly into readiness. The existing assertion remains unchanged.
 
 ## Scope and limitations
 
@@ -79,7 +91,8 @@ Targeted teardown at the same `qa/teardown.json` reports `clean: true`; the sepa
 worktree test envelope also reports `TEARDOWN_ALL_CLEAN=true`.
 
 Local ignored evidence is under `.tmp/update-continuity/`: `bootstrap-before.log`,
-`socket-focused.log`, `restart-integration.log`, `native-final.log`, `native-delivery.log`, `live-rewalk.log`,
+`socket-focused.log`, `bootstrap-final.log`, `restart-integration.log`, `native-final.log`,
+`native-delivery.log`, `native-child-delivery.log`, `native-final-review.log`, `live-rewalk.log`,
 `live-final-bootstrap.jsonl`, `gate-final.log`, `gate-delivery.log` and `gate-status.log`.
 Native capture: `.tmp/playwright/desktop-results/` (download phase screenshot).
 The native harness emits its existing NO_COLOR/FORCE_COLOR notice; native build output includes

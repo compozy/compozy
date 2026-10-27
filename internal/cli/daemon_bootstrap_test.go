@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -342,6 +343,42 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 }
 
 func TestProvisionBundledRuntime(t *testing.T) {
+	if installedPath := os.Getenv("COMPOZY_BOOTSTRAP_PATH_PROBE"); installedPath != "" {
+		probeRunningBootstrapReplacement(t, installedPath)
+		return
+	}
+	t.Run("Should preserve the executable path seen by an older running daemon", func(t *testing.T) {
+		t.Parallel()
+		binary, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := os.ReadFile(binary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		installedPath := bootstrapRuntimePath(homePaths)
+		if err := os.WriteFile(installedPath, payload, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.CommandContext(t.Context(), installedPath, "-test.run=^TestProvisionBundledRuntime$")
+		cmd.Env = append(os.Environ(), "COMPOZY_BOOTSTRAP_PATH_PROBE="+installedPath)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("running runtime replacement: %v\n%s", err, output)
+		}
+	})
+
 	t.Run("Should record the desktop release identity for a provisioned runtime", func(t *testing.T) {
 		t.Parallel()
 
@@ -573,6 +610,48 @@ func TestProvisionBundledRuntime(t *testing.T) {
 			t.Fatal("regularFileExists(symlink) = true, want symlink rejection")
 		}
 	})
+}
+
+func probeRunningBootstrapReplacement(t *testing.T, installedPath string) {
+	t.Helper()
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Dir(filepath.Dir(installedPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := compozyupdate.DesktopProvenanceMetadata{
+		AppVersion: "0.3.0", Channel: "stable", RuntimeVersion: "0.3.0",
+	}
+	if err := compozyupdate.WriteDesktopProvenance(homePaths, installedPath, metadata); err != nil {
+		t.Fatal(err)
+	}
+	previous, err := os.Stat(installedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
+	writeFile(t, bundlePath, "new-runtime")
+	install, err := installBootstrapRuntime(&bootstrapProvisionRequest{
+		homePaths: homePaths, installedPath: installedPath, bundlePath: bundlePath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Released daemons resolve their executable at restart time, after this replacement.
+	got, err := os.Executable()
+	if err != nil || got != installedPath {
+		t.Fatalf("executable after replacement = %q, %v; want %q", got, err, installedPath)
+	}
+	payload, err := os.ReadFile(installedPath)
+	if err != nil || string(payload) != "new-runtime" {
+		t.Fatalf("installed runtime = %q, %v; want new runtime", payload, err)
+	}
+	backup, err := os.Stat(install.backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(previous, backup) {
+		t.Fatal("recovery copy no longer holds the previous runtime")
+	}
 }
 
 func assertNoBootstrapBackups(t *testing.T, installedPath string) {

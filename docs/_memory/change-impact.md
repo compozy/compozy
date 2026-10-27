@@ -10,8 +10,12 @@ Owner: branch `fix/update-session-continuity`; evidence in
   user-stop signal. The existing session checkpoint/admission and subagent recovery owners
   retain their safety gates, ordering and exactly-once continuation identities. The daemon
   captures its executable path before an atomic binary rename can redirect Linux relaunch.
+  Linux bootstrap also preserves the original path when replacing a released daemon that
+  resolves its executable only at restart time: link the recovery copy, then atomically
+  publish the new binary without renaming the running executable to the backup path.
   Runtime backup removal follows coordinated restart so an executing Windows binary can exit.
   Failed provisioning keeps live work; failed restart retains its backup and reports the error.
+  Successful replacement retains the public bootstrap `provision` resolution through readiness.
 - **Native tools / HTTP / UDS:** no new routes, DTOs, CLI flags or `compozy__*` IDs. Existing
   restart and session read surfaces remain authoritative. Explicit user stop stays cancellation.
 - **Extensibility / hooks / config / data isolation:** no schema migration, config key, provider

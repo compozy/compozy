@@ -10,15 +10,16 @@ interface Session {
   workspace_id: string;
   state: string;
   badge: string;
+  runtime: { acp_session_id?: string };
   stop_reason?: string;
   failure?: unknown;
 }
 interface SessionEvent {
   type: string;
-  content: unknown;
+  content: { synthetic?: { kind?: string; subagent_ids?: string[] } };
 }
 interface Subagent {
-  id: string;
+  subagent_id: string;
   child_session_id: string;
   status: string;
   delivery: string;
@@ -202,6 +203,11 @@ export async function startUpdateWork(home: string, origin: string): Promise<Upd
   await expect
     .poll(async () => JSON.stringify(await events(origin, childSession)))
     .toContain("Partial work before update.");
+  for (let i = 0; i < sessions.length; i++) {
+    const current = (await request<{ session: Session }>(origin, path(sessions[i]!))).session;
+    expect(current.runtime.acp_session_id).toBeTruthy();
+    sessions[i] = current;
+  }
   return { origin, sessions, stopped, child: child! };
 }
 
@@ -216,6 +222,7 @@ export async function expectUpdateWorkRecovered(work: UpdateWork): Promise<void>
     expect(history.filter(event => event.type === "session.restart_resumed")).toHaveLength(1);
     expect(JSON.stringify(history)).not.toContain("daemon stopped by user");
     const current = (await request<{ session: Session }>(origin, path(session))).session;
+    expect(current.runtime.acp_session_id).toBe(session.runtime.acp_session_id);
     expect(current.failure).toBeFalsy();
     expect(current.badge).not.toBe("failed");
     expect(current.stop_reason).not.toBe("user_canceled");
@@ -226,7 +233,7 @@ export async function expectUpdateWorkRecovered(work: UpdateWork): Promise<void>
         origin,
         `${path(work.sessions[0]!)}/subagents`
       );
-      return subagents.find(row => row.id === work.child.id);
+      return subagents.find(row => row.subagent_id === work.child.subagent_id);
     })
     .toMatchObject({ status: "completed", delivery: "delivered" });
   for (const session of work.sessions) {
@@ -234,6 +241,17 @@ export async function expectUpdateWorkRecovered(work: UpdateWork): Promise<void>
       .poll(async () => request(origin, `${path(session)}/status`))
       .toMatchObject({ active_prompt: false, queue: { entries: 0 } });
   }
+  const parentHistory = await events(origin, work.sessions[0]!);
+  const childResults = parentHistory.filter(
+    event =>
+      event.type === "synthetic_reentry" &&
+      event.content.synthetic?.kind === "subagent_wake" &&
+      event.content.synthetic.subagent_ids?.includes(work.child.subagent_id)
+  );
+  expect(
+    childResults,
+    JSON.stringify(parentHistory.filter(event => event.type === "synthetic_reentry"))
+  ).toHaveLength(1);
   const stopped = (await request<{ session: Session }>(origin, path(work.stopped))).session;
   expect(stopped.stop_reason).toBe("user_canceled");
   expect(
