@@ -2,6 +2,7 @@
 // simultaneous diagrams cannot borrow another diagram's theme or security configuration.
 let pending: Promise<unknown> = Promise.resolve();
 
+/** Serializes strict, theme-aware rendering into an isolated SVG image with intrinsic dimensions. */
 export function renderMermaidImage(code: string, theme: "light" | "dark"): Promise<string> {
   const result = pending.then(async () => {
     const { default: mermaid } = await import("mermaid");

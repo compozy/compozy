@@ -98,12 +98,13 @@ export const MermaidSizing: Story = {
       { timeout: 15000 }
     );
     const images = canvas.getAllByRole("img", { name: "Mermaid diagram" });
+    const renderedBlocks = [...canvasElement.querySelectorAll('[data-slot="markdown-mermaid"]')];
     for (const [index, image] of images.entries()) {
       await (image as HTMLImageElement).decode();
       const bounds = image.getBoundingClientRect();
-      await expect(blocks[index]!.getBoundingClientRect().height).toBe(heights[index]);
+      await expect(renderedBlocks[index]!.getBoundingClientRect().height).toBe(heights[index]);
       await expect(bounds.width).toBeLessThanOrEqual(
-        blocks[index]!.getBoundingClientRect().width / 2
+        renderedBlocks[index]!.getBoundingClientRect().width / 2
       );
       await expect(bounds.width).toBeLessThanOrEqual((image as HTMLImageElement).naturalWidth);
       await expect(bounds.height).toBeLessThanOrEqual(window.innerHeight * 0.4);
@@ -130,6 +131,17 @@ export const MermaidSizing: Story = {
     await userEvent.click(overlay.getByRole("button", { name: "Reset zoom" }));
     await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(initial.left);
     await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(initial.top);
+    await userEvent.pointer([
+      { target: viewer, keys: "[MouseLeft>]", coords: { clientX: 100, clientY: 150 } },
+      { target: viewer, coords: { clientX: 140, clientY: 175 } },
+      { target: viewer, keys: "[/MouseLeft]" },
+    ]);
+    const dragged = expandedImage.getBoundingClientRect();
+    await expect(dragged.left - initial.left).toBeCloseTo(40);
+    await expect(dragged.top - initial.top).toBeCloseTo(25);
+    await userEvent.pointer({ target: viewer, coords: { clientX: 180, clientY: 200 } });
+    await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(dragged.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(dragged.top);
     await userEvent.keyboard("{Escape}");
   },
 };

@@ -9,6 +9,7 @@ import { useResolvedCodeTheme } from "./hooks/use-code-block";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "../dialog";
 import { OverlayContainerContext } from "../hooks/use-overlay-container";
 
+/** Renders Mermaid in a stable transcript frame while preserving source access and fallback. */
 export function MarkdownMermaid({ code, streaming }: { code: string; streaming: boolean }) {
   const theme = useResolvedCodeTheme("auto");
   const [rendered, setRendered] = React.useState<{

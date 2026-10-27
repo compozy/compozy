@@ -55,6 +55,11 @@ Greptile identified a keyboard-access gap in the initial viewer. The remediation
 region, visible focus and arrow-key panning. Re-walking the real chat confirmed 24px horizontal and
 vertical movement and reset to the centered image. The existing MermaidSizing browser story now
 checks transformed image geometry after keyboard panning and reset.
+CodeRabbit's pointer-coverage request is owned by that same browser story: a 40px/25px drag
+moves the decoded image accordingly, and later pointer movement after release leaves it stationary.
+The complete play function reports success without play exceptions at 1100×700 and 320×800.
+During this extension, the story's post-render measurements were corrected to query current DOM
+nodes rather than detached nodes replaced by StreamMarkdown; its size assertions were preserved.
 
 Captured artifacts under `docs/qa/evidence/2026-10-27-issue-981-mermaid/`:
 
@@ -69,5 +74,7 @@ Captured artifacts under `docs/qa/evidence/2026-10-27-issue-981-mermaid/`:
 Targeted Chromium/macOS browser evidence; packaged desktop and other operating systems are not
 retested in this round. Existing invalid-source, renderer-failure and security coverage remains in
 the canonical StreamMarkdown suite/stories. PR CI and external reviews are separate delivery gates
-and are not established by this report. Lab teardown and public evidence links will be recorded
-after the remaining delivery checks. Targeted browser QA: PASS. PR delivery remains in progress.
+and are not established by this report. Public evidence links are included in PR #988. The
+manifest-owned lab teardown completed with `clean: true` and no survivors; only this lab's
+processes were stopped. Targeted browser QA: PASS. PR delivery remains in progress until
+current-head CI and both external reviews complete.
