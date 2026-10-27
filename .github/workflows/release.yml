@@ -43,12 +43,17 @@ on:
         required: false
         type: string
 
-# Merges of release PRs (head commit "release:"/"ci(release):") land in their
+# Release merges ("build: release "/"build: prepare release ", plus legacy
+# "release:"/"ci(release):" subjects) land in their
 # own non-cancellable "-publish" group so a routine push to main can never
-# cancel an in-flight auto-beta publication.
+# cancel an in-flight publication. Actions cannot interpolate YAML aliases inside
+# expressions, and workflow concurrency/job if cannot read env. Keep the inline
+# subject predicates aligned through the release workflow contract test.
 concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):'))) && '-publish' || '' }}
-  cancel-in-progress: ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):'))) }}
+  group: >-
+    release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ (github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) && '-publish' || '' }}
+  cancel-in-progress: >-
+    ${{ !(github.event_name == 'push' && (startsWith(github.event.head_commit.message, 'release:') || startsWith(github.event.head_commit.message, 'ci(release):') || startsWith(github.event.head_commit.message, 'build: release ') || startsWith(github.event.head_commit.message, 'build: prepare release '))) }}
 
 env:
   CGO_ENABLED: 0
@@ -57,7 +62,7 @@ env:
   NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.34
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.35
 
 permissions:
   actions: read
@@ -77,6 +82,8 @@ jobs:
        github.ref == 'refs/heads/main' &&
        !startsWith(github.event.head_commit.message, 'release:') &&
        !startsWith(github.event.head_commit.message, 'ci(release):') &&
+       !(startsWith(github.event.head_commit.message, 'build: release ') ||
+         startsWith(github.event.head_commit.message, 'build: prepare release ')) &&
        !startsWith(github.event.head_commit.message, 'Merge pull request') &&
        github.event.head_commit.author.name != 'github-actions[bot]')
     runs-on: ubuntu-latest
@@ -708,8 +715,8 @@ jobs:
       (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
        !startsWith(github.event.head_commit.message, 'release:') &&
        !startsWith(github.event.head_commit.message, 'ci(release):') &&
-       !startsWith(github.event.head_commit.message, 'build: release ') &&
-       !startsWith(github.event.head_commit.message, 'build: prepare release '))
+       !(startsWith(github.event.head_commit.message, 'build: release ') ||
+         startsWith(github.event.head_commit.message, 'build: prepare release ')))
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
