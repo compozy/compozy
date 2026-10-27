@@ -4,13 +4,14 @@
 // system reduced-motion precedence truthfully (US-015.EC-1). The Interface and Code fonts (#984)
 // are daemon-wide: a choice PATCHes only its own `shell.appearance` key, reset sends "", and the
 // installed-font list (Local Font Access) offers only monospace families to the Code picker. A
-// rejected save says why instead of silently reverting, saves reach the daemon in selection
+// rejected save says why instead of silently reverting, the local daemon is read and written even
+// while the browser reports offline, saves reach the daemon in selection
 // order, and overlapping rejected saves leave neither choice behind. A bundled face is published
 // only after its lazy stylesheet loaded.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -131,6 +132,8 @@ describe("AppearanceSettingsPane", () => {
 
   afterEach(() => {
     fontLoads.gate = null;
+    document.documentElement.style.removeProperty("--user-font-sans");
+    document.documentElement.style.removeProperty("--user-font-mono");
     vi.restoreAllMocks();
     cleanup();
     for (const manager of managers.splice(0)) manager.destroy();
@@ -246,6 +249,28 @@ describe("AppearanceSettingsPane", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
     expect(toastError.mock.calls[0]?.[0]).toMatch(/^Couldn't save the Code font/);
     await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+  });
+
+  it("Should read and save fonts while the browser reports offline", async () => {
+    // The daemon is local: an offline browser flag must not pause either side.
+    onlineManager.setOnline(false);
+    try {
+      const user = userEvent.setup();
+      daemon.appearance.mono_font = "Fira Code";
+      renderPane();
+
+      const trigger = screen.getByTestId("os-appearance-font-mono");
+      await waitFor(() => expect(trigger).toHaveTextContent("Fira Code"));
+      await user.click(trigger);
+      await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+      await waitFor(async () =>
+        expect(await shellWrites()).toEqual([
+          { config: { sessions: {}, appearance: { mono_font: "JetBrains Mono Variable" } } },
+        ])
+      );
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it("Should publish a bundled face only after its stylesheet has loaded", async () => {

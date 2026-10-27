@@ -185,6 +185,9 @@ export function settingsShellOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("shell"),
     queryFn: ({ signal }) => getSettingsShell(signal),
+    // The shell section paints every client's Appearance fonts and is served by
+    // the local daemon, so a browser "offline" flag must not pause its reads.
+    networkMode: "always",
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,
