@@ -1,9 +1,11 @@
-## 0.4.2 - 2026-10-26
+## 0.4.3 - 2026-10-27
 
 ### Bug Fixes
 
-- Stop background Claude usage reads from prompting for the keychain (#977)
+- Prevent duplicate release PRs after release merges (#986)
+- Recognize Linux daemon lock owners despite clock drift (#987)
+- Bound Mermaid diagrams and add fullscreen zoom (#988)
 
-### Testing
+### Performance Improvements
 
-- Allow cold PowerShell startup when reading the Windows grandchild PID
+- Reduce session latency, retained memory and shell render work (#983)
