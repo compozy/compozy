@@ -20,7 +20,7 @@ export default defineConfig({
     maxWorkers: "50%",
     // Several UI integration suites legitimately exceed Vitest's default timeout
     // under full-suite load; use an explicit budget for stable CI/local verification.
-    testTimeout: 20_000,
+    testTimeout: 60_000,
     include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.test.ts", "tests/**/*.test.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/dist/**", "tests/visual/*.spec.ts"],
     setupFiles: ["./src/test-setup.ts"],

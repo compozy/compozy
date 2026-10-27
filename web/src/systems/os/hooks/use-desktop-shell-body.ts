@@ -191,8 +191,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     bellOpen: overlays.activeOverlay === "bell",
   });
   const presentation = useDesktop(state => state.presentation);
-  const managerSurfaces = useDesktopManagerSurfaces();
-  const winLayer = useOsWinLayer();
   const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();

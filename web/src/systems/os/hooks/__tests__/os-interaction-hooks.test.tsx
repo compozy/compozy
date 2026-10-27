@@ -34,7 +34,6 @@ import { workspaceKeys } from "@/systems/workspace";
 import { ensureWindowSlotStore, pruneWindowSlotStores } from "../../lib/window-slot-registry";
 import { useCmdPaletteContext } from "../use-cmd-palette-context";
 import { usePaletteTabs } from "../use-os-palette-entities";
-import { useCmdPaletteContext } from "../use-cmd-palette-context";
 import { useDesktopShellState } from "../use-desktop-shell-state";
 import { useOsWindowMember } from "../use-os-window-member";
 import { useOsWindow } from "../use-os-window";
