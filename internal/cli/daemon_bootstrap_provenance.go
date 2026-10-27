@@ -17,6 +17,7 @@ type bootstrapProvisionRequest struct {
 	bundlePath    string
 	installedPath string
 	provenance    compozyupdate.DesktopProvenanceMetadata
+	restart       func() error
 }
 
 type bootstrapRuntimeInstall struct {
@@ -46,6 +47,21 @@ func provisionBootstrapRuntime(cmd *cobra.Command, request *bootstrapProvisionRe
 	); err != nil {
 		err = errors.Join(err, rollbackBootstrapRuntime(request, install))
 		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
+	}
+	// The running binary may retain its backup on Windows until coordinated restart completes.
+	if request.restart != nil {
+		if err := request.restart(); err != nil {
+			return writeBootstrapFailure(
+				cmd,
+				bootstrapPhaseStart,
+				bootstrapProbeListeningUnhealthy,
+				fmt.Errorf(
+					"cli: coordinated restart failed; runtime recovery copy retained at %q: %w",
+					install.backupPath,
+					err,
+				),
+			)
+		}
 	}
 	if err := removeBootstrapBackup(install.backupPath); err != nil {
 		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)

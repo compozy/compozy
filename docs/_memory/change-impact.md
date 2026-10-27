@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Desktop update session continuity — 2026-10-27
+
+Owner: branch `fix/update-session-continuity`; evidence in
+`docs/qa/reports/2026-10-27-update-session-continuity.md`.
+
+- **Runtime/CLI:** app-owned bootstrap provisions the verified replacement before requesting
+  the existing durable restart operation over the configured local UDS. It no longer sends the
+  user-stop signal. The existing session checkpoint/admission and subagent recovery owners
+  retain their safety gates, ordering and exactly-once continuation identities. The daemon
+  captures its executable path before an atomic binary rename can redirect Linux relaunch.
+  Runtime backup removal follows coordinated restart so an executing Windows binary can exit.
+  Failed provisioning keeps live work; failed restart retains its backup and reports the error.
+- **Native tools / HTTP / UDS:** no new routes, DTOs, CLI flags or `compozy__*` IDs. Existing
+  restart and session read surfaces remain authoritative. Explicit user stop stays cancellation.
+- **Extensibility / hooks / config / data isolation:** no schema migration, config key, provider
+  credentials or hook changes. No new store or recovery scheduler. Bootstrap targets only its
+  local runtime home and its custom socket, including when the operator has a remote daemon
+  connection selected.
+- **Web / Docs / official skill:** no presentation workaround. Web receives the repaired
+  runtime state. The desktop operations documentation and four affected QA scenarios co-ship.
+  `skills/compozy/references/desktop.md` already describes verified bundle provisioning and
+  runtime-owned lifecycle controls; its commands and ownership guidance remain unchanged.
+- **Verification:** extend the existing bootstrap suite, daemon restart suite and native
+  E2E-016 update journey. Native installation uses isolated fixture apps/homes and real daemon,
+  storage and ACP subprocesses; it does not certify the published signing/distribution chain.
+
+
 ## Session responsiveness — 2026-10-26
 
 Owner: branch `perf/session-responsiveness`; measured evidence and remaining work in

@@ -43,3 +43,13 @@ app plan and updater must select the same native-arm64 artifact without relaxing
 2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
 `untested`; native fixture and owning-suite results do not replace published-release or
 cross-platform acceptance. Prior dated reports retain their historical evidence.
+
+2026-10-27 update continuity regression: start concurrent work and a delegated child before
+app Update. After native installation and runtime replacement, the same session IDs and partial
+text remain; eligible parents and children continue without a manual prompt or a false failure.
+The child completes and delivers its durable result once. An explicitly stopped control remains
+stopped, and a subsequent restart does not duplicate continuation or child delivery. A failed
+bundle install leaves the live daemon untouched; failure to request coordinated restart never
+falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
+remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
+Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).

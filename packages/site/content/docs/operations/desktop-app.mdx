@@ -72,6 +72,14 @@ compozy app status -o json
 compozy update --check -o json
 ```
 
+When an app update replaces its bundled runtime, bootstrap requests a coordinated daemon
+restart. Eligible sessions and delegated subagents retain their conversation and partial work,
+then continue automatically once the replacement is ready. You do not need to send a new
+"continue" message. An explicit Stop remains stopped; pending approvals, changed permissions
+or runtime bindings, disabled recovery, and repeated restart failures still require review.
+Provider-native tools remain part of their parent conversation; after interruption, the agent
+must inspect any unknown tool outcome before repeating a side effect.
+
 ## Recover a runtime update
 
 After a runtime binary has been swapped, CompozyOS keeps the replacement if restart, health

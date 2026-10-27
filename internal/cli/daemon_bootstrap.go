@@ -359,7 +359,11 @@ func probeBootstrapDaemon(
 	if err != nil || !running {
 		return DaemonStatus{}, false, err
 	}
-	client, err := deps.newClient(LocalClientTarget(homePaths.DaemonSocket))
+	target, err := resolveLocalClientTarget(deps, homePaths)
+	if err != nil {
+		return DaemonStatus{}, false, err
+	}
+	client, err := deps.newClient(target)
 	if err != nil {
 		return DaemonStatus{}, false, err
 	}
@@ -371,7 +375,7 @@ func probeBootstrapDaemon(
 		return status, false, errors.New("cli: running daemon did not report healthy status")
 	}
 	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
-		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(homePaths.DaemonSocket) {
+		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(target.socketPath) {
 		return status, false, errors.New("cli: daemon status does not match the local discovery record")
 	}
 	return status, true, nil
