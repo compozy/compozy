@@ -4,7 +4,11 @@ import { useEffect, useEffectEvent, useRef } from "react";
 
 import type { TerminalDimensions, TerminalEngine, TerminalEngineLoader } from "./terminal-engine";
 import { loadTerminalFonts } from "./terminal-fonts";
-import { readTerminalMetrics, terminalMetricsEqual } from "./terminal-metrics";
+import {
+  readTerminalMetrics,
+  terminalMetricsEqual,
+  type TerminalTypeMetrics,
+} from "./terminal-metrics";
 import {
   addTerminalInstanceListener,
   attachTerminalInstance,
@@ -113,6 +117,10 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
         onData: emitData,
         onSelectionChange: emitSelectionChange,
         onRendererChange: emitRendererChange,
+        // A new face changes the cell size under an unchanged container, so
+        // the resize observer stays silent; the daemon still needs the new fit.
+        onMetricsChange: () =>
+          reportProposedDimensions(instance, container, emitProposedDimensions),
       });
       release = () => {
         unsubscribe();
@@ -239,6 +247,7 @@ function createInstance(
     host,
     renderer: { kind: "dom", dispose: () => undefined },
     mountCount: 0,
+    metricsEpoch: 0,
     listeners: new Set(),
     teardown: [],
   });
@@ -299,23 +308,74 @@ function isHostAccelerator(event: KeyboardEvent, hasSelection: boolean): boolean
   }
 }
 
-/** Re-resolves palette and metrics from live CSS, writing only on drift. */
+/**
+ * Re-resolves palette and metrics from live CSS, writing only on drift.
+ *
+ * The palette is written at once. A new face or size is loaded first and
+ * written only once the stack is resident (or its budget elapsed): the emulator
+ * measures its cell and rasterizes the atlas at the moment of the write, and a
+ * write ahead of the face would keep fallback metrics after the face lands.
+ */
 function applyResolvedStyle(instance: TerminalInstance): void {
+  // A host out of the document resolves no styles at all; reading it would
+  // write fallback metrics and an empty palette. The next attach re-resolves.
+  if (!instance.host.isConnected) return;
   const nextTheme = readTerminalTheme(instance.host);
   const currentTheme = instance.terminal.options.theme ?? {};
   if (!terminalThemesEqual(currentTheme, nextTheme)) {
     instance.terminal.options.theme = nextTheme;
   }
   const nextMetrics = readTerminalMetrics(instance.host);
-  const currentMetrics = {
+  const currentMetrics = readAppliedMetrics(instance);
+  if (terminalMetricsEqual(currentMetrics, nextMetrics)) return;
+  instance.metricsEpoch += 1;
+  const epoch = instance.metricsEpoch;
+  if (sameFace(currentMetrics, nextMetrics)) {
+    writeMetrics(instance, nextMetrics);
+    return;
+  }
+  const fonts = loadTerminalFonts(instance.host);
+  void fonts.firstPaint.then(() => {
+    if (!isCurrentMetricsChange(instance, epoch)) return;
+    const settledMetrics = readTerminalMetrics(instance.host);
+    // The face changed again while this one loaded; that stack is the one owed
+    // a load, so chase it rather than write a face nobody waited for.
+    if (!sameFace(settledMetrics, nextMetrics)) {
+      applyResolvedStyle(instance);
+      return;
+    }
+    writeMetrics(instance, settledMetrics);
+    scheduleGlyphRefresh(instance, fonts.settled);
+  });
+}
+
+function readAppliedMetrics(instance: TerminalInstance): TerminalTypeMetrics {
+  return {
     fontFamily: instance.terminal.options.fontFamily ?? "",
     fontSize: instance.terminal.options.fontSize ?? 0,
     lineHeight: instance.terminal.options.lineHeight ?? 0,
     letterSpacing: instance.terminal.options.letterSpacing ?? 0,
   };
-  if (!terminalMetricsEqual(currentMetrics, nextMetrics)) {
-    Object.assign(instance.terminal.options, nextMetrics);
-  }
+}
+
+/** Same face and size: nothing new to load, only spacing may differ. */
+function sameFace(left: TerminalTypeMetrics, right: TerminalTypeMetrics): boolean {
+  return left.fontFamily === right.fontFamily && left.fontSize === right.fontSize;
+}
+
+/** False once a newer change began, or the instance was destroyed, replaced or detached. */
+function isCurrentMetricsChange(instance: TerminalInstance, epoch: number): boolean {
+  return (
+    instance.metricsEpoch === epoch &&
+    getTerminalInstance(instance.key) === instance &&
+    instance.host.isConnected
+  );
+}
+
+/** Writes metrics, which re-measures the cell, then asks every view for a new fit. */
+function writeMetrics(instance: TerminalInstance, metrics: TerminalTypeMetrics): void {
+  Object.assign(instance.terminal.options, metrics);
+  notifyTerminalInstance(instance, listener => listener.onMetricsChange());
 }
 
 /**

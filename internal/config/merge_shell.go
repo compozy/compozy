@@ -1,7 +1,13 @@
 package config
 
 type shellOverlay struct {
-	Sessions shellSessionsOverlay `toml:"sessions"`
+	Sessions   shellSessionsOverlay   `toml:"sessions"`
+	Appearance shellAppearanceOverlay `toml:"appearance"`
+}
+
+type shellAppearanceOverlay struct {
+	UIFont   *string `toml:"ui_font"`
+	MonoFont *string `toml:"mono_font"`
 }
 
 type shellSessionsOverlay struct {
@@ -11,6 +17,14 @@ type shellSessionsOverlay struct {
 }
 
 func (o shellOverlay) Apply(dst *ShellConfig) {
+	if o.Appearance.UIFont != nil {
+		dst.Appearance.UIFont = *o.Appearance.UIFont
+		dst.Appearance.UIFontExplicit = true
+	}
+	if o.Appearance.MonoFont != nil {
+		dst.Appearance.MonoFont = *o.Appearance.MonoFont
+		dst.Appearance.MonoFontExplicit = true
+	}
 	if o.Sessions.Sort != nil {
 		dst.Sessions.Sort = *o.Sessions.Sort
 	}

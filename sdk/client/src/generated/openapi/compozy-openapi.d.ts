@@ -15183,6 +15183,10 @@ export interface components {
         | "marketplace";
       workspace_id?: string;
     };
+    SettingsShellAppearancePayload: {
+      mono_font?: string | null;
+      ui_font?: string | null;
+    };
     SettingsShellLegacyScopePayload: {
       explicit: boolean;
       /** Format: uint64 */
@@ -15248,6 +15252,7 @@ export interface components {
         | "workspace-agent-file";
     };
     SettingsShellPayload: {
+      appearance?: components["schemas"]["SettingsShellAppearancePayload"] | null;
       sessions: components["schemas"]["SettingsShellSessionsPayload"];
     };
     SettingsShellResponse: {

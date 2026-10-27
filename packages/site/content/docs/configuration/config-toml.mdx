@@ -37,6 +37,7 @@ CompozyOS archives them on load instead of failing; see
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
+| `[shell.appearance]`                 | Interface and Code fonts every connected Web and desktop client paints with.          | Inter and Geist Mono                                                                                  |
 | `[user_scope]`                       | Working directory for work that belongs to no project (the User scope).                | `work_dir = "~"`                                                                                      |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
@@ -1012,6 +1013,26 @@ compozy config set shell.sessions.group_by project
 All fields have the `live` lifecycle. The daemon stores them in global `config.toml`, so the
 preference survives browser restarts without browser-local storage. Workspace overlays and
 workspace-scoped CLI or native-tool writes are rejected.
+
+## `[shell.appearance]`
+
+The Interface and Code fonts chosen in **Settings › Appearance › Fonts**. They are global and
+live-applied: every Web and desktop client connected to this CompozyOS repaints with them, and a
+client that reconnects later loads them. A family that is not installed on one device falls back to
+the built-in stack there.
+
+| Field       | Type   | Default | Valid values                                                                 | Description                                                         |
+| ----------- | ------ | ------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ui_font`   | string | `""`    | Empty, or one family name: letters, digits, spaces, `-_.'`; at most 128 chars | Interface font. Empty uses Inter.                                   |
+| `mono_font` | string | `""`    | Same as `ui_font`                                                            | Code blocks, diffs, paths, and the terminal. Empty uses Geist Mono. |
+
+`system-ui` and `ui-monospace` select the platform's own faces; `JetBrains Mono Variable` ships with
+the app and downloads only once chosen. Invalid values fail with `shell_config_invalid`.
+
+```bash
+compozy config set shell.appearance.mono_font "JetBrains Mono Variable"
+compozy config unset shell.appearance.mono_font
+```
 
 ## `[cmd_palette]`
 

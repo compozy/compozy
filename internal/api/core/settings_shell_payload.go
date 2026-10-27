@@ -28,11 +28,16 @@ func settingsShellSectionResponse(envelope settingspkg.SectionEnvelope) (any, er
 }
 
 func settingsShellPayload(cfg compozyconfig.ShellConfig) contract.SettingsShellPayload {
-	return contract.SettingsShellPayload{Sessions: contract.SettingsShellSessionsPayload{
-		GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
-		Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
-		Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
-	}}
+	uiFont := cfg.Appearance.UIFont
+	monoFont := cfg.Appearance.MonoFont
+	return contract.SettingsShellPayload{
+		Sessions: contract.SettingsShellSessionsPayload{
+			GroupBy: contract.SettingsShellSessionGroupBy(cfg.Sessions.GroupBy),
+			Sort:    contract.SettingsShellSessionSort(cfg.Sessions.Sort),
+			Scope:   contract.SettingsShellSessionScope(cfg.Sessions.Scope),
+		},
+		Appearance: &contract.SettingsShellAppearancePayload{UIFont: &uiFont, MonoFont: &monoFont},
+	}
 }
 
 func shellConfigFromPayload(payload contract.SettingsShellPayload) (compozyconfig.ShellConfig, error) {
@@ -43,6 +48,16 @@ func shellConfigFromPayload(payload contract.SettingsShellPayload) (compozyconfi
 		Sort:            compozyconfig.ShellSessionSort(payload.Sessions.Sort),
 		Scope:           compozyconfig.ShellSessionScope(payload.Sessions.Scope),
 	}}
+	if appearance := payload.Appearance; appearance != nil {
+		if appearance.UIFont != nil {
+			value.Appearance.UIFont = *appearance.UIFont
+			value.Appearance.UIFontExplicit = true
+		}
+		if appearance.MonoFont != nil {
+			value.Appearance.MonoFont = *appearance.MonoFont
+			value.Appearance.MonoFontExplicit = true
+		}
+	}
 	validation := value
 	if validation.Sessions.Sort == "" {
 		validation.Sessions.Sort = compozyconfig.ShellSessionSortCreated

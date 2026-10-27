@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { PillGroup, Switch, cn, type PillGroupItem } from "@compozy/ui";
 
 import { useAppearanceSettingsPane } from "../../hooks/use-appearance-settings-pane";
+import { FontPicker } from "./font-picker";
 import type { OsWallpaper } from "../../lib/os-types";
 import type { ThemePreference } from "@/systems/theme";
 import {
@@ -116,8 +117,8 @@ function WallpaperPicker({
 
 /**
  * The Appearance pane (US-015): this browser's theme (light, dark, or follow
- * the system), shell-session wallpaper, and the in-product reduced-motion
- * preference. The system reduced-motion preference always wins over the
+ * the system), the daemon-wide Interface and Code fonts (#984), shell-session
+ * wallpaper, and the in-product reduced-motion preference. The system reduced-motion preference always wins over the
  * toggle (US-015.EC-1).
  */
 export function AppearanceSettingsPane() {
@@ -161,6 +162,39 @@ export function AppearanceSettingsPane() {
                 : "Window, dock, and minimize animations become instant."
             }
             label="Reduce motion"
+          />
+        </SettingsGroup>
+        <SettingsGroup
+          description="Fonts apply to every app connected to this CompozyOS."
+          title="Fonts"
+        >
+          <SettingRow
+            control={
+              <FontPicker
+                data-testid="os-appearance-font-sans"
+                label="Interface font"
+                role="sans"
+                value={appearance.fonts.sans}
+                onChange={family => appearance.setFont("sans", family)}
+              />
+            }
+            data-testid="os-appearance-font-sans-row"
+            help="Menus, lists, and conversations."
+            label="Interface"
+          />
+          <SettingRow
+            control={
+              <FontPicker
+                data-testid="os-appearance-font-mono"
+                label="Code font"
+                role="mono"
+                value={appearance.fonts.mono}
+                onChange={family => appearance.setFont("mono", family)}
+              />
+            }
+            data-testid="os-appearance-font-mono-row"
+            help="Code blocks, diffs, paths, and the terminal."
+            label="Code"
           />
         </SettingsGroup>
         <SettingsGroup bare title="Wallpaper">

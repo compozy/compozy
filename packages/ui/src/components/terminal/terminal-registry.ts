@@ -27,6 +27,11 @@ export interface TerminalInstanceListener {
   onData(data: string): void;
   onSelectionChange(selection: string): void;
   onRendererChange(renderer: TerminalRendererKind): void;
+  /**
+   * The emulator's type metrics were rewritten, so its cell size changed while
+   * the container did not: the size this view proposed is stale.
+   */
+  onMetricsChange(): void;
 }
 
 export interface TerminalInstance {
@@ -37,6 +42,11 @@ export interface TerminalInstance {
   renderer: TerminalRendererBinding;
   /** How many mounted views currently show this instance. */
   mountCount: number;
+  /**
+   * Bumped by every live metrics change. A font load that resolves after a
+   * newer change began compares against it and drops its write.
+   */
+  metricsEpoch: number;
   /** The views listening right now. Mount-scoped, never instance-scoped. */
   readonly listeners: Set<TerminalInstanceListener>;
   /** Torn down with the instance: emulator subscriptions, theme observer. */

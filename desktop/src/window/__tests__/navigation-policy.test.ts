@@ -42,12 +42,15 @@ describe("navigation policy", () => {
   });
 });
 
-// Invariant: both Electron permission paths allow only product main-frame notifications and
-// clipboard writes. Unknown permissions, foreign origins, and subframes remain default-denied.
+// Invariant: both Electron permission paths allow only product main-frame notifications,
+// clipboard writes, and installed-font reads. Unknown permissions, foreign origins, and subframes
+// remain default-denied.
 describe("product window permissions", () => {
   it.each([
     ["notifications", "http://127.0.0.1:2123/", true, true],
     ["clipboard-sanitized-write", "http://127.0.0.1:2123/sessions", true, true],
+    ["local-fonts", "http://127.0.0.1:2123/settings/appearance", true, true],
+    ["local-fonts", "https://example.com/", true, false],
     ["notifications", "https://example.com/", true, false],
     ["notifications", "http://127.0.0.1:2124/", true, false],
     ["notifications", "http://127.0.0.1:2123/", false, false],

@@ -1,0 +1,38 @@
+import { useSettingsShell, useUpdateSettingsShell } from "@/systems/settings";
+
+import type { FontAppearance, FontRole } from "../lib/font-appearance";
+
+export interface FontAppearanceHandle {
+  appearance: FontAppearance;
+  /** False until the daemon answered — the boot cache paints meanwhile. */
+  loaded: boolean;
+  /** Persists one role's family (`""` resets it) for every connected client. */
+  setFont: (role: FontRole, family: string) => void;
+  saving: boolean;
+}
+
+/**
+ * The operator's Appearance fonts, read from the daemon-wide
+ * `[shell.appearance]` section (`compozy config get/set shell.appearance.*`).
+ * A write sends only the changed key, so it never rewrites session-list
+ * preferences or the other font.
+ */
+export function useFontAppearance(): FontAppearanceHandle {
+  const query = useSettingsShell();
+  const mutation = useUpdateSettingsShell();
+  const stored = query.data?.config.appearance;
+
+  return {
+    appearance: { sans: stored?.ui_font ?? "", mono: stored?.mono_font ?? "" },
+    loaded: query.data !== undefined,
+    setFont: (role, family) => {
+      mutation.mutate({
+        config: {
+          sessions: {},
+          appearance: role === "sans" ? { ui_font: family } : { mono_font: family },
+        },
+      });
+    },
+    saving: mutation.isPending,
+  };
+}

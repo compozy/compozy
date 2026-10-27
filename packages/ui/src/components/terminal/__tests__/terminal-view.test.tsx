@@ -14,7 +14,8 @@ import { createFakeEngine, type FakeEngine } from "./fake-terminal-engine";
  * disposal and rebinds to whichever view is showing it; its palette comes from
  * the terminal tokens and follows a theme change; read-only suppresses local
  * input; renderer fallback is scoped to a single instance; a proposed size
- * never mutates the emulator.
+ * never mutates the emulator; a live font change is written only once its
+ * stack is resident, never by a superseded change, and re-proposes the fit.
  */
 
 /**
@@ -86,7 +87,22 @@ afterEach(() => {
     document.documentElement.style.removeProperty(token);
   }
   document.documentElement.classList.remove("theme-switched");
+  document.documentElement.style.removeProperty("--font-mono");
 });
+
+/**
+ * Restyles the view's container, then touches the root the way the Code font
+ * setter does. jsdom resolves no `var()`, so the family is set on the container
+ * directly; the root mutation is what the emulator actually listens to.
+ */
+function changeCodeFont(
+  rerender: (ui: React.ReactElement) => void,
+  view: (fontFamily: string) => React.ReactElement,
+  fontFamily: string
+): void {
+  rerender(view(fontFamily));
+  document.documentElement.style.setProperty("--font-mono", fontFamily);
+}
 
 describe("TerminalView", () => {
   it("Should keep one emulator across mounts and build its palette from terminal tokens", async () => {
@@ -847,5 +863,125 @@ describe("TerminalView", () => {
     expect(fonts.loadCalls).toHaveLength(0);
     await act(async () => {});
     expect(engine.lastTerminal().clearTextureAtlasCount).toBe(0);
+  });
+
+  it("Should write a live font change only once its stack is resident, painting a palette change at once", async () => {
+    const fonts = createFakeFontFaceSet(['12px "Test Mono"']);
+    restoreFonts = installFakeFontFaceSet(fonts);
+    const engine = createFakeEngine();
+    const engineLoader = loaderFor(engine);
+    const instanceId = nextInstanceId();
+    const view = (fontFamily: string) => (
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={engineLoader}
+        instanceId={instanceId}
+        style={{ fontFamily, fontSize: "12px" }}
+      />
+    );
+    const { rerender } = render(view('"Test Mono", monospace'));
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const terminal = engine.lastTerminal();
+
+    document.documentElement.style.setProperty("--terminal-bg", "#050403");
+    changeCodeFont(rerender, view, '"Next Mono", monospace');
+
+    await waitFor(() =>
+      expect(fonts.loadCalls.map(call => call.font)).toEqual(['12px "Next Mono"'])
+    );
+    // The palette never waits on type; the face does, because writing it now
+    // would measure the cell and rasterize the atlas with the fallback.
+    await waitFor(() => expect(terminal.options.theme?.background).toBe("#050403"));
+    expect(terminal.options.fontFamily).toBe('"Test Mono", monospace');
+
+    fonts.settleLoads();
+    await waitFor(() => expect(terminal.options.fontFamily).toBe('"Next Mono", monospace'));
+    await waitFor(() => expect(terminal.clearTextureAtlasCount).toBe(1));
+  });
+
+  it("Should not let a superseded font load overwrite a newer font", async () => {
+    const fonts = createFakeFontFaceSet(['12px "Test Mono"', '12px "Resident Mono"']);
+    restoreFonts = installFakeFontFaceSet(fonts);
+    const engine = createFakeEngine();
+    const engineLoader = loaderFor(engine);
+    const instanceId = nextInstanceId();
+    const view = (fontFamily: string) => (
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={engineLoader}
+        instanceId={instanceId}
+        style={{ fontFamily, fontSize: "12px" }}
+      />
+    );
+    const { rerender } = render(view('"Test Mono", monospace'));
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const terminal = engine.lastTerminal();
+
+    changeCodeFont(rerender, view, '"Slow Mono", monospace');
+    await waitFor(() => expect(fonts.loadCalls).toHaveLength(1));
+    changeCodeFont(rerender, view, '"Resident Mono", monospace');
+    await waitFor(() => expect(terminal.options.fontFamily).toBe('"Resident Mono", monospace'));
+
+    // The older face lands last; its write belongs to a change nobody wants now.
+    fonts.settleLoads();
+    await act(async () => {});
+    expect(terminal.options.fontFamily).toBe('"Resident Mono", monospace');
+  });
+
+  it("Should propose a new size after a font change re-measures the cell", async () => {
+    const fonts = createFakeFontFaceSet(['12px "Test Mono"', '12px "Wide Mono"']);
+    restoreFonts = installFakeFontFaceSet(fonts);
+    const engine = createFakeEngine({ proposedDimensions: { cols: 132, rows: 44 } });
+    const onProposeDimensions = vi.fn();
+    const engineLoader = loaderFor(engine);
+    const instanceId = nextInstanceId();
+    const view = (fontFamily: string) => (
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={engineLoader}
+        instanceId={instanceId}
+        onProposeDimensions={onProposeDimensions}
+        style={{ fontFamily, fontSize: "12px" }}
+      />
+    );
+    const { rerender } = render(view('"Test Mono", monospace'));
+    await waitFor(() => expect(onProposeDimensions).toHaveBeenCalledTimes(1));
+
+    // The container did not resize, so only the metrics write can ask for the
+    // fit a different cell size now produces.
+    changeCodeFont(rerender, view, '"Wide Mono", monospace');
+
+    await waitFor(() => expect(onProposeDimensions).toHaveBeenCalledTimes(2));
+    expect(engine.lastTerminal().options.fontFamily).toBe('"Wide Mono", monospace');
+    expect(engine.lastTerminal().resizes).toEqual([]);
+  });
+
+  it("Should ignore root style changes while its host is detached and catch up on reattach", async () => {
+    const engine = createFakeEngine();
+    const engineLoader = loaderFor(engine);
+    const instanceId = nextInstanceId();
+    const view = () => (
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={engineLoader}
+        instanceId={instanceId}
+        style={{ fontFamily: '"Test Mono", monospace', fontSize: "12px" }}
+      />
+    );
+    const first = render(view());
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const terminal = engine.lastTerminal();
+    first.unmount();
+
+    // A detached node resolves no real styles; reading one would write
+    // fallback metrics and an empty palette into a buffer that is still alive.
+    document.documentElement.style.setProperty("--terminal-bg", "#050403");
+    await act(async () => {});
+    expect(terminal.options.theme?.background).toBe("#131211");
+    expect(terminal.options.fontFamily).toBe('"Test Mono", monospace');
+
+    render(view());
+    await waitFor(() => expect(terminal.options.theme?.background).toBe("#050403"));
+    expect(terminal.options.fontFamily).toBe('"Test Mono", monospace');
   });
 });

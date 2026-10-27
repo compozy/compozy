@@ -3,16 +3,32 @@
 // to a painted theme; <html> data-theme, `.dark`, color-scheme and theme-color always move together,
 // follow the OS live under `system`, sync across tabs, reach the desktop shell (native chrome), and
 // the pre-paint boot script paints exactly what the runtime would (no flash, no mismatch).
+// Appearance fonts (#984) ride the same boot script: the daemon's family names become the
+// `--user-font-*` overrides heading the token stacks, cached for a flash-free next boot, and a
+// bundled face downloads only once chosen.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { THEME_CHROME_COLOR, applyTheme } from "../lib/apply-theme";
+import {
+  FONT_STORAGE_KEY,
+  applyFontAppearance,
+  isStorableFontFamily,
+  loadBundledFonts,
+  writeFontAppearanceCache,
+} from "../lib/font-appearance";
 import { installThemeRuntime } from "../lib/install-theme-runtime";
 import { THEME_STORAGE_KEY, readThemePreference, resolveTheme } from "../lib/theme-preference";
 import { selectResolvedTheme, themePreferenceLogic } from "../stores/theme-preference-store";
 import type { ThemePreference } from "../types";
+
+const jetBrainsMono = vi.hoisted(() => vi.fn());
+vi.mock("@fontsource-variable/jetbrains-mono", () => {
+  jetBrainsMono();
+  return {};
+});
 
 const BOOT_SCRIPT = readFileSync(join(__dirname, "../../../../public/theme-boot.js"), "utf8");
 const TOKENS_DIR = join(__dirname, "../../../../../packages/ui/src");
@@ -196,4 +212,71 @@ describe("theme runtime", () => {
       expect(booted).toEqual(paintedState());
     }
   );
+});
+
+describe("font appearance runtime", () => {
+  const root = document.documentElement;
+  const fontVariables = () => ({
+    sans: root.style.getPropertyValue("--user-font-sans"),
+    mono: root.style.getPropertyValue("--user-font-mono"),
+  });
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    resetDocument();
+    root.style.removeProperty("--user-font-sans");
+    root.style.removeProperty("--user-font-mono");
+    jetBrainsMono.mockClear();
+  });
+
+  it("Should head the stacks with the chosen families and drop the override on reset", () => {
+    applyFontAppearance(root, { sans: "JetBrains Mono Variable", mono: "ui-monospace" });
+    expect(fontVariables()).toEqual({ sans: '"JetBrains Mono Variable"', mono: "ui-monospace" });
+
+    applyFontAppearance(root, { sans: "", mono: "" });
+    expect(fontVariables()).toEqual({ sans: "", mono: "" });
+  });
+
+  it.each([
+    [{ sans: "Berkeley Mono", mono: "system-ui" }],
+    [{ sans: "", mono: "Fira Code" }],
+    [{ sans: "", mono: "" }],
+  ])("Should boot-paint the cached fonts %o exactly as the runtime does", appearance => {
+    writeFontAppearanceCache(appearance);
+    new Function(BOOT_SCRIPT)();
+    const booted = fontVariables();
+
+    root.style.removeProperty("--user-font-sans");
+    root.style.removeProperty("--user-font-mono");
+    applyFontAppearance(root, appearance);
+    expect(booted).toEqual(fontVariables());
+  });
+
+  it("Should keep the built-in stacks when the font cache is corrupt", () => {
+    window.localStorage.setItem(FONT_STORAGE_KEY, "{not json");
+    new Function(BOOT_SCRIPT)();
+    expect(fontVariables()).toEqual({ sans: "", mono: "" });
+  });
+
+  it("Should download a bundled face only once it is chosen", async () => {
+    await loadBundledFonts({ sans: "", mono: "Fira Code" });
+    expect(jetBrainsMono).not.toHaveBeenCalled();
+
+    await loadBundledFonts({ sans: "", mono: "JetBrains Mono Variable" });
+    expect(jetBrainsMono).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["JetBrains Mono Variable", true],
+    ["Source Han Sans", true],
+    ["Operator's Font 2.0", true],
+    ["", false],
+    [" Inter", false],
+    ['Inter", serif', false],
+    ["Inter; color: red", false],
+    ["Fira Code, monospace", false],
+    ["x".repeat(129), false],
+  ])("Should mirror the daemon's family rule for %j (storable: %s)", (family, storable) => {
+    expect(isStorableFontFamily(family)).toBe(storable);
+  });
 });

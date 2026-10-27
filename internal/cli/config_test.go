@@ -1149,7 +1149,8 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 			t.Fatalf("config set shell.sessions.scope error = %v", err)
 		}
 		if captured.Config.Sessions.Sort != "" || captured.Config.Sessions.GroupBy != "" ||
-			captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces {
+			captured.Config.Sessions.Scope != contract.SettingsShellSessionScopeAllWorkspaces ||
+			captured.Config.Appearance != nil {
 			t.Fatalf("daemon shell payload = %#v, want only scope=all-workspaces", captured.Config)
 		}
 
@@ -1168,6 +1169,90 @@ func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied ||
 			record.RestartRequired {
 			t.Fatalf("config set shell record = %#v, want live/applied=true", record)
+		}
+	})
+
+	t.Run("Should send only the selected shell font through the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		calls := 0
+		var captured UpdateSettingsShellRequest
+		client := &stubClient{
+			updateSettingsShellFn: func(
+				_ context.Context,
+				request UpdateSettingsShellRequest,
+			) (SettingsMutationRecord, error) {
+				calls++
+				captured = request
+				return SettingsMutationRecord{
+					Section:    "shell",
+					Scope:      contract.SettingsScopeUser,
+					Lifecycle:  contract.SettingsApplyLifecycleLive,
+					Applied:    true,
+					NextAction: contract.SettingsApplyNextActionNone,
+				}, nil
+			},
+		}
+		deps := newDefaultProfileWorkspaceTestDeps(t, client)
+		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+		}
+		deps.processAlive = func(pid int) bool { return pid == 42 }
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.mono_font", "JetBrains Mono", "-o", "json",
+		); err != nil {
+			t.Fatalf("config set shell.appearance.mono_font error = %v", err)
+		}
+		appearance := captured.Config.Appearance
+		if appearance == nil || appearance.UIFont != nil || appearance.MonoFont == nil ||
+			*appearance.MonoFont != "JetBrains Mono" || captured.Config.Sessions != (contract.SettingsShellSessionsPayload{}) {
+			t.Fatalf("daemon shell payload = %#v, want only mono_font=JetBrains Mono", captured.Config)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "set", "shell.appearance.ui_font", "Inter; color: red", "-o", "json",
+		); err == nil || !strings.Contains(err.Error(), "shell.appearance.ui_font") {
+			t.Fatalf("config set unsafe ui_font error = %v, want shell.appearance.ui_font validation error", err)
+		}
+		if calls != 1 {
+			t.Fatalf("UpdateSettingsShell calls = %d, want unsafe font rejected before the daemon", calls)
+		}
+	})
+
+	t.Run("Should unset a shell font from the user config", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(homePaths.ConfigFile), 0o755); err != nil {
+			t.Fatalf("MkdirAll(config dir) error = %v", err)
+		}
+		if err := os.WriteFile(
+			homePaths.ConfigFile,
+			[]byte("[shell.appearance]\nui_font = \"Inter\"\nmono_font = \"JetBrains Mono\"\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(config) error = %v", err)
+		}
+
+		if _, _, err := executeRootCommand(
+			t, deps, "config", "unset", "shell.appearance.ui_font", "-o", "json",
+		); err != nil {
+			t.Fatalf("config unset shell.appearance.ui_font error = %v", err)
+		}
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Shell.Appearance.UIFont != "" || loaded.Shell.Appearance.MonoFont != "JetBrains Mono" {
+			t.Fatalf(
+				"appearance after unset = %#v, want default ui_font and preserved mono_font",
+				loaded.Shell.Appearance,
+			)
 		}
 	})
 }

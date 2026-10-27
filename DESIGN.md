@@ -218,8 +218,8 @@ tokens:
       avatar-human-2-fg: "#74525c"
       destructive-foreground: "#ffffff"
     fonts:
-      sans: '"Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
-      mono: '"Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace'
+      sans: 'var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif'
+      mono: 'var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace'
       display: "var(--font-sans)"
       keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif'
       weight-normal: "425"
@@ -906,16 +906,16 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:fonts -->
 
-| Token                    | Value                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `--font-sans`            | `"Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                                     |
-| `--font-mono`            | `"Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace` |
-| `--font-display`         | `var(--font-sans)`                                                                                                  |
-| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif`                                     |
-| `--font-weight-normal`   | `425`                                                                                                               |
-| `--font-weight-medium`   | `500`                                                                                                               |
-| `--font-weight-semibold` | `600`                                                                                                               |
-| `--font-weight-bold`     | `600`                                                                                                               |
+| Token                    | Value                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--font-sans`            | `var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif`                                     |
+| `--font-mono`            | `var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular", "Menlo", monospace` |
+| `--font-display`         | `var(--font-sans)`                                                                                                                         |
+| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Inter Variable", sans-serif`                                                            |
+| `--font-weight-normal`   | `425`                                                                                                                                      |
+| `--font-weight-medium`   | `500`                                                                                                                                      |
+| `--font-weight-semibold` | `600`                                                                                                                                      |
+| `--font-weight-bold`     | `600`                                                                                                                                      |
 
 <!-- END:tokens:fonts -->
 

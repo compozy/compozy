@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/extensioninput"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -115,6 +116,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.UpdateSettingsSkillsRequest]():    customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsSkillsOverridePayload]():  customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsShellSessionsPayload]():   customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsShellAppearancePayload](): customizeSettingsShellAppearanceSchema,
 	reflect.TypeFor[contract.SettingsUpdateApplyRequest]():     customizeSettingsUpdateApplyRequestSchema,
 	reflect.TypeFor[contract.SettingsUpdateApplyResponse]():    customizeSettingsUpdateApplyResponseSchema,
 	reflect.TypeFor[contract.SettingsMCPAuthExchangeRequest](): customizeSettingsMCPAuthExchangeRequestSchema,
@@ -146,5 +148,18 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 func customizeClosedObjectSchema(schema *openapi3.Schema) {
 	if schema != nil {
 		schema.WithoutAdditionalProperties()
+	}
+}
+
+func customizeSettingsShellAppearanceSchema(schema *openapi3.Schema) {
+	customizeClosedObjectSchema(schema)
+	if schema == nil {
+		return
+	}
+	maxLength := uint64(compozyconfig.ShellFontFamilyMaxLen)
+	for _, property := range []string{"ui_font", "mono_font"} {
+		if ref := schema.Properties[property]; ref != nil && ref.Value != nil {
+			ref.Value.MaxLength = &maxLength
+		}
 	}
 }

@@ -206,16 +206,39 @@ export function useUpdateSettingsAutomation() {
 export function useUpdateSettingsShell() {
   const queryClient = useQueryClient();
 
+  const key = settingsKeys.section("shell");
+
+  // Optimistic: an Appearance font repaints the whole client at once. Omitted
+  // keys are preserved by the daemon, so the cache merges the patch the same way.
   return useMutation({
     mutationFn: (body: SettingsUpdateShellRequest) => updateSettingsShell(body),
-    onSuccess: (result, variables) => {
-      recordSettingsMutation(result);
-      queryClient.setQueryData<SettingsShellSection>(settingsKeys.section("shell"), previous =>
-        previous ? { ...previous, config: variables.config } : previous
+    onMutate: async variables => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<SettingsShellSection>(key);
+      queryClient.setQueryData<SettingsShellSection>(key, current =>
+        current
+          ? { ...current, config: mergeShellConfig(current.config, variables.config) }
+          : current
       );
+      return { previous };
     },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    },
+    onSuccess: result => recordSettingsMutation(result),
     onSettled: () => invalidateSection(queryClient, "shell"),
   });
+}
+
+function mergeShellConfig(
+  current: SettingsShellSection["config"],
+  patch: SettingsUpdateShellRequest["config"]
+): SettingsShellSection["config"] {
+  return {
+    ...current,
+    sessions: { ...current.sessions, ...patch.sessions },
+    appearance: { ...current.appearance, ...patch.appearance },
+  };
 }
 
 export function useUpdateSettingsObservability() {
