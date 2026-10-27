@@ -83,7 +83,7 @@ export function FontPicker({
       value={family || "default"}
       keywords={[itemLabel]}
       data-checked={family === value}
-      style={{ fontFamily: family ? previewFontFamily(family, role) : undefined }}
+      style={{ fontFamily: previewFontFamily(family, role) }}
       onSelect={() => choose(family)}
     >
       <span className="truncate">{itemLabel}</span>
@@ -101,7 +101,7 @@ export function FontPicker({
         >
           <span
             className="min-w-0 flex-1 truncate text-left text-small-body text-fg"
-            style={{ fontFamily: value ? previewFontFamily(value, role) : undefined }}
+            style={{ fontFamily: previewFontFamily(value, role) }}
           >
             {fontLabel(value, role)}
           </span>

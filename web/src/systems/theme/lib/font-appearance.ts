@@ -48,6 +48,12 @@ export const DEFAULT_FONT_LABEL: Record<FontRole, string> = {
   mono: "Geist Mono",
 };
 
+/** The built-in face itself, so the Default entry previews it rather than inheriting. */
+const DEFAULT_FONT_FAMILY: Record<FontRole, string> = {
+  sans: "Inter Variable",
+  mono: "Geist Mono Variable",
+};
+
 const BUNDLED_FONT_LOADERS: Record<string, () => Promise<unknown>> = {
   "JetBrains Mono Variable": () => import("@fontsource-variable/jetbrains-mono"),
 };
@@ -100,7 +106,20 @@ export function cssFontFamily(family: string): string {
 
 /** A picker preview: the family, then the role's generic so it never renders serif. */
 export function previewFontFamily(family: string, role: FontRole): string {
-  return `${cssFontFamily(family)}, ${role === "mono" ? "monospace" : "sans-serif"}`;
+  const face = family === "" ? DEFAULT_FONT_FAMILY[role] : family;
+  return `${cssFontFamily(face)}, ${role === "mono" ? "monospace" : "sans-serif"}`;
+}
+
+/**
+ * Bundled faces the pre-paint boot script already pointed `--user-font-*` at.
+ * Their stylesheet is lazy, so it is fetched at startup instead of waiting for
+ * the daemon's answer — still never part of the default payload.
+ */
+export function bootCachedBundledFonts(root: HTMLElement): string[] {
+  const applied = new Set(
+    Object.values(USER_FONT_VARIABLES).map(name => root.style.getPropertyValue(name).trim())
+  );
+  return Object.keys(BUNDLED_FONT_LOADERS).filter(family => applied.has(cssFontFamily(family)));
 }
 
 /** Fetches every bundled catalog face so the picker previews them truthfully. */

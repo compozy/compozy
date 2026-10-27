@@ -15,6 +15,8 @@ import { THEME_CHROME_COLOR, applyTheme } from "../lib/apply-theme";
 import {
   FONT_STORAGE_KEY,
   applyFontAppearance,
+  bootCachedBundledFonts,
+  previewFontFamily,
   isStorableFontFamily,
   loadBundledFonts,
   writeFontAppearanceCache,
@@ -260,6 +262,21 @@ describe("font appearance runtime", () => {
     window.localStorage.setItem(FONT_STORAGE_KEY, "{not json");
     new Function(BOOT_SCRIPT)();
     expect(fontVariables()).toEqual({ sans: "", mono: "" });
+  });
+
+  it("Should name the bundled faces the boot script painted so startup can fetch them", () => {
+    writeFontAppearanceCache({ sans: "", mono: "JetBrains Mono Variable" });
+    new Function(BOOT_SCRIPT)();
+    expect(bootCachedBundledFonts(root)).toEqual(["JetBrains Mono Variable"]);
+
+    root.style.removeProperty("--user-font-mono");
+    expect(bootCachedBundledFonts(root)).toEqual([]);
+  });
+
+  it("Should preview the Default entry in the built-in face, never an inherited one", () => {
+    expect(previewFontFamily("", "sans")).toBe('"Inter Variable", sans-serif');
+    expect(previewFontFamily("", "mono")).toBe('"Geist Mono Variable", monospace');
+    expect(previewFontFamily("Fira Code", "mono")).toBe('"Fira Code", monospace');
   });
 
   it("Should download a bundled face only once it is chosen", async () => {

@@ -1,3 +1,5 @@
+import { toast } from "sonner";
+
 import { useSettingsShell, useUpdateSettingsShell } from "@/systems/settings";
 
 import type { FontAppearance, FontRole } from "../lib/font-appearance";
@@ -26,12 +28,25 @@ export function useFontAppearance(): FontAppearanceHandle {
     appearance: { sans: stored?.ui_font ?? "", mono: stored?.mono_font ?? "" },
     loaded: query.data !== undefined,
     setFont: (role, family) => {
-      mutation.mutate({
-        config: {
-          sessions: {},
-          appearance: role === "sans" ? { ui_font: family } : { mono_font: family },
+      mutation.mutate(
+        {
+          config: {
+            sessions: {},
+            appearance: role === "sans" ? { ui_font: family } : { mono_font: family },
+          },
         },
-      });
+        {
+          // The optimistic choice is rolled back; say why instead of just reverting.
+          onError: error => {
+            const subject = role === "sans" ? "Interface font" : "Code font";
+            toast.error(
+              error instanceof Error && error.message
+                ? `Couldn't save the ${subject}: ${error.message}`
+                : `Couldn't save the ${subject}. Try again.`
+            );
+          },
+        }
+      );
     },
     saving: mutation.isPending,
   };

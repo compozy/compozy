@@ -3,11 +3,13 @@
 // wallpaper/reduce-motion to the OS controller with APG radio-group semantics, and states the
 // system reduced-motion precedence truthfully (US-015.EC-1). The Interface and Code fonts (#984)
 // are daemon-wide: a choice PATCHes only its own `shell.appearance` key, reset sends "", and the
-// installed-font list (Local Font Access) offers only monospace families to the Code picker.
+// installed-font list (Local Font Access) offers only monospace families to the Code picker. A
+// rejected save says why instead of silently reverting.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
@@ -185,8 +187,11 @@ describe("AppearanceSettingsPane", () => {
     await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
 
     await waitFor(() => expect(trigger).toHaveTextContent("JetBrains Mono"));
-    expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe(
-      '"JetBrains Mono Variable"'
+    // Published only after the lazy face's stylesheet resolved.
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe(
+        '"JetBrains Mono Variable"'
+      )
     );
     expect(await shellWrites()).toEqual([
       { config: { sessions: {}, appearance: { ui_font: "JetBrains Mono Variable" } } },
@@ -199,7 +204,34 @@ describe("AppearanceSettingsPane", () => {
       })
     );
     await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
-    expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe("");
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe("")
+    );
+  });
+
+  it("Should explain a rejected font save and keep the stored font", async () => {
+    const user = userEvent.setup();
+    const toastError = vi.spyOn(toast, "error").mockReturnValue("toast");
+    fetcher.mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "PATCH") {
+        return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+    renderPane();
+
+    const trigger = screen.getByTestId("os-appearance-font-mono");
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(toastError.mock.calls[0]?.[0]).toMatch(/^Couldn't save the Code font/);
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
   });
 
   it("Should offer installed fonts, and only monospace ones for Code", async () => {
