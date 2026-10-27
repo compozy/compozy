@@ -41,8 +41,10 @@ type subagentRuntime interface {
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error
 	// NativeTaskEvents returns at most limit committed native-task observations
-	// of one parent turn, in sequence order.
-	NativeTaskEvents(ctx context.Context, parentID, turnID string, limit int) ([]store.SessionEvent, error)
+	// of one parent turn after the sequence cursor, in sequence order.
+	NativeTaskEvents(
+		ctx context.Context, parentID, turnID string, afterSequence int64, limit int,
+	) ([]store.SessionEvent, error)
 }
 
 // subagentTurnResult is what the child's settling turn left behind: its last

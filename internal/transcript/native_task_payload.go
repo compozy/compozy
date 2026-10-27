@@ -5,18 +5,20 @@ import "github.com/compozy/compozy/internal/acp"
 // nativeTaskPayload is the stored form of an acp.NativeTaskObservation. The
 // originating Agent/Task call is the event's tool_call_id.
 type nativeTaskPayload struct {
-	Source       string                  `json:"source,omitempty"`
-	Kind         acp.NativeTaskKind      `json:"kind"`
-	TaskID       string                  `json:"task_id"`
-	RunID        string                  `json:"run_id,omitempty"`
-	Status       string                  `json:"status,omitempty"`
-	Summary      *string                 `json:"summary,omitempty"`
-	Error        string                  `json:"error,omitempty"`
-	Description  string                  `json:"description,omitempty"`
-	LastToolName string                  `json:"last_tool_name,omitempty"`
-	Usage        *nativeTaskUsagePayload `json:"usage,omitempty"`
-	Background   *bool                   `json:"background,omitempty"`
-	EventUUID    string                  `json:"event_uuid,omitempty"`
+	Source  string             `json:"source,omitempty"`
+	Kind    acp.NativeTaskKind `json:"kind"`
+	TaskID  string             `json:"task_id"`
+	RunID   string             `json:"run_id,omitempty"`
+	Status  string             `json:"status,omitempty"`
+	Summary *string            `json:"summary,omitempty"`
+	// SummaryTruncated records that the provider summary was cut before storage.
+	SummaryTruncated bool                    `json:"summary_truncated,omitempty"`
+	Error            string                  `json:"error,omitempty"`
+	Description      string                  `json:"description,omitempty"`
+	LastToolName     string                  `json:"last_tool_name,omitempty"`
+	Usage            *nativeTaskUsagePayload `json:"usage,omitempty"`
+	Background       *bool                   `json:"background,omitempty"`
+	EventUUID        string                  `json:"event_uuid,omitempty"`
 }
 
 type nativeTaskUsagePayload struct {
@@ -32,8 +34,9 @@ func nativeTaskPayloadFromObservation(observation *acp.NativeTaskObservation) *n
 	cloned := observation.Clone()
 	payload := &nativeTaskPayload{
 		Source: cloned.Source, Kind: cloned.Kind, TaskID: cloned.TaskID, RunID: cloned.RunID,
-		Status: cloned.Status, Summary: cloned.Summary, Error: cloned.Error, Description: cloned.Description,
-		LastToolName: cloned.LastToolName, Background: cloned.Background, EventUUID: cloned.EventUUID,
+		Status: cloned.Status, Summary: cloned.Summary, SummaryTruncated: cloned.SummaryTruncated,
+		Error: cloned.Error, Description: cloned.Description, LastToolName: cloned.LastToolName,
+		Background: cloned.Background, EventUUID: cloned.EventUUID,
 	}
 	if cloned.Usage != nil {
 		payload.Usage = &nativeTaskUsagePayload{
@@ -49,9 +52,9 @@ func nativeTaskObservationFromPayload(payload *nativeTaskPayload, toolCallID str
 	}
 	observation := &acp.NativeTaskObservation{
 		Source: payload.Source, Kind: payload.Kind, TaskID: payload.TaskID, RunID: payload.RunID,
-		ToolCallID: toolCallID, Status: payload.Status, Summary: payload.Summary, Error: payload.Error,
-		Description: payload.Description, LastToolName: payload.LastToolName, Background: payload.Background,
-		EventUUID: payload.EventUUID,
+		ToolCallID: toolCallID, Status: payload.Status, Summary: payload.Summary,
+		SummaryTruncated: payload.SummaryTruncated, Error: payload.Error, Description: payload.Description,
+		LastToolName: payload.LastToolName, Background: payload.Background, EventUUID: payload.EventUUID,
 	}
 	if payload.Usage != nil {
 		observation.Usage = &acp.NativeTaskUsage{
@@ -64,7 +67,9 @@ func nativeTaskObservationFromPayload(payload *nativeTaskPayload, toolCallID str
 }
 
 // redactNativeTaskObservation redacts identifiers structurally and provider
-// prose for display, bounding the summary like other stored summaries.
+// prose for display. The summary is the subagent's result, so it keeps the
+// native result bound rather than the compaction display cap, and any cut is
+// recorded for result_truncated.
 func redactNativeTaskObservation(observation *acp.NativeTaskObservation) *acp.NativeTaskObservation {
 	redacted := observation.Clone()
 	if redacted == nil {
@@ -77,7 +82,10 @@ func redactNativeTaskObservation(observation *acp.NativeTaskObservation) *acp.Na
 	redacted.ToolCallID = redactStructuralString(redacted.ToolCallID)
 	redacted.Status = redactStructuralString(redacted.Status)
 	if redacted.Summary != nil {
-		redacted.Summary = new(boundedCompactionSummary(redactDisplayString(*redacted.Summary)))
+		summary := redactDisplayString(*redacted.Summary)
+		bounded := truncateUTF8Bytes(summary, acp.NativeTaskSummaryMaxBytes)
+		redacted.Summary = &bounded
+		redacted.SummaryTruncated = redacted.SummaryTruncated || len(bounded) < len(summary)
 	}
 	redacted.Error = boundedCompactionSummary(redactDisplayString(redacted.Error))
 	redacted.Description = boundedCompactionSummary(redactDisplayString(redacted.Description))

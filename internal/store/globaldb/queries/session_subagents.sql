@@ -184,6 +184,7 @@ WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND parent_ses
 SELECT * FROM session_subagents
 WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
  AND settled_at >= sqlc.arg(since)
+ AND (sqlc.arg(cursor_id) = '' OR (settled_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
 ORDER BY settled_at DESC, id DESC LIMIT sqlc.arg(row_limit);
 
 -- name: InheritSubagentWakeAttempts :exec

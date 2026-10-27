@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -17,10 +18,11 @@ const (
 	nativeTaskQueueParentLimit = 32
 )
 
-// Bounds for boot replay of committed task observations.
+// Page sizes and age bound for boot replay of committed task observations.
+// Pages bound memory; replay always exhausts the relevant observations.
 const (
-	nativeTaskReplayEventLimit  = 256
-	nativeTaskReplayRowLimit    = 64
+	nativeTaskReplayEventPage   = 256
+	nativeTaskReplayRowPage     = 64
 	nativeTaskReplayResultSince = 24 * time.Hour
 )
 
@@ -114,7 +116,7 @@ func (s *subagentService) finalizeNativeTask(
 	var result *string
 	truncated := false
 	if task.Summary != nil {
-		text, cut, err := s.boundNativeResult(ctx, row.WorkspaceID, *task.Summary)
+		text, cut, err := s.boundNativeResult(ctx, row.WorkspaceID, task)
 		if err != nil {
 			return false, err
 		}
@@ -152,7 +154,7 @@ func (s *subagentService) enrichNativeResult(
 			"status", row.Status, "observed", status)
 		return nil
 	}
-	text, truncated, err := s.boundNativeResult(ctx, row.WorkspaceID, *task.Summary)
+	text, truncated, err := s.boundNativeResult(ctx, row.WorkspaceID, task)
 	if err != nil {
 		return err
 	}
@@ -189,16 +191,22 @@ func nativeTaskFailure(status string, task *NativeSubagentTask) *string {
 	return nil
 }
 
-func (s *subagentService) boundNativeResult(ctx context.Context, workspaceID, text string) (string, bool, error) {
+// boundNativeResult applies the configured result limit to a task summary.
+// The result is truncated when either this limit or an earlier storage bound
+// cut it.
+func (s *subagentService) boundNativeResult(
+	ctx context.Context, workspaceID string, task *NativeSubagentTask,
+) (string, bool, error) {
 	limit, err := s.resultLimit(ctx, workspaceID)
 	if err != nil {
 		return "", false, err
 	}
+	text := *task.Summary
 	runes := []rune(text)
 	if limit > 0 && len(runes) > limit {
 		return string(runes[:limit]), true, nil
 	}
-	return text, false, nil
+	return text, task.SummaryTruncated, nil
 }
 
 // queueNativeTask holds an observation for a call not yet ingested. When full,
@@ -272,52 +280,80 @@ func (s *subagentService) dropNativeTasks(ctx context.Context, parent, turn stri
 
 // replayNativeTasks applies a turn's committed task observations for a native
 // row before recovery classifies it: the ledger commits before projection, so
-// a crash between them leaves the evidence only in the transcript.
+// a crash between them leaves the evidence only in the transcript. It pages
+// through every observation of the turn before returning.
 func (s *subagentService) replayNativeTasks(ctx context.Context, row store.SessionSubagent) error {
-	events, err := s.runtime.NativeTaskEvents(ctx, row.ParentSessionID, row.ParentTurnID, nativeTaskReplayEventLimit)
+	var after int64
+	for {
+		events, err := s.runtime.NativeTaskEvents(
+			ctx, row.ParentSessionID, row.ParentTurnID, after, nativeTaskReplayEventPage,
+		)
+		if err != nil {
+			return err
+		}
+		for _, stored := range events {
+			if err := s.replayNativeTask(ctx, row, stored); err != nil {
+				return err
+			}
+		}
+		if len(events) < nativeTaskReplayEventPage {
+			return nil
+		}
+		next := events[len(events)-1].Sequence
+		if next <= after {
+			return fmt.Errorf("session: native task replay cursor did not advance past %d", after)
+		}
+		after = next
+	}
+}
+
+func (s *subagentService) replayNativeTask(
+	ctx context.Context, row store.SessionSubagent, stored store.SessionEvent,
+) error {
+	ev, ok, err := NativeSubagentEventFromStored(row.WorkspaceID, stored)
+	if err != nil || !ok || ev.Task == nil || ev.ProviderToolCallID != row.ProviderToolCallID ||
+		ev.ParentTurnID != row.ParentTurnID {
+		return nil
+	}
+	status, terminal := nativeTaskOutcome(ev.Task)
+	if !terminal {
+		return nil
+	}
+	current, err := s.store.GetSubagent(ctx, row.WorkspaceID, row.ID)
 	if err != nil {
 		return err
 	}
-	for _, stored := range events {
-		ev, ok, err := NativeSubagentEventFromStored(row.WorkspaceID, stored)
-		if err != nil || !ok || ev.Task == nil || ev.ProviderToolCallID != row.ProviderToolCallID ||
-			ev.ParentTurnID != row.ParentTurnID {
-			continue
-		}
-		status, terminal := nativeTaskOutcome(ev.Task)
-		if !terminal {
-			continue
-		}
-		current, err := s.store.GetSubagent(ctx, row.WorkspaceID, row.ID)
-		if err != nil {
-			return err
-		}
-		if store.IsSubagentStatusTerminal(current.Status) {
-			err = s.enrichNativeResult(ctx, current, status, ev.Task, ev.At)
-		} else {
-			_, err = s.finalizeNativeTask(ctx, current, status, ev.Task, ev.At)
-		}
-		if err != nil {
-			return err
-		}
+	if store.IsSubagentStatusTerminal(current.Status) {
+		return s.enrichNativeResult(ctx, current, status, ev.Task, ev.At)
 	}
-	return nil
+	_, err = s.finalizeNativeTask(ctx, current, status, ev.Task, ev.At)
+	return err
 }
 
 // recoverNativeResults replays committed summaries into recently settled
-// native rows whose result is still missing. Bounded by age and count.
+// native rows whose result is still missing. Bounded by age; candidates are
+// paged with a stable cursor so older recoverable rows are never starved.
 func (s *subagentService) recoverNativeResults(ctx context.Context) error {
-	rows, err := s.store.ListNativeMissingResult(
-		ctx, s.now().UTC().Add(-nativeTaskReplayResultSince), nativeTaskReplayRowLimit,
-	)
-	if err != nil {
-		return err
+	since := s.now().UTC().Add(-nativeTaskReplayResultSince)
+	var after store.NativeMissingResultCursor
+	for {
+		rows, err := s.store.ListNativeMissingResult(ctx, since, after, nativeTaskReplayRowPage)
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			unlock := s.lock(row.ParentSessionID)
+			err := s.replayNativeTasks(ctx, row)
+			unlock()
+			s.recoveryResult(ctx, row.ID, "native_result", err)
+		}
+		if len(rows) < nativeTaskReplayRowPage {
+			return nil
+		}
+		last := rows[len(rows)-1]
+		if last.SettledAt == nil {
+			return fmt.Errorf("session: native missing-result row %s has no settlement time", last.ID)
+		}
+		after = store.NativeMissingResultCursor{SettledAt: *last.SettledAt, ID: last.ID}
 	}
-	for _, row := range rows {
-		unlock := s.lock(row.ParentSessionID)
-		err := s.replayNativeTasks(ctx, row)
-		unlock()
-		s.recoveryResult(ctx, row.ID, "native_result", err)
-	}
-	return nil
 }

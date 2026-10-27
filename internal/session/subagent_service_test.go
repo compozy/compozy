@@ -1171,6 +1171,59 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 		})
 	})
+	// Invariant: a stored native summary keeps the configured result allowance, and a cut made before
+	// storage is reported as result_truncated through the committed ledger path.
+	t.Run("Should keep native summaries up to the result limit and report earlier cuts", func(t *testing.T) {
+		t.Parallel()
+		long := strings.Repeat("résumé ", 3000) // > 16 KiB of non-ASCII text, < 60000 characters.
+		// Fewer characters than the configured limit, but more bytes than the storage bound.
+		oversized := strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2+5)
+		for name, tc := range map[string]struct {
+			summary   string
+			want      string
+			truncated bool
+		}{
+			"within limit": {summary: long, want: long},
+			"storage cut":  {summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), truncated: true},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				s, db, _ := newSubagentTestService(t)
+				s.resultLimit = func(context.Context, string) (int, error) { return 1000000, nil }
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_long", ToolName: "Agent",
+					Status: "in_progress", Background: true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				observation := &acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: "agent-long", ToolCallID: "toolu_long",
+					Status: acp.NativeTaskStatusCompleted, Summary: new(tc.summary),
+				}
+				content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
+					Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: "toolu_long",
+				}.WithNativeTask(observation))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ev, ok, err := NativeSubagentEventFromStored("ws", store.SessionEvent{
+					TurnID: "turn", Type: acp.EventTypeNativeTask, Content: content,
+				})
+				if err != nil || !ok {
+					t.Fatal(ok, err)
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+				row := db.rows[subagentID("parent", "toolu_long")]
+				if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != tc.want ||
+					row.ResultTruncated != tc.truncated {
+					t.Fatalf("row result=%d truncated=%v status=%s", len(*row.Result), row.ResultTruncated, row.Status)
+				}
+			})
+		}
+	})
 	// Invariant: stopped/killed tasks become canceled; a foreground call keeps its tool result as the outcome;
 	// progress feeds the existing coalesced progress owner.
 	t.Run("Should cancel stopped tasks and leave foreground outcomes to their tool result", func(t *testing.T) {
@@ -1868,6 +1921,74 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 				row.Result != nil && *row.Result != want.result || row.Delivery != store.SubagentDeliveryNone {
 				t.Fatal(call, row)
 			}
+		}
+	})
+	// Invariant: recovery exhausts the turn's committed observations and every missing-result candidate page
+	// before classifying a row as lacking terminal evidence.
+	t.Run("Should replay terminal evidence beyond the first event and candidate pages", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		launch := func(call string) {
+			t.Helper()
+			ev := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		committed := func(sequence int64, call string, kind acp.NativeTaskKind, status, summary string) store.SessionEvent {
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: kind, TaskID: call, ToolCallID: call, Status: status, Summary: new(summary),
+				},
+			)
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return store.SessionEvent{Sequence: sequence, TurnID: "turn", Type: event.Type, Content: payload}
+		}
+		launch("toolu_late")
+		launch("toolu_old")
+		// The older row settled first; newer rows without any evidence fill more than one candidate page.
+		settledAt := s.now().UTC().Add(-time.Hour)
+		finalize := func(call string, at time.Time) {
+			t.Helper()
+			if _, _, err := db.FinalizeSubagent(t.Context(), store.SubagentFinalize{
+				ID: subagentID("parent", call), Status: store.SubagentStatusCompleted, SettledAt: at,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		finalize("toolu_old", settledAt)
+		for i := range nativeTaskReplayRowPage + 3 {
+			call := fmt.Sprintf("toolu_silent_%03d", i)
+			launch(call)
+			finalize(call, settledAt.Add(time.Duration(i+1)*time.Second))
+		}
+		var sequence int64
+		for range nativeTaskReplayEventPage + 5 {
+			sequence++
+			r.nativeTasks = append(r.nativeTasks,
+				committed(sequence, "toolu_sibling", acp.NativeTaskKindProgress, "", "sibling progress"))
+		}
+		r.nativeTasks = append(r.nativeTasks,
+			committed(sequence+1, "toolu_late", acp.NativeTaskKindState, acp.NativeTaskStatusFailed, "late failure"),
+			committed(sequence+2, "toolu_old", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, "old summary"))
+		snap := r.snapshots["parent"]
+		snap.Active = false
+		r.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		late, old := db.rows[subagentID("parent", "toolu_late")], db.rows[subagentID("parent", "toolu_old")]
+		if late.Status != store.SubagentStatusFailed || late.Result == nil || *late.Result != "late failure" {
+			t.Fatal("terminal evidence beyond the first event page was missed:", late)
+		}
+		if old.Status != store.SubagentStatusCompleted || old.Result == nil || *old.Result != "old summary" {
+			t.Fatal("older candidate beyond the first page was starved:", old)
 		}
 	})
 }

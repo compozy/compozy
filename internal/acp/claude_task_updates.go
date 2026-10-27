@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -91,10 +92,31 @@ type claudeTaskTracker struct {
 	order   []string
 }
 
+// claudeTaskCallHistoryLimit bounds the earlier calls remembered per task.
+const claudeTaskCallHistoryLimit = 8
+
 type claudeTrackedTask struct {
 	runID     string
 	toolUseID string
-	agent     bool
+	// earlier holds calls the task was bound to before toolUseID. A frame that
+	// names one is historical; a non-empty list makes a runless frame without
+	// an explicit call ambiguous.
+	earlier []string
+	agent   bool
+}
+
+// rebind moves the task to a new run and call, remembering the previous call.
+func (t *claudeTrackedTask) rebind(runID, toolUseID string) {
+	if t.toolUseID != "" && t.toolUseID != toolUseID {
+		t.earlier = append(
+			slices.DeleteFunc(t.earlier, func(call string) bool { return call == t.toolUseID }),
+			t.toolUseID,
+		)
+		if len(t.earlier) > claudeTaskCallHistoryLimit {
+			t.earlier = slices.Delete(t.earlier, 0, len(t.earlier)-claudeTaskCallHistoryLimit)
+		}
+	}
+	t.runID, t.toolUseID = runID, toolUseID
 }
 
 // handleClaudeSDKMessage decodes the four requested task subtypes into typed
@@ -154,11 +176,13 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 		return nil, "stale_run"
 	}
 	if message.Subtype == claudeTaskStarted {
-		tracked = &claudeTrackedTask{
-			runID:     message.RunID,
-			toolUseID: message.ToolUseID,
-			agent:     message.SubagentType != "" || message.TaskType == "local_agent",
+		started := &claudeTrackedTask{agent: message.SubagentType != "" || message.TaskType == "local_agent"}
+		if tracked != nil {
+			// A resumed task keeps its id; its earlier calls stay historical.
+			started.earlier, started.toolUseID = slices.Clone(tracked.earlier), tracked.toolUseID
 		}
+		started.rebind(message.RunID, message.ToolUseID)
+		tracked = started
 		t.track(message.TaskID, tracked)
 		if !tracked.agent {
 			return nil, "not_agent"
@@ -179,11 +203,16 @@ func (t *claudeTaskTracker) observe(message wireClaudeTaskMessage) (*NativeTaskO
 	if observation.ToolCallID == "" {
 		return nil, "uncorrelated"
 	}
-	return observation, fillClaudeTaskObservation(observation, message)
+	if reason := fillClaudeTaskObservation(observation, message); reason != "" {
+		return nil, reason
+	}
+	observation.bound()
+	return observation, ""
 }
 
 // continueRun resolves the tracked task for a non-start subtype. A frame of a
-// newer run rebinds the task to that run's explicit tool call, if any.
+// newer run rebinds the task to that run's explicit tool call, if any; a frame
+// naming an earlier call is processed against that call without rebinding.
 func (t *claudeTaskTracker) continueRun(
 	tracked *claudeTrackedTask,
 	message wireClaudeTaskMessage,
@@ -201,11 +230,17 @@ func (t *claudeTaskTracker) continueRun(
 	if !tracked.agent {
 		return nil, "not_agent"
 	}
-	if message.RunID != "" && message.RunID != tracked.runID {
-		tracked.runID = message.RunID
-		tracked.toolUseID = message.ToolUseID
-	} else if message.ToolUseID != "" {
-		tracked.toolUseID = message.ToolUseID
+	switch {
+	case message.RunID != "" && message.RunID != tracked.runID:
+		tracked.rebind(message.RunID, message.ToolUseID)
+	case message.ToolUseID != "" && slices.Contains(tracked.earlier, message.ToolUseID):
+		// A late frame of an earlier call settles that call, never the current one.
+	case message.ToolUseID != "":
+		tracked.rebind(tracked.runID, message.ToolUseID)
+	case message.RunID == "" && len(tracked.earlier) > 0:
+		// Without a run id or call, a frame after reuse may belong to any of
+		// the task's calls: correlation must be explicit, never guessed.
+		return nil, "ambiguous_run"
 	}
 	return tracked, ""
 }

@@ -701,17 +701,16 @@ func (d *memorySubagents) ListWakesByParent(
 }
 
 func (r *subagentTestRuntime) NativeTaskEvents(
-	_ context.Context, _, turnID string, limit int,
+	_ context.Context, _, turnID string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	var events []store.SessionEvent
-	for _, event := range r.nativeTasks {
-		if event.TurnID == turnID && len(events) < limit {
-			events = append(events, event)
-		}
-	}
-	return events, nil
+	events := slices.Clone(r.nativeTasks)
+	slices.SortFunc(events, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool {
+		return event.TurnID != turnID || event.Sequence <= afterSequence
+	})
+	return events[:min(len(events), limit)], nil
 }
 
 func (d *memorySubagents) EnrichNativeSubagentResult(
@@ -738,19 +737,24 @@ func (d *memorySubagents) EnrichNativeSubagentResult(
 }
 
 func (d *memorySubagents) ListNativeMissingResult(
-	_ context.Context, since time.Time, limit int,
+	_ context.Context, since time.Time, after store.NativeMissingResultCursor, limit int,
 ) ([]store.SessionSubagent, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	newestFirst := func(a, b store.SessionSubagent) int {
+		return cmp.Or(b.SettledAt.Compare(*a.SettledAt), cmp.Compare(b.ID, a.ID))
+	}
 	var rows []store.SessionSubagent
 	for _, row := range d.rows {
 		if row.Origin == store.SubagentOriginProviderNative && store.IsSubagentStatusTerminal(row.Status) &&
 			row.Status != store.SubagentStatusInterrupted && row.Result == nil && row.SettledAt != nil &&
-			!row.SettledAt.Before(since) && len(rows) < limit {
+			!row.SettledAt.Before(since) && (after.ID == "" ||
+			newestFirst(store.SessionSubagent{ID: after.ID, SettledAt: &after.SettledAt}, row) < 0) {
 			rows = append(rows, row)
 		}
 	}
-	return rows, nil
+	slices.SortFunc(rows, newestFirst)
+	return rows[:min(len(rows), limit)], nil
 }
 
 func (d *memorySubagents) ListUnfinalizedNative(context.Context) ([]store.SessionSubagent, error) {

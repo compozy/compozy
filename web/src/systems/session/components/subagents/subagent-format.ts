@@ -400,7 +400,7 @@ export function subagentWakePending(subagents: readonly SubagentView[]): boolean
   return subagents.some(subagent => WAKE_PENDING_DELIVERIES.has(subagent.delivery));
 }
 
-/** Per-parent counts, shaped after the session list's `subagent_summary`. */
+/** Per-parent counts from the rows' display state (a resumed child is live), like `subagent_summary`. */
 export interface SubagentCounts {
   live: number;
   total: number;
@@ -411,10 +411,10 @@ export interface SubagentCounts {
 
 export function subagentCounts(subagents: readonly SubagentView[]): SubagentCounts {
   const counts: SubagentCounts = { live: 0, total: subagents.length, failed: 0, attention: 0 };
-  for (const { status } of subagents) {
-    if (isSubagentLive(status)) counts.live += 1;
-    if (status === "waiting") counts.attention += 1;
-    if (status === "failed") counts.failed += 1;
+  for (const { tone } of subagents.map(subagent => subagentDisplay(subagent))) {
+    if (tone === "live" || tone === "attention") counts.live += 1;
+    if (tone === "attention") counts.attention += 1;
+    if (tone === "danger") counts.failed += 1;
   }
   return counts;
 }

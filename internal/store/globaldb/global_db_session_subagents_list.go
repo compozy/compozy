@@ -185,6 +185,7 @@ func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.Sessio
 func (g *SessionRepo) ListNativeMissingResult(
 	ctx context.Context,
 	since time.Time,
+	after store.NativeMissingResultCursor,
 	limit int,
 ) ([]store.SessionSubagent, error) {
 	if limit <= 0 {
@@ -194,8 +195,10 @@ func (g *SessionRepo) ListNativeMissingResult(
 		return nil, err
 	}
 	rows, err := g.queries.ListNativeMissingResultSubagents(ctx, sqlcgen.ListNativeMissingResultSubagentsParams{
-		Since:    sql.NullString{String: store.FormatTimestamp(since), Valid: true},
-		RowLimit: int64(limit),
+		Since:      sql.NullString{String: store.FormatTimestamp(since), Valid: true},
+		CursorID:   after.ID,
+		CursorTime: sql.NullString{String: store.FormatTimestamp(after.SettledAt), Valid: after.ID != ""},
+		RowLimit:   int64(limit),
 	})
 	if err != nil {
 		return nil, err

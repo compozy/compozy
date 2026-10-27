@@ -609,16 +609,24 @@ const listNativeMissingResultSubagents = `-- name: ListNativeMissingResultSubage
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity FROM session_subagents
 WHERE origin = 'provider_native' AND status IN ('completed','failed','canceled') AND result IS NULL
  AND settled_at >= ?1
-ORDER BY settled_at DESC, id DESC LIMIT ?2
+ AND (?2 = '' OR (settled_at,id) < (?3,?2))
+ORDER BY settled_at DESC, id DESC LIMIT ?4
 `
 
 type ListNativeMissingResultSubagentsParams struct {
-	Since    sql.NullString `json:"since"`
-	RowLimit int64          `json:"row_limit"`
+	Since      sql.NullString `json:"since"`
+	CursorID   any            `json:"cursor_id"`
+	CursorTime sql.NullString `json:"cursor_time"`
+	RowLimit   int64          `json:"row_limit"`
 }
 
 func (q *Queries) ListNativeMissingResultSubagents(ctx context.Context, arg ListNativeMissingResultSubagentsParams) ([]SessionSubagent, error) {
-	rows, err := q.db.QueryContext(ctx, listNativeMissingResultSubagents, arg.Since, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, listNativeMissingResultSubagents,
+		arg.Since,
+		arg.CursorID,
+		arg.CursorTime,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

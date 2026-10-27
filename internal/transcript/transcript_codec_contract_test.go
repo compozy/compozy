@@ -723,6 +723,49 @@ func TestSubagentCodecContract(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: a native summary is the subagent result: it is stored beyond the compaction display cap,
+	// and any cut, made at the decoder or the codec, survives the ledger as truncation provenance.
+	t.Run("Should store native task summaries under the result bound with truncation provenance", func(t *testing.T) {
+		t.Parallel()
+		long := strings.Repeat("résumé ", 3000) // > 16 KiB of non-ASCII text.
+		oversized := strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2+5)
+		for name, tc := range map[string]struct {
+			summary       string
+			decoderCut    bool
+			want          string
+			wantTruncated bool
+		}{
+			"beyond display cap": {summary: long, want: long},
+			"decoder cut":        {summary: "prefix", decoderCut: true, want: "prefix", wantTruncated: true},
+			"codec cut": {
+				summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), wantTruncated: true,
+			},
+		} {
+			event := acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				TurnID:     "turn",
+				ToolCallID: "toolu_agent",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: "agent-a", ToolCallID: "toolu_agent",
+					Status: acp.NativeTaskStatusCompleted, Summary: new(tc.summary), SummaryTruncated: tc.decoderCut,
+				},
+			)
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := UnmarshalAgentEvent(content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task := decoded.NativeTask()
+			if task == nil || task.Summary == nil || *task.Summary != tc.want ||
+				task.SummaryTruncated != tc.wantTruncated {
+				t.Fatalf("%s: decoded truncated=%v", name, task != nil && task.SummaryTruncated)
+			}
+		}
+	})
 	// UT-039: absent fields retain the pre-feature wire contract.
 	t.Run("Should keep legacy canonical events free of attribution fields", func(t *testing.T) {
 		t.Parallel()

@@ -177,7 +177,9 @@ type NativeSubagentTask struct {
 	Status string // provider status: pending|running|paused|completed|failed|killed|stopped
 	// Summary is nil when the provider supplied none.
 	Summary *string
-	Error   string
+	// SummaryTruncated records that Summary was cut before it was stored.
+	SummaryTruncated bool
+	Error            string
 	// Progress is the observation's one-line status (summary, description, or last tool).
 	Progress string
 	// Background is nil unless the observation reports the task's backgrounding.

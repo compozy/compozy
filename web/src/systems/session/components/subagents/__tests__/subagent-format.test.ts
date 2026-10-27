@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   subagentCardLines,
   subagentChipState,
+  subagentComposerSignal,
   subagentCounts,
   subagentDisplay,
   subagentElapsedClock,
@@ -432,6 +433,15 @@ describe("subagentChipState (UT-W17)", () => {
     const counts = subagentCounts([withStatus("waiting", "a"), withStatus("completed", "b")]);
     expect(counts).toEqual({ live: 1, total: 2, failed: 0, attention: 1 });
     expect(subagentChipState(counts, false)?.text).toBe("1/2");
+  });
+
+  it("Should count a settled subagent whose child resumed as live, not by its outcome", () => {
+    const counts = subagentCounts([
+      { ...withStatus("completed", "a"), child_activity: "working" },
+      { ...withStatus("failed", "b"), child_activity: "working" },
+    ]);
+    expect(counts).toEqual({ live: 2, total: 2, failed: 0, attention: 0 });
+    expect(subagentComposerSignal(counts)?.ariaLabel).toBe("Subagents, 2 running");
   });
 
   it("Should show the total alone when nothing is live but failures remain", () => {

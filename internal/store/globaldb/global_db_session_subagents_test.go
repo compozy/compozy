@@ -1004,11 +1004,11 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 				t.Fatal(id, changed, err)
 			}
 		}
-		missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), 10)
+		missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), store.NativeMissingResultCursor{}, 10)
 		if err != nil || len(missing) != 1 || missing[0].ID != "native-null" {
 			t.Fatal(missing, err)
 		}
-		if _, err := s.ListNativeMissingResult(ctx, now, 0); err == nil {
+		if _, err := s.ListNativeMissingResult(ctx, now, store.NativeMissingResultCursor{}, 0); err == nil {
 			t.Fatal("unbounded missing-result list was accepted")
 		}
 		want := store.NativeSubagentResultEnrichment{
@@ -1045,8 +1045,61 @@ func TestGlobalDBSubagentNativeRecovery(t *testing.T) {
 			*again.Result != "summary" {
 			t.Fatal("populated result replaced", again, changed, err)
 		}
-		if missing, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), 10); err != nil || len(missing) != 0 {
+		if missing, err := s.ListNativeMissingResult(
+			ctx,
+			now.Add(-time.Hour),
+			store.NativeMissingResultCursor{},
+			10,
+		); err != nil ||
+			len(missing) != 0 {
 			t.Fatal(missing, err)
+		}
+	})
+	// Invariant: missing-result candidates page newest first by a stable (settled_at, id) cursor, so rows
+	// beyond one page, including settlement ties, are each returned exactly once.
+	t.Run("Should page native missing-result candidates by a stable cursor", func(t *testing.T) {
+		t.Parallel()
+		db, ws, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		ctx := t.Context()
+		var want []string
+		for i := range 5 {
+			id := fmt.Sprintf("native-%d", i)
+			if _, _, err := s.ReserveSubagent(ctx, store.SessionSubagent{
+				ID: id, WorkspaceID: ws, ParentSessionID: parent, ParentTurnID: "turn",
+				Origin: store.SubagentOriginProviderNative, ProviderToolCallID: id, IdempotencyKey: id,
+				RequestFingerprint: id, Title: id, Depth: 1, Status: store.SubagentStatusRunning,
+				WakePolicy: store.SubagentWakePolicySettledOnly, CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Rows 0 and 1 share a settlement time; the id breaks the tie.
+			at := now.Add(time.Duration(max(i, 1)) * time.Second)
+			if _, changed, err := s.FinalizeSubagent(ctx, store.SubagentFinalize{
+				ID: id, Status: store.SubagentStatusCompleted, SettledAt: at,
+			}); err != nil || !changed {
+				t.Fatal(id, changed, err)
+			}
+			want = append([]string{id}, want...)
+		}
+		var got []string
+		var after store.NativeMissingResultCursor
+		for pages := 0; ; pages++ {
+			page, err := s.ListNativeMissingResult(ctx, now.Add(-time.Hour), after, 2)
+			if err != nil || pages > 3 {
+				t.Fatal(page, err, pages)
+			}
+			for _, row := range page {
+				got = append(got, row.ID)
+			}
+			if len(page) < 2 {
+				break
+			}
+			last := page[len(page)-1]
+			after = store.NativeMissingResultCursor{SettledAt: *last.SettledAt, ID: last.ID}
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("paged candidates = %v, want %v", got, want)
 		}
 	})
 }
