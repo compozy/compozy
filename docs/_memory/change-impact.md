@@ -19,8 +19,10 @@ Owner: branch `perf/session-responsiveness`; measured evidence and remaining wor
   including abandoned React renders and normal session closure. Authoritative geometry
   subscribes at the window layer; shell chrome reads window membership and attention
   indicators, and the closed desktops overview suspends its geometry projection. Opening
-  the overview reads current state immediately. Window persistence and live-data ownership
-  are unchanged.
+  the overview reads current state immediately. Model-catalog projections retain their
+  collections until provider/catalog inputs change, and agent create/duplicate callbacks
+  capture stable mutation functions. Provider order, auth gating, refresh/recovery, and
+  draft behavior are unchanged. Window persistence and live-data ownership are unchanged.
 - **Native tools / CLI / HTTP / UDS:** existing session list/status/board results retain
   their schemas and semantics. No generator, SDK contract or public tool ID changes.
 - **Extensibility / hooks / config / isolation:** no new hooks, extension behavior,
@@ -30,7 +32,8 @@ Owner: branch `perf/session-responsiveness`; measured evidence and remaining wor
   change because public workflows are unchanged. The performance report and existing
   streaming/board QA scenarios co-ship. Browser memory, API and board evidence are recorded
   in the owning report; the existing desktop-shell lifecycle scenario also covers the
-  unchanged 11-window performance envelope. Complete delivery gates are tracked on PR #983.
+  unchanged 11-window performance envelope. Model-catalog cold-open and agent-create
+  scenarios record the projection follow-up. Complete delivery gates are tracked on PR #983.
 
 
 ## Authored inline code whitespace review repair — 2026-10-24

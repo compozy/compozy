@@ -163,3 +163,9 @@ session streaming. The OS interaction/window/overview suites pass 99 focused che
 the overview regression fails against the prior implementation. Current-head browser
 and repeated-envelope acceptance is tracked on PR #983. See
 `docs/qa/reports/2026-10-26-session-responsiveness.md` for the profile evidence and scope.
+
+The model-catalog follow-up also stabilizes collections and mutation callbacks used
+by the shell's agent dialog. Keep that dialog closed during the peer envelope, then
+open it and verify the current provider list, model selection, create and duplicate
+flows. The repeated envelope remains the performance acceptance owner; isolated
+passes and compiler diagnostics do not establish that budget.

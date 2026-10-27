@@ -1,6 +1,8 @@
 # Session responsiveness investigation — 2026-10-26
 
-Status: implementation and focused verification complete; final CI delivery pending. Branch `perf/session-responsiveness`, isolated checkout
+Status: measured changes and focused verification are recorded below; current-head
+delivery status is maintained in [PR #983](https://github.com/compozy/compozy/pull/983).
+Branch `perf/session-responsiveness`, isolated checkout
 `/Users/pedronauck/Dev/compozy/_worktrees/session-responsiveness`, baseline
 `14136a511` (v0.4.2). The original checkout is unchanged.
 
@@ -237,6 +239,35 @@ uninstrumented repetitions and the full delivery result are linked from
 500 ms restore budgets are unchanged. The session measurements above isolate their
 named changes and predate this shell follow-up.
 
+The complete CI on `51817f7ba` then passed, including 7,902 Web tests, 877 UI tests,
+all four Web E2E shards, runtime/desktop E2E and all Go/race lanes. One Go job required
+a retry after GitHub artifact upload returned `ETIMEDOUT`; its tests had already
+passed, and both the retry and verification aggregate succeeded. Web shard 2 passed
+71 scenarios, with E2E-023 restoration at 353 ms and no drag/peer task above 50 ms.
+However, clean run `40450320414` passed only 26/30 repetitions: peer tasks of 54, 59,
+66 and 72 ms still exceeded the unchanged budget. All 30 restorations were within
+309.8–411.1 ms and every drag had zero long tasks. The first subscription change
+alone did not establish repeated performance acceptance.
+
+Twelve CPU-profile repetitions of that version (`40453398719`) all passed, but still
+sampled the model-catalog hook, parent shell, dock and closed palette after snapshot
+publication. The production bundle at those sampled locations confirms the catalog's
+collection loops execute outside memoized blocks. The instrumented pass does not
+supersede the preceding clean failures.
+
+The subsequent ownership check found another propagation path through the agent
+dialog's model catalog. React Compiler rebuilt its Map/array projections on every
+render, and action callbacks captured changing mutation-result objects. Those
+values changed the parent shell model even when provider/catalog data was unchanged.
+The hook now memoizes its pure collection projections by their actual inputs, and
+refresh/create/duplicate callbacks capture stable mutation functions. This is a
+local derivation cache; Query remains the data owner and all refresh rules remain
+intact. Compiled output confirms the projections are reused. The three existing
+catalog/agent/shell-model suites pass 28 tests, including a mounted-selector case
+that changes provider order, authentication and authoritative catalog rows. Current
+uninstrumented browser acceptance remains tracked in the PR, separately from these
+diagnostics and focused checks.
+
 ## Verification
 
 | Scope | Evidence | Status |
@@ -249,6 +280,7 @@ named changes and predate this shell follow-up.
 | React Doctor | Pinned 0.9.17, score 93, no new diagnostics | PASS for scanned production files |
 | Production Web build | Root Turbo, repository-pinned Bun 1.4.0 | PASS |
 | Shell subscriptions, window/overview behavior | Root Turbo, 99 tests in four existing suites; typecheck | PASS |
+| Catalog projection updates and agent create/duplicate behavior | Root Turbo, 28 tests in three existing suites; typecheck | PASS |
 | Full Go/Web suites, generation, real daemon/browser E2E before the shell follow-up | CI `40441416318`, production head `1765f46cc` | All lanes passed except E2E-023 peer convergence at 57 ms |
 | Final delivery and repeated uninstrumented E2E-023 | [Current-head PR CI](https://github.com/compozy/compozy/pull/983/checks) | CI owns acceptance; focused local checks do not replace it |
 | Browser navigation and retained memory | Controlled production-browser before/after, repeated patched run, 64 active idle sessions | PASS within the measured fixture |
@@ -285,6 +317,7 @@ machine resources. No `make gate` / full local gate PASS is claimed. Delivery re
 the exact head to pass CI and real integration checks; PR #983 records that result.
 
 The cross-surface audit is recorded in `docs/_memory/change-impact.md`. Affected QA:
-`RT-visible-session-streaming`, `ET-web-sessions-board-paging-archive`, and
-`ET-web-sessions-board-children`, and `ET-web-desktop-shell-lifecycle`. Existing
+`RT-visible-session-streaming`, `ET-web-sessions-board-paging-archive`,
+`ET-web-sessions-board-children`, `ET-web-desktop-shell-lifecycle`,
+`RT-model-catalog-cold-open`, and `MS-web-agent-create-simple-advanced`. Existing
 historical scenario verdicts do not verify this source revision.
