@@ -107,7 +107,33 @@ function MermaidFullscreen({ src }: { src: string | null }) {
             </Button>
           </div>
           <div
-            className="flex min-h-0 touch-none items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing"
+            role="region"
+            aria-label="Diagram viewer"
+            aria-description="Use arrow keys to pan."
+            tabIndex={0}
+            className="flex min-h-0 touch-none items-center justify-center overflow-hidden cursor-grab outline-none focus-visible:shadow-focus-inset active:cursor-grabbing"
+            onKeyDown={event => {
+              let x = 0;
+              let y = 0;
+              switch (event.key) {
+                case "ArrowLeft":
+                  x = -24;
+                  break;
+                case "ArrowRight":
+                  x = 24;
+                  break;
+                case "ArrowUp":
+                  y = -24;
+                  break;
+                case "ArrowDown":
+                  y = 24;
+                  break;
+                default:
+                  return;
+              }
+              event.preventDefault();
+              setPosition(value => ({ x: value.x + x, y: value.y + y }));
+            }}
             onPointerDown={event => {
               if (event.button !== 0) return;
               event.currentTarget.setPointerCapture(event.pointerId);

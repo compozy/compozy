@@ -38,7 +38,8 @@ The source scrolls inside a reserved frame; completing each fence and decoding i
 change that frame's height. Inline diagrams use at most half the column and never exceed their natural
 size or the frame's height limit. Check both a narrow pane and a wide desktop, in light and dark themes.
 Open Fullscreen from a window smaller than the viewport: its dialog must use the viewport, not the
-window bounds. Zoom in/out, drag to inspect clipped details, reset, and dismiss with Escape/Close.
+window bounds. Zoom in/out, drag to inspect clipped details, focus the viewer and pan with all four
+arrow keys, reset, and dismiss with Escape/Close.
 Reopening starts at 100% and centered; the original inline diagram, source and copy action remain usable.
 
 2026-10-20 targeted re-walk: PASS in real Chromium and isolated Electron 44.5.1/macOS against a

@@ -51,6 +51,11 @@ the diagrams. He enlarged a diagram, zoomed, reset, dismissed with Escape, and r
 Reload preserved the transcript. The earlier six-diagram probe additionally exercised pointer pan
 and copied the original Mermaid source. No further issue-specific friction was observed.
 
+Greptile identified a keyboard-access gap in the initial viewer. The remediation adds a focusable
+region, visible focus and arrow-key panning. Re-walking the real chat confirmed 24px horizontal and
+vertical movement and reset to the centered image. The existing MermaidSizing browser story now
+checks transformed image geometry after keyboard panning and reset.
+
 Captured artifacts under `docs/qa/evidence/2026-10-27-issue-981-mermaid/`:
 
 - `live-1440-light.png`, `live-1440-dark.png`, `live-390-dark.png`: real transcript.

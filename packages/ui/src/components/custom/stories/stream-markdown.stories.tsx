@@ -108,6 +108,29 @@ export const MermaidSizing: Story = {
       await expect(bounds.width).toBeLessThanOrEqual((image as HTMLImageElement).naturalWidth);
       await expect(bounds.height).toBeLessThanOrEqual(window.innerHeight * 0.4);
     }
+    // Browser geometry owns the keyboard-pan invariant; jsdom cannot measure transformed images.
+    await userEvent.click(canvas.getAllByRole("button", { name: "Fullscreen" })[0]!);
+    const overlay = within(canvasElement.ownerDocument.body);
+    const viewer = overlay.getByRole("region", { name: "Diagram viewer" });
+    const expandedImage = within(viewer).getByRole("img", { name: "Mermaid diagram" });
+    await (expandedImage as HTMLImageElement).decode();
+    await waitFor(() =>
+      expect(
+        overlay
+          .getByRole("dialog")
+          .getAnimations({ subtree: true })
+          .filter(animation => animation.playState === "running")
+      ).toHaveLength(0)
+    );
+    viewer.focus();
+    const initial = expandedImage.getBoundingClientRect();
+    await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+    await expect(expandedImage.getBoundingClientRect().left).toBeGreaterThan(initial.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeGreaterThan(initial.top);
+    await userEvent.click(overlay.getByRole("button", { name: "Reset zoom" }));
+    await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(initial.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(initial.top);
+    await userEvent.keyboard("{Escape}");
   },
 };
 
