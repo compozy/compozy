@@ -479,7 +479,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.34",
+		"github.com/compozy/releasepr@v0.0.35",
 		"name: Synchronize explicit release web assets",
 		`go run "${mage_module}" webAssetsCheck`,
 		`go run "${mage_module}" releaseWebAssetsSync`,
