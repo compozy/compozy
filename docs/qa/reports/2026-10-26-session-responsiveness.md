@@ -268,6 +268,22 @@ that changes provider order, authentication and authoritative catalog rows. Curr
 uninstrumented browser acceptance remains tracked in the PR, separately from these
 diagnostics and focused checks.
 
+The next uninstrumented run (`40455182608`, `dc613c26e`) passed all 30 E2E-023
+repetitions without changing the test or its budgets: restoration ranged from
+271.8 to 409.8 ms (median 312.55 ms), with zero observed drag or peer tasks above
+50 ms. Full CI's Web shard 2 also
+passed that envelope (410.6 ms restore, no drag or peer task above 50 ms), but exposed
+a separate profile-switch reload race in the existing E2E-013 journey. Its trace
+records the final selection PUT starting at 582225 ms and reload at 582339 ms; the
+request never received a response, and the restored client showed All profiles.
+The local store persists synchronously. A failed optimistic selection restores
+the preceding aggregate view, so the transport must survive document replacement.
+The selection adapter now uses `keepalive`, following the existing attention-settings
+write pattern, while retaining explicit cancellation and real-error rollback.
+The three existing profile selection/store/palette suites pass 15 tests. E2E-013 is
+unchanged and remains the browser owner of immediate reload persistence. Final
+current-head CI and repeat evidence are maintained in the PR.
+
 ## Verification
 
 | Scope | Evidence | Status |
@@ -281,6 +297,7 @@ diagnostics and focused checks.
 | Production Web build | Root Turbo, repository-pinned Bun 1.4.0 | PASS |
 | Shell subscriptions, window/overview behavior | Root Turbo, 99 tests in four existing suites; typecheck | PASS |
 | Catalog projection updates and agent create/duplicate behavior | Root Turbo, 28 tests in three existing suites; typecheck | PASS |
+| Profile selection, persistence and palette behavior | Root Turbo, 15 tests in three existing suites | PASS |
 | Full Go/Web suites, generation, real daemon/browser E2E before the shell follow-up | CI `40441416318`, production head `1765f46cc` | All lanes passed except E2E-023 peer convergence at 57 ms |
 | Final delivery and repeated uninstrumented E2E-023 | [Current-head PR CI](https://github.com/compozy/compozy/pull/983/checks) | CI owns acceptance; focused local checks do not replace it |
 | Browser navigation and retained memory | Controlled production-browser before/after, repeated patched run, 64 active idle sessions | PASS within the measured fixture |
@@ -319,5 +336,6 @@ the exact head to pass CI and real integration checks; PR #983 records that resu
 The cross-surface audit is recorded in `docs/_memory/change-impact.md`. Affected QA:
 `RT-visible-session-streaming`, `ET-web-sessions-board-paging-archive`,
 `ET-web-sessions-board-children`, `ET-web-desktop-shell-lifecycle`,
-`RT-model-catalog-cold-open`, and `MS-web-agent-create-simple-advanced`. Existing
+`RT-model-catalog-cold-open`, `MS-web-agent-create-simple-advanced`, and
+`ET-profile-switcher-restore`. Existing
 historical scenario verdicts do not verify this source revision.
