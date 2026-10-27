@@ -205,7 +205,39 @@ state. It closes only that lab's windows through the public window-manager API, 
 selects `session-sidebar-session-<id>` and waits for heading, composer and two animation
 frames. Heap snapshots are sanitized and are not committed.
 
-## Verification and remaining work
+## Peer convergence follow-up
+
+The complete CI on `1765f46cc` exposed a 57 ms peer task in the unchanged E2E-023
+11-window envelope. A 20-repeat attribution run (`40444806962`) reproduced five
+failures at 51–89 ms; restoration passed in all runs at 334.7–426.7 ms, and dragging
+produced no long tasks. Six CPU-profile repetitions (`40447226708`) reproduced two
+peer failures at 54 and 60 ms. These instrumented runs diagnose the path; they are
+not clean performance acceptance measurements.
+
+Samples after the window-manager snapshot update showed `DesktopShellScopedBody`,
+its session catalog/attention hooks, the dock, the closed command palette, and
+Base UI controls re-entering the render path. Geometry was subscribed in the parent
+shell through its window-layer model, full window records, pager attention inputs,
+and the closed overview's projection. React Compiler compiled these components;
+the problem was their subscription boundary, not a compiler bailout.
+
+The live window-layer adapter now owns geometry below shell chrome. The shell
+selects window IDs and appearance, the pager compares the resulting attention
+desktop IDs, and the overview projects windows only while open. The existing Query
+cache and runtime remain authoritative; no snapshot, polling interval, gesture,
+layout calculation, or event ordering is changed. Opening the overview reads the
+latest projection, including changes that arrived while it was closed.
+
+The existing OS interaction suite owns the subscription regression, alongside
+window, overview and shell behavior checks: 99 focused tests pass. The closed-overview
+case fails against its previous implementation. Temporary CPU and frame probes
+were removed. The existing diagnostic workflow can repeat E2E-023 manually; current
+uninstrumented repetitions and the full delivery result are linked from
+[PR #983](https://github.com/compozy/compozy/pull/983). The 50 ms convergence and
+500 ms restore budgets are unchanged. The session measurements above isolate their
+named changes and predate this shell follow-up.
+
+## Verification
 
 | Scope | Evidence | Status |
 | --- | --- | --- |
@@ -216,7 +248,9 @@ frames. Heap snapshots are sanitized and are not committed.
 | Go formatting/lint | Scoped owning lane, 0 issues | PASS |
 | React Doctor | Pinned 0.9.17, score 93, no new diagnostics | PASS for scanned production files |
 | Production Web build | Root Turbo, repository-pinned Bun 1.4.0 | PASS |
-| Full Go/Web suites, generation, real daemon/browser E2E | CI `40441416318`, production head `1765f46cc` | All lanes passed except Web shard 2: E2E-023 peer convergence was 57 ms against the unchanged 50 ms limit |
+| Shell subscriptions, window/overview behavior | Root Turbo, 99 tests in four existing suites; typecheck | PASS |
+| Full Go/Web suites, generation, real daemon/browser E2E before the shell follow-up | CI `40441416318`, production head `1765f46cc` | All lanes passed except E2E-023 peer convergence at 57 ms |
+| Final delivery and repeated uninstrumented E2E-023 | [Current-head PR CI](https://github.com/compozy/compozy/pull/983/checks) | CI owns acceptance; focused local checks do not replace it |
 | Browser navigation and retained memory | Controlled production-browser before/after, repeated patched run, 64 active idle sessions | PASS within the measured fixture |
 | Board paging, archive, family and event reconciliation | Final local daemon/Web build: 64 newly active sessions, 1,140 retained rows, 128 real rename events and 80 selections; Done pages 50 → 100 → 150 → 195, archive 3, child counts and reload | PASS |
 
@@ -230,11 +264,9 @@ The next complete CI run (`40441416318`, `1765f46cc`) passed Frontend, all Go/ra
 lanes, generation, Windows, runtime E2E, desktop E2E, and Web shards 1, 3 and 4.
 Web shard 2 passed 70 scenarios, including E2E-006 visible-window streaming and
 restore, but failed E2E-023 at 57 ms for peer convergence. Restore was 285.2 ms and
-the measured drag had no long tasks. The unchanged 50 ms peer budget remains a
-delivery blocker. A diagnostic 20-repeat run (`40444806962`) reproduced five peer
-failures (51–89 ms), with work attributed to the window-manager JSON continuation
-and Query notifications. Targeted CPU attribution is in progress. Instrumented
-measurements are diagnostic evidence, not final performance acceptance.
+the measured drag had no long tasks. The peer-convergence follow-up above records
+the resulting diagnosis and correction. Instrumented measurements are diagnostic
+evidence, not final performance acceptance.
 
 The first standalone Web typecheck failed because this new checkout lacked the client
 SDK's generated build output. Building `@compozy/client` through root Turbo restored that
@@ -249,10 +281,10 @@ red before the dependency repair and green afterward.
 
 `gate.sh plan` selects all `internal/store` packages plus the complete Web suite. Those
 expensive lanes are assigned to CI under the user's instruction to conserve local
-machine resources. No `make gate` / full local gate PASS is claimed. The draft remains
-in progress until its exact head passes the required CI and real integration checks.
+machine resources. No `make gate` / full local gate PASS is claimed. Delivery requires
+the exact head to pass CI and real integration checks; PR #983 records that result.
 
 The cross-surface audit is recorded in `docs/_memory/change-impact.md`. Affected QA:
 `RT-visible-session-streaming`, `ET-web-sessions-board-paging-archive`, and
-`ET-web-sessions-board-children`. Existing historical scenario verdicts do not verify
-this source revision.
+`ET-web-sessions-board-children`, and `ET-web-desktop-shell-lifecycle`. Existing
+historical scenario verdicts do not verify this source revision.

@@ -4,7 +4,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import type { Browser, CDPSession, Locator, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
@@ -3583,7 +3583,6 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
   const settingsID = perfWindowIDs.get("settings");
   if (!settingsID) throw new Error("performance fixture must retain the settings window ID");
   let worstPeerTask = 0;
-  const peerProfiles: CDPSession[] = [];
   try {
     for (const peer of [peerA, peerB]) {
       for (const id of perfWindowIDs.values()) {
@@ -3621,71 +3620,11 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
       width: 0.38,
       height: 0.46,
     };
-    // Diagnostic attribution for the existing 50 ms envelope; assertions and
-    // the measured convergence interval below remain unchanged.
-    if (process.env.COMPOZY_PEER_PROFILE === "1") {
-      for (const peer of peers) {
-        const client = await peer.context().newCDPSession(peer);
-        await client.send("Profiler.enable");
-        await client.send("Profiler.start");
-        peerProfiles.push(client);
-      }
-      await Promise.all(
-        peers.map(peer =>
-          peer.evaluate(() => {
-            const records: unknown[] = [];
-            const observer = new PerformanceObserver(list => {
-              records.push(...list.getEntries().map(entry => entry.toJSON()));
-            });
-            observer.observe({ type: "long-animation-frame", buffered: false });
-            Object.assign(window, {
-              peerFrameDiagnostics: { records, observer, started: performance.now() },
-            });
-          })
-        )
-      );
-    }
     await Promise.all(
       peers.map(peer => installPeerConvergenceProbe(peer, settingsID, measuredRect))
     );
     await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", measuredRect);
     const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
-    if (process.env.COMPOZY_PEER_PROFILE === "1") {
-      for (const [index, client] of peerProfiles.entries()) {
-        const { profile } = await client.send("Profiler.stop");
-        await testInfo.attach(`peer-${index}.cpuprofile`, {
-          body: Buffer.from(JSON.stringify(profile)),
-          contentType: "application/json",
-        });
-      }
-      for (const peer of peers) {
-        console.log(
-          "[peer-frame-attribution]",
-          JSON.stringify(
-            await peer.evaluate(() => {
-              const { records, observer, started } = (
-                window as unknown as {
-                  peerFrameDiagnostics: {
-                    records: unknown[];
-                    observer: PerformanceObserver;
-                    started: number;
-                  };
-                }
-              ).peerFrameDiagnostics;
-              records.push(...observer.takeRecords().map(entry => entry.toJSON()));
-              observer.disconnect();
-              return {
-                records,
-                resources: performance
-                  .getEntriesByType("resource")
-                  .filter(entry => entry.startTime + entry.duration >= started)
-                  .map(entry => entry.toJSON()),
-              };
-            })
-          )
-        );
-      }
-    }
     for (const peer of peers) {
       expect(
         await windowMatchesAuthority(
@@ -3699,7 +3638,6 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
     }
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
   } finally {
-    for (const client of peerProfiles) await client.detach();
     await peerA.context().close();
     await peerB.context().close();
   }

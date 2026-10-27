@@ -1,9 +1,13 @@
 import { MonitorX } from "lucide-react";
-import { lazy, Suspense, type CSSProperties } from "react";
+import { lazy, Suspense, type ComponentProps, type CSSProperties } from "react";
 
 import { Button, Empty } from "@compozy/ui";
 
-import type { DesktopLayerModel, OsWinLayerModel } from "../hooks/use-os-win-layer";
+import {
+  useOsWinLayer,
+  type DesktopLayerModel,
+  type OsWinLayerModel,
+} from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
@@ -21,6 +25,12 @@ const OsEmptyDesktop = lazy(() =>
 function LiveSnapOverlay() {
   const preview = useWindowManagerGesturePreview();
   return <OsSnapOverlay preview={preview} />;
+}
+
+/** Authoritative geometry updates only the window layer, outside shell chrome. */
+export function LiveOsWinLayer(props: Omit<ComponentProps<typeof OsWinLayer>, "model">) {
+  const model = useOsWinLayer();
+  return <OsWinLayer {...props} model={model} />;
 }
 
 /** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */
