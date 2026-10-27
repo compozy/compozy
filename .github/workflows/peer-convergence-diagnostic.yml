@@ -1,5 +1,15 @@
 name: Peer convergence diagnostic
 on:
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: Number of unchanged E2E-023 repetitions
+        type: number
+        default: 20
+      profile:
+        description: Collect long animation frame attribution (diagnostic only)
+        type: boolean
+        default: false
   push:
     branches: [fix/issue-941-e2e023-peer-convergence]
 permissions:
@@ -12,6 +22,7 @@ jobs:
       CGO_ENABLED: 0
       CI: "true"
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
+      COMPOZY_PEER_PROFILE: ${{ inputs.profile && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
@@ -24,7 +35,14 @@ jobs:
           go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
       - name: Check window component behavior
         run: bunx turbo run test --filter=./web -- src/systems/os/components/__tests__/os-window.test.tsx
-      - name: Validate thirty uninstrumented repetitions
+      - name: Repeat the existing performance envelope
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         working-directory: web
-        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each 30
+        run: bunx playwright test os-shell.spec.ts --grep E2E-023 --repeat-each "${{ inputs.repetitions || 30 }}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: peer-convergence-evidence
+          path: .tmp/playwright
+          include-hidden-files: true
+          retention-days: 7

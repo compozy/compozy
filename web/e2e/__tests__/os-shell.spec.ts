@@ -3620,11 +3620,46 @@ test("E2E-023: the 11-window envelope holds for drag frames, restore, and conver
       width: 0.38,
       height: 0.46,
     };
+    // Diagnostic attribution for the existing 50 ms envelope; assertions and
+    // the measured convergence interval below remain unchanged.
+    if (process.env.COMPOZY_PEER_PROFILE === "1") {
+      await Promise.all(
+        peers.map(peer =>
+          peer.evaluate(() => {
+            const records: unknown[] = [];
+            const observer = new PerformanceObserver(list => {
+              records.push(...list.getEntries().map(entry => entry.toJSON()));
+            });
+            observer.observe({ type: "long-animation-frame", buffered: false });
+            Object.assign(window, { peerFrameDiagnostics: { records, observer } });
+          })
+        )
+      );
+    }
     await Promise.all(
       peers.map(peer => installPeerConvergenceProbe(peer, settingsID, measuredRect))
     );
     await moveWindowFromCLI(runtime, workspace.id, settingsID, "desktop-default", measuredRect);
     const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
+    if (process.env.COMPOZY_PEER_PROFILE === "1") {
+      for (const peer of peers) {
+        console.log(
+          "[peer-frame-attribution]",
+          JSON.stringify(
+            await peer.evaluate(() => {
+              const { records, observer } = (
+                window as unknown as {
+                  peerFrameDiagnostics: { records: unknown[]; observer: PerformanceObserver };
+                }
+              ).peerFrameDiagnostics;
+              records.push(...observer.takeRecords().map(entry => entry.toJSON()));
+              observer.disconnect();
+              return records;
+            })
+          )
+        );
+      }
+    }
     for (const peer of peers) {
       expect(
         await windowMatchesAuthority(
