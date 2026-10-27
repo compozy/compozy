@@ -83,9 +83,29 @@ export function fontLabel(family: string, role: FontRole): string {
 }
 
 /** The `font-family` value for one family name (also used for previews). */
+/**
+ * Chromium (and so the desktop app) does not implement the `ui-monospace`
+ * generic, so the System Code font names the platform faces it stands for.
+ */
+const SYSTEM_FAMILY_STACKS: Record<string, string> = {
+  "ui-monospace": 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono"',
+};
+
 export function cssFontFamily(family: string): string {
+  const stack = SYSTEM_FAMILY_STACKS[family];
+  if (stack) return stack;
   if (GENERIC_FAMILIES.has(family)) return family;
   return `"${family.replace(/["\\]/g, "")}"`;
+}
+
+/** A picker preview: the family, then the role's generic so it never renders serif. */
+export function previewFontFamily(family: string, role: FontRole): string {
+  return `${cssFontFamily(family)}, ${role === "mono" ? "monospace" : "sans-serif"}`;
+}
+
+/** Fetches every bundled catalog face so the picker previews them truthfully. */
+export function preloadCatalogFonts(): Promise<void> {
+  return loadBundledFonts({ sans: "", mono: "" }, Object.keys(BUNDLED_FONT_LOADERS));
 }
 
 /**
@@ -101,9 +121,12 @@ export function applyFontAppearance(root: HTMLElement, appearance: FontAppearanc
 }
 
 /** Starts the download of any bundled face the appearance names. */
-export function loadBundledFonts(appearance: FontAppearance): Promise<void> {
+export function loadBundledFonts(
+  appearance: FontAppearance,
+  extra: readonly string[] = []
+): Promise<void> {
   const loads = new Set(
-    [appearance.sans, appearance.mono].flatMap(family => {
+    [appearance.sans, appearance.mono, ...extra].flatMap(family => {
       const loader = BUNDLED_FONT_LOADERS[family];
       return loader ? [loader] : [];
     })

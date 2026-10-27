@@ -17,6 +17,8 @@ export {
   cssFontFamily,
   fontLabel,
   isStorableFontFamily,
+  preloadCatalogFonts,
+  previewFontFamily,
   type FontAppearance,
   type FontCatalogEntry,
   type FontRole,

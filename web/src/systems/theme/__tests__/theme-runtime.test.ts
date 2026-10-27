@@ -231,7 +231,11 @@ describe("font appearance runtime", () => {
 
   it("Should head the stacks with the chosen families and drop the override on reset", () => {
     applyFontAppearance(root, { sans: "JetBrains Mono Variable", mono: "ui-monospace" });
-    expect(fontVariables()).toEqual({ sans: '"JetBrains Mono Variable"', mono: "ui-monospace" });
+    // Chromium lacks the `ui-monospace` generic, so System names the platform faces too.
+    expect(fontVariables()).toEqual({
+      sans: '"JetBrains Mono Variable"',
+      mono: 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono"',
+    });
 
     applyFontAppearance(root, { sans: "", mono: "" });
     expect(fontVariables()).toEqual({ sans: "", mono: "" });

@@ -13,9 +13,10 @@ import {
 
 import {
   FONT_CATALOG,
-  cssFontFamily,
   fontLabel,
   isStorableFontFamily,
+  preloadCatalogFonts,
+  previewFontFamily,
   queryInstalledFonts,
   supportsInstalledFonts,
   type FontRole,
@@ -64,6 +65,7 @@ export function FontPicker({
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     setSearch("");
+    if (nextOpen) void preloadCatalogFonts();
     // The permission prompt (browsers) needs this click's user activation.
     if (nextOpen && installed === null && supportsInstalledFonts()) {
       void queryInstalledFonts().then(setInstalled);
@@ -81,7 +83,7 @@ export function FontPicker({
       value={family || "default"}
       keywords={[itemLabel]}
       data-checked={family === value}
-      style={{ fontFamily: family ? cssFontFamily(family) : undefined }}
+      style={{ fontFamily: family ? previewFontFamily(family, role) : undefined }}
       onSelect={() => choose(family)}
     >
       <span className="truncate">{itemLabel}</span>
@@ -99,7 +101,7 @@ export function FontPicker({
         >
           <span
             className="min-w-0 flex-1 truncate text-left text-small-body text-fg"
-            style={{ fontFamily: value ? cssFontFamily(value) : undefined }}
+            style={{ fontFamily: value ? previewFontFamily(value, role) : undefined }}
           >
             {fontLabel(value, role)}
           </span>
