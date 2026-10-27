@@ -211,6 +211,10 @@ export function useUpdateSettingsShell() {
   // Optimistic: an Appearance font repaints the whole client at once. Omitted
   // keys are preserved by the daemon, so the cache merges the patch the same way.
   return useMutation({
+    networkMode: "always",
+    // One queue: the daemon serializes writes but not their order, so two quick
+    // choices must reach it in selection order or the older one could persist.
+    scope: { id: "settings-shell" },
     mutationFn: (body: SettingsUpdateShellRequest) => updateSettingsShell(body),
     onMutate: async variables => {
       await queryClient.cancelQueries({ queryKey: key });

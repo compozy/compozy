@@ -4,10 +4,11 @@
 // system reduced-motion precedence truthfully (US-015.EC-1). The Interface and Code fonts (#984)
 // are daemon-wide: a choice PATCHes only its own `shell.appearance` key, reset sends "", and the
 // installed-font list (Local Font Access) offers only monospace families to the Code picker. A
-// rejected save says why instead of silently reverting, and overlapping rejected saves leave
-// neither choice behind. A bundled face is published only after its lazy stylesheet loaded.
+// rejected save says why instead of silently reverting, saves reach the daemon in selection
+// order, and overlapping rejected saves leave neither choice behind. A bundled face is published
+// only after its lazy stylesheet loaded.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -305,14 +306,19 @@ describe("AppearanceSettingsPane", () => {
     await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
     await user.click(ui);
     await user.click(await screen.findByRole("option", { name: "System" }));
-    await waitFor(() => expect(pending).toHaveLength(2));
+    // Both choices paint at once, but the saves reach the daemon in selection
+    // order: the second waits for the first.
     expect(code).toHaveTextContent("JetBrains Mono");
     expect(ui).toHaveTextContent("System");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(pending).toHaveLength(1);
     daemonDown = true;
 
     // The first save fails first; the second's snapshot still held its optimism.
     pending[0]?.();
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pending).toHaveLength(2));
     pending[1]?.();
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
     expect(code).toHaveTextContent("Geist Mono");
