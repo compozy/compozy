@@ -6,6 +6,10 @@ on:
         description: Number of unchanged E2E-023 repetitions
         type: number
         default: 20
+      profile:
+        description: Collect long animation frame attribution (diagnostic only)
+        type: boolean
+        default: false
   push:
     branches: [fix/issue-941-e2e023-peer-convergence]
 permissions:
@@ -18,6 +22,7 @@ jobs:
       CGO_ENABLED: 0
       CI: "true"
       COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
+      COMPOZY_PEER_PROFILE: ${{ inputs.profile && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-go
