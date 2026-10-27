@@ -310,11 +310,11 @@ func bootstrapDaemonFromStatus(status DaemonStatus, owned bool) (*bootstrapDaemo
 }
 
 func cleanupStaleBootstrapDaemonRecord(homePaths compozyconfig.HomePaths, deps commandDeps) error {
-	_, running, err := daemonInfo(homePaths, deps)
+	info, running, err := daemonInfo(homePaths, deps)
 	if err != nil {
 		return err
 	}
-	if running {
+	if running || info.PID == 0 {
 		return nil
 	}
 	if err := deps.removeFile(homePaths.DaemonInfo); err != nil && !errors.Is(err, os.ErrNotExist) {
