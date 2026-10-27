@@ -273,6 +273,41 @@ describe("AppearanceSettingsPane", () => {
     }
   });
 
+  it(
+    "Should reread fonts that failed to load once the connection returns",
+    { timeout: 15_000 },
+    async () => {
+      let daemonReachable = false;
+      fetcher.mockImplementation(async input => {
+        const request = input as Request;
+        if (!daemonReachable) {
+          return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+            status: 503,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "PATCH") return json({ applied: true });
+        return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+      });
+      daemon.appearance.mono_font = "Fira Code";
+      onlineManager.setOnline(false);
+      try {
+        renderPane();
+        // The first read and both settings retries fail; nothing rereads on its
+        // own after that (the 60s poll is far away).
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3), { timeout: 6000 });
+        const trigger = screen.getByTestId("os-appearance-font-mono");
+        expect(trigger).toHaveTextContent("Geist Mono");
+
+        daemonReachable = true;
+        onlineManager.setOnline(true);
+        await waitFor(() => expect(trigger).toHaveTextContent("Fira Code"));
+      } finally {
+        onlineManager.setOnline(true);
+      }
+    }
+  );
+
   it("Should publish a bundled face only after its stylesheet has loaded", async () => {
     const user = userEvent.setup();
     let release = () => {};
