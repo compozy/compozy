@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -718,6 +719,100 @@ func TestRunDaemonDetachedReprobesAfterAcquiringUpdateLock(t *testing.T) {
 		}
 		if len(contents) != 0 {
 			t.Fatalf("released update lock contents = %q, want empty", contents)
+		}
+	})
+}
+
+func TestDaemonClockDrift(t *testing.T) {
+	t.Parallel()
+	for _, action := range []string{"stop", "start", "bootstrap", "update"} {
+		t.Run("Should preserve daemon identity across clock drift during "+action, func(t *testing.T) {
+			t.Parallel()
+			restarted := false
+			client := &stubClient{
+				triggerSettingsRestartFn: func(context.Context) (SettingsRestartActionRecord, error) {
+					restarted = true
+					return SettingsRestartActionRecord{OperationID: "clock-drift"}, nil
+				},
+				getSettingsRestartStatusFn: func(context.Context, string) (SettingsRestartStatusRecord, error) {
+					return SettingsRestartStatusRecord{OperationID: "clock-drift", Status: "ready"}, nil
+				},
+			}
+			deps := newTestDeps(t, client).withDefaults()
+			paths, err := deps.resolveHome()
+			if err != nil {
+				t.Fatal(err)
+			}
+			info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+			if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
+				t.Fatal(err)
+			}
+			deps.processMatchesStartTime = func(_ int, recorded time.Time) bool {
+				return procutil.MatchesObservedStartTime(info.StartedAt.Add(40*time.Hour), recorded)
+			}
+			deps.processAlive = func(int) bool { return true }
+			deps.processOwnsFileLock = func(pid int, path string) (bool, error) {
+				if pid != info.PID || path != paths.DaemonLock {
+					t.Fatalf("lock lookup = %d, %s", pid, path)
+				}
+				return true, nil
+			}
+			signaled := false
+			deps.signalProcess = func(pid int, signal syscall.Signal) error {
+				if pid != info.PID || signal != syscall.SIGTERM {
+					t.Fatalf("signal = %d, %v", pid, signal)
+				}
+				signaled = true
+				return compozydaemon.RemoveInfo(paths.DaemonInfo)
+			}
+			switch action {
+			case "stop":
+				_, _, err = executeRootCommand(t, deps, "daemon", "stop")
+				if err != nil || !signaled {
+					t.Fatalf("stop = %v; signaled = %v", err, signaled)
+				}
+			case "start":
+				_, _, err = executeRootCommand(t, deps, "daemon", "start")
+				if err == nil || !strings.Contains(err.Error(), "already running (pid=42)") {
+					t.Fatalf("start = %v", err)
+				}
+			case "bootstrap":
+				if err := cleanupStaleBootstrapDaemonRecord(paths, deps); err != nil {
+					t.Fatal(err)
+				}
+				got, err := compozydaemon.ReadInfo(paths.DaemonInfo)
+				if err != nil || got != info {
+					t.Fatalf("preserved info = %#v, %v", got, err)
+				}
+			case "update":
+				if err := newCLIUpdateRuntime(deps, paths).RestartDaemon(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if !restarted {
+					t.Fatal("update did not request restart of the existing daemon")
+				}
+			}
+		})
+	}
+	t.Run("Should preserve an unverifiable record and report the kernel lookup failure", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		paths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
+			t.Fatal(err)
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+		deps.processOwnsFileLock = func(int, string) (bool, error) { return false, os.ErrPermission }
+		if err := cleanupStaleBootstrapDaemonRecord(paths, deps); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("cleanup = %v", err)
+		}
+		if _, err := compozydaemon.ReadInfo(paths.DaemonInfo); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

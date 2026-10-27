@@ -106,6 +106,9 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	if d.processMatchesStartTime == nil {
 		d.processMatchesStartTime = procutil.MatchesStartTime
 	}
+	if d.processOwnsFileLock == nil {
+		d.processOwnsFileLock = procutil.OwnsFileLock
+	}
 	if d.executable == nil {
 		d.executable = os.Executable
 	}
