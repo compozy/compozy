@@ -4,15 +4,15 @@ area: RT
 title: Read Mermaid diagrams and their source in session messages
 persona: Bruno
 journey: J-12
-expected: Completed Mermaid fences render as theme-aware diagrams; streaming, invalid syntax, and unavailable renderer chunks retain readable, copyable source without swallowing subsequent Markdown.
+expected: Mermaid fences retain a stable bounded frame while streaming and rendering; completed diagrams fit within half the column and their natural size, with viewport fullscreen, zoom, pan, source and copy actions. Invalid syntax and unavailable chunks retain readable source without swallowing subsequent Markdown.
 entry_points: Session messages; shared StreamMarkdown stories
 qa_status: pass
-bug_ids: 818
+bug_ids: 818, 981
 fix_status: in_progress
 retest_status: pass
 fix_commits:
 evidence:
-last_report: docs/qa/reports/2026-10-19-issues-818-819-828.md
+last_report: docs/qa/reports/2026-10-27-issue-981-mermaid.md
 overlaps: ET-web-session-thread-full-bleed
 ---
 
@@ -32,6 +32,14 @@ is displayed as an isolated image, without clickable script callbacks or externa
 
 Repeat in the desktop shell. Record browser-rendering evidence separately from the complete
 session journey and desktop verification; a passing story alone does not establish those journeys.
+
+Stream several tall top-to-bottom flowcharts, sequence diagrams and wide flowcharts in one response.
+The source scrolls inside a reserved frame; completing each fence and decoding its image must not
+change that frame's height. Inline diagrams use at most half the column and never exceed their natural
+size or the frame's height limit. Check both a narrow pane and a wide desktop, in light and dark themes.
+Open Fullscreen from a window smaller than the viewport: its dialog must use the viewport, not the
+window bounds. Zoom in/out, drag to inspect clipped details, reset, and dismiss with Escape/Close.
+Reopening starts at 100% and centered; the original inline diagram, source and copy action remain usable.
 
 2026-10-20 targeted re-walk: PASS in real Chromium and isolated Electron 44.5.1/macOS against a
 live Codex session. The assistant diagram rendered; View source exposed the original fence; following
