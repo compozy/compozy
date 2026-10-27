@@ -8,17 +8,24 @@ Owner: branch `perf/session-responsiveness`; measured evidence and remaining wor
 - **Runtime and database:** compute catalog sort keys once, resolve board PR/default
   branch facts by workspace JSON key, and hydrate only active family members for detail
   relations. Session scope, ordering, exact totals, cursor fences and active overlay
-  remain authoritative. No schema or persisted-data change.
+  remain authoritative. Reuse the existing one-minute repository identity window for
+  missing/local origins; cancellation, deadlines and runner-start failures do not enter
+  that cache. No schema or persisted-data change.
 - **Web:** combine each session cache wake into one TanStack invalidation. Live, usage,
   mutation, inactive-cache and profile-lens reread semantics remain intact; stream
-  debounce/detach behavior is unchanged.
+  debounce/detach behavior is unchanged. Catalog reconciliation retains its trailing
+  read and stopped-transcript obligations with fewer cache traversals. A pinned core
+  dependency patch lazily creates tool pipelines and disposes them with their runtime,
+  including abandoned React renders and normal session closure.
 - **Native tools / CLI / HTTP / UDS:** existing session list/status/board results retain
   their schemas and semantics. No generator, SDK contract or public tool ID changes.
 - **Extensibility / hooks / config / isolation:** no new hooks, extension behavior,
-  settings, credentials, cross-workspace reads or retained caches.
+  settings, credentials or cross-workspace reads. Repository identity errors use the
+  existing per-root bounded freshness window; provider/forge response freshness is unchanged.
 - **Official skill / public docs:** `skills/compozy/` and product instructions need no
   change because public workflows are unchanged. The performance report and existing
-  streaming/board QA scenarios co-ship. Full runtime/browser verification remains pending.
+  streaming/board QA scenarios co-ship. Browser memory, API and board evidence are recorded
+  in the owning report; complete delivery gates are tracked on PR #983.
 
 
 ## Authored inline code whitespace review repair — 2026-10-24

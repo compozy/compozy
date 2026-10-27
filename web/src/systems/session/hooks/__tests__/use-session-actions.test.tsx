@@ -718,7 +718,10 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const detailKey = sessionKeys.detail(WORKSPACE_ID, createdSession.id);
+    const catalogKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+    queryClient.setQueryData(detailKey, createdSession);
+    queryClient.setQueryData(catalogKey, { sessions: [createdSession] });
 
     const { result } = renderHook(() => useRepairSession(), {
       wrapper: createWrapper(queryClient),
@@ -736,12 +739,8 @@ describe("session actions", () => {
       dry_run: true,
       force: true,
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
-    });
+    expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true);
   });
 
   it("archive and unarchive use the row owner across workspace and profile selection", async () => {
@@ -754,16 +753,25 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const detailKey = sessionKeys.detail(target.workspace_id, target.id);
+    const catalogKey = sessionKeys.workspaceLists(target.workspace_id);
+    const selectedWorkspaceKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+    queryClient.setQueryData(selectedWorkspaceKey, { sessions: [createdSession] });
     const { result } = renderHook(
       () => ({ archive: useArchiveSession(), unarchive: useUnarchiveSession() }),
       { wrapper: createWrapper(queryClient) }
     );
 
-    await act(async () => {
-      await result.current.archive.mutateAsync(target);
-      await result.current.unarchive.mutateAsync(target);
-    });
+    for (const action of [result.current.archive, result.current.unarchive]) {
+      queryClient.setQueryData(detailKey, target);
+      queryClient.setQueryData(catalogKey, { sessions: [target] });
+      await act(async () => {
+        await action.mutateAsync(target);
+      });
+      expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true);
+      expect(queryClient.getQueryState(selectedWorkspaceKey)?.isInvalidated).toBe(false);
+    }
 
     expect(archiveSession).toHaveBeenCalledWith(
       target.workspace_id,
@@ -778,12 +786,6 @@ describe("session actions", () => {
       target.profile_name,
       expect.any(AbortSignal)
     );
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(target.workspace_id, target.id),
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(target.workspace_id),
-    });
   });
 
   it("aborts an in-flight archive request when its hook unmounts", async () => {
@@ -969,7 +971,8 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const catalogKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+    queryClient.setQueryData(catalogKey, { sessions: [createdSession] });
     const { result } = renderHook(() => useRenameSession(), {
       wrapper: createWrapper(queryClient),
     });
@@ -981,12 +984,10 @@ describe("session actions", () => {
     expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
       renamed
     );
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
-    });
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
-    });
+    expect(
+      queryClient.getQueryState(sessionKeys.detail(WORKSPACE_ID, createdSession.id))?.isInvalidated
+    ).toBe(true);
+    expect(queryClient.getQueryState(catalogKey)?.isInvalidated).toBe(true);
   });
 
   it.each(["started", "error"] as const)(

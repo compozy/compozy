@@ -1,12 +1,12 @@
 # Session responsiveness investigation — 2026-10-26
 
-Status: in progress. Branch `perf/session-responsiveness`, isolated checkout
+Status: implementation and focused verification complete; final CI delivery pending. Branch `perf/session-responsiveness`, isolated checkout
 `/Users/pedronauck/Dev/compozy/_worktrees/session-responsiveness`, baseline
 `14136a511` (v0.4.2). The original checkout is unchanged.
 
 The goal is to improve responsiveness under many concurrent sessions across database
 queries, frontend loading, state propagation, and memory. This report records measured
-changes and the remaining investigation; the initial draft is not a completion claim.
+changes and their verification limits; current-head delivery checks are tracked on PR #983.
 
 ## Measurement method
 
@@ -36,6 +36,12 @@ The regression suite separately exercises mounted observers and verifies actual 
 | Board SQL page including exact total, same population | 7.702 ms | 4.882 ms | 36.6% |
 | 64 frontend live-surface wakes, 1,024 cached queries | 120.478 ms | 6.211 ms | 94.8% |
 | 64 frontend usage wakes, same cache | 81.300 ms | 4.854 ms | 94.0% |
+| 64 catalog reconciliation wakes, same cache | 96.827 ms | 12.240 ms | 87.4% |
+| Global catalog HTTP page, 16 workspaces without a hosted origin | 170.488 ms | 3.611 ms | 97.9% |
+| Global board HTTP page, same population | 172.680 ms | 5.698 ms | 96.7% |
+| Global facets HTTP read, same population | 171.034 ms | 4.203 ms | 97.5% |
+| Workspace catalog HTTP page, same population | 14.059 ms | 2.182 ms | 84.5% |
+| Browser JS heap after 80 selections and settling, 64 active sessions | 970.64 MB | 77.49 MB | 92.0% |
 
 The manager page measurements isolate the sort change, before the later SQL change.
 Before/after ranges were 2.240–2.245 / 1.673–1.690 ms for that page, 7.941–7.986 /
@@ -84,6 +90,84 @@ active matching reads refetch once. Other sessions, other workspaces, aggregate 
 scope, and transcript/Goal on live wakes remain unaffected. Usage stream batching keeps
 its 250 ms debounce and flush-on-detach behavior, now reusing the canonical invalidator.
 
+Catalog event reconciliation also avoids exact-key hashing over the entire cache and
+looks up pending detail/by-ID reads in one traversal. Its trailing authoritative read,
+post-stop transcript obligation, and profile teardown fence remain unchanged. The
+existing catalog-stream suite owns these contracts. The 64-wake benchmark measured
+96.219–98.356 ms before and 11.876–12.622 ms after. This is CPU work, not network time.
+
+### Missing and local Git origins
+
+The existing repository identity cache stored only successful hosted origins. A
+workspace without `origin`, or with a local-path origin, spawned Git on every catalog
+and detail read. A global catalog repeated this across every workspace. The same
+per-root one-minute identity window now also stores Git exit failures and origins
+that cannot identify a hosted repository. Cancellation, deadline and runner-start
+errors remain immediately retryable. No provider/forge response freshness changes.
+
+Real Git warm-read medians fell from 8.734 ms (missing origin) and 8.490 ms (local
+origin) to about 40 ns, with zero allocations on the warm path. The already-cached
+hosted-origin case stayed around 39–40 ns. These microbenchmarks exclude the first
+Git command. The real HTTP table above uses the same daemon database, three warmups,
+then ten measured requests per endpoint; response IDs, order and facets were compared
+exactly. Baseline is the first optimization commit, `9e45483fb`, so those gains isolate
+the negative identity cache. A newly configured origin can take up to one minute to
+appear, matching the existing positive identity window. The owning real-Git suite
+verifies expiration, recovery, root isolation and immediate retry after interruptions.
+
+### Runtime stream ownership and retained memory
+
+An initial production-browser walk exposed retained detached React trees: 80 session
+selections grew the collected heap to 947 MB. A repeat without CPU profiling or
+background mutations reproduced the growth. A sanitized heap snapshot traced a
+strong retaining path from Chromium pending activities through
+`ReadableStreamDefaultReader` → `PipeToEngine` → `ToolInvocationTracker._getTools` →
+external-store adapter → React dispatch → detached session trees.
+
+The pinned `@assistant-ui/core@0.3.22` eagerly opened a never-ending pipeline in the
+tracker constructor. Abandoned React renders never committed an effect cleanup;
+ordinary thread disposal also left the pipeline open. A small Bun dependency patch
+now creates it on the first live tool entry and aborts it through the runtime's
+existing permanent disposal signal. Disabling tool invocations also disposes it.
+Reset and prompt cancellation remain reusable; late callbacks cannot update a disposed
+owner. `patches/README.md` records the boundary, evidence and removal condition.
+
+The regression in the existing chat-provider suite first failed with one pending
+pipeline after an abandoned Suspense render. It now passes, including StrictMode
+repeated mounts, processing streamed backend tool calls, and zero pending pipelines
+after each unmount. The full 73-test provider suite also exercises prompt recovery,
+drafts, cancellation, transcript handoff, attachments and session identity.
+
+The controlled browser comparison rebuilt the same production tree with and without
+only this dependency patch. Both runs used Chromium 1243, a 1,500 × 1,050 viewport,
+one session window, 64 real active idle sessions, 1,076 retained catalog fixtures and
+16 isolated workspaces. There were 16 first selections and four passes over the same
+16 sessions (80 selections total), no CPU profiler and no concurrent build/test load.
+Memory samples explicitly collected garbage; the final sample followed 2.5 seconds
+of settling. No collection call or retention cap was added to the product.
+
+| Browser checkpoint | Before heap | After heap | Before listeners | After listeners |
+| --- | ---: | ---: | ---: | ---: |
+| Initial | 102.09 MB | 57.53 MB | 2,876 | 1,413 |
+| 16 selections | 114.77 MB | 68.41 MB | 2,889 | 1,424 |
+| 48 selections | 566.64 MB | 71.96 MB | 16,369 | 1,427 |
+| 80 selections | 969.62 MB | 75.63 MB | 28,002 | 1,428 |
+| Settled | 970.64 MB | 77.49 MB | 28,000 | 1,426 |
+
+Attached element count stayed exactly 2,998 on both sides. Total DOM nodes went from
+32,121 to 153,911 before; after, they stayed near 24,773. Warm click-to-content medians
+were 515.5 / 499.3 ms and p95 565.9 / 549.2 ms. That small timing difference is not
+claimed as a significant latency improvement: these samples include Playwright action
+stability and readiness assertions. Browser long-task totals were 5,188 / 4,283 ms
+(76 / 63 tasks), also diagnostic rather than a production INP/SLO claim. Both runs
+had zero page errors. The heap result concerns JavaScript retained memory, not process
+RSS or provider memory.
+
+A second independent patched run finished at 77.12 MB, 24,773 DOM nodes and 1,425
+listeners after the same 80 selections. The 77.12–77.49 MB repeat range supports the
+retention result; it does not establish a fixed memory ceiling for longer or larger
+transcripts. These sessions were active and idle, not 64 simultaneous LLM generations.
+
 ### Detail family projection
 
 The detail read filters the active session inventory by parent/direct-child identity
@@ -100,6 +184,8 @@ GOMAXPROCS=2 go test -p 1 ./internal/session -run '^$' \
   -bench '^BenchmarkManagerCatalog$' -benchtime=300ms -count=3 -benchmem
 GOMAXPROCS=2 go test -p 1 ./internal/store/globaldb -run '^$' \
   -bench '^BenchmarkSessionCatalogBoard$' -benchtime=300ms -count=3 -benchmem
+GOMAXPROCS=2 go test -p 1 ./internal/worktree -run '^$' \
+  -bench '^BenchmarkPullRequestRepositoryIdentity$' -benchtime=300ms -count=3 -benchmem
 bun web/e2e/scripts/benchmark-session-cache.ts
 ```
 
@@ -110,20 +196,35 @@ runs or overlap measurements with build/test workloads.
 
 Local raw logs and profiles are under `.cache/performance/`: `catalog-before.txt`,
 `catalog-before.mem`, `catalog-after-sort.txt`, `sql-before.txt`, `sql-plan-before.txt`,
-`sql-after.txt`, `cache-before.jsonl`, and `cache-after.jsonl`.
+`sql-after.txt`, `cache-before.jsonl`, `cache-after.jsonl`, `catalog-cache-{before,after}.jsonl`,
+`git-identity-{before,after}.txt`, `api-identity-{before,after}.json`, and
+`browser-controlled-{before,after}.json`. The browser probe and fixture inventories
+are retained beside them as `browser-controlled.ts`, `lab-workspaces.json`,
+`lab-seed.json`, and `live-sessions.json`; use only the isolated lab manifest and storage
+state. It closes only that lab's windows through the public window-manager API, then
+selects `session-sidebar-session-<id>` and waits for heading, composer and two animation
+frames. Heap snapshots are sanitized and are not committed.
 
 ## Verification and remaining work
 
 | Scope | Evidence | Status |
 | --- | --- | --- |
 | Catalog cursor, active overlay, board, attention and keyset behavior | Focused real-SQLite Go tests with `-race -p 1 -parallel 2`, session and globaldb packages | PASS |
-| Live-tail, usage debounce/detach and cache scope | Root Turbo focused run, 57 tests in two existing suites, one worker | PASS |
+| Live-tail, usage, catalog reconciliation, actions and provider lifetime | Root Turbo focused run, 196 tests in five existing suites, one worker | PASS |
+| Repository identity freshness, isolation and retry | Existing PullRequestService suite, real Git, race-enabled; test-shape heuristic | PASS |
 | Frontend types | Root Turbo Web typecheck after building the client SDK dependency | PASS |
 | Go formatting/lint | Scoped owning lane, 0 issues | PASS |
 | React Doctor | Pinned 0.9.17, score 93, no new diagnostics | PASS for scanned production files |
-| Full Go/Web suites, generation, production build, real daemon/browser E2E | Current-head PR CI | Pending |
-| Browser click-to-content, streaming frame/memory traces | Isolated real runtime | Pending |
-| Broader loading waterfalls, retained data, other database read paths | Evidence-led audit | In progress |
+| Production Web build | Root Turbo, repository-pinned Bun 1.4.0 | PASS |
+| Full Go/Web suites, generation, real daemon/browser E2E | Current-head PR CI | Pending |
+| Browser navigation and retained memory | Controlled production-browser before/after, repeated patched run, 64 active idle sessions | PASS within the measured fixture |
+| Board paging, archive, family and event reconciliation | Final local daemon/Web build: 64 newly active sessions, 1,140 retained rows, 128 real rename events and 80 selections; Done pages 50 → 100 → 150 → 195, archive 3, child counts and reload | PASS |
+
+The first CI completed every Go, Web E2E, runtime E2E and desktop E2E lane successfully.
+Its Frontend lane found three action tests asserting the old `invalidateQueries`
+argument shape. Those tests now assert actual cache invalidation and retain their
+request/profile/rename checks; all 43 action tests pass. The behavioral cache suite
+already covered the invalidation contract. This was not a production behavior failure.
 
 The first standalone Web typecheck failed because this new checkout lacked the client
 SDK's generated build output. Building `@compozy/client` through root Turbo restored that
@@ -131,6 +232,10 @@ prerequisite; the repeat passed. The first Go lint attempt reported formatting d
 new benchmark/test code; the scoped rerun passed after applying the repository formatter. These failed attempts are not
 passing evidence. The test-convention heuristic reports four pre-existing top-level
 assertion cases in the large globaldb suite; this change does not edit those cases.
+The new Git-error classification initially used `errors.As`; the repository's modern
+Go lint required `errors.AsType`. The production code was corrected, then both lint
+tag modes and the real-Git race suite passed. The new stream-lifetime regression was
+red before the dependency repair and green afterward.
 
 `gate.sh plan` selects all `internal/store` packages plus the complete Web suite. Those
 expensive lanes are assigned to CI under the user's instruction to conserve local

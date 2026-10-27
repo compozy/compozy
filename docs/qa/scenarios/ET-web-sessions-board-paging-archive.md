@@ -35,4 +35,8 @@ totals, and usage updates remain current across profiles and workspaces. Exercis
 usage bursts and hide/restore the streaming window; unrelated transcript/Goal reads
 must not refetch for usage-only signals. Current measurements and verification limits
 are in the [responsiveness report](../reports/2026-10-26-session-responsiveness.md).
-The final-source integrated re-walk is pending; earlier passes remain historical.
+Targeted re-walk 2026-10-26: the final local daemon and production Web build passed
+with 64 active idle sessions, 1,140 retained rows, and 128 real rename events. The Done
+column loaded 50 → 100 → 150 → 195 cards with exact server counts; the three archived
+cards and board mode survived the relevant disclosure/reload checks. Current-head
+full E2E delivery remains owned by PR #983 CI; see the report for fixture limits.

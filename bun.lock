@@ -289,6 +289,7 @@
   "patchedDependencies": {
     "swr@2.5.1": "patches/swr@2.5.1.patch",
     "@hey-api/openapi-ts@0.99.0": "patches/@hey-api%2Fopenapi-ts@0.99.0.patch",
+    "@assistant-ui/core@0.3.22": "patches/@assistant-ui%2Fcore@0.3.22.patch",
   },
   "overrides": {
     "@assistant-ui/core": "0.3.22",

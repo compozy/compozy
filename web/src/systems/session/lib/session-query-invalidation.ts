@@ -56,6 +56,14 @@ export function invalidateSessionUsageQueries(
   );
 }
 
+export function invalidateSessionMonitorsQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+): Promise<void> {
+  return invalidateSessionReads(queryClient, [], [sessionKeys.monitors(workspaceId, sessionId)]);
+}
+
 function invalidateSessionReads(
   queryClient: QueryClient,
   prefixes: readonly QueryKey[],
