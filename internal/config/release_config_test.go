@@ -909,7 +909,16 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",
 		}
 		for job, want := range conditions {
-			condition := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, job), "if")), " ")
+			// Actions string literals use single quotes (doubled quotes escape a quote).
+			// Normalize only the alternating unquoted segments, preserving literal bytes.
+			parts := strings.Split(strings.TrimSpace(stringAt(t, mapAt(t, jobs, job), "if")), "'")
+			for i := 0; i < len(parts); i += 2 {
+				parts[i] = strings.ReplaceAll(parts[i], "\n", " ")
+				for strings.Contains(parts[i], "  ") {
+					parts[i] = strings.ReplaceAll(parts[i], "  ", " ")
+				}
+			}
+			condition := strings.Join(parts, "'")
 			assertEqualString(t, job+" routing condition", condition, want)
 		}
 	})
