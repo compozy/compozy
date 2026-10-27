@@ -871,6 +871,37 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	release := mapAt(t, goreleaser, "release")
 	checksum := mapAt(t, goreleaser, "checksum")
 
+	t.Run("Should keep release merges out of PR creation and cancellable pushes", func(t *testing.T) {
+		t.Parallel()
+
+		// Workflow expressions are the release routing contract. YAML aliases cannot
+		// substitute subexpressions, so compare every consumer to one predicate.
+		cfg := parseYAMLMap(t, []byte(workflow), "release.yml")
+		jobs := mapAt(t, cfg, "jobs")
+		concurrency := mapAt(t, cfg, "concurrency")
+		const subject = "github.event.head_commit.message"
+		const current = "(startsWith(" + subject + ", 'build: release ') || " +
+			"startsWith(" + subject + ", 'build: prepare release '))"
+		const publishingPush = "(github.event_name == 'push' && (" +
+			"startsWith(" + subject + ", 'release:') || " +
+			"startsWith(" + subject + ", 'ci(release):') || " +
+			"startsWith(" + subject + ", 'build: release ') || " +
+			"startsWith(" + subject + ", 'build: prepare release ')))"
+		assertEqualString(t, "publication concurrency group", stringAt(t, concurrency, "group"),
+			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ "+
+				publishingPush+" && '-publish' || '' }}")
+		assertEqualString(t, "publication cancellation", stringAt(t, concurrency, "cancel-in-progress"),
+			"${{ !"+publishingPush+" }}")
+		for _, job := range []string{"release-pr", "integration"} {
+			condition := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, job), "if")), " ")
+			assertContainsText(t, job+" release exclusion", condition, "!"+current)
+			assertContainsText(t, job+" push scope", condition,
+				"github.event_name == 'push' && github.ref == 'refs/heads/main'")
+		}
+		plan := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, "release-plan"), "if")), " ")
+		assertContainsText(t, "release-plan merge predicate", plan, current)
+	})
+
 	t.Run("Should keep desktop artifacts in the signed draft before public installation", func(t *testing.T) {
 		t.Parallel()
 
