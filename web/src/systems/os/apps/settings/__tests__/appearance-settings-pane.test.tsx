@@ -4,7 +4,8 @@
 // system reduced-motion precedence truthfully (US-015.EC-1). The Interface and Code fonts (#984)
 // are daemon-wide: a choice PATCHes only its own `shell.appearance` key, reset sends "", and the
 // installed-font list (Local Font Access) offers only monospace families to the Code picker. A
-// rejected save says why instead of silently reverting.
+// rejected save says why instead of silently reverting, and overlapping rejected saves leave
+// neither choice behind. A bundled face is published only after its lazy stylesheet loaded.
 // Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -19,6 +20,17 @@ import { FontAppearanceSync, THEME_STORAGE_KEY, themePreferenceStore } from "@/s
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 const managers: WindowManagerRuntime[] = [];
+
+/** Holds the bundled-face stylesheet load open when a test sets `gate`. */
+const fontLoads = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
+vi.mock("@/systems/theme/lib/font-appearance", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/theme/lib/font-appearance")>();
+  return {
+    ...actual,
+    loadBundledFonts: (...args: Parameters<typeof actual.loadBundledFonts>) =>
+      fontLoads.gate ?? actual.loadBundledFonts(...args),
+  };
+});
 
 vi.mock("@/systems/settings", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/settings")>()),
@@ -117,6 +129,7 @@ describe("AppearanceSettingsPane", () => {
   });
 
   afterEach(() => {
+    fontLoads.gate = null;
     vi.restoreAllMocks();
     cleanup();
     for (const manager of managers.splice(0)) manager.destroy();
@@ -232,6 +245,78 @@ describe("AppearanceSettingsPane", () => {
     await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
     expect(toastError.mock.calls[0]?.[0]).toMatch(/^Couldn't save the Code font/);
     await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+  });
+
+  it("Should publish a bundled face only after its stylesheet has loaded", async () => {
+    const user = userEvent.setup();
+    let release = () => {};
+    fontLoads.gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    renderPane();
+
+    const trigger = screen.getByTestId("os-appearance-font-mono");
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+    await waitFor(() => expect(trigger).toHaveTextContent("JetBrains Mono"));
+    await waitFor(async () => expect(await shellWrites()).toHaveLength(1));
+
+    // Saved and shown in the picker, but the face has no @font-face yet: an open
+    // terminal reading the variable now would measure the fallback for good.
+    expect(document.documentElement.style.getPropertyValue("--user-font-mono")).toBe("");
+    expect(window.localStorage.getItem("compozy.fonts")).toBeNull();
+
+    release();
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-mono")).toBe(
+        '"JetBrains Mono Variable"'
+      )
+    );
+  });
+
+  it("Should leave neither choice behind when two overlapping font saves are rejected", async () => {
+    const user = userEvent.setup();
+    const pending: Array<() => void> = [];
+    let daemonDown = false;
+    const unavailable = () =>
+      new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    const toastError = vi.spyOn(toast, "error").mockReturnValue("toast");
+    fetcher.mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "PATCH") {
+        await new Promise<void>(resolve => pending.push(resolve));
+        return unavailable();
+      }
+      // Once the daemon is down the rereads fail too, so only the rollback
+      // decides what the cache (and the boot cache) keeps.
+      if (daemonDown) return unavailable();
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+    renderPane();
+
+    const code = screen.getByTestId("os-appearance-font-mono");
+    const ui = screen.getByTestId("os-appearance-font-sans");
+    await waitFor(() => expect(code).toHaveTextContent("Geist Mono"));
+    await user.click(code);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+    await user.click(ui);
+    await user.click(await screen.findByRole("option", { name: "System" }));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    expect(code).toHaveTextContent("JetBrains Mono");
+    expect(ui).toHaveTextContent("System");
+    daemonDown = true;
+
+    // The first save fails first; the second's snapshot still held its optimism.
+    pending[0]?.();
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    pending[1]?.();
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
+    expect(code).toHaveTextContent("Geist Mono");
+    expect(ui).toHaveTextContent("Inter");
   });
 
   it("Should offer installed fonts, and only monospace ones for Code", async () => {

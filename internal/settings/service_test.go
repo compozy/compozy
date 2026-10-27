@@ -1555,6 +1555,14 @@ func TestUpdateSectionShell(t *testing.T) {
 		if strings.Contains(contents, "ui_font") || !strings.Contains(contents, `mono_font = "Fira Code"`) {
 			t.Fatalf("config after ui_font reset should delete only ui_font:\n%s", contents)
 		}
+
+		// A hand-written empty key is still a stored key: resetting it deletes it.
+		writeFile(t, homePaths.ConfigFile, strings.Replace(contents,
+			`mono_font = "Fira Code"`, "mono_font = \"Fira Code\"\nui_font = \"\"", 1))
+		update("", compozyconfig.ShellAppearanceConfig{UIFontExplicit: true})
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "ui_font") {
+			t.Fatalf("config after resetting an explicit empty ui_font should delete the key:\n%s", contents)
+		}
 	})
 
 	t.Run("Should reject an unsafe shell font without changing config", func(t *testing.T) {

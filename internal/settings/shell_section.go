@@ -28,13 +28,24 @@ func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.
 	if desired.Sessions.ScopeExplicit || current.Sessions.Scope != desired.Sessions.Scope {
 		changed = append(changed, "shell.sessions.scope")
 	}
-	if current.Appearance.UIFont != desired.Appearance.UIFont {
+	if shellFontChanged(current.Appearance.UIFont, current.Appearance.UIFontExplicit,
+		desired.Appearance.UIFont, desired.Appearance.UIFontExplicit) {
 		changed = append(changed, "shell.appearance.ui_font")
 	}
-	if current.Appearance.MonoFont != desired.Appearance.MonoFont {
+	if shellFontChanged(current.Appearance.MonoFont, current.Appearance.MonoFontExplicit,
+		desired.Appearance.MonoFont, desired.Appearance.MonoFontExplicit) {
 		changed = append(changed, "shell.appearance.mono_font")
 	}
 	return changed
+}
+
+// shellFontChanged also reports an explicit reset of a key the file stores as
+// "", so the reset deletes it instead of leaving the empty key behind.
+func shellFontChanged(current string, currentExplicit bool, desired string, desiredExplicit bool) bool {
+	if current != desired {
+		return true
+	}
+	return desired == "" && desiredExplicit && currentExplicit
 }
 
 func applyShellSettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.ShellConfig) error {

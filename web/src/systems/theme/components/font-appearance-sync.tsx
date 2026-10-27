@@ -1,11 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useFontAppearance } from "../hooks/use-font-appearance";
 import {
   DEFAULT_FONT_APPEARANCE,
   applyFontAppearance,
-  bootCachedBundledFonts,
+  applyFontFamily,
   loadBundledFonts,
+  readBundledFontCache,
   writeFontAppearanceCache,
 } from "../lib/font-appearance";
 
@@ -18,11 +19,19 @@ import {
 export function FontAppearanceSync() {
   const { appearance, loaded } = useFontAppearance();
   const { sans, mono } = appearance;
+  const daemonPublished = useRef(false);
 
-  // The boot script may already name a bundled face; fetch its stylesheet now.
+  // The boot script leaves a cached bundled face unpublished (its stylesheet is
+  // lazy). Fetch it now and publish it once resident, unless the daemon's
+  // answer got there first — that value is authoritative.
   useEffect(() => {
-    const cached = bootCachedBundledFonts(document.documentElement);
-    if (cached.length > 0) void loadBundledFonts(DEFAULT_FONT_APPEARANCE, cached);
+    const cached = readBundledFontCache();
+    const roles = (["sans", "mono"] as const).filter(role => cached[role] !== undefined);
+    if (roles.length === 0) return;
+    void loadBundledFonts({ ...DEFAULT_FONT_APPEARANCE, ...cached }).then(() => {
+      if (daemonPublished.current) return;
+      for (const role of roles) applyFontFamily(document.documentElement, role, cached[role] ?? "");
+    });
   }, []);
 
   useEffect(() => {
@@ -34,6 +43,7 @@ export function FontAppearanceSync() {
     // fallback and never see a later root change.
     void loadBundledFonts(next).then(() => {
       if (!current) return;
+      daemonPublished.current = true;
       applyFontAppearance(document.documentElement, next);
       writeFontAppearanceCache(next);
     });

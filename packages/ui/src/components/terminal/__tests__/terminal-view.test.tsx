@@ -2,6 +2,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { TERMINAL_FONT_BUDGET_MS } from "../terminal-fonts";
 import { destroyTerminalInstances } from "../terminal-registry";
 import { TerminalView, type TerminalViewHandle } from "../terminal-view";
 import { createFakeFontFaceSet, installFakeFontFaceSet } from "./fake-font-face-set";
@@ -894,9 +895,13 @@ describe("TerminalView", () => {
     await waitFor(() => expect(terminal.options.theme?.background).toBe("#050403"));
     expect(terminal.options.fontFamily).toBe('"Test Mono", monospace');
 
+    // Past the first-paint budget the old face still paints: measuring now would
+    // pin the fallback's cell size, and a late face only repaints glyphs.
+    await act(() => new Promise(resolve => setTimeout(resolve, TERMINAL_FONT_BUDGET_MS + 100)));
+    expect(terminal.options.fontFamily).toBe('"Test Mono", monospace');
+
     fonts.settleLoads();
     await waitFor(() => expect(terminal.options.fontFamily).toBe('"Next Mono", monospace'));
-    await waitFor(() => expect(terminal.clearTextureAtlasCount).toBe(1));
   });
 
   it("Should not let a superseded font load overwrite a newer font", async () => {

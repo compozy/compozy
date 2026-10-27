@@ -312,7 +312,8 @@ function isHostAccelerator(event: KeyboardEvent, hasSelection: boolean): boolean
  * Re-resolves palette and metrics from live CSS, writing only on drift.
  *
  * The palette is written at once. A new face or size is loaded first and
- * written only once the stack is resident (or its budget elapsed): the emulator
+ * written only once loading settled — with no first-paint budget, because the
+ * terminal keeps painting with its current face meanwhile: the emulator
  * measures its cell and rasterizes the atlas at the moment of the write, and a
  * write ahead of the face would keep fallback metrics after the face lands.
  */
@@ -335,7 +336,7 @@ function applyResolvedStyle(instance: TerminalInstance): void {
     return;
   }
   const fonts = loadTerminalFonts(instance.host);
-  void fonts.firstPaint.then(() => {
+  void fonts.settled.then(() => {
     if (!isCurrentMetricsChange(instance, epoch)) return;
     const settledMetrics = readTerminalMetrics(instance.host);
     // The face changed again while this one loaded; that stack is the one owed
@@ -345,7 +346,6 @@ function applyResolvedStyle(instance: TerminalInstance): void {
       return;
     }
     writeMetrics(instance, settledMetrics);
-    scheduleGlyphRefresh(instance, fonts.settled);
   });
 }
 

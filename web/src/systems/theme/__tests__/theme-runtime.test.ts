@@ -15,8 +15,9 @@ import { THEME_CHROME_COLOR, applyTheme } from "../lib/apply-theme";
 import {
   FONT_STORAGE_KEY,
   applyFontAppearance,
-  bootCachedBundledFonts,
+  cssFontFamily,
   previewFontFamily,
+  readBundledFontCache,
   isStorableFontFamily,
   loadBundledFonts,
   writeFontAppearanceCache,
@@ -264,14 +265,24 @@ describe("font appearance runtime", () => {
     expect(fontVariables()).toEqual({ sans: "", mono: "" });
   });
 
-  it("Should name the bundled faces the boot script painted so startup can fetch them", () => {
-    writeFontAppearanceCache({ sans: "", mono: "JetBrains Mono Variable" });
+  it("Should leave a cached bundled face for the runtime instead of boot-painting it", () => {
+    // The boot script runs before the face's lazy stylesheet exists; publishing
+    // the name then would let a terminal measure the fallback for good.
+    writeFontAppearanceCache({ sans: "Berkeley Mono", mono: "JetBrains Mono Variable" });
     new Function(BOOT_SCRIPT)();
-    expect(bootCachedBundledFonts(root)).toEqual(["JetBrains Mono Variable"]);
-
-    root.style.removeProperty("--user-font-mono");
-    expect(bootCachedBundledFonts(root)).toEqual([]);
+    expect(fontVariables()).toEqual({ sans: '"Berkeley Mono"', mono: "" });
+    expect(readBundledFontCache()).toEqual({ mono: "JetBrains Mono Variable" });
   });
+
+  it.each(["__proto__", "constructor", "toString"])(
+    "Should treat the valid family %j as a plain name, never a prototype member",
+    async family => {
+      expect(cssFontFamily(family)).toBe(`"${family}"`);
+      await expect(loadBundledFonts({ sans: family, mono: family })).resolves.toBeUndefined();
+      writeFontAppearanceCache({ sans: family, mono: "" });
+      expect(readBundledFontCache()).toEqual({});
+    }
+  );
 
   it("Should preview the Default entry in the built-in face, never an inherited one", () => {
     expect(previewFontFamily("", "sans")).toBe('"Inter Variable", sans-serif');

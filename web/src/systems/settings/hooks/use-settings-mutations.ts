@@ -222,12 +222,52 @@ export function useUpdateSettingsShell() {
       );
       return { previous };
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(key, context.previous);
+    onError: (_error, variables, context) => {
+      const previous = context?.previous;
+      if (!previous) return;
+      queryClient.setQueryData<SettingsShellSection>(key, current =>
+        current
+          ? {
+              ...current,
+              config: revertShellPatch(current.config, previous.config, variables.config),
+            }
+          : current
+      );
     },
     onSuccess: result => recordSettingsMutation(result),
-    onSettled: () => invalidateSection(queryClient, "shell"),
+    // Not awaited: a caller's error feedback must not wait on the reread, which
+    // retries with backoff while the daemon is unreachable.
+    onSettled: () => {
+      void invalidateSection(queryClient, "shell");
+    },
   });
+}
+
+type ShellConfigSection = "sessions" | "appearance";
+
+/**
+ * Undoes only the keys this patch wrote, and only where the cache still holds
+ * its optimistic value. Restoring the whole snapshot would also revert (or
+ * resurrect) a concurrent change to another key: two overlapping saves that
+ * both fail must leave neither choice behind.
+ */
+function revertShellPatch(
+  current: SettingsShellSection["config"],
+  previous: SettingsShellSection["config"],
+  patch: SettingsUpdateShellRequest["config"]
+): SettingsShellSection["config"] {
+  const next = { ...current };
+  for (const section of ["sessions", "appearance"] as const satisfies ShellConfigSection[]) {
+    const written = Object.entries(patch[section] ?? {});
+    if (written.length === 0) continue;
+    const values: Record<string, unknown> = { ...current[section] };
+    const before: Record<string, unknown> = { ...previous[section] };
+    for (const [field, value] of written) {
+      if (value !== undefined && values[field] === value) values[field] = before[field];
+    }
+    Object.assign(next, { [section]: values });
+  }
+  return next;
 }
 
 function mergeShellConfig(

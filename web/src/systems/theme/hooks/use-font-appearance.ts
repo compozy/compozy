@@ -28,25 +28,24 @@ export function useFontAppearance(): FontAppearanceHandle {
     appearance: { sans: stored?.ui_font ?? "", mono: stored?.mono_font ?? "" },
     loaded: query.data !== undefined,
     setFont: (role, family) => {
-      mutation.mutate(
-        {
+      // mutateAsync, not mutate callbacks: TanStack only runs per-call callbacks
+      // for the latest call, so an earlier overlapping save would fail silently.
+      // The optimistic choice is rolled back; say why instead of just reverting.
+      mutation
+        .mutateAsync({
           config: {
             sessions: {},
             appearance: role === "sans" ? { ui_font: family } : { mono_font: family },
           },
-        },
-        {
-          // The optimistic choice is rolled back; say why instead of just reverting.
-          onError: error => {
-            const subject = role === "sans" ? "Interface font" : "Code font";
-            toast.error(
-              error instanceof Error && error.message
-                ? `Couldn't save the ${subject}: ${error.message}`
-                : `Couldn't save the ${subject}. Try again.`
-            );
-          },
-        }
-      );
+        })
+        .catch((error: unknown) => {
+          const subject = role === "sans" ? "Interface font" : "Code font";
+          toast.error(
+            error instanceof Error && error.message
+              ? `Couldn't save the ${subject}: ${error.message}`
+              : `Couldn't save the ${subject}. Try again.`
+          );
+        });
     },
     saving: mutation.isPending,
   };

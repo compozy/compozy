@@ -54,9 +54,11 @@ const DEFAULT_FONT_FAMILY: Record<FontRole, string> = {
   mono: "Geist Mono Variable",
 };
 
-const BUNDLED_FONT_LOADERS: Record<string, () => Promise<unknown>> = {
-  "JetBrains Mono Variable": () => import("@fontsource-variable/jetbrains-mono"),
-};
+// Maps, not object literals: a stored family such as "__proto__" or
+// "constructor" is a valid name and must never resolve to a prototype member.
+const BUNDLED_FONT_LOADERS = new Map<string, () => Promise<unknown>>([
+  ["JetBrains Mono Variable", () => import("@fontsource-variable/jetbrains-mono")],
+]);
 
 /** CSS generic keywords — written bare; quoting turns them into family names. */
 const GENERIC_FAMILIES = new Set([
@@ -88,17 +90,17 @@ export function fontLabel(family: string, role: FontRole): string {
   return entry?.label ?? family;
 }
 
-/** The `font-family` value for one family name (also used for previews). */
 /**
  * Chromium (and so the desktop app) does not implement the `ui-monospace`
  * generic, so the System Code font names the platform faces it stands for.
  */
-const SYSTEM_FAMILY_STACKS: Record<string, string> = {
-  "ui-monospace": 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono"',
-};
+const SYSTEM_FAMILY_STACKS = new Map([
+  ["ui-monospace", 'ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono"'],
+]);
 
+/** The `font-family` value for one family name (also used for previews). */
 export function cssFontFamily(family: string): string {
-  const stack = SYSTEM_FAMILY_STACKS[family];
+  const stack = SYSTEM_FAMILY_STACKS.get(family);
   if (stack) return stack;
   if (GENERIC_FAMILIES.has(family)) return family;
   return `"${family.replace(/["\\]/g, "")}"`;
@@ -110,21 +112,9 @@ export function previewFontFamily(family: string, role: FontRole): string {
   return `${cssFontFamily(face)}, ${role === "mono" ? "monospace" : "sans-serif"}`;
 }
 
-/**
- * Bundled faces the pre-paint boot script already pointed `--user-font-*` at.
- * Their stylesheet is lazy, so it is fetched at startup instead of waiting for
- * the daemon's answer — still never part of the default payload.
- */
-export function bootCachedBundledFonts(root: HTMLElement): string[] {
-  const applied = new Set(
-    Object.values(USER_FONT_VARIABLES).map(name => root.style.getPropertyValue(name).trim())
-  );
-  return Object.keys(BUNDLED_FONT_LOADERS).filter(family => applied.has(cssFontFamily(family)));
-}
-
 /** Fetches every bundled catalog face so the picker previews them truthfully. */
 export function preloadCatalogFonts(): Promise<void> {
-  return loadBundledFonts({ sans: "", mono: "" }, Object.keys(BUNDLED_FONT_LOADERS));
+  return loadBundledFonts({ sans: "", mono: "" }, [...BUNDLED_FONT_LOADERS.keys()]);
 }
 
 /**
@@ -146,7 +136,7 @@ export function loadBundledFonts(
 ): Promise<void> {
   const loads = new Set(
     [appearance.sans, appearance.mono, ...extra].flatMap(family => {
-      const loader = BUNDLED_FONT_LOADERS[family];
+      const loader = BUNDLED_FONT_LOADERS.get(family);
       return loader ? [loader] : [];
     })
   );
@@ -157,20 +147,50 @@ export function loadBundledFonts(
 }
 
 /**
- * Caches the applied variables for the boot script. The cache stores CSS
- * values, not family names, so the script stays a dumb property copy.
+ * Caches the applied fonts for the next boot. Installed and system families are
+ * stored as CSS values the boot script copies verbatim. A bundled face is kept
+ * apart under `bundled`: its stylesheet is lazy, and publishing its name before
+ * the @font-face exists would let an open terminal measure the fallback and
+ * never re-measure (re-applying the same value later emits no style mutation).
  */
 export function writeFontAppearanceCache(appearance: FontAppearance): void {
   if (typeof window === "undefined") return;
   try {
-    const cached: Record<string, string> = {};
+    const cached: Record<string, unknown> = {};
+    const bundled: Partial<FontAppearance> = {};
     for (const role of ["sans", "mono"] as const) {
       const family = appearance[role].trim();
-      if (family !== "") cached[USER_FONT_VARIABLES[role]] = cssFontFamily(family);
+      if (family === "") continue;
+      if (BUNDLED_FONT_LOADERS.has(family)) bundled[role] = family;
+      else cached[USER_FONT_VARIABLES[role]] = cssFontFamily(family);
     }
+    if (Object.keys(bundled).length > 0) cached.bundled = bundled;
     if (Object.keys(cached).length === 0) window.localStorage.removeItem(FONT_STORAGE_KEY);
     else window.localStorage.setItem(FONT_STORAGE_KEY, JSON.stringify(cached));
   } catch (error) {
     console.warn("Failed to cache the font appearance", error);
   }
+}
+
+/** The bundled faces the last session chose, which the boot script left unpublished. */
+export function readBundledFontCache(): Partial<FontAppearance> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw: unknown = JSON.parse(window.localStorage.getItem(FONT_STORAGE_KEY) ?? "{}");
+    const bundled = (raw as { bundled?: unknown } | null)?.bundled;
+    if (typeof bundled !== "object" || bundled === null) return {};
+    const result: Partial<FontAppearance> = {};
+    for (const role of ["sans", "mono"] as const) {
+      const family: unknown = (bundled as Record<string, unknown>)[role];
+      if (typeof family === "string" && BUNDLED_FONT_LOADERS.has(family)) result[role] = family;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+/** Points one role at a family without touching the other role's override. */
+export function applyFontFamily(root: HTMLElement, role: FontRole, family: string): void {
+  root.style.setProperty(USER_FONT_VARIABLES[role], cssFontFamily(family));
 }
