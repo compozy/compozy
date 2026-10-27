@@ -856,6 +856,8 @@ esac
 	})
 }
 
+// TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast protects release routing,
+// signed artifact custody, and the order of draft publication and public installation.
 func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	t.Parallel()
 
@@ -892,14 +894,24 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 				publishingPush+" && '-publish' || '' }}")
 		assertEqualString(t, "publication cancellation", stringAt(t, concurrency, "cancel-in-progress"),
 			"${{ !"+publishingPush+" }}")
-		for _, job := range []string{"release-pr", "integration"} {
-			condition := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, job), "if")), " ")
-			assertContainsText(t, job+" release exclusion", condition, "!"+current)
-			assertContainsText(t, job+" push scope", condition,
-				"github.event_name == 'push' && github.ref == 'refs/heads/main'")
+		const mainPush = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+		const routinePush = mainPush + " && !startsWith(" + subject + ", 'release:') && " +
+			"!startsWith(" + subject + ", 'ci(release):') && !" + current
+		conditions := map[string]string{
+			"release-pr": "(" + routinePush + " && " +
+				"!startsWith(" + subject + ", 'Merge pull request') && " +
+				"github.event.head_commit.author.name != 'github-actions[bot]')",
+			"integration": "(github.event_name == 'pull_request' && " +
+				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
+				"startsWith(github.base_ref, 'release/v'))) || (" + routinePush + ")",
+			"release-plan": "github.event_name == 'workflow_dispatch' || (" + mainPush +
+				" && " + current + " && " +
+				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",
 		}
-		plan := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, "release-plan"), "if")), " ")
-		assertContainsText(t, "release-plan merge predicate", plan, current)
+		for job, want := range conditions {
+			condition := strings.Join(strings.Fields(stringAt(t, mapAt(t, jobs, job), "if")), " ")
+			assertEqualString(t, job+" routing condition", condition, want)
+		}
 	})
 
 	t.Run("Should keep desktop artifacts in the signed draft before public installation", func(t *testing.T) {
