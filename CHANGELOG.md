@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.4 - 2026-10-28
+
+### Bug Fixes
+
+- Preserve active sessions through desktop updates (#991)
+- Show truthful subagent status across lists, cards and native tasks (#993)
+- Regenerate native tool catalog and approve subagent child_activity schema
+- Missing agy acp reasoning effort levels (#858)
+- Address subagent status review follow-ups
+- Keep the frozen elapsed time on idle subagents
+- Split subagent hover preview and expect urgency-ordered branch pages
+- Edit session messages directly in the composer (#996)
+- Retry refused message edits and keep detached unconfirmed sends
+
+### Features
+
+- Sync Interface and Code fonts across clients (#990)
+
 ## 0.4.3 - 2026-10-27
 
 ### Bug Fixes
@@ -881,6 +899,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.4.4]: https://github.com/compozy/compozy/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/compozy/compozy/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/compozy/compozy/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/compozy/compozy/compare/v0.4.0...v0.4.1
