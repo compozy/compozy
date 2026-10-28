@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
@@ -17,6 +19,7 @@ type bootstrapProvisionRequest struct {
 	bundlePath    string
 	installedPath string
 	provenance    compozyupdate.DesktopProvenanceMetadata
+	restart       func() error
 }
 
 type bootstrapRuntimeInstall struct {
@@ -47,6 +50,21 @@ func provisionBootstrapRuntime(cmd *cobra.Command, request *bootstrapProvisionRe
 		err = errors.Join(err, rollbackBootstrapRuntime(request, install))
 		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
 	}
+	// The running binary may retain its backup on Windows until coordinated restart completes.
+	if request.restart != nil {
+		if err := request.restart(); err != nil {
+			return writeBootstrapFailure(
+				cmd,
+				bootstrapPhaseStart,
+				bootstrapProbeListeningUnhealthy,
+				fmt.Errorf(
+					"cli: coordinated restart failed; runtime recovery copy retained at %q: %w",
+					install.backupPath,
+					err,
+				),
+			)
+		}
+	}
 	if err := removeBootstrapBackup(install.backupPath); err != nil {
 		return writeBootstrapFailure(cmd, bootstrapPhaseProvision, bootstrapProbeUnavailable, err)
 	}
@@ -74,6 +92,9 @@ func installBootstrapRuntime(request *bootstrapProvisionRequest) (bootstrapRunti
 	if err != nil {
 		return bootstrapRuntimeInstall{}, err
 	}
+	if runtime.GOOS == "linux" {
+		return install, replaceBootstrapRuntimeKeepingPath(request, install)
+	}
 	if err := compozyupdate.ApplyBinaryReplacement(
 		request.bundlePath,
 		request.installedPath,
@@ -89,6 +110,29 @@ func installBootstrapRuntime(request *bootstrapProvisionRequest) (bootstrapRunti
 	return install, nil
 }
 
+// Keep /proc/self/exe at the installation path for daemons released before executable-path caching.
+func replaceBootstrapRuntimeKeepingPath(request *bootstrapProvisionRequest, install bootstrapRuntimeInstall) error {
+	payload, err := os.ReadFile(request.bundlePath)
+	if err != nil {
+		return fmt.Errorf("cli: read replacement runtime: %w", err)
+	}
+	if err := os.Link(request.installedPath, install.backupPath); err != nil {
+		return fmt.Errorf("cli: preserve runtime recovery copy: %w", err)
+	}
+	if err := writeBootstrapRuntimeFile(request.installedPath, payload, install.mode); err != nil {
+		return errors.Join(err, rollbackBootstrapRuntime(request, install))
+	}
+	return nil
+}
+
+func writeBootstrapRuntimeFile(path string, payload []byte, mode os.FileMode) error {
+	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("cli: resolve runtime directory: %w", err)
+	}
+	return fileutil.AtomicWriteFile(filepath.Join(parent, filepath.Base(path)), payload, mode)
+}
+
 func rollbackBootstrapRuntime(
 	request *bootstrapProvisionRequest,
 	install bootstrapRuntimeInstall,
@@ -99,11 +143,20 @@ func rollbackBootstrapRuntime(
 		}
 		return nil
 	}
-	restoreErr := compozyupdate.RestoreBinaryReplacement(
-		install.backupPath,
-		request.installedPath,
-		install.mode,
-	)
+	var restoreErr error
+	if runtime.GOOS == "linux" {
+		var payload []byte
+		payload, restoreErr = os.ReadFile(install.backupPath)
+		if restoreErr == nil {
+			restoreErr = writeBootstrapRuntimeFile(request.installedPath, payload, install.mode)
+		}
+	} else {
+		restoreErr = compozyupdate.RestoreBinaryReplacement(
+			install.backupPath,
+			request.installedPath,
+			install.mode,
+		)
+	}
 	if restoreErr != nil {
 		return errors.Join(
 			restoreErr,

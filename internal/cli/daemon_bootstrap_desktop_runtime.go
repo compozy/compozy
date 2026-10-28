@@ -1,16 +1,11 @@
 package cli
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"os"
 	"strings"
-	"syscall"
 
 	"github.com/Masterminds/semver/v3"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
@@ -40,8 +35,15 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 	if matches && runningVersion == wantVersion {
 		return false, nil
 	}
-	if err := stopBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths); err != nil {
-		return false, err
+	if err := provisionBootstrapRuntime(e.cmd, &bootstrapProvisionRequest{
+		resolution: bootstrapResolutionProvision,
+		homePaths:  e.homePaths, bundlePath: e.bundlePath, installedPath: e.installedPath,
+		provenance: provenance,
+		restart: func() error {
+			return newCLIUpdateRuntime(e.deps, e.homePaths).RestartDaemon(e.cmd.Context())
+		},
+	}); err != nil {
+		return false, fmt.Errorf("cli: replace outdated desktop runtime: %w", err)
 	}
 	// A newer runtime that rejects this app would otherwise restart from the same binary and strand the
 	// shell on version skew, so the bundled runtime must replace it.
@@ -83,27 +85,4 @@ func (e *bootstrapExecution) provenance() compozyupdate.DesktopProvenanceMetadat
 
 func normalizedBootstrapVersion(value string) string {
 	return strings.TrimPrefix(strings.TrimSpace(value), "v")
-}
-
-func stopBootstrapDaemon(
-	ctx context.Context,
-	deps commandDeps,
-	homePaths compozyconfig.HomePaths,
-) error {
-	info, running, err := daemonInfo(homePaths, deps)
-	if err != nil {
-		return fmt.Errorf("cli: inspect outdated desktop runtime: %w", err)
-	}
-	if !running {
-		return nil
-	}
-	if err := deps.signalProcess(info.PID, syscall.SIGTERM); err != nil &&
-		!errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
-		return fmt.Errorf("cli: stop outdated desktop runtime: %w", err)
-	}
-	runtimeCtx := &runtimeContext{HomePaths: homePaths}
-	if _, err := waitForDaemonStop(ctx, deps, runtimeCtx, info); err != nil {
-		return fmt.Errorf("cli: wait for outdated desktop runtime: %w", err)
-	}
-	return nil
 }

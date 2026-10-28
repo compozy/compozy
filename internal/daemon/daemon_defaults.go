@@ -37,7 +37,9 @@ func (d *Daemon) applySystemDefaults() {
 		d.processAlive = procutil.Alive
 	}
 	if d.executable == nil {
-		d.executable = os.Executable
+		// Renaming an executing binary changes os.Executable on Linux; restart must use the install path.
+		binary, err := os.Executable()
+		d.executable = func() (string, error) { return binary, err }
 	}
 	if d.startDetached == nil {
 		d.startDetached = defaultDetachedStart

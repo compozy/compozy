@@ -72,6 +72,15 @@ func clientFromDeps(deps commandDeps) (DaemonClient, error) {
 	return client, nil
 }
 
+// resolveLocalClientTarget keeps runtime lifecycle actions on the configured local socket.
+func resolveLocalClientTarget(deps commandDeps, homePaths compozyconfig.HomePaths) (ClientTarget, error) {
+	cfg, err := deps.loadConfig()
+	if err != nil {
+		return ClientTarget{}, err
+	}
+	return LocalClientTarget(cmp.Or(strings.TrimSpace(cfg.Daemon.Socket), homePaths.DaemonSocket)), nil
+}
+
 func resolveConfiguredClientTarget(
 	homePaths compozyconfig.HomePaths,
 	cfg *compozyconfig.Config,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -1440,4 +1441,47 @@ func TestRunRelaunchHelperWrapperUsesDefaultLauncherAndPersistsFailure(t *testin
 	if got, want := persisted.Status, RestartStatusFailed; got != want {
 		t.Fatalf("persisted.Status = %q, want %q", got, want)
 	}
+}
+
+// Invariant: an atomic update does not redirect relaunch to the renamed old executable.
+func TestRestartExecutableSurvivesBinarySwap(t *testing.T) {
+	if binary := os.Getenv("COMPOZY_RESTART_EXECUTABLE_PROBE"); binary != "" {
+		d := &Daemon{}
+		d.applySystemDefaults()
+		if err := os.Rename(binary, binary+".old"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(binary, []byte("replacement"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		got, err := d.executable()
+		if err != nil || got != binary {
+			t.Fatalf("restart executable after swap = %q, %v; want %q", got, err, binary)
+		}
+		return
+	}
+	t.Run("Should retain the installation path after the running executable is renamed", func(t *testing.T) {
+		t.Parallel()
+		binary, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		contents, err := os.ReadFile(binary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		probe := filepath.Join(root, "restart-probe"+filepath.Ext(binary))
+		if err := os.WriteFile(probe, contents, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.CommandContext(t.Context(), probe, "-test.run=^TestRestartExecutableSurvivesBinarySwap$")
+		cmd.Env = append(os.Environ(), "COMPOZY_RESTART_EXECUTABLE_PROBE="+probe)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("binary swap probe: %v\n%s", err, output)
+		}
+	})
 }

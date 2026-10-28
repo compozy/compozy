@@ -8,6 +8,12 @@ import { fileURLToPath } from "node:url";
 import { expect, test, type DesktopInstance, type PackagedCopy } from "../fixtures";
 import { completeOnboarding, readDiagnosticFile } from "../helpers";
 import { runCommand } from "../process";
+import {
+  prepareUpdateWork,
+  startUpdateWork,
+  expectUpdateWorkRecovered,
+  restartUpdatedRuntime,
+} from "../update-sessions";
 
 interface UpdateFixture {
   readonly asset: string;
@@ -347,10 +353,12 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
       prepare: async context => {
         restoreEnvironment = await configureRelaunchHome(context.home);
         await seedUpdateCache(context.home, fixture);
+        await prepareUpdateWork(context.home);
       },
     });
     const product = await desktop.product();
     await completeOnboarding(product);
+    const work = await startUpdateWork(desktop.home, new URL(product.url()).origin);
     await expect
       .poll(async () => {
         return await product.evaluate(async () => {
@@ -387,6 +395,9 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
       .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 30_000 })
       .toBe("updated");
     await expectUpdatedRuntime(desktop, fixture.next_version);
+    await expectUpdateWorkRecovered(work);
+    await restartUpdatedRuntime(work);
+    await expectUpdateWorkRecovered(work);
   } finally {
     try {
       await closeFixture(feed, restoreEnvironment);
