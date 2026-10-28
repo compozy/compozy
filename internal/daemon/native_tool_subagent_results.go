@@ -111,6 +111,9 @@ func subagentPayload(s *session.Subagent) map[string]any {
 	}
 	full := contract.SubagentFromDomain(s)
 	p["isolation"] = full.Isolation
+	if full.ChildActivity != "" {
+		p["child_activity"] = string(full.ChildActivity)
+	}
 	if full.Worktree != nil {
 		p["worktree"] = full.Worktree
 	}

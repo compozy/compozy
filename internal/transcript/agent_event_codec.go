@@ -34,6 +34,7 @@ func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error
 		payload.Error = event.Compaction.Error
 		payload.CompactionTerminal = event.Compaction.Terminal
 	}
+	payload.NativeTask = nativeTaskPayloadFromObservation(event.NativeTask())
 
 	if len(event.Raw) > 0 {
 		var rawPayload map[string]any
@@ -201,6 +202,9 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 			Error:        decoded.Error,
 			Terminal:     decoded.CompactionTerminal,
 		}
+	}
+	if event.Type == acp.EventTypeNativeTask {
+		event = event.WithNativeTask(nativeTaskObservationFromPayload(decoded.NativeTask, event.ToolCallID))
 	}
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)

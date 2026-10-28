@@ -118,7 +118,7 @@ test("E2E-001: capabilities and a delegation render as a tool phrase and a live 
   const review = card(scene, reviewTitle);
 
   await expect(review).toHaveAttribute("data-status", "running");
-  await expect(review).toContainText("Running");
+  await expect(review).toContainText("Working");
   // The async delegation ends the parent turn: its tool work folds, the live card stays out.
   await openFolds(scene);
   await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
@@ -189,7 +189,7 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   await expect(hover).toContainText(reviewTitle);
   // The target named no model: the hover card says so instead of guessing.
   await expect(hover.locator('[data-slot="subagent-hover-runtime"]')).toContainText("Not reported");
-  await expect(hover.locator('[data-slot="subagent-hover-status"]')).toContainText("Running");
+  await expect(hover.locator('[data-slot="subagent-hover-status"]')).toContainText("Working");
   await appPage.mouse.move(0, 0);
   await expect(hover).toHaveCount(0);
 

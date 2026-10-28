@@ -50,3 +50,21 @@ and holds the prompt response until every background subagent of the turn has se
 (`turnAwaitingSubagents`). The ACP contract test pins that the receipt is persisted as an async
 launch result; IT-020 replays the frames through the real ACP mock subprocess and pins that the row
 runs until the turn's `done`.
+
+## Task lifecycle fixture
+
+`claude_agent_acp_0.98.0_task_lifecycle.jsonl` contains `_claude/sdkMessage`
+extension notifications in the envelope `@agentclientprotocol/claude-agent-acp`
+**0.98.0** sends when a session requests
+`_meta.claudeCode.emitRawSDKMessages` (`dist/acp-agent.js` lines 3972-3977:
+`extNotification("_claude/sdkMessage", {sessionId, message})`, emitted before the
+adapter's own late-run filter at lines 4555-4700). Message shapes follow
+`SDKTaskStartedMessage`, `SDKTaskProgressMessage`, `SDKTaskUpdatedMessage`, and
+`SDKTaskNotificationMessage` in `@anthropic-ai/claude-agent-sdk/sdk.d.ts`. It is
+hand-built from those declarations, not a recording of a paid model run.
+
+The sequence covers a background shell task (ignored), a background `Explore`
+agent through progress, a paused patch, a terminal `task_updated` patch without
+summary, and its summary notification; a resumed run `0002` under a new tool
+call; a late `stopped` notification of run `0001` (stale); a `killed` patch for
+run `0002`; and a patch for a task that never started (uncorrelated).

@@ -1,10 +1,10 @@
 import type { MouseEvent } from "react";
 import { ArrowUpRight } from "lucide-react";
 
-import { Icon, cn } from "@compozy/ui";
+import { Icon, StateGlyph, cn } from "@compozy/ui";
 
 import { SubagentElapsed } from "./subagent-elapsed";
-import { SUBAGENT_STATUS_WORD, subagentElapsedClock } from "./subagent-format";
+import { subagentDisplay, type SubagentDisplayTone } from "./subagent-format";
 import {
   SUBAGENT_PR_GLYPH,
   SUBAGENT_PR_TONE,
@@ -69,37 +69,42 @@ export function SubagentPullRequestLink({
   );
 }
 
+const WORD_TONE: Record<SubagentDisplayTone, string> = {
+  live: "text-fg-2",
+  attention: "text-fg",
+  danger: "text-danger",
+  settled: "text-subtle",
+};
+
 /**
- * Compact row trailing slot (chip preview, inspector roster): elapsed while
- * running or once completed, otherwise the status word — `Failed` in danger,
- * `Waiting for you` in full ink.
+ * A row's status trail (sidebar, roster, card): the status word, then the
+ * elapsed clock while Working (ticking) or once Done (frozen, faint). `glyph`
+ * leads with the `StateGlyph` where the row has no mark column of its own.
  */
 export function SubagentRowTrail({
   subagent,
   stale = false,
+  glyph = false,
   className,
 }: {
   subagent: SubagentView;
   stale?: boolean;
+  glyph?: boolean;
   className?: string;
 }) {
-  const clock = subagentElapsedClock(subagent, { stale });
-  if ((subagent.status === "running" || subagent.status === "completed") && clock.kind !== "none") {
-    return <SubagentElapsed clock={clock} className={className} />;
-  }
+  const display = subagentDisplay(subagent, { stale });
   return (
     <span
+      data-slot="subagent-status"
+      data-state={display.glyph}
       className={cn(
-        "shrink-0 text-transcript-caption whitespace-nowrap",
-        subagent.status === "failed"
-          ? "text-danger"
-          : subagent.status === "waiting"
-            ? "text-fg"
-            : "text-subtle",
+        "inline-flex shrink-0 items-center gap-1.5 text-transcript-caption whitespace-nowrap",
         className
       )}
     >
-      {SUBAGENT_STATUS_WORD[subagent.status]}
+      {glyph ? <StateGlyph size="sm" state={display.glyph} still={stale} /> : null}
+      <span className={WORD_TONE[display.tone]}>{display.word}</span>
+      <SubagentElapsed clock={display.clock} />
     </span>
   );
 }

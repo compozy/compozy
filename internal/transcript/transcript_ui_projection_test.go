@@ -1,6 +1,7 @@
 package transcript
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -1085,6 +1086,52 @@ func TestSubagentUIProjection(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: native task observations drive subagent rows only; the transcript projection is unchanged by them.
+	t.Run("Should not project native task observations as transcript parts", func(t *testing.T) {
+		t.Parallel()
+		project := func(withTask bool) []UIMessage {
+			t.Helper()
+			events := []acp.AgentEvent{
+				acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "native", Title: "Review"}.
+					WithProviderToolMetadata("", "Agent", "in_progress"),
+			}
+			if withTask {
+				events = append(events, acp.AgentEvent{
+					Type: acp.EventTypeNativeTask, ToolCallID: "native",
+				}.WithNativeTask(&acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: "agent-a", ToolCallID: "native",
+					Status: acp.NativeTaskStatusCompleted, Summary: new("done"),
+				}))
+			}
+			events = append(events, acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "After"})
+			var stored []store.SessionEvent
+			for i, event := range events {
+				event.SessionID, event.TurnID = "parent", "turn"
+				content, err := MarshalAgentEvent(event)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stored = append(stored, store.SessionEvent{
+					ID: fmt.Sprintf("event-%d", i), SessionID: "parent", TurnID: "turn",
+					Sequence: int64(i + 1), Type: event.Type, Content: content,
+				})
+			}
+			messages, err := ToUIMessages(stored)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return messages
+		}
+		without, with := project(false), project(true)
+		if len(with) != len(without) || len(with) != 1 || len(with[0].Parts) != len(without[0].Parts) {
+			t.Fatalf("projection with task = %#v, without = %#v", with, without)
+		}
+		for _, part := range with[0].Parts {
+			if bytes.Contains(part.Data, []byte(acp.EventTypeNativeTask)) {
+				t.Fatalf("native task leaked into part %#v", part)
+			}
+		}
+	})
 	// UT-038: tool/text attribution does not merge child chunks into parent chunks.
 	t.Run("Should project native and delegated cards at their transcript positions", func(t *testing.T) {
 		t.Parallel()

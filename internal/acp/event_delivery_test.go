@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
@@ -118,6 +119,26 @@ func TestIngestGate(t *testing.T) {
 			t.Fatalf("admission after close = %v", err)
 		}
 	})
+	// Invariant: structured native task prose is charged against the byte budget while the consumer is gated.
+	t.Run("Should charge native task payload bytes against the gated budget", func(t *testing.T) {
+		t.Parallel()
+		gate := NewIngestGate(16, 64<<10)
+		task := AgentEvent{Type: EventTypeNativeTask, TurnID: "turn", ToolCallID: "toolu_agent"}.WithNativeTask(
+			&NativeTaskObservation{
+				Kind: NativeTaskKindState, TaskID: "agent-a", ToolCallID: "toolu_agent",
+				Status: NativeTaskStatusCompleted, Summary: new(strings.Repeat("s", 40<<10)),
+			},
+		)
+		if err := gate.Admit(task); err != nil {
+			t.Fatal(err)
+		}
+		if err := gate.Admit(task); !errors.Is(err, ErrIngestSaturated) {
+			t.Fatalf("second large native task = %v, want saturation", err)
+		}
+		if stats := gate.Stats(); stats.Depth != 1 {
+			t.Fatalf("gated stats = %#v", stats)
+		}
+	})
 	t.Run("Should wake every waiting consumer with the closing error", func(t *testing.T) {
 		t.Parallel()
 		gate := NewIngestGate(2, 4096)
@@ -199,6 +220,46 @@ func TestPromptIngestSaturation(t *testing.T) {
 		}
 		if _, ok := <-active.events; ok {
 			t.Fatal("saturated prompt remains open")
+		}
+	})
+	// Invariant: provider task fields are bounded before admission, and a cut summary keeps its provenance.
+	t.Run("Should bound native task fields before admission and record summary truncation", func(t *testing.T) {
+		t.Parallel()
+		proc := &AgentProcess{}
+		proc.claudeTasks.enabled.Store(true)
+		proc.bindSessionRoute("sess-claude")
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		summary, err := json.Marshal("a" + strings.Repeat("é", NativeTaskSummaryMaxBytes/2+8))
+		if err != nil {
+			t.Fatal(err)
+		}
+		description := strings.Repeat("d", NativeTaskTextMaxBytes+1)
+		for _, message := range []string{
+			`{"type":"system","subtype":"task_started","task_id":"big","tool_use_id":"toolu_big","subagent_type":"Explore"}`,
+			`{"type":"system","subtype":"task_progress","task_id":"big","tool_use_id":"toolu_big","subagent_type":"Explore","description":"` +
+				description + `","summary":` + string(summary) + `}`,
+		} {
+			params := json.RawMessage(`{"sessionId":"sess-claude","message":` + message + `}`)
+			if _, reqErr := proc.handleInbound(t.Context(), claudeSDKMessageMethod, params); reqErr != nil {
+				t.Fatal(reqErr)
+			}
+		}
+		got := collectEventsUntilCount(t, active.events, 2)
+		if spawn := got[0].NativeTask(); spawn == nil || spawn.SummaryTruncated {
+			t.Fatalf("spawn = %#v", spawn)
+		}
+		task := got[1].NativeTask()
+		if task == nil || task.Summary == nil || !task.SummaryTruncated ||
+			len(*task.Summary) > NativeTaskSummaryMaxBytes || len(*task.Summary) < NativeTaskSummaryMaxBytes-1 ||
+			!utf8.ValidString(*task.Summary) || len(task.Description) != NativeTaskTextMaxBytes {
+			t.Fatalf("bounded observation = %.200v", task)
+		}
+		if cost := ingestEventBytes(got[1]); cost < NativeTaskSummaryMaxBytes {
+			t.Fatalf("admission cost = %d, want the bounded payload size", cost)
 		}
 	})
 }

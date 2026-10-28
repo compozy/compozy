@@ -2480,6 +2480,169 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: only Agent/Task task frames of the bound session become typed observations; stale runs never settle newer ones.
+	t.Run("Should decode adapter 0.98.0 task frames into native task observations", func(t *testing.T) {
+		t.Parallel()
+		data, err := os.ReadFile("testdata/claude_agent_acp_0.98.0_task_lifecycle.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := &AgentProcess{}
+		proc.claudeTasks.enabled.Store(true)
+		proc.bindSessionRoute("sess-claude")
+		active, err := proc.beginPrompt("turn-native", 32)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+			var frame struct {
+				Method string          `json:"method"`
+				Params json.RawMessage `json:"params"`
+			}
+			if err := json.Unmarshal([]byte(line), &frame); err != nil {
+				t.Fatal(err)
+			}
+			if _, reqErr := proc.handleInbound(t.Context(), frame.Method, frame.Params); reqErr != nil {
+				t.Fatal(reqErr)
+			}
+		}
+		wants := []struct {
+			kind                 NativeTaskKind
+			call, run, status    string
+			summary              string
+			hasSummary, terminal bool
+		}{
+			{kind: NativeTaskKindSpawn, call: "toolu_background", run: "0001"},
+			{
+				kind:       NativeTaskKindProgress,
+				call:       "toolu_background",
+				run:        "0001",
+				summary:    "Reading internal/session",
+				hasSummary: true,
+			},
+			{kind: NativeTaskKindState, call: "toolu_background", run: "0001", status: "paused"},
+			{kind: NativeTaskKindState, call: "toolu_background", run: "0001", status: "completed", terminal: true},
+			{
+				kind:       NativeTaskKindState,
+				call:       "toolu_background",
+				run:        "0001",
+				status:     "completed",
+				summary:    "Found 3 session owners",
+				hasSummary: true,
+				terminal:   true,
+			},
+			{kind: NativeTaskKindSpawn, call: "toolu_resume", run: "0002"},
+			{kind: NativeTaskKindState, call: "toolu_resume", run: "0002", status: "killed", terminal: true},
+		}
+		got := collectEventsUntilCount(t, active.events, len(wants))
+		for i, want := range wants {
+			task := got[i].NativeTask()
+			if got[i].Type != EventTypeNativeTask || got[i].TurnID != "turn-native" || task == nil ||
+				got[i].ToolCallID != want.call || task.ToolCallID != want.call || task.TaskID != "agent-a" ||
+				task.Kind != want.kind || task.RunID != want.run || task.Status != want.status ||
+				task.Source != NativeTaskSourceClaudeSDK || (task.Summary != nil) != want.hasSummary ||
+				want.hasSummary && *task.Summary != want.summary || task.Terminal() != want.terminal {
+				t.Fatalf("observation %d = %#v %#v, want %#v", i, got[i], task, want)
+			}
+		}
+		if spawn := got[0].NativeTask(); spawn.Background == nil || !*spawn.Background {
+			t.Fatalf("spawn background = %#v", spawn.Background)
+		}
+		if usage := got[1].NativeTask().Usage; usage == nil || usage.TotalTokens != 1200 || usage.ToolUses != 3 ||
+			got[1].NativeTask().LastToolName != "Grep" {
+			t.Fatalf("progress = %#v", got[1].NativeTask())
+		}
+		select {
+		case extra := <-active.events:
+			t.Fatalf("shell, stale, or uncorrelated frame produced %#v", extra)
+		default:
+		}
+	})
+	// Invariant: without run ids, a late frame of an earlier call never rebinds the resumed task, and a
+	// call-less patch after reuse is refused instead of guessed.
+	t.Run(
+		"Should keep a resumed task bound when a late runless notification names the earlier call",
+		func(t *testing.T) {
+			t.Parallel()
+			proc := &AgentProcess{}
+			proc.claudeTasks.enabled.Store(true)
+			proc.bindSessionRoute("sess-claude")
+			active, err := proc.beginPrompt("turn-native", 16)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			for _, message := range []string{
+				`{"type":"system","subtype":"task_started","task_id":"agent-r","tool_use_id":"toolu_a","subagent_type":"Explore","uuid":"r-1"}`,
+				`{"type":"system","subtype":"task_started","task_id":"agent-r","tool_use_id":"toolu_b","subagent_type":"Explore","uuid":"r-2"}`,
+				`{"type":"system","subtype":"task_notification","task_id":"agent-r","tool_use_id":"toolu_a","status":"completed","summary":"late a","uuid":"r-3"}`,
+				`{"type":"system","subtype":"task_updated","task_id":"agent-r","patch":{"status":"failed","error":"b broke"},"uuid":"r-4"}`,
+				`{"type":"system","subtype":"task_notification","task_id":"agent-r","tool_use_id":"toolu_b","status":"failed","summary":"b failed","uuid":"r-5"}`,
+			} {
+				params := json.RawMessage(`{"sessionId":"sess-claude","message":` + message + `}`)
+				if _, reqErr := proc.handleInbound(t.Context(), claudeSDKMessageMethod, params); reqErr != nil {
+					t.Fatal(reqErr)
+				}
+			}
+			wants := []struct {
+				call, status, uuid string
+				kind               NativeTaskKind
+			}{
+				{call: "toolu_a", uuid: "r-1", kind: NativeTaskKindSpawn},
+				{call: "toolu_b", uuid: "r-2", kind: NativeTaskKindSpawn},
+				{call: "toolu_a", status: NativeTaskStatusCompleted, uuid: "r-3", kind: NativeTaskKindState},
+				{call: "toolu_b", status: NativeTaskStatusFailed, uuid: "r-5", kind: NativeTaskKindState},
+			}
+			got := collectEventsUntilCount(t, active.events, len(wants))
+			for i, want := range wants {
+				task := got[i].NativeTask()
+				if task == nil || got[i].ToolCallID != want.call || task.ToolCallID != want.call ||
+					task.Kind != want.kind || task.Status != want.status || task.EventUUID != want.uuid {
+					t.Fatalf("observation %d = %#v %#v, want %#v", i, got[i], task, want)
+				}
+			}
+			select {
+			case extra := <-active.events:
+				t.Fatalf("ambiguous runless patch produced %#v", extra)
+			default:
+			}
+		},
+	)
+	t.Run("Should refuse task frames from other sessions or without the opt-in", func(t *testing.T) {
+		t.Parallel()
+		frame := json.RawMessage(
+			`{"sessionId":"sess-foreign","message":{"type":"system","subtype":"task_started","task_id":"t","tool_use_id":"toolu_x","subagent_type":"Explore","description":"x","uuid":"u","session_id":"s"}}`,
+		)
+		proc := &AgentProcess{}
+		proc.claudeTasks.enabled.Store(true)
+		proc.bindSessionRoute("sess-claude")
+		active, err := proc.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		if _, reqErr := proc.handleInbound(t.Context(), claudeSDKMessageMethod, frame); reqErr == nil {
+			t.Fatal("foreign session task frame was accepted")
+		}
+		optedOut := &AgentProcess{}
+		optedOut.bindSessionRoute("sess-foreign")
+		idle, err := optedOut.beginPrompt("turn-native", 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer optedOut.endPrompt(idle)
+		if _, reqErr := optedOut.handleInbound(t.Context(), claudeSDKMessageMethod, frame); reqErr != nil {
+			t.Fatal(reqErr)
+		}
+		for _, ch := range []<-chan AgentEvent{active.events, idle.events} {
+			select {
+			case event := <-ch:
+				t.Fatalf("refused frame produced %#v", event)
+			default:
+			}
+		}
+	})
 	t.Run("Should keep attribution when a tool response is not a marker object", func(t *testing.T) {
 		t.Parallel()
 		proc := &AgentProcess{}

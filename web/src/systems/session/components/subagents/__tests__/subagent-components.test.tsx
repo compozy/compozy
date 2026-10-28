@@ -92,12 +92,51 @@ describe("SubagentCard", () => {
     const card = screen.getByRole("button", {
       name: "Open Audit payment webhooks for retry safety",
     });
-    expect(card).toHaveAttribute("aria-description", "Running");
+    expect(card).toHaveAttribute("aria-description", "Working");
     expect(within(card).getByText("Reading webhook.go")).toBeInTheDocument();
     fireEvent.click(card, { metaKey: true });
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sub-1" }), {
       newWindow: true,
     });
+  });
+
+  // Invariant: running and completed rows render distinct glyph states and words (the
+  // "everything looks done" regression); settled titles dim in place.
+  it("Should mark a running and a completed card with distinct glyphs and words", () => {
+    renderUI(
+      <>
+        <SubagentCard subagent={subagent({ id: "run", title: "Running one" })} />
+        <SubagentCard
+          subagent={subagent({
+            id: "done",
+            title: "Finished one",
+            status: "completed",
+            settled_at: at(65),
+            result_preview: "Shipped the fix",
+          })}
+        />
+      </>
+    );
+    const [running, done] = [...document.querySelectorAll('[data-slot="subagent-card"]')];
+    const status = (card: Element | undefined) =>
+      card?.querySelector('[data-slot="subagent-status"]') as HTMLElement;
+    expect(status(running)).toHaveAttribute("data-state", "running");
+    expect(status(running).querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "running"
+    );
+    expect(status(running)).toHaveTextContent(/^Working/);
+    expect(status(done).querySelector('[data-slot="state-glyph"]')).toHaveAttribute(
+      "data-state",
+      "done"
+    );
+    expect(status(done)).toHaveTextContent("Done1m 05s");
+    expect(within(done as HTMLElement).getByText("Finished one")).toHaveClass("text-muted");
+    expect(within(running as HTMLElement).getByText("Running one")).not.toHaveClass("text-muted");
+    // The provider avatar no longer carries a status dot on subagent rows.
+    expect(
+      document.querySelector('[data-slot="subagent-avatar"] [data-slot="status-dot"]')
+    ).toBeNull();
   });
 
   it("Should keep a provider-native card static when its host provides no navigation (UT-W05)", () => {
@@ -471,6 +510,10 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
       "Open running subagent 1",
       "Open running subagent 0",
     ]);
+    const states = [...document.querySelectorAll('[data-slot="subagent-roster-row"]')].map(node =>
+      node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state")
+    );
+    expect(states).toEqual(["failed", "attention", "running", "running"]);
     const previous = screen.getByRole("button", { name: "Previous subagents (1)" });
     expect(previous).toHaveAttribute("aria-expanded", "false");
     expect(previous).toHaveTextContent(/^Previous subagents \(1\)$/);

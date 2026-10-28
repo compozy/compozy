@@ -34,17 +34,26 @@ function CardStates() {
       <Cell label="queued · no progress yet">
         <SubagentCard subagent={cardStates.queued} onOpen={onOpen} />
       </Cell>
-      <Cell label="running · no progress">
+      <Cell label="working · no progress">
         <SubagentCard subagent={cardStates.running} onOpen={onOpen} />
       </Cell>
-      <Cell label="running · with progress">
+      <Cell label="working · with progress">
         <SubagentCard subagent={cardStates.runningProgress} onOpen={onOpen} />
+      </Cell>
+      <Cell label="waiting on its own subagents">
+        <SubagentCard subagent={cardStates.waitingOnChildren} onOpen={onOpen} />
       </Cell>
       <Cell label="waiting for you">
         <SubagentCard subagent={cardStates.waiting} onOpen={onOpen} />
       </Cell>
-      <Cell label="completed · result first line · frozen">
+      <Cell label="done · result first line · frozen">
         <SubagentCard subagent={cardStates.completed} onOpen={onOpen} />
+      </Cell>
+      <Cell label="idle · result delivered, child quiet">
+        <SubagentCard subagent={cardStates.idle} onOpen={onOpen} />
+      </Cell>
+      <Cell label="settled child resumed · working again">
+        <SubagentCard subagent={cardStates.resumed} onOpen={onOpen} />
       </Cell>
       <Cell label="failed · line 2 destructive">
         <SubagentCard subagent={cardStates.failed} onOpen={onOpen} />

@@ -4,16 +4,14 @@ import { ChevronRight, GitBranch } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger, Icon, cn } from "@compozy/ui";
 
 import { SubagentAvatar } from "./subagent-avatar";
-import { SubagentElapsed } from "./subagent-elapsed";
 import {
-  SUBAGENT_STATUS_WORD,
   isSubagentLive,
   subagentCardLines,
-  subagentElapsedClock,
+  subagentDisplay,
   type SubagentLineTwoTone,
 } from "./subagent-format";
 import { SubagentHoverContent } from "./subagent-hover-content";
-import { SubagentPullRequestLink } from "./subagent-row-trail";
+import { SubagentPullRequestLink, SubagentRowTrail } from "./subagent-row-trail";
 import { middleTruncate, subagentPullRequest, subagentWorktree } from "./subagent-worktree-format";
 import type { SubagentLocationView, SubagentView } from "./types";
 
@@ -45,7 +43,6 @@ export interface SubagentCardProps {
 
 const LINE_TWO_TONE: Record<SubagentLineTwoTone, string> = {
   default: "text-muted",
-  word: "text-subtle",
   danger: "text-danger",
 };
 
@@ -108,56 +105,49 @@ export function SubagentBranch({ branch, className }: { branch: string; classNam
   );
 }
 
-/** Avatar · title + status word / line 2 (branch first when isolated). */
-function SubagentCardMain({ subagent, stale }: { subagent: SubagentView; stale: boolean }) {
+/** Avatar · title / line 2 (branch first when isolated); the status lives in the trail. */
+function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settled: boolean }) {
   const lines = subagentCardLines(subagent);
   const branch = subagentWorktree(subagent)?.branch;
-  const lineTwoTone =
-    subagent.status === "waiting" && lines.lineTwoTone === "word"
-      ? "text-fg"
-      : LINE_TWO_TONE[lines.lineTwoTone];
   return (
     <>
-      <SubagentAvatar provider={subagent.runtime.provider} status={subagent.status} still={stale} />
+      <SubagentAvatar provider={subagent.runtime.provider} />
       <span className="flex min-w-0 flex-col gap-px">
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="min-w-0 truncate text-transcript-meta font-medium text-fg-strong">
-            {subagent.title}
-          </span>
-          {lines.titleWord ? (
-            <span
-              className={cn(
-                "shrink-0 text-transcript-caption",
-                subagent.status === "failed" ? "text-danger" : "text-subtle"
-              )}
-            >
-              {lines.titleWord}
-            </span>
-          ) : null}
-        </span>
         <span
-          className="flex min-w-0 items-baseline text-transcript-caption"
-          data-slot="subagent-card-line-two"
+          className={cn(
+            "min-w-0 truncate text-transcript-meta font-medium",
+            settled ? "text-muted" : "text-fg-strong"
+          )}
         >
-          {branch ? (
-            <>
-              <SubagentBranch branch={branch} className="self-center" />
+          {subagent.title}
+        </span>
+        {branch || lines.lineTwo ? (
+          <span
+            className="flex min-w-0 items-baseline text-transcript-caption"
+            data-slot="subagent-card-line-two"
+          >
+            {branch ? <SubagentBranch branch={branch} className="self-center" /> : null}
+            {branch && lines.lineTwo ? (
               <span aria-hidden="true" className="mx-1.25 shrink-0 text-faint">
                 ·
               </span>
-            </>
-          ) : null}
-          <span className={cn("min-w-0 truncate", lineTwoTone)}>{lines.lineTwo}</span>
-        </span>
+            ) : null}
+            {lines.lineTwo ? (
+              <span className={cn("min-w-0 truncate", LINE_TWO_TONE[lines.lineTwoTone])}>
+                {lines.lineTwo}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
       </span>
     </>
   );
 }
 
 /**
- * One delegation in the parent transcript (transcript VC-01/02): avatar, title
- * with the status word, line 2, elapsed, and a chevron when there is a child
- * session to open. Isolated subagents add the branch and the PR link (S5).
+ * One delegation in the parent transcript (transcript VC-01/02): avatar, title,
+ * line 2, the status trail (glyph, word, elapsed), and a chevron when there is
+ * a child session to open. Isolated subagents add the branch and the PR link (S5).
  */
 export function SubagentCard({
   subagent,
@@ -176,7 +166,8 @@ export function SubagentCard({
   const panelId = useId();
   const mode = subagentCardMode(subagent, onOpen !== undefined, nested != null);
   const open = mode === "disclosure" && (expanded || revealOpen);
-  const word = SUBAGENT_STATUS_WORD[subagent.status];
+  const display = subagentDisplay(subagent, { stale });
+  const word = display.word;
   const pullRequest = subagentPullRequest(subagent);
   const chevron = mode === "static" ? null : open ? "open" : "closed";
 
@@ -220,17 +211,18 @@ export function SubagentCard({
           data-slot="subagent-card"
           data-subagent-id={subagent.id}
           data-status={subagent.status}
+          data-state={display.glyph}
           data-origin={subagent.origin}
           data-settled={isSubagentLive(subagent.status) ? undefined : "true"}
           data-stale={stale ? "true" : undefined}
           className={cn(cardClassName(mode, variant, open), className)}
         >
           <HoverCardTrigger render={trigger}>
-            <SubagentCardMain subagent={subagent} stale={stale} />
+            <SubagentCardMain subagent={subagent} settled={display.settled} />
           </HoverCardTrigger>
           <span className="inline-flex shrink-0 items-center gap-2">
             {pullRequest ? <SubagentPullRequestLink pr={pullRequest} /> : null}
-            <SubagentElapsed clock={subagentElapsedClock(subagent, { stale })} />
+            <SubagentRowTrail subagent={subagent} stale={stale} glyph />
           </span>
           {chevron ? (
             <Icon

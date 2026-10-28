@@ -666,6 +666,106 @@ func TestSubagentCodecContract(t *testing.T) {
 			t.Fatalf("stream attribution changed: %#v / %#v", live, replay)
 		}
 	})
+	// Invariant: a native task observation survives the ledger with redaction, keeping absent and empty summaries distinct.
+	t.Run("Should round-trip a redacted native task observation", func(t *testing.T) {
+		t.Parallel()
+		background := true
+		observation := &acp.NativeTaskObservation{
+			Source:     acp.NativeTaskSourceClaudeSDK,
+			Kind:       acp.NativeTaskKindState,
+			TaskID:     "agent-a",
+			RunID:      "0002",
+			ToolCallID: "toolu_agent",
+			Status:     acp.NativeTaskStatusFailed,
+			Summary:    new("leaked password=hunter2"),
+			Error:      "boom password=hunter2",
+			Usage:      &acp.NativeTaskUsage{TotalTokens: 9, ToolUses: 2, DurationMs: 30},
+			Background: &background,
+			EventUUID:  "u-1",
+		}
+		original := acp.AgentEvent{
+			Type: acp.EventTypeNativeTask, SessionID: "parent", TurnID: "turn", ToolCallID: "toolu_agent",
+			Timestamp: time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC),
+		}.WithNativeTask(observation)
+		content, err := MarshalAgentEvent(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(content, "hunter2") {
+			t.Fatalf("stored observation leaked a secret: %s", content)
+		}
+		decoded, err := UnmarshalAgentEvent(content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		task := decoded.NativeTask()
+		if decoded.Type != acp.EventTypeNativeTask || decoded.ToolCallID != "toolu_agent" || task == nil ||
+			task.ToolCallID != "toolu_agent" || task.Kind != acp.NativeTaskKindState || task.TaskID != "agent-a" ||
+			task.RunID != "0002" || task.Status != acp.NativeTaskStatusFailed || task.Summary == nil ||
+			!strings.Contains(*task.Summary, "[REDACTED]") || !strings.Contains(task.Error, "[REDACTED]") ||
+			task.Usage == nil || *task.Usage != *observation.Usage || task.Background == nil ||
+			!*task.Background || task.EventUUID != "u-1" || !task.Terminal() {
+			t.Fatalf("decoded observation = %#v", task)
+		}
+		observation.Kind, observation.Status = acp.NativeTaskKindProgress, ""
+		for _, summary := range []*string{new(""), nil} {
+			observation.Summary = summary
+			content, err := MarshalAgentEvent(original.WithNativeTask(observation))
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := UnmarshalAgentEvent(content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if task := decoded.NativeTask(); (task.Summary == nil) != (summary == nil) || task.Terminal() {
+				t.Fatalf("summary %v decoded as %#v", summary, task)
+			}
+		}
+	})
+	// Invariant: a native summary is the subagent result: it is stored beyond the compaction display cap,
+	// and any cut, made at the decoder or the codec, survives the ledger as truncation provenance.
+	t.Run("Should store native task summaries under the result bound with truncation provenance", func(t *testing.T) {
+		t.Parallel()
+		long := strings.Repeat("résumé ", 3000) // > 16 KiB of non-ASCII text.
+		oversized := strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2+5)
+		for name, tc := range map[string]struct {
+			summary       string
+			decoderCut    bool
+			want          string
+			wantTruncated bool
+		}{
+			"beyond display cap": {summary: long, want: long},
+			"decoder cut":        {summary: "prefix", decoderCut: true, want: "prefix", wantTruncated: true},
+			"codec cut": {
+				summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), wantTruncated: true,
+			},
+		} {
+			event := acp.AgentEvent{
+				Type:       acp.EventTypeNativeTask,
+				TurnID:     "turn",
+				ToolCallID: "toolu_agent",
+			}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: "agent-a", ToolCallID: "toolu_agent",
+					Status: acp.NativeTaskStatusCompleted, Summary: new(tc.summary), SummaryTruncated: tc.decoderCut,
+				},
+			)
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoded, err := UnmarshalAgentEvent(content)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task := decoded.NativeTask()
+			if task == nil || task.Summary == nil || *task.Summary != tc.want ||
+				task.SummaryTruncated != tc.wantTruncated {
+				t.Fatalf("%s: decoded truncated=%v", name, task != nil && task.SummaryTruncated)
+			}
+		}
+	})
 	// UT-039: absent fields retain the pre-feature wire contract.
 	t.Run("Should keep legacy canonical events free of attribution fields", func(t *testing.T) {
 		t.Parallel()

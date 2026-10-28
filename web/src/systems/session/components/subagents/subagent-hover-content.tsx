@@ -5,8 +5,7 @@ import { Icon, KindIcon, PropertyRow, StateGlyph, Time, cn } from "@compozy/ui";
 import { SubagentElapsed } from "./subagent-elapsed";
 import {
   SUBAGENT_MODEL_NOT_REPORTED,
-  SUBAGENT_STATUS_GLYPH,
-  SUBAGENT_STATUS_WORD,
+  subagentDisplay,
   subagentElapsedClock,
   subagentHoverPreview,
   subagentLocationRows,
@@ -82,6 +81,7 @@ export function SubagentHoverContent({
 }: SubagentHoverContentProps) {
   const runtime = subagentRuntimeLabel(subagent);
   const failed = subagent.status === "failed";
+  const display = subagentDisplay(subagent, { stale });
   const preview = subagentHoverPreview(subagent);
   const worktree = subagentWorktree(subagent);
   // The isolated worktree's own name replaces a generic location Worktree row.
@@ -123,8 +123,8 @@ export function SubagentHoverContent({
           className={cn("flex min-w-0 items-center gap-1.5", failed && "text-danger")}
           data-slot="subagent-hover-status"
         >
-          <StateGlyph size="sm" state={SUBAGENT_STATUS_GLYPH[subagent.status]} still={stale} />
-          <span>{SUBAGENT_STATUS_WORD[subagent.status]}</span>
+          <StateGlyph size="sm" state={display.glyph} still={stale} />
+          <span>{display.word}</span>
           <SubagentElapsed className="ml-auto" clock={subagentElapsedClock(subagent, { stale })} />
         </div>
       </div>

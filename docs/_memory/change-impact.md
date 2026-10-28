@@ -1,5 +1,30 @@
 # Compozy Change Impact
 
+## Subagent child activity and native task lifecycle — 2026-10-27
+
+Owner: branch `fix/subagent-status`. Delegated rows gain a persisted `child_activity`
+(`''|working|idle|stopped`, migration `00154_schema.sql`) that mirrors the child session after
+settlement without touching status, result, delivery, or wake. Claude sessions request four raw SDK
+task subtypes (`emitRawSDKMessages`) and settle background provider-native rows per task.
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `SubagentPayload.child_activity` (omitempty)
+  in OpenAPI/SDKs, `compozy__subagent_status`/list results, and `session subagents show`. Provider-native
+  rows keep their status/progress/result fields; they now settle earlier and may gain a result from a
+  later task summary. A new `native_task` event type is persisted in the session ledger (visible in
+  raw event reads) but is not a prompt-stream or transcript part. No new routes, IDs, or cancel authority.
+- **Extensibility / hooks / config:** `subagent.settled` fires once per row; result enrichment is a
+  normal row update. Claude session `_meta.claudeCode` gains `emitRawSDKMessages` for the Claude bridge
+  only; existing options, wake exclusions, and other providers are unchanged. No AIR capability,
+  native child sessions, or `backgroundSubagents` are advertised.
+- **Workspace data / isolation:** lossless table-rebuild migration (existing rows read `''`); typed
+  task observations are redacted like other transcript payloads; enrichment and replay are guarded by
+  workspace, parent, parent turn, tool call, terminal status, and NULL result. `_claude/sdkMessage` passes
+  the bound-session guard; foreign/fork ids are refused.
+- **Official skill / docs / QA:** `skills/compozy/references/native-tools.md` and
+  `runtime-operations.md`, `packages/site/content/docs/sessions/subagents.mdx`, and the
+  `ET-web-native-subagent`, `ET-web-subagent-card`, and `ET-web-session-sidebar-threads` scenarios
+  co-ship. Real Claude walks of the per-task lifecycle remain pending (see the native scenario).
+
 ## Appearance fonts (#984) — 2026-10-27
 
 Owner: branch `feat/font-catalog-984`; plan `.claude/plans/font-catalog.md`, research

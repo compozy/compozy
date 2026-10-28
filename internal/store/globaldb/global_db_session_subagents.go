@@ -158,6 +158,7 @@ func (g *SessionRepo) FinalizeSubagent(
 				Result:          subagentNullString(in.Result),
 				Error:           subagentNullString(in.Error),
 				ResultTruncated: subagentBool(in.ResultTruncated),
+				ChildActivity:   in.ChildActivity.String(),
 				Now:             sql.NullString{String: store.FormatTimestamp(in.SettledAt), Valid: true},
 			},
 		)
@@ -250,6 +251,77 @@ func (g *SessionRepo) UpdateNativeSubagentTitle(
 			return e
 		}
 		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}
+
+func (g *SessionRepo) UpdateSubagentChildActivity(
+	ctx context.Context, id string, activity store.SubagentChildActivity, at time.Time,
+) (out store.SessionSubagent, changed bool, err error) {
+	if activity == store.SubagentChildActivityUnknown || activity.String() == "" {
+		return out, false, fmt.Errorf("store: invalid subagent child activity %d", activity)
+	}
+	if at.IsZero() {
+		at = g.now()
+	}
+	err = g.withImmediateTransaction(ctx, "update subagent child activity", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.UpdateSubagentChildActivity(ctx, sqlcgen.UpdateSubagentChildActivityParams{
+			ID: id, ChildActivity: activity.String(), Now: store.FormatTimestamp(at),
+		})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}
+
+func (g *SessionRepo) ReconcileStoppedChildActivity(ctx context.Context) ([]store.SessionSubagent, error) {
+	var out []store.SessionSubagent
+	err := g.withImmediateTransaction(ctx, "reconcile subagent child activity", func(exec globalSQLExecutor) error {
+		rows, e := sqlcgen.New(exec).ReconcileStoppedSubagentChildActivity(ctx, store.FormatTimestamp(g.now()))
+		if e != nil {
+			return e
+		}
+		out, e = subagentsFromSQL(rows)
+		return e
+	})
+	return out, err
+}
+
+func (g *SessionRepo) EnrichNativeSubagentResult(
+	ctx context.Context,
+	in store.NativeSubagentResultEnrichment,
+) (out store.SessionSubagent, changed bool, err error) {
+	if !store.IsSubagentStatusTerminal(in.Status) {
+		return out, false, fmt.Errorf("store: nonterminal enrichment status %q", in.Status)
+	}
+	if in.At.IsZero() {
+		in.At = g.now()
+	}
+	err = g.withImmediateTransaction(ctx, "enrich native subagent result", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.EnrichNativeSubagentResult(ctx, sqlcgen.EnrichNativeSubagentResultParams{
+			Result:             sql.NullString{String: in.Result, Valid: true},
+			ResultTruncated:    subagentBool(in.ResultTruncated),
+			Error:              subagentNullString(in.Error),
+			Now:                store.FormatTimestamp(in.At),
+			ID:                 in.ID,
+			WorkspaceID:        in.WorkspaceID,
+			ParentSessionID:    in.ParentSessionID,
+			ParentTurnID:       in.ParentTurnID,
+			ProviderToolCallID: in.ProviderToolCallID,
+			Status:             in.Status,
+		})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, in.ID)
 		changed = n == 1
 		return e
 	})

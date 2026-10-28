@@ -281,7 +281,8 @@ by another agent, provider, or model while you keep working:
 5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
    assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
    the rest through `compozy__session_history` on `child_session_id` with `type: "agent_message"`
-   and `limit: 1`), `error`, and `delivery`. Reading a
+   and `limit: 1`), `error`, `delivery`, and `child_activity` (`working`, `idle`, or `stopped`: the
+   child session's own liveness, which can change after the status is terminal). Reading a
    terminal result acknowledges it and removes it from a queued wake, so the tool is idempotent but not
    read-only.
 
@@ -297,7 +298,9 @@ call `compozy__session_approve` or `compozy__session_clarify_answer` on its `chi
 status reports `waiting`. `compozy__subagent_cancel {subagent_id, reason?}` returns `cancel_requested`
 for a live subagent, otherwise its terminal status; Claude's own Agent/Task subagents
 (`origin: "provider_native"`) return `subagent_not_cancelable`; a background one stays `running` until
-its turn ends, then reads `completed` with `result: null`. For another review round, delegate again
+its own task finishes, then reads `completed`, `failed`, or `canceled` with the task's summary as
+`result` once Claude reports it (briefly `null` before that); one with no task report settles
+`completed` with `result: null` when its turn ends. For another review round, delegate again
 with the original brief, prior findings, and open objections instead of prompting the old child. A
 subagent may delegate its own subagents. Subagents share your workspace and worktree, so give
 concurrent subagents disjoint files or read-only tasks. Stopping your session cancels every live

@@ -248,7 +248,7 @@ The agent compacts its own context window. CompozyOS observes that compaction wh
 
 A subagent is a child agent session that another session's turn delegates one task to. The glossary entry **Subagent** is authoritative. Nouns are `subagent`, `session`, and `agent`; never "thread", "worker", or "task" in this feature's copy. The wake prompt agents receive is fixed English for agents, not UI copy.
 
-- Card status words: Queued · Running · Waiting for you · Completed · Failed · Canceled · Interrupted. A model the provider did not report reads "Not reported".
+- Status words (card, roster, sidebar branch rows, hover): Queued · Working · Waiting on subagents · Waiting for you · Done · Idle · Failed · Canceled · Interrupted — the same words as session rows where they overlap, never "Running" or "Completed". Each sits beside the session state glyph; Working and Done add the elapsed time. "Waiting on subagents" is a running subagent waiting on its own subagents; "Idle" is a completed subagent whose delivered result left its child session quiet; a settled child that resumes reads "Working" again. Rows are also announced with the word (`aria-description`). A model the provider did not report reads "Not reported".
 - Group: "{N} subagents", summary "{n} working · {n} done · {n} failed", plus "{n} needs you" when one is waiting.
 - Child divider: "Subagent of {parent title}" with the action "Open parent"; "Subagent of a deleted session" when the parent is gone.
 - Waiting banner: "Waiting on subagent {title}" or "Waiting on {N} subagents", "and {N} more", the action "Stop" ("Stopping…" while pending), and the toast "Could not stop subagents."

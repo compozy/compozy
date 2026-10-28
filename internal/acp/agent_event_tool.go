@@ -36,6 +36,7 @@ type agentEventPayload struct {
 	skillInvocations   []commandpkg.Invocation
 	mentions           []mention.Mention
 	attachments        []EventAttachment
+	nativeTask         *NativeTaskObservation
 }
 
 // EventAttachment is durable attachment metadata carried by an agent event.
@@ -68,6 +69,7 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	cloned.skillInvocations = append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
 	cloned.mentions = append([]mention.Mention(nil), e.payload.mentions...)
 	cloned.attachments = append([]EventAttachment(nil), e.payload.attachments...)
+	cloned.nativeTask = e.payload.nativeTask.Clone()
 	return &cloned
 }
 
@@ -76,12 +78,16 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 		payload.resolvedBy == "" && !payload.hasProviderToolFacts() &&
 		len(payload.subagentCard) == 0 &&
 		len(payload.sessionMessageCard) == 0 &&
-		!payload.hasTool && !payload.toolPrechecked && !payload.toolResultUpdate && payload.promptRuntime == nil &&
-		payload.availableCommands == nil && payload.delivery == nil && payload.goal == nil && payload.origin == nil &&
-		len(payload.skillInvocations) == 0 && len(payload.mentions) == 0 && len(payload.attachments) == 0 {
+		!payload.hasTool && !payload.toolPrechecked && !payload.toolResultUpdate && !payload.hasStructuredFacts() {
 		return nil
 	}
 	return payload
+}
+
+func (payload *agentEventPayload) hasStructuredFacts() bool {
+	return payload.promptRuntime != nil || payload.availableCommands != nil || payload.delivery != nil ||
+		payload.goal != nil || payload.origin != nil || len(payload.skillInvocations) > 0 ||
+		len(payload.mentions) > 0 || len(payload.attachments) > 0 || payload.nativeTask != nil
 }
 
 func (payload *agentEventPayload) hasProviderToolFacts() bool {

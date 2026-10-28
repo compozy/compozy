@@ -4,7 +4,7 @@ area: ET
 title: Watch, open, and stop subagents from the session view
 persona: Bruno
 journey: J-13-follow-a-live-run
-expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark with status dot, title clipped at 72 characters, status word Queued/Running/Waiting for you/Completed/Failed/Canceled/Interrupted, live progress line coalesced to once per second, ticking elapsed frozen at settle, chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the composer toolbar shows a subagents control after the context ring and before Attach files — a quiet icon while none run, the icon with a live dot (pulsing while running, accent when one needs you) and the live count while any run — whose popover (title "Subagents · N running", total, current rows first, then "Previous subagents (N)", "Nothing delegated yet." when the session has none) uses the inspector roster rows and returns focus to the control on Escape; the card flips to Completed and the wake turn renders before the parent's final reply; an isolated subagent (delegated with isolation "worktree") prepends its middle-truncated branch to line 2, links its PR as "#N" with a state glyph beside (never inside) the open control, lists Worktree, Branch, Base, Commits, PR and Observed in the hover only for facts the daemon observed, says "PR status unknown" when it could not check and "No pull request" when the forge answered none, and repeats the branch and PR link on its inspector roster row, while shared subagents stay unchanged; every surface matches its board VC in docs/design/opendesign/subagents/ and docs/design/opendesign/agent-collaboration/ (VC-06, VC-07).
+expected: When a session's agent delegates, the parent transcript shows a Checked subagent capabilities row and, at the delegation point, a subagent card (provider mark without a status dot, title clipped at 72 characters and dimmed once settled, a trailing session StateGlyph with the status word Queued/Working/Waiting on subagents/Waiting for you/Done/Idle/Failed/Canceled/Interrupted, live progress or result line coalesced to once per second, elapsed after Working (ticking) and Done (frozen), chevron only when a child session exists) that replaces the delegate tool row and is exempt from turn folding; adjacent same-turn cards collapse into one group ("3 subagents", the most urgent member glyph — attention > failed > working > done — before "2 working · 1 needs you · 1 done · 1 failed", up to 3 avatars plus +N); hover or keyboard focus opens a hover card with model (Not reported when absent), effort, status, elapsed, and a 280-character preview, and Escape closes it; click opens the child in the same window under a "Subagent of <parent>" divider with Open parent, and ⌘/Ctrl-click opens a new window; when the parent's turn ends with live delegated subagents the composer shows "Waiting on subagent <title>" or "Waiting on N subagents" with name buttons, "and N more", and Stop (Stopping…, toast "Could not stop subagents." on failure); the status line counts live subagents as "N agents running"; the composer toolbar shows a subagents control after the context ring and before Attach files — a quiet icon while none run, the icon with a live dot (pulsing while running, accent when one needs you) and the live count while any run — whose popover (title "Subagents · N running", total, current rows first, then "Previous subagents (N)", "Nothing delegated yet." when the session has none) uses the inspector roster rows and returns focus to the control on Escape; the card flips to Done and the wake turn renders before the parent's final reply; an isolated subagent (delegated with isolation "worktree") prepends its middle-truncated branch to line 2, links its PR as "#N" with a state glyph beside (never inside) the open control, lists Worktree, Branch, Base, Commits, PR and Observed in the hover only for facts the daemon observed, says "PR status unknown" when it could not check and "No pull request" when the forge answered none, and repeats the branch and PR link on its inspector roster row, while shared subagents stay unchanged; every surface matches its board VC in docs/design/opendesign/subagents/ and docs/design/opendesign/agent-collaboration/ (VC-06, VC-07).
 entry_points: web session window transcript (SubagentCard, SubagentGroup, SubagentHoverContent); composer SubagentWaitingBanner, working status line, and SubagentComposerControl; child session transcript divider; docs/design/opendesign/subagents/subagents-transcript.html (VC-01…07) and subagents-composer.html (VC-01…03); docs/design/opendesign/agent-collaboration/agent-collaboration-subagents.html (VC-06, VC-07)
 qa_status: untested
 bug_ids: BUG-20261009-subagent-routes-unavailable; BUG-20261009-subagent-card-hosted-tool-name; BUG-20261009-subagent-card-live-missing; BUG-20261009-subagent-running-count-settled; BUG-20261009-subagent-preview-raw-markdown
@@ -21,19 +21,26 @@ Automated owners: E2E-001…E2E-005 (acpmock "claude" + "codex"), UT-W01…UT-W1
 component stories. This scenario is the real-provider walk with visual parity against the boards.
 
 1. **Card (E2E-001, transcript VC-01/VC-02).** In a Claude session, ask for a Codex second opinion.
-   Expect `Checked subagent capabilities` (a single call shows no count), then a card with the Codex mark, the title,
-   `Running`, and a ticking elapsed; no "Used session spawn" or delegate tool row. While Codex works,
-   line 2 shows its current step. On settle the card reads `Completed` with the result's first line,
-   elapsed freezes, a wake turn renders, and the parent's final reply follows. A failed delegate call
+   Expect `Checked subagent capabilities` (a single call shows no count), then a card with the Codex mark
+   (no status dot), the title, and a trail with the spinning running glyph, `Working`, and a ticking
+   elapsed; no "Used session spawn" or delegate tool row. While Codex works, line 2 shows its current
+   step. On settle the trail reads the filled check glyph, `Done`, and the frozen elapsed in faint ink,
+   the title dims, line 2 shows the result's first line, a wake turn renders, and the parent's final
+   reply follows. A running card and a done card must never share a glyph or word. A failed delegate call
    (for example an unauthenticated provider) stays a failed tool row with no card.
-2. **States.** Drive or seed queued, running with and without progress, waiting for you (child
-   approval), failed (destructive line 2), canceled, interrupted, unknown provider mark (bot glyph), and
-   a 72-character title; compare each against `subagents-transcript.html#tr-card`. After a reconnect,
+2. **States.** Drive or seed queued (dashed ring, `Queued`), working with and without progress
+   (spinning ring, `Working`), a subagent waiting on its own subagents (delegated ring, `Waiting on
+   subagents`), waiting for you (accent dot, `Waiting for you`, child approval), done (check, `Done`),
+   idle (a delivered result whose child went quiet: subtle dot, `Idle`), a settled child that resumed
+   (back to `Working`), failed (danger ring ×, `Failed`, destructive line 2), canceled and interrupted
+   (square, `Canceled` / `Interrupted`), unknown provider mark (bot glyph), and a 72-character title;
+   done, idle, canceled and interrupted titles dim in place. Native and delegated rows use the same
+   glyphs; compare each against `subagents-transcript.html#tr-card`. After a reconnect,
    a stale card does not tick.
 3. **Group (E2E-002, VC-03).** Delegate three in one turn: one group card `3 subagents`, stacked marks,
-   `3 working`; expanding lists three cards; collapse persists while the window stays open; as they
-   settle the summary reads `2 done · 1 failed` (destructive tone). With a waiting child it adds
-   `1 needs you`. Four or more show 3 avatars and `+N`. Collapsed and all settled → dimmed.
+   the spinning glyph before `3 working`; expanding lists three cards; collapse persists while the window stays open; as they
+   settle the summary reads the failed glyph and `2 done · 1 failed` (destructive tone). With a waiting child it adds
+   `1 needs you` and the glyph takes the accent attention dot. Four or more show 3 avatars and `+N`. Collapsed and all settled → dimmed.
 4. **Hover (E2E-003, VC-04).** Hover a card (opens after ~200 ms) and Tab to it (opens on focus):
    title, provider mark + model (`Not reported` when absent) · effort, fast icon only for fast, status +
    elapsed, preview (progress or result, ≤ 280 chars + `…`). Escape closes it.
@@ -55,7 +62,8 @@ component stories. This scenario is the real-provider walk with visual parity ag
    `Nothing delegated yet.` While two subagents run, the control shows the icon with a pulsing live
    dot and `2`; with one waiting for you the dot takes the accent and the label adds `1 needs you`.
    Open it from the keyboard (Tab, Enter): `Subagents · N running`, the total, failed and live rows
-   first, then `Previous subagents (N)` (open when nothing runs). A row opens its subagent like the
+   first, then `Previous subagents (N)` (open when nothing runs); each row shows the provider mark
+   without a dot and ends with the state glyph, the word, and elapsed for Working/Done. A row opens its subagent like the
    inspector row; Escape closes the popover and returns focus to the control. Check light and dark
    themes and a narrow window, where the control stays in the toolbar.
 9. **Accessibility.** Cards are buttons with `aria-label="Open <title>"` and the status as
@@ -118,3 +126,11 @@ including nested activity when available. Exercise the sidebar branch, All proje
 composer control, and inspector, including repeat clicks while the parent is already open.
 The waiting banner continues to list delegated work only. E2E-009 owns sidebar-to-child
 navigation; E2E-006 owns native parent revelation.
+
+QA impact 2026-10-27 (subagent status grammar): subagent rows stop reading as "all done". The card,
+inspector/popover roster rows and group drop the avatar status dot and carry the session
+`StateGlyph` plus a status word in the trail, derived from one display state: `Working` (was
+`Running`), `Done` (was `Completed`), and the new `Waiting on subagents` and `Idle` (a delivered
+result whose delegated child went quiet; a resumed child reads `Working` again). Settled titles dim;
+the group leads its summary with the most urgent member glyph. Owning suites: `subagent-format`
+(display-state table) and `subagent-components`. Steps 1–3 and 8 updated; live walk pending.

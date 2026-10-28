@@ -71,6 +71,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted = redacted.WithDelivery(redactDeliveryManifest(event.DeliveryManifest()))
 	redacted.Usage = redactTokenUsage(event.Usage)
 	redacted.Compaction = redactCompactionObservation(event.Compaction)
+	redacted = redacted.WithNativeTask(redactNativeTaskObservation(event.NativeTask()))
 	redacted.Raw = redactRawMessage(event.Raw)
 	return redacted
 }

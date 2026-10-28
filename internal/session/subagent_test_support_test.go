@@ -53,6 +53,7 @@ func (d *memorySubagents) LinkChild(_ context.Context, id, child string, at time
 	row.ChildSessionID = new(child)
 	row.StartedAt = new(at)
 	row.Status = store.SubagentStatusRunning
+	row.ChildActivity = store.SubagentChildActivityWorking
 	d.rows[id] = row
 	return row, nil
 }
@@ -154,6 +155,27 @@ func (d *memorySubagents) UpdateSubagentState(
 	}
 	return row, changed, nil
 }
+func (d *memorySubagents) UpdateSubagentChildActivity(
+	_ context.Context,
+	id string,
+	activity store.SubagentChildActivity,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	changed := row.Origin == store.SubagentOriginDelegated && row.ChildActivity != activity
+	if changed {
+		row.ChildActivity = activity
+		row.UpdatedAt = at
+		d.rows[id] = row
+		d.writes++
+	}
+	return row, changed, nil
+}
+func (d *memorySubagents) ReconcileStoppedChildActivity(context.Context) ([]store.SessionSubagent, error) {
+	return nil, nil
+}
 func (d *memorySubagents) RewriteSubagentWakeInput(_ context.Context, id, text string, _ json.RawMessage) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -190,6 +212,7 @@ func (d *memorySubagents) FinalizeSubagent(
 	row.Result = in.Result
 	row.Error = in.Error
 	row.ResultTruncated = in.ResultTruncated
+	row.ChildActivity = in.ChildActivity
 	row.SettledAt = new(in.SettledAt)
 	row.PendingTask = nil
 	d.rows[row.ID] = row
@@ -434,6 +457,7 @@ type subagentTestRuntime struct {
 	spawnBlock                      chan struct{}
 	queueFull                       int
 	completedWakes                  map[string]bool
+	nativeTasks                     []store.SessionEvent
 }
 
 var _ subagentRuntime = (*subagentTestRuntime)(nil)
@@ -674,6 +698,63 @@ func (d *memorySubagents) ListWakesByParent(
 		}
 	}
 	return out, nil
+}
+
+func (r *subagentTestRuntime) NativeTaskEvents(
+	_ context.Context, _, turnID string, afterSequence int64, limit int,
+) ([]store.SessionEvent, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	events := slices.Clone(r.nativeTasks)
+	slices.SortFunc(events, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
+	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool {
+		return event.TurnID != turnID || event.Sequence <= afterSequence
+	})
+	return events[:min(len(events), limit)], nil
+}
+
+func (d *memorySubagents) EnrichNativeSubagentResult(
+	_ context.Context,
+	in store.NativeSubagentResultEnrichment,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row, ok := d.rows[in.ID]
+	if !ok || row.Origin != store.SubagentOriginProviderNative || row.Status != in.Status || row.Result != nil ||
+		row.WorkspaceID != in.WorkspaceID || row.ParentTurnID != in.ParentTurnID ||
+		row.ProviderToolCallID != in.ProviderToolCallID {
+		return row, false, nil
+	}
+	row.Result = new(in.Result)
+	row.ResultTruncated = in.ResultTruncated
+	if row.Error == nil {
+		row.Error = in.Error
+	}
+	row.UpdatedAt = in.At
+	d.rows[row.ID] = row
+	d.writes++
+	return row, true, nil
+}
+
+func (d *memorySubagents) ListNativeMissingResult(
+	_ context.Context, since time.Time, after store.NativeMissingResultCursor, limit int,
+) ([]store.SessionSubagent, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	newestFirst := func(a, b store.SessionSubagent) int {
+		return cmp.Or(b.SettledAt.Compare(*a.SettledAt), cmp.Compare(b.ID, a.ID))
+	}
+	var rows []store.SessionSubagent
+	for _, row := range d.rows {
+		if row.Origin == store.SubagentOriginProviderNative && store.IsSubagentStatusTerminal(row.Status) &&
+			row.Status != store.SubagentStatusInterrupted && row.Result == nil && row.SettledAt != nil &&
+			!row.SettledAt.Before(since) && (after.ID == "" ||
+			newestFirst(store.SessionSubagent{ID: after.ID, SettledAt: &after.SettledAt}, row) < 0) {
+			rows = append(rows, row)
+		}
+	}
+	slices.SortFunc(rows, newestFirst)
+	return rows[:min(len(rows), limit)], nil
 }
 
 func (d *memorySubagents) ListUnfinalizedNative(context.Context) ([]store.SessionSubagent, error) {

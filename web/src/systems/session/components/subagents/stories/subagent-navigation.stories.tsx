@@ -27,7 +27,7 @@ function RosterStates() {
   return (
     <div className="grid w-fit grid-cols-3 items-start gap-x-6 gap-y-8 p-8">
       <Toaster />
-      <Rail label="live + failed + previous · 10 subagents">
+      <Rail label="live + failed + previous · 11 subagents">
         <SessionInspectorSubagentsSection subagents={roster} onOpen={fn()} onStop={neverStop} />
       </Rail>
       <Rail label="live only">

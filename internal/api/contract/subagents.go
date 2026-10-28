@@ -13,6 +13,9 @@ const (
 	SessionStreamEventSubagentUpdated   = "subagent_updated"
 )
 
+// SubagentChildActivity is a delegated child session's liveness: working, idle, or stopped.
+type SubagentChildActivity string
+
 type SubagentRuntimePayload struct {
 	Agent           string `json:"agent"`
 	Provider        string `json:"provider"`
@@ -35,20 +38,24 @@ type SubagentPayload struct {
 	Role               string                   `json:"role"`
 	Status             string                   `json:"status"`
 	WorkState          string                   `json:"work_state"`
-	Runtime            SubagentRuntimePayload   `json:"runtime"`
-	Depth              int                      `json:"depth"`
-	Progress           string                   `json:"progress"`
-	Result             *string                  `json:"result"`
-	ResultPreview      string                   `json:"result_preview"`
-	ResultTruncated    bool                     `json:"result_truncated"`
-	Error              *string                  `json:"error"`
-	WaitTimedOut       bool                     `json:"wait_timed_out"`
-	Hint               string                   `json:"hint,omitempty"`
-	Delivery           string                   `json:"delivery"`
-	StartedAt          *time.Time               `json:"started_at"`
-	SettledAt          *time.Time               `json:"settled_at"`
-	CreatedAt          time.Time                `json:"created_at"`
-	UpdatedAt          time.Time                `json:"updated_at"`
+	// ChildActivity is the delegated child session's liveness (working, idle,
+	// stopped), independent of the delegation's terminal status. Omitted for
+	// provider-native rows and rows recorded before the field existed.
+	ChildActivity   SubagentChildActivity  `json:"child_activity,omitempty"`
+	Runtime         SubagentRuntimePayload `json:"runtime"`
+	Depth           int                    `json:"depth"`
+	Progress        string                 `json:"progress"`
+	Result          *string                `json:"result"`
+	ResultPreview   string                 `json:"result_preview"`
+	ResultTruncated bool                   `json:"result_truncated"`
+	Error           *string                `json:"error"`
+	WaitTimedOut    bool                   `json:"wait_timed_out"`
+	Hint            string                 `json:"hint,omitempty"`
+	Delivery        string                 `json:"delivery"`
+	StartedAt       *time.Time             `json:"started_at"`
+	SettledAt       *time.Time             `json:"settled_at"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
 }
 
 type SubagentListPayload struct {
@@ -106,6 +113,7 @@ func SubagentFromDomain(row *session.Subagent) SubagentPayload {
 		ParentSessionID: row.ParentSessionID, ParentTurnID: row.ParentTurnID,
 		ChildSessionID: row.ChildSessionID, Origin: row.Origin, ProviderToolCallID: toolCallID,
 		Title: row.Title, Role: row.Role, Status: row.Status, WorkState: row.WorkState,
+		ChildActivity: SubagentChildActivity(row.ChildActivity.String()),
 		Runtime: SubagentRuntimePayload{Agent: row.RuntimeAgent, Provider: row.RuntimeProvider,
 			Model: row.RuntimeModel, ReasoningEffort: row.RuntimeEffort, Speed: runtimeSpeed},
 		Depth: row.Depth, Progress: row.Progress, Result: row.Result, ResultPreview: resultPreview,

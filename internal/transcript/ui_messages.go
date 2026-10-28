@@ -260,6 +260,8 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 		builder.finished = true
 	case acp.EventTypeDone:
 		builder.finished = true
+	case acp.EventTypeNativeTask:
+		// Native task observations drive the subagent row, not transcript parts.
 	default:
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 	}

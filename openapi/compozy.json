@@ -32308,6 +32308,14 @@
       },
       "SubagentPayload": {
         "properties": {
+          "child_activity": {
+            "enum": [
+              "working",
+              "idle",
+              "stopped"
+            ],
+            "type": "string"
+          },
           "child_session_id": {
             "nullable": true,
             "type": "string"

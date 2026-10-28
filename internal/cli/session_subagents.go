@@ -169,6 +169,9 @@ func subagentDetails(row contract.SubagentPayload, now time.Time) string {
 	child := "—"
 	if row.ChildSessionID != nil {
 		child = *row.ChildSessionID
+		if row.ChildActivity != "" {
+			child += " (" + string(row.ChildActivity) + ")"
+		}
 	}
 	started := "—"
 	if row.StartedAt != nil {

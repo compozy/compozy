@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
 
 // Invariant: delegation validates its semantic request before any effect; owner: session service.
@@ -538,6 +539,83 @@ func TestSubagentLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	// Invariant: a settled delegation keeps its terminal outcome while child_activity follows the child session.
+	t.Run("Should track child activity after settlement without changing the outcome", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			updates, cancel, err := s.SubscribeSubagentUpdates(t.Context(), "parent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			latest := func() (SubagentUpdate, bool) {
+				var last SubagentUpdate
+				seen := false
+				for {
+					synctest.Wait()
+					select {
+					case last = <-updates:
+						seen = true
+						continue
+					default:
+					}
+					return last, seen
+				}
+			}
+			row := requireSubagent(t, s, subagentTestRequest())
+			if db.rows[row.ID].ChildActivity != store.SubagentChildActivityWorking {
+				t.Fatal(db.rows[row.ID])
+			}
+			settleTestChild(t, s, runtime, &row)
+			settled := db.rows[row.ID]
+			if settled.Status != store.SubagentStatusCompleted ||
+				settled.ChildActivity != store.SubagentChildActivityIdle {
+				t.Fatal(settled)
+			}
+			latest()
+			child := *row.ChildSessionID
+			for _, step := range []struct {
+				active bool
+				state  State
+				want   store.SubagentChildActivity
+			}{
+				{active: true, state: StateActive, want: store.SubagentChildActivityWorking},
+				{state: StateActive, want: store.SubagentChildActivityIdle},
+				{state: StateStopped, want: store.SubagentChildActivityStopped},
+			} {
+				runtime.mu.Lock()
+				snap := runtime.snapshots[child]
+				info := *snap.Info
+				info.State, info.StopReason = step.state, ""
+				if step.state == StateStopped {
+					info.StopReason = store.StopUserCanceled
+				}
+				snap.Info, snap.Active = &info, step.active
+				runtime.snapshots[child] = snap
+				runtime.mu.Unlock()
+				if err := s.OnChildSettled(t.Context(), child); err != nil {
+					t.Fatal(err)
+				}
+				got := db.rows[row.ID]
+				if got.ChildActivity != step.want || got.Status != settled.Status ||
+					got.Delivery != settled.Delivery || !got.SettledAt.Equal(*settled.SettledAt) ||
+					*got.Result != *settled.Result {
+					t.Fatalf("step %s: row=%+v", step.want, got)
+				}
+				update, ok := latest()
+				if !ok || update.Subagent.ChildActivity != step.want {
+					t.Fatalf("step %s: update=%+v published=%v", step.want, update, ok)
+				}
+				if err := s.OnChildSettled(t.Context(), child); err != nil {
+					t.Fatal(err)
+				}
+				if _, again := latest(); again {
+					t.Fatalf("step %s: unchanged activity republished", step.want)
+				}
+			}
+		})
+	})
 	t.Run("Should coalesce progress to latest value UT-060", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -1006,6 +1084,244 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 		})
 	})
+	// Invariant: each background task settles on its own terminal evidence before the turn ends; a later
+	// summary fills a missing result once without another settle, and nothing reopens a terminal row.
+	t.Run("Should settle each background task on its own lifecycle before the turn ends", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, runtime := newSubagentTestService(t)
+			hook := &subagentTestHook{}
+			s.settled = hook
+			for _, call := range []string{"toolu_quick", "toolu_slow", "toolu_fail"} {
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+					Status: "in_progress", Background: true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+			}
+			apply := func(ev NativeSubagentEvent) {
+				t.Helper()
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+			}
+			quick, slow, fail := subagentID("parent", "toolu_quick"), subagentID("parent", "toolu_slow"),
+				subagentID("parent", "toolu_fail")
+			apply(nativeTaskEvent("toolu_quick", acp.NativeTaskKindSpawn, "", nil))
+			apply(nativeTaskEvent("toolu_quick", acp.NativeTaskKindState, acp.NativeTaskStatusPaused, nil))
+			if row := db.rows[quick]; row.Status != store.SubagentStatusRunning || hook.calls != 0 {
+				t.Fatal("paused task left running:", row, hook.calls)
+			}
+			apply(nativeTaskEvent("toolu_quick", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil))
+			settled := db.rows[quick]
+			if settled.Status != store.SubagentStatusCompleted || settled.Result != nil || settled.SettledAt == nil ||
+				hook.calls != 1 || db.rows[slow].Status != store.SubagentStatusRunning {
+				t.Fatal("terminal patch did not settle only its task:", settled, hook.calls, db.rows[slow])
+			}
+			receipt := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_quick", ToolName: "Agent",
+				Status: "completed", Result: "Async agent launched successfully.",
+			}
+			apply(receipt)
+			apply(
+				nativeTaskEvent(
+					"toolu_quick",
+					acp.NativeTaskKindState,
+					acp.NativeTaskStatusCompleted,
+					new("Found 3 owners"),
+				),
+			)
+			apply(
+				nativeTaskEvent(
+					"toolu_quick",
+					acp.NativeTaskKindState,
+					acp.NativeTaskStatusCompleted,
+					new("second summary"),
+				),
+			)
+			apply(nativeTaskEvent("toolu_quick", acp.NativeTaskKindProgress, "", new("late progress")))
+			time.Sleep(time.Second)
+			synctest.Wait()
+			row := db.rows[quick]
+			if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != "Found 3 owners" ||
+				!row.SettledAt.Equal(
+					*settled.SettledAt,
+				) || row.Progress != "" || row.Delivery != store.SubagentDeliveryNone ||
+				hook.calls != 1 {
+				t.Fatal("enrichment changed more than the missing result:", row, hook.calls)
+			}
+			failed := nativeTaskEvent("toolu_fail", acp.NativeTaskKindState, acp.NativeTaskStatusFailed, new("partial"))
+			failed.Task.Error = "tool crashed"
+			apply(failed)
+			if row := db.rows[fail]; row.Status != store.SubagentStatusFailed || row.Error == nil ||
+				*row.Error != "tool crashed" || row.Result == nil || *row.Result != "partial" {
+				t.Fatal("failed task:", row)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			// The slow task had no terminal evidence: only it takes the turn-end fallback.
+			if row := db.rows[slow]; row.Status != store.SubagentStatusCompleted || row.Result != nil ||
+				db.rows[fail].Status != store.SubagentStatusFailed || hook.calls != 3 || len(runtime.queues) != 0 {
+				t.Fatal("turn-end fallback:", row, db.rows[fail], hook.calls)
+			}
+		})
+	})
+	// Invariant: a stored native summary keeps the configured result allowance, and a cut made before
+	// storage is reported as result_truncated through the committed ledger path.
+	t.Run("Should keep native summaries up to the result limit and report earlier cuts", func(t *testing.T) {
+		t.Parallel()
+		long := strings.Repeat("résumé ", 3000) // > 16 KiB of non-ASCII text, < 60000 characters.
+		// Fewer characters than the configured limit, but more bytes than the storage bound.
+		oversized := strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2+5)
+		for name, tc := range map[string]struct {
+			summary   string
+			want      string
+			truncated bool
+		}{
+			"within limit": {summary: long, want: long},
+			"storage cut":  {summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), truncated: true},
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				s, db, _ := newSubagentTestService(t)
+				s.resultLimit = func(context.Context, string) (int, error) { return 1000000, nil }
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_long", ToolName: "Agent",
+					Status: "in_progress", Background: true,
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+				observation := &acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: "agent-long", ToolCallID: "toolu_long",
+					Status: acp.NativeTaskStatusCompleted, Summary: new(tc.summary),
+				}
+				content, err := transcript.MarshalAgentEvent(acp.AgentEvent{
+					Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: "toolu_long",
+				}.WithNativeTask(observation))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ev, ok, err := NativeSubagentEventFromStored("ws", store.SessionEvent{
+					TurnID: "turn", Type: acp.EventTypeNativeTask, Content: content,
+				})
+				if err != nil || !ok {
+					t.Fatal(ok, err)
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+				row := db.rows[subagentID("parent", "toolu_long")]
+				if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != tc.want ||
+					row.ResultTruncated != tc.truncated {
+					t.Fatalf("row result=%d truncated=%v status=%s", len(*row.Result), row.ResultTruncated, row.Status)
+				}
+			})
+		}
+	})
+	// Invariant: stopped/killed tasks become canceled; a foreground call keeps its tool result as the outcome;
+	// progress feeds the existing coalesced progress owner.
+	t.Run("Should cancel stopped tasks and leave foreground outcomes to their tool result", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			s.now = func() time.Time { return time.Now().UTC() }
+			for _, call := range []string{"toolu_killed", "toolu_foreground"} {
+				launch := NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+					Status: "in_progress", Background: call == "toolu_killed",
+				}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, ev := range []NativeSubagentEvent{
+				nativeTaskEvent("toolu_foreground", acp.NativeTaskKindProgress, "", new("Reading go.mod")),
+				nativeTaskEvent("toolu_foreground", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, new("short")),
+				nativeTaskEvent("toolu_killed", acp.NativeTaskKindState, acp.NativeTaskStatusKilled, nil),
+			} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			foreground := db.rows[subagentID("parent", "toolu_foreground")]
+			if foreground.Status != store.SubagentStatusRunning || foreground.Progress != "Reading go.mod" {
+				t.Fatal("foreground row:", foreground)
+			}
+			if row := db.rows[subagentID("parent", "toolu_killed")]; row.Status != store.SubagentStatusCanceled ||
+				row.Result != nil {
+				t.Fatal("killed task:", row)
+			}
+			result := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_foreground", ToolName: "Agent",
+				Status: "completed", Result: "full foreground answer",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", result); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "toolu_foreground")]; row.Status != store.SubagentStatusCompleted ||
+				row.Result == nil || *row.Result != "full foreground answer" {
+				t.Fatal("foreground result:", row)
+			}
+		})
+	})
+	// Invariant: observations never create rows; one that precedes its call waits (bounded) for it, other
+	// turns' frames are stale, and observations still uncorrelated at turn end are dropped.
+	t.Run("Should hold early observations for their call and drop uncorrelated ones", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			early := nativeTaskEvent(
+				"toolu_late_call",
+				acp.NativeTaskKindState,
+				acp.NativeTaskStatusCompleted,
+				new("done early"),
+			)
+			background := true
+			early.Task.Background = &background
+			for _, ev := range []NativeSubagentEvent{
+				early, nativeTaskEvent("toolu_shell", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, nil),
+			} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(db.rows) != 0 {
+				t.Fatal("observation created rows:", db.rows)
+			}
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "toolu_late_call", ToolName: "Agent",
+				Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[subagentID("parent", "toolu_late_call")]; row.Status != store.SubagentStatusCompleted ||
+				row.Result == nil || *row.Result != "done early" {
+				t.Fatal("early observation was not applied to its call:", row)
+			}
+			stale := nativeTaskEvent("toolu_late_call", acp.NativeTaskKindState, acp.NativeTaskStatusFailed, new("x"))
+			stale.ParentTurnID = "other-turn"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", stale); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeTurnDone(t.Context(), "parent", "turn", time.Time{}); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			if row := db.rows[subagentID("parent", "toolu_late_call")]; row.Status != store.SubagentStatusCompleted ||
+				len(db.rows) != 1 || len(s.nativeQueued) != 0 {
+				t.Fatal("stale or uncorrelated observation leaked:", row, db.rows, s.nativeQueued)
+			}
+		})
+	})
 	t.Run("Should interrupt a background launch when its turn is canceled", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -1029,6 +1345,14 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			}
 		})
 	})
+}
+
+func nativeTaskEvent(call string, kind acp.NativeTaskKind, status string, summary *string) NativeSubagentEvent {
+	task := &NativeSubagentTask{Kind: kind, Status: status, Summary: summary}
+	if summary != nil {
+		task.Progress = *summary
+	}
+	return NativeSubagentEvent{WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, Task: task}
 }
 
 // UT-032/UT-057 and IT-025 service half: asynchronous injection completion owns the single fallback.
@@ -1541,6 +1865,132 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 			}
 		})
 	}
+	// Invariant: committed task observations win over boot interruption and fill a missing result once,
+	// scoped to the row's parent turn and call.
+	t.Run("Should replay committed task observations at recovery", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		for _, call := range []string{"toolu_ledger", "toolu_fallback", "toolu_unobserved"} {
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The turn-end fallback settled this row before its summary was projected.
+		fallback := db.rows[subagentID("parent", "toolu_fallback")]
+		if _, _, err := db.FinalizeSubagent(t.Context(), store.SubagentFinalize{
+			ID: fallback.ID, Status: store.SubagentStatusCompleted, SettledAt: s.now().UTC(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		committed := func(sequence int64, turn, call, status, summary string) store.SessionEvent {
+			event := acp.AgentEvent{
+				Type: acp.EventTypeNativeTask, TurnID: turn, ToolCallID: call,
+			}.WithNativeTask(&acp.NativeTaskObservation{
+				Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call, Status: status, Summary: new(summary),
+			})
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return store.SessionEvent{Sequence: sequence, TurnID: turn, Type: event.Type, Content: payload}
+		}
+		r.nativeTasks = []store.SessionEvent{
+			committed(1, "turn", "toolu_ledger", acp.NativeTaskStatusFailed, "ledger failure"),
+			committed(2, "turn", "toolu_fallback", acp.NativeTaskStatusCompleted, "ledger summary"),
+			committed(3, "other-turn", "toolu_unobserved", acp.NativeTaskStatusCompleted, "wrong turn"),
+		}
+		snap := r.snapshots["parent"]
+		snap.Active = false
+		r.snapshots["parent"] = snap
+		for range 2 {
+			if err := s.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for call, want := range map[string]struct{ status, result string }{
+			"toolu_ledger":     {store.SubagentStatusFailed, "ledger failure"},
+			"toolu_fallback":   {store.SubagentStatusCompleted, "ledger summary"},
+			"toolu_unobserved": {store.SubagentStatusInterrupted, ""},
+		} {
+			row := db.rows[subagentID("parent", call)]
+			if row.Status != want.status || (row.Result == nil) != (want.result == "") ||
+				row.Result != nil && *row.Result != want.result || row.Delivery != store.SubagentDeliveryNone {
+				t.Fatal(call, row)
+			}
+		}
+	})
+	// Invariant: recovery exhausts the turn's committed observations and every missing-result candidate page
+	// before classifying a row as lacking terminal evidence.
+	t.Run("Should replay terminal evidence beyond the first event and candidate pages", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		launch := func(call string) {
+			t.Helper()
+			ev := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+		}
+		committed := func(sequence int64, call string, kind acp.NativeTaskKind, status, summary string) store.SessionEvent {
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: kind, TaskID: call, ToolCallID: call, Status: status, Summary: new(summary),
+				},
+			)
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return store.SessionEvent{Sequence: sequence, TurnID: "turn", Type: event.Type, Content: payload}
+		}
+		launch("toolu_late")
+		launch("toolu_old")
+		// The older row settled first; newer rows without any evidence fill more than one candidate page.
+		settledAt := s.now().UTC().Add(-time.Hour)
+		finalize := func(call string, at time.Time) {
+			t.Helper()
+			if _, _, err := db.FinalizeSubagent(t.Context(), store.SubagentFinalize{
+				ID: subagentID("parent", call), Status: store.SubagentStatusCompleted, SettledAt: at,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		finalize("toolu_old", settledAt)
+		for i := range nativeTaskReplayRowPage + 3 {
+			call := fmt.Sprintf("toolu_silent_%03d", i)
+			launch(call)
+			finalize(call, settledAt.Add(time.Duration(i+1)*time.Second))
+		}
+		var sequence int64
+		for range nativeTaskReplayEventPage + 5 {
+			sequence++
+			r.nativeTasks = append(r.nativeTasks,
+				committed(sequence, "toolu_sibling", acp.NativeTaskKindProgress, "", "sibling progress"))
+		}
+		r.nativeTasks = append(r.nativeTasks,
+			committed(sequence+1, "toolu_late", acp.NativeTaskKindState, acp.NativeTaskStatusFailed, "late failure"),
+			committed(sequence+2, "toolu_old", acp.NativeTaskKindState, acp.NativeTaskStatusCompleted, "old summary"))
+		snap := r.snapshots["parent"]
+		snap.Active = false
+		r.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		late, old := db.rows[subagentID("parent", "toolu_late")], db.rows[subagentID("parent", "toolu_old")]
+		if late.Status != store.SubagentStatusFailed || late.Result == nil || *late.Result != "late failure" {
+			t.Fatal("terminal evidence beyond the first event page was missed:", late)
+		}
+		if old.Status != store.SubagentStatusCompleted || old.Result == nil || *old.Result != "old summary" {
+			t.Fatal("older candidate beyond the first page was starved:", old)
+		}
+	})
 }
 
 func TestSubagentRecoveryIsolation(t *testing.T) {
@@ -1653,7 +2103,7 @@ func (s *countingNativeSubagentStore) GetSubagentByChild(
 	return s.SubagentStore.GetSubagentByChild(ctx, id)
 }
 
-// Invariant: inner native chunks do not hit the store or recursively finalize, and diagnostic deduplication is bounded.
+// Invariant: inner native chunks do not hit the store per chunk or recursively finalize, and diagnostic deduplication is bounded.
 // Owner: native ingest hot path.
 func TestSubagentNativeInnerEvents(t *testing.T) {
 	t.Run("Should process inner chunks without database reads and bound stitch misses", func(t *testing.T) {
@@ -1696,6 +2146,63 @@ func TestSubagentNativeInnerEvents(t *testing.T) {
 		if counted.lookups != before || len(s.nativeMisses) > 1024 {
 			t.Fatal(counted.lookups, before, len(s.nativeMisses))
 		}
+	})
+	// Invariant: nested native events are the row's heartbeat: coalesced progress and updated_at, status unchanged.
+	t.Run("Should record coalesced heartbeat progress for nested events", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			s.now = func() time.Time { return time.Now().UTC() }
+			// The coalescing goroutine writes after earlier reads, so reads take the store lock.
+			read := func(id string) (int, store.SessionSubagent) {
+				db.mu.Lock()
+				defer db.mu.Unlock()
+				return db.writes, db.rows[id]
+			}
+			launch := NativeSubagentEvent{
+				WorkspaceID:        "ws",
+				ParentTurnID:       "turn",
+				ToolName:           "Agent",
+				ProviderToolCallID: "known",
+				Status:             "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			id := subagentID("parent", "known")
+			_, created := read(id)
+			time.Sleep(time.Minute)
+			for _, line := range []string{"Read main.go", "", "Edit main.go\nmore"} {
+				nested := NativeSubagentEvent{WorkspaceID: "ws", ProviderToolCallID: "known", Progress: line}
+				if err := s.OnNativeToolEvent(t.Context(), "parent", nested); err != nil {
+					t.Fatal(err)
+				}
+			}
+			synctest.Wait()
+			if writes, _ := read(id); writes != 0 {
+				t.Fatal("heartbeat wrote before the coalescing window", writes)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			writes, got := read(id)
+			if writes != 1 || got.Progress != "Edit main.go" || got.Status != store.SubagentStatusRunning ||
+				!got.UpdatedAt.After(created.UpdatedAt) {
+				t.Fatal(writes, got)
+			}
+			launch.Status = "completed"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			nested := NativeSubagentEvent{WorkspaceID: "ws", ProviderToolCallID: "known", Progress: "late"}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", nested); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if writes, got := read(id); writes != 1 || got.Progress != "Edit main.go" {
+				t.Fatal("terminal native row recorded heartbeat", writes, got)
+			}
+		})
 	})
 }
 
