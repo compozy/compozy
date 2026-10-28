@@ -92,3 +92,11 @@ navigation probe and provider lifecycle regression verify that old runtime pipel
 release their session trees. This is not a 64-provider generation test. The owning
 live-tail/catalog/provider suites passed locally; the complete two-visible-window
 streaming journeys remain assigned to PR #983's current-head Web/runtime E2E CI.
+
+QA impact 2026-10-28 (transcript read reuse): retain at least two transcript
+pages, let their stale interval expire, and refocus/mount another observer while the
+stream is live and caught up. No history reread should occur. Explicit invalidation and
+disconnected fallback must still reread; replay catch-up must not claim live authority
+until its watermark arrives. The canonical live-tail suite covers each boundary. The
+seeded browser slice validates loading/focus behavior only, not live provider execution;
+see `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
