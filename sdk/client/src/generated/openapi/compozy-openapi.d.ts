@@ -17879,7 +17879,12 @@ export interface components {
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
         | "tool_timed_out"
-        | "tool_unavailable";
+        | "tool_unavailable"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
+        | "worktree_operation_in_progress"
+        | "worktree_session_active";
       input_digest?: string;
       /** @enum {string} */
       kind:
@@ -18073,7 +18078,12 @@ export interface components {
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
         | "tool_timed_out"
-        | "tool_unavailable";
+        | "tool_unavailable"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
+        | "worktree_operation_in_progress"
+        | "worktree_session_active";
       details?: {
         [key: string]: unknown;
       };

@@ -3471,8 +3471,16 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionWorktreeBindingSchemas(baseline) == 0 {
 		t.Fatal("approved session binding addition: no historical session schemas found")
 	}
-	if addToolErrorCode(baseline, string(tools.ErrorCodeSessionWorktreeConflict)) == 0 {
-		t.Fatal("approved session binding error: no historical tool error enums found")
+	for _, code := range []tools.ErrorCode{tools.ErrorCodeSessionWorktreeConflict,
+		tools.ErrorCodeWorktreeNotFound,
+		tools.ErrorCodeWorktreeNotReady,
+		tools.ErrorCodeWorktreeMissing,
+		tools.ErrorCodeWorktreeOperationInProgress,
+		tools.ErrorCodeWorktreeSessionActive,
+	} {
+		if addToolErrorCode(baseline, string(code)) == 0 {
+			t.Fatal("approved session binding error: no historical tool error enums found")
+		}
 	}
 	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
 	automationProperties := baseline

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -621,6 +622,11 @@ func TestNativeSessionWorktreeBinding(t *testing.T) {
 		{name: "bind", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`},
 		{name: "unbind", tool: toolspkg.ToolIDSessionWorktreeUnbind, input: `{"session_id":"sess-a","expected_worktree_id":""}`},
 		{name: "busy", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: session.ErrPromptInProgress, code: toolspkg.ErrorCodeSessionBusy},
+		{name: "NotFound", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrNotFound, code: toolspkg.ErrorCodeWorktreeNotFound},
+		{name: "NotReady", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrNotReady, code: toolspkg.ErrorCodeWorktreeNotReady},
+		{name: "Missing", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrMissing, code: toolspkg.ErrorCodeWorktreeMissing},
+		{name: "OperationInProgress", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrOperationInProgress, code: toolspkg.ErrorCodeWorktreeOperationInProgress},
+		{name: "SessionActive", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrSessionActive, code: toolspkg.ErrorCodeWorktreeSessionActive},
 		{name: "stale", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: store.ErrSessionWorktreeConflict, code: toolspkg.ErrorCodeSessionWorktreeConflict},
 	} {
 		t.Run("Should handle "+tc.name, func(t *testing.T) {
@@ -670,6 +676,13 @@ func TestNativeSessionWorktreeBinding(t *testing.T) {
 			}
 			if typed, ok := errors.AsType[*toolspkg.ToolError](err); !ok || typed.Code != tc.code {
 				t.Fatalf("error=%v want %s", err, tc.code)
+			}
+			wantStatus := http.StatusConflict
+			if tc.failure == worktree.ErrNotFound {
+				wantStatus = http.StatusNotFound
+			}
+			if got := core.StatusForToolError(err); got != wantStatus {
+				t.Fatalf("tool status=%d want %d", got, wantStatus)
 			}
 		})
 	}

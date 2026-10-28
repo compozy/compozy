@@ -56,7 +56,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 	switch code {
 	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		return http.StatusBadRequest
-	case toolspkg.ErrorCodeNotFound:
+	case toolspkg.ErrorCodeNotFound, toolspkg.ErrorCodeWorktreeNotFound:
 		return http.StatusNotFound
 	case toolspkg.ErrorCodeDenied:
 		return http.StatusForbidden
@@ -67,6 +67,10 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		}
 		return http.StatusAccepted
 	case toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeWorktreeNotReady,
+		toolspkg.ErrorCodeWorktreeMissing,
+		toolspkg.ErrorCodeWorktreeOperationInProgress,
+		toolspkg.ErrorCodeWorktreeSessionActive,
 		toolspkg.ErrorCodeSessionBusy,
 		toolspkg.ErrorCodeSessionWorktreeConflict,
 		toolspkg.ErrorCodeCompactionUnsupported,

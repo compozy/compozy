@@ -9,10 +9,10 @@
 
 | Charter | Journey / Scenario | Persona | Tour | Status |
 |---|---|---|---|---|
-| CH-session-environment-continuity | RT-session-worktree-lifecycle: Claude cwd, sentinel, continuity | Ada | Data | Pending |
-| CH-session-environment-continuity | RT-session-worktree-lifecycle: Codex cwd, sentinel, continuity | Ada | Data | Pending |
-| CH-worktree-lifecycle-surface-parity | Bind/change/unbind through CLI, HTTP, UDS and native tools | Bruno | Feature | Pending |
-| CH-session-environment-continuity | Restart persistence and refusal boundaries | Théo | Data | Pending |
+| CH-session-environment-continuity | RT-session-worktree-lifecycle: Claude cwd, sentinel, continuity | Ada | Data | Pass |
+| CH-session-environment-continuity | RT-session-worktree-lifecycle: Codex cwd, sentinel, continuity | Ada | Data | Pass |
+| CH-worktree-lifecycle-surface-parity | Bind/change/unbind through CLI, HTTP, UDS and native tools | Bruno | Feature | Pass |
+| CH-session-environment-continuity | Restart persistence and refusal boundaries | Théo | Data | Pass (focused) |
 | CH-worktree-lifecycle-surface-parity | Existing-session Web environment control and unchanged fork | Bruno | Feature | Pending |
 
 ## Preliminary Engineering Evidence
@@ -36,6 +36,18 @@ The inherited containment charter predates in-place binding and expressly forbid
 - Both affected Web suites passed (environment control and catalog streams); Web typecheck passed through root Turborepo. Main's new font dependency initially blocked resolution; installing the unchanged frozen lockfile fixed the environment.
 - Codegen completed after rebase and regenerated the Go SDK type partitions.
 - CI owns the full matrix per the operator's instruction; no further local full gate, full race lane, or E2E suite is run.
+
+## Synchronized Live-Provider Evidence
+
+On the implementation rebased onto main, the same two existing sessions completed root → A → B → root sequentially (Claude Sonnet 5, then Codex GPT-6 Astra). Both recalled their original phrase on every checkout, read the expected checkout sentinel, and wrote independently verified final sentinels. Both invoked the native terminal without a cwd override and observed the selected checkout/root.
+
+Claude continued at B after a graceful daemon restart between binding and prompting. Codex continued at B after SIGKILL of the registered, identity-verified lab daemon at that same boundary and subsequent restart. Only this isolated lab was stopped. The catalog still contained the two original session IDs.
+
+CLI, HTTP, direct UDS and native mutation receipts are retained privately. The public file-search endpoint switched root-only → checkout-only → root-only filenames immediately, with no extra provider turn. A concurrent mutation during a confirmed active Codex prompt returned `409 session_busy`; stale expectation returned `409 session_worktree_conflict`; an unknown checkout returned `404 worktree_not_found` over HTTP.
+
+The native unknown-checkout walk exposed an incorrect generic `tool_not_found` translation. The adapter now preserves worktree refusal codes, with an extension to its canonical suite and regenerated wire contracts. The live re-walk returned `worktree_not_found` from the native tool. An archived-session attempt returned `409 session_not_promptable`, and unarchiving restored availability. This targeted continuity run does not claim the bootstrap's broader multi-agent/task orchestration audit.
+
+The isolated lab teardown completed with `TEARDOWN_ALL_CLEAN=true`; only registered/identity-verified lab processes were stopped. Private evidence remains retained.
 
 ## Final Status
 

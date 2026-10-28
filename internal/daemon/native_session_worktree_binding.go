@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type sessionWorktreeBindingInput struct {
@@ -66,6 +67,13 @@ func (n *daemonNativeTools) sessionWorktreeBinding(
 				err.Error(),
 				err,
 			)
+		}
+		for _, refusal := range []error{worktree.ErrNotFound, worktree.ErrNotReady, worktree.ErrMissing,
+			worktree.ErrOperationInProgress, worktree.ErrSessionActive} {
+			if errors.Is(err, refusal) {
+				return toolspkg.ToolResult{}, toolspkg.NewToolError(
+					toolspkg.ErrorCode(core.WorktreeErrorCode(err)), req.ToolID, refusal.Error(), err)
+			}
 		}
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
