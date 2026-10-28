@@ -79,5 +79,5 @@ func (r *repoBase) withTaskImmediateTransaction(
 	if r == nil || r.tasks == nil {
 		return errors.New("store: task repository is required")
 	}
-	return r.tasks.withTaskImmediateTransaction(ctx, action, run)
+	return mapWorkspaceArchivedConstraint(r.tasks.withTaskImmediateTransaction(ctx, action, run))
 }

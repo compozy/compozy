@@ -227,6 +227,9 @@ func NewAutomationValidationError(err error) error {
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
+	if errors.Is(err, workspacepkg.ErrWorkspaceArchived) {
+		return http.StatusConflict
+	}
 	if err == nil {
 		return http.StatusOK
 	}

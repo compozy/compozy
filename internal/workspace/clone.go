@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"time"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
@@ -33,6 +35,10 @@ func cloneResolvedWorkspace(src *ResolvedWorkspace) ResolvedWorkspace {
 }
 
 func cloneWorkspace(src Workspace) Workspace {
+	var archivedAt *time.Time
+	if src.ArchivedAt != nil {
+		archivedAt = new(*src.ArchivedAt)
+	}
 	return Workspace{
 		ID:             src.ID,
 		RootDir:        src.RootDir,
@@ -41,6 +47,7 @@ func cloneWorkspace(src Workspace) Workspace {
 		DefaultAgent:   src.DefaultAgent,
 		CreatedAt:      src.CreatedAt,
 		UpdatedAt:      src.UpdatedAt,
+		ArchivedAt:     archivedAt,
 	}
 }
 

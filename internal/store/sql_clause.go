@@ -166,3 +166,15 @@ func isAllowedSQLOperator(value string) bool {
 		return false
 	}
 }
+
+// ActiveWorkspaceClause excludes archived projects from aggregate overview reads.
+// An explicitly selected project retains its historical data.
+func ActiveWorkspaceClause(column, workspaceID string) Clause {
+	if strings.TrimSpace(workspaceID) != "" {
+		return Clause{}
+	}
+	if err := validateSQLiteColumnReference(column); err != nil {
+		return alwaysFalseClause()
+	}
+	return Clause{sql: fmt.Sprintf("(%s IS NULL OR %s NOT IN (SELECT id FROM workspaces WHERE archived_at IS NOT NULL))", column, column), ok: true}
+}

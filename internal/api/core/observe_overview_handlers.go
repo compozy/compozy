@@ -83,7 +83,7 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 		h.respondError(c, http.StatusBadRequest, err)
 		return false
 	}
-	if len(breadth.WorkspaceIDs) != 0 {
+	if len(c.Request.URL.Query()["workspace_ids"]) != 0 {
 		h.respondError(c, http.StatusBadRequest, invalidWorkspaceBreadth("overview does not support workspace_ids"))
 		return false
 	}
@@ -97,6 +97,7 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 			return false
 		}
 		query.TaskScope = taskpkg.CatalogScopeAll
+		query.WorkspaceIDs = breadth.WorkspaceIDs
 		return true
 	}
 	if breadth.WorkspaceID != "" {

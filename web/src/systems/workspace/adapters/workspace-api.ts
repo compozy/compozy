@@ -4,7 +4,7 @@ import {
   defaultApiErrorMessage,
   requireResponseData,
 } from "@/lib/api-client";
-import type { OperationRequestBody } from "@/lib/api-contract";
+import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 import type { WorkspaceDetailPayload, WorkspacePayload } from "../types";
 
@@ -14,15 +14,25 @@ export type CreateWorkspaceParams = OperationRequestBody<"createWorkspace">;
 export class WorkspaceApiError extends Error {
   constructor(
     message: string,
-    public readonly status: number
+    public readonly status: number,
+    public readonly code?: string,
+    public readonly blockers: NonNullable<
+      OperationResponse<"archiveWorkspace", 409>["blockers"]
+    > = []
   ) {
     super(message);
     this.name = "WorkspaceApiError";
   }
 }
 
-export async function fetchWorkspaces(signal?: AbortSignal): Promise<WorkspacePayload[]> {
-  const { data, error, response } = await apiClient.GET("/api/workspaces", { signal });
+export async function fetchWorkspaces(
+  signal?: AbortSignal,
+  archived = false
+): Promise<WorkspacePayload[]> {
+  const { data, error, response } = await apiClient.GET("/api/workspaces", {
+    signal,
+    params: { query: { archived } },
+  });
   if (apiRequestFailed(response, error)) {
     throw new WorkspaceApiError(
       defaultApiErrorMessage("Failed to fetch workspaces", response, error),
@@ -104,4 +114,23 @@ export async function resolveWorkspace(
   }
 
   return requireResponseData(data, response, "Failed to resolve workspace").workspace;
+}
+
+export async function setWorkspaceArchived(
+  workspaceID: string,
+  archived: boolean
+): Promise<WorkspacePayload> {
+  const path = archived ? "/api/workspaces/{id}/archive" : "/api/workspaces/{id}/unarchive";
+  const { data, error, response } = await apiClient.POST(path, {
+    params: { path: { id: workspaceID } },
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new WorkspaceApiError(
+      defaultApiErrorMessage("Failed to update project", response, error),
+      response.status,
+      error?.code,
+      error?.blockers ?? []
+    );
+  }
+  return requireResponseData(data, response, "Failed to update project").workspace;
 }

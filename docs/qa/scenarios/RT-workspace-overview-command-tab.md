@@ -66,3 +66,23 @@ that turn ends.
 qa-impact: 2026-10-22 (#900 shell UI polish): the workspace chip menu rows dropped their
 monogram wells, so the working dot follows the workspace name there; the overlay tiles keep
 their monogram well and corner dot. Expected text only; status fields untouched.
+
+## Project lifecycle regression
+
+1. Register two projects in an isolated lab and retain stopped session history in one.
+2. In the picker, open the project's context menu and choose Archive project. Confirm it.
+3. Verify the project disappears from the picker, project cycle, sidebar and default All projects lists.
+4. In Settings → General → Projects → Archived, unarchive it. Verify the same project ID, stopped
+   history, worktrees and desktop layouts remain available.
+5. With a non-stopped session, a live Loop or an enabled automation, try archiving. Verify
+   `workspace_busy` and the named blockers in the dialog; no state changes.
+6. Open Remove project. Verify the history/bindings/new-ID warning, files-on-disk guarantee,
+   Cancel, and Archive instead. Confirm removal only for disposable lab data.
+7. Repeat archive/list/unarchive through CLI, HTTP, UDS and native tools. Explicit new session
+   admission while archived must fail with `workspace_archived`; history reads must succeed.
+
+Pinning and recent-use ordering are outside this regression.
+
+qa-impact: 2026-10-28 archive/remove lifecycle slice passed against an isolated daemon and
+production web bundle. See `docs/qa/reports/2026-10-28-archive-projects.md`; older unrelated
+scenario verdicts above are retained rather than inferred from this focused walk.

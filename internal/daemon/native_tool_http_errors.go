@@ -1,13 +1,24 @@
 package daemon
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/compozy/compozy/internal/workspace"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
+	if errors.Is(err, workspace.ErrWorkspaceArchived) {
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeWorkspaceArchived,
+			id,
+			err.Error(),
+			errors.Join(toolspkg.ErrToolConflict, err),
+		)
+	}
 	code := toolspkg.ErrorCodeBackendFailed
 	cause := toolspkg.ErrToolBackendFailed
 	reason := toolspkg.ReasonBackendUnhealthy

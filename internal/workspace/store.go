@@ -4,6 +4,7 @@ import "context"
 
 // Store persists and looks up registered workspaces.
 type Store interface {
+	SetWorkspaceArchived(ctx context.Context, id string, archived bool) (Workspace, error)
 	InsertWorkspace(ctx context.Context, ws Workspace) error
 	UpdateWorkspace(ctx context.Context, ws Workspace) error
 	DeleteWorkspace(ctx context.Context, id string) error

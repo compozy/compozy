@@ -23,6 +23,7 @@ func (g *ObserveRepo) queryTokenUsageDays(
 		store.StringCompareClause("day", ">=", query.SinceDay),
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
@@ -50,6 +51,7 @@ func (g *ObserveRepo) queryTokenUsageAgents(
 		store.StringCompareClause("day", ">=", query.SinceDay),
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
@@ -80,6 +82,7 @@ func (g *ObserveRepo) queryTokenUsageProfiles(
 		store.StringCompareClause("u.day", ">=", query.SinceDay),
 		store.ReadScopeClause("u.profile_id", query.ReadScope),
 		store.StringClause("u.workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("u.workspace_id", query.WorkspaceID),
 	)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
@@ -117,6 +120,7 @@ func (g *ObserveRepo) queryTokenUsageCosts(
 		store.StringCompareClause("day", ">=", query.SinceDay),
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
@@ -151,6 +155,7 @@ func (g *ObserveRepo) queryTaskRunOutcomeDays(
 		` GROUP BY date(r.ended_at, 'localtime') ORDER BY 1`,
 		store.ReadScopeClause("t.profile_id", query.ReadScope),
 		store.StringClause("r.workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("r.workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
@@ -178,6 +183,7 @@ func (g *ObserveRepo) queryTaskClosedDays(
 		` GROUP BY date(closed_at, 'localtime') ORDER BY 1`,
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
@@ -206,6 +212,7 @@ func (g *ObserveRepo) queryEventHourWeekdays(
 		` GROUP BY 1, 2 ORDER BY 1, 2`,
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
 	rows, err := g.db.QueryContext(ctx, statement, args...)
@@ -232,6 +239,7 @@ func (g *ObserveRepo) queryLatestEventSummaryAt(
 		"",
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	var latest string
 	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&latest); err != nil {
@@ -257,6 +265,7 @@ func (g *ObserveRepo) queryHookDispatchCounts(
 		"",
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(query.Since)}, args...)
 	var counts store.HookDispatchCounts
@@ -278,6 +287,7 @@ func (g *ObserveRepo) queryLongestUserSession(
 		` ORDER BY 4 DESC, created_at DESC LIMIT 1`,
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),
+		store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID),
 	)
 	args = append([]any{store.FormatTimestamp(g.now()), store.FormatTimestamp(query.Since)}, args...)
 	row := g.db.QueryRowContext(ctx, statement, args...)

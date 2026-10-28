@@ -15,7 +15,7 @@ import (
 )
 
 // ParseAutomationRunQuery parses the shared automation run list filters.
-func ParseAutomationRunQuery(c *gin.Context) (automationpkg.RunQuery, error) {
+func ParseAutomationRunQuery(c *gin.Context, workspaces ...WorkspaceGetter) (automationpkg.RunQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return automationpkg.RunQuery{}, err
@@ -29,7 +29,11 @@ func ParseAutomationRunQuery(c *gin.Context) (automationpkg.RunQuery, error) {
 		return automationpkg.RunQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(
+		c,
+		"",
+		breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true},
+		workspaces...)
 	if err != nil {
 		return automationpkg.RunQuery{}, err
 	}

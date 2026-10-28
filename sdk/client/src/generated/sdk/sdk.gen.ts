@@ -58,6 +58,9 @@ import type {
   ArchiveTaskData,
   ArchiveTaskErrors,
   ArchiveTaskResponses,
+  ArchiveWorkspaceData,
+  ArchiveWorkspaceErrors,
+  ArchiveWorkspaceResponses,
   AttachSessionData,
   AttachSessionErrors,
   AttachSessionResponses,
@@ -1311,6 +1314,9 @@ import type {
   UnarchiveSessionData,
   UnarchiveSessionErrors,
   UnarchiveSessionResponses,
+  UnarchiveWorkspaceData,
+  UnarchiveWorkspaceErrors,
+  UnarchiveWorkspaceResponses,
   UnbindGatewayIngressData,
   UnbindGatewayIngressErrors,
   UnbindGatewayIngressResponses,
@@ -10271,7 +10277,7 @@ export class workspaces extends HeyApiClient {
   }
 
   /**
-   * List registered workspaces
+   * List active or archived workspaces
    */
   public listWorkspaces<ThrowOnError extends boolean = true>(
     options?: Options<ListWorkspacesData, ThrowOnError>
@@ -10387,6 +10393,42 @@ export class workspaces extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * archive a workspace without removing its data
+   */
+  public archiveWorkspace<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveWorkspaceData, ThrowOnError>
+  ): RequestResult<ArchiveWorkspaceResponses, ArchiveWorkspaceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ArchiveWorkspaceResponses,
+      ArchiveWorkspaceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{id}/archive",
+      ...options,
+    });
+  }
+
+  /**
+   * unarchive a workspace without removing its data
+   */
+  public unarchiveWorkspace<ThrowOnError extends boolean = true>(
+    options: Options<UnarchiveWorkspaceData, ThrowOnError>
+  ): RequestResult<UnarchiveWorkspaceResponses, UnarchiveWorkspaceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      UnarchiveWorkspaceResponses,
+      UnarchiveWorkspaceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{id}/unarchive",
+      ...options,
     });
   }
 

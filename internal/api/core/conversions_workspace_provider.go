@@ -22,6 +22,7 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 	addDirs = append(addDirs, workspace.AdditionalDirs...)
 
 	return contract.WorkspacePayload{
+		ArchivedAt:   workspace.ArchivedAt,
 		ID:           workspace.ID,
 		RootDir:      workspace.RootDir,
 		AddDirs:      addDirs,

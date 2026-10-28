@@ -437,6 +437,16 @@ payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on route
 
 Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
+`compozy__workspace_archive` and `compozy__workspace_unarchive` take `workspace` and preserve the
+project ID, history, layouts, worktrees and configuration. Archive refuses non-stopped sessions,
+nonterminal Loops and enabled automations with `workspace_busy`; inspect the returned blockers,
+stop or disable them, then retry. Unarchive has no preconditions. New sessions and resumed sessions
+in an archived project fail with `workspace_archived`; history remains readable.
+`compozy__workspace_list` excludes archived projects by default; `archived: true` lists only archived
+projects. CLI parity: `compozy workspace archive|unarchive <name-or-id>` and
+`compozy workspace list --archived`. HTTP/UDS parity: `POST /api/workspaces/{id}/archive|unarchive`
+and `GET /api/workspaces?archived=true`. Default All projects aggregates omit archived projects.
+
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog. A bound session's `compozy__workspace_list` adds every workspace its permission mode already lets it address (never prompting); pass one to a tool's `workspace` input.
 
 The workspace setup browser reads `GET /api/fs/browse`; its response includes `home` and every

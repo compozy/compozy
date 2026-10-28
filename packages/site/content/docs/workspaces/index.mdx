@@ -26,6 +26,36 @@ every registered workspace. See
   for registering the correct root.
 </OperatorNote>
 
+## Archive or remove a project
+
+Archive a project when you want it out of navigation without losing its state. Use the project's
+context menu in the picker, or **Settings → General → Projects**. The **Archived** section in Settings
+lets you unarchive it. Archiving preserves its ID, stopped session history, desktops and layouts,
+worktrees, configuration and files. Archived projects are excluded from the picker, project cycling,
+sidebar and default All projects aggregates. Explicit history reads remain available.
+
+```bash
+compozy workspace archive my-project
+compozy workspace list --archived
+compozy workspace unarchive my-project
+```
+
+Archiving returns `workspace_busy` with a `blockers` list while there are non-stopped sessions,
+nonterminal Loops (including paused or waiting Loops), or enabled automations owned by or targeting
+that project. Stop the listed sessions and Loops and disable the automations before retrying.
+New sessions, resumed sessions, live Loop runs and enabled automations in an archived project are
+refused; unarchive it first. Unarchive has no preconditions.
+
+HTTP and UDS expose `POST /api/workspaces/{id}/archive`, `POST /api/workspaces/{id}/unarchive`, and
+`GET /api/workspaces?archived=true` (archived projects only). Native tools are
+`compozy__workspace_archive`, `compozy__workspace_unarchive`, and
+`compozy__workspace_list` with `archived: true`.
+
+**Remove project** deletes registration and stopped session history and clears window bindings.
+Adding the same folder again creates a new ID. Files on disk are untouched. The confirmation offers
+**Archive instead** when the project is active. Removing remains subject to the existing active-session
+refusal. The archive database migration adds a nullable timestamp and preserves existing registrations.
+
 ## In this section
 
 <RouteList>

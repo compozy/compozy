@@ -241,7 +241,7 @@ func (g *AutomationRepo) SetJobEnabledOverlay(
 		return automation.JobEnabledOverlay{}, fmt.Errorf(
 			"store: set automation job overlay %q: %w",
 			normalized.JobID,
-			err,
+			mapWorkspaceArchivedConstraint(err),
 		)
 	}
 
@@ -305,7 +305,7 @@ func (g *AutomationRepo) DeleteJobEnabledOverlay(ctx context.Context, jobID stri
 	}
 
 	if err := g.queries.DeleteAutomationJobOverlay(ctx, trimmedID); err != nil {
-		return fmt.Errorf("store: delete automation job overlay %q: %w", trimmedID, err)
+		return fmt.Errorf("store: delete automation job overlay %q: %w", trimmedID, mapWorkspaceArchivedConstraint(err))
 	}
 
 	return nil
@@ -331,7 +331,7 @@ func (g *AutomationRepo) SetTriggerEnabledOverlay(
 		return automation.TriggerEnabledOverlay{}, fmt.Errorf(
 			"store: set automation trigger overlay %q: %w",
 			normalized.TriggerID,
-			err,
+			mapWorkspaceArchivedConstraint(err),
 		)
 	}
 
@@ -398,7 +398,11 @@ func (g *AutomationRepo) DeleteTriggerEnabledOverlay(ctx context.Context, trigge
 	}
 
 	if err := g.queries.DeleteAutomationTriggerOverlay(ctx, trimmedID); err != nil {
-		return fmt.Errorf("store: delete automation trigger overlay %q: %w", trimmedID, err)
+		return fmt.Errorf(
+			"store: delete automation trigger overlay %q: %w",
+			trimmedID,
+			mapWorkspaceArchivedConstraint(err),
+		)
 	}
 
 	return nil

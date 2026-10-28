@@ -50,6 +50,7 @@ type Workspace struct {
 	DefaultAgent   string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	ArchivedAt     *time.Time
 }
 
 // DeletionIntent preserves the registration snapshot required to finish external cleanup.

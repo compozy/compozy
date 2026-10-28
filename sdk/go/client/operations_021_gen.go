@@ -98,9 +98,21 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	return &out, nil
 }
 
-// ListWorkspaces List registered workspaces
-func (c *Client) ListWorkspaces(ctx context.Context) (*WorkspacesResponse, error) {
+// ListWorkspacesParams carries the path, query, and header parameters.
+type ListWorkspacesParams struct {
+	Archived *bool `url:"archived"`
+}
+
+// ListWorkspaces List active or archived workspaces
+func (c *Client) ListWorkspaces(ctx context.Context, params ListWorkspacesParams) (*WorkspacesResponse, error) {
 	path := "/api/workspaces"
+	query := url.Values{}
+	if params.Archived != nil {
+		query.Set("archived", strconv.FormatBool(*params.Archived))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out WorkspacesResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -418,33 +430,4 @@ type PauseLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
 	Profile     *string `url:"profile"`
-}
-
-// PauseLoopRun Pause one Loop run
-func (c *Client) PauseLoopRun(ctx context.Context, params PauseLoopRunParams, body map[string]any) (*map[string]bool, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out map[string]bool
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseScheduler Pause scheduler dispatch and task-run claims
-func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest) (*SchedulerStatusResponse, error) {
-	path := "/api/scheduler/pause"
-	var out SchedulerStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

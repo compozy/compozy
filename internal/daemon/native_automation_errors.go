@@ -3,6 +3,9 @@ package daemon
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
+	"github.com/compozy/compozy/internal/workspace"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -10,6 +13,8 @@ import (
 
 func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 	switch {
+	case errors.Is(err, workspace.ErrWorkspaceArchived):
+		return nativeHTTPStatusToolError(id, err, http.StatusConflict)
 	case err == nil:
 		return nil
 	case errors.Is(err, automationpkg.ErrJobNotFound),

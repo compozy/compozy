@@ -398,3 +398,6 @@ export type { WorktreeRemovalBatch } from "./hooks/use-worktree-removal-selectio
 export { WorktreeSelectionToolbar } from "./components/worktree-selection-toolbar";
 
 export { WorktreeBulkRemoveDialog } from "./components/worktree-bulk-remove-dialog";
+
+export { WorkspaceProjectActions } from "./components/workspace-project-actions";
+export { WorkspaceManagement } from "./components/workspace-management";

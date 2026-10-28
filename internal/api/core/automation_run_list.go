@@ -25,7 +25,7 @@ func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationRunQuery(c)
+	query, err := ParseAutomationRunQuery(c, h.Workspaces)
 	if err != nil {
 		if _, ok := err.(*workspaceBreadthError); ok {
 			h.respondAggregateBreadthError(c, err)

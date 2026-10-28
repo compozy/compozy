@@ -10,6 +10,22 @@ import (
 	"strings"
 )
 
+// CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
+func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
+	path := "/api/settings/update/check"
+	var out SettingsUpdateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClaimNextAgentTaskParams carries the path, query, and header parameters.
+type ClaimNextAgentTaskParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
 // ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
 func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
 	path := "/api/agent/tasks/claim-next"
@@ -431,9 +447,4 @@ func (c *Client) CreateProfile(ctx context.Context, body CreateProfileRequest) (
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateSessionParams carries the path, query, and header parameters.
-type CreateSessionParams struct {
-	Profile *string `url:"profile"`
 }

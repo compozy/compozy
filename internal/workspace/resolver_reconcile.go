@@ -13,6 +13,11 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 			return nil, err
 		}
 
+		if ws.ArchivedAt != nil {
+			reconciled = append(reconciled, ws)
+			continue
+		}
+
 		missing, err := workspaceRootMissing(ws)
 		if err != nil {
 			return nil, err

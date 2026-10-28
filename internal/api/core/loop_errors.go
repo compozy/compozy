@@ -44,6 +44,9 @@ func (e *LoopLintFailedError) Error() string {
 
 // StatusForLoopError maps loop-domain failures to transport statuses.
 func StatusForLoopError(err error) int {
+	if errors.Is(err, workspacepkg.ErrWorkspaceArchived) {
+		return http.StatusConflict
+	}
 	if status := StatusForTaskError(err); status != http.StatusInternalServerError {
 		return status
 	}

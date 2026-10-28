@@ -24,13 +24,14 @@ type ResolveWorkspaceRequest struct {
 
 // WorkspacePayload is the shared workspace response payload.
 type WorkspacePayload struct {
-	ID           string    `json:"id"`
-	RootDir      string    `json:"root_dir"`
-	AddDirs      []string  `json:"add_dirs"`
-	Name         string    `json:"name"`
-	DefaultAgent string    `json:"default_agent,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
+	ID           string     `json:"id"`
+	RootDir      string     `json:"root_dir"`
+	AddDirs      []string   `json:"add_dirs"`
+	Name         string     `json:"name"`
+	DefaultAgent string     `json:"default_agent,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 }
 
 // WorkspaceSkillPayload is the shared workspace skill response payload.
@@ -38,4 +39,10 @@ type WorkspaceSkillPayload struct {
 	Name   string `json:"name"`
 	Dir    string `json:"dir"`
 	Source string `json:"source"`
+}
+
+type WorkspaceArchiveBlocker struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }

@@ -13,6 +13,8 @@ func (n *daemonNativeTools) workspaceToolBindings(
 			call:         n.agentList,
 			availability: agentCatalogAvailability,
 		},
+		toolspkg.ToolIDWorkspaceArchive:   {call: n.workspaceArchive, availability: availability},
+		toolspkg.ToolIDWorkspaceUnarchive: {call: n.workspaceArchive, availability: availability},
 		toolspkg.ToolIDWorkspaceList: {
 			call:         n.workspaceList,
 			availability: availability,

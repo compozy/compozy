@@ -123,6 +123,7 @@ func (g *SessionRepo) SetSessionArchived(
 }
 
 func mapSessionArchivedConstraint(sessionID string, err error) error {
+	err = mapWorkspaceArchivedConstraint(err)
 	if err != nil && strings.Contains(err.Error(), sessionArchivedConstraintMessage) {
 		return fmt.Errorf("%w: %s", store.ErrSessionArchived, strings.TrimSpace(sessionID))
 	}

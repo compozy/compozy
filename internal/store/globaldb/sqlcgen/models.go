@@ -2139,6 +2139,7 @@ type Workspace struct {
 	AddDirs      string         `json:"add_dirs"`
 	Name         string         `json:"name"`
 	DefaultAgent sql.NullString `json:"default_agent"`
+	ArchivedAt   sql.NullString `json:"archived_at"`
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 }

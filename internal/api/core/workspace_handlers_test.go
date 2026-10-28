@@ -680,3 +680,67 @@ func TestUserSessionRouteAllProfilesRead(t *testing.T) {
 		}
 	})
 }
+
+func TestWorkspaceArchiveHandlers(t *testing.T) {
+	t.Run("Should return typed blockers without changing the workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				SetArchivedFn: func(_ context.Context, ref string, archived bool) (workspacepkg.Workspace, error) {
+					if ref != "ws_archive" || !archived {
+						t.Fatalf("archive target = %q %v", ref, archived)
+					}
+					return workspacepkg.Workspace{}, &workspacepkg.BusyError{Blockers: []workspacepkg.ArchiveBlocker{
+						{Kind: "session", ID: "sess_busy", Name: "Working"},
+					}}
+				},
+			},
+		)
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/workspaces/ws_archive/archive", nil)
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusConflict || payload.Code != "workspace_busy" ||
+			len(payload.Blockers) != 1 || payload.Blockers[0].ID != "sess_busy" {
+			t.Fatalf("response = %d %#v", resp.Code, payload)
+		}
+	})
+	t.Run("Should separate active and archived catalogs and restore the same identity", func(t *testing.T) {
+		t.Parallel()
+		at := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "ws_active"}, {ID: "ws_archive", ArchivedAt: &at}}, nil
+				},
+				SetArchivedFn: func(_ context.Context, ref string, archived bool) (workspacepkg.Workspace, error) {
+					if archived {
+						t.Fatal("unarchive requested archive")
+					}
+					return workspacepkg.Workspace{ID: ref}, nil
+				},
+			},
+		)
+		for _, test := range []struct{ path, id string }{
+			{"/workspaces", "ws_active"}, {"/workspaces?archived=true", "ws_archive"},
+		} {
+			resp := performRequest(t, fixture.Engine, http.MethodGet, test.path, nil)
+			var payload contract.WorkspacesResponse
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusOK || len(payload.Workspaces) != 1 || payload.Workspaces[0].ID != test.id {
+				t.Fatalf("catalog = %d %#v", resp.Code, payload)
+			}
+		}
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/workspaces/ws_archive/unarchive", nil)
+		var payload contract.WorkspaceResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Workspace.ID != "ws_archive" || payload.Workspace.ArchivedAt != nil {
+			t.Fatalf("unarchive = %d %#v", resp.Code, payload)
+		}
+	})
+}

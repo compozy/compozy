@@ -841,3 +841,31 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 		}
 	})
 }
+
+func TestOverviewExcludesArchivedWorkspaceUsage(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	db := openTestGlobalDB(t)
+	id := registerWorkspaceForGlobalTests(t, db, "completed", t.TempDir())
+	day := store.LocalDay(time.Now())
+	tokens := int64(123)
+	if err := db.UpsertTokenUsageDaily(ctx, store.TokenUsageDailyUpdate{
+		ProfileID: store.DefaultProfileID, WorkspaceID: id, AgentName: "general", Day: day,
+		TotalTokens: &tokens, Turns: 1, UpdatedAt: time.Now(), CostStatus: "unknown", CostSource: "none",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.SetWorkspaceArchived(ctx, id, true); err != nil {
+		t.Fatal(err)
+	}
+	query := store.OverviewDayQuery{ReadScope: store.ReadScope{AllProfiles: true}, SinceDay: day}
+	rows, err := db.ListTokenUsageByDay(ctx, query)
+	if err != nil || len(rows) != 0 {
+		t.Fatalf("aggregate rows=%v err=%v", rows, err)
+	}
+	query.WorkspaceID = id
+	rows, err = db.ListTokenUsageByDay(ctx, query)
+	if err != nil || len(rows) != 1 || rows[0].TotalTokens != tokens {
+		t.Fatalf("history rows=%v err=%v", rows, err)
+	}
+}

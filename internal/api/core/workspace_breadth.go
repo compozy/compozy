@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -81,6 +82,12 @@ func parseWorkspaceBreadth(
 			fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector),
 		)
 	}
+	if all {
+		normalized, err = defaultActiveWorkspaceIDs(c.Request.Context(), getter, normalized)
+		if err != nil {
+			return WorkspaceBreadth{}, err
+		}
+	}
 	return WorkspaceBreadth{
 		AllWorkspaces: all || selector == "" && enc.OmissionIsAll,
 		WorkspaceID:   selector,
@@ -126,4 +133,34 @@ func resolveLegacyGlobalSelector(c *gin.Context, value string, workspaces Worksp
 		code:    "workspace_reserved",
 		message: "global is reserved without a migration alias",
 	}
+}
+
+func defaultActiveWorkspaceIDs(ctx context.Context, getter WorkspaceGetter, ids []string) ([]string, error) {
+	if len(ids) != 0 {
+		return ids, nil
+	}
+	catalog, ok := getter.(interface {
+		List(context.Context) ([]workspacepkg.Workspace, error)
+	})
+	if !ok {
+		return ids, nil
+	}
+	workspaces, err := catalog.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	active := []string{"@user"}
+	hasArchived := false
+	for _, ws := range workspaces {
+		if ws.ArchivedAt != nil {
+			hasArchived = true
+		} else {
+			active = append(active, ws.ID)
+		}
+	}
+	if !hasArchived {
+		return ids, nil
+	}
+	slices.Sort(active)
+	return active, nil
 }

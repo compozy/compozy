@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// CreateSessionParams carries the path, query, and header parameters.
+type CreateSessionParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateSession Create a session
 func (c *Client) CreateSession(ctx context.Context, params CreateSessionParams, body CreateSessionRequest) (*SessionResponse, error) {
 	path := "/api/sessions"
@@ -438,13 +443,4 @@ type DeleteSessionAttachmentParams struct {
 	WorkspaceID  string `url:"workspace_id"`
 	SessionID    string `url:"session_id"`
 	AttachmentID string `url:"attachment_id"`
-}
-
-// DeleteSessionAttachment Delete a session attachment
-func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessionAttachmentParams) error {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }

@@ -691,3 +691,7 @@ func TestInheritedUserAgentWithoutProjectWork(t *testing.T) {
 		})
 	}
 }
+
+func (s workspaceServiceStub) SetArchived(context.Context, string, bool) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}

@@ -82,6 +82,8 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaces.GET("/:workspace_id", handlers.GetWorkspace)
 		workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
 		workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
+		workspaces.POST("/:workspace_id/archive", handlers.ArchiveWorkspace)
+		workspaces.POST("/:workspace_id/unarchive", handlers.UnarchiveWorkspace)
 		workspaces.POST("/resolve", handlers.ResolveWorkspace)
 	}
 }

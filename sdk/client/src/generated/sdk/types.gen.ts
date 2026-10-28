@@ -1671,6 +1671,7 @@ export type Entry = {
 };
 
 export type ErrorPayload = {
+  blockers?: Array<WorkspaceArchiveBlocker>;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -6385,6 +6386,7 @@ export type SessionDeriveCutPayload = {
 };
 
 export type SessionDeriveErrorPayload = {
+  blockers?: Array<WorkspaceArchiveBlocker>;
   child_session_id?: string;
   code?: string;
   config_path?: string;
@@ -6814,6 +6816,7 @@ export type SessionPullRequestChecksPayload = {
 };
 
 export type SessionPullRequestErrorPayload = {
+  blockers?: Array<WorkspaceArchiveBlocker>;
   cause?: string;
   code?: string;
   config_path?: string;
@@ -9705,6 +9708,7 @@ export type TaskPayload = {
 };
 
 export type TaskQueryErrorPayload = {
+  blockers?: Array<WorkspaceArchiveBlocker>;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -11724,6 +11728,12 @@ export type WorkerProfile = {
   speed?: "normal" | "fast";
 };
 
+export type WorkspaceArchiveBlocker = {
+  id: string;
+  kind: string;
+  name: string;
+};
+
 export type WorkspaceAttentionSummaryPayload = {
   finished: number;
   needs_you: number;
@@ -11763,6 +11773,7 @@ export type WorkspaceDetailPayload = {
 
 export type WorkspacePayload = {
   add_dirs: Array<string>;
+  archived_at?: string | null;
   created_at: string;
   default_agent?: string;
   id: string;
@@ -28697,7 +28708,12 @@ export type DeliverWorkspaceWebhookResponse =
 export type ListWorkspacesData = {
   body?: never;
   path?: never;
-  query?: never;
+  query?: {
+    /**
+     * List archived projects instead of active projects
+     */
+    archived?: boolean;
+  };
   url: "/api/workspaces";
 };
 
@@ -28911,6 +28927,83 @@ export type UpdateWorkspaceResponses = {
 };
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
+
+export type ArchiveWorkspaceData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace name or id
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{id}/archive";
+};
+
+export type ArchiveWorkspaceErrors = {
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Workspace has active sessions, live Loops or enabled automations
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type ArchiveWorkspaceError = ArchiveWorkspaceErrors[keyof ArchiveWorkspaceErrors];
+
+export type ArchiveWorkspaceResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceResponse;
+};
+
+export type ArchiveWorkspaceResponse = ArchiveWorkspaceResponses[keyof ArchiveWorkspaceResponses];
+
+export type UnarchiveWorkspaceData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace name or id
+     */
+    id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{id}/unarchive";
+};
+
+export type UnarchiveWorkspaceErrors = {
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Workspace has active sessions, live Loops or enabled automations
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type UnarchiveWorkspaceError = UnarchiveWorkspaceErrors[keyof UnarchiveWorkspaceErrors];
+
+export type UnarchiveWorkspaceResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceResponse;
+};
+
+export type UnarchiveWorkspaceResponse =
+  UnarchiveWorkspaceResponses[keyof UnarchiveWorkspaceResponses];
 
 export type ListAutomationSuggestionsData = {
   body?: never;

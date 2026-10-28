@@ -164,6 +164,13 @@ func (h *BaseHandlers) parseSessionListWorkspaceIDs(c *gin.Context, allWorkspace
 		}
 		raw[index] = resolved
 	}
+	if allWorkspaces {
+		var err error
+		raw, err = defaultActiveWorkspaceIDs(c.Request.Context(), h.Workspaces, raw)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return session.NormalizeWorkspaceIDs(raw, allWorkspaces)
 }
 

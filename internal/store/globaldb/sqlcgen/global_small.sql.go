@@ -64,7 +64,7 @@ func (q *Queries) GetAppMetadata(ctx context.Context, key string) (string, error
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE id = ?1
 `
 
@@ -77,6 +77,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
+		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -84,7 +85,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 }
 
 const getWorkspaceByLegacyName = `-- name: GetWorkspaceByLegacyName :one
-SELECT workspaces.id, workspaces.root_dir, workspaces.add_dirs, workspaces.name, workspaces.default_agent, workspaces.created_at, workspaces.updated_at FROM workspace_name_aliases
+SELECT workspaces.id, workspaces.root_dir, workspaces.add_dirs, workspaces.name, workspaces.default_agent, workspaces.archived_at, workspaces.created_at, workspaces.updated_at FROM workspace_name_aliases
 JOIN workspaces ON workspaces.id = workspace_name_aliases.workspace_id
 WHERE workspace_name_aliases.old_name = ?
 `
@@ -98,6 +99,7 @@ func (q *Queries) GetWorkspaceByLegacyName(ctx context.Context, oldName string) 
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
+		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -105,7 +107,7 @@ func (q *Queries) GetWorkspaceByLegacyName(ctx context.Context, oldName string) 
 }
 
 const getWorkspaceByName = `-- name: GetWorkspaceByName :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE name = ?1
 `
 
@@ -118,6 +120,7 @@ func (q *Queries) GetWorkspaceByName(ctx context.Context, name string) (Workspac
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
+		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -125,7 +128,7 @@ func (q *Queries) GetWorkspaceByName(ctx context.Context, name string) (Workspac
 }
 
 const getWorkspaceByPath = `-- name: GetWorkspaceByPath :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE root_dir = ?1
 `
 
@@ -138,6 +141,7 @@ func (q *Queries) GetWorkspaceByPath(ctx context.Context, rootDir string) (Works
 		&i.AddDirs,
 		&i.Name,
 		&i.DefaultAgent,
+		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -255,7 +259,7 @@ func (q *Queries) ListActiveSessionIDsByWorkspace(ctx context.Context, workspace
 }
 
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC
 `
 
@@ -274,6 +278,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 			&i.AddDirs,
 			&i.Name,
 			&i.DefaultAgent,
+			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -9,6 +9,24 @@ import (
 	"strings"
 )
 
+// AttachSession Attach to a resumable live session
+func (c *Client) AttachSession(ctx context.Context, params AttachSessionParams, body AttachSessionRequest) (*SessionAttachResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attach"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionAttachResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AttachTaskRunSessionParams carries the path, query, and header parameters.
+type AttachTaskRunSessionParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // AttachTaskRunSession Attach an existing session to one task run
 func (c *Client) AttachTaskRunSession(ctx context.Context, params AttachTaskRunSessionParams, body AttachTaskRunSessionRequest) (*TaskRunResponse, error) {
 	path := "/api/task-runs/{id}/attach-session"
@@ -423,20 +441,4 @@ func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWork
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
 	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
-}
-
-// CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
-func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
-	path := "/api/settings/update/check"
-	var out SettingsUpdateResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClaimNextAgentTaskParams carries the path, query, and header parameters.
-type ClaimNextAgentTaskParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
 }

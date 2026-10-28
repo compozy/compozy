@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"maps"
 
 	"fmt"
@@ -20,7 +21,9 @@ func (n *daemonNativeTools) workspaceList(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input struct{}
+	var input struct {
+		Archived bool `json:"archived"`
+	}
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -40,6 +43,9 @@ func (n *daemonNativeTools) workspaceList(
 	}
 	payload := make([]any, 0, len(workspaces))
 	for _, workspace := range workspaces {
+		if (workspace.ArchivedAt != nil) != input.Archived {
+			continue
+		}
 		payload = append(payload, core.WorkspacePayloadFromWorkspace(workspace))
 	}
 	return structuredResult(map[string]any{"workspaces": payload}, fmt.Sprintf("%d workspaces", len(payload)))
@@ -217,4 +223,33 @@ func (n *daemonNativeTools) observeSearch(
 	payload := filterListLogs(logEventPayloads(events), input.Query)
 	payload = limitLogPayloads(payload, input.Limit)
 	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d logs", len(payload)))
+}
+
+func (n *daemonNativeTools) workspaceArchive(
+	ctx context.Context,
+	_ toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input workspaceRefInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ref, err := requiredNativeString(req.ToolID, nativeToolsWorkspaceKey, input.Workspace)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	ws, err := n.deps.Workspaces.SetArchived(ctx, ref, req.ToolID == toolspkg.ToolIDWorkspaceArchive)
+	if busy, ok := errors.AsType[*workspacepkg.BusyError](err); ok {
+		result, resultErr := structuredResult(map[string]any{"blockers": busy.Blockers}, busy.Error())
+		if resultErr != nil {
+			return toolspkg.ToolResult{}, resultErr
+		}
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeWorkspaceBusy, req.ToolID, busy.Error(),
+			errors.Join(toolspkg.ErrToolConflict, err)).WithPartialResult(result)
+	}
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeHTTPStatusToolError(req.ToolID, err, core.StatusForWorkspaceError(err))
+	}
+	return structuredResult(map[string]any{nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(ws)}, ws.ID)
 }

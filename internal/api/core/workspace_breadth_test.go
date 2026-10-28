@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
@@ -89,4 +90,37 @@ func TestWorkspaceBreadthLegacyGlobalAlias(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestWorkspaceBreadthArchivedProjects(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	catalog := workspaceArchiveCatalogStub{items: []workspacepkg.Workspace{
+		{ID: "ws-active"}, {ID: "ws-archived", ArchivedAt: &now},
+	}}
+	for _, tc := range []struct {
+		query string
+		want  []string
+	}{
+		{"all_workspaces=true", []string{"@user", "ws-active"}},
+		{"all_workspaces=true&workspace_ids=ws-archived", []string{"ws-archived"}},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
+			got, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace"}, catalog)
+			if err != nil || !reflect.DeepEqual(got.WorkspaceIDs, tc.want) {
+				t.Fatalf("breadth=%#v err=%v", got, err)
+			}
+		})
+	}
+}
+
+type workspaceArchiveCatalogStub struct {
+	workspaceGetterStub
+	items []workspacepkg.Workspace
+}
+
+func (s workspaceArchiveCatalogStub) List(context.Context) ([]workspacepkg.Workspace, error) {
+	return s.items, nil
 }

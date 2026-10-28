@@ -2,6 +2,7 @@ export const workspaceKeys = {
   all: ["workspaces"] as const,
   lists: () => [...workspaceKeys.all, "list"] as const,
   list: () => [...workspaceKeys.lists()] as const,
+  archived: () => [...workspaceKeys.lists(), "archived"] as const,
   details: () => [...workspaceKeys.all, "detail"] as const,
   detail: (workspaceID: string) => [...workspaceKeys.details(), workspaceID] as const,
   // Worktree reads are workspace-qualified so a catalog frame can only ever
