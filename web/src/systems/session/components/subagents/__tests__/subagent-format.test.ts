@@ -179,7 +179,12 @@ describe("subagentDisplay", () => {
     expect(done.clock).toEqual({ kind: "frozen", ms: 125_000 });
   });
 
-  it("Should carry the elapsed clock only for Working and Done, frozen when stale", () => {
+  it("Should carry the elapsed clock only for Working, Done and Idle, frozen when stale", () => {
+    expect(
+      subagentDisplay(
+        settled({ status: "completed", child_activity: "idle", delivery: "delivered" })
+      ).clock
+    ).toEqual({ kind: "frozen", ms: 125_000 });
     expect(subagentDisplay(subagent({ updated_at: at(40) }), { stale: true }).clock).toEqual({
       kind: "frozen",
       ms: 40_000,

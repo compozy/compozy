@@ -169,8 +169,10 @@ export function subagentDisplay(
     case "waiting":
       return display("attention", "Waiting for you", "attention");
     case "completed":
+      // Idle keeps the delegation's frozen duration: reading the result does
+      // not change how long the work took.
       return subagent.child_activity === "idle" && READ_DELIVERIES.has(subagent.delivery)
-        ? display("idle", "Idle", "settled")
+        ? display("idle", "Idle", "settled", subagentElapsedClock(subagent, options))
         : display("done", "Done", "settled", subagentElapsedClock(subagent, options));
     case "failed":
       return display("failed", "Failed", "danger");
