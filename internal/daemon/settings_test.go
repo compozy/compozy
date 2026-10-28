@@ -945,7 +945,6 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 }
 
 func TestSettingsUpdateControllerMutations(t *testing.T) {
-
 	t.Run("Should preserve timestamp identity when kernel identity is unavailable at creation", func(t *testing.T) {
 		t.Parallel()
 		startedAt := time.Now().UTC()

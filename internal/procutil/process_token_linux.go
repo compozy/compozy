@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 // ProcessToken identifies a process without converting kernel ticks to wall time.
@@ -23,7 +24,7 @@ func processToken(pid int, readFile func(string) ([]byte, error)) (string, error
 	}
 	stat, err := readFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH) {
 			err = errors.Join(ErrProcessIdentityGone, err)
 		}
 		return "", fmt.Errorf("procutil: read process identity: %w", err)

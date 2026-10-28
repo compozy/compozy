@@ -176,7 +176,16 @@ func (e daemonAppTransitionExecution) recover() (*compozyupdate.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	if !appOperationRecoverableByShell(e.store, operation, e.operationID, e.options.expectedRevision) {
+	recoverable, err := appOperationRecoverableByShell(
+		e.store.HolderLive,
+		operation,
+		e.operationID,
+		e.options.expectedRevision,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !recoverable {
 		return nil, compozyupdate.ErrExecutorFenced
 	}
 	holder, err := desktopAppUpdateHolder(e.parentPID, e.generation, e.now)
@@ -284,17 +293,20 @@ func appOperationReadyForShell(operation *compozyupdate.Operation, operationID s
 }
 
 func appOperationRecoverableByShell(
-	store *compozyupdate.OperationStore,
+	holderLive func(*compozyupdate.Holder) (bool, error),
 	operation *compozyupdate.Operation,
 	operationID string,
 	expectedRevision int64,
-) bool {
+) (bool, error) {
 	if operation == nil || operation.ID != operationID || operation.Revision != expectedRevision ||
 		operation.ActiveTarget != compozyupdate.TargetApp || operation.App == nil ||
 		(operation.App.Phase != compozyupdate.PhaseStaged && operation.App.Phase != compozyupdate.PhaseApplying &&
 			operation.App.Phase != compozyupdate.PhaseInstallerHandoff) {
-		return false
+		return false, nil
 	}
-	live, err := store.HolderLive(operation.Holder)
-	return err == nil && !live
+	live, err := holderLive(operation.Holder)
+	if err != nil {
+		return false, err
+	}
+	return !live, nil
 }

@@ -185,12 +185,14 @@ func (s *OperationStore) Fence(
 		if operation.Revision != expectedRevision {
 			return ErrOperationConflict
 		}
+		if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) {
+			return ErrExecutorFenced
+		}
 		live, err := s.HolderLive(operation.Holder)
 		if err != nil {
 			return err
 		}
-		if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
-			!live {
+		if !live {
 			return ErrExecutorFenced
 		}
 		return nil
@@ -204,6 +206,12 @@ func validateExecutorFence(
 	now time.Time,
 	holderLive func(*Holder, time.Time) (bool, error),
 ) error {
+	checksGeneration := transition.Kind != TransitionAcquireLease && transition.Kind != TransitionRecover &&
+		transition.Kind != TransitionCancel
+	if checksGeneration &&
+		(operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration)) {
+		return ErrExecutorFenced
+	}
 	live, err := holderLive(operation.Holder, now)
 	if err != nil {
 		return err
@@ -223,8 +231,7 @@ func validateExecutorFence(
 		}
 		return ErrOperationNotCancelable
 	}
-	if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
-		!live {
+	if !live {
 		return ErrExecutorFenced
 	}
 	return nil

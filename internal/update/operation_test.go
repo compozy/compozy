@@ -1003,6 +1003,30 @@ func TestOperationKernelIdentity(t *testing.T) {
 		if err := store.Fence(
 			t.Context(),
 			operation.ID,
+			"superseded-generation",
+			operation.Revision,
+		); !errors.Is(
+			err,
+			ErrExecutorFenced,
+		) {
+			t.Fatalf("superseded fence = %v", err)
+		}
+		if _, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"superseded-generation",
+			operation.Revision,
+			Transition{Kind: TransitionProgress, Actor: ActorCLI, Target: TargetRuntime, Percent: 10},
+		); !errors.Is(
+			err,
+			ErrExecutorFenced,
+		) {
+			t.Fatalf("superseded transition = %v", err)
+		}
+
+		if err := store.Fence(
+			t.Context(),
+			operation.ID,
 			operation.Holder.ExecutorGeneration,
 			operation.Revision,
 		); !errors.Is(err, os.ErrPermission) ||
