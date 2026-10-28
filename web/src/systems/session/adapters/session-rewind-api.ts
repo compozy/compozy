@@ -1,5 +1,5 @@
 import type { SessionPayload } from "../types";
-import { SessionApiError, SessionNotFoundError } from "./session-api-errors";
+import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
 export interface SessionRewindRequest {
@@ -50,14 +50,8 @@ export async function rewindSession(
   );
   const response = await globalThis.fetch(request);
   if (!response.ok) {
-    if (response.status === 404) {
-      throw new SessionNotFoundError(id);
-    }
-    throw new SessionApiError(
-      `Failed to rewind session "${id}": ${response.status}`,
-      response.status,
-      id
-    );
+    const error: unknown = await response.json().catch(() => null);
+    throwSessionRequestError(response, error, "Couldn't rewind this session", id);
   }
 
   const payload: unknown = await response.json();

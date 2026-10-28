@@ -1,4 +1,6 @@
 import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
+import { use } from "react";
+import { SessionMessageEditContext } from "./session-message-edit-context";
 import { ArrowUp } from "lucide-react";
 
 import { InputGroupButton } from "@compozy/ui";
@@ -33,6 +35,7 @@ export function SessionComposerSendButton({
   promptImageCapability: SessionPromptCapability;
 }) {
   const aui = useAui();
+  const edit = use(SessionMessageEditContext);
   const attachments = useAuiState(state => state.composer.attachments);
   const text = useAuiState(state => state.composer.text);
   const blocker = sessionComposerSendBlocker({
@@ -48,6 +51,23 @@ export function SessionComposerSendButton({
     !canPrompt ||
     Boolean(blocker) ||
     (text.trim().length === 0 && !hasReadyAttachment && !hasStagedQuote);
+
+  if (edit?.active) {
+    return (
+      <InputGroupButton
+        aria-label="Send message"
+        data-testid="composer-send-button"
+        disabled={disabled || edit.pending}
+        onClick={() => {
+          void edit.submit();
+        }}
+        size="send"
+        title={blocker ?? undefined}
+      >
+        <ArrowUp strokeWidth={2} />
+      </InputGroupButton>
+    );
+  }
 
   if (onDisconnectedSend) {
     // The send button stays a send button (US-018.AC-3): the guard answers the press.

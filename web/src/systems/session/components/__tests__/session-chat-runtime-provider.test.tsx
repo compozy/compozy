@@ -462,6 +462,7 @@ function renderSessionThread(
     includeTranscriptStateProbe?: boolean;
     includeDecisionDock?: boolean;
     isSessionRunning?: boolean;
+    canPrompt?: boolean;
     liveTailEnabled?: boolean;
     onCancelPrompt?: () => void;
     onRuntimeMount?: () => void;
@@ -498,7 +499,7 @@ function renderSessionThread(
             agentName={primarySessionFixture.agent_name}
             workspaceId={options.includeDecisionDock ? fixtureWorkspaceId() : undefined}
             sessionState={options.includeDecisionDock ? "active" : undefined}
-            canPrompt
+            canPrompt={options.canPrompt ?? true}
             isSessionRunning={options.isSessionRunning}
             onCancelPrompt={options.onCancelPrompt ?? (() => {})}
           />
@@ -746,6 +747,7 @@ describe("SessionChatRuntimeProvider", () => {
   let transcriptResponsePromise: Promise<Response> | null = null;
   let clearResponsePromise: Promise<Response> | null = null;
   let rewindResponseGate: Promise<void> | null = null;
+  let rewindRefusal: Response | null = null;
   let promptResponsePromise: Promise<Response> | null = null;
   let attachmentUploadResponse: (() => Promise<Response>) | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
@@ -772,6 +774,7 @@ describe("SessionChatRuntimeProvider", () => {
     transcriptResponsePromise = null;
     clearResponsePromise = null;
     rewindResponseGate = null;
+    rewindRefusal = null;
     promptResponsePromise = null;
     attachmentUploadResponse = null;
     olderTranscriptResponsePromise = null;
@@ -888,6 +891,7 @@ describe("SessionChatRuntimeProvider", () => {
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/rewind`
       ) {
+        if (rewindRefusal) return rewindRefusal;
         // The daemon keeps the prefix before the chosen message and hands its text back.
         const body = input instanceof Request ? await input.clone().text() : String(init?.body);
         const { message_id: messageId } = JSON.parse(body) as { message_id: string };
@@ -2957,7 +2961,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(interactionFetchSearches(fetchMock)).toEqual([]);
   });
 
-  it("re-reads settled interactions on the live cadence while an ask is still genuinely open, and keeps rewind blocked", async () => {
+  it("re-reads settled interactions on the live cadence while an ask is still genuinely open, and permits selecting a message for a local edit", async () => {
     vi.useFakeTimers();
     transcriptMessages = pendingPermissionTranscript("turn_001:perm_open");
 
@@ -2969,14 +2973,14 @@ describe("SessionChatRuntimeProvider", () => {
       );
     });
     expect(screen.getByTestId("permission-waiting-line")).toBeInTheDocument();
-    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5_500);
     });
 
     expect(interactionFetchSearches(fetchMock)).toEqual(["?status=canceled", "?status=canceled"]);
-    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);
 
   it("stops re-reading once every open ask has a settled row, keeps the receipt, and releases rewind", async () => {
@@ -3015,31 +3019,50 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   }, 10_000);
 
-  // Invariant: a rewind the daemon accepted restores the rewound prompt as the composer draft,
-  // even when the live transcript drops that message (and the action confirming it) before the
-  // rewind response arrives.
-  it("Should restore the rewound prompt as the draft after its message leaves the transcript", async () => {
+  // Invariant: selection/cancellation are local; submission rewinds once before sending,
+  // even when the selected row disappears before the rewind response arrives.
+  // Owner: composer/runtime integration; canonical suite: this file.
+  it("Should replace a draft locally and abandon an edit without changing the conversation", async () => {
+    const user = userEvent.setup();
+    sessionDetailResponse = { ...primarySessionFixture, state: "stopped", badge: "stopped" };
+    renderSessionThread({ canPrompt: false });
+    await screen.findByTestId("user-message-rewind");
+    await setComposerText("Unsent draft");
+    const original = transcriptMessages[0]!.parts.find(part => part.type === "text")!.text;
+    await user.click(screen.getByTestId("user-message-rewind"));
+    await waitFor(() => expect(composerText()).toBe(original));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-input")).not.toHaveAttribute("inert");
+    expect(transcriptEpoch).toBe(1);
+    await user.click(screen.getByRole("button", { name: "Cancel edit" }));
+    expect(composerText()).toBe("");
+    expect(transcriptEpoch).toBe(1);
+    await user.click(screen.getByTestId("user-message-rewind"));
+    await waitFor(() => expect(composerText()).toBe(original));
+    fireEvent.keyDown(screen.getByTestId("composer-input"), { key: "Escape" });
+    expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
+    expect(transcriptEpoch).toBe(1);
+    await user.click(screen.getByTestId("user-message-rewind"));
+    await setComposerText("");
+    expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
+    expect(transcriptMessages).toHaveLength(2);
+    expect(countPromptFetches(fetchMock)).toBe(0);
+  });
+
+  it("Should send the edited prompt once after its original row leaves the transcript", async () => {
     const user = userEvent.setup();
     const queryClient = createQueryClient();
     const gate = createDeferred<void>();
     rewindResponseGate = gate.promise;
     sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
-    // A multiline prompt with a list comes back line for line (#967).
-    const draft = "Summarize the launch blockers\nbefore the cutover:\n\n- auth\n- billing";
-    const [authored, assistant] = sessionTranscriptFixture;
-    transcriptMessages = [
-      { ...authored!, parts: [{ type: "text", text: draft, state: "done" }] } as TranscriptMessage,
-      assistant!,
-    ];
-
     const view = renderSessionThread({ queryClient });
-
-    await waitFor(() => expect(screen.getByTestId("user-message-rewind")).toBeEnabled());
-    await user.click(screen.getByTestId("user-message-rewind"));
-    await user.click(await screen.findByTestId("session-rewind-confirm"));
-
-    // The daemon cut the transcript; the live read drops the row before the POST answers.
+    await user.click(await screen.findByTestId("user-message-rewind"));
+    const draft = "Updated launch blockers\nbefore the cutover:\n\n- auth\n- billing";
+    await setComposerText(draft);
+    await user.click(screen.getByTestId("composer-send-button"));
     await waitFor(() => expect(transcriptMessages).toHaveLength(0));
+    expect(countPromptFetches(fetchMock)).toBe(0);
+    expect(screen.getByTestId("composer-send-button")).toBeDisabled();
     await act(async () => {
       await queryClient.invalidateQueries({
         queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
@@ -3048,18 +3071,34 @@ describe("SessionChatRuntimeProvider", () => {
     await waitFor(() =>
       expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
     );
-    // The draft lands from the rewind response, outside any user event: wait inside act until
-    // the composer the operator sees renders it, not only until its store holds it.
     await act(async () => {
       gate.resolve();
-      await vi.waitFor(() => expect(composerText()).toBe(draft));
     });
-    const editable = screen.getByTestId("composer-input");
-    await vi.waitFor(() => expect(editable).toHaveTextContent("before the cutover:"));
-    expect(editable.querySelectorAll("p")).toHaveLength(5);
-    // The editor tears down asynchronously and updates its placeholder and cursor; let it
-    // settle inside act so no update lands after the test.
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const sent = fetchMock.mock.calls.find(([input]) => getPathname(input).endsWith("/prompt"));
+    expect(String(sent?.[1]?.body)).toContain(JSON.stringify(draft).slice(1, -1));
+    expect(String(sent?.[1]?.body)).not.toContain("Summarize the launch blockers");
+    await waitFor(() => expect(composerText()).toBe(""));
+    expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
     await act(async () => view.unmount());
+  });
+
+  it("Should retain the edit and surface a daemon refusal without sending a new prompt", async () => {
+    const user = userEvent.setup();
+    rewindRefusal = jsonResponse(
+      { error: "The session still has pending inputs.", code: "session_rewind_busy" },
+      { status: 409 }
+    );
+    renderSessionThread({ includeToaster: true });
+    await user.click(await screen.findByTestId("user-message-rewind"));
+    await setComposerText("Keep this replacement");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await screen.findByText("Couldn't edit this message.");
+    expect(screen.getByText("The session still has pending inputs.")).toBeInTheDocument();
+    expect(composerText()).toBe("Keep this replacement");
+    expect(transcriptMessages).toHaveLength(2);
+    expect(countPromptFetches(fetchMock)).toBe(0);
+    expect(screen.getByRole("button", { name: "Cancel edit" })).toBeEnabled();
   });
 
   function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {

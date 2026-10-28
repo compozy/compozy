@@ -1,5 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import {
   attachmentsFromPromptMessageParts,
@@ -23,6 +23,8 @@ import { usePendingCommandAction } from "./use-pending-command-action";
 import { useSessionMentionTrigger } from "./use-session-mention-trigger";
 import type { SessionComposerState } from "./use-session-composer-state";
 import { sessionComposerSendBlocker } from "./use-session-composer-send-gate";
+
+import { SessionMessageEditContext } from "../session-message-edit-context";
 
 const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
 const EMPTY_UNCONFIRMED_SENDS: UnconfirmedSend[] = [];
@@ -79,6 +81,7 @@ export function useSessionComposerController({
   attachments = true,
   backdrop = true,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
+  const edit = use(SessionMessageEditContext);
   const {
     consumeSubmittedDraft,
     setComposerInputElement,
@@ -125,7 +128,7 @@ export function useSessionComposerController({
     hasStagedQuote: Boolean(stagedQuote),
     hasSteerHandler: Boolean(onSteerPrompt),
     isBusyInputPending,
-    isRunning,
+    isRunning: !edit?.active && isRunning,
     isSessionRunning,
     queueCap,
     queuedCount: queuedPrompts.length,

@@ -1,9 +1,10 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { SessionComposerLinkPlugin } from "./session-composer-link-plugin";
-import type { ReactNode } from "react";
+import { use, type ReactNode } from "react";
+import { SessionMessageEditContext } from "./session-message-edit-context";
 
-import { InputGroup } from "@compozy/ui";
+import { Button, InputGroup } from "@compozy/ui";
 
 import { notifyUser } from "@/lib/user-feedback";
 import { cn } from "@/lib/utils";
@@ -119,8 +120,15 @@ export type { SessionComposerCommandCatalog } from "./session-composer-command-m
 export function SessionComposer(
   props: SessionComposerProps & { composerState: SessionComposerState }
 ) {
+  const edit = use(SessionMessageEditContext);
   return (
-    <SessionComposerProvider {...props}>
+    <SessionComposerProvider
+      {...props}
+      canPrompt={!edit?.pending && (props.canPrompt || Boolean(edit?.active))}
+      isSessionRunning={!edit?.active && props.isSessionRunning}
+      stopPhase={edit?.active ? "idle" : props.stopPhase}
+      allowBusyInput={!edit?.active && props.allowBusyInput}
+    >
       <SessionComposerSurface />
     </SessionComposerProvider>
   );
@@ -170,6 +178,7 @@ function SessionComposerQueue() {
 }
 
 function SessionComposerEditor() {
+  const edit = use(SessionMessageEditContext);
   const state = useSessionComposerStateContext();
   const meta = useSessionComposerMetaContext();
   const mentionWorkspaceId = useMentionWorkspaceId();
@@ -194,7 +203,35 @@ function SessionComposerEditor() {
           <ComposerPrimitive.Root
             className="flex min-w-0 flex-col gap-transcript-inline-gap"
             data-testid="session-composer-stack"
+            onSubmit={event => {
+              if (!edit?.active) return;
+              event.preventDefault();
+              void edit.submit();
+            }}
+            onKeyDown={event => {
+              if (event.key !== "Escape" || !edit?.active) return;
+              event.preventDefault();
+              event.stopPropagation();
+              edit.cancel();
+            }}
           >
+            {edit?.active ? (
+              <div className="flex items-center gap-2 text-caption text-muted" role="status">
+                <span className="flex-1">
+                  Editing message · Sending replaces this message and later replies. Files and tool
+                  effects stay.
+                </span>
+                <Button
+                  variant="quiet"
+                  size="xs"
+                  disabled={edit.pending}
+                  onClick={edit.cancel}
+                  type="button"
+                >
+                  Cancel edit
+                </Button>
+              </div>
+            ) : null}
             {meta.quoteSlot}
             <SessionAttachmentStrip
               promptEmbeddedContextCapability={meta.promptEmbeddedContextCapability}
@@ -211,12 +248,14 @@ function SessionComposerEditor() {
 }
 
 function SessionComposerInput() {
+  const edit = use(SessionMessageEditContext);
   const state = useSessionComposerStateContext();
   const actions = useSessionComposerActionsContext();
   const meta = useSessionComposerMetaContext();
   const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
+      autoFocus={Boolean(edit?.active)}
       aria-label="Session prompt"
       data-testid="composer-input"
       inert={!meta.canPrompt}
@@ -246,10 +285,16 @@ function SessionComposerInput() {
     >
       <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
       <SessionBusyEnterPlugin
-        active={state.busyEnterActive}
+        active={Boolean(edit?.active) || state.busyEnterActive}
         blocker={state.sendBlocker}
         onBlocked={reason => notifyUser({ message: reason, tone: "warning" })}
-        onEnter={actions.handleEnterAction}
+        onEnter={
+          edit?.active
+            ? () => {
+                void edit.submit();
+              }
+            : actions.handleEnterAction
+        }
       />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
