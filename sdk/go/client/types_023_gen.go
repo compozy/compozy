@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// TaskInboxItemPayload is a daemon API value.
+type TaskInboxItemPayload struct {
+	Task             TaskInboxTaskPayload   `json:"task"`
+	Lane             TaskInboxLane          `json:"lane"`
+	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
+	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
+	BlockingReason   string                 `json:"blocking_reason,omitempty"`
+	LatestActivityAt time.Time              `json:"latest_activity_at"`
+	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
+	Triage           TaskTriageStatePayload `json:"triage"`
+}
+
+// TaskInboxLane is a daemon API value.
+type TaskInboxLane string
+
+// TaskInboxLaneGroupPayload is a daemon API value.
+type TaskInboxLaneGroupPayload struct {
+	Lane        TaskInboxLane          `json:"lane"`
+	Count       int                    `json:"count"`
+	UnreadCount int                    `json:"unread_count"`
+	Items       []TaskInboxItemPayload `json:"items,omitempty"`
+}
+
 // TaskInboxPayload is a daemon API value.
 type TaskInboxPayload struct {
 	UnreadTotal   int                         `json:"unread_total"`
@@ -421,17 +444,3 @@ type TaskScope string
 
 // TaskStatus is a daemon API value.
 type TaskStatus string
-
-// TaskStatusTotalPayload is a daemon API value.
-type TaskStatusTotalPayload struct {
-	Scope  string `json:"scope"`
-	Status string `json:"status"`
-	Count  int    `json:"count"`
-}
-
-// TaskStreamEventPayload is a daemon API value.
-type TaskStreamEventPayload struct {
-	Sequence int64                   `json:"sequence"`
-	Type     string                  `json:"type"`
-	Timeline TaskTimelineItemPayload `json:"timeline"`
-}

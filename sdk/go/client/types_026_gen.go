@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// TriggersResponse is a daemon API value.
+type TriggersResponse struct {
+	Triggers []TriggerPayload         `json:"triggers"`
+	Page     CountedCursorPagePayload `json:"page"`
+}
+
+// TurnHistoryPayload is a daemon API value.
+type TurnHistoryPayload struct {
+	TurnID string                `json:"turn_id"`
+	Events []SessionEventPayload `json:"events"`
+}
+
 // Type is a daemon API value.
 type Type string
 
@@ -432,15 +444,3 @@ type WindowManagerClientsResponse struct {
 
 // WindowManagerCommandID is a daemon API value.
 type WindowManagerCommandID string
-
-// WindowManagerCommandRequest is a daemon API value.
-type WindowManagerCommandRequest struct {
-	WorkspaceID      WindowmanagerWorkspaceID  `json:"workspace_id"`
-	CommandID        WindowManagerCommandID    `json:"command_id"`
-	ExpectedRevision *WindowManagerRevision    `json:"expected_revision"`
-	ClientID         *WindowmanagerClientID    `json:"client_id,omitzero"`
-	Actor            WindowManagerActor        `json:"actor"`
-	Origin           string                    `json:"origin"`
-	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitzero"`
-	Payload          json.RawMessage           `json:"payload"`
-}

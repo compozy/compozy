@@ -444,10 +444,3 @@ type SettingsShellSessionsPayload struct {
 	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
 	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
 }
-
-// SettingsSkillSourceCollisionPayload is a daemon API value.
-type SettingsSkillSourceCollisionPayload struct {
-	Name          string `json:"name"`
-	WinnerRootID  string `json:"winner_root_id"`
-	QualifiedForm string `json:"qualified_form"`
-}

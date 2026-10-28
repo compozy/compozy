@@ -2,7 +2,7 @@
 
 - **Scope:** Issue #992: bind, change and unbind an existing ordinary session without replacing its identity or conversation.
 - **Cadence tier:** targeted
-- **Build:** Working draft on 42baab9b7; final verification must follow synchronization with main.
+- **Build:** Implementation rebased onto main at 7ccc00670; final provider and CI verification in progress.
 - **Status:** in-progress
 
 ## Session Matrix & Results
@@ -29,6 +29,13 @@ Pre-sync exploratory run: Claude Sonnet 5 and Codex GPT-6 Astra each completed r
 The browser run passed all three selected scenarios: native-load binding, bounded-replay binding, and the existing worktree fork. The catalog stream suite passed 24 tests, including external CWD changes refreshing only the owning session's file search. Browser automation uses real daemon/Git with ACP fixture processes; it is separate from the provider evidence.
 
 The inherited containment charter predates in-place binding and expressly forbids it. The new `CH-session-environment-continuity` owns this expanded mission without rewriting the historical charter.
+
+## Synchronized Focused Verification
+
+- Session binding lifecycle integration, API/native adapters, guarded catalog CAS, schema compatibility, and HTTP/UDS route contracts passed.
+- Both affected Web suites passed (environment control and catalog streams); Web typecheck passed through root Turborepo. Main's new font dependency initially blocked resolution; installing the unchanged frozen lockfile fixed the environment.
+- Codegen completed after rebase and regenerated the Go SDK type partitions.
+- CI owns the full matrix per the operator's instruction; no further local full gate, full race lane, or E2E suite is run.
 
 ## Final Status
 

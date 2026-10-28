@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// SkillDiagnosticPayload is a daemon API value.
+type SkillDiagnosticPayload struct {
+	Name               string                            `json:"name"`
+	State              SkillDiagnosticState              `json:"state"`
+	Source             string                            `json:"source,omitempty"`
+	Path               string                            `json:"path,omitempty"`
+	WinningSource      string                            `json:"winning_source,omitempty"`
+	WinningPath        string                            `json:"winning_path,omitempty"`
+	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
+	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
+	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
+}
+
+// SkillDiagnosticState is a daemon API value.
+type SkillDiagnosticState string
+
 // SkillExposeResponse is a daemon API value.
 type SkillExposeResponse struct {
 	Name        string                             `json:"name"`
@@ -421,27 +438,4 @@ type SubprocessHealthAggregatePayload struct {
 	Healthy   int                              `json:"healthy"`
 	Unhealthy int                              `json:"unhealthy"`
 	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
-}
-
-// SubprocessHealthSessionPayload is a daemon API value.
-type SubprocessHealthSessionPayload struct {
-	SessionID           string     `json:"session_id"`
-	WorkspaceID         string     `json:"workspace_id"`
-	AgentName           string     `json:"agent_name"`
-	ConsecutiveFailures int        `json:"consecutive_failures"`
-	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
-	Reason              string     `json:"reason,omitempty"`
-}
-
-// SuggestionSource is a daemon API value.
-type SuggestionSource string
-
-// SuggestionStatus is a daemon API value.
-type SuggestionStatus string
-
-// SupervisionState is a daemon API value.
-type SupervisionState struct {
-	WorkSignals  []WorkSignal        `json:"work_signals"`
-	Sources      []SignalSourceState `json:"sources"`
-	QuietWarning *QuietWarning       `json:"quiet_warning"`
 }
