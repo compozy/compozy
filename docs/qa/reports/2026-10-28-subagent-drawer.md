@@ -63,7 +63,8 @@ Playwright specs run locally.
   there; this report does not substitute local checks for current-head CI.
 The metadata rehearsal uses a Claude-branded isolated ACP fixture with a recorded Sonnet model
 and medium effort, rather than inheriting the parent runtime. Native completion frames also
-exercise the background result stored on the subagent row. Header actions, selected rows and
+exercise the background result stored on the subagent row. The 21-test wiring suite also
+verifies that nested activity resolves its parent roster and retains navigation. Header actions, selected rows and
 the keyboard/pointer resize separator are covered by the affected journeys and component story.
 
 Pinned Claude adapter frames exercise native attribution and rendering; they do not claim a live

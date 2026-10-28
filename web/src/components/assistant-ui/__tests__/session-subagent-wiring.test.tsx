@@ -774,12 +774,23 @@ describe("provider-native attribution through the transcript adapters (UT-W11)",
 // Invariant: native background answers/errors survive the wire-to-view mapping even with no transcript parts.
 // Owner: session drawer wiring; canonical suite: this file. No mocked internal hooks.
 it("Should update native background results and errors independently of transcript tool parts", () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const renderActivity = (payload: SubagentPayload) => (
-    <UIProvider>
-      <SessionTranscriptThreadProvider messages={[]} status="success" error={null} retry={() => {}}>
-        <SessionNativeSubagentActivity subagent={subagentViewFromPayload(payload)} />
-      </SessionTranscriptThreadProvider>
-    </UIProvider>
+    <QueryClientProvider client={client}>
+      <UIProvider>
+        <SessionTranscriptThreadProvider
+          messages={[]}
+          status="success"
+          error={null}
+          retry={() => {}}
+        >
+          <SessionNativeSubagentActivity
+            subagent={subagentViewFromPayload(payload)}
+            workspaceId={WORKSPACE_ID}
+          />
+        </SessionTranscriptThreadProvider>
+      </UIProvider>
+    </QueryClientProvider>
   );
   const payload = {
     ...subagentPayload("native-background"),
@@ -801,4 +812,72 @@ it("Should update native background results and errors independently of transcri
     renderActivity({ ...payload, status: "failed", error: "Background task failed" })
   );
   expect(screen.getByRole("alert")).toHaveTextContent("Background task failed");
+});
+
+// Invariant: nested native rows read and navigate through the owning parent roster.
+// Owner/canonical suite: session-subagent wiring, using the real provider and query cache.
+it("Should resolve nested native activity rows from the parent roster", () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const nested = view("nested", {
+    title: "Nested review",
+    status: "failed",
+    error: "Review failed",
+  });
+  client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+    rows: [nested],
+    staleIds: new Set(),
+  });
+  const openSession = vi.fn();
+  // Provider attribution extends assistant-ui's generic data-part shape.
+  const nestedPart = {
+    type: "data" as const,
+    name: "compozy-subagent",
+    data: { subagent_id: "nested", tool_call_id: "call-nested", origin: "delegated" },
+    providerMetadata: { compozy: { parentToolCallId: "call-root" } },
+  };
+  const message = fromThreadMessageLike(
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "data",
+          name: "compozy-subagent",
+          data: {
+            subagent_id: "root",
+            tool_call_id: "call-root",
+            origin: "provider_native",
+          },
+        },
+        nestedPart,
+      ],
+    },
+    "nested-activity",
+    { type: "complete", reason: "stop" }
+  );
+  render(
+    <QueryClientProvider client={client}>
+      <UIProvider>
+        <SubagentNavigationContext value={{ openSession }}>
+          <SessionTranscriptThreadProvider
+            messages={[message]}
+            status="success"
+            error={null}
+            retry={() => {}}
+          >
+            <SessionNativeSubagentActivity
+              workspaceId={WORKSPACE_ID}
+              subagent={view("root", { origin: "provider_native", child_session_id: null })}
+            />
+          </SessionTranscriptThreadProvider>
+        </SubagentNavigationContext>
+      </UIProvider>
+    </QueryClientProvider>
+  );
+  expect(screen.getByText("Nested review")).toBeVisible();
+  expect(screen.getByText("Failed")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Open Nested review" }));
+  expect(openSession).toHaveBeenCalledWith(
+    expect.objectContaining({ workspaceId: WORKSPACE_ID, sessionId: "sess-nested" }),
+    { newWindow: false }
+  );
 });

@@ -1,5 +1,5 @@
 import type { ThreadMessage } from "@assistant-ui/react";
-import type { SubagentView } from "@/systems/session";
+import { SessionSubagentsProvider, type SubagentView } from "@/systems/session";
 import { useEffect } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 import { Button } from "@compozy/ui";
@@ -13,7 +13,13 @@ import { SessionMessageText } from "./session-message-parts";
 import { SessionTimelineRows } from "./session-timeline-render";
 
 /** Native activity belongs to a tool call in the parent ledger, never a fabricated session. */
-export function SessionNativeSubagentActivity({ subagent }: { subagent: SubagentView }) {
+export function SessionNativeSubagentActivity({
+  subagent,
+  workspaceId,
+}: {
+  subagent: SubagentView;
+  workspaceId: string;
+}) {
   const transcript = useSessionTranscriptThreadState();
   const store = useStore(timelineRowLogic, undefined);
   const expansion = useSelector(store, snapshot => snapshot.context);
@@ -27,22 +33,24 @@ export function SessionNativeSubagentActivity({ subagent }: { subagent: Subagent
     expandedChangedFilesIds: expansion.expandedChangedFiles,
   });
   return (
-    <SessionThreadReadOnlyProvider readOnly>
-      <TimelineRowContext value={store}>
-        <div
-          className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4"
-          data-testid="native-subagent-activity"
-        >
-          {prompt ? <SessionMessageText text={prompt} authored /> : null}
-          <NativeOutcome subagent={subagent} />
-          <NativeActivityRows
-            transcript={transcript}
-            rows={rows}
-            hasResult={Boolean(subagent.result || subagent.error)}
-          />
-        </div>
-      </TimelineRowContext>
-    </SessionThreadReadOnlyProvider>
+    <SessionSubagentsProvider workspaceId={workspaceId} sessionId={subagent.parent_session_id}>
+      <SessionThreadReadOnlyProvider readOnly>
+        <TimelineRowContext value={store}>
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4"
+            data-testid="native-subagent-activity"
+          >
+            {prompt ? <SessionMessageText text={prompt} authored /> : null}
+            <NativeOutcome subagent={subagent} />
+            <NativeActivityRows
+              transcript={transcript}
+              rows={rows}
+              hasResult={Boolean(subagent.result || subagent.error)}
+            />
+          </div>
+        </TimelineRowContext>
+      </SessionThreadReadOnlyProvider>
+    </SessionSubagentsProvider>
   );
 }
 

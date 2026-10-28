@@ -70,7 +70,11 @@ function SubagentTranscript({
         liveTailEnabled
         readOnly
       >
-        <SessionNativeSubagentActivity key={subagent.id} subagent={subagent} />
+        <SessionNativeSubagentActivity
+          key={subagent.id}
+          subagent={subagent}
+          workspaceId={workspaceId}
+        />
       </SessionChatRuntimeProvider>
     );
   return (

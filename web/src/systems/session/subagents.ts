@@ -5,3 +5,4 @@ export { SubagentRuntimeMeta } from "./components/subagents/subagent-runtime-met
 export { SubagentRowTrail } from "./components/subagents/subagent-row-trail";
 export { useSessionSubagents } from "./hooks/use-session-subagents";
 export { subagentNavigationTarget, subagentRevealStore } from "./lib/subagent-navigation";
+export { SessionSubagentsProvider } from "./contexts/session-subagents-provider";
