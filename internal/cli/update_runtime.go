@@ -87,7 +87,11 @@ func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 		_, err = runDaemonDetached(ctx, r.deps)
 		return err
 	}
-	client, err := clientFromDeps(r.deps)
+	target, err := resolveLocalClientTarget(r.deps, r.homePaths)
+	if err != nil {
+		return err
+	}
+	client, err := r.deps.newClient(target)
 	if err != nil {
 		return err
 	}
@@ -191,7 +195,11 @@ func (r *cliUpdateRuntime) waitForBundledRuntime(
 	if err != nil {
 		return compozyupdate.RuntimeTrackState{}, fmt.Errorf("cli: parse bundled runtime version: %w", err)
 	}
-	client, err := r.deps.newClient(LocalClientTarget(r.homePaths.DaemonSocket))
+	target, err := resolveLocalClientTarget(r.deps, r.homePaths)
+	if err != nil {
+		return compozyupdate.RuntimeTrackState{}, err
+	}
+	client, err := r.deps.newClient(target)
 	if err != nil {
 		return compozyupdate.RuntimeTrackState{}, err
 	}

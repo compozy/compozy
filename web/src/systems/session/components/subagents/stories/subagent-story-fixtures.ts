@@ -108,6 +108,30 @@ export const cardStates = {
     progress: "Updated 18,400 of 52,000 rows",
     elapsed: 3_780,
   }),
+  waitingOnChildren: subagentFixture({
+    id: "waiting-on-children",
+    work_state: "waiting_for_children",
+    title: "Split the refund audit across services",
+    elapsed: 204,
+  }),
+  idle: subagentFixture({
+    id: "idle",
+    status: "completed",
+    title: "Answer questions about the ledger schema",
+    result_preview: "The ledger keeps one row per capture; refunds reference it.",
+    child_activity: "idle",
+    delivery: "delivered",
+    elapsed: 88,
+  }),
+  resumed: subagentFixture({
+    id: "resumed",
+    status: "completed",
+    title: "Follow up on the refund copy review",
+    result_preview: "Rewrote 4 strings; checking the remaining 2.",
+    child_activity: "working",
+    delivery: "acknowledged",
+    elapsed: 140,
+  }),
   unknownProvider: subagentFixture({
     id: "unknown-provider",
     title: "Summarize open support tickets about refunds",
@@ -158,7 +182,7 @@ export const settledResultLong = subagentFixture({
     'Found 2 N+1 queries. OrderSummary.items loads each line\'s product in a loop (orders/summary.go:88), and RefundList renders the customer for every row without a preload. Suggested Preload("Items.Product") and a joined customer query; both are covered by existing tests, and no migration is needed for either change, so the PR can merge after the two preloads land.',
 });
 
-/** The ten-subagent fan-out from the navigation board. */
+/** The fan-out from the navigation board: working, waiting, failed, done, idle and stopped rows. */
 export const roster: SubagentView[] = [
   { ...cardStates.failed, created_at: secondsAgo(900) },
   subagentFixture({
@@ -177,6 +201,7 @@ export const roster: SubagentView[] = [
   },
   { ...cardStates.canceled, status: "running", settled_at: null, created_at: secondsAgo(200) },
   { ...cardStates.completed, created_at: secondsAgo(600) },
+  { ...cardStates.idle, created_at: secondsAgo(595) },
   { ...nativeSettled, created_at: secondsAgo(590) },
   subagentFixture({
     id: "callers",

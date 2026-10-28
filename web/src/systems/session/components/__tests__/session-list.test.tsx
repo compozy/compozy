@@ -711,6 +711,46 @@ describe("SessionList subagents", () => {
     expect(within(branch).queryByRole("status")).not.toBeInTheDocument();
   });
 
+  // Invariant: branch rows carry the session StateGlyph and word — running and completed never
+  // read alike — and the loaded rows order by urgency. Owner: the rail's subagent branch.
+  it("Should mark branch rows with distinct glyphs and words, most urgent first", async () => {
+    const settledAt = "2026-10-08T12:30:00Z";
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [
+            { ...wireSubagent(4, "completed"), settled_at: settledAt },
+            wireSubagent(3, "running"),
+            { ...wireSubagent(2, "failed"), settled_at: settledAt },
+            wireSubagent(1, "waiting"),
+          ],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    renderList({ sessions: [row("parent", summary(2, 4, 1, 1))], subagentThreadIds: ["parent"] });
+
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(4)
+    );
+    const rows = [...branch.querySelectorAll('[data-slot="session-subagent-row"]')];
+    expect(rows.map(node => node.getAttribute("data-state"))).toEqual([
+      "attention",
+      "failed",
+      "running",
+      "done",
+    ]);
+    expect(
+      rows.map(node => node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state"))
+    ).toEqual(["attention", "failed", "running", "done"]);
+    const open = (title: string) => within(branch).getByRole("button", { name: `Open ${title}` });
+    expect(open("Subagent 3")).toHaveAttribute("aria-description", "Working");
+    expect(open("Subagent 4")).toHaveAttribute("aria-description", "Done");
+    expect(within(open("Subagent 3")).getByText("Working")).toBeInTheDocument();
+    expect(within(open("Subagent 4")).getByText("Done")).toBeInTheDocument();
+  });
+
   // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
   it("UT-W17: opens a bounded subagent branch that reads one page and pages with Show more", async () => {
     const user = userEvent.setup();

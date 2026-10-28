@@ -241,6 +241,8 @@ export async function putProfileSelection(
 ): Promise<ProfileSelectionResult> {
   const { data, error, response } = await apiClient.PUT("/api/profiles/selection", {
     body: params,
+    // The optimistic view can be visible just before a reload replaces this document.
+    keepalive: true,
     signal,
   });
   if (apiRequestFailed(response, error)) {

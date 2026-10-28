@@ -40,6 +40,26 @@ describe("MarkdownMermaid", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
+  // Invariant: the fullscreen viewer supports zoom/reset and dismissal without
+  // replacing the inline diagram or source. Owner: MarkdownMermaid; canonical suite here.
+  it("Should zoom and reset the fullscreen diagram", async () => {
+    renderMermaid.mockResolvedValue("data:image/svg+xml,test");
+    render(<MarkdownMermaid code={code} streaming={false} />);
+    await screen.findByRole("img", { name: "Mermaid diagram" });
+    fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.click(dialog.getByRole("button", { name: "Zoom in" }));
+    expect(dialog.getByLabelText("Zoom")).toHaveTextContent("125%");
+    fireEvent.click(dialog.getByRole("button", { name: "Zoom out" }));
+    expect(dialog.getByLabelText("Zoom")).toHaveTextContent("100%");
+    fireEvent.click(dialog.getByRole("button", { name: "Zoom in" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Reset zoom" }));
+    expect(dialog.getByLabelText("Zoom")).toHaveTextContent("100%");
+    fireEvent.click(dialog.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("img", { name: "Mermaid diagram" })).toBeInTheDocument();
+  });
+
   it("Should restore readable source when the diagram image cannot load", async () => {
     renderMermaid.mockResolvedValue("data:image/svg+xml,test");
     const { container } = render(<MarkdownMermaid code={code} streaming={false} />);

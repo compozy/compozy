@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
+import { useState } from "react";
+import { Button } from "../../button";
 
 import {
   composeMarkdownSlots,
@@ -22,7 +24,7 @@ const meta: Meta<typeof StreamMarkdown> = {
   },
   decorators: [
     Story => (
-      <div className="w-[720px] bg-background p-6">
+      <div className="w-full max-w-3xl bg-background p-6">
         <Story />
       </div>
     ),
@@ -61,6 +63,87 @@ export const MermaidStreaming: Story = {
 
 export const MermaidInvalid: Story = {
   args: { children: "```mermaid\nnot a valid diagram\n```\n\nThe source remains readable." },
+};
+
+const MULTIPLE_DIAGRAMS = [
+  "flowchart TD\n A[Request] --> B[Validate] --> C[Plan] --> D[Implement] --> E[Test] --> F[Review] --> G[Deliver]",
+  "sequenceDiagram\n participant User\n participant Agent\n User->>Agent: Explain the change\n Agent-->>User: Plan\n User->>Agent: Continue\n Agent-->>User: Result",
+  "flowchart LR\n A[Input] --> B[Output]",
+]
+  .map(code => `\`\`\`mermaid\n${code}\n\`\`\``)
+  .join("\n\nFollowing prose.\n\n");
+
+function MermaidTransition() {
+  const [streaming, setStreaming] = useState(true);
+  return (
+    <>
+      <Button onClick={() => setStreaming(false)}>Finish streaming</Button>
+      <StreamMarkdown streaming={streaming}>{MULTIPLE_DIAGRAMS}</StreamMarkdown>
+    </>
+  );
+}
+
+// Invariant: real Mermaid rendering never changes reserved transcript geometry,
+// and inline images fit half the column without exceeding their natural size.
+export const MermaidSizing: Story = {
+  render: () => <MermaidTransition />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const blocks = [...canvasElement.querySelectorAll('[data-slot="markdown-mermaid"]')];
+    const heights = blocks.map(block => block.getBoundingClientRect().height);
+    await userEvent.click(canvas.getByRole("button", { name: "Finish streaming" }));
+    await waitFor(
+      () => expect(canvas.getAllByRole("img", { name: "Mermaid diagram" })).toHaveLength(3),
+      { timeout: 15000 }
+    );
+    const images = canvas.getAllByRole("img", { name: "Mermaid diagram" });
+    const renderedBlocks = [...canvasElement.querySelectorAll('[data-slot="markdown-mermaid"]')];
+    for (const [index, image] of images.entries()) {
+      await (image as HTMLImageElement).decode();
+      const bounds = image.getBoundingClientRect();
+      await expect(renderedBlocks[index]!.getBoundingClientRect().height).toBe(heights[index]);
+      await expect(bounds.width).toBeLessThanOrEqual(
+        renderedBlocks[index]!.getBoundingClientRect().width / 2
+      );
+      await expect(bounds.width).toBeLessThanOrEqual((image as HTMLImageElement).naturalWidth);
+      await expect(bounds.height).toBeLessThanOrEqual(window.innerHeight * 0.4);
+    }
+    // Browser geometry owns the keyboard-pan invariant; jsdom cannot measure transformed images.
+    await userEvent.click(canvas.getAllByRole("button", { name: "Fullscreen" })[0]!);
+    const overlay = within(canvasElement.ownerDocument.body);
+    const viewer = overlay.getByRole("region", { name: "Diagram viewer" });
+    const expandedImage = within(viewer).getByRole("img", { name: "Mermaid diagram" });
+    await (expandedImage as HTMLImageElement).decode();
+    await waitFor(() =>
+      expect(
+        overlay
+          .getByRole("dialog")
+          .getAnimations({ subtree: true })
+          .filter(animation => animation.playState === "running")
+      ).toHaveLength(0)
+    );
+    viewer.focus();
+    const initial = expandedImage.getBoundingClientRect();
+    await userEvent.keyboard("{ArrowRight}{ArrowDown}");
+    await expect(expandedImage.getBoundingClientRect().left).toBeGreaterThan(initial.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeGreaterThan(initial.top);
+    await userEvent.click(overlay.getByRole("button", { name: "Reset zoom" }));
+    await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(initial.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(initial.top);
+    await userEvent.pointer([
+      { target: viewer, keys: "[MouseLeft>]", coords: { clientX: 100, clientY: 150 } },
+      { target: viewer, coords: { clientX: 140, clientY: 175 } },
+      { target: viewer, keys: "[/MouseLeft]" },
+    ]);
+    const dragged = expandedImage.getBoundingClientRect();
+    await expect(dragged.left - initial.left).toBeCloseTo(40);
+    await expect(dragged.top - initial.top).toBeCloseTo(25);
+    await userEvent.pointer({ target: viewer, coords: { clientX: 180, clientY: 200 } });
+    await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(dragged.left);
+    await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(dragged.top);
+    await userEvent.keyboard("{Escape}");
+  },
 };
 
 // Invariant: diagram-authored directives cannot relax the image renderer's security policy.

@@ -1,19 +1,121 @@
 # Compozy Change Impact
 
-## Desktop convergence and tool-event contention tests — 2026-10-25
+## Subagent child activity and native task lifecycle — 2026-10-27
 
-Owner: E2E-023 and `TestDaemonToolEventSink` CI failures. Web chrome and preloading subscribe
-to window membership, the pager subscribes to derived attention, and the command-context
-subscription compares derived capabilities instead of window geometry. Frame and overview
-geometry subscriptions live in their existing rendering components, not the desktop shell.
-Query retains the complete authoritative snapshot and the stream reconnects against its
-latest cached revision. Pruning still requires a snapshot fresh since mount. Predicate values,
-debouncing, ordering, geometry, focus and authorization remain unchanged. The daemon regression waits
-for an observed SQLite admission deadline before releasing its real writer, then verifies
-exactly one durable event. Native tools, public transports, hooks, extension SDKs, config,
-workspace/profile isolation, persisted shapes and `skills/compozy/` are unchanged; no
-migration or compatibility adapter is needed. QA owner:
-`docs/qa/scenarios/ET-web-desktop-shell-lifecycle.md`; no site copy change is required.
+Owner: branch `fix/subagent-status`. Delegated rows gain a persisted `child_activity`
+(`''|working|idle|stopped`, migration `00154_schema.sql`) that mirrors the child session after
+settlement without touching status, result, delivery, or wake. Claude sessions request four raw SDK
+task subtypes (`emitRawSDKMessages`) and settle background provider-native rows per task.
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `SubagentPayload.child_activity` (omitempty)
+  in OpenAPI/SDKs, `compozy__subagent_status`/list results, and `session subagents show`. Provider-native
+  rows keep their status/progress/result fields; they now settle earlier and may gain a result from a
+  later task summary. A new `native_task` event type is persisted in the session ledger (visible in
+  raw event reads) but is not a prompt-stream or transcript part. No new routes, IDs, or cancel authority.
+- **Extensibility / hooks / config:** `subagent.settled` fires once per row; result enrichment is a
+  normal row update. Claude session `_meta.claudeCode` gains `emitRawSDKMessages` for the Claude bridge
+  only; existing options, wake exclusions, and other providers are unchanged. No AIR capability,
+  native child sessions, or `backgroundSubagents` are advertised.
+- **Workspace data / isolation:** lossless table-rebuild migration (existing rows read `''`); typed
+  task observations are redacted like other transcript payloads; enrichment and replay are guarded by
+  workspace, parent, parent turn, tool call, terminal status, and NULL result. `_claude/sdkMessage` passes
+  the bound-session guard; foreign/fork ids are refused.
+- **Official skill / docs / QA:** `skills/compozy/references/native-tools.md` and
+  `runtime-operations.md`, `packages/site/content/docs/sessions/subagents.mdx`, and the
+  `ET-web-native-subagent`, `ET-web-subagent-card`, and `ET-web-session-sidebar-threads` scenarios
+  co-ship. Real Claude walks of the per-task lifecycle remain pending (see the native scenario).
+
+## Appearance fonts (#984) — 2026-10-27
+
+Owner: branch `feat/font-catalog-984`; plan `.claude/plans/font-catalog.md`, research
+`.audits/exploration/20261027-163010-font-touchpoints/analysis/summary.md`.
+
+- **Config and contract:** additive public surface (SD-013), no delete targets or migration.
+  New global, live `[shell.appearance] ui_font` / `mono_font` (one family name, letters/digits/
+  space/`-_.'`, ≤128 chars, `""` = default; invalid → `shell_config_invalid`). `GET/PATCH
+  /api/settings/shell` gains optional `config.appearance` (PATCH: omitted preserves, `""` resets
+  and deletes the key); HTTP and UDS share the route; OpenAPI, TS and Go SDKs regenerated. CLI
+  `compozy config set|unset shell.appearance.*`. Native `compozy__config_*` allow-map unchanged
+  (follows `shell.sessions.group_by`).
+- **Web and desktop:** `--font-sans` / `--font-mono` lead with `--user-font-*`, set inline on
+  `<html>` by `FontAppearanceSync` and replayed pre-paint by `/theme-boot.js`; the desktop boot page
+  strips the override and keeps built-in fonts. Terminals load the new face, refit and re-propose
+  PTY size on a live change. JetBrains Mono is a lazy chunk; the desktop grants `local-fonts` for
+  the installed-font list. Mermaid diagrams and `--font-keys` keep their own fonts.
+- **Isolation:** daemon-wide, not workspace- or profile-scoped; workspace overlays still reject
+  shell keys. **Extensibility/hooks:** none. **Official skill:** `skills/compozy/references/
+  configuration.md`. **Docs:** site `config-toml.mdx`, `COPY.md`; QA
+  `ET-web-appearance-fonts-sync` plus impact notes on `APP-theme-native-no-flash` and
+  `ET-web-font-assets-strict-csp`.
+
+## Desktop update session continuity — 2026-10-27
+
+Owner: branch `fix/update-session-continuity`; evidence in
+`docs/qa/reports/2026-10-27-update-session-continuity.md`.
+
+- **Runtime/CLI:** app-owned bootstrap provisions the verified replacement before requesting
+  the existing durable restart operation over the configured local UDS. It no longer sends the
+  user-stop signal. The existing session checkpoint/admission and subagent recovery owners
+  retain their safety gates, ordering and exactly-once continuation identities. The daemon
+  captures its executable path before an atomic binary rename can redirect Linux relaunch.
+  Linux bootstrap also preserves the original path when replacing a released daemon that
+  resolves its executable only at restart time: link the recovery copy, then atomically
+  publish the new binary without renaming the running executable to the backup path.
+  Runtime backup removal follows coordinated restart so an executing Windows binary can exit.
+  Failed provisioning keeps live work; failed restart retains its backup and reports the error.
+  Successful replacement retains the public bootstrap `provision` resolution through readiness.
+- **Native tools / HTTP / UDS:** no new routes, DTOs, CLI flags or `compozy__*` IDs. Existing
+  restart and session read surfaces remain authoritative. Explicit user stop stays cancellation.
+- **Extensibility / hooks / config / data isolation:** no schema migration, config key, provider
+  credentials or hook changes. No new store or recovery scheduler. Bootstrap targets only its
+  local runtime home and its custom socket, including when the operator has a remote daemon
+  connection selected.
+- **Web / Docs / official skill:** no presentation workaround. Web receives the repaired
+  runtime state. The desktop operations documentation and four affected QA scenarios co-ship.
+  `skills/compozy/references/desktop.md` already describes verified bundle provisioning and
+  runtime-owned lifecycle controls; its commands and ownership guidance remain unchanged.
+- **Verification:** extend the existing bootstrap suite, daemon restart suite and native
+  E2E-016 update journey. Native installation uses isolated fixture apps/homes and real daemon,
+  storage and ACP subprocesses; it does not certify the published signing/distribution chain.
+
+
+## Session responsiveness — 2026-10-26
+
+Owner: branch `perf/session-responsiveness`; measured evidence and remaining work in
+`docs/qa/reports/2026-10-26-session-responsiveness.md`.
+
+- **Runtime and database:** compute catalog sort keys once, resolve board PR/default
+  branch facts by workspace JSON key, and hydrate only active family members for detail
+  relations. Session scope, ordering, exact totals, cursor fences and active overlay
+  remain authoritative. Reuse the existing one-minute repository identity window for
+  missing/local origins; cancellation, deadlines and runner-start failures do not enter
+  that cache. No schema or persisted-data change.
+- **Web:** combine each session cache wake into one TanStack invalidation. Live, usage,
+  mutation, inactive-cache and profile-lens reread semantics remain intact; stream
+  debounce/detach behavior is unchanged. Catalog reconciliation retains its trailing
+  read and stopped-transcript obligations with fewer cache traversals. A pinned core
+  dependency patch lazily creates tool pipelines and disposes them with their runtime,
+  including abandoned React renders and normal session closure. Authoritative geometry
+  subscribes at the window layer; shell chrome reads window membership and attention
+  indicators, and the closed desktops overview suspends its geometry projection. Opening
+  the overview reads current state immediately. Model-catalog projections retain their
+  collections until provider/catalog inputs change, and agent create/duplicate callbacks
+  capture stable mutation functions. Provider order, auth gating, refresh/recovery, and
+  draft behavior are unchanged. Profile-selection writes survive document reload using the
+  existing settings transport's keepalive pattern, retaining optimistic switching and failure
+  rollback. Window persistence and live-data ownership are unchanged.
+- **Native tools / CLI / HTTP / UDS:** existing session list/status/board results retain
+  their schemas and semantics. No generator, SDK contract or public tool ID changes.
+- **Extensibility / hooks / config / isolation:** no new hooks, extension behavior,
+  settings, credentials or cross-workspace reads. Repository identity errors use the
+  existing per-root bounded freshness window; provider/forge response freshness is unchanged.
+- **Official skill / public docs:** `skills/compozy/` and product instructions need no
+  change because public workflows are unchanged. The performance report and existing
+  streaming/board QA scenarios co-ship. Browser memory, API and board evidence are recorded
+  in the owning report; the existing desktop-shell lifecycle scenario also covers the
+  unchanged 11-window performance envelope. Model-catalog cold-open and agent-create
+  scenarios record the projection follow-up; the profile-switcher scenario records immediate
+  reload persistence. Complete delivery gates are tracked on PR #983.
 
 ## Hosted MCP proxy reconnect after a model switch — 2026-10-19
 
@@ -40,6 +142,7 @@ isolation are unchanged; no migration or compatibility adapter is needed. Web ne
 change. The provider site guide co-ships; official `skills/compozy/` already documents thought-level
 selection and requires no contract change. Regression owners: the daemon Agy catalog/context suite
 and the existing AGY picker-to-prompt browser case; QA owner: `RT-agy-acp-provider` reasoning slice.
+
 ## Authored inline code whitespace review repair — 2026-10-24
 
 Owner: post-merge audit of PR #968. `StreamMarkdown` authored mode preserves consecutive spaces

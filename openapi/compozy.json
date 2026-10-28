@@ -29251,6 +29251,22 @@
         ],
         "type": "object"
       },
+      "SettingsShellAppearancePayload": {
+        "additionalProperties": false,
+        "properties": {
+          "mono_font": {
+            "maxLength": 128,
+            "nullable": true,
+            "type": "string"
+          },
+          "ui_font": {
+            "maxLength": 128,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SettingsShellLegacyScopePayload": {
         "properties": {
           "explicit": {
@@ -29408,6 +29424,19 @@
       "SettingsShellPayload": {
         "additionalProperties": false,
         "properties": {
+          "appearance": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingsShellAppearancePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "sessions": {
             "$ref": "#/components/schemas/SettingsShellSessionsPayload"
           }
@@ -32279,6 +32308,14 @@
       },
       "SubagentPayload": {
         "properties": {
+          "child_activity": {
+            "enum": [
+              "working",
+              "idle",
+              "stopped"
+            ],
+            "type": "string"
+          },
           "child_session_id": {
             "nullable": true,
             "type": "string"

@@ -4901,6 +4901,19 @@ func TestSubagentCommands(t *testing.T) {
 			t.Fatal(got)
 		}
 	})
+	t.Run("Should render the child session activity beside the child id", func(t *testing.T) {
+		t.Parallel()
+		row := subagentCLIRecord()
+		row.ChildSessionID = new("child-1")
+		row.ChildActivity = "working"
+		if got := subagentDetails(row, fixedTestNow); !strings.Contains(got, "Child         child-1 (working)\n") {
+			t.Fatal(got)
+		}
+		row.ChildActivity = ""
+		if got := subagentDetails(row, fixedTestNow); !strings.Contains(got, "Child         child-1\n") {
+			t.Fatal(got)
+		}
+	})
 	t.Run("Should show a subagent without resolving the current directory", func(t *testing.T) {
 		t.Parallel()
 		client := &subagentCommandStub{DaemonClient: newDefaultProfileTestClient(&stubClient{})}

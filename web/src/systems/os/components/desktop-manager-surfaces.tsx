@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useDesktopManagerSurfaces } from "../hooks/use-desktop-manager-surfaces";
+import type { DesktopManagerSurfacesModel } from "../hooks/use-desktop-manager-surfaces";
 import { DesktopLayoutThumbnail } from "./desktop-layout-thumbnail";
 import {
   DesktopsOverview,
@@ -35,6 +35,7 @@ function overviewState(input: {
  * live in the menubar's single status pill (`OsHydrationStatus`).
  */
 export interface DesktopManagerSurfacesProps {
+  model: DesktopManagerSurfacesModel;
   /** Desktops holding a window that needs you (the pager's projection). */
   needsYouDesktopIds: ReadonlySet<string>;
   /** Live `desktop.switch.N` chord labels by position (index 0 = ⌃1); null when unbound. */
@@ -51,6 +52,7 @@ export interface DesktopManagerSurfacesProps {
 }
 
 export function DesktopManagerSurfaces({
+  model,
   needsYouDesktopIds,
   switchShortcuts,
   onCreateDesktop,
@@ -63,7 +65,6 @@ export function DesktopManagerSurfaces({
   onRetry,
   onResolveConflict,
 }: DesktopManagerSurfacesProps) {
-  const model = useDesktopManagerSurfaces();
   // The overview portals into this desk-sized host so it covers the desk only.
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   const desktops: DesktopOverviewItem[] = model.desktops.map((desktop, index) => {

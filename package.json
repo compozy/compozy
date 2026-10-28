@@ -1,6 +1,6 @@
 {
     "name": "compozy",
-    "version": "0.4.2",
+    "version": "0.4.3",
     "private": true,
     "workspaces": [
         "packages/ui",
@@ -79,6 +79,7 @@
     },
     "packageManager": "bun@1.4.0",
     "patchedDependencies": {
+        "@assistant-ui/core@0.3.22": "patches/@assistant-ui%2Fcore@0.3.22.patch",
         "@hey-api/openapi-ts@0.99.0": "patches/@hey-api%2Fopenapi-ts@0.99.0.patch",
         "swr@2.5.1": "patches/swr@2.5.1.patch"
     }

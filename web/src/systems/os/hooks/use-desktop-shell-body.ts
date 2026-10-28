@@ -16,11 +16,9 @@ import { useWorktreeListings } from "@/systems/workspace";
 import { frameSeamEdits } from "../lib/frame-seams";
 import { desktopShellBridge, type DesktopShellEventMap } from "../lib/desktop-shell-bridge";
 import type { OsAttentionSections, OsSessionAttentionRow } from "../lib/attention-model";
-import { desktopIdsNeedingYou } from "../lib/desktop-pager-attention";
 import type { PaletteShellHandlers } from "../lib/cmd-palette-client-ops";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { OsDesktopRuntimeStore, OsOpenTarget } from "../lib/os-types";
-import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { shortcutActionLabel } from "../lib/window-manager-shortcuts";
 import type {
   ProjectedFrameSeam,
@@ -30,8 +28,9 @@ import type {
 import { windowManagerStore } from "../stores/window-manager-store";
 import type { DesktopOverviewSegmentRequest } from "../stores/window-manager-store-types";
 import { useDesktop } from "./use-desktop";
+import { useDesktopManagerSurfaces } from "./use-desktop-manager-surfaces";
 import { useDesktopOverlays } from "./use-desktop-overlays";
-import { useDesktopShellState } from "./use-desktop-shell-state";
+import { useDesktopPager, useDesktopShellState } from "./use-desktop-shell-state";
 import type { DesktopShellModel } from "./use-desktop-shell-model";
 import { useDesktopTransitionIntent } from "./use-window-manager-store";
 import { useAttentionNotifier } from "./use-attention-notifier";
@@ -190,7 +189,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     onOpenBell: () => overlays.setOverlayOpen("bell", true),
     bellOpen: overlays.activeOverlay === "bell",
   });
-  const presentation = useDesktop(state => state.presentation);
+  const managerSurfaces = useDesktopManagerSurfaces();
   const reducedMotion = useOsDocumentReducedMotion();
   const transition = useDesktopTransitionIntent();
   const { manager, coordinator } = useOsShell();
@@ -218,24 +217,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       typeof navigator === "undefined" ? "" : navigator.platform
     )
   );
-  const pagerState = useDesktop(
-    state => ({
-      activeDesktopId: state.activeDesktopId,
-      desktops: state.desktops,
-      canSwitchDesktop: windowManagerCommandsAvailable(state),
-    }),
-    shallowEqual
-  );
-  const needsYouDesktopIds = useDesktop(
-    state => [...desktopIdsNeedingYou(state.windows, attention.sections.needsYou)],
-    shallowEqual
-  );
-  const pager = {
-    activeDesktopId: pagerState.activeDesktopId,
-    desktops: pagerState.desktops,
-    canSwitchDesktop: pagerState.canSwitchDesktop,
-    needsYouDesktopIds: new Set(needsYouDesktopIds),
-  };
+  const pager = useDesktopPager(attention.sections.needsYou);
 
   // The shell's half of the dispatch seam: what a `client_op` is allowed to
   // reach in this client. The seam owns which operation runs; this owns what it
@@ -380,6 +362,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     desktop,
     desktopRef,
     manager,
+    managerSurfaces,
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange: setDesktopManagerOpen,
@@ -395,7 +378,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     reducedMotion,
     shortcutLabels,
     transition,
-    presentation,
     workingSessionsByWorkspace,
     worktreesByWorkspace,
   };

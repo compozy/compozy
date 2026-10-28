@@ -3589,6 +3589,15 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// required/type/removal change.
 	addQueuedInputMentions(t, baseline)
 
+	// #984: optional additive shell font preferences; no required/type/removal change.
+	addShellAppearanceSchema(t, baseline)
+
+	// #993: optional additive delegated-child liveness on subagent rows; no
+	// required/type/removal change.
+	if addSubagentChildActivity(baseline) == 0 {
+		t.Fatal("approved subagent child activity addition: no historical subagent row schemas found")
+	}
+
 	// #813: optional opt-in query parameters on worktree cleanup, inserted before
 	// the trailing profile selector; existing parameters keep their meaning.
 	boolQuery := func(name string) map[string]any {
@@ -4361,5 +4370,62 @@ func addProviderUsageSettingsSection(t *testing.T, baseline map[string]any) {
 	walk(baseline)
 	if changes == 0 {
 		t.Fatal("provider usage addition: historical settings enum not found")
+	}
+}
+
+// #984: add the optional `appearance` object to every historical shell config schema.
+func addSubagentChildActivity(node any) int {
+	switch value := node.(type) {
+	case map[string]any:
+		count := 0
+		if properties, ok := value["properties"].(map[string]any); ok &&
+			properties["subagent_id"] != nil && properties["work_state"] != nil {
+			properties["child_activity"] = map[string]any{
+				"type": "string",
+				"enum": []any{"working", "idle", "stopped"},
+			}
+			count++
+		}
+		for _, child := range value {
+			count += addSubagentChildActivity(child)
+		}
+		return count
+	case []any:
+		count := 0
+		for _, child := range value {
+			count += addSubagentChildActivity(child)
+		}
+		return count
+	default:
+		return 0
+	}
+}
+
+func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	var appearance map[string]any
+	if err := json.Unmarshal([]byte(`{"oneOf":[
+		{"type":"object","additionalProperties":false,"properties":{
+			"ui_font":{"type":"string","nullable":true,"maxLength":128},
+			"mono_font":{"type":"string","nullable":true,"maxLength":128}
+		}},
+		{"enum":[null],"nullable":true}
+	]}`), &appearance); err != nil {
+		t.Fatalf("approved shell appearance addition: %v", err)
+	}
+	shell := baseline["paths"].(map[string]any)["/api/settings/shell"].(map[string]any)
+	bodies := []map[string]any{
+		shell["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any),
+		shell["patch"].(map[string]any)["requestBody"].(map[string]any),
+		shell["patch"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any),
+	}
+	for _, body := range bodies {
+		schema := body["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		config := schema["properties"].(map[string]any)["config"].(map[string]any)
+		configProperties := config["properties"].(map[string]any)
+		if _, exists := configProperties["appearance"]; exists {
+			t.Fatal("approved shell appearance addition: appearance already exists in the historical baseline")
+		}
+		configProperties["appearance"] = appearance
 	}
 }

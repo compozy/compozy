@@ -36,6 +36,8 @@ Walk:
 6. Turn on All profiles, confirm the neutral layered mark replaces the identity, switch projects and
    reload, and confirm All profiles stays selected. Open New session and confirm the destination chip
    names the last concrete profile you selected.
+7. Leave All profiles for a concrete profile and reload as soon as that identity appears. Confirm
+   the concrete profile remains selected and the Global selection route reports that same choice.
 
 Expected evidence: screenshots of the quiet and plural states, the switcher menu, selection-route
 request/response pairs, terminal transcript for the cross-surface switch, and the restored state after
@@ -110,3 +112,9 @@ spoken-output limitation is unchanged.
 qa-impact: 2026-10-18 issue #792. Profile selection is now one global choice: project switches and
 reloads keep the selected profile or All profiles, and per-project restoration is retired. Steps 4
 and 6 were rewritten; re-walk them against the global contract.
+
+qa-impact: 2026-10-27 session responsiveness follow-up. CI E2E-013 exposed a selection PUT canceled
+by an immediate reload, after its optimistic identity was already visible; the failure rollback
+restored All profiles in local storage. The selection request now uses the existing settings
+transport's keepalive pattern. The unchanged E2E-013 journey owns the real-browser replay of step 7;
+current-head evidence is tracked in PR #983. Earlier scenario verdicts do not verify this revision.

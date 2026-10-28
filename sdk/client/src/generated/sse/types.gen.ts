@@ -598,6 +598,7 @@ export type SettingsLogTailEventPayload = {
 };
 
 export type SubagentPayload = {
+  child_activity?: "working" | "idle" | "stopped";
   child_session_id: string | null;
   created_at: string;
   delivery: string;

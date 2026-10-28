@@ -30,7 +30,7 @@ import { OsShortcutsDialog } from "./os-shortcuts-dialog";
 import { OsWorkspacesOverview } from "./os-workspaces-overview";
 import { OsWallpaper } from "./os-wallpaper";
 import { TerminalCloseDialog } from "./terminal-close-dialog";
-import { OsWinLayer } from "./os-win-layer";
+import { LiveOsWinLayer } from "./os-win-layer";
 import { AgentCreateDialog, AgentCreateHostProvider } from "@/systems/agent";
 import { useOnboardingStatus } from "@/systems/onboarding";
 import {
@@ -193,6 +193,7 @@ function DesktopShellScopedBody({
     desktop,
     desktopRef,
     manager,
+    managerSurfaces,
     onResize,
     onFrameResize,
     onDesktopManagerOpenChange,
@@ -208,7 +209,6 @@ function DesktopShellScopedBody({
     reducedMotion,
     shortcutLabels,
     transition,
-    presentation,
     workingSessionsByWorkspace,
     worktreesByWorkspace,
   } = useDesktopShellBody(model, {
@@ -308,7 +308,7 @@ function DesktopShellScopedBody({
           // It clips its children so tiled panes follow the rounded corner; the
           // win-layer sits inside the border, so snap geometry never sees it.
           "relative col-start-2 row-start-2 min-h-0 overflow-hidden border-t border-line",
-          presentation !== "compact" && "rounded-tl-lg border-l"
+          desktop.presentation !== "compact" && "rounded-tl-lg border-l"
         )}
       >
         <OsWallpaper wallpaper={desktop.wallpaper} />
@@ -321,7 +321,7 @@ function DesktopShellScopedBody({
         {desktop.windowIds.map(windowId => (
           <OsAppPreloader key={windowId} windowId={windowId} />
         ))}
-        <OsWinLayer
+        <LiveOsWinLayer
           showEmptyDesktop={showEmptyDesktop}
           paletteShortcutLabel={shortcutLabels.palette}
           canStart={model.dataScope !== null}
@@ -335,6 +335,7 @@ function DesktopShellScopedBody({
           onSeamPreviewEnd={onSeamPreviewEnd}
         />
         <DesktopManagerSurfaces
+          model={managerSurfaces}
           needsYouDesktopIds={pager.needsYouDesktopIds}
           switchShortcuts={desktopSwitchShortcuts}
           onCreateDesktop={() => manager.createDesktop()}

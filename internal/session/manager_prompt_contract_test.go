@@ -3646,6 +3646,10 @@ func (r *nativeOrderRecorder) snapshot() []string {
 }
 
 func (r *nativeOrderRecorder) OnNativeToolEvent(_ context.Context, _ string, ev NativeSubagentEvent) error {
+	if ev.Task != nil {
+		r.record(fmt.Sprintf("task:%s:%s:%s", ev.ProviderToolCallID, ev.Task.Status, ev.ParentTurnID))
+		return nil
+	}
 	r.record(fmt.Sprintf("native:%s:%s:%t", ev.ProviderToolCallID, ev.Status, ev.Background))
 	return nil
 }
@@ -3681,7 +3685,7 @@ func TestNativeSubagentPersistenceOrder(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
 		recorder := &nativeOrderRecorder{}
 		h.manager.SetSubagentService(recorder)
-		source := make(chan acp.AgentEvent, 4)
+		source := make(chan acp.AgentEvent, 5)
 		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			return source, nil
 		}
@@ -3697,6 +3701,13 @@ func TestNativeSubagentPersistenceOrder(t *testing.T) {
 		source <- acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "toolu_bg", TurnID: turn}.
 			WithProviderToolMetadata("", "Agent", "completed").
 			WithProviderToolAsync()
+		// The task's own terminal evidence is persisted and ingested before the turn's answer.
+		source <- acp.AgentEvent{
+			Type: acp.EventTypeNativeTask, ToolCallID: "toolu_bg", TurnID: turn,
+		}.WithNativeTask(&acp.NativeTaskObservation{
+			Kind: acp.NativeTaskKindState, TaskID: "agent-a", ToolCallID: "toolu_bg",
+			Status: acp.NativeTaskStatusCompleted, Summary: new("S1 done"),
+		})
 		source <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: turn, PromptStopReason: acp.PromptStopReasonEndTurn}
 		close(source)
 		// The prompt stream stays unread until the turn has settled.
@@ -3706,6 +3717,7 @@ func TestNativeSubagentPersistenceOrder(t *testing.T) {
 		want := []string{
 			"native:toolu_bg:pending:true",
 			"native:toolu_bg:completed:true",
+			"task:toolu_bg:completed:" + turn,
 			"done:" + turn,
 			"settled:" + turn,
 		}

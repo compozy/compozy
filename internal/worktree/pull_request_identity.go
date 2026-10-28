@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"os/exec"
 	"slices"
 	"strings"
 	"time"
@@ -42,20 +43,26 @@ func (s *PullRequestService) RepoKey(ctx context.Context, root string) (string, 
 	cached, ok := s.repos[root]
 	s.mu.Unlock()
 	if ok && s.now().Before(cached.until) {
-		return cached.key, nil
+		return cached.key, cached.err
 	}
 	out, _, err := s.runner.Run(ctx, root, "remote", "get-url", "origin")
-	if err != nil {
+	if _, isExitError := errors.AsType[*exec.ExitError](err); err != nil && !isExitError {
 		return "", err
 	}
-	key, err := NormalizeRepoKey(string(out))
-	if err != nil {
-		return "", err
+	key := ""
+	if err == nil {
+		key, err = NormalizeRepoKey(string(out))
+	}
+	// Cancellation belongs to this reader, not to the repository's identity.
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return key, err
 	}
 	s.mu.Lock()
-	s.repos[root] = repoKeyCache{key: key, until: s.now().Add(time.Minute)}
+	// Missing/local origins are stable observations too. Otherwise every catalog
+	// and detail read starts Git again for a workspace that cannot have a hosted PR.
+	s.repos[root] = repoKeyCache{key: key, err: err, until: s.now().Add(time.Minute)}
 	s.mu.Unlock()
-	return key, nil
+	return key, err
 }
 
 // IsDefaultBranch uses the local origin HEAD; absent metadata falls back to the

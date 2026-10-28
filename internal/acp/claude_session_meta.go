@@ -57,8 +57,10 @@ func claudeBackgroundShellDenyHook(goos string) map[string]any {
 	}
 }
 
-// claudeCodeSessionMeta returns the claude-agent-acp `_meta.claudeCode.options`
-// for session/new and session/load, or nil for every other provider command.
+// claudeCodeSessionMeta returns the claude-agent-acp `_meta.claudeCode` for
+// session/new, session/load, and session/resume, or nil for every other
+// provider command. Besides the options, it asks the adapter to forward only
+// the four SDK task lifecycle messages that settle native Agent/Task rows.
 func claudeCodeSessionMeta(opts StartOpts) any {
 	if !providerexec.IsClaudeAgentBridge(opts.Command) {
 		return nil
@@ -67,6 +69,7 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
 	return map[string]any{
 		"claudeCode": map[string]any{
+			"emitRawSDKMessages": claudeTaskRawSDKFilters(),
 			"options": map[string]any{
 				"disallowedTools": append([]string(nil), claudeDaemonOwnedBackgroundTools...),
 				"env":             env,

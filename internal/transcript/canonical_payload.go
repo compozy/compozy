@@ -55,5 +55,6 @@ type canonicalEventPayload struct {
 	Usage              *acp.TokenUsage                  `json:"usage,omitempty"`
 	Runtime            *acp.RuntimeActivity             `json:"runtime,omitzero"`
 	PromptRuntime      *acp.PromptRuntime               `json:"prompt_runtime,omitzero"`
+	NativeTask         *nativeTaskPayload               `json:"native_task,omitempty"`
 	Raw                json.RawMessage                  `json:"raw,omitempty"`
 }

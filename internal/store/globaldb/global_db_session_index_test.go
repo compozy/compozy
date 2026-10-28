@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -2318,6 +2319,75 @@ func sessionIDsFromInfos(infos []store.SessionInfo) []string {
 
 func TestSessionCatalogBoard(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bind repository and default branches to literal workspace IDs", func(t *testing.T) {
+		t.Parallel()
+		ctx, db := t.Context(), openTestGlobalDB(t)
+		ids := []string{`workspace.one`, `workspace[2]`, `workspace"three`, `workspace\four`}
+		query := store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveExclude,
+			Sort: sessionCatalogSortRecent, Limit: 10, Columns: []string{"in_review"},
+			RepositoryKeys: map[string]string{}, DefaultBranches: map[string][]string{},
+		}
+		for _, id := range ids {
+			query.RepositoryKeys[id] = "github.com/owner/repo"
+			if _, err := db.db.ExecContext(
+				ctx,
+				`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES (?, ?, ?, '2026-10-26T00:00:00Z', '2026-10-26T00:00:00Z')`,
+				id,
+				"/"+id,
+				id,
+			); err != nil {
+				t.Fatal(err)
+			}
+			info := sessionInfoForWorkspaceStateIndexTest(
+				id,
+				id,
+				globalDBSessionStateStopped,
+				time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
+			)
+			if err := db.RegisterSession(ctx, info); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.SaveSessionBranch(ctx, id, id, "topic"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(
+				ctx,
+				`INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?, ?, 'topic', 'open')`,
+				id,
+				query.RepositoryKeys[id],
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, id := range ids {
+			query.DefaultBranches[id] = []string{"topic"}
+			page, err := db.PageSessions(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != len(ids)-len(query.DefaultBranches) {
+				t.Fatalf("default exclusion for %q: total=%d", id, page.Total)
+			}
+		}
+		query.DefaultBranches = nil
+		delete(query.RepositoryKeys, ids[0])
+		page, err := db.PageSessions(ctx, query)
+		if err != nil || page.Total != len(ids)-1 {
+			t.Fatalf("missing repository: total=%d error=%v", page.Total, err)
+		}
+		source, args, err := sessionCatalogBoardSource(query.RepositoryKeys, query.DefaultBranches)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log(
+			explainQueryPlan(
+				t,
+				db.db,
+				"SELECT COUNT(1) FROM "+source+" WHERE "+sessionCatalogBoardColumnExpression+" = 'in_review'",
+				args...),
+		)
+	})
 	t.Run("Should use only a pending or ready worktree branch and never its root snapshot", func(t *testing.T) {
 		t.Parallel()
 		ctx, db := t.Context(), openTestGlobalDB(t)
@@ -2574,6 +2644,74 @@ func TestSessionCatalogBoard(t *testing.T) {
 		}
 		if page.Total != 0 {
 			t.Fatalf("foreign repository returned %d sessions", page.Total)
+		}
+	})
+}
+
+// BenchmarkSessionCatalogBoard measures the database owner with many repository-scoped rows.
+func BenchmarkSessionCatalogBoard(b *testing.B) {
+	ctx := b.Context()
+	db, err := OpenGlobalDB(ctx, filepath.Join(b.TempDir(), GlobalDatabaseName))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			b.Error(err)
+		}
+	})
+	query := store.SessionCatalogPageQuery{
+		ReadScope: store.ReadScope{AllProfiles: true}, Archive: store.SessionArchiveExclude,
+		Sort: sessionCatalogSortRecent, Limit: 50, Columns: []string{"in_review"},
+		RepositoryKeys: map[string]string{}, DefaultBranches: map[string][]string{},
+	}
+	for index := range 16 {
+		id := fmt.Sprintf("ws-board-%02d", index)
+		query.RepositoryKeys[id] = "github.com/owner/" + id
+		query.DefaultBranches[id] = []string{"main", "master"}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES (?, ?, ?, '2026-10-26T00:00:00Z', '2026-10-26T00:00:00Z')`,
+			id,
+			"/"+id,
+			id,
+		); err != nil {
+			b.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?, ?, 'topic', 'open')`,
+			id,
+			query.RepositoryKeys[id],
+		); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if _, err := db.db.ExecContext(
+		ctx,
+		`WITH RECURSIVE fixture(i) AS (SELECT 0 UNION ALL SELECT i+1 FROM fixture WHERE i < 1023)
+ INSERT INTO sessions(id,profile_id,workspace_id,agent_name,provider,state,branch,created_at,updated_at)
+ SELECT printf('sess-board-%04d',i), ?, printf('ws-board-%02d',i%16), 'coder', 'claude', 'stopped', 'topic', '2026-10-26T00:00:00Z', '2026-10-26T00:00:00Z' FROM fixture`,
+		store.DefaultProfileID,
+	); err != nil {
+		b.Fatal(err)
+	}
+	b.Run("Facets", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			facets, err := db.SessionCatalogFacets(b.Context(), query)
+			if err != nil || facets.Facets.All != 1024 || facets.Facets.Board.InReview != 1024 {
+				b.Fatalf("facets=%+v error=%v", facets.Facets, err)
+			}
+		}
+	})
+	b.Run("Page", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			page, err := db.PageSessions(b.Context(), query)
+			if err != nil || page.Total != 1024 || len(page.Sessions) != 50 {
+				b.Fatalf("total=%d rows=%d error=%v", page.Total, len(page.Sessions), err)
+			}
 		}
 	})
 }

@@ -8091,6 +8091,11 @@ export type SettingsRolesResponse = {
   workspace_id?: string;
 };
 
+export type SettingsShellAppearancePayload = {
+  mono_font?: string | null;
+  ui_font?: string | null;
+};
+
 export type SettingsShellLegacyScopePayload = {
   explicit: boolean;
   revision: number;
@@ -8145,6 +8150,7 @@ export type SettingsShellMutationResponse = {
 };
 
 export type SettingsShellPayload = {
+  appearance?: SettingsShellAppearancePayload | null;
   sessions: SettingsShellSessionsPayload;
 };
 
@@ -8970,6 +8976,7 @@ export type SubagentListPayload = {
 };
 
 export type SubagentPayload = {
+  child_activity?: "working" | "idle" | "stopped";
   child_session_id: string | null;
   created_at: string;
   delivery: string;

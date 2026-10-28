@@ -11,6 +11,7 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
 import { GatewayAccessBoundary } from "@/systems/gateway";
+import { FontAppearanceSync } from "@/systems/theme";
 
 export function RootComponent() {
   return (
@@ -19,6 +20,7 @@ export function RootComponent() {
         data-testid="root-shell"
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       >
+        <FontAppearanceSync />
         <SkipToContentLink />
         <Outlet />
       </div>

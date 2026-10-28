@@ -113,6 +113,11 @@ func (p *AgentProcess) handleInbound(
 		return handleInboundRequest(ctx, params, p.handleWaitForTerminalExit)
 	case acpsdk.ClientMethodTerminalRelease:
 		return handleInboundRequest(ctx, params, p.handleReleaseTerminal)
+	case claudeSDKMessageMethod:
+		if err := p.handleClaudeSDKMessage(params); err != nil {
+			return nil, acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
+		}
+		return nil, nil
 	default:
 		return nil, acpsdk.NewMethodNotFound(method)
 	}

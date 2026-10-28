@@ -13568,6 +13568,25 @@ func TestNativeSubagentBindings(t *testing.T) {
 		if _, ok := output["worktree"]; ok {
 			t.Fatal(output)
 		}
+		if _, ok := output["child_activity"]; ok {
+			t.Fatal("unknown child activity was emitted", output)
+		}
+		row.ChildActivity = store.SubagentChildActivityIdle
+		if output = subagentPayload(&row); output["child_activity"] != "idle" {
+			t.Fatal(output)
+		}
+		// The delegate/status tools advertise this payload shape; an emitted field must be declared.
+		row.Origin, row.Status = store.SubagentOriginDelegated, store.SubagentStatusCompleted
+		row.WorkState, row.Delivery = store.SubagentWorkStateResultAvailable, store.SubagentDeliveryNone
+		encoded, err := json.Marshal(subagentPayload(&row))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, descriptor := range builtintools.NativeDescriptors() {
+			if descriptor.ID == toolspkg.ToolIDSubagentDelegate || descriptor.ID == toolspkg.ToolIDSubagentStatus {
+				requireNativeOutputSchemaAccepts(t, descriptor, encoded)
+			}
+		}
 	})
 	t.Run("Should report exact oversized field errors", func(t *testing.T) {
 		t.Parallel()

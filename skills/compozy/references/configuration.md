@@ -541,6 +541,14 @@ values apply live as the default for session windows: each Web window keeps its 
 writes them back. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
 PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
+`shell.appearance.ui_font` and `shell.appearance.mono_font` hold the Interface and Code font family
+names shown in Settings › Appearance › Fonts (empty = the built-in Inter / Geist Mono). They are
+daemon-wide, so every connected Web and desktop client repaints with them; a family missing on one
+device falls back to the built-in stack there. Each value is one family name of letters, digits,
+spaces, `-`, `_`, `.`, or `'` (at most 128 characters); anything else fails with
+`shell_config_invalid`. `compozy config set shell.appearance.mono_font "JetBrains Mono Variable"`
+sets one; `compozy config unset shell.appearance.mono_font` (or PATCH `""`) restores the default.
+
 Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
 (`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
 globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.

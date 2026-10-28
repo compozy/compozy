@@ -29,3 +29,12 @@ plain labels with raw IDs only as help-tip examples. Not walked.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-27 (session responsiveness): create and duplicate actions now capture
+their stable mutation functions, and model-catalog collections are retained until
+their provider/catalog inputs change. Open the dialog after unrelated desktop
+updates and verify current provider permissions, model/reasoning selection, creation,
+duplication and persisted runtime values. The existing agent browser lifecycle in
+`web/e2e/__tests__/agents.spec.ts` owns the real daemon/browser slice; its current-head
+CI result is recorded in PR #983. Focused catalog/agent/shell-model suites pass 28
+tests. This does not claim a re-walk of every Simple/Advanced control above.

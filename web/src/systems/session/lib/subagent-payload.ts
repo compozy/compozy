@@ -1,5 +1,6 @@
 import type { SubagentPayload, SubagentWorktreePayload } from "../adapters/subagent-api";
 import type {
+  SubagentChildActivity,
   SubagentOrigin,
   SubagentPullRequestState,
   SubagentStatus,
@@ -23,6 +24,19 @@ const SUBAGENT_WORK_STATES: ReadonlySet<string> = new Set<SubagentWorkState>([
   "waiting_for_children",
   "result_available",
 ]);
+
+const SUBAGENT_CHILD_ACTIVITIES: ReadonlySet<string> = new Set<SubagentChildActivity>([
+  "working",
+  "idle",
+  "stopped",
+]);
+
+/** An activity this client does not know reads as absent: no claim beyond the status. */
+function toChildActivity(activity: string | null | undefined): SubagentChildActivity | null {
+  return activity && SUBAGENT_CHILD_ACTIVITIES.has(activity)
+    ? (activity as SubagentChildActivity)
+    : null;
+}
 
 /**
  * An unknown status from a newer daemon reads as `interrupted`: settled and not
@@ -111,6 +125,7 @@ export function subagentViewFromPayload(payload: SubagentPayload): SubagentView 
     work_state: SUBAGENT_WORK_STATES.has(payload.work_state)
       ? (payload.work_state as SubagentWorkState)
       : null,
+    child_activity: toChildActivity(payload.child_activity),
     progress: payload.progress,
     result_preview: payload.result_preview,
     error: payload.error,

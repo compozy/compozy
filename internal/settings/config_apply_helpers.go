@@ -75,7 +75,12 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 	case SectionMarketplace:
 		return lifecycle.Live
 	case SectionShell:
-		return lifecycleForChangedPaths([]string{"shell.sessions.sort", "shell.sessions.scope"}, lifecycle.Live)
+		return lifecycleForChangedPaths([]string{
+			"shell.sessions.sort",
+			"shell.sessions.scope",
+			"shell.appearance.ui_font",
+			"shell.appearance.mono_font",
+		}, lifecycle.Live)
 	default:
 		return lifecycle.RestartRequired
 	}

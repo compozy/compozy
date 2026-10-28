@@ -20,6 +20,12 @@ export type SubagentOrigin = "delegated" | "provider_native";
 
 export type SubagentWorkState = "working" | "waiting_for_children" | "result_available";
 
+/**
+ * The delegated child session's own activity, independent of the subagent's
+ * terminal status: a child that resumed after its result settled reads `working`.
+ */
+export type SubagentChildActivity = "working" | "idle" | "stopped";
+
 export type SubagentRuntimeView = SubagentPayload["runtime"];
 
 /** `worktree`: the subagent runs on its own branch (S5); `shared`: in the parent's checkout. */
@@ -81,6 +87,8 @@ export type SubagentView = Pick<
     status: SubagentStatus;
     origin: SubagentOrigin;
     work_state?: SubagentWorkState | null;
+    /** Absent from older daemons and provider-native rows. */
+    child_activity?: SubagentChildActivity | null;
     created_at: string;
     /** Absent reads as `shared` (older daemons, fixtures). */
     isolation?: SubagentIsolation;

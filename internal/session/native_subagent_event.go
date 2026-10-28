@@ -20,6 +20,10 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 	if err != nil {
 		return NativeSubagentEvent{}, false, err
 	}
+	if event.Type == acp.EventTypeNativeTask {
+		native, ok := nativeTaskEventFromStored(workspaceID, stored, event)
+		return native, ok, nil
+	}
 	toolName := event.ProviderToolName()
 	isSubagent := toolName == nativeSubagentAgentTool || toolName == nativeSubagentTaskTool
 	if (event.Type != acp.EventTypeToolCall && event.Type != acp.EventTypeToolResult) ||
@@ -73,4 +77,43 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 		Error:      detail,
 		At:         at,
 	}, true, nil
+}
+
+// nativeTaskEventFromStored converts a committed provider task observation. It
+// names the launching call; ingest verifies that call is a native Agent/Task row.
+func nativeTaskEventFromStored(
+	workspaceID string,
+	stored store.SessionEvent,
+	event acp.AgentEvent,
+) (NativeSubagentEvent, bool) {
+	task := event.NativeTask()
+	if task == nil || event.ToolCallID == "" {
+		return NativeSubagentEvent{}, false
+	}
+	progress := task.LastToolName
+	if task.Description != "" {
+		progress = task.Description
+	}
+	if task.Summary != nil && *task.Summary != "" {
+		progress = *task.Summary
+	}
+	at := stored.Timestamp
+	if at.IsZero() {
+		at = event.Timestamp
+	}
+	return NativeSubagentEvent{
+		WorkspaceID:        workspaceID,
+		ParentTurnID:       cmp.Or(stored.TurnID, event.TurnID),
+		ProviderToolCallID: event.ToolCallID,
+		Task: &NativeSubagentTask{
+			Kind:             task.Kind,
+			Status:           task.Status,
+			Summary:          task.Summary,
+			SummaryTruncated: task.SummaryTruncated,
+			Error:            task.Error,
+			Progress:         progress,
+			Background:       task.Background,
+		},
+		At: at,
+	}, true
 }

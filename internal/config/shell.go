@@ -29,7 +29,8 @@ const (
 
 // ShellConfig persists operator preferences owned by the web shell.
 type ShellConfig struct {
-	Sessions ShellSessionsConfig `toml:"sessions"`
+	Sessions   ShellSessionsConfig   `toml:"sessions"`
+	Appearance ShellAppearanceConfig `toml:"appearance"`
 }
 
 // ShellSessionsConfig persists session-list preferences across shell restarts.
@@ -52,6 +53,9 @@ func DefaultShellConfig() ShellConfig {
 
 // Validate rejects unsupported shell preference values.
 func (c ShellConfig) Validate() error {
+	if err := c.Appearance.Validate(); err != nil {
+		return err
+	}
 	switch c.Sessions.Sort {
 	case ShellSessionSortCreated, ShellSessionSortName, ShellSessionSortLastActivity, ShellSessionSortAttention,
 		ShellSessionSortManual:

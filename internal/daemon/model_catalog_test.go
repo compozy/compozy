@@ -1140,10 +1140,22 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			options: []acp.SessionConfigOption{modelOption, reasoningOption},
 			models:  make(map[string][]acp.SessionConfigOption),
 		}
+		// Flash advertises its own narrower selector so the catalog must derive
+		// efforts per selected model rather than reuse one global option.
+		flashReasoningOption := reasoningOption
+		flashReasoningOption.CurrentValueID = "low"
+		flashReasoningOption.Values = []acp.SessionConfigOptionValue{
+			{Value: "low", Label: "Low"},
+			{Value: "high", Label: "High"},
+		}
+		modelReasoning := map[string]acp.SessionConfigOption{
+			"gemini-4-argon":   reasoningOption,
+			"gemini-3.8-flash": flashReasoningOption,
+		}
 		for _, value := range modelOption.Values {
 			selectedModel := modelOption
 			selectedModel.CurrentValueID = value.Value
-			probe.models[value.Value] = []acp.SessionConfigOption{selectedModel, reasoningOption}
+			probe.models[value.Value] = []acp.SessionConfigOption{selectedModel, modelReasoning[value.Value]}
 		}
 		workingDir := t.TempDir()
 		liveSource, err := modelcatalog.NewLiveProviderSource(
@@ -1234,14 +1246,24 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}; !slices.Equal(got, want) {
 			t.Fatalf("agy models = %#v, want exact advertised %#v", got, want)
 		}
+		wantReasoning := map[string]struct {
+			efforts []modelcatalog.ReasoningEffort
+			def     modelcatalog.ReasoningEffort
+		}{
+			"gemini-4-argon":   {efforts: []modelcatalog.ReasoningEffort{"low", "medium", "high"}, def: "high"},
+			"gemini-3.8-flash": {efforts: []modelcatalog.ReasoningEffort{"low", "high"}, def: "low"},
+		}
 		for _, model := range models {
+			want := wantReasoning[model.ModelID]
 			if model.ReasoningApply != "acp_option" || !model.ReasoningKnown ||
-				!slices.Equal(model.ReasoningEfforts, []modelcatalog.ReasoningEffort{"low", "medium", "high"}) ||
-				model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != "high" {
+				!slices.Equal(model.ReasoningEfforts, want.efforts) ||
+				model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != want.def {
 				t.Fatalf(
-					"agy model %q reasoning = %#v, want selectable live levels and high default",
+					"agy model %q reasoning = %#v, want model-specific live levels %v and %q default",
 					model.ModelID,
 					model,
+					want.efforts,
+					want.def,
 				)
 			}
 		}

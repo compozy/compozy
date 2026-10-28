@@ -7,8 +7,14 @@ import (
 	"time"
 )
 
+// ingestEventBytes charges an event's retained variable payload, including a
+// structured native task observation whose prose lives outside Text and Raw.
 func ingestEventBytes(event AgentEvent) int {
-	return len(event.Text) + len(event.Raw) + len(event.Title) + len(event.Error) + 256
+	size := len(event.Text) + len(event.Raw) + len(event.Title) + len(event.Error) + 256
+	if event.payload != nil {
+		size += event.payload.nativeTask.payloadBytes()
+	}
+	return size
 }
 
 func ingestTextKey(event AgentEvent) (string, bool) {

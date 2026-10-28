@@ -156,6 +156,7 @@ func (e *bootstrapExecution) resolveAndStart() error {
 		if !replaced {
 			return writeAttachedBootstrap(e.cmd, e.options, status)
 		}
+		return e.start(bootstrapResolutionProvision, e.installedPath, true)
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
@@ -310,14 +311,11 @@ func bootstrapDaemonFromStatus(status DaemonStatus, owned bool) (*bootstrapDaemo
 }
 
 func cleanupStaleBootstrapDaemonRecord(homePaths compozyconfig.HomePaths, deps commandDeps) error {
-	info, err := deps.readDaemonInfo(homePaths.DaemonInfo)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
+	info, running, err := daemonInfo(homePaths, deps)
 	if err != nil {
 		return err
 	}
-	if deps.processAlive(info.PID) && deps.processMatchesStartTime(info.PID, info.StartedAt) {
+	if running || info.PID == 0 {
 		return nil
 	}
 	if err := deps.removeFile(homePaths.DaemonInfo); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -362,7 +360,11 @@ func probeBootstrapDaemon(
 	if err != nil || !running {
 		return DaemonStatus{}, false, err
 	}
-	client, err := deps.newClient(LocalClientTarget(homePaths.DaemonSocket))
+	target, err := resolveLocalClientTarget(deps, homePaths)
+	if err != nil {
+		return DaemonStatus{}, false, err
+	}
+	client, err := deps.newClient(target)
 	if err != nil {
 		return DaemonStatus{}, false, err
 	}
@@ -374,7 +376,7 @@ func probeBootstrapDaemon(
 		return status, false, errors.New("cli: running daemon did not report healthy status")
 	}
 	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
-		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(homePaths.DaemonSocket) {
+		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(target.socketPath) {
 		return status, false, errors.New("cli: daemon status does not match the local discovery record")
 	}
 	return status, true, nil

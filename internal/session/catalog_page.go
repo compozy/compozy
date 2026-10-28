@@ -192,19 +192,31 @@ func mergeSessionCatalogCandidates(
 	after *store.SessionCatalogPosition,
 	position func(*store.SessionInfo) store.SessionCatalogPosition,
 ) []store.SessionInfo {
-	candidates := make([]store.SessionInfo, 0, len(durable)+len(activeMatches))
-	candidates = append(candidates, durable...)
+	type candidate struct {
+		info     *store.SessionInfo
+		position store.SessionCatalogPosition
+	}
+	candidates := make([]candidate, 0, len(durable)+len(activeMatches))
+	for index := range durable {
+		info := &durable[index]
+		candidates = append(candidates, candidate{info: info, position: position(info)})
+	}
 	for index := range activeMatches {
 		info := &activeMatches[index]
-		if after == nil || compareSessionCatalogPosition(position(info), *after) > 0 {
-			candidates = append(candidates, *info)
+		key := position(info)
+		if after == nil || compareSessionCatalogPosition(key, *after) > 0 {
+			candidates = append(candidates, candidate{info: info, position: key})
 		}
 	}
-	slices.SortFunc(candidates, func(a, b store.SessionInfo) int {
-		return compareSessionCatalogPosition(position(&a), position(&b))
+	slices.SortFunc(candidates, func(a, b candidate) int {
+		return compareSessionCatalogPosition(a.position, b.position)
 	})
 
-	return candidates
+	result := make([]store.SessionInfo, len(candidates))
+	for index, candidate := range candidates {
+		result[index] = *candidate.info
+	}
+	return result
 }
 
 func sessionCatalogPageQuery(

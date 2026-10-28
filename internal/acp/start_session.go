@@ -10,6 +10,8 @@ import (
 )
 
 func (d *Driver) negotiateSession(ctx context.Context, process *AgentProcess, normalized StartOpts) error {
+	// The same session meta requests raw SDK task messages on every route.
+	process.claudeTasks.enabled.Store(claudeCodeSessionMeta(normalized) != nil)
 	if normalized.ResumeSessionID != "" {
 		return d.loadSession(ctx, process, normalized)
 	}

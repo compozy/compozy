@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
-import { StrictMode, use, useEffect, useLayoutEffect, useState } from "react";
+import { StrictMode, Suspense, use, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
@@ -1017,6 +1017,90 @@ describe("SessionChatRuntimeProvider", () => {
       ).toBe(false);
     } finally {
       consoleError.mockRestore();
+    }
+  });
+
+  // Invariant: discarded renders and closed session providers leave no live stream
+  // pipelines retaining their React trees. Owner: chat-runtime lifecycle; canonical suite: this file.
+  it("releases stream pipelines when a session closes or its render is abandoned", async () => {
+    const pending = new Set<Promise<void>>();
+    const originalPipeTo = ReadableStream.prototype.pipeTo;
+    const pipeTo = vi.spyOn(ReadableStream.prototype, "pipeTo").mockImplementation(function (
+      this: ReadableStream,
+      destination,
+      options
+    ) {
+      const promise = originalPipeTo.call(this, destination, options);
+      pending.add(promise);
+      void promise.then(
+        () => pending.delete(promise),
+        () => pending.delete(promise)
+      );
+      return promise;
+    });
+    try {
+      const never = new Promise<void>(() => {});
+      function SuspendSession() {
+        use(never);
+        return null;
+      }
+      const queryClient = createQueryClient();
+      let abandoned!: ReturnType<typeof render>;
+      await act(async () => {
+        abandoned = render(
+          <QueryClientProvider client={queryClient}>
+            <Suspense fallback="Opening session">
+              <SessionChatRuntimeProvider
+                sessionId={primarySessionFixture.id}
+                workspaceId={fixtureWorkspaceId()}
+                liveTailEnabled={false}
+              >
+                <SuspendSession />
+              </SessionChatRuntimeProvider>
+            </Suspense>
+          </QueryClientProvider>
+        );
+      });
+      expect(screen.getByText("Opening session")).toBeInTheDocument();
+      abandoned.unmount();
+      await waitFor(() => expect(pending.size).toBe(0));
+
+      for (let index = 0; index < 3; index += 1) {
+        const view = renderSessionThread({ strictMode: true, liveTailEnabled: false });
+        expect(
+          await screen.findByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+        ).toBeInTheDocument();
+        const frames = [
+          { type: "start", messageId: `lifetime-turn-${index}` },
+          {
+            type: "tool-input-available",
+            toolCallId: `lifetime-tool-${index}`,
+            toolName: "Bash",
+            input: { command: "pwd" },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: `lifetime-tool-${index}`,
+            output: { stdout: "/workspace" },
+          },
+        ];
+        const prompt = openSseResponse(frames.map(frame => `data: ${JSON.stringify(frame)}\n\n`));
+        promptResponsePromise = Promise.resolve(prompt.response);
+        await setComposerText("Show the current directory");
+        fireEvent.click(screen.getByTestId("composer-send-button"));
+        await waitFor(() => expect(pending.size).toBeGreaterThan(0));
+        prompt.close(['data: {"type":"finish","finishReason":"stop"}\n\n', "data: [DONE]\n\n"]);
+        await waitFor(() =>
+          expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument()
+        );
+        expect(pending.size).toBeGreaterThan(0);
+        view.unmount();
+        await waitFor(() => expect(pending.size).toBe(0));
+        view.queryClient.clear();
+      }
+      queryClient.clear();
+    } finally {
+      pipeTo.mockRestore();
     }
   });
 

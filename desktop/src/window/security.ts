@@ -11,6 +11,10 @@ function normalizedOrigin(raw: string | undefined): string | null {
   }
 }
 
+// `local-fonts` backs the Appearance font picker's installed-font list
+// (`window.queryLocalFonts`); Electron shows no prompt, so the grant is ours.
+const PRODUCT_PERMISSIONS = new Set(["clipboard-sanitized-write", "notifications", "local-fonts"]);
+
 function allowsProductPermission(
   permission: string,
   requestingURL: string,
@@ -19,7 +23,7 @@ function allowsProductPermission(
 ): boolean {
   return (
     isMainFrame &&
-    (permission === "clipboard-sanitized-write" || permission === "notifications") &&
+    PRODUCT_PERMISSIONS.has(permission) &&
     normalizedOrigin(requestingURL) !== null &&
     normalizedOrigin(requestingURL) === normalizedOrigin(productOrigin)
   );

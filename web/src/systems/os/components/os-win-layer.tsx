@@ -1,9 +1,13 @@
 import { MonitorX } from "lucide-react";
-import { lazy, Suspense, type CSSProperties } from "react";
+import { lazy, Suspense, type ComponentProps, type CSSProperties } from "react";
 
 import { Button, Empty } from "@compozy/ui";
 
-import { useOsWinLayer, type DesktopLayerModel } from "../hooks/use-os-win-layer";
+import {
+  useOsWinLayer,
+  type DesktopLayerModel,
+  type OsWinLayerModel,
+} from "../hooks/use-os-win-layer";
 import { useWindowManagerGesturePreview } from "../hooks/use-window-manager-store";
 import type { LayoutProjection } from "../lib/window-manager-types";
 import type { DesktopTransitionIntent } from "../stores/window-manager-store";
@@ -21,6 +25,12 @@ const OsEmptyDesktop = lazy(() =>
 function LiveSnapOverlay() {
   const preview = useWindowManagerGesturePreview();
   return <OsSnapOverlay preview={preview} />;
+}
+
+/** Authoritative geometry updates only the window layer, outside shell chrome. */
+export function LiveOsWinLayer(props: Omit<ComponentProps<typeof OsWinLayer>, "model">) {
+  const model = useOsWinLayer();
+  return <OsWinLayer {...props} model={model} />;
 }
 
 /** Maps transition state to a keyframe name; reduced motion still fires an instant fade so end events run. */
@@ -190,6 +200,7 @@ function DesktopLayer({
 
 /** Every desktop tree remains mounted; only the client-active tree is interactive. */
 export function OsWinLayer({
+  model,
   showEmptyDesktop = true,
   reducedMotion,
   transition,
@@ -202,6 +213,7 @@ export function OsWinLayer({
   paletteShortcutLabel,
   canStart,
 }: {
+  model: OsWinLayerModel;
   showEmptyDesktop?: boolean;
   reducedMotion: boolean;
   transition: DesktopTransitionIntent | null;
@@ -211,7 +223,7 @@ export function OsWinLayer({
   canStart: boolean;
   /** Global scope has no project: the empty desktop offers the workspace picker instead. */
 } & SeamGestureHandlers) {
-  const { layerRef, desktops, presentation, viewportState, activeProjection } = useOsWinLayer();
+  const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
     <div
       ref={layerRef}

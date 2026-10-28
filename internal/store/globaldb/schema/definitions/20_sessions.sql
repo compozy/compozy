@@ -509,6 +509,7 @@ CREATE TABLE session_subagents (
  pr_status TEXT CHECK (pr_status IN ('unknown','none','open','draft','merged','closed')),
  pr_url TEXT,
  pr_number INTEGER,
+ child_activity TEXT NOT NULL DEFAULT '' CHECK (child_activity IN ('','working','idle','stopped')),
  FOREIGN KEY (workspace_id,parent_session_id) REFERENCES sessions(workspace_id,id) ON DELETE CASCADE,
  UNIQUE (parent_session_id,idempotency_key)
 );

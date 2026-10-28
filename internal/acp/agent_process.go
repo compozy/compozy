@@ -98,6 +98,9 @@ type AgentProcess struct {
 	// session/fork calls so at most one fork capture is open (ADR-003).
 	sessionRoutes sessionRouter
 	forkMu        sync.Mutex
+
+	// claudeTasks correlates Claude SDK task messages to native Agent/Task calls.
+	claudeTasks claudeTaskTracker
 }
 
 type pendingPermission struct {

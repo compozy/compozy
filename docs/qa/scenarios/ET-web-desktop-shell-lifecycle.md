@@ -134,26 +134,6 @@ that minimize/restore, app retargeting, placement changes, and window removal st
 propagate. The existing OS interaction hook suite covers metadata propagation and
 geometry render isolation. CI owns the browser measurements and delivery gates.
 
-QA impact 2026-10-25: geometry subscriptions belong to the window layer and desktop overview,
-not the shell. Chrome/preloading observe membership, the pager observes attention, and the
-command registry observes derived capabilities. Re-walk E2E-023 with eleven retained windows
-and two peers; retain the 500 ms restore and 50 ms drag/convergence ceilings. Window removal
-must still prune persisted scopes only after a fresh snapshot; reconnects must retain the
-latest Query-owned revision fence. Capability changes must still reach the existing
-availability/debounce path. The chrome and OS interaction suites cover geometry render
-isolation, membership removal, wallpaper and floating-to-tiled capability propagation;
-the existing context and stream suites own attachment, debounce and revision fencing.
-
-Local re-walk 2026-10-25: unmodified E2E-023 passed five consecutive runs (restore
-327.4–397 ms; no drag or convergence long task over 50 ms). E2E-009, E2E-011 and
-E2E-004/E2E-013 also passed. The normal-speed re-walk is the delivery evidence.
-
-Open follow-up (2026-10-25): the 4× CPU-throttled diagnostic passed two of three runs
-with one 129 ms peer-convergence outlier against the 50 ms ceiling, so load-level
-acceptance of E2E-023 remains open. The bar is the one recorded for the original fix:
-three corrected diagnostic repetitions at the same 4× setting with no long task over
-50 ms (see [CI recovery](../reports/2026-09-07-ci-recovery.md)). Until that run passes,
-this note is not stress-level delivery evidence.
 QA impact 2026-10-25 (v0.4.1 release): app-specific loading skeletons must join the
 deferred window body, after the initial frame measurements. Restore eleven saved
 windows with their authoritative geometry, routes, and focus; suspended bodies must
@@ -171,3 +151,21 @@ not a re-walk of the complete lifecycle scenario.
 The unmodified browser scenarios then passed (7 tests): restoration took 75.2 ms, and
 profile switching, profile settings, Terminal settings, appearance, floating geometry,
 and alternate-screen reflow retained their existing assertions.
+
+QA impact 2026-10-27 (session responsiveness): authoritative geometry now subscribes
+inside the live window layer. Shell chrome observes window membership, appearance,
+and desktop attention; a closed desktops overview suspends its window projection.
+Open the overview after peer moves, renames, and removals and confirm it shows current
+state immediately, then continues updating while open. Keep retained windows, routes,
+focus, compact layout, and attention indicators correct. Re-run the unchanged E2E-023
+11-window envelope and the existing shell lifecycle shard, including E2E-006 visible
+session streaming. The OS interaction/window/overview suites pass 99 focused checks;
+the overview regression fails against the prior implementation. Current-head browser
+and repeated-envelope acceptance is tracked on PR #983. See
+`docs/qa/reports/2026-10-26-session-responsiveness.md` for the profile evidence and scope.
+
+The model-catalog follow-up also stabilizes collections and mutation callbacks used
+by the shell's agent dialog. Keep that dialog closed during the peer envelope, then
+open it and verify the current provider list, model selection, create and duplicate
+flows. The repeated envelope remains the performance acceptance owner; isolated
+passes and compiler diagnostics do not establish that budget.

@@ -1,10 +1,10 @@
-import { Button, StatusDot, cn } from "@compozy/ui";
+import { Button, StateGlyph, cn } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
 import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
-import { SUBAGENT_STATUS_WORD, subagentDot } from "../subagents/subagent-format";
+import { sortSubagentsByUrgency, subagentDisplay } from "../subagents/subagent-format";
 import { SubagentRowTrail } from "../subagents/subagent-row-trail";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
@@ -23,8 +23,9 @@ export interface SessionListSubagentBranchProps {
 
 /**
  * A parent row's open subagent list: one compact row per direct subagent on
- * the parent's rail, newest first, each opening the subagent's session. At
- * most one page mounts until "Show N more" asks for the next.
+ * the parent's rail, most urgent first within the loaded rows (waiting, failed,
+ * working, queued, settled), each opening the subagent's session. At most one
+ * page mounts until "Show N more" asks for the next.
  */
 export function SessionListSubagentBranch({
   workspaceId,
@@ -52,7 +53,7 @@ export function SessionListSubagentBranch({
         // Placeholders are the live rows' own frame, so the list does not jump when they land.
         <SessionSubagentRowsSkeleton count={Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE)} />
       ) : (
-        branch.rows.map(subagent => (
+        sortSubagentsByUrgency(branch.rows).map(subagent => (
           <SubagentBranchRow
             key={subagent.id}
             subagent={subagent}
@@ -97,25 +98,28 @@ function SubagentBranchRow({
   current: boolean;
   onOpen: () => void;
 }) {
-  const dot = subagentDot(subagent.status);
-  const word = SUBAGENT_STATUS_WORD[subagent.status];
+  const display = subagentDisplay(subagent);
+  const word = display.word;
   const body = (
     <>
-      <span className="flex justify-center" aria-hidden="true">
-        <StatusDot
-          tone={dot.tone ?? "faint"}
-          variant={dot.tone === null ? "ring" : "solid"}
-          className={cn(dot.tone === null && "text-indicator")}
-        />
+      <span className="flex justify-center">
+        <StateGlyph size="sm" state={display.glyph} />
       </span>
-      <span className="min-w-0 truncate">{subagent.title}</span>
+      <span className={cn("min-w-0 truncate", display.settled && "text-muted")}>
+        {subagent.title}
+      </span>
       <SubagentRowTrail subagent={subagent} />
     </>
   );
   const rowClass = cn(SUBAGENT_ROW_FRAME, current && "bg-selected");
 
   return (
-    <div className={BRANCH_NODE} data-slot="session-subagent-row" data-status={subagent.status}>
+    <div
+      className={BRANCH_NODE}
+      data-slot="session-subagent-row"
+      data-status={subagent.status}
+      data-state={display.glyph}
+    >
       {subagent.child_session_id !== null || subagent.origin === "provider_native" ? (
         <button
           type="button"

@@ -108,6 +108,37 @@ describe("useRuntimeModelCatalog", () => {
     expect(result.current.models.some(model => model.provider === "openrouter")).toBe(false);
   });
 
+  it("Should update a mounted projection when provider permissions or catalog rows change", async () => {
+    mockModels([payload("codex", "gpt-5.6"), payload("claude", "opus-4.8")]);
+    const { result, rerender } = renderHook(
+      ({ providers }: { providers: RuntimeCatalogProvider[] }) => ({
+        catalog: useRuntimeModelCatalog(providers),
+        client: useQueryClient(),
+      }),
+      { wrapper: createWrapper(), initialProps: { providers: codexClaude } }
+    );
+    await waitFor(() => expect(result.current.catalog.models).toHaveLength(2));
+
+    rerender({ providers: [{ id: "claude", needsAuth: true }, { id: "codex" }] });
+    expect(result.current.catalog.models.map(model => model.provider)).toEqual(["claude", "codex"]);
+    expect(result.current.catalog.models[0].disabled).toBe(true);
+
+    act(() => {
+      result.current.client.setQueryData(
+        modelCatalogKeys.allModels("all", undefined, undefined, true),
+        { models: [payload("codex", "gpt-5.6"), payload("claude", "sonnet-4.7", { stale: true })] }
+      );
+    });
+    await waitFor(() => expect(result.current.catalog.models[0].id).toBe("sonnet-4.7"));
+    expect(result.current.catalog.stale).toBe(true);
+    expect(result.current.catalog.models[0].disabled).toBe(true);
+
+    rerender({ providers: [{ id: "claude" }] });
+    expect(result.current.catalog.models.map(model => model.id)).toEqual(["sonnet-4.7"]);
+    expect(result.current.catalog.models[0].disabled).toBe(false);
+    expect(vi.mocked(listAllModels)).toHaveBeenCalledTimes(1);
+  });
+
   it("Should refresh and reread once when the initial catalog omits an allowed provider", async () => {
     const codex = payload("codex", "gpt-5.6");
     const cursor = payload("cursor", "grok-4.5", {

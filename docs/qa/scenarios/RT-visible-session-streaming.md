@@ -78,3 +78,17 @@ absence of a transcript SSE ID; text-only pages still advance the internal usage
 cursor. Check both wake and polling paths, including an event committed between
 usage and transcript snapshots. See the same dated responsiveness report for
 focused evidence and CI/runtime validation limits.
+
+
+QA impact 2026-10-26 (session responsiveness): repeat this journey while many sessions
+are active. Confirm that detail, parent/child titles and counts, board pages, exact
+totals, and usage updates remain current across profiles and workspaces. Exercise
+usage bursts and hide/restore the streaming window; unrelated transcript/Goal reads
+must not refetch for usage-only signals. Current measurements and verification limits
+are in the [responsiveness report](../reports/2026-10-26-session-responsiveness.md).
+Targeted re-walk 2026-10-26: 64 real active idle sessions, 128 public-API rename events
+and 80 browser selections passed with no page errors. The separate controlled
+navigation probe and provider lifecycle regression verify that old runtime pipelines
+release their session trees. This is not a 64-provider generation test. The owning
+live-tail/catalog/provider suites passed locally; the complete two-visible-window
+streaming journeys remain assigned to PR #983's current-head Web/runtime E2E CI.

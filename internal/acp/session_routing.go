@@ -157,7 +157,9 @@ func (p *AgentProcess) permissionRequestIsBound(id acpsdk.SessionId) bool {
 }
 
 // sessionScopedCallbackMethods are the client callbacks that act through the
-// bound session's tool host. A clone or foreign session id must never reach it.
+// bound session's tool host, plus the Claude raw SDK task notification that
+// feeds the bound session's native subagent rows. A clone or foreign session
+// id must never reach either.
 var sessionScopedCallbackMethods = map[string]struct{}{
 	acpsdk.ClientMethodFsReadTextFile:      {},
 	acpsdk.ClientMethodFsWriteTextFile:     {},
@@ -166,6 +168,7 @@ var sessionScopedCallbackMethods = map[string]struct{}{
 	acpsdk.ClientMethodTerminalOutput:      {},
 	acpsdk.ClientMethodTerminalWaitForExit: {},
 	acpsdk.ClientMethodTerminalRelease:     {},
+	claudeSDKMessageMethod:                 {},
 }
 
 type wireSessionScopedCallback struct {

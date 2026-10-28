@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -171,9 +172,12 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 		status         DaemonStatus
 		replaced       bool
 		bundleRequired bool
+		missingBundle  bool
+		restartError   bool
+		customSocket   bool
 	}{
 		{
-			name:     "Should stop a stale desktop-owned runtime before attaching",
+			name:     "Should restart a stale desktop-owned runtime through the recovery owner",
 			status:   DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
 			replaced: true,
 		},
@@ -188,12 +192,24 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			replaced:       true,
 			bundleRequired: true,
 		},
+		{
+			name:   "Should preserve live work when the replacement payload cannot be read",
+			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, missingBundle: true,
+		},
+		{
+			name:   "Should retain recovery evidence without a raw stop when coordinated restart fails",
+			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, restartError: true,
+		},
+		{
+			name:   "Should restart the configured local socket even with a remote connection selected",
+			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, replaced: true, customSocket: true,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			deps := newTestDeps(t, &stubClient{})
-			deps = deps.withDefaults()
+			client := &stubClient{}
+			deps := newTestDeps(t, client).withDefaults()
 			homePaths, err := deps.resolveHome()
 			if err != nil {
 				t.Fatalf("resolveHome() error = %v", err)
@@ -201,11 +217,25 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
 				t.Fatalf("EnsureHomeLayout() error = %v", err)
 			}
+			socketPath := homePaths.DaemonSocket
+			if test.customSocket {
+				socketPath = filepath.Join(filepath.Dir(homePaths.DaemonSocket), "custom.sock")
+				deps.loadConfig = func() (compozyconfig.Config, error) {
+					cfg := compozyconfig.DefaultWithHome(homePaths)
+					cfg.Daemon.Socket = socketPath
+					cfg.Gateway.ActiveConnection = "remote"
+					return cfg, nil
+				}
+			}
 			installedPath := bootstrapRuntimePath(homePaths)
 			bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 			writeFile(t, installedPath, "current-runtime")
-			writeFile(t, bundlePath, "current-runtime")
+			if !test.missingBundle {
+				writeFile(t, bundlePath, "replacement-runtime")
+			}
 			cmd := &cobra.Command{}
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.Flags().StringP("output", "o", "jsonl", "")
 			cmd.SetContext(testutil.Context(t))
 			execution := bootstrapExecution{
 				cmd:            cmd,
@@ -224,17 +254,34 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				t.Fatalf("WriteDesktopProvenance() error = %v", err)
 			}
 			writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"started_at":"2026-04-03T12:00:00Z"}`)
-			running := true
-			var signaled syscall.Signal
-			execution.deps.processAlive = func(int) bool { return running }
+			restarts := 0
+			execution.deps.processAlive = func(int) bool { return true }
 			execution.deps.processMatchesStartTime = func(int, time.Time) bool { return true }
 			execution.deps.signalProcess = func(_ int, signal syscall.Signal) error {
-				signaled = signal
-				running = false
-				return nil
+				t.Errorf("bootstrap must not cancel active work with raw signal %v", signal)
+				return errors.New("unexpected raw stop")
+			}
+			execution.deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+				if target != LocalClientTarget(socketPath) {
+					t.Fatalf("restart target = %+v, want local bootstrap daemon", target)
+				}
+				return client, nil
+			}
+			client.triggerSettingsRestartFn = func(context.Context) (SettingsRestartActionRecord, error) {
+				restarts++
+				contents, err := os.ReadFile(installedPath)
+				if err != nil || string(contents) != "replacement-runtime" {
+					t.Fatalf("runtime at restart = %q, %v; want provisioned replacement", contents, err)
+				}
+				if test.restartError {
+					return SettingsRestartActionRecord{}, errors.New("restart rejected")
+				}
+				return SettingsRestartActionRecord{OperationID: "bootstrap-restart"}, nil
+			}
+			client.getSettingsRestartStatusFn = func(context.Context, string) (SettingsRestartStatusRecord, error) {
+				return SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}, nil
 			}
 			execution.deps.pollInterval = time.Millisecond
-			execution.deps.stopTimeout = time.Second
 
 			// A started runtime that rejects the app asks for one re-resolution, never a second.
 			if restart := execution.restartRejectingDesktopRuntime(test.status, true); restart != test.bundleRequired {
@@ -244,6 +291,34 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				)
 			}
 			replaced, err := execution.replaceOutdatedDesktopRuntime(test.status)
+			if test.missingBundle || test.restartError {
+				if err == nil || replaced {
+					t.Fatalf("failed replacement = %t, %v", replaced, err)
+				}
+				if test.missingBundle {
+					contents, readErr := os.ReadFile(installedPath)
+					if restarts != 0 || readErr != nil || string(contents) != "current-runtime" {
+						t.Fatalf(
+							"failed provisioning mutated runtime: restarts=%d, binary=%q, err=%v",
+							restarts,
+							contents,
+							readErr,
+						)
+					}
+				} else {
+					assertErrorContains(t, err, "restart rejected")
+					copies, globErr := filepath.Glob(filepath.Join(homePaths.BinDir, ".compozy-bootstrap-backup-*"))
+					if restarts != 1 || globErr != nil || len(copies) != 1 {
+						t.Fatalf(
+							"restart failure lost recovery copy: restarts=%d, copies=%v, err=%v",
+							restarts,
+							copies,
+							globErr,
+						)
+					}
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("replaceOutdatedDesktopRuntime() error = %v", err)
 			}
@@ -253,12 +328,12 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 					replaced, execution.bundleRequired, test.replaced, test.bundleRequired,
 				)
 			}
-			wantSignal := syscall.Signal(0)
+			wantRestarts := 0
 			if test.replaced {
-				wantSignal = syscall.SIGTERM
+				wantRestarts = 1
 			}
-			if signaled != wantSignal {
-				t.Fatalf("signal = %v, want %v", signaled, wantSignal)
+			if restarts != wantRestarts {
+				t.Fatalf("restart requests = %d, want %d", restarts, wantRestarts)
 			}
 			if execution.restartRejectingDesktopRuntime(test.status, true) {
 				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
@@ -268,6 +343,42 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 }
 
 func TestProvisionBundledRuntime(t *testing.T) {
+	if installedPath := os.Getenv("COMPOZY_BOOTSTRAP_PATH_PROBE"); installedPath != "" {
+		probeRunningBootstrapReplacement(t, installedPath)
+		return
+	}
+	t.Run("Should preserve the executable path seen by an older running daemon", func(t *testing.T) {
+		t.Parallel()
+		binary, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		payload, err := os.ReadFile(binary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		installedPath := bootstrapRuntimePath(homePaths)
+		if err := os.WriteFile(installedPath, payload, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.CommandContext(t.Context(), installedPath, "-test.run=^TestProvisionBundledRuntime$")
+		cmd.Env = append(os.Environ(), "COMPOZY_BOOTSTRAP_PATH_PROBE="+installedPath)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("running runtime replacement: %v\n%s", err, output)
+		}
+	})
+
 	t.Run("Should record the desktop release identity for a provisioned runtime", func(t *testing.T) {
 		t.Parallel()
 
@@ -501,6 +612,48 @@ func TestProvisionBundledRuntime(t *testing.T) {
 	})
 }
 
+func probeRunningBootstrapReplacement(t *testing.T, installedPath string) {
+	t.Helper()
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Dir(filepath.Dir(installedPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata := compozyupdate.DesktopProvenanceMetadata{
+		AppVersion: "0.3.0", Channel: "stable", RuntimeVersion: "0.3.0",
+	}
+	if err := compozyupdate.WriteDesktopProvenance(homePaths, installedPath, metadata); err != nil {
+		t.Fatal(err)
+	}
+	previous, err := os.Stat(installedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
+	writeFile(t, bundlePath, "new-runtime")
+	install, err := installBootstrapRuntime(&bootstrapProvisionRequest{
+		homePaths: homePaths, installedPath: installedPath, bundlePath: bundlePath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Released daemons resolve their executable at restart time, after this replacement.
+	got, err := os.Executable()
+	if err != nil || got != installedPath {
+		t.Fatalf("executable after replacement = %q, %v; want %q", got, err, installedPath)
+	}
+	payload, err := os.ReadFile(installedPath)
+	if err != nil || string(payload) != "new-runtime" {
+		t.Fatalf("installed runtime = %q, %v; want new runtime", payload, err)
+	}
+	backup, err := os.Stat(install.backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !os.SameFile(previous, backup) {
+		t.Fatal("recovery copy no longer holds the previous runtime")
+	}
+}
+
 func assertNoBootstrapBackups(t *testing.T, installedPath string) {
 	t.Helper()
 
@@ -536,34 +689,59 @@ func TestResolveBootstrapRuntime(t *testing.T) {
 }
 
 func TestProbeBootstrapDaemonUsesLocalIdentity(t *testing.T) {
-	t.Run("Should reject a status response that does not match daemon.json", func(t *testing.T) {
-		t.Parallel()
-
-		startedAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
-		homePaths := mustTestHomePaths(t)
-		deps := newTestDeps(t, &stubClient{})
-		deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
-			return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: startedAt}, nil
-		}
-		deps.processAlive = func(int) bool { return true }
-		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
-		deps.newClient = func(target ClientTarget) (DaemonClient, error) {
-			if target.socketPath != homePaths.DaemonSocket {
-				t.Fatalf("newClient() socket = %q, want %q", target.socketPath, homePaths.DaemonSocket)
+	for _, test := range []struct {
+		name         string
+		pid          int
+		customSocket bool
+		healthy      bool
+	}{
+		{name: "Should reject a status response that does not match daemon.json", pid: 99},
+		{name: "Should verify the configured local socket despite a selected remote connection", pid: 42, customSocket: true, healthy: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			startedAt := time.Date(2026, 8, 16, 12, 0, 0, 0, time.UTC)
+			deps := newTestDeps(t, &stubClient{})
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				t.Fatal(err)
 			}
-			return &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{
-					Status: daemonRunningStatus, PID: 99, StartedAt: startedAt,
-					Socket: homePaths.DaemonSocket, HTTPHost: "127.0.0.1", HTTPPort: 2123,
-				}, nil
-			}}, nil
-		}
-
-		_, healthy, err := probeBootstrapDaemon(t.Context(), deps, homePaths)
-		if healthy || err == nil || !strings.Contains(err.Error(), "does not match the local discovery record") {
-			t.Fatalf("probeBootstrapDaemon() = healthy=%t error=%v, want identity mismatch", healthy, err)
-		}
-	})
+			socketPath := homePaths.DaemonSocket
+			if test.customSocket {
+				socketPath = filepath.Join(homePaths.HomeDir, "custom.sock")
+				deps.loadConfig = func() (compozyconfig.Config, error) {
+					cfg := compozyconfig.DefaultWithHome(homePaths)
+					cfg.Daemon.Socket = socketPath
+					cfg.Gateway.ActiveConnection = "remote"
+					return cfg, nil
+				}
+			}
+			deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+				return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: startedAt}, nil
+			}
+			deps.processAlive = func(int) bool { return true }
+			deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+			deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+				if target != LocalClientTarget(socketPath) {
+					t.Fatalf("newClient() target = %+v, want local socket %q", target, socketPath)
+				}
+				return &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+					return DaemonStatus{
+						Status: daemonRunningStatus, PID: test.pid, StartedAt: startedAt,
+						Socket: socketPath, HTTPHost: "127.0.0.1", HTTPPort: 2123,
+					}, nil
+				}}, nil
+			}
+			_, healthy, err := probeBootstrapDaemon(t.Context(), deps, homePaths)
+			if test.healthy {
+				if !healthy || err != nil {
+					t.Fatalf("probeBootstrapDaemon() = healthy=%t error=%v", healthy, err)
+				}
+			} else if healthy || err == nil || !strings.Contains(err.Error(), "does not match the local discovery record") {
+				t.Fatalf("probeBootstrapDaemon() = healthy=%t error=%v, want identity mismatch", healthy, err)
+			}
+		})
+	}
 }
 
 func TestDaemonBootstrapSetupFailures(t *testing.T) {
@@ -646,6 +824,28 @@ func TestDaemonBootstrapEmitsAttachJSONL(t *testing.T) {
 }
 
 func TestBootstrapRemovesOnlyStaleDaemonRecords(t *testing.T) {
+	t.Run("Should preserve a record published after an absent lookup", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{}).withDefaults()
+		paths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := compozydaemon.Info{PID: 42, StartedAt: fixedTestNow}
+		deps.readDaemonInfo = func(path string) (compozydaemon.Info, error) {
+			if err := compozydaemon.WriteInfo(path, info); err != nil {
+				t.Fatal(err)
+			}
+			return compozydaemon.Info{}, os.ErrNotExist
+		}
+		if err := cleanupStaleBootstrapDaemonRecord(paths, deps); err != nil {
+			t.Fatal(err)
+		}
+		got, err := compozydaemon.ReadInfo(paths.DaemonInfo)
+		if err != nil || got != info {
+			t.Fatalf("concurrently published info = %#v, %v; want %#v", got, err, info)
+		}
+	})
 	t.Run("Should remove a daemon record whose process identity is stale", func(t *testing.T) {
 		t.Parallel()
 

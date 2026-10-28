@@ -7,7 +7,7 @@
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver, useQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1098,6 +1098,8 @@ describe("useSessionLiveTail", () => {
     const { result, sources, queryClient } = renderLiveTail();
     await waitFor(() => expect(result.current.messages).toHaveLength(1));
 
+    const inputKey = sessionKeys.inputQueue(WORKSPACE_ID, SESSION_ID);
+    queryClient.setQueryData(inputKey, { inputs: [] });
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
     act(() => {
       sources[0]?.emit(
@@ -1111,12 +1113,7 @@ describe("useSessionLiveTail", () => {
       queryKey: sessionKeys.clarifications(WORKSPACE_ID, SESSION_ID),
       exact: true,
     });
-    await waitFor(() =>
-      expect(invalidateQueries).toHaveBeenCalledWith({
-        queryKey: sessionKeys.inputQueue(WORKSPACE_ID, SESSION_ID),
-        exact: true,
-      })
-    );
+    await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
   });
 
   it("Should reject a mismatched delta and reconnect without replacing history", async () => {
@@ -1755,37 +1752,41 @@ describe("Session context stream signals", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
     seedActiveSession(queryClient);
+    const usageReads = [
+      sessionKeys.usage(WORKSPACE_ID, SESSION_ID),
+      sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID),
+    ].map(queryKey => {
+      queryClient.setQueryData(queryKey, {});
+      const queryFn = vi.fn(async () => ({}));
+      const observer = new QueryObserver(queryClient, { queryKey, queryFn, staleTime: Infinity });
+      return { queryFn, unsubscribe: observer.subscribe(() => undefined) };
+    });
     const { sources, unmount } = renderLiveTail({ queryClient });
     await act(async () => {
       await vi.waitFor(() => expect(sources).toHaveLength(1));
     });
     const source = sources[0]!;
     expect(source.listeners.get("session_usage_changed")?.size).toBe(1);
-    const invalidations = vi.spyOn(queryClient, "invalidateQueries");
     const before = queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID));
     act(() => {
       for (const sequence of [412, 413, 414])
         source.emit("session_usage_changed", { sequence, turn_id: "turn-12", kind: "usage" });
     });
     await act(async () => vi.advanceTimersByTimeAsync(249));
-    expect(invalidations).not.toHaveBeenCalled();
+    for (const read of usageReads) expect(read.queryFn).not.toHaveBeenCalled();
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(invalidations.mock.calls.map(call => call[0])).toEqual([
-      { queryKey: sessionKeys.usage(WORKSPACE_ID, SESSION_ID), exact: true },
-      { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
-    ]);
+    for (const read of usageReads) expect(read.queryFn).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, SESSION_ID))).toBe(before);
-    invalidations.mockClear();
     act(() =>
       source.emit("session_usage_changed", { sequence: 415, turn_id: "turn-12", kind: "done" })
     );
     unmount();
-    expect(invalidations.mock.calls.map(call => call[0])).toEqual([
-      { queryKey: sessionKeys.usage(WORKSPACE_ID, SESSION_ID), exact: true },
-      { queryKey: sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID), exact: true },
-    ]);
+    for (const read of usageReads) expect(read.queryFn).toHaveBeenCalledTimes(2);
     await act(async () => vi.advanceTimersByTimeAsync(250));
-    expect(invalidations).toHaveBeenCalledTimes(2);
+    for (const read of usageReads) {
+      expect(read.queryFn).toHaveBeenCalledTimes(2);
+      read.unsubscribe();
+    }
     expect(source.listeners.get("session_usage_changed")?.size).toBe(0);
     expect(source.closed).toBe(true);
     queryClient.clear();
@@ -1796,7 +1797,11 @@ describe("Session context stream signals", () => {
     seedActiveSession(queryClient);
     const { sources, unmount } = renderLiveTail({ queryClient });
     await waitFor(() => expect(sources).toHaveLength(1));
-    const invalidations = vi.spyOn(queryClient, "invalidateQueries");
+    const usageKeys = [
+      sessionKeys.usage(WORKSPACE_ID, SESSION_ID),
+      sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID),
+    ];
+    for (const key of usageKeys) queryClient.setQueryData(key, {});
     act(() =>
       sources[0]!.emit("transcript_delta", {
         cursor: 5,
@@ -1815,20 +1820,7 @@ describe("Session context stream signals", () => {
         )?.pages[0]?.cursor
       ).toBe(5)
     );
-    expect(
-      invalidations.mock.calls.some(
-        call =>
-          JSON.stringify(call[0]?.queryKey) ===
-          JSON.stringify(sessionKeys.usage(WORKSPACE_ID, SESSION_ID))
-      )
-    ).toBe(false);
-    expect(
-      invalidations.mock.calls.some(
-        call =>
-          JSON.stringify(call[0]?.queryKey) ===
-          JSON.stringify(sessionKeys.usageTurns(WORKSPACE_ID, SESSION_ID))
-      )
-    ).toBe(false);
+    for (const key of usageKeys) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
     queryClient.setQueryData(sessionKeys.usage(WORKSPACE_ID, SESSION_ID), {
       context: { state: "reported", sequence: 412, used: 89_700 },
       turn_count: 12,

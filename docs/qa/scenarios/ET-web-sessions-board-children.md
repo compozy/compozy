@@ -26,3 +26,16 @@ Accessibility regression: inspect the card button's accessible name. A child inc
 {parent title}"; a parent includes "3 child sessions, A child needs you". One child reads
 "1 child session". No family metadata means no family phrase. Existing title, status, waiting
 signal and relative time remain in the name. Covered by `sessions-board.test.tsx`.
+
+
+QA impact 2026-10-26 (session responsiveness): repeat this journey while many sessions
+are active. Confirm that detail, parent/child titles and counts, board pages, exact
+totals, and usage updates remain current across profiles and workspaces. Exercise
+usage bursts and hide/restore the streaming window; unrelated transcript/Goal reads
+must not refetch for usage-only signals. Current measurements and verification limits
+are in the [responsiveness report](../reports/2026-10-26-session-responsiveness.md).
+Targeted re-walk 2026-10-26: the final local daemon and production Web build displayed
+the three-child rollup and Needs you indicator. Hiding children removed the child
+cards and changed exact counts from Needs you 1 / Done 195 to Needs you 0 / Done 193,
+matching the public facets API. Current-head full E2E delivery remains owned by PR
+#983 CI; see the report for the isolated dataset and verification limits.

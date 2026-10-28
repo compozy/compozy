@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"time"
 )
 
@@ -30,6 +32,45 @@ const (
 	SubagentWorkStateWaitingForChildren = "waiting_for_children"
 	SubagentWorkStateResultAvailable    = "result_available"
 )
+
+// SubagentChildActivity describes a delegated child session's liveness,
+// independent of the row's (possibly terminal) status. Unknown covers
+// provider-native rows and rows written before the field existed. It is a byte
+// (persisted as its String form) so SessionSubagent stays within the
+// pass-by-value size budget.
+type SubagentChildActivity uint8
+
+const (
+	SubagentChildActivityUnknown SubagentChildActivity = iota
+	SubagentChildActivityWorking
+	SubagentChildActivityIdle
+	SubagentChildActivityStopped
+)
+
+var subagentChildActivityNames = [...]string{"", "working", "idle", "stopped"}
+
+// String returns the persisted and wire form; unknown is empty.
+func (a SubagentChildActivity) String() string {
+	if int(a) < len(subagentChildActivityNames) {
+		return subagentChildActivityNames[a]
+	}
+	return ""
+}
+
+// ParseSubagentChildActivity reads the persisted form; empty is unknown.
+func ParseSubagentChildActivity(value string) (SubagentChildActivity, error) {
+	for i, name := range subagentChildActivityNames {
+		if name == value {
+			return SubagentChildActivity(i), nil
+		}
+	}
+	return SubagentChildActivityUnknown, fmt.Errorf("store: invalid subagent child activity %q", value)
+}
+
+// SubagentChildActivityValues returns the known (non-empty) child activities.
+func SubagentChildActivityValues() []string {
+	return slices.Clone(subagentChildActivityNames[1:])
+}
 
 // Subagent delivery states. Delivered, acknowledged, and disposed are final.
 const (
@@ -105,6 +146,7 @@ type SessionSubagent struct {
 	Result             *string
 	Error              *string
 	ResultTruncated    bool
+	ChildActivity      SubagentChildActivity
 	WakePolicy         string
 	Delivery           string
 	WakeMessageID      *string
@@ -176,16 +218,40 @@ type SubagentPage struct {
 	NextCursor string
 }
 
+// NativeMissingResultCursor is the (settled_at, id) position of the last
+// missing-result row returned; the zero value starts from the newest row.
+type NativeMissingResultCursor struct {
+	SettledAt time.Time
+	ID        string
+}
+
 // SubagentFinalize settles a row to a terminal status.
 type SubagentFinalize struct {
 	WorktreeFacts   *SubagentWorktreeFacts
 	ID              string
 	Status          string
 	WorkState       string
+	ChildActivity   SubagentChildActivity
 	Result          *string
 	Error           *string
 	ResultTruncated bool
 	SettledAt       time.Time
+}
+
+// NativeSubagentResultEnrichment fills the missing result of a settled
+// provider-native row from a later provider summary. Every guard must match:
+// the row's identity, origin, expected terminal status, and a NULL result.
+type NativeSubagentResultEnrichment struct {
+	ID                 string
+	WorkspaceID        string
+	ParentSessionID    string
+	ParentTurnID       string
+	ProviderToolCallID string
+	Status             string
+	Result             string
+	Error              *string
+	ResultTruncated    bool
+	At                 time.Time
 }
 
 // SubagentDisposeFilter selects non-final deliveries to dispose.
@@ -218,6 +284,12 @@ type SubagentStore interface {
 	UpdateNativeSubagentTitle(ctx context.Context, id, title string, at time.Time) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
+	// UpdateSubagentChildActivity records a delegated child's liveness; it never changes status.
+	UpdateSubagentChildActivity(
+		ctx context.Context, id string, activity SubagentChildActivity, at time.Time,
+	) (SessionSubagent, bool, error)
+	// ReconcileStoppedChildActivity marks settled delegated rows whose child session is stopped.
+	ReconcileStoppedChildActivity(ctx context.Context) ([]SessionSubagent, error)
 
 	OpenOrJoinWake(ctx context.Context, parentID string, ids []string, newWakeID string) (SessionSubagentWake, error)
 	GetWake(ctx context.Context, wakeID string) (SessionSubagentWake, []SessionSubagent, error)
@@ -236,6 +308,15 @@ type SubagentStore interface {
 	ListStaleReserved(ctx context.Context, olderThan time.Time) ([]SessionSubagent, error)
 	ListUnfinalizedDelegated(ctx context.Context) ([]SessionSubagent, error)
 	ListUnfinalizedNative(ctx context.Context) ([]SessionSubagent, error)
+	// EnrichNativeSubagentResult fills a terminal native row's missing result. It
+	// never changes status, settlement, delivery, or child activity.
+	EnrichNativeSubagentResult(ctx context.Context, in NativeSubagentResultEnrichment) (SessionSubagent, bool, error)
+	// ListNativeMissingResult returns at most limit terminal native rows settled
+	// since the cutoff whose result is still missing, newest first, strictly
+	// after the cursor (zero for the first page).
+	ListNativeMissingResult(
+		ctx context.Context, since time.Time, after NativeMissingResultCursor, limit int,
+	) ([]SessionSubagent, error)
 	ListOpenWakes(ctx context.Context) ([]SessionSubagentWake, error)
 	ListPending(ctx context.Context, parentID string) ([]SessionSubagent, error)
 	ListOrphanSubagentSessions(ctx context.Context) ([]string, error)

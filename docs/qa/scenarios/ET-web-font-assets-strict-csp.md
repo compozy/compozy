@@ -27,3 +27,5 @@ qa-impact: 2026-09-30 shell rail v2. The bundled faces changed (Inter Variable +
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-10-27 #984. JetBrains Mono Variable ships again as a lazily loaded chunk (`@fontsource-variable/jetbrains-mono`), fetched only once chosen in Appearance › Fonts. Re-check its WOFF2 requests stay same-origin under `font-src 'self'`, and that installed fonts (local faces) load without network requests.

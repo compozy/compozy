@@ -10,26 +10,6 @@ import type { SubagentLocationView, SubagentStatus, SubagentView } from "./types
 export const SUBAGENT_BANNER_STOP_FAILED = "Could not stop subagents.";
 export const SUBAGENT_ROW_STOP_FAILED = "Could not stop subagent";
 
-export const SUBAGENT_STATUS_WORD: Record<SubagentStatus, string> = {
-  queued: "Queued",
-  running: "Running",
-  waiting: "Waiting for you",
-  completed: "Completed",
-  failed: "Failed",
-  canceled: "Canceled",
-  interrupted: "Interrupted",
-};
-
-export const SUBAGENT_STATUS_GLYPH: Record<SubagentStatus, StateGlyphState> = {
-  queued: "queued",
-  running: "running",
-  waiting: "attention",
-  completed: "done",
-  failed: "failed",
-  canceled: "stopped",
-  interrupted: "stopped",
-};
-
 /** Avatar dot per state. Queued draws a hollow indicator ring (`ring` = null tone). */
 export interface SubagentDotSignal {
   tone: StatusDotTone | null;
@@ -79,23 +59,20 @@ export function firstLine(text: string | null | undefined): string {
   return "";
 }
 
-export type SubagentLineTwoTone = "default" | "word" | "danger";
+export type SubagentLineTwoTone = "default" | "danger";
 
 export interface SubagentCardLines {
-  /** Status word beside the title; only when line 2 is busy with progress or a result. */
-  titleWord: string | null;
+  /** Progress or result text under the title; empty when there is none (the trail carries the word). */
   lineTwo: string;
   lineTwoTone: SubagentLineTwoTone;
 }
 
 /**
- * Card line 2 (UT-W05): live → progress, else the status word; completed → the
- * result's first line; failed → the error's first line in danger; canceled or
- * interrupted → the result (or last progress), else the word. The word moves
- * up beside the title only when line 2 carries text, and never for Completed.
+ * Card line 2 (UT-W05): live → progress; completed → the result's first line;
+ * failed → the error's first line in danger; canceled or interrupted → the
+ * result (or last progress). The status word lives in the trail, never here.
  */
 export function subagentCardLines(subagent: SubagentView): SubagentCardLines {
-  const word = SUBAGENT_STATUS_WORD[subagent.status];
   const failed = subagent.status === "failed";
   let text: string;
   if (isSubagentLive(subagent.status)) {
@@ -107,14 +84,7 @@ export function subagentCardLines(subagent: SubagentView): SubagentCardLines {
   } else {
     text = firstLine(subagent.result_preview) || firstLine(subagent.progress);
   }
-  if (text === "") {
-    return { titleWord: null, lineTwo: word, lineTwoTone: failed ? "danger" : "word" };
-  }
-  return {
-    titleWord: subagent.status === "completed" ? null : word,
-    lineTwo: text,
-    lineTwoTone: failed ? "danger" : "default",
-  };
+  return { lineTwo: text, lineTwoTone: failed ? "danger" : "default" };
 }
 
 function parseMs(iso: string | null | undefined): number | null {
@@ -151,6 +121,81 @@ export function subagentElapsedClock(
     return updatedMs === null ? { kind: "none" } : { kind: "frozen", ms: updatedMs - startMs };
   }
   return { kind: "ticking", startMs };
+}
+
+/** Word ink: `live` for work in flight, `attention` for needs-you, `settled` for finished rows. */
+export type SubagentDisplayTone = "live" | "attention" | "danger" | "settled";
+
+/** One row's status, shared by every subagent surface (sidebar, roster, card, hover, group). */
+export interface SubagentDisplay {
+  glyph: StateGlyphState;
+  word: string;
+  tone: SubagentDisplayTone;
+  /** Finished without needing anyone (Done, Idle, Canceled, Interrupted): the title dims. */
+  settled: boolean;
+  /** The trail's clock: ticking while Working, frozen once Done, otherwise none. */
+  clock: SubagentElapsedClock;
+}
+
+const NO_CLOCK: SubagentElapsedClock = { kind: "none" };
+const READ_DELIVERIES: ReadonlySet<string> = new Set(["delivered", "acknowledged"]);
+
+const display = (
+  glyph: StateGlyphState,
+  word: string,
+  tone: SubagentDisplayTone,
+  clock: SubagentElapsedClock = NO_CLOCK
+): SubagentDisplay => ({ glyph, word, tone, settled: tone === "settled", clock });
+
+/**
+ * The one derived display state, in the session `StateGlyph` vocabulary for native and delegated
+ * rows alike. A settled child that resumed reads Working; a delivered one gone quiet reads Idle.
+ */
+export function subagentDisplay(
+  subagent: SubagentView,
+  options: { stale?: boolean } = {}
+): SubagentDisplay {
+  const { status } = subagent;
+  if (!isSubagentLive(status) && subagent.child_activity === "working") {
+    return display("running", "Working", "live");
+  }
+  switch (status) {
+    case "queued":
+      return display("queued", "Queued", "live");
+    case "running":
+      return subagent.work_state === "waiting_for_children"
+        ? display("delegated", "Waiting on subagents", "live")
+        : display("running", "Working", "live", subagentElapsedClock(subagent, options));
+    case "waiting":
+      return display("attention", "Waiting for you", "attention");
+    case "completed":
+      return subagent.child_activity === "idle" && READ_DELIVERIES.has(subagent.delivery)
+        ? display("idle", "Idle", "settled")
+        : display("done", "Done", "settled", subagentElapsedClock(subagent, options));
+    case "failed":
+      return display("failed", "Failed", "danger");
+    case "canceled":
+      return display("stopped", "Canceled", "settled");
+    case "interrupted":
+      return display("stopped", "Interrupted", "settled");
+  }
+}
+
+const GLYPH_URGENCY: readonly StateGlyphState[] = [
+  "attention",
+  "failed",
+  "running",
+  "delegated",
+  "queued",
+  "done",
+  "idle",
+  "stopped",
+];
+
+/** Group aggregate (transcript VC-03): the most urgent member glyph present. */
+export function subagentGroupGlyph(subagents: readonly SubagentView[]): StateGlyphState {
+  const present = new Set(subagents.map(subagent => subagentDisplay(subagent).glyph));
+  return GLYPH_URGENCY.find(glyph => present.has(glyph)) ?? "idle";
 }
 
 /**
@@ -200,11 +245,14 @@ const plural = (count: number, one: string, many = `${one}s`) => (count === 1 ? 
  */
 export function subagentGroupSummary(subagents: readonly SubagentView[]): SubagentGroupSummary {
   const counts = { working: 0, waiting: 0, done: 0, failed: 0, canceled: 0, interrupted: 0 };
-  for (const { status } of subagents) {
-    if (status === "queued" || status === "running") counts.working += 1;
-    else if (status === "waiting") counts.waiting += 1;
-    else if (status === "completed") counts.done += 1;
-    else counts[status] += 1;
+  for (const subagent of subagents) {
+    const { glyph } = subagentDisplay(subagent);
+    if (glyph === "attention") counts.waiting += 1;
+    else if (glyph === "failed") counts.failed += 1;
+    else if (glyph === "done" || glyph === "idle") counts.done += 1;
+    else if (glyph === "stopped")
+      counts[subagent.status === "canceled" ? "canceled" : "interrupted"] += 1;
+    else counts.working += 1;
   }
   const parts = [
     counts.working > 0 ? `${counts.working} working` : null,
@@ -279,14 +327,14 @@ export function subagentLocationRows(
   return rows;
 }
 
-const URGENCY: Record<SubagentStatus, number> = {
-  waiting: 0,
-  failed: 1,
-  running: 2,
-  queued: 3,
-  completed: 4,
-  canceled: 4,
-  interrupted: 4,
+// Sidebar order: waiting > failed > working > queued > settled.
+const urgency = (subagent: SubagentView): number => {
+  const { glyph } = subagentDisplay(subagent);
+  if (glyph === "attention") return 0;
+  if (glyph === "failed") return 1;
+  if (glyph === "running" || glyph === "delegated") return 2;
+  if (glyph === "queued") return 3;
+  return 4;
 };
 
 // Newest first by creation; a row without a creation instant (an older daemon,
@@ -295,9 +343,9 @@ const orderKey = (subagent: SubagentView): string =>
   subagent.created_at || subagent.updated_at || "";
 const byNewest = (a: SubagentView, b: SubagentView) => orderKey(b).localeCompare(orderKey(a));
 
-/** Most urgent first (waiting > failed > running > queued > settled), then newest. */
+/** Most urgent first (waiting > failed > working > queued > settled), then newest. */
 export function sortSubagentsByUrgency(subagents: readonly SubagentView[]): SubagentView[] {
-  return [...subagents].sort((a, b) => URGENCY[a.status] - URGENCY[b.status] || byNewest(a, b));
+  return [...subagents].sort((a, b) => urgency(a) - urgency(b) || byNewest(a, b));
 }
 
 /** Inspector roster split (UT-W19): failed pinned, then live (waiting first), then previous. */
@@ -308,17 +356,21 @@ export interface SubagentRosterGroups {
 }
 
 export function subagentRosterGroups(subagents: readonly SubagentView[]): SubagentRosterGroups {
-  const ordered = [...subagents].sort(byNewest);
-  const live = ordered.filter(subagent => isSubagentLive(subagent.status));
+  // A settled child that resumed reads Working, so it rejoins the live rows.
+  const ordered = [...subagents].sort(byNewest).map(subagent => ({
+    subagent,
+    ...subagentDisplay(subagent),
+  }));
+  const pick = (keep: (row: (typeof ordered)[number]) => boolean) =>
+    ordered.flatMap(row => (keep(row) ? [row.subagent] : []));
+  const live = (row: (typeof ordered)[number]) => !row.settled && row.glyph !== "failed";
   return {
-    failed: ordered.filter(subagent => subagent.status === "failed"),
+    failed: pick(row => row.glyph === "failed"),
     live: [
-      ...live.filter(subagent => subagent.status === "waiting"),
-      ...live.filter(subagent => subagent.status !== "waiting"),
+      ...pick(row => row.glyph === "attention"),
+      ...pick(row => live(row) && row.glyph !== "attention"),
     ],
-    previous: ordered.filter(
-      subagent => !isSubagentLive(subagent.status) && subagent.status !== "failed"
-    ),
+    previous: pick(row => row.settled),
   };
 }
 
@@ -348,7 +400,7 @@ export function subagentWakePending(subagents: readonly SubagentView[]): boolean
   return subagents.some(subagent => WAKE_PENDING_DELIVERIES.has(subagent.delivery));
 }
 
-/** Per-parent counts, shaped after the session list's `subagent_summary`. */
+/** Per-parent counts from the rows' display state (a resumed child is live), like `subagent_summary`. */
 export interface SubagentCounts {
   live: number;
   total: number;
@@ -359,10 +411,10 @@ export interface SubagentCounts {
 
 export function subagentCounts(subagents: readonly SubagentView[]): SubagentCounts {
   const counts: SubagentCounts = { live: 0, total: subagents.length, failed: 0, attention: 0 };
-  for (const { status } of subagents) {
-    if (isSubagentLive(status)) counts.live += 1;
-    if (status === "waiting") counts.attention += 1;
-    if (status === "failed") counts.failed += 1;
+  for (const { tone } of subagents.map(subagent => subagentDisplay(subagent))) {
+    if (tone === "live" || tone === "attention") counts.live += 1;
+    if (tone === "attention") counts.attention += 1;
+    if (tone === "danger") counts.failed += 1;
   }
   return counts;
 }

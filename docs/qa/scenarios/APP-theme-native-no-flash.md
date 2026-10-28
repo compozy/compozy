@@ -36,3 +36,5 @@ Linux overlay recolor unwalked.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-10-27 #984. `/theme-boot.js` now also replays the Appearance fonts (`compozy.fonts`); the desktop boot page keeps the built-in fonts (it renders before the daemon is reachable). Re-check that a relaunch with a chosen font shows no default-font frame in the product window.

@@ -479,7 +479,7 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"release_previous_tag:",
 		"release_git_range:",
 		"release_initial:",
-		"github.com/compozy/releasepr@v0.0.34",
+		"github.com/compozy/releasepr@v0.0.35",
 		"name: Synchronize explicit release web assets",
 		`go run "${mage_module}" webAssetsCheck`,
 		`go run "${mage_module}" releaseWebAssetsSync`,
@@ -856,6 +856,8 @@ esac
 	})
 }
 
+// TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast protects release routing,
+// signed artifact custody, and the order of draft publication and public installation.
 func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	t.Parallel()
 
@@ -870,6 +872,56 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 	goreleaser := parseYAMLMap(t, goreleaserData, ".goreleaser.yml")
 	release := mapAt(t, goreleaser, "release")
 	checksum := mapAt(t, goreleaser, "checksum")
+
+	t.Run("Should keep release merges out of PR creation and cancellable pushes", func(t *testing.T) {
+		t.Parallel()
+
+		// Workflow expressions are the release routing contract. YAML aliases cannot
+		// substitute subexpressions, so compare every consumer to one predicate.
+		cfg := parseYAMLMap(t, []byte(workflow), "release.yml")
+		jobs := mapAt(t, cfg, "jobs")
+		concurrency := mapAt(t, cfg, "concurrency")
+		const subject = "github.event.head_commit.message"
+		const current = "(startsWith(" + subject + ", 'build: release ') || " +
+			"startsWith(" + subject + ", 'build: prepare release '))"
+		const publishingPush = "(github.event_name == 'push' && (" +
+			"startsWith(" + subject + ", 'release:') || " +
+			"startsWith(" + subject + ", 'ci(release):') || " +
+			"startsWith(" + subject + ", 'build: release ') || " +
+			"startsWith(" + subject + ", 'build: prepare release ')))"
+		assertEqualString(t, "publication concurrency group", stringAt(t, concurrency, "group"),
+			"release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}${{ "+
+				publishingPush+" && '-publish' || '' }}")
+		assertEqualString(t, "publication cancellation", stringAt(t, concurrency, "cancel-in-progress"),
+			"${{ !"+publishingPush+" }}")
+		const mainPush = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+		const routinePush = mainPush + " && !startsWith(" + subject + ", 'release:') && " +
+			"!startsWith(" + subject + ", 'ci(release):') && !" + current
+		conditions := map[string]string{
+			"release-pr": "(" + routinePush + " && " +
+				"!startsWith(" + subject + ", 'Merge pull request') && " +
+				"github.event.head_commit.author.name != 'github-actions[bot]')",
+			"integration": "(github.event_name == 'pull_request' && " +
+				"(startsWith(github.event.pull_request.title, 'build: release ') || " +
+				"startsWith(github.base_ref, 'release/v'))) || (" + routinePush + ")",
+			"release-plan": "github.event_name == 'workflow_dispatch' || (" + mainPush +
+				" && " + current + " && " +
+				"(vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))",
+		}
+		for job, want := range conditions {
+			// Actions string literals use single quotes (doubled quotes escape a quote).
+			// Normalize only the alternating unquoted segments, preserving literal bytes.
+			parts := strings.Split(strings.TrimSpace(stringAt(t, mapAt(t, jobs, job), "if")), "'")
+			for i := 0; i < len(parts); i += 2 {
+				parts[i] = strings.ReplaceAll(parts[i], "\n", " ")
+				for strings.Contains(parts[i], "  ") {
+					parts[i] = strings.ReplaceAll(parts[i], "  ", " ")
+				}
+			}
+			condition := strings.Join(parts, "'")
+			assertEqualString(t, job+" routing condition", condition, want)
+		}
+	})
 
 	t.Run("Should keep desktop artifacts in the signed draft before public installation", func(t *testing.T) {
 		t.Parallel()

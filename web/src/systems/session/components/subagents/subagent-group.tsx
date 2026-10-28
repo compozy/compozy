@@ -8,6 +8,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   Icon,
+  StateGlyph,
   cn,
 } from "@compozy/ui";
 
@@ -16,6 +17,7 @@ import { SubagentCard, type SubagentOpenOptions } from "./subagent-card";
 import { SubagentElapsed } from "./subagent-elapsed";
 import {
   subagentGroupClock,
+  subagentGroupGlyph,
   subagentGroupSummary,
   type SubagentSummaryTone,
 } from "./subagent-format";
@@ -47,7 +49,8 @@ const SUMMARY_TONE: Record<SubagentSummaryTone, string> = {
 
 /**
  * Same-turn delegations folded into one disclosure (transcript VC-03): stacked
- * avatars, `N subagents`, a state summary, the group span and a chevron. A
+ * avatars, `N subagents`, the most urgent member glyph with a state summary,
+ * the group span and a chevron. A
  * collapsed group whose members all settled dims until hover or focus.
  */
 export function SubagentGroup({
@@ -107,12 +110,15 @@ export function SubagentGroup({
         </AvatarGroup>
         <span className="flex min-w-0 flex-col">
           <span className="text-transcript-meta font-medium text-fg-strong">{summary.label}</span>
-          <span
-            className={cn("truncate text-transcript-caption", SUMMARY_TONE[summary.tone])}
-            data-slot="subagent-group-summary"
-            data-tone={summary.tone}
-          >
-            {summary.summary}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <StateGlyph size="sm" state={subagentGroupGlyph(subagents)} still={stale} />
+            <span
+              className={cn("truncate text-transcript-caption", SUMMARY_TONE[summary.tone])}
+              data-slot="subagent-group-summary"
+              data-tone={summary.tone}
+            >
+              {summary.summary}
+            </span>
           </span>
         </span>
         <SubagentElapsed clock={subagentGroupClock(subagents, { stale })} />

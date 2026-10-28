@@ -242,6 +242,16 @@ describe("useSessionCatalogStreams", () => {
     vi.useFakeTimers();
     const queryClient = new QueryClient();
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const betaDetail = sessionKeys.detail("ws_beta", "sess_beta");
+    const globalDetail = sessionKeys.detail("", "sess_global");
+    const untouched = [
+      sessionKeys.detail("ws_other", "sess_beta"),
+      sessionKeys.goal("ws_beta", "sess_beta"),
+      sessionKeys.transcript("ws_beta", "sess_beta"),
+      sessionKeys.transcript("", "sess_global"),
+    ];
+    for (const key of [betaDetail, globalDetail, ...untouched])
+      queryClient.setQueryData(key, { state: "active" });
     const sources: FakeCatalogEventSource[] = [];
     const factory = (url: string) => {
       const source = new FakeCatalogEventSource(url);
@@ -282,10 +292,9 @@ describe("useSessionCatalogStreams", () => {
       expect.objectContaining({ queryKey: notificationKeys.attentionRoot() }),
       { cancelRefetch: false }
     );
-    expect(invalidate).toHaveBeenCalledWith(
-      { queryKey: sessionKeys.detail("ws_beta", "sess_beta"), exact: true },
-      { cancelRefetch: false }
-    );
+    expect(queryClient.getQueryState(betaDetail)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(globalDetail)?.isInvalidated).toBe(false);
+    for (const key of untouched) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
     invalidate.mockClear();
     act(() => {
       sources[0]?.emit("session_catalog_changed", {
@@ -299,10 +308,8 @@ describe("useSessionCatalogStreams", () => {
       expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
       { cancelRefetch: false }
     );
-    expect(invalidate).toHaveBeenCalledWith(
-      { queryKey: sessionKeys.detail("", "sess_global"), exact: true },
-      { cancelRefetch: false }
-    );
+    expect(queryClient.getQueryState(globalDetail)?.isInvalidated).toBe(true);
+    for (const key of untouched) expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
     // A subagent transition upserts its parent: a cold subagent list re-reads (trailing window).
     expect(invalidate).toHaveBeenCalledWith(
       { queryKey: sessionKeys.subagents("", "sess_global") },

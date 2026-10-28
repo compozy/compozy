@@ -76,8 +76,8 @@ export function useAgentCreateDialog({
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
   const { destination } = useProfileReadScope();
-  const createAgent = useCreateAgent();
-  const duplicateAgent = useDuplicateAgent();
+  const { mutateAsync: createAgent } = useCreateAgent();
+  const { mutateAsync: duplicateAgent } = useDuplicateAgent();
   const dialogStore = useStore(agentCreateDialogLogic, {
     initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace)),
   });
@@ -176,7 +176,7 @@ export function useAgentCreateDialog({
         return;
       }
       execute = () =>
-        duplicateAgent.mutateAsync({
+        duplicateAgent({
           sourceName: flow.source.name,
           params: request,
           profile: destination,
@@ -192,7 +192,7 @@ export function useAgentCreateDialog({
         dialogStore.trigger.submissionRejected({ error: message });
         return;
       }
-      execute = () => createAgent.mutateAsync({ params: request, profile: destination });
+      execute = () => createAgent({ params: request, profile: destination });
       failureMessage = "Failed to create agent.";
     }
 
