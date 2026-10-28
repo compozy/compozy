@@ -168,6 +168,12 @@ func (s *service) updateShellSection(
 		desired.Sessions.GroupByExplicit = true
 	}
 	desired.Sessions.ResolveGroupBy()
+	if !desired.Appearance.UIFontExplicit {
+		desired.Appearance.UIFont = cfg.Shell.Appearance.UIFont
+	}
+	if !desired.Appearance.MonoFontExplicit {
+		desired.Appearance.MonoFont = cfg.Shell.Appearance.MonoFont
+	}
 	if err := desired.Validate(); err != nil {
 		return MutationResult{}, validationError(err)
 	}

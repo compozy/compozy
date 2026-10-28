@@ -73,3 +73,13 @@ events were independently read over HTTP and UDS after replacement and a third b
 badge or duplicate continuation was observed. See
 [the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
 The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.
+
+2026-10-27 update continuity regression: start concurrent work and a delegated child before
+app Update. After native installation and runtime replacement, the same session IDs and partial
+text remain; eligible parents and children continue without a manual prompt or a false failure.
+The child completes and delivers its durable result once. An explicitly stopped control remains
+stopped, and a subsequent restart does not duplicate continuation or child delivery. A failed
+bundle install leaves the live daemon untouched; failure to request coordinated restart never
+falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
+remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
+Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).

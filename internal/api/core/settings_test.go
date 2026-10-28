@@ -4601,7 +4601,8 @@ func TestSettingsShellGrouping(t *testing.T) {
 		response = performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/shell", nil)
 		var read contract.SettingsShellResponse
 		decodeJSON(t, response.Body.Bytes(), &read)
-		if response.Code != http.StatusOK || read.LegacyScope != payload.LegacyScope || read.Config != payload.Config {
+		if response.Code != http.StatusOK || read.LegacyScope != payload.LegacyScope ||
+			!reflect.DeepEqual(read.Config, payload.Config) {
 			t.Fatalf("read=%d %#v", response.Code, read)
 		}
 	})
@@ -4618,6 +4619,69 @@ func TestSettingsShellGrouping(t *testing.T) {
 		)
 		if response.Code != http.StatusBadRequest ||
 			!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+			service.ApplySectionCalls != 0 {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+	})
+}
+
+func TestSettingsShellAppearance(t *testing.T) {
+	t.Run("Should map omitted, set and reset fonts and always return both fonts", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultShellConfig()
+		cfg.Appearance.MonoFont = "JetBrains Mono"
+		service := &stubSettingsService{
+			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				want := compozyconfig.ShellAppearanceConfig{UIFontExplicit: true}
+				if req.Shell == nil || req.Shell.Appearance != want {
+					t.Fatalf("appearance request = %#v, want ui_font reset with mono_font preserved", req.Shell)
+				}
+				return settingspkg.ApplyResult{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Applied: true,
+				}, nil
+			},
+			GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Shell:   &settingspkg.ShellSection{Config: cfg},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"ui_font":""}}}`),
+		)
+		var payload contract.SettingsShellMutationResponse
+		decodeJSON(t, response.Body.Bytes(), &payload)
+		appearance := payload.Config.Appearance
+		if response.Code != http.StatusOK || appearance == nil || appearance.UIFont == nil ||
+			appearance.MonoFont == nil || *appearance.UIFont != "" || *appearance.MonoFont != "JetBrains Mono" {
+			t.Fatalf("response=%d %s", response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `"ui_font":""`) {
+			t.Fatalf("response must serialize the default ui_font explicitly: %s", response.Body.String())
+		}
+	})
+	t.Run("Should reject an unsafe font family before applying settings", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{},"appearance":{"mono_font":"Mono\"; color: red"}}}`),
+		)
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), "shell.appearance.mono_font") ||
 			service.ApplySectionCalls != 0 {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
 		}

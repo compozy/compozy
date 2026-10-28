@@ -1,7 +1,7 @@
 "use client";
 
 import { TerminalView, type TerminalEngineLoader } from "@compozy/ui";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { TerminalStoreProvider } from "../contexts/terminal-store-context";
 import {
@@ -9,13 +9,11 @@ import {
   type TerminalAttachmentSocketFactory,
 } from "../hooks/use-terminal-attachment";
 import { useTerminalReplay } from "../hooks/use-terminal-replay";
+import { useSessionTerminalSizing } from "../hooks/use-session-terminal-sizing";
 import { terminalReplayFailedCopy } from "../lib/terminal-copy";
-import { SESSION_TERMINAL_MAX_ROWS, sessionTerminalRows } from "../lib/session-terminal-rows";
+import { SESSION_TERMINAL_MAX_ROWS } from "../lib/session-terminal-rows";
 import { sessionPreviewInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalExit } from "../types";
-
-/** Columns assumed before the emulator can measure its container. */
-const FALLBACK_COLUMNS = 80;
 
 export interface SessionTerminalBlockProps {
   terminalId: string;
@@ -107,21 +105,14 @@ function SessionTerminalBlockBody({
     onOutputPainted: () => setStreamed(true),
   });
 
-  // Sized once the emulator can measure its width, and again whenever the
-  // recorded output changes. A streaming screen keeps the full window.
-  const [attachedFor, setAttachedFor] = useState<string | null>(null);
-  const attached = attachedFor === instanceId;
-  useEffect(() => {
-    if (!attached) return;
-    const handle = replay.handleRef.current;
-    const columns = handle?.proposeDimensions()?.cols ?? FALLBACK_COLUMNS;
-    handle?.applyDimensions({
-      cols: columns,
-      rows: live || streamed ? SESSION_TERMINAL_MAX_ROWS : sessionTerminalRows(preview, columns),
-    });
-  }, [attached, live, streamed, preview, replay.handleRef]);
+  const sizing = useSessionTerminalSizing({
+    instanceId,
+    handleRef: replay.handleRef,
+    fullWindow: live || streamed,
+    preview,
+  });
   const onAttached = () => {
-    setAttachedFor(instanceId);
+    sizing.onAttached();
     replay.onAttached();
   };
 
@@ -140,6 +131,7 @@ function SessionTerminalBlockBody({
         // view of the same terminal, never a second owner of its buffer.
         instanceId={instanceId}
         onAttached={onAttached}
+        onProposeDimensions={sizing.onProposeDimensions}
         readOnly
         screenReaderMode
       />

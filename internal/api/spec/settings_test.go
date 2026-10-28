@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -383,6 +384,23 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		shellSessionsSchema := propertySchema(t, shellConfigSchema, "sessions")
 		if len(shellSessionsSchema.Required) != 0 {
 			t.Fatalf("shell patch fields must be optional: %v", shellSessionsSchema.Required)
+		}
+		assertNotRequired(t, shellConfigSchema, "appearance")
+		shellAppearanceSchema := propertySchema(t, shellConfigSchema, "appearance")
+		assertSchemaHasAdditionalProperties(t, shellAppearanceSchema, false)
+		if len(shellAppearanceSchema.Required) != 0 {
+			t.Fatalf("shell appearance fields must be optional: %v", shellAppearanceSchema.Required)
+		}
+		for _, field := range []string{"ui_font", "mono_font"} {
+			fontSchema := propertySchema(t, shellAppearanceSchema, field)
+			if fontSchema.MaxLength == nil || *fontSchema.MaxLength != uint64(compozyconfig.ShellFontFamilyMaxLen) {
+				t.Fatalf(
+					"shell appearance %s maxLength = %v, want %d",
+					field,
+					fontSchema.MaxLength,
+					compozyconfig.ShellFontFamilyMaxLen,
+				)
+			}
 		}
 		assertEnumValues(t, propertySchema(t, shellSessionsSchema, "group_by"), "none", "project", "profile")
 		assertEnumValues(

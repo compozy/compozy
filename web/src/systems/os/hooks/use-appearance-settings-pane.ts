@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { shallowEqual } from "@xstate/store";
 
-import { useThemePreference } from "@/systems/theme";
+import { useFontAppearance, useThemePreference } from "@/systems/theme";
 
 import { getSystemReducedMotion, subscribeSystemReducedMotion } from "../lib/reduced-motion";
 import { useDesktop } from "./use-desktop";
@@ -26,6 +26,7 @@ export function useAppearanceSettingsPane() {
   );
 
   const { preference: theme, setPreference: setTheme } = useThemePreference();
+  const { appearance: fonts, setFont } = useFontAppearance();
 
-  return { ...desktop, setTheme, systemReducedMotion, theme };
+  return { ...desktop, fonts, setFont, setTheme, systemReducedMotion, theme };
 }

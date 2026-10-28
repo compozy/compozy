@@ -46,7 +46,13 @@ const lightTokens = await readFile(
 /** A declaration's value, including values wrapped across lines (font stacks). */
 function tokenValue(source: string, name: string): string | undefined {
   const value = new RegExp(`^\\s*--${name}:\\s*([^;]+);`, "mu").exec(source)?.[1];
-  return value?.replace(/\s+/gu, " ").trim();
+  // The boot page renders before the daemon is reachable, so it cannot know
+  // the operator's Appearance font: drop the `--user-font-*` head the web
+  // runtime fills (it is undefined here and would void the whole stack).
+  return value
+    ?.replace(/\s+/gu, " ")
+    .trim()
+    .replace(/^var\(--user-font-[a-z]+\),\s*/u, "");
 }
 const bootTokens = Object.entries(bootTokenMap).map(([bootName, canonicalName]) => {
   const value = tokenValue(canonicalTokens, canonicalName);

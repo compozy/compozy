@@ -190,14 +190,19 @@
   --color-sidebar-ring: var(--color-line-strong);
 
   /* Font families — Inter Variable for UI (the 425 regular needs the wght
-     axis), Geist Mono Variable for code, paths and the terminal. */
-  --font-sans: "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif;
+     axis), Geist Mono Variable for code, paths and the terminal. Each stack
+     leads with the operator's Appearance choice (`--user-font-*`, defaulted
+     in :root below and overridden inline on <html>), so a missing face falls
+     through to the built-in stack instead of the browser default. */
+  --font-sans:
+    var(--user-font-sans), "Inter Variable", -apple-system, "BlinkMacSystemFont", "Segoe UI",
+    sans-serif;
   /* "Symbols Nerd Font Mono" backfills the Private Use Area icons terminals
      emit (see the @font-face in tokens-runtime.css); Geist Mono wins every
      codepoint it actually covers. */
   --font-mono:
-    "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono", ui-monospace, "SFMono-Regular",
-    "Menlo", monospace;
+    var(--user-font-mono), "Geist Mono Variable", "Geist Mono", "Symbols Nerd Font Mono",
+    ui-monospace, "SFMono-Regular", "Menlo", monospace;
   /* Display alias reserved for explicit logo/wordmark surfaces only.
      Keep the `font-display` utility out of type-ramp callers under
      `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
@@ -652,6 +657,13 @@
 
 :root {
   color-scheme: dark;
+
+  /* Appearance font choice heading `--font-sans` / `--font-mono`. The default
+     repeats each stack's first face so an unset choice is a no-op; web's
+     font runtime (and the pre-paint boot script) override these inline on
+     <html>, never the stacks themselves. */
+  --user-font-sans: "Inter Variable";
+  --user-font-mono: "Geist Mono Variable";
 
   /* Dark theme-shadow literals behind the @theme `--shadow-*` adapters.
      card / pop / overlay open with the 1px `line` hairline (polish contract
