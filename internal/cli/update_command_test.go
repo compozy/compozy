@@ -833,10 +833,11 @@ func TestRecoveredUpdateOutcome(t *testing.T) {
 
 func TestFencedUpdateCommand(t *testing.T) {
 	t.Parallel()
-	t.Run("Should report staged handoff when the app closes during recovery", func(t *testing.T) {
+	t.Run("Should follow holderless staged and canceled outcomes after a conflict", func(t *testing.T) {
 		t.Parallel()
 		store := newCLIUpdateOperationStore(t)
 		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
+		acquired := operation
 		for _, transition := range []compozyupdate.Transition{
 			{Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI, Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100},
 			{Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorCLI, Target: compozyupdate.TargetApp, Percent: -1},
@@ -846,6 +847,9 @@ func TestFencedUpdateCommand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+		}
+		if confirmed, err := updateRecoveryConfirmed(t.Context(), store, acquired); err != nil || !confirmed {
+			t.Fatalf("staged recovery = %v, %v", confirmed, err)
 		}
 		deps := newTestDeps(t, &stubClient{})
 		deps.now = time.Now
@@ -877,6 +881,34 @@ func TestFencedUpdateCommand(t *testing.T) {
 			record.App.CurrentVersion != "v1.0.0" ||
 			record.App.AttemptID != "attempt-1" {
 			t.Fatalf("recovery = %#v, reads = %d", record, reads)
+		}
+		_, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			compozyupdate.Transition{
+				Kind:    compozyupdate.TransitionCancel,
+				Actor:   compozyupdate.ActorCLI,
+				Target:  compozyupdate.TargetApp,
+				Percent: -1,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if confirmed, err := updateRecoveryConfirmed(t.Context(), store, acquired); err != nil || !confirmed {
+			t.Fatalf("canceled recovery = %v, %v", confirmed, err)
+		}
+		output.Reset()
+		if err := reportRecoveredUpdate(cmd, deps, manager, acquired, base); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Status != compozyupdate.StatusCanceled || record.App.Status != compozyupdate.StatusCanceled {
+			t.Fatalf("canceled outcome = %#v", record)
 		}
 	})
 	t.Run("Should transfer the detached coordinator to its own kernel identity", func(t *testing.T) {

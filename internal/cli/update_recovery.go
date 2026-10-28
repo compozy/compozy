@@ -133,8 +133,8 @@ func canceledRecoveredUpdateRecord(record updateRecord, operation *compozyupdate
 	return record
 }
 
-// updateExecutorWasSuperseded distinguishes ownership loss from same-executor revision conflicts.
-func updateExecutorWasSuperseded(
+// updateRecoveryConfirmed recognizes ownership loss and settled handoffs, not active same-executor conflicts.
+func updateRecoveryConfirmed(
 	ctx context.Context,
 	store *compozyupdate.OperationStore,
 	acquired *compozyupdate.Operation,
@@ -143,12 +143,18 @@ func updateExecutorWasSuperseded(
 	if err != nil {
 		return false, err
 	}
-	if current == nil || current.ID != acquired.ID {
+	archived := current == nil || current.ID != acquired.ID
+	if archived {
 		current, err = store.ReadArchived(ctx, acquired.ID)
 		if err != nil {
 			return false, err
 		}
 	}
-	return current != nil && current.Holder != nil && acquired.Holder != nil &&
-		current.Holder.ExecutorGeneration != acquired.Holder.ExecutorGeneration, nil
+	if current == nil {
+		return false, nil
+	}
+	if current.Holder == nil {
+		return archived || current.Waiting == compozyupdate.WaitingForApp, nil
+	}
+	return acquired.Holder != nil && current.Holder.ExecutorGeneration != acquired.Holder.ExecutorGeneration, nil
 }
