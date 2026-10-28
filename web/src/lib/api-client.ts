@@ -16,7 +16,7 @@ export const apiClient = createClient<compozyPaths>({
   fetch: runtimeFetch,
 });
 
-const clientID = `web-${createClientId()}`;
+export const clientID = `web-${createClientId()}`;
 
 /**
  * Single chokepoint for "this device's access ended". Only an explicit daemon

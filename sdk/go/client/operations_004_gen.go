@@ -84,9 +84,10 @@ func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body C
 
 // CreateTerminalParams carries the path, query, and header parameters.
 type CreateTerminalParams struct {
-	WorkspaceID         string  `url:"workspace_id"`
-	XCompozyClientToken *string `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
+	WorkspaceID             string  `url:"workspace_id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
 }
 
 // CreateTerminal Create an interactive terminal
@@ -96,6 +97,9 @@ func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams
 	headers := http.Header{}
 	if params.XCompozyClientToken != nil {
 		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
 	}
 	query := url.Values{}
 	if params.Profile != nil {
@@ -438,13 +442,4 @@ type DeleteSessionAttachmentParams struct {
 	WorkspaceID  string `url:"workspace_id"`
 	SessionID    string `url:"session_id"`
 	AttachmentID string `url:"attachment_id"`
-}
-
-// DeleteSessionAttachment Delete a session attachment
-func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessionAttachmentParams) error {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }

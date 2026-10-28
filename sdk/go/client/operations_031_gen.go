@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+// ValidateLoopParams carries the path, query, and header parameters.
+type ValidateLoopParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+}
+
 // ValidateLoop Validate one Loop definition without saving
 func (c *Client) ValidateLoop(ctx context.Context, params ValidateLoopParams, body ValidateLoopRequest) (*LoopValidationResponse, error) {
 	path := "/api/workspaces/{workspace_id}/loops/{name}/validate"

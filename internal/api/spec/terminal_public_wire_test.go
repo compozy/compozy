@@ -8,27 +8,28 @@ import (
 func TestTerminalOpenAPIPublicWireContract(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish the optional browser identity token on create and attach ticket", func(t *testing.T) {
+	t.Run("Should publish the optional browser identity headers on create and attach ticket", func(t *testing.T) {
 		t.Parallel()
 
 		operationIDs := map[string]struct{}{
 			"createTerminal":           {},
 			"mintTerminalAttachTicket": {},
 		}
-		identityHeader := terminalClientIdentityHeaderParam()
-		seen := make(map[string]struct{}, len(operationIDs))
-		for _, operation := range Operations() {
-			if _, ok := operationIDs[operation.OperationID]; !ok {
-				continue
-			}
-			for _, parameter := range operation.Parameters {
-				if parameter.Name == identityHeader.Name && parameter.In == "header" && !parameter.Required {
-					seen[operation.OperationID] = struct{}{}
+		for _, header := range []string{"X-Compozy-Client-Token", "X-Compozy-Client-Workspace"} {
+			seen := make(map[string]struct{}, len(operationIDs))
+			for _, operation := range Operations() {
+				if _, ok := operationIDs[operation.OperationID]; !ok {
+					continue
+				}
+				for _, parameter := range operation.Parameters {
+					if parameter.Name == header && parameter.In == "header" && !parameter.Required {
+						seen[operation.OperationID] = struct{}{}
+					}
 				}
 			}
-		}
-		if len(seen) != len(operationIDs) {
-			t.Fatalf("terminal browser identity headers found = %v, want %v", seen, operationIDs)
+			if len(seen) != len(operationIDs) {
+				t.Fatalf("terminal browser identity header %s found = %v, want %v", header, seen, operationIDs)
+			}
 		}
 	})
 

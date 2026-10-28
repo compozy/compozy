@@ -61,6 +61,7 @@ export interface TerminalWindowAppProps {
   viewerId: string | null;
   /** Token proving this browser owns `viewerId`. */
   viewerToken?: string | null;
+  viewerWorkspaceId?: string | null;
   terminals: readonly TerminalInfo[];
   inputRequests: readonly TerminalInputRequest[];
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
@@ -114,6 +115,7 @@ export function TerminalWindowApp({
   profile,
   viewerId,
   viewerToken,
+  viewerWorkspaceId,
   terminals,
   inputRequests,
   resolvedInputRequests = EMPTY_RESOLVED,
@@ -220,6 +222,7 @@ export function TerminalWindowApp({
             limit={limit}
             viewerId={viewerId}
             viewerToken={viewerToken}
+            viewerWorkspaceId={viewerWorkspaceId}
             workspaceId={workspaceId}
           />
         ) : null}

@@ -27,6 +27,7 @@ func TestBuildProviderVault(t *testing.T) {
 		cfg := testConfig(t, home)
 		cfg.Defaults.Provider = ""
 		resolver, err := workspace.NewResolver(database, workspace.WithHomePaths(home),
+			workspace.WithProfileAvailabilityChecker(profiles),
 			workspace.WithProfileConfigLoader(func(string, string) (config.Config, error) { return cfg, nil }))
 		if err != nil {
 			t.Fatal(err)
@@ -36,11 +37,15 @@ func TestBuildProviderVault(t *testing.T) {
 			t.Fatal(err)
 		}
 		provider := terminalEnvironmentProvider(&bootState{profiles: profiles, workspaceResolver: resolver})
-		environment, err := provider(t.Context(), registered.ID, terminal.Actor{
-			Kind: terminal.ActorKindHuman, ProfileID: "00000000000000000000000000",
-		})
-		if err != nil || len(environment.Values) != 0 || len(environment.Unset) != 0 {
-			t.Fatalf("declaration-free launch = %#v, %v", environment, err)
+		for _, selector := range []string{registered.ID, "", "@user"} {
+			t.Run("Should resolve terminal environment for "+selector, func(t *testing.T) {
+				environment, err := provider(t.Context(), selector, terminal.Actor{
+					Kind: terminal.ActorKindHuman, ProfileID: "00000000000000000000000000",
+				})
+				if err != nil || len(environment.Values) != 0 || len(environment.Unset) != 0 {
+					t.Fatalf("declaration-free launch = %#v, %v", environment, err)
+				}
+			})
 		}
 	})
 

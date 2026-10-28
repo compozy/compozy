@@ -128,6 +128,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     wait,
     viewerId,
     viewerToken,
+    viewerWorkspaceId,
     viewer,
     projectLabel,
     retargetSearch,
@@ -159,7 +160,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
         app: "terminal",
         forceNewInstance: true,
         stackTargetWindowId: windowId,
-        route: { pathname: "/terminal", search: { new: "1" } },
+        route: { pathname: "/terminal", search: { ...retargetSearch, new: "1" } },
       });
     },
     close: terminalId => close.mutate(terminalId),
@@ -217,6 +218,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       terminals={terminals}
       viewerId={viewerId}
       viewerToken={viewerToken}
+      viewerWorkspaceId={viewerWorkspaceId}
       windowedTerminalIds={windowedTerminalIds}
       workspaceId={workspaceId}
     />

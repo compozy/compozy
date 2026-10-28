@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// StreamTaskParams carries the path, query, and header parameters.
+type StreamTaskParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // StreamTask Stream task-native live events for one task
 func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
 	path := "/api/tasks/{id}/stream"
@@ -435,9 +443,4 @@ func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// UpdateExtensionsParams carries the path, query, and header parameters.
-type UpdateExtensionsParams struct {
-	Profile *string `url:"profile"`
 }

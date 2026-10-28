@@ -35322,6 +35322,10 @@ export type CreateTerminalData = {
      * Registered browser client attachment token
      */
     "X-Compozy-Client-Token"?: string;
+    /**
+     * Browser client registration partition (project id, global, or user); defaults to the terminal workspace
+     */
+    "X-Compozy-Client-Workspace"?: string;
   };
   path: {
     /**
@@ -35881,6 +35885,10 @@ export type MintTerminalAttachTicketData = {
      * Registered browser client attachment token
      */
     "X-Compozy-Client-Token"?: string;
+    /**
+     * Browser client registration partition (project id, global, or user); defaults to the terminal workspace
+     */
+    "X-Compozy-Client-Workspace"?: string;
   };
   path: {
     /**

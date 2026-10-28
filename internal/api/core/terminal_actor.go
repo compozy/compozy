@@ -13,6 +13,7 @@ import (
 )
 
 const terminalClientAttachmentHeader = "X-Compozy-Client-Token"
+const terminalClientWorkspaceHeader = "X-Compozy-Client-Workspace"
 
 func (h *BaseHandlers) terminalActor(
 	c *gin.Context,
@@ -77,7 +78,8 @@ func (h *BaseHandlers) bindTerminalHumanClient(
 	}
 	clientID = strings.TrimSpace(clientID)
 	token := strings.TrimSpace(c.GetHeader(terminalClientAttachmentHeader))
-	if clientID == "" && token == "" {
+	clientWorkspace := strings.TrimSpace(c.GetHeader(terminalClientWorkspaceHeader))
+	if clientID == "" && token == "" && clientWorkspace == "" {
 		return actor, nil
 	}
 	if clientID == "" || token == "" || h.WindowManager == nil {
@@ -90,9 +92,16 @@ func (h *BaseHandlers) bindTerminalHumanClient(
 	if err != nil {
 		return terminalpkg.Actor{}, fmt.Errorf("resolve terminal browser identity: %w", err)
 	}
+	// Browser identity belongs to its desktop partition, independently of the terminal's data scope.
+	if clientWorkspace == "" {
+		clientWorkspace = workspaceID
+	}
+	if clientWorkspace == "" || clientWorkspace == "@user" {
+		clientWorkspace = "user"
+	}
 	if err := service.AuthorizeClient(
 		c.Request.Context(),
-		windowmanager.WorkspaceID(workspaceID),
+		windowmanager.WorkspaceID(clientWorkspace),
 		windowmanager.ClientID(clientID),
 		token,
 	); err != nil {

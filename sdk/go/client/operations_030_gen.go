@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+// UpdateExtensionsParams carries the path, query, and header parameters.
+type UpdateExtensionsParams struct {
+	Profile *string `url:"profile"`
+}
+
 // UpdateExtensions Update installed extensions and report each outcome
 func (c *Client) UpdateExtensions(ctx context.Context, params UpdateExtensionsParams, body UpdateExtensionsRequest) (*ExtensionUpdateBatchResponse, error) {
 	path := "/api/extensions/update"
@@ -437,11 +442,4 @@ func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoul
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ValidateLoopParams carries the path, query, and header parameters.
-type ValidateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
 }

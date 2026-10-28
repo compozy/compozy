@@ -240,10 +240,11 @@ func (c *Client) MintGatewayStreamTicket(ctx context.Context) (*GatewayStreamTic
 
 // MintTerminalAttachTicketParams carries the path, query, and header parameters.
 type MintTerminalAttachTicketParams struct {
-	WorkspaceID         string  `url:"workspace_id"`
-	ID                  string  `url:"id"`
-	XCompozyClientToken *string `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
+	WorkspaceID             string  `url:"workspace_id"`
+	ID                      string  `url:"id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
 }
 
 // MintTerminalAttachTicket Mint a single-use terminal attach ticket
@@ -254,6 +255,9 @@ func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTermin
 	headers := http.Header{}
 	if params.XCompozyClientToken != nil {
 		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
 	}
 	query := url.Values{}
 	if params.Profile != nil {
@@ -433,16 +437,6 @@ func (c *Client) PauseLoopRun(ctx context.Context, params PauseLoopRunParams, bo
 		path += "?" + query.Encode()
 	}
 	var out map[string]bool
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseScheduler Pause scheduler dispatch and task-run claims
-func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest) (*SchedulerStatusResponse, error) {
-	path := "/api/scheduler/pause"
-	var out SchedulerStatusResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

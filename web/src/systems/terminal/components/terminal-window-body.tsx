@@ -28,6 +28,7 @@ export interface TerminalWindowBodyProps {
   terminal: TerminalInfo;
   viewerId: string | null;
   viewerToken?: string | null;
+  viewerWorkspaceId?: string | null;
   workspaceId: string;
   profile: string;
   readOnly?: boolean;
@@ -68,6 +69,7 @@ function TerminalInteractiveWindowBody({
   terminal,
   viewerId,
   viewerToken,
+  viewerWorkspaceId,
   workspaceId,
   profile,
   readOnly = false,
@@ -90,7 +92,14 @@ function TerminalInteractiveWindowBody({
     terminal,
     workspaceId,
     profile,
-    viewer: viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null,
+    viewer:
+      viewerId && viewerToken
+        ? {
+            id: viewerId,
+            attachmentToken: viewerToken,
+            workspaceId: viewerWorkspaceId ?? undefined,
+          }
+        : null,
     socketFactory,
     readOnly,
     actions,

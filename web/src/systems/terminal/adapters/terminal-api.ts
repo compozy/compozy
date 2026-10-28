@@ -5,7 +5,7 @@
  * envelope before exposing generated terminal contract types.
  */
 
-import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
+import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
 import type { ZodType } from "zod";
 
 import {
@@ -111,6 +111,13 @@ function withQuery(url: string, query: URLSearchParams): string {
   return serialized === "" ? url : `${url}?${serialized}`;
 }
 
+function terminalViewerHeaders(viewer: TerminalViewerIdentity): Record<string, string> {
+  return {
+    "X-Compozy-Client-Token": viewer.attachmentToken,
+    ...(viewer.workspaceId ? { "X-Compozy-Client-Workspace": viewer.workspaceId } : {}),
+  };
+}
+
 async function parseTerminalResponse<Result>(
   url: string,
   schema: ZodType<Result>,
@@ -118,7 +125,11 @@ async function parseTerminalResponse<Result>(
 ): Promise<Result> {
   const response = await runtimeFetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Compozy-Client-ID": clientID,
+      ...init?.headers,
+    },
   });
   const body = await readBody(response);
   if (!response.ok) {
@@ -211,7 +222,7 @@ export async function createTerminal(
     {
       method: "POST",
       body: JSON.stringify({ ...input, client_id: viewer.id }),
-      headers: { "X-Compozy-Client-Token": viewer.attachmentToken },
+      headers: terminalViewerHeaders(viewer),
       signal,
     }
   );
@@ -258,7 +269,7 @@ export async function mintTerminalAttachTicket(
     {
       method: "POST",
       body: JSON.stringify({ mode, ...(viewer ? { client_id: viewer.id } : {}) }),
-      headers: viewer ? { "X-Compozy-Client-Token": viewer.attachmentToken } : undefined,
+      headers: viewer ? terminalViewerHeaders(viewer) : undefined,
       signal,
     }
   );
@@ -432,7 +443,11 @@ export async function fetchTerminalRecording(
     `${workspaceRoot(workspaceId)}/recordings/${encodeURIComponent(recordingId)}`,
     terminalScopeQuery({ profile: scope.profile })
   );
-  const response = await runtimeFetch(url, { method: "GET", signal });
+  const response = await runtimeFetch(url, {
+    method: "GET",
+    signal,
+    headers: { "X-Compozy-Client-ID": clientID },
+  });
   if (!response.ok) {
     const body = await readBody(response);
     throw terminalResponseError(response, body);

@@ -22,6 +22,102 @@ import (
 func TestTerminalBrowserIdentityShouldBindAuthorizedClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	// Invariant: create and attach verify the exact registration partition and never accept stale proof.
+	for _, operation := range []string{"create", "attach"} {
+		for _, partition := range []string{"global", "user", "workspace-a"} {
+			t.Run(
+				"Should authorize "+operation+" from "+partition+" and refuse mismatched or stale tokens",
+				func(t *testing.T) {
+					t.Parallel()
+					wm, err := windowmanager.NewService(
+						windowmanager.NewMemoryRepository(),
+						windowmanager.NewMemoryWorkspaceResolver(
+							"workspace-a",
+							"global",
+							"user",
+						),
+						nil,
+						windowmanager.DefaultConfig(),
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					t.Cleanup(func() {
+						if err := wm.Close(); err != nil {
+							t.Errorf("close manager: %v", err)
+						}
+					})
+					registration := windowmanager.ClientRegistration{
+						WorkspaceID: windowmanager.WorkspaceID(partition),
+						ClientID:    "client:web",
+						Kind:        windowmanager.ClientKindBrowser,
+					}
+					client, err := wm.RegisterClient(t.Context(), registration)
+					if err != nil {
+						t.Fatal(err)
+					}
+					terminalManager := &terminalOpenManagerStub{terminalManagerStub: terminalManagerStub{
+						info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID},
+					}}
+					handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "httpapi",
+						Terminal:      &terminalProviderStub{Manager: terminalManager},
+						WindowManager: &terminalWindowManagerProviderStub{service: wm}})
+					router := gin.New()
+					router.POST("/api/workspaces/:workspace_id/terminals", handlers.CreateTerminal)
+					router.POST(
+						"/api/workspaces/:workspace_id/terminals/:id/attach-ticket",
+						handlers.MintTerminalAttachTicket,
+					)
+					request := func(source, token string) *httptest.ResponseRecorder {
+						t.Helper()
+						url, body := "/api/workspaces/workspace-a/terminals?profile=default", `{"client_id":"client:web"}`
+						if operation == "attach" {
+							url, body = "/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default", `{"client_id":"client:web","mode":"read"}`
+						}
+						req := httptest.NewRequestWithContext(
+							t.Context(),
+							http.MethodPost,
+							url,
+							strings.NewReader(body),
+						)
+						req.Header.Set("Content-Type", "application/json")
+						req.Header.Set(terminalClientAttachmentHeader, token)
+						req.Header.Set(terminalClientWorkspaceHeader, source)
+						response := httptest.NewRecorder()
+						router.ServeHTTP(response, req)
+						return response
+					}
+					accepted := request(partition, client.AttachmentToken)
+					if accepted.Code != http.StatusCreated ||
+						!strings.Contains(
+							accepted.Body.String(),
+							map[string]string{"create": `"term-a"`, "attach": `"ticket"`}[operation],
+						) {
+						t.Fatalf("authorized response: %d %s", accepted.Code, accepted.Body.String())
+					}
+					wrongPartition := "global"
+					if partition == "global" {
+						wrongPartition = "workspace-a"
+					}
+					for _, denied := range []*httptest.ResponseRecorder{request(wrongPartition, client.AttachmentToken), request(partition, "forged")} {
+						if denied.Code != http.StatusForbidden ||
+							!strings.Contains(denied.Body.String(), `"code":"forbidden"`) {
+							t.Fatalf("mismatched response: %d %s", denied.Code, denied.Body.String())
+						}
+					}
+					if _, err := wm.RegisterClient(t.Context(), registration); err != nil {
+						t.Fatal(err)
+					}
+					stale := request(partition, client.AttachmentToken)
+					if stale.Code != http.StatusForbidden ||
+						!strings.Contains(stale.Body.String(), `"code":"forbidden"`) {
+						t.Fatalf("stale response: %d %s", stale.Code, stale.Body.String())
+					}
+				},
+			)
+		}
+	}
+
 	t.Run("Should create a terminal under the authorized browser identity", func(t *testing.T) {
 		t.Parallel()
 		windowManager := &terminalWindowManagerServiceStub{}
