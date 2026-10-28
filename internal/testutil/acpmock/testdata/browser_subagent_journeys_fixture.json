@@ -375,6 +375,13 @@
                         {
                             "kind": "driver_control",
                             "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"Nested inspection confirmed the project notes.\"},\"_meta\":{\"claudeCode\":{\"parentToolUseId\":\"toolu_read\"}}}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
                                 "action": "delay",
                                 "delay_ms": 6000
                             }

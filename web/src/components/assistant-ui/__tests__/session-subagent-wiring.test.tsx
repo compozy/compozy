@@ -913,3 +913,96 @@ it("Should resolve nested native activity rows from the parent roster", () => {
     { newWindow: false }
   );
 });
+
+// Invariant: native activity includes deep descendants but never sibling or cyclic branches.
+// Owner/canonical suite: session drawer wiring, rendered through the actual timeline.
+it("Should include deep native descendants and exclude unrelated activity", () => {
+  const attributed = (parentToolCallId: string) => ({ compozy: { parentToolCallId } });
+  const messages: ThreadMessageLike[] = [
+    {
+      role: "assistant",
+      content: [
+        {
+          type: "data",
+          name: "compozy-subagent",
+          data: {
+            subagent_id: "root",
+            tool_call_id: "root-call",
+            origin: "provider_native",
+          },
+        },
+        {
+          type: "tool-call",
+          toolCallId: "child-call",
+          toolName: "Read",
+          args: {},
+          result: "Child result",
+          providerMetadata: attributed("root-call"),
+        },
+        {
+          type: "tool-call",
+          toolCallId: "deep-call",
+          toolName: "Read",
+          args: {},
+          result: "Deep result",
+          providerMetadata: attributed("child-call"),
+        },
+        {
+          type: "text",
+          text: "Deep inspection completed",
+          providerMetadata: attributed("deep-call"),
+        },
+        {
+          type: "text",
+          text: "Sibling private activity",
+          providerMetadata: attributed("sibling-call"),
+        },
+        {
+          type: "tool-call",
+          toolCallId: "cycle-call",
+          toolName: "Read",
+          args: {},
+          result: "Cycle result",
+          providerMetadata: attributed("cycle-call"),
+        },
+        {
+          type: "text",
+          text: "Cyclic unrelated activity",
+          providerMetadata: attributed("cycle-call"),
+        },
+      ],
+    },
+  ];
+  function Activity() {
+    const runtime = useExternalStoreRuntime({
+      messages,
+      convertMessage: message => message,
+      isRunning: false,
+      onNew: async () => {},
+    });
+    return (
+      <AssistantRuntimeProvider runtime={runtime}>
+        <SessionTranscriptThreadProvider
+          messages={messages.map((message, index) =>
+            fromThreadMessageLike(message, `activity-${index}`, {
+              type: "complete",
+              reason: "stop",
+            })
+          )}
+          status="success"
+          error={null}
+          retry={() => {}}
+        >
+          <SessionNativeSubagentActivity
+            workspaceId={WORKSPACE_ID}
+            subagent={view("root", { origin: "provider_native", child_session_id: null })}
+          />
+        </SessionTranscriptThreadProvider>
+      </AssistantRuntimeProvider>
+    );
+  }
+  render(<Activity />, { wrapper: harness([]) });
+  expect(screen.getByText("Deep inspection completed")).toBeVisible();
+  expect(screen.queryByText("Sibling private activity")).not.toBeInTheDocument();
+  expect(screen.queryByText("Cyclic unrelated activity")).not.toBeInTheDocument();
+});

@@ -465,6 +465,7 @@ test("E2E-006: native sidebar and transcript cards open live activity without a 
 });
 
 async function openNativeResult(drawer: Locator) {
+  await expect(drawer).toContainText("Nested inspection confirmed the project notes.");
   await drawer.getByRole("button", { name: /^Ran agent/ }).click();
   await expect(
     drawer.getByTestId("detail-payload").getByText("No issues found.", { exact: true })

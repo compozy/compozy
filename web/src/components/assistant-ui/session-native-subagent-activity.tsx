@@ -61,13 +61,33 @@ function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) 
   const call = parts.find(part => part.kind === "tool" && part.toolCallId === toolId);
   const prompt =
     call?.kind === "tool" && typeof call.args.prompt === "string" ? call.args.prompt : null;
+  const parents = new Map(
+    parts.flatMap(part =>
+      part.kind === "tool" ? [[part.toolCallId, part.parentToolCallId] as const] : []
+    )
+  );
   const activity = toolId
     ? parts.filter(
         part =>
-          part.parentToolCallId === toolId || (part.kind === "tool" && part.toolCallId === toolId)
+          (part.kind === "tool" && part.toolCallId === toolId) ||
+          descendsFrom(part.parentToolCallId, toolId, parents)
       )
     : [];
   return { prompt, activity, hasInvocation: call !== undefined };
+}
+
+function descendsFrom(
+  parent: string | undefined,
+  ancestor: string,
+  parents: ReadonlyMap<string, string | undefined>
+): boolean {
+  const seen = new Set<string>();
+  while (parent && !seen.has(parent)) {
+    if (parent === ancestor) return true;
+    seen.add(parent);
+    parent = parents.get(parent);
+  }
+  return false;
 }
 
 function NativeOutcome({ subagent }: { subagent: SubagentView }) {

@@ -37,6 +37,7 @@ function DrawerExample({ inlineBreakpoint }: { inlineBreakpoint?: number }) {
 export const Responsive: Story = { render: () => <DrawerExample /> };
 
 export const Inline: Story = {
+  tags: ["play-fn"],
   render: () => <DrawerExample inlineBreakpoint={0} />,
   play: async ({ canvasElement }) => {
     const separator = await within(canvasElement).findByRole("separator", {
