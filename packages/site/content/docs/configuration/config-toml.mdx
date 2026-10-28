@@ -424,7 +424,8 @@ max_bytes = 1073741824
 max_age = "720h"
 
 [tools.hosted_mcp]
-# Non-secret launch correlation nonce lifetime before UDS peer binding.
+# Non-secret launch correlation nonce lifetime before UDS peer binding,
+# and the post-release window for one replacement proxy bind.
 bind_nonce_ttl_seconds = 30
 
 [tools.clarify]
@@ -1558,9 +1559,9 @@ snapshots these settings at boot; config changes require a restart.
 
 ## `[tools.hosted_mcp]`
 
-| Field                    | Type    | Default | Valid values               | Description                                                                |
-| ------------------------ | ------- | ------- | -------------------------- | -------------------------------------------------------------------------- |
-| `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding. |
+| Field                    | Type    | Default | Valid values               | Description                                                                                                                                    |
+| ------------------------ | ------- | ------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bind_nonce_ttl_seconds` | integer | `30`    | `1` through `300` seconds. | Lifetime for the non-secret hosted MCP bind nonce before UDS peer binding, and the post-release window that admits one replacement proxy bind. |
 
 ## `[tools.clarify]`
 

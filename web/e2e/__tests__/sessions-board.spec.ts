@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
+import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { sessionWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { seedSessionsBoard } from "../fixtures/sessions-board";
@@ -117,7 +118,7 @@ async function createLiveSession(runtime: BrowserRuntime, workspaceId: string, n
 
 async function openBoardPage(page: Page, runtime: BrowserRuntime, sessionId: string) {
   const workspace = await resolveWorkspace(runtime);
-  await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await reloadDaemonServedPage(page, runtime, "/", { readyTestId: "os-desktop" });
   await ensureProjectWorkspace(page, runtime);
   await openSessionWindow(runtime, workspace.id, sessionId);
   // The window surface holds both its head (topbar) and its body.

@@ -435,6 +435,12 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     const agyRow = appPage.locator(`[data-provider="agy"][data-model="${agyModel}"]`);
     await expect(agyRow).toBeVisible({ timeout: 30_000 });
     await agyRow.click();
+    const reasoningStrip = appPage.getByTestId("runtime-selector-reasoning");
+    await expect(reasoningStrip).toHaveAttribute("data-reasoning-mode", "levels");
+    const reasoningSlider = reasoningStrip.getByRole("slider");
+    await expect(reasoningSlider).toBeEnabled();
+    await reasoningSlider.press("Home");
+    await expect(reasoningSlider).toHaveAttribute("aria-valuetext", "Low");
     await appPage.keyboard.press("Escape");
     await expect(appPage.getByTestId("runtime-selector-popup")).toBeHidden();
 
@@ -445,10 +451,19 @@ test("operator selects an exact AGY catalog model and keeps agy session attribut
     await sessionUi.composerTextarea.press("Enter");
     expect((await promptRequestPromise).postDataJSON()).toMatchObject({
       message: SESSION_CREATE_FIRST_MESSAGE,
-      runtime: { model: agyModel, provider: "agy" },
+      runtime: { model: agyModel, provider: "agy", reasoning_effort: "low" },
     });
 
     await waitForSeedSessionActive(runtime, createdSession.session.id);
+    await expect
+      .poll(async () => {
+        const rehydrated = await runtime.requestJSON<SessionEnvelope>(
+          sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id)
+        );
+        return rehydrated.session.runtime.effective;
+      })
+      .toMatchObject({ provider: "agy", model: agyModel, reasoning_effort: "low" });
+    await expect(runtimeTrigger).toContainText("QA Browser Model Alt");
     await expect(
       sessionWin.getByTestId(`session-provider-mark-${createdSession.session.id}`)
     ).toHaveAttribute("data-kind", "agy");

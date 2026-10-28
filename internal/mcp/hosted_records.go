@@ -18,7 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// bindLaunch consumes one armed launch nonce and gives the resulting binding its own digest memo.
+// bindLaunch consumes one armed bind window and gives the resulting binding its own digest memo.
 func (s *HostedService) bindLaunch(
 	sessionID string,
 	nonce string,

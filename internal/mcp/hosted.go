@@ -220,7 +220,7 @@ func NewHostedService(cfg *HostedConfig) (*HostedService, error) {
 	}, nil
 }
 
-// Launch mints a session-bound, single-use hosted MCP launch record.
+// Launch mints a session-bound hosted MCP launch record that admits at most one active bind.
 func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (compozyconfig.MCPServer, error) {
 	if err := ctxErr(ctx); err != nil {
 		return compozyconfig.MCPServer{}, err

@@ -117,6 +117,31 @@ Owner: branch `perf/session-responsiveness`; measured evidence and remaining wor
   scenarios record the projection follow-up; the profile-switcher scenario records immediate
   reload persistence. Complete delivery gates are tracked on PR #983.
 
+## Hosted MCP proxy reconnect after a model switch — 2026-10-19
+
+Owner: session `sess-dcba53bda9072a50` nonce-invalid incident. Releasing the authenticated current
+proxy rearms its existing launch for one replacement proxy within `tools.hosted_mcp.bind_nonce_ttl_seconds`.
+Concurrent binds still fail closed; a stale release cannot reopen or extend the current window, and
+session stop or a new launch invalidates the previous credential. Peer/binary checks, workspace/profile
+scope, active-run identity and tool authorization remain unchanged. No persisted shape, migration,
+public DTO, CLI flag, native tool ID, hook, extension SDK or config key changes. Web and site need no
+production changes; the official `skills/compozy/` operating contract is unchanged. Regression owner:
+`TestHostedServiceBindNonceLifecycle`; QA owners: `RT-agy-acp-provider` model-switch slice and `ET-048`
+proxy-reconnect slice. The isolated real Agy 1.4.1 walk exercises Flash → Argon → Flash with successful
+workspace reads and an unchanged ACP session ID. The operator chose code-only delivery: the live
+daemon and original session are not restarted or modified.
+
+## Agy session reasoning selector — 2026-10-19
+
+Owner: session model-picker reasoning regression. The built-in `agy` now enables the existing
+`acp_option` strategy, so model-specific `thinking_level` values survive catalog projection and reach
+the shared reasoning slider. Explicit `models.reasoning.apply = "none"` overrides still win; no model
+IDs or effort levels are invented. Native provider/model/session tools and CLI/HTTP/UDS reuse their
+existing contracts. Hooks, extension SDKs, config keys, persisted shapes, and workspace/profile
+isolation are unchanged; no migration or compatibility adapter is needed. Web needs no production
+change. The provider site guide co-ships; official `skills/compozy/` already documents thought-level
+selection and requires no contract change. Regression owners: the daemon Agy catalog/context suite
+and the existing AGY picker-to-prompt browser case; QA owner: `RT-agy-acp-provider` reasoning slice.
 
 ## Authored inline code whitespace review repair — 2026-10-24
 
