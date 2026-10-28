@@ -936,9 +936,9 @@ describe("useSessionCatalogStreams", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it.each([{ worktree_id: "wt_new" }, { workspace_path: "/workspace/new-root" }])(
-    "Should refresh mounted files only when the catalog changes the checkout (%j)",
-    async location => {
+  it.each(["catalog-first", "completed-read", "pending-read", "same-root"])(
+    "Should refresh mounted files only for a location transition (%s)",
+    async ordering => {
       // Invariant: externally changed CWD reaches the open mention picker without
       // navigation, while other session/workspace file caches remain untouched.
       // Owner: session catalog reconciliation; canonical stream suite.
@@ -984,14 +984,43 @@ describe("useSessionCatalogStreams", () => {
         ).toBe(0)
       );
       expect(readFiles).not.toHaveBeenCalled();
-      vi.mocked(fetchSession).mockResolvedValue({ ...sessionWithState("active"), ...location });
+      const after = {
+        ...sessionWithState("active"),
+        ...(ordering === "same-root" ? {} : { worktree_id: "wt_new" }),
+      };
+      const detailKey = sessionKeys.detail(WORKSPACE_ID, SESSION_ID);
+      vi.mocked(fetchSession).mockResolvedValue(after);
+      if (ordering === "completed-read") {
+        await act(() => queryClient.refetchQueries({ queryKey: detailKey, exact: true }));
+      }
+      let finishRead: ((value: SessionPayload) => void) | undefined;
+      let pendingRead: Promise<void> | undefined;
+      if (ordering === "pending-read") {
+        vi.mocked(fetchSession).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              finishRead = resolve;
+            })
+        );
+        pendingRead = queryClient.refetchQueries({ queryKey: detailKey, exact: true });
+        await waitFor(() => expect(finishRead).toBeDefined());
+      }
       act(() => {
+        // An ordinary upsert must not erase the following transition while a read settles.
         sources[0]?.emit("session_catalog_changed", {
           kind: "upserted",
           workspace_id: WORKSPACE_ID,
           session_id: SESSION_ID,
         });
+        sources[0]?.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          session_id: SESSION_ID,
+          execution_location_changed: true,
+        });
+        finishRead?.(after);
       });
+      await pendingRead;
       await waitFor(() => expect(result.current.data).toEqual(["checkout.txt"]));
       expect(readFiles).toHaveBeenCalledTimes(1);
       expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false);

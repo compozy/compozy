@@ -23,5 +23,11 @@ func (m *Manager) notifyWorktreeBindingChanged(ctx context.Context, info *Info, 
 	for _, notify := range callbacks {
 		notify(ctx, info, previous)
 	}
-	m.PublishSessionCatalogChanged(ctx, info.ID)
+	current, err := m.Status(ctx, info.ID)
+	if err != nil || current == nil {
+		return
+	}
+	event := sessionCatalogEventFromInfo(CatalogEventUpserted, current)
+	event.ExecutionLocationChanged = true
+	m.publishSessionCatalogEvent(event)
 }

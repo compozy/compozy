@@ -53,9 +53,25 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
 				defer cancel()
 				h.manager.sessionCatalog = cancelBindingCatalog{GlobalDB: fixture.database, cancel: cancel}
+				catalogEvents, closeCatalog, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+					ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer closeCatalog()
 				changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
 				if err != nil {
 					t.Fatal(err)
+				}
+				// The explicit wake must survive independent detail reads in clients.
+				for found := false; !found; {
+					select {
+					case event := <-catalogEvents:
+						found = event.ExecutionLocationChanged && event.SessionID == created.ID
+					default:
+						t.Fatal("accepted binding did not publish its location transition")
+					}
 				}
 				meta, err := store.ReadSessionMeta(created.MetaPath())
 				if err != nil {

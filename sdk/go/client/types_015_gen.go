@@ -309,11 +309,12 @@ type SessionBoardCountsPayload struct {
 
 // SessionCatalogEventPayload is a daemon API value.
 type SessionCatalogEventPayload struct {
-	Kind        string `json:"kind"`
-	ProfileID   string `json:"profile_id"`
-	ProfileName string `json:"profile_name"`
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
+	ExecutionLocationChanged bool   `json:"execution_location_changed,omitempty"`
+	Kind                     string `json:"kind"`
+	ProfileID                string `json:"profile_id"`
+	ProfileName              string `json:"profile_name"`
+	WorkspaceID              string `json:"workspace_id"`
+	SessionID                string `json:"session_id"`
 }
 
 // SessionCatalogFacetsPayload is a daemon API value.

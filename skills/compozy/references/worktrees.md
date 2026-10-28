@@ -293,6 +293,10 @@ HTTP/UDS: `PUT /api/workspaces/{ws}/sessions/{id}/worktree` accepts
 `?expected_worktree_id=`. Both return 200 with the same `SessionResponse`; app-token access is denied.
 
 Web offers Use worktree…, Change worktree…, and Use workspace root in the environment control.
+The existing `session_catalog_changed` upsert carries optional `execution_location_changed: true`
+after a binding transition. File-picker clients must invalidate their session-scoped results even
+if independent detail polling already observed the new binding; ordinary upserts do not imply a cwd change.
+
 New worktree… composes materialization before explicit binding. Branch/PR/board/status/delivery
 projections update without navigation. `/worktree`, `/worktree-fork`, and conversation forks retain
 their existing new-session behavior. Confirm `worktree_id` through

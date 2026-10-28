@@ -4464,6 +4464,10 @@ func addSessionWorktreeBindingSchemas(value any) int {
 			count += addSessionWorktreeBindingSchemas(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["kind"] != nil && properties["session_id"] != nil && properties["profile_name"] != nil {
+			properties["execution_location_changed"] = map[string]any{"type": "boolean"}
+			count++
+		}
 		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
 			properties["id"] == nil {
 			return count

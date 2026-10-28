@@ -13257,6 +13257,7 @@ export interface components {
       working: number;
     };
     SessionCatalogEventPayload: {
+      execution_location_changed?: boolean;
       kind: string;
       profile_id: string;
       profile_name: string;

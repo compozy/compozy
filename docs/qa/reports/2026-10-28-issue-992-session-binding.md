@@ -53,7 +53,7 @@ The isolated lab teardown completed with `TEARDOWN_ALL_CLEAN=true`; only registe
 
 - The session integration suite reproduced caller cancellation stranding a pending journal in both active and stopped paths. A detached, bounded lifecycle context now completes admitted transitions; both cases pass and the next prompt proceeds.
 - The stopped-path notification test reproduced a subscriber being refused while the conversation lock remained held. Publication now uses the same post-release path as active sessions; the regression passes.
-- Catalog stream tests cover both a changed worktree ID and a changed workspace root, while proving an ordinary upsert does not restart file search. The two affected Web suites passed 31 tests.
+- Catalog stream tests initially covered location comparison, but review identified a polling race. Binding now emits optional `execution_location_changed` on the existing catalog upsert. Clients retain that signal across coalesced reads, cancel old-directory searches and refetch only for location transitions. The regression cases include polling before the event, an in-flight read, and a root-only CWD change with unchanged session detail.
 - API tests assert distinct busy/stale error codes despite their shared HTTP 409 status. The CI native inventory failure was fixed by adding presentation entries for both new tools, preserving the exact inventory check.
 
 ## Final Status

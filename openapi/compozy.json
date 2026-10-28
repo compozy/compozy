@@ -22507,6 +22507,9 @@
       },
       "SessionCatalogEventPayload": {
         "properties": {
+          "execution_location_changed": {
+            "type": "boolean"
+          },
           "kind": {
             "type": "string"
           },
