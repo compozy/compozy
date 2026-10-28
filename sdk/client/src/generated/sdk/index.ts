@@ -2963,6 +2963,7 @@ export type {
   SettingsRoleFallbackPayload,
   SettingsRolesConfigPayload,
   SettingsRolesResponse,
+  SettingsShellAppearancePayload,
   SettingsShellLegacyScopePayload,
   SettingsShellMutationResponse,
   SettingsShellPayload,

@@ -206,16 +206,83 @@ export function useUpdateSettingsAutomation() {
 export function useUpdateSettingsShell() {
   const queryClient = useQueryClient();
 
+  const key = settingsKeys.section("shell");
+
+  // Optimistic: an Appearance font repaints the whole client at once. Omitted
+  // keys are preserved by the daemon, so the cache merges the patch the same way.
   return useMutation({
+    networkMode: "always",
+    // One queue: the daemon serializes writes but not their order, so two quick
+    // choices must reach it in selection order or the older one could persist.
+    scope: { id: "settings-shell" },
     mutationFn: (body: SettingsUpdateShellRequest) => updateSettingsShell(body),
-    onSuccess: (result, variables) => {
-      recordSettingsMutation(result);
-      queryClient.setQueryData<SettingsShellSection>(settingsKeys.section("shell"), previous =>
-        previous ? { ...previous, config: variables.config } : previous
+    onMutate: async variables => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<SettingsShellSection>(key);
+      queryClient.setQueryData<SettingsShellSection>(key, current =>
+        current
+          ? { ...current, config: mergeShellConfig(current.config, variables.config) }
+          : current
+      );
+      return { previous };
+    },
+    onError: (_error, variables, context) => {
+      const previous = context?.previous;
+      if (!previous) return;
+      queryClient.setQueryData<SettingsShellSection>(key, current =>
+        current
+          ? {
+              ...current,
+              config: revertShellPatch(current.config, previous.config, variables.config),
+            }
+          : current
       );
     },
-    onSettled: () => invalidateSection(queryClient, "shell"),
+    onSuccess: result => recordSettingsMutation(result),
+    // Not awaited: a caller's error feedback must not wait on the reread, which
+    // retries with backoff while the daemon is unreachable.
+    onSettled: () => {
+      void invalidateSection(queryClient, "shell");
+    },
   });
+}
+
+type ShellConfigSection = "sessions" | "appearance";
+
+/**
+ * Undoes only the keys this patch wrote, and only where the cache still holds
+ * its optimistic value. Restoring the whole snapshot would also revert (or
+ * resurrect) a concurrent change to another key: two overlapping saves that
+ * both fail must leave neither choice behind.
+ */
+function revertShellPatch(
+  current: SettingsShellSection["config"],
+  previous: SettingsShellSection["config"],
+  patch: SettingsUpdateShellRequest["config"]
+): SettingsShellSection["config"] {
+  const next = { ...current };
+  for (const section of ["sessions", "appearance"] as const satisfies ShellConfigSection[]) {
+    const written = Object.entries(patch[section] ?? {});
+    if (written.length === 0) continue;
+    const values: Record<string, unknown> = { ...current[section] };
+    const before: Record<string, unknown> = { ...previous[section] };
+    for (const [field, value] of written) {
+      if (value !== undefined && values[field] === value) values[field] = before[field];
+    }
+    Object.assign(next, { [section]: values });
+  }
+  return next;
+}
+
+function mergeShellConfig(
+  current: SettingsShellSection["config"],
+  patch: SettingsUpdateShellRequest["config"]
+): SettingsShellSection["config"] {
+  return {
+    ...current,
+    sessions: { ...current.sessions, ...patch.sessions },
+    appearance: { ...current.appearance, ...patch.appearance },
+  };
 }
 
 export function useUpdateSettingsObservability() {

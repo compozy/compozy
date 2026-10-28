@@ -26,9 +26,18 @@ type SettingsShellSessionsPayload struct {
 	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
 }
 
+// SettingsShellAppearancePayload carries shell font family preferences.
+// On update, an omitted field preserves the stored family and "" resets it to the default.
+// Responses always populate both fields.
+type SettingsShellAppearancePayload struct {
+	UIFont   *string `json:"ui_font,omitempty"`
+	MonoFont *string `json:"mono_font,omitempty"`
+}
+
 // SettingsShellPayload is the stable operator shell settings contract.
 type SettingsShellPayload struct {
-	Sessions SettingsShellSessionsPayload `json:"sessions"`
+	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
+	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
 }
 
 // UpdateSettingsShellRequest updates supplied shell preferences and preserves omitted fields.

@@ -1504,6 +1504,87 @@ func TestUpdateSectionShell(t *testing.T) {
 			t.Fatalf("config changed after validation failure\nbefore:\n%s\nafter:\n%s", before, after)
 		}
 	})
+
+	t.Run("Should write, preserve and reset shell fonts independently", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		update := func(groupBy compozyconfig.ShellSessionGroupBy, appearance compozyconfig.ShellAppearanceConfig) {
+			t.Helper()
+			desired := compozyconfig.ShellConfig{
+				Sessions:   compozyconfig.ShellSessionsConfig{GroupBy: groupBy},
+				Appearance: appearance,
+			}
+			result, err := service.UpdateSection(ctx, SectionUpdateRequest{Section: SectionShell, Shell: &desired})
+			if err != nil {
+				t.Fatalf("UpdateSection(shell fonts) error = %v", err)
+			}
+			if result.Behavior != MutationBehaviorAppliedNow || result.RestartRequired {
+				t.Fatalf("shell fonts result = %#v, want live applied mutation", result)
+			}
+		}
+		loadAppearance := func() compozyconfig.ShellConfig {
+			t.Helper()
+			loaded, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome() error = %v", err)
+			}
+			return loaded.Shell
+		}
+
+		update(compozyconfig.ShellSessionGroupByProfile, compozyconfig.ShellAppearanceConfig{
+			UIFont: "Inter", UIFontExplicit: true,
+			MonoFont: "JetBrains Mono", MonoFontExplicit: true,
+		})
+		update("", compozyconfig.ShellAppearanceConfig{MonoFont: "Fira Code", MonoFontExplicit: true})
+		shell := loadAppearance()
+		if shell.Appearance.UIFont != "Inter" || shell.Appearance.MonoFont != "Fira Code" ||
+			shell.Sessions.GroupBy != compozyconfig.ShellSessionGroupByProfile {
+			t.Fatalf("Shell after partial font write = %#v, want Inter/Fira Code with profile grouping", shell)
+		}
+
+		update("", compozyconfig.ShellAppearanceConfig{UIFontExplicit: true})
+		shell = loadAppearance()
+		if shell.Appearance.UIFont != "" || shell.Appearance.MonoFont != "Fira Code" {
+			t.Fatalf("Shell after ui_font reset = %#v, want default ui font and Fira Code", shell.Appearance)
+		}
+		contents := readFile(t, homePaths.ConfigFile)
+		if strings.Contains(contents, "ui_font") || !strings.Contains(contents, `mono_font = "Fira Code"`) {
+			t.Fatalf("config after ui_font reset should delete only ui_font:\n%s", contents)
+		}
+
+		// A hand-written empty key is still a stored key: resetting it deletes it.
+		writeFile(t, homePaths.ConfigFile, strings.Replace(contents,
+			`mono_font = "Fira Code"`, "mono_font = \"Fira Code\"\nui_font = \"\"", 1))
+		update("", compozyconfig.ShellAppearanceConfig{UIFontExplicit: true})
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "ui_font") {
+			t.Fatalf("config after resetting an explicit empty ui_font should delete the key:\n%s", contents)
+		}
+	})
+
+	t.Run("Should reject an unsafe shell font without changing config", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		invalid := compozyconfig.ShellConfig{Appearance: compozyconfig.ShellAppearanceConfig{
+			UIFont: "Inter;color:red", UIFontExplicit: true,
+		}}
+
+		_, err := service.UpdateSection(t.Context(), SectionUpdateRequest{Section: SectionShell, Shell: &invalid})
+		validationErr, matched := errors.AsType[compozyconfig.ValidationError](err)
+		if !matched || validationErr.Path != "shell.appearance.ui_font" {
+			t.Fatalf("UpdateSection(unsafe font) error = %v, want shell.appearance.ui_font validation error", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after font validation failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
 }
 
 func TestUpdateSectionGeneralMemoryReportIntervalRequiresRestart(t *testing.T) {

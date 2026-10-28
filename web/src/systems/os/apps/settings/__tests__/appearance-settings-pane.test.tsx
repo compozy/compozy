@@ -1,19 +1,38 @@
 // Suite: Appearance settings pane
 // Invariant: the pane binds the browser theme preference (light/dark/system) to the theme runtime,
 // wallpaper/reduce-motion to the OS controller with APG radio-group semantics, and states the
-// system reduced-motion precedence truthfully (US-015.EC-1).
-import { cleanup, render, screen } from "@testing-library/react";
+// system reduced-motion precedence truthfully (US-015.EC-1). The Interface and Code fonts (#984)
+// are daemon-wide: a choice PATCHes only its own `shell.appearance` key, reset sends "", and the
+// installed-font list (Local Font Access) offers only monospace families to the Code picker. A
+// rejected save says why instead of silently reverting, the local daemon is read and written even
+// while the browser reports offline, saves reach the daemon in selection
+// order, and overlapping rejected saves leave neither choice behind. A bundled face is published
+// only after its lazy stylesheet loaded.
+// Owning layer: the pane; the daemon's shell settings route and queryLocalFonts are mocked I/O.
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient } from "@tanstack/react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OsShellContext, type OsShellHandle } from "../../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../../lib/routing-coordinator";
-import { THEME_STORAGE_KEY, themePreferenceStore } from "@/systems/theme";
+import { FontAppearanceSync, THEME_STORAGE_KEY, themePreferenceStore } from "@/systems/theme";
 import { AppearanceSettingsPane } from "../appearance-settings-pane";
 
 const managers: WindowManagerRuntime[] = [];
+
+/** Holds the bundled-face stylesheet load open when a test sets `gate`. */
+const fontLoads = vi.hoisted(() => ({ gate: null as Promise<void> | null }));
+vi.mock("@/systems/theme/lib/font-appearance", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/theme/lib/font-appearance")>();
+  return {
+    ...actual,
+    loadBundledFonts: (...args: Parameters<typeof actual.loadBundledFonts>) =>
+      fontLoads.gate ?? actual.loadBundledFonts(...args),
+  };
+});
 
 vi.mock("@/systems/settings", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/settings")>()),
@@ -31,6 +50,45 @@ function matchMediaStub(matches: boolean) {
   }));
 }
 
+const daemon: { appearance: { ui_font: string; mono_font: string } } = {
+  appearance: { ui_font: "", mono_font: "" },
+};
+
+function json(body: unknown) {
+  return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+}
+
+let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+
+async function shellWrites() {
+  const bodies: unknown[] = [];
+  for (const [input] of fetcher.mock.calls) {
+    const request = input as Request;
+    if (request.method === "PATCH") bodies.push(await request.clone().json());
+  }
+  return bodies;
+}
+
+/** Families report equal `i`/`W` widths only when their name says Mono. */
+function stubInstalledFonts(families: string[]) {
+  vi.stubGlobal(
+    "queryLocalFonts",
+    vi.fn(async () => families.map(family => ({ family })))
+  );
+  let font = "";
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    set font(value: string) {
+      font = value;
+    },
+    get font() {
+      return font;
+    },
+    measureText: (text: string) => ({
+      width: /Mono/.test(font) ? text.length * 10 : text.length * (text.startsWith("i") ? 4 : 12),
+    }),
+  } as unknown as CanvasRenderingContext2D);
+}
+
 function renderPane({ systemReducedMotion = false } = {}) {
   vi.stubGlobal("matchMedia", matchMediaStub(systemReducedMotion));
   const manager = new WindowManagerRuntime(new QueryClient());
@@ -41,16 +99,42 @@ function renderPane({ systemReducedMotion = false } = {}) {
     manager,
     coordinator: new RoutingCoordinator(manager, port),
   };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <OsShellContext.Provider value={shell}>
-      <AppearanceSettingsPane />
-    </OsShellContext.Provider>
+    <QueryClientProvider client={client}>
+      <OsShellContext.Provider value={shell}>
+        <FontAppearanceSync />
+        <AppearanceSettingsPane />
+      </OsShellContext.Provider>
+    </QueryClientProvider>
   );
   return { manager };
 }
 
 describe("AppearanceSettingsPane", () => {
+  beforeEach(() => {
+    daemon.appearance = { ui_font: "", mono_font: "" };
+    fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const request = input as Request;
+      if (new URL(request.url).pathname !== "/api/settings/shell") {
+        return new Response(null, { status: 404 });
+      }
+      if (request.method === "PATCH") {
+        const body = (await request.clone().json()) as {
+          config: { appearance?: Partial<typeof daemon.appearance> };
+        };
+        Object.assign(daemon.appearance, body.config.appearance);
+        return json({ applied: true });
+      }
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+  });
+
   afterEach(() => {
+    fontLoads.gate = null;
+    document.documentElement.style.removeProperty("--user-font-sans");
+    document.documentElement.style.removeProperty("--user-font-mono");
+    vi.restoreAllMocks();
     cleanup();
     for (const manager of managers.splice(0)) manager.destroy();
     themePreferenceStore.trigger.preferenceSet({ preference: "dark" });
@@ -108,5 +192,219 @@ describe("AppearanceSettingsPane", () => {
     expect(
       screen.getByText(/system already prefers reduced motion — that preference wins/i)
     ).toBeInTheDocument();
+  });
+
+  it("Should save a catalog font for every client and reset it to the default", async () => {
+    const user = userEvent.setup();
+    renderPane();
+
+    const trigger = screen.getByTestId("os-appearance-font-sans");
+    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+
+    await waitFor(() => expect(trigger).toHaveTextContent("JetBrains Mono"));
+    // Published only after the lazy face's stylesheet resolved.
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe(
+        '"JetBrains Mono Variable"'
+      )
+    );
+    expect(await shellWrites()).toEqual([
+      { config: { sessions: {}, appearance: { ui_font: "JetBrains Mono Variable" } } },
+    ]);
+
+    await user.click(screen.getByTestId("os-appearance-font-sans-reset"));
+    await waitFor(async () =>
+      expect((await shellWrites()).at(-1)).toEqual({
+        config: { sessions: {}, appearance: { ui_font: "" } },
+      })
+    );
+    await waitFor(() => expect(trigger).toHaveTextContent("Inter"));
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-sans")).toBe("")
+    );
+  });
+
+  it("Should explain a rejected font save and keep the stored font", async () => {
+    const user = userEvent.setup();
+    const toastError = vi.spyOn(toast, "error").mockReturnValue("toast");
+    fetcher.mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "PATCH") {
+        return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+    renderPane();
+
+    const trigger = screen.getByTestId("os-appearance-font-mono");
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(toastError.mock.calls[0]?.[0]).toMatch(/^Couldn't save the Code font/);
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+  });
+
+  it("Should read and save fonts while the browser reports offline", async () => {
+    // The daemon is local: an offline browser flag must not pause either side.
+    onlineManager.setOnline(false);
+    try {
+      const user = userEvent.setup();
+      daemon.appearance.mono_font = "Fira Code";
+      renderPane();
+
+      const trigger = screen.getByTestId("os-appearance-font-mono");
+      await waitFor(() => expect(trigger).toHaveTextContent("Fira Code"));
+      await user.click(trigger);
+      await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+      await waitFor(async () =>
+        expect(await shellWrites()).toEqual([
+          { config: { sessions: {}, appearance: { mono_font: "JetBrains Mono Variable" } } },
+        ])
+      );
+    } finally {
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it(
+    "Should reread fonts that failed to load once the connection returns",
+    { timeout: 15_000 },
+    async () => {
+      let daemonReachable = false;
+      fetcher.mockImplementation(async input => {
+        const request = input as Request;
+        if (!daemonReachable) {
+          return new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+            status: 503,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        if (request.method === "PATCH") return json({ applied: true });
+        return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+      });
+      daemon.appearance.mono_font = "Fira Code";
+      onlineManager.setOnline(false);
+      try {
+        renderPane();
+        // The first read and both settings retries fail; nothing rereads on its
+        // own after that (the 60s poll is far away).
+        await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3), { timeout: 6000 });
+        const trigger = screen.getByTestId("os-appearance-font-mono");
+        expect(trigger).toHaveTextContent("Geist Mono");
+
+        daemonReachable = true;
+        onlineManager.setOnline(true);
+        await waitFor(() => expect(trigger).toHaveTextContent("Fira Code"));
+      } finally {
+        onlineManager.setOnline(true);
+      }
+    }
+  );
+
+  it("Should publish a bundled face only after its stylesheet has loaded", async () => {
+    const user = userEvent.setup();
+    let release = () => {};
+    fontLoads.gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    renderPane();
+
+    const trigger = screen.getByTestId("os-appearance-font-mono");
+    await waitFor(() => expect(trigger).toHaveTextContent("Geist Mono"));
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+    await waitFor(() => expect(trigger).toHaveTextContent("JetBrains Mono"));
+    await waitFor(async () => expect(await shellWrites()).toHaveLength(1));
+
+    // Saved and shown in the picker, but the face has no @font-face yet: an open
+    // terminal reading the variable now would measure the fallback for good.
+    expect(document.documentElement.style.getPropertyValue("--user-font-mono")).toBe("");
+    expect(window.localStorage.getItem("compozy.fonts")).toBeNull();
+
+    release();
+    await waitFor(() =>
+      expect(document.documentElement.style.getPropertyValue("--user-font-mono")).toBe(
+        '"JetBrains Mono Variable"'
+      )
+    );
+  });
+
+  it("Should leave neither choice behind when two overlapping font saves are rejected", async () => {
+    const user = userEvent.setup();
+    const pending: Array<() => void> = [];
+    let daemonDown = false;
+    const unavailable = () =>
+      new Response(JSON.stringify({ error: { message: "daemon unavailable" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    const toastError = vi.spyOn(toast, "error").mockReturnValue("toast");
+    fetcher.mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "PATCH") {
+        await new Promise<void>(resolve => pending.push(resolve));
+        return unavailable();
+      }
+      // Once the daemon is down the rereads fail too, so only the rollback
+      // decides what the cache (and the boot cache) keeps.
+      if (daemonDown) return unavailable();
+      return json({ config: { sessions: {}, appearance: { ...daemon.appearance } } });
+    });
+    renderPane();
+
+    const code = screen.getByTestId("os-appearance-font-mono");
+    const ui = screen.getByTestId("os-appearance-font-sans");
+    await waitFor(() => expect(code).toHaveTextContent("Geist Mono"));
+    await user.click(code);
+    await user.click(await screen.findByRole("option", { name: "JetBrains Mono" }));
+    await user.click(ui);
+    await user.click(await screen.findByRole("option", { name: "System" }));
+    // Both choices paint at once, but the saves reach the daemon in selection
+    // order: the second waits for the first.
+    expect(code).toHaveTextContent("JetBrains Mono");
+    expect(ui).toHaveTextContent("System");
+    await waitFor(() => expect(pending).toHaveLength(1));
+    await act(() => new Promise(resolve => setTimeout(resolve, 50)));
+    expect(pending).toHaveLength(1);
+    daemonDown = true;
+
+    // The first save fails first; the second's snapshot still held its optimism.
+    pending[0]?.();
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(pending).toHaveLength(2));
+    pending[1]?.();
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(2));
+    expect(code).toHaveTextContent("Geist Mono");
+    expect(ui).toHaveTextContent("Inter");
+  });
+
+  it("Should offer installed fonts, and only monospace ones for Code", async () => {
+    const user = userEvent.setup();
+    stubInstalledFonts(["Berkeley Mono", "Helvetica Neue", ".SF NS Private"]);
+    renderPane();
+
+    await user.click(screen.getByTestId("os-appearance-font-mono"));
+    const codeInstalled = await screen.findByRole("group", { name: "Installed" });
+    expect(
+      within(codeInstalled)
+        .getAllByRole("option")
+        .map(option => option.textContent)
+    ).toEqual(["Berkeley Mono"]);
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByTestId("os-appearance-font-sans"));
+    const sansInstalled = await screen.findByRole("group", { name: "Installed" });
+    expect(
+      within(sansInstalled)
+        .getAllByRole("option")
+        .map(option => option.textContent)
+    ).toEqual(["Berkeley Mono", "Helvetica Neue"]);
   });
 });

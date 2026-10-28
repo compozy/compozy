@@ -353,6 +353,12 @@ type SettingsScopeKind string
 // SettingsSectionName is a daemon API value.
 type SettingsSectionName string
 
+// SettingsShellAppearancePayload is a daemon API value.
+type SettingsShellAppearancePayload struct {
+	UIFont   *string `json:"ui_font,omitempty"`
+	MonoFont *string `json:"mono_font,omitempty"`
+}
+
 // SettingsShellLegacyScopePayload is a daemon API value.
 type SettingsShellLegacyScopePayload struct {
 	Value    SettingsShellSessionScope `json:"value"`
@@ -386,7 +392,8 @@ type SettingsShellMutationResponse struct {
 
 // SettingsShellPayload is a daemon API value.
 type SettingsShellPayload struct {
-	Sessions SettingsShellSessionsPayload `json:"sessions"`
+	Sessions   SettingsShellSessionsPayload    `json:"sessions"`
+	Appearance *SettingsShellAppearancePayload `json:"appearance,omitempty"`
 }
 
 // SettingsShellResponse is a daemon API value.

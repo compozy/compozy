@@ -1,5 +1,28 @@
 # Compozy Change Impact
 
+## Appearance fonts (#984) — 2026-10-27
+
+Owner: branch `feat/font-catalog-984`; plan `.claude/plans/font-catalog.md`, research
+`.audits/exploration/20261027-163010-font-touchpoints/analysis/summary.md`.
+
+- **Config and contract:** additive public surface (SD-013), no delete targets or migration.
+  New global, live `[shell.appearance] ui_font` / `mono_font` (one family name, letters/digits/
+  space/`-_.'`, ≤128 chars, `""` = default; invalid → `shell_config_invalid`). `GET/PATCH
+  /api/settings/shell` gains optional `config.appearance` (PATCH: omitted preserves, `""` resets
+  and deletes the key); HTTP and UDS share the route; OpenAPI, TS and Go SDKs regenerated. CLI
+  `compozy config set|unset shell.appearance.*`. Native `compozy__config_*` allow-map unchanged
+  (follows `shell.sessions.group_by`).
+- **Web and desktop:** `--font-sans` / `--font-mono` lead with `--user-font-*`, set inline on
+  `<html>` by `FontAppearanceSync` and replayed pre-paint by `/theme-boot.js`; the desktop boot page
+  strips the override and keeps built-in fonts. Terminals load the new face, refit and re-propose
+  PTY size on a live change. JetBrains Mono is a lazy chunk; the desktop grants `local-fonts` for
+  the installed-font list. Mermaid diagrams and `--font-keys` keep their own fonts.
+- **Isolation:** daemon-wide, not workspace- or profile-scoped; workspace overlays still reject
+  shell keys. **Extensibility/hooks:** none. **Official skill:** `skills/compozy/references/
+  configuration.md`. **Docs:** site `config-toml.mdx`, `COPY.md`; QA
+  `ET-web-appearance-fonts-sync` plus impact notes on `APP-theme-native-no-flash` and
+  `ET-web-font-assets-strict-csp`.
+
 ## Desktop update session continuity — 2026-10-27
 
 Owner: branch `fix/update-session-continuity`; evidence in
