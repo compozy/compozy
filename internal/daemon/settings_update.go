@@ -187,7 +187,7 @@ func newSettingsUpdateController(d *Daemon, manager settingsUpdateManager) setti
 }
 
 func newDaemonUpdateHolder(d *Daemon, surface compozyupdate.Actor) (compozyupdate.Holder, error) {
-	if d == nil || d.pid == nil || d.processStartedAt == nil || d.now == nil {
+	if d == nil || d.pid == nil || d.processStartedAt == nil || d.processToken == nil || d.now == nil {
 		return compozyupdate.Holder{}, errors.New("daemon: update executor identity dependencies are required")
 	}
 	pid := d.pid()
@@ -195,12 +195,16 @@ func newDaemonUpdateHolder(d *Daemon, surface compozyupdate.Actor) (compozyupdat
 	if err != nil {
 		return compozyupdate.Holder{}, fmt.Errorf("daemon: resolve update executor identity: %w", err)
 	}
+	token, err := d.processToken(pid)
+	if err != nil {
+		return compozyupdate.Holder{}, err
+	}
 	generation, err := compozyupdate.NewExecutorGeneration()
 	if err != nil {
 		return compozyupdate.Holder{}, err
 	}
 	return compozyupdate.Holder{
-		PID: pid, PIDStartTime: startedAt, Surface: surface,
+		PID: pid, PIDStartTime: startedAt, ProcessToken: token, Surface: surface,
 		ExecutorGeneration: generation, LeaseExpiresAt: d.now().UTC().Add(2 * time.Minute),
 	}, nil
 }

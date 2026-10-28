@@ -25,7 +25,11 @@ func (s *OperationStore) reconcileUnlocked(ctx context.Context, operation *Opera
 	// An applying process can still own an installer after its deadline or lease expires.
 	if target == TargetApp && operation.App.Phase == PhaseApplying && operation.Holder != nil &&
 		procutil.Alive(operation.Holder.PID) &&
-		procutil.MatchesStartTime(operation.Holder.PID, operation.Holder.PIDStartTime) {
+		procutil.MatchesProcessIdentity(
+			operation.Holder.PID,
+			operation.Holder.PIDStartTime,
+			operation.Holder.ProcessToken,
+		) {
 		return operation, nil
 	}
 	updated := cloneOperation(operation)

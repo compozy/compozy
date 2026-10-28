@@ -9,6 +9,21 @@ import (
 
 const processStartMatchTolerance = 2 * time.Second
 
+// MatchesProcessIdentity prefers a persisted kernel identity when available.
+func MatchesProcessIdentity(pid int, startedAt time.Time, token string) bool {
+	return matchesProcessIdentity(pid, startedAt, token, ProcessToken, MatchesStartTime)
+}
+
+func matchesProcessIdentity(pid int, startedAt time.Time, token string,
+	lookup func(int) (string, error), matchTime func(int, time.Time) bool,
+) bool {
+	if token == "" {
+		return matchTime(pid, startedAt)
+	}
+	observed, err := lookup(pid)
+	return err == nil && observed == token
+}
+
 // MatchesStartTime reports whether pid currently belongs to a process whose
 // observed start time matches the recorded value closely enough to account for
 // launcher-vs-kernel timestamp skew.

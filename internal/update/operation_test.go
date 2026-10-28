@@ -146,6 +146,14 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 			}
 			request.Holder.PID = os.Getpid()
 			request.Holder.PIDStartTime = started
+			token, err := procutil.ProcessToken(os.Getpid())
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Holder.ProcessToken = token
+			if token != "" {
+				request.Holder.PIDStartTime = started.Add(-24 * time.Hour)
+			}
 			request.Holder.LeaseExpiresAt = request.Deadline.Add(time.Minute)
 			operation, err := store.Acquire(t.Context(), request)
 			if err != nil {
@@ -181,6 +189,9 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 				t.Fatalf("live process with expired lease = %#v, %v", live, err)
 			}
 			operation.Holder.PIDStartTime = started.Add(-time.Hour)
+			if operation.Holder.ProcessToken != "" {
+				operation.Holder.ProcessToken += "0"
+			}
 			if err := store.replaceUnlocked(operation); err != nil {
 				t.Fatal(err)
 			}
@@ -976,4 +987,51 @@ func splitNonEmptyLines(value string) []string {
 		}
 	}
 	return lines
+}
+
+func TestOperationKernelIdentity(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject recovery of a live holder despite timestamp drift", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("Linux kernel process identity")
+		}
+		token, err := procutil.ProcessToken(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, _, _ := newOperationTestStore(t)
+		store.holderLive = holderProcessIsLive
+		request := operationTestRequest(testOperationNow)
+		request.Holder.PID = os.Getpid()
+		request.Holder.ProcessToken = token
+		request.Holder.PIDStartTime = testOperationNow.Add(-24 * time.Hour)
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !store.HolderLive(operation.Holder) {
+			t.Fatal("clock drift expired a live holder")
+		}
+		_, err = store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			Transition{
+				Kind:    TransitionRecover,
+				Actor:   ActorDaemon,
+				Holder:  new(operationTestHolder("recovery", testOperationNow)),
+				Percent: -1,
+			},
+		)
+		if !errors.Is(err, ErrExecutorFenced) {
+			t.Fatalf("recovery error = %v", err)
+		}
+		reused := *operation.Holder
+		reused.ProcessToken += "0"
+		if store.HolderLive(&reused) {
+			t.Fatal("reused process was accepted")
+		}
+	})
 }

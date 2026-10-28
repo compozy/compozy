@@ -16,6 +16,7 @@ import (
 )
 
 type appStateSnapshot struct {
+	ProcessToken  string    `json:"process_token,omitempty"`
 	SchemaVersion int       `json:"schema_version"`
 	PID           int       `json:"pid"`
 	StartedAt     time.Time `json:"started_at"`
@@ -136,7 +137,7 @@ func (m *Manager) readAppTrack(release *Release, installMethod string) (*AppTrac
 		return nil, fmt.Errorf("update: unsupported desktop app state schema version %d", snapshot.SchemaVersion)
 	}
 	running := snapshot.PID > 0 && procutil.Alive(snapshot.PID) &&
-		procutil.MatchesStartTime(snapshot.PID, snapshot.StartedAt)
+		procutil.MatchesProcessIdentity(snapshot.PID, snapshot.StartedAt, snapshot.ProcessToken)
 	return composeAppTrack(snapshot.AppVersion, running, release), nil
 }
 

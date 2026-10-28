@@ -126,6 +126,9 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 		return failAcquiredUpdate(cmd, manager, operation, record, err)
 	}
 	runErr := coordinator.Run(cmd.Context(), operation.ID, operation.Holder.ExecutorGeneration)
+	if errors.Is(runErr, compozyupdate.ErrExecutorFenced) {
+		return reportRecoveredUpdate(cmd, deps, manager.OperationStore(), operation, record)
+	}
 	var archived *compozyupdate.Operation
 	var appRunErr error
 	if runErr == nil && request.App != nil && record.App != nil && record.App.Running {
@@ -253,6 +256,9 @@ func updateBundle(record updateRecord) outputBundle {
 						record.Runtime.InstallMethod,
 					),
 				},
+			}
+			if record.Runtime.Message != "" {
+				rows = append(rows, keyValue{Label: updateMessageLabel, Value: record.Runtime.Message})
 			}
 			if record.App != nil {
 				rows = append(

@@ -146,6 +146,9 @@ describe("app state publisher", () => {
       const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
       expect(record).toEqual({
         schema_version: 2,
+        ...(process.platform === "linux"
+          ? { process_token: expect.stringMatching(/^[a-f0-9-]+:[0-9]+$/) }
+          : {}),
         pid: process.pid,
         started_at: "2026-08-16T00:00:00.000Z",
         app_version: "0.3.0",

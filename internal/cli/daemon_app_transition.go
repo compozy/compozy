@@ -265,8 +265,12 @@ func desktopAppUpdateHolder(parentPID int, generation string, now time.Time) (*c
 	if err != nil {
 		return nil, fmt.Errorf("cli: resolve desktop app process identity: %w", err)
 	}
+	token, err := procutil.ProcessToken(parentPID)
+	if err != nil {
+		return nil, err
+	}
 	return &compozyupdate.Holder{
-		PID: parentPID, PIDStartTime: startedAt, Surface: compozyupdate.ActorShell,
+		PID: parentPID, PIDStartTime: startedAt, ProcessToken: token, Surface: compozyupdate.ActorShell,
 		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
 	}, nil
 }

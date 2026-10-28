@@ -94,7 +94,7 @@ func NewOperationStore(paths compozyconfig.HomePaths, events OperationEventEmitt
 
 func holderProcessIsLive(holder *Holder, now time.Time) bool {
 	return holder != nil && holder.LeaseExpiresAt.After(now) && procutil.Alive(holder.PID) &&
-		procutil.MatchesStartTime(holder.PID, holder.PIDStartTime)
+		procutil.MatchesProcessIdentity(holder.PID, holder.PIDStartTime, holder.ProcessToken)
 }
 
 // HolderLive reports whether the lease still belongs to the recorded process identity.
