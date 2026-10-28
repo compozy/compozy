@@ -1,0 +1,21 @@
+{
+  "verdict": "PASS",
+  "session_id": "sess-273ed049fbaab1df",
+  "workspace_id": "ws_e947f57c8064823d",
+  "provider": "claude",
+  "model": "claude-sonnet-5-5",
+  "provider_conversation_before": "b1d4bc0e-e7ce-4de9-a50a-afd97560a66d",
+  "provider_conversation_after": "b1d4bc0e-e7ce-4de9-a50a-afd97560a66d",
+  "badge_before": "running",
+  "badge_after": "done",
+  "cli_badge_after": "done",
+  "restart_resumed_events": 1,
+  "user_stop_diagnostic": false,
+  "failure": null,
+  "operator_prompts_after_replacement": 0,
+  "completed_artifacts": [
+    "QUICKSTART.md",
+    "OPERATIONS.md"
+  ],
+  "boot_version": "0.3.2"
+}
