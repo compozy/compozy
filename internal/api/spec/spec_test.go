@@ -3592,6 +3592,12 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #984: optional additive shell font preferences; no required/type/removal change.
 	addShellAppearanceSchema(t, baseline)
 
+	// #993: optional additive delegated-child liveness on subagent rows; no
+	// required/type/removal change.
+	if addSubagentChildActivity(baseline) == 0 {
+		t.Fatal("approved subagent child activity addition: no historical subagent row schemas found")
+	}
+
 	// #813: optional opt-in query parameters on worktree cleanup, inserted before
 	// the trailing profile selector; existing parameters keep their meaning.
 	boolQuery := func(name string) map[string]any {
@@ -4368,6 +4374,33 @@ func addProviderUsageSettingsSection(t *testing.T, baseline map[string]any) {
 }
 
 // #984: add the optional `appearance` object to every historical shell config schema.
+func addSubagentChildActivity(node any) int {
+	switch value := node.(type) {
+	case map[string]any:
+		count := 0
+		if properties, ok := value["properties"].(map[string]any); ok &&
+			properties["subagent_id"] != nil && properties["work_state"] != nil {
+			properties["child_activity"] = map[string]any{
+				"type": "string",
+				"enum": []any{"working", "idle", "stopped"},
+			}
+			count++
+		}
+		for _, child := range value {
+			count += addSubagentChildActivity(child)
+		}
+		return count
+	case []any:
+		count := 0
+		for _, child := range value {
+			count += addSubagentChildActivity(child)
+		}
+		return count
+	default:
+		return 0
+	}
+}
+
 func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	var appearance map[string]any
