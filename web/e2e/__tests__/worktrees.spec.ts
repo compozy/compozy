@@ -697,7 +697,7 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
     await appPage.getByRole("menuitem", { name: "Use workspace root", exact: true }).click();
     await expect(chip).toHaveAttribute("data-binding", "root");
     await expect(headerBinding).toHaveCount(0);
-    await expect(headerBranch).not.toHaveText(second.branch);
+    await expect(headerBranch.filter({ hasText: second.branch })).toHaveCount(0);
     await expect(win).toBeVisible();
     expect(appPage.url()).toBe(originalURL);
     await expect
@@ -746,7 +746,7 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
     );
     await expect(chip).toHaveAttribute("data-binding", "root");
     await expect(headerBinding).toHaveCount(0);
-    await expect(headerBranch).not.toHaveText(first.branch);
+    await expect(headerBranch.filter({ hasText: first.branch })).toHaveCount(0);
     await expect(win).toBeVisible();
     expect(appPage.url()).toBe(originalURL);
     await appPage.screenshot({ path: testInfo.outputPath("session-unbound-in-place.png") });
