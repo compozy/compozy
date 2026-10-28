@@ -2,7 +2,8 @@ import { AuiConfig, AuiProvider } from "@assistant-ui/react";
 import { SessionNativeSubagentActivity } from "@/components/assistant-ui/session-native-subagent-activity";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
-import { Button, ResizableDrawer } from "@compozy/ui";
+import { ArrowUpRight } from "lucide-react";
+import { Button, ResizableDrawer, Tooltip, TooltipTrigger, TooltipContent } from "@compozy/ui";
 import type { ReactNode } from "react";
 
 import {
@@ -13,12 +14,12 @@ import {
 import {
   SubagentDrawerContext,
   subagentDrawerLogic,
-} from "@/systems/session/contexts/subagent-drawer-context";
-import type { SubagentNavigation } from "@/systems/session/contexts/session-subagents-context-value";
-import type { SubagentView } from "@/systems/session/components/subagents/types";
-import { SubagentRuntimeMeta } from "@/systems/session/components/subagents/subagent-runtime-meta";
-import { SubagentRowTrail } from "@/systems/session/components/subagents/subagent-row-trail";
-import { useSessionSubagents } from "@/systems/session/hooks/use-session-subagents";
+  type SubagentNavigation,
+  type SubagentView,
+  SubagentRuntimeMeta,
+  SubagentRowTrail,
+  useSessionSubagents,
+} from "@/systems/session";
 import { SessionThread } from "./session-thread-lazy";
 
 function SubagentTranscript({
@@ -69,7 +70,7 @@ function SubagentTranscript({
         liveTailEnabled
         readOnly
       >
-        <SessionNativeSubagentActivity key={subagent.id} subagentId={subagent.id} />
+        <SessionNativeSubagentActivity key={subagent.id} subagent={subagent} />
       </SessionChatRuntimeProvider>
     );
   return (
@@ -144,23 +145,31 @@ function SubagentDrawerSelection({
           "Subagent"
         )
       }
-      content={
-        subagent && selected ? (
-          <>
-            {target && subagent.origin !== "provider_native" && (
-              <div className="border-b border-line px-3 py-2">
+      actions={
+        target && subagent?.origin !== "provider_native" ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant="quiet"
+                  size="icon-sm"
+                  aria-label="Open as session"
                   onClick={event => {
                     onClose();
                     navigation.openSession(target, { newWindow: event.metaKey || event.ctrlKey });
                   }}
                 >
-                  Open as session
+                  <ArrowUpRight />
                 </Button>
-              </div>
-            )}
+              }
+            />
+            <TooltipContent>Open as session</TooltipContent>
+          </Tooltip>
+        ) : null
+      }
+      content={
+        subagent && selected ? (
+          <>
             <AuiProvider extends={null} config={AuiConfig({})}>
               <SubagentTranscript
                 subagent={subagent}

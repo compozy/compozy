@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,15 +31,81 @@ const nativeAgent = "subagent-native";
 
 test.use({
   runtimeOptions: {
+    modelsDevEnabled: false,
     seed: {
       mockAgents: [
         { fixturePath, fixtureAgent: parentAgent },
-        { fixturePath, fixtureAgent: workerAgent },
-        { fixturePath, fixtureAgent: nativeAgent },
+        { fixturePath, fixtureAgent: workerAgent, runtimeProvider: "claude" },
+        {
+          fixturePath,
+          fixtureAgent: nativeAgent,
+          runtimeProvider: "claude",
+          // Exercise Claude's native-task notifications through its actual command boundary.
+          runtimeCommandName: "claude-agent-acp",
+        },
       ],
     },
   },
 });
+
+// The branded provider is still the isolated ACP driver, never a live provider process.
+async function configureWorkerProvider(runtime: BrowserRuntime) {
+  if (!runtime.paths) throw new Error("Subagent metadata walk requires an isolated runtime");
+  const definition = await readFile(
+    path.join(runtime.paths.homeDir, "agents", workerAgent, "AGENT.md"),
+    "utf8"
+  );
+  const command = definition.match(/^command:\s+(.+)$/m)?.[1];
+  if (!command) throw new Error("Seeded agent command is missing");
+  await runtime.requestJSON("/api/settings/providers/claude", {
+    method: "PUT",
+    body: JSON.stringify({
+      settings: {
+        command,
+        display_name: "Claude",
+        harness: "acp",
+        auth_mode: "none",
+        models: {
+          default: "claude-sonnet-5",
+          reasoning: { apply: "acp_option" },
+          curated: [
+            {
+              id: "claude-sonnet-5",
+              display_name: "Sonnet 5",
+              supports_reasoning: true,
+              reasoning_efforts: ["medium"],
+              default_reasoning_effort: "medium",
+            },
+          ],
+        },
+      },
+    }),
+  });
+  // Provider overlays require a restart of this isolated fixture daemon.
+  const restart = await runtime.requestJSON<{ operation_id: string }>(
+    "/api/settings/actions/restart",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (
+            await runtime.requestJSON<{ status: string }>(
+              `/api/settings/actions/restart/${restart.operation_id}`
+            )
+          ).status;
+        } catch {
+          return "unavailable";
+        }
+      },
+      { timeout: 120_000 }
+    )
+    .toBe("ready");
+}
 
 interface Scene {
   page: Page;
@@ -58,6 +125,7 @@ async function openSession(
   if (!workspaceDir) throw new Error("subagent E2E requires an isolated runtime");
   const workspace = await runtime.resolveWorkspace(workspaceDir);
   await completeOnboardingIfPrompted(appPage);
+  await configureWorkerProvider(runtime);
   // A session outside the active project asks before switching; make its project active first.
   if (workspaceDir !== runtime.paths?.workspaceDir) {
     await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -115,13 +183,14 @@ test("E2E-001: capabilities and a delegation render as a tool phrase and a live 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
+  // Capabilities probes precede delegation; observe that boundary before timing the worker.
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
 
   await expect(review).toHaveAttribute("data-status", "running");
   await expect(review).toContainText("Working");
   // The async delegation ends the parent turn: its tool work folds, the live card stays out.
   await openFolds(scene);
-  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   // The card replaces the delegate call: no tool row for it.
   await expect(scene.window.getByText(/Delegat(ed|ing) a subagent/)).toHaveCount(0);
   // Elapsed ticks from the daemon's started_at while the child works.
@@ -176,6 +245,8 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
+  // Capabilities probes precede delegation; observe that boundary before timing the worker.
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
   // Hover once the parent's turn ended and its message reconciled, while the child still works.
   await expect(
@@ -187,8 +258,10 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   await review.hover();
   await expect(hover).toBeVisible();
   await expect(hover).toContainText(reviewTitle);
-  // The target named no model: the hover card says so instead of guessing.
-  await expect(hover.locator('[data-slot="subagent-hover-runtime"]')).toContainText("Not reported");
+  // The recorded worker runtime is shown without borrowing the parent runtime.
+  await expect(hover.locator('[data-slot="subagent-hover-runtime"]')).toContainText(
+    "claude-sonnet-5"
+  );
   await expect(hover.locator('[data-slot="subagent-hover-status"]')).toContainText("Working");
   await appPage.mouse.move(0, 0);
   await expect(hover).toHaveCount(0);
@@ -207,6 +280,8 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
 }) => {
   await appPage.setViewportSize({ width: 1600, height: 1000 });
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
+  // Capabilities probes precede delegation; observe that boundary before timing the worker.
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
   await expect(review).toBeVisible();
   const childId = await childSessionId(scene, reviewTitle);
@@ -219,6 +294,9 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
   // Owner/canonical suite: this browser/daemon journey.
   await review.getByRole("button", { name: `Open ${reviewTitle}`, exact: true }).click();
   const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+  await expect(
+    review.getByRole("button", { name: `Open ${reviewTitle}`, exact: true, includeHidden: true })
+  ).toHaveAttribute("aria-current", "true");
   await expect(drawer).toBeVisible();
   await expect(drawer).toBeInViewport({ ratio: 1 });
   await expect(drawer).toHaveCSS("opacity", "1");
@@ -388,7 +466,12 @@ test("E2E-006: native sidebar and transcript cards open live activity without a 
 
 async function openNativeResult(drawer: Locator) {
   await drawer.getByRole("button", { name: /^Ran agent/ }).click();
-  await expect(drawer.getByText("No issues found.", { exact: true })).toBeVisible();
+  await expect(
+    drawer.getByTestId("detail-payload").getByText("No issues found.", { exact: true })
+  ).toBeVisible();
+  await expect(
+    drawer.getByText("Background reviewer confirmed no issues.", { exact: true })
+  ).toBeVisible();
 }
 
 interface IsolatedWorktree {

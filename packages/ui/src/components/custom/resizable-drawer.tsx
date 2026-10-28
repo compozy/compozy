@@ -12,6 +12,7 @@ export interface ResizableDrawerProps {
   children: ReactNode;
   content: ReactNode;
   title: ReactNode;
+  actions?: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   width: number;
@@ -27,6 +28,7 @@ export function ResizableDrawer({
   children,
   content,
   title,
+  actions,
   open,
   onOpenChange,
   width,
@@ -71,7 +73,7 @@ export function ResizableDrawer({
                 aria-valuemax={maxWidth}
                 aria-valuenow={Math.round(width)}
                 tabIndex={0}
-                className="absolute inset-y-0 -left-0.5 z-10 w-1 cursor-col-resize touch-none hover:bg-line-strong focus-visible:bg-line-strong focus-visible:outline-none"
+                className="absolute inset-y-0 -left-0.5 z-10 w-1 cursor-col-resize touch-none after:absolute after:top-1/2 after:left-1/2 after:h-8 after:w-0.5 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-line-strong hover:bg-line-strong focus-visible:bg-line-strong focus-visible:outline-none"
                 onPointerDown={event => {
                   if (event.button !== 0) return;
                   event.preventDefault();
@@ -114,6 +116,7 @@ export function ResizableDrawer({
                 <DialogPrimitive.Title className="min-w-0 flex-1 text-item-title font-medium text-fg-strong">
                   {title}
                 </DialogPrimitive.Title>
+                {actions}
                 <DialogPrimitive.Close
                   render={<Button variant="quiet" size="icon-sm" aria-label="Close drawer" />}
                 >
@@ -134,7 +137,10 @@ export function ResizableDrawer({
           style={{ width: `min(${width}px, 100%)` }}
         >
           <SheetHeader className="shrink-0 border-b border-line pr-12">
-            <SheetTitle>{title}</SheetTitle>
+            <div className="flex min-w-0 items-start gap-2">
+              <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+              {actions}
+            </div>
           </SheetHeader>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
         </SheetContent>

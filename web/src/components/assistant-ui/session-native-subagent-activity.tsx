@@ -1,3 +1,5 @@
+import type { ThreadMessage } from "@assistant-ui/react";
+import type { SubagentView } from "@/systems/session";
 import { useEffect } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 import { Button } from "@compozy/ui";
@@ -11,24 +13,12 @@ import { SessionMessageText } from "./session-message-parts";
 import { SessionTimelineRows } from "./session-timeline-render";
 
 /** Native activity belongs to a tool call in the parent ledger, never a fabricated session. */
-export function SessionNativeSubagentActivity({ subagentId }: { subagentId: string }) {
+export function SessionNativeSubagentActivity({ subagent }: { subagent: SubagentView }) {
   const transcript = useSessionTranscriptThreadState();
   const store = useStore(timelineRowLogic, undefined);
   const expansion = useSelector(store, snapshot => snapshot.context);
-  const parts = transcript.messages.flatMap(toTimelineParts);
-  const owner = parts.map(subagentPartData).find(part => part?.subagent_id === subagentId);
-  const toolId = owner?.tool_call_id;
-  const call = parts.find(part => part.kind === "tool" && part.toolCallId === toolId);
-  const prompt =
-    call?.kind === "tool" && typeof call.args.prompt === "string" ? call.args.prompt : null;
-  const activity = toolId
-    ? parts.filter(
-        part =>
-          part.parentToolCallId === toolId || (part.kind === "tool" && part.toolCallId === toolId)
-      )
-    : [];
+  const { prompt, activity, hasInvocation } = nativeActivity(transcript.messages, subagent.id);
   const { hasOlder, isFetchingOlder, isError, loadOlder } = transcript;
-  const hasInvocation = call !== undefined;
   useEffect(() => {
     if (!hasInvocation && hasOlder && !isFetchingOlder && !isError) void loadOlder();
   }, [hasInvocation, hasOlder, isFetchingOlder, isError, loadOlder]);
@@ -44,24 +34,75 @@ export function SessionNativeSubagentActivity({ subagentId }: { subagentId: stri
           data-testid="native-subagent-activity"
         >
           {prompt ? <SessionMessageText text={prompt} authored /> : null}
-          {isError ? (
-            <div role="alert">
-              Couldn't load subagent activity.{" "}
-              <Button variant="ghost" onClick={transcript.retry}>
-                Try again
-              </Button>
-            </div>
-          ) : activity.length ? (
-            <SessionTimelineRows rows={rows} />
-          ) : (
-            <p role="status" className="text-small-body text-muted">
-              {transcript.isPending || isFetchingOlder
-                ? "Loading activity…"
-                : "No activity has been reported yet."}
-            </p>
-          )}
+          <NativeOutcome subagent={subagent} />
+          <NativeActivityRows
+            transcript={transcript}
+            rows={rows}
+            hasResult={Boolean(subagent.result || subagent.error)}
+          />
         </div>
       </TimelineRowContext>
     </SessionThreadReadOnlyProvider>
+  );
+}
+
+function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) {
+  const parts = messages.flatMap(toTimelineParts);
+  const owner = parts.map(subagentPartData).find(part => part?.subagent_id === subagentId);
+  const toolId = owner?.tool_call_id;
+  const call = parts.find(part => part.kind === "tool" && part.toolCallId === toolId);
+  const prompt =
+    call?.kind === "tool" && typeof call.args.prompt === "string" ? call.args.prompt : null;
+  const activity = toolId
+    ? parts.filter(
+        part =>
+          part.parentToolCallId === toolId || (part.kind === "tool" && part.toolCallId === toolId)
+      )
+    : [];
+  return { prompt, activity, hasInvocation: call !== undefined };
+}
+
+function NativeOutcome({ subagent }: { subagent: SubagentView }) {
+  return (
+    <>
+      {subagent.result ? <SessionMessageText text={subagent.result} /> : null}
+      {subagent.result_truncated ? (
+        <p className="text-small-body text-muted">Result was truncated.</p>
+      ) : null}
+      {subagent.error ? (
+        <p role="alert" className="text-small-body text-danger">
+          {subagent.error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function NativeActivityRows({
+  transcript,
+  rows,
+  hasResult,
+}: {
+  transcript: ReturnType<typeof useSessionTranscriptThreadState>;
+  rows: ReturnType<typeof deriveSessionRows>;
+  hasResult: boolean;
+}) {
+  if (transcript.isError)
+    return (
+      <div role="alert">
+        Couldn't load subagent activity.{" "}
+        <Button variant="ghost" onClick={transcript.retry}>
+          Try again
+        </Button>
+      </div>
+    );
+  if (rows.length) return <SessionTimelineRows rows={rows} />;
+  if (hasResult) return null;
+  return (
+    <p role="status" className="text-small-body text-muted">
+      {transcript.isPending || transcript.isFetchingOlder
+        ? "Loading activity…"
+        : "No activity has been reported yet."}
+    </p>
   );
 }

@@ -1,5 +1,4 @@
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
-import { SessionListRowWho } from "../session-list/session-list-row-meta";
 import type { SubagentView } from "./types";
 
 /** Recorded runtime only: absent metadata must not inherit the parent runtime. */
@@ -25,10 +24,17 @@ export function SubagentRuntimeMeta({
         />
       )}
       <span className="sr-only">{label}</span>
-      <SessionListRowWho
-        session={{ agent_name: agent ?? "", badge: "idle" }}
-        meta={{ attention: [], notes: modelLabel ? [modelLabel] : [] }}
-      />
+      {modelLabel ? (
+        <span aria-hidden="true" className="min-w-0 shrink truncate">
+          {[model?.replace(/^claude-/, ""), effort].filter(Boolean).join(" · ")}
+        </span>
+      ) : null}
+      {agent ? (
+        <span aria-hidden="true" className="min-w-0 shrink-[10000] truncate text-muted">
+          {model || effort ? "· " : ""}
+          {agent}
+        </span>
+      ) : null}
     </span>
   );
 }

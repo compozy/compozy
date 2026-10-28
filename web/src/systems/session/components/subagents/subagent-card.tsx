@@ -148,6 +148,52 @@ function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settl
   );
 }
 
+function cardTrigger({
+  mode,
+  subagent,
+  word,
+  selected,
+  open,
+  panelId,
+  handleOpen,
+  toggle,
+}: {
+  mode: SubagentCardMode;
+  subagent: SubagentView;
+  word: string;
+  selected: boolean;
+  open: boolean;
+  panelId: string;
+  handleOpen: (event: MouseEvent<HTMLButtonElement>) => void;
+  toggle: () => void;
+}) {
+  if (mode === "drill")
+    return (
+      <button
+        type="button"
+        aria-label={`Open ${subagent.title}`}
+        aria-description={word}
+        aria-current={selected ? "true" : undefined}
+        onClick={handleOpen}
+        {...OPEN_CONTROL}
+      />
+    );
+  if (mode === "disclosure")
+    return (
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-description={word}
+        onClick={toggle}
+        {...OPEN_CONTROL}
+      />
+    );
+  return (
+    <div role="group" tabIndex={0} aria-label={`${subagent.title}, ${word}`} {...OPEN_CONTROL} />
+  );
+}
+
 /**
  * One delegation in the parent transcript (transcript VC-01/02): avatar, title,
  * line 2, the status trail (glyph, word, elapsed), and a chevron when there is
@@ -180,31 +226,19 @@ export function SubagentCard({
     onOpen?.(subagent, { newWindow: event.metaKey || event.ctrlKey });
   };
 
-  const trigger =
-    mode === "drill" ? (
-      <button
-        type="button"
-        aria-label={`Open ${subagent.title}`}
-        aria-description={word}
-        onClick={handleOpen}
-        {...OPEN_CONTROL}
-      />
-    ) : mode === "disclosure" ? (
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={panelId}
-        aria-description={word}
-        onClick={() => {
-          if (revealOpen) onRevealClose?.();
-          setExpanded(!open);
-        }}
-        {...OPEN_CONTROL}
-      />
-    ) : (
-      // No child to open and nothing to expand, still reachable: focus opens the hover card (S3).
-      <div role="group" tabIndex={0} aria-label={`${subagent.title}, ${word}`} {...OPEN_CONTROL} />
-    );
+  const trigger = cardTrigger({
+    mode,
+    subagent,
+    word,
+    selected,
+    open,
+    panelId,
+    handleOpen,
+    toggle: () => {
+      if (revealOpen) onRevealClose?.();
+      setExpanded(!open);
+    },
+  });
 
   return (
     <div className={cn("flex min-w-0 flex-col", variant === "framed" && "max-w-140")}>
@@ -220,7 +254,11 @@ export function SubagentCard({
           data-origin={subagent.origin}
           data-settled={isSubagentLive(subagent.status) ? undefined : "true"}
           data-stale={stale ? "true" : undefined}
-          className={cn(cardClassName(mode, variant, open), selected && "bg-selected", className)}
+          className={cn(
+            cardClassName(mode, variant, open),
+            selected && "bg-selected ring-1 ring-inset ring-line-strong",
+            className
+          )}
         >
           <HoverCardTrigger render={trigger}>
             <SubagentCardMain subagent={subagent} settled={display.settled} />

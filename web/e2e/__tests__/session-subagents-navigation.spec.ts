@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,14 +39,74 @@ interface SubagentRow {
 
 test.use({
   runtimeOptions: {
+    modelsDevEnabled: false,
     seed: {
       mockAgents: [
         { fixturePath, fixtureAgent: parentAgent },
-        { fixturePath, fixtureAgent: childAgent },
+        { fixturePath, fixtureAgent: childAgent, runtimeProvider: "claude" },
       ],
     },
   },
 });
+
+// The branded provider is still the isolated ACP driver, never a live provider process.
+async function configureWorkerProvider(runtime: BrowserRuntime) {
+  if (!runtime.paths) throw new Error("Subagent metadata walk requires an isolated runtime");
+  const definition = await readFile(
+    path.join(runtime.paths.homeDir, "agents", childAgent, "AGENT.md"),
+    "utf8"
+  );
+  const command = definition.match(/^command:\s+(.+)$/m)?.[1];
+  if (!command) throw new Error("Seeded agent command is missing");
+  await runtime.requestJSON("/api/settings/providers/claude", {
+    method: "PUT",
+    body: JSON.stringify({
+      settings: {
+        command,
+        display_name: "Claude",
+        harness: "acp",
+        auth_mode: "none",
+        models: {
+          default: "claude-sonnet-5",
+          reasoning: { apply: "acp_option" },
+          curated: [
+            {
+              id: "claude-sonnet-5",
+              display_name: "Sonnet 5",
+              supports_reasoning: true,
+              reasoning_efforts: ["medium"],
+              default_reasoning_effort: "medium",
+            },
+          ],
+        },
+      },
+    }),
+  });
+  // Provider overlays require a restart of this isolated fixture daemon.
+  const restart = await runtime.requestJSON<{ operation_id: string }>(
+    "/api/settings/actions/restart",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (
+            await runtime.requestJSON<{ status: string }>(
+              `/api/settings/actions/restart/${restart.operation_id}`
+            )
+          ).status;
+        } catch {
+          return "unavailable";
+        }
+      },
+      { timeout: 120_000 }
+    )
+    .toBe("ready");
+}
 
 function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
   return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
@@ -105,6 +166,7 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
   test.setTimeout(180_000);
   await appPage.setViewportSize({ width: 1600, height: 1000 });
   await ensureProjectWorkspace(appPage, runtime);
+  await configureWorkerProvider(runtime);
   const workspace =
     runtime.seeded.workspace ??
     (runtime.paths?.workspaceDir
@@ -161,11 +223,14 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
     // Invariant: a listed child opens its live drawer while preserving the parent.
     // Owner: browser/daemon navigation; canonical suite: E2E-009.
-    const opened = branch.getByRole("button", { name: /^Open Nav subagent/ }).first();
+    const opened = branch
+      .getByRole("button", { name: /^Open Nav subagent/, includeHidden: true })
+      .first();
     const title = ((await opened.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
     const target = subagents.find(row => row.title === title);
     expect(target?.child_session_id).toBeTruthy();
     await opened.click();
+    await expect(opened).toHaveAttribute("aria-current", "true");
     const drawer = appPage.locator('[data-slot="resizable-drawer"]');
     await expect(drawer).toBeVisible();
     await expect(drawer).toBeInViewport({ ratio: 1 });
@@ -178,6 +243,8 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
       .nth(1);
     const otherTitle = ((await otherRow.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
     await otherRow.click();
+    await expect(otherRow).toHaveAttribute("aria-current", "true");
+    await expect(opened).not.toHaveAttribute("aria-current", "true");
     await expect(drawer).toHaveCount(1);
     await expect(drawer.getByRole("heading")).toContainText(otherTitle);
     await appPage.keyboard.press("Escape");
@@ -213,8 +280,11 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
   });
 
   await test.step("the inspector opens the drawer beside the unchanged parent", async () => {
-    const opened = roster.getByRole("button", { name: /^Open Nav subagent/ }).first();
+    const opened = roster
+      .getByRole("button", { name: /^Open Nav subagent/, includeHidden: true })
+      .first();
     await opened.click();
+    await expect(opened).toHaveAttribute("aria-current", "true");
     const drawer = appPage.locator('[data-slot="resizable-drawer"]');
     await expect(drawer).toBeVisible();
     await expect(drawer).toBeInViewport({ ratio: 1 });

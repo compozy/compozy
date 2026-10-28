@@ -70,7 +70,11 @@ export function SessionListSubagentBranch({
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }
-            onOpen={event => open(subagent, event)}
+            onOpen={
+              drawer || subagentNavigationTarget(subagent, workspaceId)
+                ? event => open(subagent, event)
+                : undefined
+            }
           />
         ))
       )}
@@ -106,7 +110,7 @@ function SubagentBranchRow({
 }: {
   subagent: SubagentView;
   current: boolean;
-  onOpen: (event: MouseEvent<HTMLButtonElement>) => void;
+  onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const selected = useSubagentDrawerSelected(subagent.id);
   const display = subagentDisplay(subagent);
@@ -132,7 +136,7 @@ function SubagentBranchRow({
       data-status={subagent.status}
       data-state={display.glyph}
     >
-      {
+      {onOpen ? (
         <button
           type="button"
           className={cn(
@@ -146,7 +150,9 @@ function SubagentBranchRow({
         >
           {body}
         </button>
-      }
+      ) : (
+        <div className={rowClass}>{body}</div>
+      )}
     </div>
   );
 }

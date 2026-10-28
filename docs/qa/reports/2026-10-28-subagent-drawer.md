@@ -46,17 +46,25 @@ Playwright specs run locally.
 
 ## Evidence and Remaining Work
 
-- Web: 143 focused tests passed across the five owning suites.
+- Web: the original five focused suites passed (143 tests). Review remediation also passed
+  the sidebar, subagent components/wiring and runtime seed suites (161 tests), plus all ten
+  session-window recovery/stop tests with the real query/UI host providers.
 - Shared UI: 3 drawer tests passed (state preservation, focus return, keyboard width limits).
-- Both affected Playwright specs: all eight journeys passed across the final scoped runs. The final
-  two-journey rerun covered pointer resize, reopening width, unsent draft preservation, all delegated
+- Both affected Playwright specs: all eight journeys passed across the final scoped runs. The affected
+  drawer journeys cover pointer resize, reopening width, unsent draft preservation, all delegated
   entry surfaces, narrow overlay, explicit session navigation and modifier split.
-- Package-scoped Turborepo typecheck/lint passed with zero warnings/errors.
+- Package-scoped Turborepo typecheck/lint passed with zero warnings/errors. React Doctor
+  reports 100/100 with no findings after extracting the card trigger and native activity sections.
 - Light/dark component matrices cover queued, working, waiting, done, idle, failed, canceled,
   interrupted and native states. Real Web captures cover all four entry surfaces and native activity.
 - The separate manual lab was torn down with the bootstrap helper (`TEARDOWN_ALL_CLEAN=true`).
   Browser journeys use the fixture's independent daemon homes and teardown.
 - The PR gallery hosts the inspected final rendered evidence. CI and reviewer status are reported
   there; this report does not substitute local checks for current-head CI.
+The metadata rehearsal uses a Claude-branded isolated ACP fixture with a recorded Sonnet model
+and medium effort, rather than inheriting the parent runtime. Native completion frames also
+exercise the background result stored on the subagent row. Header actions, selected rows and
+the keyboard/pointer resize separator are covered by the affected journeys and component story.
+
 Pinned Claude adapter frames exercise native attribution and rendering; they do not claim a live
 Claude model invocation or re-certify every background lifecycle branch of the broader scenario.

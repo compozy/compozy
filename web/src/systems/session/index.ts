@@ -497,4 +497,4 @@ export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
-export { subagentNavigationTarget, subagentRevealStore } from "./lib/subagent-navigation";
+export * from "./subagents";

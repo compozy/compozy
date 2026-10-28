@@ -28,7 +28,10 @@
                                 "task": "nav subagent task 1",
                                 "title": "Nav subagent 1",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -40,7 +43,10 @@
                                 "task": "nav subagent task 2",
                                 "title": "Nav subagent 2",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -52,7 +58,10 @@
                                 "task": "nav subagent task 3",
                                 "title": "Nav subagent 3",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -64,7 +73,10 @@
                                 "task": "nav subagent task 4",
                                 "title": "Nav subagent 4",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -76,7 +88,10 @@
                                 "task": "nav subagent task 5",
                                 "title": "Nav subagent 5",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -88,7 +103,10 @@
                                 "task": "nav subagent task 6",
                                 "title": "Nav subagent 6",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -100,7 +118,10 @@
                                 "task": "nav subagent task 7",
                                 "title": "Nav subagent 7",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -112,7 +133,10 @@
                                 "task": "nav subagent task 8",
                                 "title": "Nav subagent 8",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -124,7 +148,10 @@
                                 "task": "nav subagent task 9",
                                 "title": "Nav subagent 9",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -136,7 +163,10 @@
                                 "task": "nav subagent task 10",
                                 "title": "Nav subagent 10",
                                 "target": {
-                                    "agent": "subagent-nav-child"
+                                    "agent": "subagent-nav-child",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -182,6 +212,31 @@
                         {
                             "kind": "assistant",
                             "text": "Subagent finished."
+                        }
+                    ]
+                }
+            ],
+            "model": "claude-sonnet-5",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "claude-sonnet-5",
+                    "values": [
+                        {
+                            "value": "claude-sonnet-5",
+                            "label": "Sonnet 5"
+                        }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        {
+                            "value": "medium",
+                            "label": "Medium"
                         }
                     ]
                 }

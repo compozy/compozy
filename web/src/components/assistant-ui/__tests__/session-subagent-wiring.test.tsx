@@ -46,6 +46,9 @@ import type { SubagentRoster } from "@/systems/session/lib/subagent-roster";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import type { SessionMessage, SessionPayload } from "@/systems/session/types";
 
+import { SessionNativeSubagentActivity } from "../session-native-subagent-activity";
+import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
+import { subagentViewFromPayload } from "@/systems/session/lib/subagent-payload";
 import { SessionSubagentBanner } from "../session-subagent-banner";
 import { useAssistantMessageTimeline } from "../hooks/use-assistant-message-timeline";
 import { SessionSubagentRowView } from "../session-subagent-row";
@@ -766,4 +769,36 @@ describe("provider-native attribution through the transcript adapters (UT-W11)",
     const text = toTimelineParts({ id: "msg-turn", content: [{ type: "text", text: "hi" }] })[0];
     expect(text?.turnId).toBe("msg-turn");
   });
+});
+
+// Invariant: native background answers/errors survive the wire-to-view mapping even with no transcript parts.
+// Owner: session drawer wiring; canonical suite: this file. No mocked internal hooks.
+it("Should update native background results and errors independently of transcript tool parts", () => {
+  const renderActivity = (payload: SubagentPayload) => (
+    <UIProvider>
+      <SessionTranscriptThreadProvider messages={[]} status="success" error={null} retry={() => {}}>
+        <SessionNativeSubagentActivity subagent={subagentViewFromPayload(payload)} />
+      </SessionTranscriptThreadProvider>
+    </UIProvider>
+  );
+  const payload = {
+    ...subagentPayload("native-background"),
+    origin: "provider_native",
+    child_session_id: null,
+  };
+  const rendered = render(renderActivity(payload));
+  rendered.rerender(
+    renderActivity({
+      ...payload,
+      status: "completed",
+      result: "Complete background answer",
+      result_preview: "Preview only",
+    })
+  );
+  expect(screen.getByText("Complete background answer")).toBeVisible();
+  expect(screen.queryByText("Preview only")).not.toBeInTheDocument();
+  rendered.rerender(
+    renderActivity({ ...payload, status: "failed", error: "Background task failed" })
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Background task failed");
 });

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 import { useState } from "react";
 import { Button } from "../../button";
 import { ResizableDrawer } from "../resizable-drawer";
@@ -11,13 +12,14 @@ const meta: Meta<typeof ResizableDrawer> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function DrawerExample() {
+function DrawerExample({ inlineBreakpoint }: { inlineBreakpoint?: number }) {
   const [open, setOpen] = useState(true);
   const [width, setWidth] = useState(480);
   return (
     <div className="flex h-screen bg-canvas text-fg">
       <ResizableDrawer
         title="Activity"
+        inlineBreakpoint={inlineBreakpoint}
         open={open}
         onOpenChange={setOpen}
         width={width}
@@ -33,3 +35,27 @@ function DrawerExample() {
 }
 
 export const Responsive: Story = { render: () => <DrawerExample /> };
+
+export const Inline: Story = {
+  render: () => <DrawerExample inlineBreakpoint={0} />,
+  play: async ({ canvasElement }) => {
+    const separator = await within(canvasElement).findByRole("separator", {
+      name: "Resize drawer",
+    });
+    separator.focus();
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect(separator).toHaveAttribute("aria-valuenow", "496");
+    const bounds = separator.getBoundingClientRect();
+    await userEvent.pointer([
+      {
+        target: separator,
+        keys: "[MouseLeft>]",
+        coords: { clientX: bounds.x, clientY: bounds.y + 40 },
+      },
+      { target: separator, coords: { clientX: bounds.x - 32, clientY: bounds.y + 40 } },
+      { target: separator, keys: "[/MouseLeft]" },
+    ]);
+    await expect(separator).toHaveAttribute("aria-valuenow", "528");
+  },
+};
+export const Overlay: Story = { render: () => <DrawerExample inlineBreakpoint={10000} /> };

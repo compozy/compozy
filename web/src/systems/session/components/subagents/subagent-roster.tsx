@@ -141,7 +141,10 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
       data-status={subagent.status}
       data-state={display.glyph}
       data-stopping={pending ? "true" : undefined}
-      className={cn(SUBAGENT_ROSTER_ROW_FRAME, selected && "bg-selected")}
+      className={cn(
+        SUBAGENT_ROSTER_ROW_FRAME,
+        selected && "bg-selected ring-1 ring-inset ring-line-strong"
+      )}
     >
       {/* Remount when the trigger switches between button and group row, so the
           hover listeners bind to the live element. */}
@@ -153,6 +156,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
                 type="button"
                 aria-label={`Open ${subagent.title}`}
                 aria-description={word}
+                aria-current={selected ? "true" : undefined}
                 className={mainClass}
                 onClick={handleOpen}
               />
