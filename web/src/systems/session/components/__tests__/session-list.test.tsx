@@ -775,7 +775,7 @@ describe("SessionList subagents", () => {
       expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(8)
     );
     await expectFetchRequest({
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8&order=urgency`,
     });
 
     await user.click(within(branch).getByRole("button", { name: "Show 8 more" }));
@@ -784,7 +784,7 @@ describe("SessionList subagents", () => {
     );
     await expectFetchRequest({
       callIndex: 1,
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8&cursor=page-2`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8&order=urgency&cursor=page-2`,
     });
     expect(within(branch).getByRole("button", { name: "Show 5 more" })).toBeInTheDocument();
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);

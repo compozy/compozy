@@ -7,10 +7,10 @@ import {
   SUBAGENT_MODEL_NOT_REPORTED,
   subagentDisplay,
   subagentElapsedClock,
-  subagentHoverPreview,
   subagentLocationRows,
   subagentRuntimeLabel,
 } from "./subagent-format";
+import { subagentHoverPreview } from "./subagent-hover-preview";
 import { SubagentPullRequestLink } from "./subagent-row-trail";
 import {
   subagentWorktree,

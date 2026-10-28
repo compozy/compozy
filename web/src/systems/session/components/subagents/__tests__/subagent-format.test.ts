@@ -10,7 +10,6 @@ import {
   subagentGroupClock,
   subagentGroupGlyph,
   subagentGroupSummary,
-  subagentHoverPreview,
   subagentLocationRows,
   subagentRosterGroups,
   subagentRosterTitle,
@@ -18,6 +17,7 @@ import {
   subagentWaitingBannerRows,
   sortSubagentsByUrgency,
 } from "../subagent-format";
+import { subagentHoverPreview } from "../subagent-hover-preview";
 import {
   middleTruncate,
   subagentWorktreeFacts,
