@@ -20,6 +20,7 @@ app snapshots remain readable without rewriting or deleting user state. Records 
 older binaries retain timestamp verification: a stable identity cannot safely be inferred
 retroactively from a potentially reused PID. New Linux holders carry the token when available. If procfs is restricted at creation,
 records retain the existing timestamp identity; existing tokenized records never downgrade.
+The desktop caches the first acquired token for its process lifetime across later publications.
 An older running daemon's strict operation decoder may reject a new holder field until
 that daemon restarts; the new daemon reads both forms. No database/config migration or
 public HTTP schema change is introduced. The canonical desktop app-record JSON schema
@@ -40,7 +41,7 @@ by cancellation and the operation deadline and remains explicitly unresolved on 
   executor generation for the live holder. The smaller Debian image lacked `ps`, required by
   the existing fixture; that environment failure was not treated as a product regression.
 - Linux AMD64 and Windows AMD64 builds of procutil/update/daemon/CLI passed.
-- Targeted desktop app-state suite: 20 tests passed through root Turborepo `--only`.
+- Targeted desktop app-state suite: 21 tests passed through root Turborepo `--only`.
   Desktop lint and typecheck passed through the same affected-package path.
 - A production desktop publisher run in an isolated Linux Bun container wrote a token matching
   the current process kernel identity despite a deliberately old wall-clock start timestamp.

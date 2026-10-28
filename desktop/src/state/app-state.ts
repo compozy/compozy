@@ -138,6 +138,7 @@ export class AppStatePublisher {
   #runtimeVersion: string | null = null;
   #runtimeOwned: boolean | null = null;
   #publication = Promise.resolve();
+  #processToken: string | undefined;
   #closed = false;
 
   constructor(options: {
@@ -234,7 +235,9 @@ export class AppStatePublisher {
     };
     const write = this.#publication.then(async () => {
       // Token acquisition is optional at creation; retain timestamp identity if procfs is restricted.
-      const processToken = await this.#readProcessToken().catch(() => undefined);
+      const processToken = (this.#processToken ??= await this.#readProcessToken().catch(
+        () => undefined
+      ));
       const data = `${JSON.stringify({ ...record, ...(processToken ? { process_token: processToken } : {}) }, null, 2)}\n`;
       await this.#persistMarker();
       await writeFileAtomic(this.#path, data, 0o600);
