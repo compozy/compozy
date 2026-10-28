@@ -639,6 +639,10 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
     const win = sessionWindow(appPage, session.id);
     const ui = sessionWindowSelectors(win, appPage);
     const chip = win.locator('[data-slot="session-environment-chip"]');
+    const headerBinding = win.locator('[data-slot="session-worktree-binding-chip"]');
+    const headerBranch = win.locator(
+      '[data-slot="session-pull-request-chip"] [data-slot="chip-branch"]'
+    );
     const originalURL = appPage.url();
     await ui.composerTextarea.fill("Remember the binding fact: amber otter");
     await ui.composerTextarea.press("Enter");
@@ -667,6 +671,9 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
       await expect(dialog).toBeHidden();
       await expect(chip).toHaveAttribute("data-binding", "worktree");
       await expect(chip).toHaveAccessibleName(new RegExp(target.name));
+      // The header must converge with the composer before another turn or reload.
+      await expect(headerBinding).toContainText(target.name);
+      await expect(headerBranch).toHaveText(target.branch);
       await ui.composerTextarea.fill("Check binding continuity");
       await ui.composerTextarea.press("Enter");
       await expect(win.getByText("Binding conversation continued.", { exact: true })).toHaveCount(
@@ -689,6 +696,8 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
     await chip.click();
     await appPage.getByRole("menuitem", { name: "Use workspace root", exact: true }).click();
     await expect(chip).toHaveAttribute("data-binding", "root");
+    await expect(headerBinding).toHaveCount(0);
+    await expect(headerBranch).not.toHaveText(second.branch);
     await expect(win).toBeVisible();
     expect(appPage.url()).toBe(originalURL);
     await expect
@@ -729,11 +738,15 @@ for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
     });
     await expect(chip).toHaveAccessibleName(new RegExp(first.name));
     await expect(chip).toHaveAttribute("data-binding", "worktree");
+    await expect(headerBinding).toContainText(first.name);
+    await expect(headerBranch).toHaveText(first.branch);
     await runtime.requestJSON(
       `/api/workspaces/${workspace.id}/sessions/${session.id}/worktree?expected_worktree_id=${first.id}`,
       { method: "DELETE" }
     );
     await expect(chip).toHaveAttribute("data-binding", "root");
+    await expect(headerBinding).toHaveCount(0);
+    await expect(headerBranch).not.toHaveText(first.branch);
     await expect(win).toBeVisible();
     expect(appPage.url()).toBe(originalURL);
     await appPage.screenshot({ path: testInfo.outputPath("session-unbound-in-place.png") });
