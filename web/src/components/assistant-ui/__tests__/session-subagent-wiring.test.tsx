@@ -11,6 +11,7 @@ import { act, createElement, Profiler, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import { SubagentDrawerContext, subagentDrawerLogic } from "@/systems/session";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/systems/session/adapters/subagent-api", () => ({
@@ -323,6 +324,37 @@ describe("parent timeline activity across subagent updates (#835)", () => {
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
+  // Invariant: inspection selects a queued delegation before a child session exists.
+  // Owner/canonical suite: provider → card → window drawer store wiring, UT-W16.
+  it("Should select a queued subagent in the drawer before its child session exists", () => {
+    const queued = view("sub-1", { status: "queued", child_session_id: null });
+    const store = subagentDrawerLogic.createStore();
+    const openSession = vi.fn();
+    const Host = harness([queued], { openSession });
+    function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <SubagentDrawerContext
+          value={{
+            store,
+            open: (subagent, _options, workspaceId) =>
+              store.trigger.opened({ subagent, workspaceId, trigger: null }),
+          }}
+        >
+          <Host>{children}</Host>
+        </SubagentDrawerContext>
+      );
+    }
+    renderRow([cardPart("sub-1")], Wrapper);
+    const card = screen.getByRole("button", { name: "Open Task sub-1" });
+    fireEvent.click(card);
+    expect(store.getSnapshot().context.selected).toEqual({
+      subagent: queued,
+      workspaceId: WORKSPACE_ID,
+    });
+    expect(card).toHaveAttribute("aria-current", "true");
+    expect(openSession).not.toHaveBeenCalled();
+  });
+
   it("Should become navigable from a live roster update, then open here or in a new window", async () => {
     // Invariant: a delegated card cannot navigate without a child; the live roster
     // supplies that child without a reload or remount. Owner: view wiring, UT-W16.
