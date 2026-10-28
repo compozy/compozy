@@ -31,13 +31,6 @@ async function refreshSessionDetail(
     { cancelRefetch: false }
   );
   if (!isOpen() || payload.kind !== "upserted") return;
-  // The transition signal survives detail polling and root-only CWD changes.
-  // Cancel even an initial old-CWD fetch before starting the new directory read.
-  if (payload.execution_location_changed === true) {
-    const queryKey = sessionKeys.fileSearchRoot(payload.workspace_id, payload.session_id);
-    await queryClient.cancelQueries({ queryKey });
-    await queryClient.invalidateQueries({ queryKey });
-  }
   const state = queryClient.getQueryData<SessionPayload>(detailKey)?.state;
   if (state === undefined || isLiveSessionState(state)) return;
   const transcriptKey = sessionKeys.transcript(payload.workspace_id, payload.session_id);
@@ -90,11 +83,16 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
   return {
     wake(sessionId: string, payload?: SessionCatalogEventPayload) {
       if (closed) return;
+      // Location reads are independent of detail/transcript reconciliation.
+      if (payload?.execution_location_changed === true) {
+        const queryKey = sessionKeys.fileSearchRoot(payload.workspace_id, sessionId);
+        void queryClient.cancelQueries({ queryKey }).then(() => {
+          if (!closed) return queryClient.invalidateQueries({ queryKey });
+        });
+      }
       // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
       const queued = pending.get(sessionId);
-      if (queued?.kind === "upserted" && payload?.execution_location_changed === true) {
-        pending.set(sessionId, { ...queued, execution_location_changed: true });
-      } else if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {
+      if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {
         pending.set(sessionId, payload);
       }
       if (running.has(sessionId)) return;

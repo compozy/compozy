@@ -59,3 +59,5 @@ The isolated lab teardown completed with `TEARDOWN_ALL_CLEAN=true`; only registe
 ## Final Status
 
 Targeted runtime and focused checks passed. Current-head CI, browser artifacts and reviewer dispositions are recorded in [PR #1002](https://github.com/compozy/compozy/pull/1002). This report does not substitute for those delivery gates.
+
+The final catalog remediation also keeps accepted location wakes when a post-commit status read fails, cancels old file searches independently of detail reads, and reconciles file queries on stream reconnect when replay no longer contains the transition. The existing lifecycle integration and Web stream suites cover these boundaries.

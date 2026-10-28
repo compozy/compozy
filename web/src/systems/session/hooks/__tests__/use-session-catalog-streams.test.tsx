@@ -936,7 +936,7 @@ describe("useSessionCatalogStreams", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["catalog-first", "completed-read", "pending-read", "same-root"])(
+  it.each(["catalog-first", "completed-read", "pending-read", "same-root", "reconnect"])(
     "Should refresh mounted files only for a location transition (%s)",
     async ordering => {
       // Invariant: externally changed CWD reaches the open mention picker without
@@ -995,6 +995,7 @@ describe("useSessionCatalogStreams", () => {
       }
       let finishRead: ((value: SessionPayload) => void) | undefined;
       let pendingRead: Promise<void> | undefined;
+      let oldFileSignal: AbortSignal | undefined;
       if (ordering === "pending-read") {
         vi.mocked(fetchSession).mockImplementationOnce(
           () =>
@@ -1004,6 +1005,12 @@ describe("useSessionCatalogStreams", () => {
         );
         pendingRead = queryClient.refetchQueries({ queryKey: detailKey, exact: true });
         await waitFor(() => expect(finishRead).toBeDefined());
+        readFiles.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
+          oldFileSignal = signal;
+          return new Promise(() => {});
+        });
+        void queryClient.refetchQueries({ queryKey: filesKey, exact: true });
+        await waitFor(() => expect(oldFileSignal).toBeDefined());
       }
       act(() => {
         // An ordinary upsert must not erase the following transition while a read settles.
@@ -1012,19 +1019,25 @@ describe("useSessionCatalogStreams", () => {
           workspace_id: WORKSPACE_ID,
           session_id: SESSION_ID,
         });
-        sources[0]?.emit("session_catalog_changed", {
-          kind: "upserted",
-          workspace_id: WORKSPACE_ID,
-          session_id: SESSION_ID,
-          execution_location_changed: true,
-        });
-        finishRead?.(after);
+        if (ordering === "reconnect") {
+          sources[0]?.emit("error");
+          sources[0]?.emit("open");
+        } else {
+          sources[0]?.emit("session_catalog_changed", {
+            kind: "upserted",
+            workspace_id: WORKSPACE_ID,
+            session_id: SESSION_ID,
+            execution_location_changed: true,
+          });
+        }
       });
-      await pendingRead;
       await waitFor(() => expect(result.current.data).toEqual(["checkout.txt"]));
-      expect(readFiles).toHaveBeenCalledTimes(1);
-      expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false);
-      expect(queryClient.getQueryState(foreignKey)?.isInvalidated).toBe(false);
+      if (ordering === "pending-read") expect(oldFileSignal?.aborted).toBe(true);
+      act(() => finishRead?.(after));
+      await pendingRead;
+      expect(readFiles).toHaveBeenCalledTimes(ordering === "pending-read" ? 2 : 1);
+      expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(ordering === "reconnect");
+      expect(queryClient.getQueryState(foreignKey)?.isInvalidated).toBe(ordering === "reconnect");
       expect(fetchSessionTranscript).not.toHaveBeenCalled();
     }
   );

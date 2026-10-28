@@ -317,6 +317,54 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 			t.Fatalf("catalog=%#v error=%v", rows, err)
 		}
 	})
+	// Invariant: an accepted binding publishes its location wake even if the
+	// post-commit status projection is unavailable. Owner: session lifecycle.
+	t.Run("Should publish accepted binding after a failed status read", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		ctx := testutil.Context(t)
+		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		path := created.MetaPath()
+		h.manager.AddWorktreeBindingNotifier(func(ctx context.Context, _ *Info, _ string) {
+			if err := os.Rename(path, path+".unavailable"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.Status(ctx, created.ID); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("status failure = %v", err)
+			}
+		})
+		events, unsubscribe, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unsubscribe()
+		changed, bindErr := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+		if err := os.Rename(path+".unavailable", path); err != nil {
+			t.Fatal(err)
+		}
+		if bindErr != nil {
+			t.Fatal(bindErr)
+		}
+		for {
+			select {
+			case event := <-events:
+				if event.SessionID == changed.ID && event.ExecutionLocationChanged {
+					return
+				}
+			default:
+				t.Fatal("accepted binding did not publish its location change")
+			}
+		}
+	})
 	// Invariant: stopped sessions can leave unavailable checkouts without starting
 	// a provider. Owner: session lifecycle; same canonical integration suite.
 	t.Run("Should bind stopped sessions and leave a removed checkout", func(t *testing.T) {

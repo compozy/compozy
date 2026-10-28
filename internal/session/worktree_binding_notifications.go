@@ -25,7 +25,7 @@ func (m *Manager) notifyWorktreeBindingChanged(ctx context.Context, info *Info, 
 	}
 	current, err := m.Status(ctx, info.ID)
 	if err != nil || current == nil {
-		return
+		current = info
 	}
 	event := sessionCatalogEventFromInfo(CatalogEventUpserted, current)
 	event.ExecutionLocationChanged = true

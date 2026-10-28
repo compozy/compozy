@@ -32,6 +32,7 @@ func (m *Manager) writeWorktreeBinding(
 	meta.SetCWD(cwd)
 	meta.UpdatedAt = m.now()
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, meta.ID))
+	// Persist intent first so recovery can finish an interrupted catalog update.
 	if err := store.WriteSessionMeta(path, meta); err != nil {
 		return err
 	}
@@ -42,6 +43,7 @@ func (m *Manager) writeWorktreeBinding(
 		SessionID: meta.ID, WorkspaceID: meta.WorkspaceID, ProfileID: meta.ProfileID,
 		ExpectedWorktreeID: transition.Previous.WorktreeID, WorktreeID: worktreeID, UpdatedAt: meta.UpdatedAt,
 	}); err != nil {
+		// Roll back explicit conflicts; retain pending intent on other catalog errors for recovery.
 		if errors.Is(err, store.ErrSessionWorktreeConflict) {
 			if rollbackErr := store.WriteSessionMeta(path, &previous); rollbackErr != nil {
 				return errors.Join(err, rollbackErr)

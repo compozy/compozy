@@ -17,6 +17,7 @@ type WorktreeBindingResolver interface {
 	AcquireSessionWorktreeUnbinding(context.Context, string, string, string) (func(), error)
 }
 
+// Empty ref unbinds; nil expected skips the caller fence, while a pointer to "" requires an unbound session.
 func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, expected *string) (*Info, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("%w: worktree binding context is required", ErrValidation)
