@@ -33,6 +33,7 @@ export interface SessionComposerState {
   setComposerText: (text: string) => void;
   setComposerInputElement: (handle: SessionComposerInputHandle | null) => void;
   prefillComposer: (text: string) => void;
+  replaceComposer: (text: string) => void;
   composerText: string;
   isRunning: boolean;
 }
@@ -120,6 +121,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     composerInputHandleRef.current?.focus();
   };
 
+  const replaceComposer = (text: string) => {
+    // The composer observer persists this change after the runtime publishes it.
+    // Updating both stores here lets a stale observation rehydrate the old draft.
+    aui.composer.setText(text);
+    composerInputHandleRef.current?.focus();
+  };
+
   const onGoalDraftCompleted = useEffectEvent((event: { sessionId: string; text: string }) => {
     if (event.sessionId === sessionId) prefillComposer(event.text);
   });
@@ -193,6 +201,7 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     isRunning,
     persistComposerText,
     prefillComposer,
+    replaceComposer,
     setComposerInputElement,
     setComposerText,
   };

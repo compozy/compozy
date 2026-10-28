@@ -16,7 +16,7 @@ last_report: docs/qa/reports/2026-09-29-session-continue-fork-r1-rewalk.md
 overlaps: ET-web-session-fork-from-here; RT-session-lineage-upgrade
 ---
 
-Conversation rewind does not restore files, tool effects, or network calls. The confirmation and structured output must preserve that boundary.
+Conversation rewind does not restore files, tool effects, or network calls. The composer edit notice and structured output must preserve that boundary.
 
 Rewind starts fresh provider context, so it also discards a resume replay that is still pending: after a runtime
 replacement followed only by a maintenance turn, a rewind must not let the pre-rewind replay block reappear on
@@ -62,3 +62,37 @@ QA impact 2026-10-07 (memory removal): the Web confirmation (`session-rewind-mes
 Issue #872: the Web action is labeled **Edit message** and explains that the selected message returns to the composer while its conversation suffix is removed. Stop an active response, wait for cancellation to settle, edit the sent message, change its text, and send again in the same session. Verify the corrected response and absence of the discarded request from the active transcript. A pre-existing draft and busy/decision fences must still prevent destructive replacement. CLI/API rewind naming is unchanged. Owning browser coverage: `session-hardening.spec.ts`.
 
 QA 2026-10-21 (#872): the scoped Web stop/edit/resend leg passed in the isolated browser runtime with the real daemon and ACP mock provider, followed by clear/reload/delete checks. The selected text returned to the composer, its accessible name stayed stable through the reset, and resending produced a new response in the same session. Historical CLI/provenance coverage above was not rerun.
+
+
+Issue #995 supersedes the Web confirmation/draft guard above. **Edit message** now selects
+text locally in the official composer, replacing any existing draft and its attachments.
+No dialog or rewind request occurs on selection. The composer identifies edit mode and explains
+that sending replaces this message and later replies without undoing files or tool effects.
+
+1. In an idle or stopped user session, type an unsent draft and select a durable message's Edit action.
+   Verify exact multiline text, focus in the composer, no dialog, and unchanged active history.
+2. Cancel through **Cancel edit**, Escape, and clearing the text; verify the conversation is unchanged.
+3. Select again, change the text, and submit with Enter and the send button. Verify one rewind before
+   one prompt, the retained prefix, exactly one replacement message, and a fresh response in the same session.
+4. Hold the rewind response while the transcript removes the original row; the composer still completes
+   the send once. Repeated sends while pending must not create another rewind or prompt.
+5. Refuse rewind (for example an open decision or stale fence); verify the daemon's reason is shown,
+   the edited text remains available, and no replacement prompt is sent.
+
+Owning suites: `session-chat-runtime-provider.test.tsx`, `session-thread.test.tsx`, and the
+stop/edit/resend journey in `session-hardening.spec.ts`. Fork keeps its own existing gates.
+QA 2026-10-27 (#995): both canonical component suites passed (291 tests). The isolated
+browser journey passed against the real daemon and ACP fixture provider: stopped-session
+selection replaces the draft and focuses the editor without a dialog; Escape preserves history;
+reselection and Enter replace the original message, receive a new response, and retain the
+existing clear/reload/delete checks. Component coverage verifies button submission, multiline
+text, cancellation by button/clearing, transcript-row removal during rewind, and daemon refusal
+with the draft retained. Screenshots: `session-edit-selected` and `session-stop-edit-resend`
+in the Playwright browser artifacts. Historical CLI/provenance legs above were not rerun.
+
+Review re-walk 2026-10-27 (#995): the browser journey now holds the real rewind response,
+switches to another session, releases the response, and verifies the original session receives
+its replacement and response before returning. Both focused runtime/mutation suites passed
+(120 tests), including exact rewind request replay after a post-acceptance refetch failure.
+The submitted text and attachment references survive navigation through the existing prompt
+transport; a retry retains its original idempotency key and daemon-issued transcript fence.

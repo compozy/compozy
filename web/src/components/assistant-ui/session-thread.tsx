@@ -5,7 +5,8 @@ import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/se
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
 
 import { SessionComposer, type SessionComposerProps } from "./session-composer";
-import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
+import { SessionMessageEditContext } from "./session-message-edit-context";
+import { useSessionMessageEdit } from "./hooks/use-session-message-edit";
 import { SessionThreadLiveDataProvider } from "./session-thread-live-data-provider";
 import { SessionThreadReadOnlyProvider } from "./session-thread-read-only-provider";
 import { useSessionThreadState } from "./hooks/use-session-thread-state";
@@ -156,6 +157,7 @@ export function SessionThread({
     sessionId,
     sessionState,
   });
+  const messageEdit = useSessionMessageEdit(thread.composer);
   // One scroll owner for the viewport and the rows that change height (ADR-007).
   const scrollStore = useStore(threadScrollLogic);
   // Steering an already-streaming turn snaps the viewport to the end instead
@@ -182,7 +184,7 @@ export function SessionThread({
           <SteerProvenanceProvider>
             <SessionThreadReadOnlyProvider readOnly={readOnly}>
               <SessionThreadLiveDataProvider liveDataEnabled={liveDataEnabled}>
-                <SessionComposerPrefillProvider setComposerText={thread.composer.prefillComposer}>
+                <SessionMessageEditContext value={readOnly ? null : messageEdit}>
                   {workspaceId && sessionState !== "starting" ? (
                     <ThreadContentRail inset={contentInset}>
                       <SessionGoalHeaderContainer
@@ -268,7 +270,7 @@ export function SessionThread({
                       promptEmbeddedContextCapability={promptEmbeddedContextCapability}
                     />
                   )}
-                </SessionComposerPrefillProvider>
+                </SessionMessageEditContext>
               </SessionThreadLiveDataProvider>
             </SessionThreadReadOnlyProvider>
           </SteerProvenanceProvider>

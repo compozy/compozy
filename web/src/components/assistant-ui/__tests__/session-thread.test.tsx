@@ -2226,8 +2226,8 @@ describe("SessionThread transcript states", () => {
   });
 
   // A pending rewind anywhere in the workspace moves the transcript under every
-  // row: both actions disable together (the shared gate; VC-05 busy).
-  it("Should disable Fork from here together with Rewind while a rewind is pending", async () => {
+  // row: Fork remains blocked, while selecting a local edit makes no mutation.
+  it("Should disable Fork but allow selecting a local edit while a rewind is pending", async () => {
     const forkRequest = vi.fn<SessionForkRequest>();
     const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
     const queryClient = createQueryClient();
@@ -2251,14 +2251,14 @@ describe("SessionThread transcript states", () => {
 
     const fork = await screen.findByTestId("user-message-fork");
     expect(fork).toBeDisabled();
-    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
     fireEvent.click(fork);
     expect(forkRequest).not.toHaveBeenCalled();
   });
 
   // A turn started outside this page (CLI, another window, before a reload) leaves the
-  // local thread idle; the daemon's running detail still disables both actions.
-  it("Should disable Fork from here together with Rewind while the daemon reports a running turn", async () => {
+  // local thread idle; Fork stays blocked, but selecting a local edit remains safe.
+  it("Should disable Fork but allow selecting a local edit while the daemon reports a running turn", async () => {
     const baseFetch = createFetchMock();
     const detailPath = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}`;
     vi.stubGlobal(
@@ -2279,7 +2279,7 @@ describe("SessionThread transcript states", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
-    expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+    expect(screen.getByTestId("user-message-rewind")).toBeEnabled();
   });
 
   // Invariant: user prose links permit only safe external protocols and leave

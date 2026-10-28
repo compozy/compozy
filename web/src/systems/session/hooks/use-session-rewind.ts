@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import type { SessionRewindRequest } from "../adapters/session-rewind-api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { rewindSession, SessionApiError, type SessionRewindResult } from "../adapters/session-api";
@@ -45,25 +47,29 @@ function rewindFence(
  */
 export function useSessionRewind(workspaceId: string) {
   const queryClient = useQueryClient();
+  const attempt = useRef<{ identity: string; request: SessionRewindRequest } | null>(null);
 
   return useMutation<SessionRewindResult, Error, SessionRewindVariables>({
     mutationKey: sessionKeys.rewindConversation(workspaceId),
     mutationFn: async ({ idempotencyKey, messageId, sessionId, signal }) => {
+      const identity = JSON.stringify([workspaceId, sessionId, messageId, idempotencyKey]);
+      if (attempt.current?.identity !== identity) {
+        attempt.current = {
+          identity,
+          request: {
+            ...rewindFence(queryClient, workspaceId, sessionId),
+            idempotency_key: idempotencyKey,
+            message_id: messageId,
+          },
+        };
+      }
+      // A receipt replays only the original key AND fence, even after cache removal.
+      const request = attempt.current.request;
       const parent = await queryClient.fetchQuery({
         ...sessionDetailOptions(workspaceId, sessionId),
         staleTime: 0,
       });
-      return rewindSession(
-        workspaceId,
-        sessionId,
-        parent.profile_name,
-        {
-          ...rewindFence(queryClient, workspaceId, sessionId),
-          idempotency_key: idempotencyKey,
-          message_id: messageId,
-        },
-        signal
-      );
+      return rewindSession(workspaceId, sessionId, parent.profile_name, request, signal);
     },
     onSuccess: async (result, { sessionId }) => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), result.session);

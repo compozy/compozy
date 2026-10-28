@@ -385,73 +385,96 @@ describe("session actions", () => {
     expect(sessionStore.getSnapshot().context.drafts[createdSession.id]).toBe("keep me");
   });
 
-  it("useSessionRewind refreshes a renamed profile owner and sends the current durable fence", async () => {
-    const owner = { ...createdSession, profile_name: "design-renamed" };
-    vi.mocked(fetchSession).mockResolvedValue(owner);
-    vi.mocked(rewindSession).mockResolvedValue({
-      rewind: { draft_text: "Return to this request." },
-      session: owner,
-    });
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
-    const freshTranscript = transcriptCache("message-rewound");
-    const fetchInfiniteQuery = vi
-      .spyOn(queryClient, "fetchInfiniteQuery")
-      .mockResolvedValue(freshTranscript);
-    const cachedTranscript = transcriptCache("message-001");
-    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), {
-      ...cachedTranscript,
-      pages: [
-        {
-          ...cachedTranscript.pages[0]!,
-          epoch: 3,
-          generation: 7,
-          max_sequence: 19,
-        },
-      ],
-    });
-
-    const { result } = renderHook(() => useSessionRewind(WORKSPACE_ID), {
-      wrapper: createWrapper(queryClient),
-    });
-    const controller = new AbortController();
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        idempotencyKey: "rewind-idempotency-001",
-        messageId: "message-001",
-        sessionId: createdSession.id,
-        signal: controller.signal,
+  it.each([false, true])(
+    "useSessionRewind preserves its owner and fence across refetch failure (%s)",
+    async failRefetch => {
+      const owner = { ...createdSession, profile_name: "design-renamed" };
+      vi.mocked(fetchSession).mockResolvedValue(owner);
+      vi.mocked(rewindSession).mockResolvedValue({
+        rewind: { draft_text: "Return to this request." },
+        session: owner,
       });
-    });
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
+      const freshTranscript = transcriptCache("message-rewound");
+      const fetchInfiniteQuery = vi
+        .spyOn(queryClient, "fetchInfiniteQuery")
+        .mockResolvedValue(freshTranscript);
+      const cachedTranscript = transcriptCache("message-001");
+      queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), {
+        ...cachedTranscript,
+        pages: [
+          {
+            ...cachedTranscript.pages[0]!,
+            epoch: 3,
+            generation: 7,
+            max_sequence: 19,
+          },
+        ],
+      });
 
-    expect(rewindSession).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      createdSession.id,
-      owner.profile_name,
-      {
-        expected_epoch: 3,
-        expected_generation: 7,
-        expected_max_sequence: 19,
-        idempotency_key: "rewind-idempotency-001",
-        message_id: "message-001",
-      },
-      controller.signal
-    );
-    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
-      owner
-    );
-    expect(
-      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
-    ).toBeUndefined();
-    expect(fetchInfiniteQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
-      })
-    );
-  });
+      const { result } = renderHook(() => useSessionRewind(WORKSPACE_ID), {
+        wrapper: createWrapper(queryClient),
+      });
+      const controller = new AbortController();
+      if (failRefetch) {
+        fetchInfiniteQuery.mockRejectedValueOnce(new Error("refetch failed"));
+        await act(async () => {
+          await expect(
+            result.current.mutateAsync({
+              idempotencyKey: "rewind-idempotency-001",
+              messageId: "message-001",
+              sessionId: createdSession.id,
+              signal: controller.signal,
+            })
+          ).rejects.toThrow("refetch failed");
+        });
+        expect(
+          queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+        ).toBeUndefined();
+      }
+
+      await act(async () => {
+        await result.current.mutateAsync({
+          idempotencyKey: "rewind-idempotency-001",
+          messageId: "message-001",
+          sessionId: createdSession.id,
+          signal: controller.signal,
+        });
+      });
+
+      if (failRefetch)
+        expect(vi.mocked(rewindSession).mock.calls[1]?.[3]).toEqual(
+          vi.mocked(rewindSession).mock.calls[0]?.[3]
+        );
+      expect(rewindSession).toHaveBeenCalledWith(
+        WORKSPACE_ID,
+        createdSession.id,
+        owner.profile_name,
+        {
+          expected_epoch: 3,
+          expected_generation: 7,
+          expected_max_sequence: 19,
+          idempotency_key: "rewind-idempotency-001",
+          message_id: "message-001",
+        },
+        controller.signal
+      );
+      expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+        owner
+      );
+      expect(
+        queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+      ).toBeUndefined();
+      expect(fetchInfiniteQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+        })
+      );
+    }
+  );
 
   // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID, and
   // a settled deletion stays attributed to the operator so its window retires quietly (#952).

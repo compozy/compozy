@@ -1,6 +1,6 @@
 import { Pencil } from "lucide-react";
 
-import { Button, ConfirmDialog } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 import { useSessionRewindMessageAction } from "../hooks/use-session-rewind-message-action";
 
 /**
@@ -15,32 +15,17 @@ export function SessionRewindMessageAction() {
   }
 
   return (
-    <>
-      <Button
-        aria-label="Edit message"
-        data-testid="user-message-rewind"
-        disabled={action.busy}
-        onClick={action.trigger}
-        size="xs"
-        type="button"
-        variant="quiet"
-      >
-        <Pencil aria-hidden="true" />
-        Edit message
-      </Button>
-      <ConfirmDialog
-        cancelLabel="Cancel"
-        confirmButtonProps={{ "data-testid": "session-rewind-confirm" }}
-        confirmLabel="Edit message"
-        contentProps={{ "data-testid": "session-rewind-dialog" }}
-        description="This message will return to the composer for editing. Messages from this point onward will be removed from the active conversation. Files and tool effects will not be undone."
-        isPending={action.isPending}
-        onConfirm={action.confirm}
-        onOpenChange={action.setOpen}
-        open={action.open}
-        title="Edit this message?"
-        tone="danger"
-      />
-    </>
+    <Button
+      aria-label="Edit message"
+      data-testid="user-message-rewind"
+      disabled={action.busy}
+      onClick={action.trigger}
+      size="xs"
+      type="button"
+      variant="quiet"
+    >
+      <Pencil aria-hidden="true" />
+      Edit message
+    </Button>
   );
 }

@@ -388,36 +388,36 @@ export function useSessionChatRuntime({
     readOnly
   );
 
-  return useChatRuntime({
+  const onError = (error: Error) => {
+    // A POST with no authoritative answer — no response at all, or a 5xx that
+    // may have followed durable acceptance — may still have been recorded: the
+    // identity is retained as pending-ack and the tail reopens at once (Part II
+    // topology). A 2xx accepted the turn (it continues detached if the body
+    // breaks later; the draft was already consumed) and a 4xx refused it (the
+    // draft comes back): both are outcomes, never unconfirmed.
+    const prompt = promptDispatch.getSnapshot().context.prompt;
+    const answered = prompt?.answeredStatus ?? null;
+    const messageId = prompt?.envelope.identity.messageId ?? null;
+    const unconfirmed =
+      prompt !== null && (answered === null || answered >= 500) && isSendAcknowledgmentLost(error);
+    promptDispatch.trigger.promptFailed({ unconfirmed });
+    if (unconfirmed) {
+      consumeDraft(messageId);
+      return;
+    }
+    if (answered !== null && answered >= 400 && answered < 500) {
+      promptOutcome.notSent(
+        messageId,
+        sessionPromptRefusalReason(error instanceof Error ? error.message : "")
+      );
+      return;
+    }
+    restoreDraft(messageId);
+  };
+
+  const runtime = useChatRuntime({
     transport: runtimeConfig.transport,
-    onError: error => {
-      // A POST with no authoritative answer — no response at all, or a 5xx that
-      // may have followed durable acceptance — may still have been recorded: the
-      // identity is retained as pending-ack and the tail reopens at once (Part II
-      // topology). A 2xx accepted the turn (it continues detached if the body
-      // breaks later; the draft was already consumed) and a 4xx refused it (the
-      // draft comes back): both are outcomes, never unconfirmed.
-      const prompt = promptDispatch.getSnapshot().context.prompt;
-      const answered = prompt?.answeredStatus ?? null;
-      const messageId = prompt?.envelope.identity.messageId ?? null;
-      const unconfirmed =
-        prompt !== null &&
-        (answered === null || answered >= 500) &&
-        isSendAcknowledgmentLost(error);
-      promptDispatch.trigger.promptFailed({ unconfirmed });
-      if (unconfirmed) {
-        consumeDraft(messageId);
-        return;
-      }
-      if (answered !== null && answered >= 400 && answered < 500) {
-        promptOutcome.notSent(
-          messageId,
-          sessionPromptRefusalReason(error instanceof Error ? error.message : "")
-        );
-        return;
-      }
-      restoreDraft(messageId);
-    },
+    onError,
     /**
      * Emits a draft handoff only for the matching successful operator prompt.
      * The draft itself settles with the POST's answer (see trackedFetch): an
@@ -448,4 +448,24 @@ export function useSessionChatRuntime({
     },
     adapters: { attachments: attachmentAdapter },
   });
+  return {
+    runtime,
+    // Capture the transport, not the UI thread proxy which disappears on navigation.
+    sendDetachedPrompt: async (message: UIMessage) => {
+      try {
+        const stream = await runtimeConfig.transport.sendMessages({
+          abortSignal: undefined,
+          chatId: sessionId,
+          messageId: undefined,
+          messages: [message],
+          trigger: "submit-message",
+        });
+        await stream.cancel();
+        runtimeConfig.onFinish();
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error(String(error)));
+        throw error;
+      }
+    },
+  };
 }
