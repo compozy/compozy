@@ -739,6 +739,61 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 
 func TestRecoveredUpdateOutcome(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve staged app details from the recovering executor", func(t *testing.T) {
+		t.Parallel()
+		operation := &compozyupdate.Operation{
+			App: &compozyupdate.AppOperationState{
+				Phase:     compozyupdate.PhaseStaged,
+				ToVersion: "v1.1.0",
+				AttemptID: "recovered-attempt",
+			},
+		}
+		base := updateRecord{
+			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusUpToDate},
+			App: &compozyupdate.AppTrackState{
+				CurrentVersion: "v1.0.0",
+				Status:         compozyupdate.StatusAvailable,
+				Message:        "available",
+				LastError:      "old error",
+			},
+		}
+		record, err := recoveredUpdateRecord(base, operation)
+		if err != nil || record.Status != compozyupdate.StatusStaged || record.App.LatestVersion != "v1.1.0" ||
+			record.App.AttemptID != "recovered-attempt" ||
+			record.App.LastError != "" ||
+			!strings.Contains(record.App.Message, "next launch") {
+			t.Fatalf("staged recovery = %#v, %v", record, err)
+		}
+	})
+	for _, tc := range []struct {
+		name    string
+		runtime *compozyupdate.RuntimeOperationState
+		app     *compozyupdate.AppOperationState
+	}{
+		{name: "Should report a canceled runtime without recommending restart", runtime: &compozyupdate.RuntimeOperationState{Phase: compozyupdate.PhaseDownloading}},
+		{name: "Should report a canceled staged app without claiming staged success", app: &compozyupdate.AppOperationState{Phase: compozyupdate.PhaseStaged}},
+		{name: "Should preserve a finalized runtime when the pending app is canceled", runtime: &compozyupdate.RuntimeOperationState{Phase: compozyupdate.PhaseFinalized, ToVersion: "v1.1.0", DaemonRestarted: true}, app: &compozyupdate.AppOperationState{Phase: compozyupdate.PhaseStaged}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			record, err := recoveredUpdateRecord(
+				updateRecord{App: &compozyupdate.AppTrackState{}},
+				&compozyupdate.Operation{Outcome: "canceled", Runtime: tc.runtime, App: tc.app},
+			)
+			if err != nil || record.Status != compozyupdate.StatusCanceled ||
+				strings.Contains(record.Runtime.Message, "compozy daemon stop") {
+				t.Fatalf("canceled recovery = %#v, %v", record, err)
+			}
+			if tc.runtime != nil && tc.runtime.Phase == compozyupdate.PhaseFinalized &&
+				(record.Runtime.Status != compozyupdate.StatusUpdated || record.Runtime.CurrentVersion != "v1.1.0") {
+				t.Fatalf("lost completed runtime: %#v", record.Runtime)
+			}
+			if tc.app != nil && record.App.Status != compozyupdate.StatusCanceled {
+				t.Fatalf("app status = %s", record.App.Status)
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		name        string
 		phase       compozyupdate.OperationPhase

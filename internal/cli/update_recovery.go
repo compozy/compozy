@@ -67,6 +67,9 @@ func writeRecoveredUpdate(cmd *cobra.Command, record updateRecord, recovered *co
 }
 
 func recoveredUpdateRecord(record updateRecord, operation *compozyupdate.Operation) (updateRecord, error) {
+	if operation.Outcome == updateOutcomeCanceled {
+		return canceledRecoveredUpdateRecord(record, operation), nil
+	}
 	var outcomeErr error
 	if runtime := operation.Runtime; runtime != nil {
 		record.Runtime.LatestVersion = runtime.ToVersion
@@ -92,7 +95,7 @@ func recoveredUpdateRecord(record updateRecord, operation *compozyupdate.Operati
 	}
 	record = applyArchivedAppOutcome(record, operation)
 	if operation.App != nil && operation.App.Phase == compozyupdate.PhaseStaged && record.App != nil {
-		record.App.Status = compozyupdate.StatusStaged
+		record = completedUpdateRecord(record, compozyupdate.OperationRequest{App: operation.App}, nil)
 	}
 	if operation.App != nil && operation.App.Phase == compozyupdate.PhaseFailed {
 		outcomeErr = errors.Join(outcomeErr, errors.New(cmp.Or(operation.LastError, "App update recovery failed.")))
@@ -100,4 +103,25 @@ func recoveredUpdateRecord(record updateRecord, operation *compozyupdate.Operati
 	record.Operation = nil
 	record.Status = compozyupdate.AggregateTerminalStatus(record.Runtime.Status, appUpdateStatus(record.App))
 	return record, outcomeErr
+}
+
+func canceledRecoveredUpdateRecord(record updateRecord, operation *compozyupdate.Operation) updateRecord {
+	const message = "The update operation was canceled; no manual daemon restart is needed."
+	if operation.Runtime != nil {
+		if operation.Runtime.Phase == compozyupdate.PhaseFinalized {
+			record = completedUpdateRecord(record, compozyupdate.OperationRequest{Runtime: operation.Runtime}, nil)
+		} else {
+			record.Runtime.Status = compozyupdate.StatusCanceled
+			record.Runtime.Message = message
+			record.Runtime.LastError = ""
+		}
+	}
+	if operation.App != nil && record.App != nil {
+		record.App.Status = compozyupdate.StatusCanceled
+		record.App.Message = message
+		record.App.LastError = ""
+	}
+	record.Operation = nil
+	record.Status = compozyupdate.StatusCanceled
+	return record
 }
