@@ -127,7 +127,15 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 		return failAcquiredUpdate(cmd, manager, operation, record, err)
 	}
 	runErr := coordinator.Run(cmd.Context(), operation.ID, operation.Holder.ExecutorGeneration)
-	if errors.Is(runErr, compozyupdate.ErrExecutorFenced) {
+	recovered := errors.Is(runErr, compozyupdate.ErrExecutorFenced)
+	if !recovered && errors.Is(runErr, compozyupdate.ErrOperationConflict) {
+		var readErr error
+		recovered, readErr = updateExecutorWasSuperseded(cmd.Context(), manager.OperationStore(), operation)
+		if readErr != nil {
+			return writeUpdateFailure(cmd, record, errors.Join(runErr, readErr))
+		}
+	}
+	if recovered {
 		return reportRecoveredUpdate(cmd, deps, manager, operation, record)
 	}
 	var archived *compozyupdate.Operation
