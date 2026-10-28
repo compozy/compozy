@@ -271,7 +271,7 @@ func (q *Queries) FailSubagentWake(ctx context.Context, arg FailSubagentWakePara
 }
 
 const finalizeSubagent = `-- name: FinalizeSubagent :execrows
-UPDATE session_subagents SET status = ?1, work_state = ?2, result = ?3, error = ?4, result_truncated = ?5, child_activity = ?6, settled_at = ?7, updated_at = ?7 WHERE id = ?8 AND status IN ('queued','running','waiting')
+UPDATE session_subagents SET status = ?1, work_state = ?2, result = ?3, error = ?4, result_truncated = ?5, child_activity = COALESCE(NULLIF(CAST(?6 AS TEXT), ''), child_activity), settled_at = ?7, updated_at = ?7 WHERE id = ?8 AND status IN ('queued','running','waiting')
 `
 
 type FinalizeSubagentParams struct {
@@ -1347,6 +1347,122 @@ func (q *Queries) ListSubagentsByParent(ctx context.Context, arg ListSubagentsBy
 	return items, nil
 }
 
+const listSubagentsByParentUrgency = `-- name: ListSubagentsByParentUrgency :many
+SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity FROM session_subagents
+WHERE parent_session_id = ?1
+ AND (?2 = '' OR workspace_id = ?2)
+ AND (?3 = '[]' OR origin IN (SELECT value FROM json_each(?3)))
+ AND (?4 = '[]' OR status IN (SELECT value FROM json_each(?4)))
+ AND (?5 = '' OR
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+   WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(?6 AS INTEGER) OR
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+   WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(?6 AS INTEGER) AND
+   (created_at,id) < (?7,?5)))
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  WHEN status = 'queued' THEN 3 ELSE 4 END,
+ created_at DESC,id DESC LIMIT ?8
+`
+
+type ListSubagentsByParentUrgencyParams struct {
+	Parent     string `json:"parent"`
+	Workspace  any    `json:"workspace"`
+	Origins    any    `json:"origins"`
+	Statuses   any    `json:"statuses"`
+	CursorID   any    `json:"cursor_id"`
+	CursorRank int64  `json:"cursor_rank"`
+	CursorTime string `json:"cursor_time"`
+	PageLimit  int64  `json:"page_limit"`
+}
+
+// Most urgent first, matching the clients' display order: waiting, failed,
+// working (a resumed child included), queued, settled; then newest.
+func (q *Queries) ListSubagentsByParentUrgency(ctx context.Context, arg ListSubagentsByParentUrgencyParams) ([]SessionSubagent, error) {
+	rows, err := q.db.QueryContext(ctx, listSubagentsByParentUrgency,
+		arg.Parent,
+		arg.Workspace,
+		arg.Origins,
+		arg.Statuses,
+		arg.CursorID,
+		arg.CursorRank,
+		arg.CursorTime,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionSubagent{}
+	for rows.Next() {
+		var i SessionSubagent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentSessionID,
+			&i.ParentTurnID,
+			&i.ParentToolCallID,
+			&i.ChildSessionID,
+			&i.Origin,
+			&i.ProviderToolCallID,
+			&i.IdempotencyKey,
+			&i.RequestFingerprint,
+			&i.Title,
+			&i.Role,
+			&i.TaskChars,
+			&i.PendingTask,
+			&i.RuntimeAgent,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.Depth,
+			&i.Status,
+			&i.WorkState,
+			&i.Progress,
+			&i.Result,
+			&i.ResultTruncated,
+			&i.Error,
+			&i.WakePolicy,
+			&i.Delivery,
+			&i.WakeMessageID,
+			&i.AcknowledgedTurnID,
+			&i.StartedAt,
+			&i.SettledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Isolation,
+			&i.WorktreeID,
+			&i.WorktreeName,
+			&i.WorktreeBranch,
+			&i.WorktreeBaseRef,
+			&i.WorktreePath,
+			&i.WorktreeBaseSha,
+			&i.WorktreeCleanup,
+			&i.GitHeadSha,
+			&i.GitCommitsAhead,
+			&i.GitDirtyFiles,
+			&i.GitObservedAt,
+			&i.PrStatus,
+			&i.PrUrl,
+			&i.PrNumber,
+			&i.ChildActivity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubagentsByWorkspace = `-- name: ListSubagentsByWorkspace :many
 SELECT id, workspace_id, parent_session_id, parent_turn_id, parent_tool_call_id, child_session_id, origin, provider_tool_call_id, idempotency_key, request_fingerprint, title, role, task_chars, pending_task, runtime_agent, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, depth, status, work_state, progress, result, result_truncated, error, wake_policy, delivery, wake_message_id, acknowledged_turn_id, started_at, settled_at, created_at, updated_at, isolation, worktree_id, worktree_name, worktree_branch, worktree_base_ref, worktree_path, worktree_base_sha, worktree_cleanup, git_head_sha, git_commits_ahead, git_dirty_files, git_observed_at, pr_status, pr_url, pr_number, child_activity FROM session_subagents
 WHERE workspace_id = ?1
@@ -2067,7 +2183,8 @@ func (q *Queries) SettleSubagentWakeRows(ctx context.Context, arg SettleSubagent
 const subagentSummaries = `-- name: SubagentSummaries :many
 SELECT parent_session_id, count(*) AS total,
  sum(CASE WHEN status IN ('queued','running','waiting') THEN 1 ELSE 0 END) AS live,
- sum(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+ sum(CASE WHEN status = 'failed' AND child_activity <> 'working' THEN 1 ELSE 0 END) AS failed,
+ sum(CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1 ELSE 0 END) AS resumed,
  sum(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) AS attention
 FROM session_subagents WHERE parent_session_id IN (SELECT value FROM json_each(?1)) GROUP BY parent_session_id
 `
@@ -2077,6 +2194,7 @@ type SubagentSummariesRow struct {
 	Total           int64           `json:"total"`
 	Live            sql.NullFloat64 `json:"live"`
 	Failed          sql.NullFloat64 `json:"failed"`
+	Resumed         sql.NullFloat64 `json:"resumed"`
 	Attention       sql.NullFloat64 `json:"attention"`
 }
 
@@ -2094,6 +2212,7 @@ func (q *Queries) SubagentSummaries(ctx context.Context, parentIds any) ([]Subag
 			&i.Total,
 			&i.Live,
 			&i.Failed,
+			&i.Resumed,
 			&i.Attention,
 		); err != nil {
 			return nil, err

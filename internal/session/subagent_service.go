@@ -40,10 +40,10 @@ type subagentRuntime interface {
 	Steer(context.Context, string, string, string, string) (acp.SteerResult, error)
 	PublishParent(context.Context, string)
 	SettleParent(context.Context, string) error
-	// NativeTaskEvents returns at most limit committed native-task observations
-	// of one parent turn after the sequence cursor, in sequence order.
-	NativeTaskEvents(
-		ctx context.Context, parentID, turnID string, afterSequence int64, limit int,
+	// NativeTurnEvents returns at most limit committed events of the given
+	// types from one parent turn after the sequence cursor, in sequence order.
+	NativeTurnEvents(
+		ctx context.Context, parentID, turnID string, types []string, afterSequence int64, limit int,
 	) ([]store.SessionEvent, error)
 }
 

@@ -88820,6 +88820,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest",
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "enum": [
+                "newest",
+                "urgency"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {

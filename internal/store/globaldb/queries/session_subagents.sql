@@ -19,7 +19,7 @@ UPDATE session_subagents SET child_session_id = sqlc.arg(child_id), status = 'ru
 UPDATE session_subagents SET progress = ?, updated_at = ? WHERE id = ? AND status IN ('queued','running','waiting');
 
 -- name: FinalizeSubagent :execrows
-UPDATE session_subagents SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), result = sqlc.narg(result), error = sqlc.narg(error), result_truncated = sqlc.arg(result_truncated), child_activity = sqlc.arg(child_activity), settled_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting');
+UPDATE session_subagents SET status = sqlc.arg(status), work_state = sqlc.arg(work_state), result = sqlc.narg(result), error = sqlc.narg(error), result_truncated = sqlc.arg(result_truncated), child_activity = COALESCE(NULLIF(CAST(sqlc.arg(child_activity) AS TEXT), ''), child_activity), settled_at = sqlc.arg(now), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND status IN ('queued','running','waiting');
 
 -- name: UpdateSubagentChildActivity :execrows
 UPDATE session_subagents SET child_activity = sqlc.arg(child_activity), updated_at = sqlc.arg(now)
@@ -41,6 +41,27 @@ WHERE parent_session_id = sqlc.arg(parent)
  AND (sqlc.arg(cursor_id) = '' OR (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id)))
 ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 
+-- name: ListSubagentsByParentUrgency :many
+-- Most urgent first, matching the clients' display order: waiting, failed,
+-- working (a resumed child included), queued, settled; then newest.
+SELECT * FROM session_subagents
+WHERE parent_session_id = sqlc.arg(parent)
+ AND (sqlc.arg(workspace) = '' OR workspace_id = sqlc.arg(workspace))
+ AND (sqlc.arg(origins) = '[]' OR origin IN (SELECT value FROM json_each(sqlc.arg(origins))))
+ AND (sqlc.arg(statuses) = '[]' OR status IN (SELECT value FROM json_each(sqlc.arg(statuses))))
+ AND (sqlc.arg(cursor_id) = '' OR
+  (CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+   WHEN status = 'queued' THEN 3 ELSE 4 END) > CAST(sqlc.arg(cursor_rank) AS INTEGER) OR
+  ((CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+   WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+   WHEN status = 'queued' THEN 3 ELSE 4 END) = CAST(sqlc.arg(cursor_rank) AS INTEGER) AND
+   (created_at,id) < (sqlc.arg(cursor_time),sqlc.arg(cursor_id))))
+ORDER BY CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 2
+  WHEN status = 'waiting' THEN 0 WHEN status = 'failed' THEN 1 WHEN status = 'running' THEN 2
+  WHEN status = 'queued' THEN 3 ELSE 4 END,
+ created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
+
 -- name: ListSubagentsByWorkspace :many
 SELECT * FROM session_subagents
 WHERE workspace_id = sqlc.arg(workspace)
@@ -52,7 +73,8 @@ ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit);
 -- name: SubagentSummaries :many
 SELECT parent_session_id, count(*) AS total,
  sum(CASE WHEN status IN ('queued','running','waiting') THEN 1 ELSE 0 END) AS live,
- sum(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+ sum(CASE WHEN status = 'failed' AND child_activity <> 'working' THEN 1 ELSE 0 END) AS failed,
+ sum(CASE WHEN status IN ('completed','failed','canceled','interrupted') AND child_activity = 'working' THEN 1 ELSE 0 END) AS resumed,
  sum(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) AS attention
 FROM session_subagents WHERE parent_session_id IN (SELECT value FROM json_each(sqlc.arg(parent_ids))) GROUP BY parent_session_id;
 

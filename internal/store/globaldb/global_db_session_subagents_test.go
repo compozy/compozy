@@ -523,6 +523,72 @@ func TestGlobalDBSubagents(t *testing.T) {
 			t.Fatalf("cursor scope=%v", err)
 		}
 	})
+
+	t.Run("Should page one parent most urgent first before cutting each page", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, workspace, parent, now := subagentFixture(t)
+		var s store.SubagentStore = db.SessionRepo
+		at := func(i int) time.Time { return now.Add(time.Duration(i) * time.Second) }
+		finalize := func(id, status string, i int) {
+			t.Helper()
+			if _, ok, err := s.FinalizeSubagent(ctx, store.SubagentFinalize{
+				ID: id, Status: status, WorkState: store.SubagentWorkStateResultAvailable, SettledAt: at(i),
+			}); err != nil || !ok {
+				t.Fatalf("finalize %s = %v, %v", id, ok, err)
+			}
+		}
+		// Oldest first, so newest-first paging would cut the urgent rows off page one.
+		for i, id := range []string{"waiting", "failed", "resumed", "queued", "done-a", "done-b"} {
+			reserveSubagent(t, s, workspace, parent, id, at(i))
+		}
+		if _, ok, err := s.UpdateSubagentState(
+			ctx, "waiting", store.SubagentStatusWaiting, store.SubagentWorkStateWorking, at(10),
+		); err != nil || !ok {
+			t.Fatalf("waiting = %v, %v", ok, err)
+		}
+		finalize("failed", store.SubagentStatusFailed, 10)
+		finalize("resumed", store.SubagentStatusCompleted, 10)
+		if _, ok, err := s.UpdateSubagentChildActivity(
+			ctx, "resumed", store.SubagentChildActivityWorking, at(11),
+		); err != nil || !ok {
+			t.Fatalf("resume = %v, %v", ok, err)
+		}
+		finalize("done-a", store.SubagentStatusCompleted, 10)
+		finalize("done-b", store.SubagentStatusCompleted, 10)
+
+		query := store.SubagentListQuery{ParentSessionID: parent, Order: store.SubagentOrderUrgency, Limit: 2}
+		var got []string
+		for range 4 {
+			page, err := s.ListSubagents(ctx, query)
+			if err != nil {
+				t.Fatalf("urgency page = %v", err)
+			}
+			for _, row := range page.Items {
+				got = append(got, row.ID)
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if want := []string{"waiting", "failed", "resumed", "queued", "done-b", "done-a"}; !slices.Equal(got, want) {
+			t.Fatalf("urgency order = %v, want %v", got, want)
+		}
+		newest, err := s.ListSubagents(ctx, store.SubagentListQuery{ParentSessionID: parent, Limit: 1})
+		if err != nil || len(newest.Items) != 1 || newest.Items[0].ID != "done-b" {
+			t.Fatalf("default order page = %#v, %v", newest, err)
+		}
+		query.Order = store.SubagentOrderNewest
+		if _, err := s.ListSubagents(ctx, query); !errors.Is(err, listcursor.ErrInvalid) {
+			t.Fatalf("urgency cursor reused under newest order = %v", err)
+		}
+		if _, err := s.ListSubagents(ctx, store.SubagentListQuery{
+			WorkspaceID: workspace, Order: store.SubagentOrderUrgency,
+		}); err == nil {
+			t.Fatal("workspace-wide urgency order succeeded, want rejection")
+		}
+	})
 }
 
 func TestGlobalDBSubagentStateUpdates(t *testing.T) {
@@ -667,6 +733,20 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 		}
 		if again, err := db.ReconcileStoppedChildActivity(ctx); err != nil || len(again) != 0 {
 			t.Fatal(again, err)
+		}
+		// A finalization that reports no activity (cancel, failure) keeps the known one.
+		failed, changed, err := db.FinalizeSubagent(ctx, store.SubagentFinalize{
+			ID: "live-row", Status: store.SubagentStatusFailed, Error: new("interrupted"), SettledAt: later,
+		})
+		if err != nil || !changed || failed.ChildActivity != store.SubagentChildActivityWorking {
+			t.Fatal(failed, changed, err)
+		}
+		// Settled rows whose child works again count as resumed (displayed running), not failed;
+		// Live keeps counting only nonterminal rows, which gate parent settlement.
+		summaries, err := db.Summaries(ctx, []string{parent})
+		if got := summaries[parent]; err != nil || got.Total != 4 || got.Resumed != 2 || got.Failed != 0 ||
+			got.Live != 1 || got.MostUrgent != "running" {
+			t.Fatal(got, err)
 		}
 	})
 	t.Run("Should update only nonterminal state and preserve unchanged timestamps", func(t *testing.T) {

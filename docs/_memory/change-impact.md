@@ -1,5 +1,16 @@
 # Compozy Change Impact
 
+## Subagent status review follow-ups (#993) — 2026-10-28
+
+Owner: PR #993 review threads. Recovery settles a foreground native row from its committed tool
+result before task summaries and reads each parent turn's transcript once. Finalization keeps a
+known `child_activity` when the caller omits it. `subagent_summary.live` counts a resumed child, as
+the rows and composer already do; the group clock hides while a resumed child works. **Public
+surface (additive, SD-013):** `GET .../sessions/{session_id}/subagents` gains optional
+`order=newest|urgency` (default unchanged); OpenAPI and TS/Go SDKs regenerated; the sidebar branch
+pages most urgent first so a waiting or failed row is never behind "Show more". No migration,
+config key, native tool, hook, extension SDK, or `skills/compozy/` change; isolation unchanged.
+
 ## Subagent child activity and native task lifecycle — 2026-10-27
 
 Owner: branch `fix/subagent-status`. Delegated rows gain a persisted `child_activity`

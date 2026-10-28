@@ -34601,6 +34601,10 @@ export type ListSessionSubagentsData = {
      * Opaque next_cursor from the previous page
      */
     cursor?: string;
+    /**
+     * Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest
+     */
+    order?: "newest" | "urgency";
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents";
 };

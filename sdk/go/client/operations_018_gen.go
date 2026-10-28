@@ -442,4 +442,5 @@ type ListSessionSubagentsParams struct {
 	Status      *string `url:"status"`
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
+	Order       *string `url:"order"`
 }

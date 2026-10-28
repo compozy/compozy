@@ -34,8 +34,10 @@ export const SUBAGENT_BRANCH_PAGE_SIZE = 8;
 
 /**
  * Short pages of one parent's direct subagents for its session-row branch,
- * newest first. A branch reads only while open and pages on demand, so a long
- * roster never loads (or mounts) more than the operator asked to see.
+ * most urgent first: the daemon orders before it cuts the page, so a waiting
+ * or failed row never hides behind "Show more". A branch reads only while open
+ * and pages on demand, so a long roster never loads (or mounts) more than the
+ * operator asked to see.
  */
 export function sessionSubagentBranchOptions(workspaceId: string, sessionId: string) {
   return infiniteQueryOptions({
@@ -44,7 +46,11 @@ export function sessionSubagentBranchOptions(workspaceId: string, sessionId: str
       fetchSessionSubagents(
         workspaceId,
         sessionId,
-        { limit: SUBAGENT_BRANCH_PAGE_SIZE, ...(pageParam ? { cursor: pageParam } : {}) },
+        {
+          limit: SUBAGENT_BRANCH_PAGE_SIZE,
+          order: "urgency",
+          ...(pageParam ? { cursor: pageParam } : {}),
+        },
         signal
       ),
     initialPageParam: "",

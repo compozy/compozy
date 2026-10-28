@@ -23,9 +23,10 @@ export interface SessionListSubagentBranchProps {
 
 /**
  * A parent row's open subagent list: one compact row per direct subagent on
- * the parent's rail, most urgent first within the loaded rows (waiting, failed,
- * working, queued, settled), each opening the subagent's session. At most one
- * page mounts until "Show N more" asks for the next.
+ * the parent's rail, most urgent first (waiting, failed, working, queued,
+ * settled), each opening the subagent's session. The daemon pages in that
+ * order; the rows re-sort here so a live status change reorders loaded rows.
+ * At most one page mounts until "Show N more" asks for the next.
  */
 export function SessionListSubagentBranch({
   workspaceId,

@@ -14,11 +14,17 @@ func registrySubagentOperations() []OperationSpec {
 			OperationID: "listSessionSubagents", Summary: "List a session's subagents", Tags: []string{specSessionsKey},
 			Transports: []Transport{TransportHTTP, TransportUDS},
 			Parameters: []ParameterSpec{
-				pathParam("workspace_id", "Workspace id"), pathParam("session_id", "Parent session id"),
+				pathParam("workspace_id", "Workspace id"),
+				pathParam("session_id", "Parent session id"),
 				enumQueryParam("origin", "Subagent origin", []string{"delegated", "provider_native"}),
 				queryParam("status", "Comma-separated subagent statuses", false),
 				intQueryParam("limit", "Subagents per page (default 50, maximum 200)"),
 				queryParam("cursor", "Opaque next_cursor from the previous page", false),
+				enumQueryParam(
+					"order",
+					"Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest",
+					[]string{"newest", "urgency"},
+				),
 			},
 			Responses: subagentResponses(200, contract.SubagentListPayload{}),
 		},

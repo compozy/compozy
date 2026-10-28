@@ -194,8 +194,12 @@ type SessionSubagentWake struct {
 }
 
 // SubagentSummary is the per-parent roll-up exposed on session payloads.
+// Live counts nonterminal rows, which gate parent settlement. Resumed counts
+// settled delegations whose child session is working again: they display as
+// running, so Failed leaves them out and MostUrgent treats them as live.
 type SubagentSummary struct {
 	Live       int
+	Resumed    int
 	Total      int
 	Failed     int
 	Attention  int
@@ -208,8 +212,38 @@ type SubagentListQuery struct {
 	ParentSessionID string
 	Origins         []string
 	Statuses        []string
-	Cursor          string
-	Limit           int
+	// Order is SubagentOrderNewest (default) or SubagentOrderUrgency; urgency
+	// applies to one parent's rows.
+	Order  string
+	Cursor string
+	Limit  int
+}
+
+// Subagent list orders.
+const (
+	SubagentOrderNewest  = "newest"
+	SubagentOrderUrgency = "urgency"
+)
+
+// SubagentUrgencyRank orders rows most urgent first, as clients display them:
+// waiting, failed, working (a resumed child included), queued, then settled.
+// It mirrors the ranking in ListSubagentsByParentUrgency.
+func SubagentUrgencyRank(row SessionSubagent) int {
+	if IsSubagentStatusTerminal(row.Status) && row.ChildActivity == SubagentChildActivityWorking {
+		return 2
+	}
+	switch row.Status {
+	case SubagentStatusWaiting:
+		return 0
+	case SubagentStatusFailed:
+		return 1
+	case SubagentStatusRunning:
+		return 2
+	case SubagentStatusQueued:
+		return 3
+	default:
+		return 4
+	}
 }
 
 // SubagentPage is one page of subagent rows.

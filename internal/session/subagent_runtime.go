@@ -125,11 +125,11 @@ func (r managerSubagentRuntime) HasAdmission(ctx context.Context, row store.Sess
 	return found, err
 }
 func (r managerSubagentRuntime) Stop(ctx context.Context, id string) error { return r.m.Stop(ctx, id) }
-func (r managerSubagentRuntime) NativeTaskEvents(
-	ctx context.Context, parentID, turnID string, afterSequence int64, limit int,
+func (r managerSubagentRuntime) NativeTurnEvents(
+	ctx context.Context, parentID, turnID string, types []string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {
 	events, err := r.m.Events(ctx, parentID, store.EventQuery{
-		Type: acp.EventTypeNativeTask, TurnID: turnID, Limit: limit, Forward: true, AfterSequence: afterSequence,
+		Types: types, TurnID: turnID, Limit: limit, Forward: true, AfterSequence: afterSequence,
 	})
 	slices.SortFunc(events, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
 	return events, err

@@ -184,6 +184,16 @@ func parseSubagentListQuery(c *gin.Context) (store.SubagentListQuery, error) {
 		}
 		query.Origins = []string{origin}
 	}
+	switch order := c.Query("order"); order {
+	case "", store.SubagentOrderNewest:
+	case store.SubagentOrderUrgency:
+		query.Order = order
+	default:
+		return query, &session.SubagentError{
+			Code:    cmdPaletteInvalidRequestError,
+			Message: "order must be newest or urgency.",
+		}
+	}
 	if status := c.Query("status"); status != "" {
 		for value := range strings.SplitSeq(status, ",") {
 			value = strings.TrimSpace(value)

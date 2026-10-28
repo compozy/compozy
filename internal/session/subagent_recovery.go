@@ -40,8 +40,8 @@ func (s *subagentService) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	for _, row := range native {
-		s.recoveryResult(ctx, row.ID, "native_interrupted", s.recoverNative(ctx, row))
+	for _, turn := range groupNativeTurns(native) {
+		s.recoveryResult(ctx, turn[0].ParentTurnID, "native_interrupted", s.recoverNative(ctx, turn))
 	}
 	s.recoveryResult(ctx, "", "native_results", s.recoverNativeResults(ctx))
 	if err := s.recoverWakes(ctx); err != nil {
@@ -158,31 +158,35 @@ func (s *subagentService) inFlight(id string) bool {
 	return s.flights[id] != nil
 }
 
-func (s *subagentService) recoverNative(ctx context.Context, row store.SessionSubagent) error {
-	unlock := s.lock(row.ParentSessionID)
-	snap, err := s.runtime.Snapshot(ctx, row.ParentSessionID)
+// recoverNative settles the unfinalized native rows of one parent turn.
+func (s *subagentService) recoverNative(ctx context.Context, rows []store.SessionSubagent) error {
+	parent, turn := rows[0].ParentSessionID, rows[0].ParentTurnID
+	unlock := s.lock(parent)
+	snap, err := s.runtime.Snapshot(ctx, parent)
 	if err != nil && !errors.Is(err, ErrSessionNotFound) {
 		unlock()
 		return err
 	}
-	if snap.Active && snap.TurnID == row.ParentTurnID {
+	if snap.Active && snap.TurnID == turn {
 		unlock()
 		return nil
 	}
-	// Committed task evidence wins over interruption; a row it settled makes
-	// the interrupt below a no-op.
-	err = s.replayNativeTasks(ctx, row)
-	if err == nil {
-		err = s.finalizeInterruptedNative(ctx, row)
+	// Committed tool results and task evidence win over interruption; a row
+	// they settled makes the interrupt below a no-op.
+	err = s.replayNativeTurn(ctx, rows, true)
+	for _, row := range rows {
+		if err == nil {
+			err = s.finalizeInterruptedNative(ctx, row)
+		}
 	}
 	if err == nil {
-		err = s.settleParent(ctx, row.ParentSessionID)
+		err = s.settleParent(ctx, parent)
 	}
 	unlock()
 	if err != nil {
 		return err
 	}
-	return s.OnChildSettled(ctx, row.ParentSessionID)
+	return s.OnChildSettled(ctx, parent)
 }
 
 func (s *subagentService) recoverWakes(ctx context.Context) error {

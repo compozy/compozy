@@ -68,15 +68,27 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 		return false, err
 	}
 	call := s.rememberNativeCall(parent, ev)
-	terminal := ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed
-	if !terminal || store.IsSubagentStatusTerminal(row.Status) {
+	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
 	}
-	// A background launch completes with the provider's receipt, not the
-	// subagent's outcome; the row runs until its task reports a terminal state
-	// (subagent_native_task.go) or, as a fallback, the launching turn ends.
-	if call.background && ev.Status == store.SubagentStatusCompleted {
-		return created, nil
+	changed, err := s.finalizeNativeToolResult(ctx, row, ev, call.background)
+	if err != nil || !changed {
+		return created, err
+	}
+	return true, s.settleParent(ctx, parent)
+}
+
+// finalizeNativeToolResult settles a live native row from its launching
+// call's terminal tool result. A background launch completes with the
+// provider's receipt, not the subagent's outcome; that row runs until its task
+// reports a terminal state (subagent_native_task.go) or, as a fallback, the
+// launching turn ends.
+func (s *subagentService) finalizeNativeToolResult(
+	ctx context.Context, row store.SessionSubagent, ev NativeSubagentEvent, background bool,
+) (bool, error) {
+	terminal := ev.Status == store.SubagentStatusCompleted || ev.Status == store.SubagentStatusFailed
+	if !terminal || background && ev.Status == store.SubagentStatusCompleted {
+		return false, nil
 	}
 	limit, err := s.resultLimit(ctx, row.WorkspaceID)
 	if err != nil {
@@ -95,15 +107,15 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if at.IsZero() {
 		at = s.now().UTC()
 	}
-	row, changed, err := s.store.FinalizeSubagent(ctx, store.SubagentFinalize{
-		ID: id, Status: ev.Status, WorkState: store.SubagentWorkStateResultAvailable,
+	updated, changed, err := s.store.FinalizeSubagent(ctx, store.SubagentFinalize{
+		ID: row.ID, Status: ev.Status, WorkState: store.SubagentWorkStateResultAvailable,
 		Result: new(string(result)), Error: failure, ResultTruncated: truncated, SettledAt: at,
 	})
 	if err != nil || !changed {
-		return created, err
+		return false, err
 	}
-	s.publishTerminal(ctx, row)
-	return true, s.settleParent(ctx, parent)
+	s.publishTerminal(ctx, updated)
+	return true, nil
 }
 
 // nativeCall is what the parent's stream has shown about one native Agent/Task call.

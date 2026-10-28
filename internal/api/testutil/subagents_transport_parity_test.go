@@ -38,6 +38,8 @@ func TestSubagentHTTPUDSParity(t *testing.T) {
 		{"cancel terminal", "POST", "/api/workspaces/ws-public/subagents/completed/cancel", `{"reason":"done"}`, `"status":"completed"`, 202},
 		{"valid filters", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?origin=delegated&status=completed,running&limit=20&cursor=opaque", "", `"next_cursor":"next"`, 200},
 		{"empty limit", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?limit=", "", `"code":"invalid_request"`, 400},
+		{"urgency order", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?order=urgency&cursor=urgent", "", `"next_cursor":"next"`, 200},
+		{"unknown order", "GET", "/api/workspaces/ws-public/sessions/parent/subagents?order=oldest", "", `"code":"invalid_request"`, 400},
 		{"cancel native", "POST", "/api/workspaces/ws-public/subagents/native/cancel", `{}`, `"code":"subagent_not_cancelable"`, 409},
 		{"unknown parent", "GET", "/api/workspaces/ws-public/sessions/missing/subagents", "", `"code":"session_not_found"`, 404},
 		{"inaccessible parent", "GET", "/api/workspaces/ws-public/sessions/foreign/subagents", "", `"code":"session_not_found"`, 404},
@@ -164,6 +166,12 @@ func (s *subagentParityService) Get(_ context.Context, workspaceID, id string) (
 func (s *subagentParityService) List(_ context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
 	if q.Cursor == "bad" {
 		return store.SubagentPage{}, listcursor.ErrInvalid
+	}
+	if q.Cursor == "urgent" {
+		if q.Order != store.SubagentOrderUrgency {
+			return store.SubagentPage{}, errors.New("order was not forwarded")
+		}
+		return store.SubagentPage{Items: []store.SessionSubagent{}, NextCursor: "next"}, nil
 	}
 	if q.Cursor == "opaque" {
 		if q.Limit != 20 || len(q.Origins) != 1 || q.Origins[0] != "delegated" ||

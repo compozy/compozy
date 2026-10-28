@@ -127,7 +127,8 @@ func SubagentSummaryFromStore(summary store.SubagentSummary) *SubagentSummaryPay
 	if summary.Total == 0 {
 		return nil
 	}
-	return &SubagentSummaryPayload{Live: summary.Live, Total: summary.Total,
+	// A resumed child displays as running, so it counts live on the payload.
+	return &SubagentSummaryPayload{Live: summary.Live + summary.Resumed, Total: summary.Total,
 		Failed: summary.Failed, Attention: summary.Attention, MostUrgent: summary.MostUrgent}
 }
 

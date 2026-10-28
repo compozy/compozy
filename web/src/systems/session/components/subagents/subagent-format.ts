@@ -219,6 +219,9 @@ export function subagentGroupClock(
       live = true;
       continue;
     }
+    // A resumed child works past its delegation's settle instant, so no
+    // delegation span describes the group's current work.
+    if (subagent.child_activity === "working") return { kind: "none" };
     const settledMs = parseMs(subagent.settled_at);
     if (settledMs === null) return { kind: "none" };
     lastSettle = Math.max(lastSettle, settledMs);

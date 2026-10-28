@@ -27,7 +27,9 @@ func (s *subagentService) updateChildActivity(ctx context.Context, row store.Ses
 	}
 	updated, changed, err := s.store.UpdateSubagentChildActivity(ctx, row.ID, activity, s.now().UTC())
 	if err == nil && changed {
+		// The parent's subagent_summary counts a working child as live.
 		s.publish(ctx, updated)
+		s.runtime.PublishParent(ctx, updated.ParentSessionID)
 	}
 	return err
 }
@@ -62,6 +64,7 @@ func (s *subagentService) recoverChildActivity(ctx context.Context) error {
 	}
 	for _, row := range rows {
 		s.publish(ctx, row)
+		s.runtime.PublishParent(ctx, row.ParentSessionID)
 		s.recoveryResult(ctx, row.ID, "child_activity_stopped", nil)
 	}
 	return nil

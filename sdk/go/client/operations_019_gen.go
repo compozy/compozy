@@ -27,6 +27,9 @@ func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSub
 	if params.Cursor != nil {
 		query.Set("cursor", *params.Cursor)
 	}
+	if params.Order != nil {
+		query.Set("order", *params.Order)
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}

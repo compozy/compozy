@@ -212,7 +212,9 @@ func (d *memorySubagents) FinalizeSubagent(
 	row.Result = in.Result
 	row.Error = in.Error
 	row.ResultTruncated = in.ResultTruncated
-	row.ChildActivity = in.ChildActivity
+	if in.ChildActivity != store.SubagentChildActivityUnknown {
+		row.ChildActivity = in.ChildActivity
+	}
 	row.SettledAt = new(in.SettledAt)
 	row.PendingTask = nil
 	d.rows[row.ID] = row
@@ -458,6 +460,7 @@ type subagentTestRuntime struct {
 	queueFull                       int
 	completedWakes                  map[string]bool
 	nativeTasks                     []store.SessionEvent
+	nativeTurnReads                 int
 }
 
 var _ subagentRuntime = (*subagentTestRuntime)(nil)
@@ -700,15 +703,16 @@ func (d *memorySubagents) ListWakesByParent(
 	return out, nil
 }
 
-func (r *subagentTestRuntime) NativeTaskEvents(
-	_ context.Context, _, turnID string, afterSequence int64, limit int,
+func (r *subagentTestRuntime) NativeTurnEvents(
+	_ context.Context, _, turnID string, types []string, afterSequence int64, limit int,
 ) ([]store.SessionEvent, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.nativeTurnReads++
 	events := slices.Clone(r.nativeTasks)
 	slices.SortFunc(events, func(a, b store.SessionEvent) int { return cmp.Compare(a.Sequence, b.Sequence) })
 	events = slices.DeleteFunc(events, func(event store.SessionEvent) bool {
-		return event.TurnID != turnID || event.Sequence <= afterSequence
+		return event.TurnID != turnID || event.Sequence <= afterSequence || !slices.Contains(types, event.Type)
 	})
 	return events[:min(len(events), limit)], nil
 }

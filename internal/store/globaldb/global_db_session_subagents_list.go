@@ -18,6 +18,8 @@ import (
 type subagentPosition struct {
 	CreatedAt string
 	ID        string
+	// Rank is the last row's urgency rank under SubagentOrderUrgency.
+	Rank int `json:",omitempty"`
 }
 
 func subagentIDsJSON(ids []string) (string, error) {
@@ -34,14 +36,10 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 	if strings.TrimSpace(q.WorkspaceID) == "" && strings.TrimSpace(q.ParentSessionID) == "" {
 		return store.SubagentPage{}, errors.New("store: subagent workspace or parent is required")
 	}
-	if q.Limit > 200 {
-		q.Limit = 200
+	q, err := normalizeSubagentListQuery(q)
+	if err != nil {
+		return store.SubagentPage{}, err
 	}
-	if q.Limit <= 0 {
-		q.Limit = 50
-	}
-	q.Origins = slices.Sorted(slices.Values(q.Origins))
-	q.Statuses = slices.Sorted(slices.Values(q.Statuses))
 	origins, err := subagentIDsJSON(q.Origins)
 	if err != nil {
 		return store.SubagentPage{}, err
@@ -66,33 +64,70 @@ func (g *SessionRepo) ListSubagents(ctx context.Context, q store.SubagentListQue
 			return store.SubagentPage{}, listcursor.ErrInvalid
 		}
 	}
-	var rows []sqlcgen.SessionSubagent
-	if q.ParentSessionID != "" {
-		rows, err = g.queries.ListSubagentsByParent(ctx, sqlcgen.ListSubagentsByParentParams{
-			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
-			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: int64(q.Limit) + 1,
-		})
-	} else {
-		rows, err = g.queries.ListSubagentsByWorkspace(ctx, sqlcgen.ListSubagentsByWorkspaceParams{
-			Workspace: q.WorkspaceID, Origins: origins, Statuses: statuses,
-			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: int64(q.Limit) + 1,
-		})
-	}
+	rows, err := g.listSubagentRows(ctx, q, origins, statuses, pos)
 	if err != nil {
 		return store.SubagentPage{}, err
 	}
 	out := store.SubagentPage{}
-	if len(rows) > q.Limit {
+	more := len(rows) > q.Limit
+	if more {
 		rows = rows[:q.Limit]
-		last := rows[len(rows)-1]
-		out.NextCursor, err = listcursor.Encode(1, "subagents", fingerprint, subagentPosition{last.CreatedAt, last.ID})
-		if err != nil {
-			return out, err
-		}
 	}
 	out.Items, err = subagentsFromSQL(rows)
+	if err != nil || !more {
+		return out, err
+	}
+	last := rows[len(rows)-1]
+	next := subagentPosition{CreatedAt: last.CreatedAt, ID: last.ID}
+	if q.Order == store.SubagentOrderUrgency {
+		next.Rank = store.SubagentUrgencyRank(out.Items[len(out.Items)-1])
+	}
+	out.NextCursor, err = listcursor.Encode(1, "subagents", fingerprint, next)
 	return out, err
 }
+
+// normalizeSubagentListQuery bounds the page size and canonicalizes the
+// filters and order the cursor fingerprint binds.
+func normalizeSubagentListQuery(q store.SubagentListQuery) (store.SubagentListQuery, error) {
+	q.Limit = min(q.Limit, 200)
+	if q.Limit <= 0 {
+		q.Limit = 50
+	}
+	if q.Order == store.SubagentOrderNewest {
+		q.Order = ""
+	}
+	if q.Order != "" && (q.Order != store.SubagentOrderUrgency || q.ParentSessionID == "") {
+		return q, fmt.Errorf("store: unsupported subagent order %q", q.Order)
+	}
+	q.Origins = slices.Sorted(slices.Values(q.Origins))
+	q.Statuses = slices.Sorted(slices.Values(q.Statuses))
+	return q, nil
+}
+
+// listSubagentRows reads one page plus a lookahead row in the query's order.
+func (g *SessionRepo) listSubagentRows(
+	ctx context.Context, q store.SubagentListQuery, origins, statuses string, pos subagentPosition,
+) ([]sqlcgen.SessionSubagent, error) {
+	limit := int64(q.Limit) + 1
+	switch {
+	case q.Order == store.SubagentOrderUrgency:
+		return g.queries.ListSubagentsByParentUrgency(ctx, sqlcgen.ListSubagentsByParentUrgencyParams{
+			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
+			CursorID: pos.ID, CursorRank: int64(pos.Rank), CursorTime: pos.CreatedAt, PageLimit: limit,
+		})
+	case q.ParentSessionID != "":
+		return g.queries.ListSubagentsByParent(ctx, sqlcgen.ListSubagentsByParentParams{
+			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
+			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: limit,
+		})
+	default:
+		return g.queries.ListSubagentsByWorkspace(ctx, sqlcgen.ListSubagentsByWorkspaceParams{
+			Workspace: q.WorkspaceID, Origins: origins, Statuses: statuses,
+			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: limit,
+		})
+	}
+}
+
 func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[string]store.SubagentSummary, error) {
 	if err := g.checkReady(ctx, "summarize subagents"); err != nil {
 		return nil, err
@@ -110,9 +145,11 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 		live := int64(row.Live.Float64)
 		failed := int64(row.Failed.Float64)
 		attention := int64(row.Attention.Float64)
+		resumed := int64(row.Resumed.Float64)
 		v := store.SubagentSummary{
 			Total:     int(row.Total),
 			Live:      int(live),
+			Resumed:   int(resumed),
 			Failed:    int(failed),
 			Attention: int(attention),
 		}
@@ -121,7 +158,7 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 			v.MostUrgent = "attention"
 		case failed > 0:
 			v.MostUrgent = "failed"
-		case live > 0:
+		case live+resumed > 0:
 			v.MostUrgent = "running"
 		}
 		out[row.ParentSessionID] = v

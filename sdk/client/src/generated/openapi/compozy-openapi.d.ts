@@ -49193,6 +49193,8 @@ export interface operations {
         limit?: number;
         /** @description Opaque next_cursor from the previous page */
         cursor?: string;
+        /** @description Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest */
+        order?: "newest" | "urgency";
       };
       header?: never;
       path: {

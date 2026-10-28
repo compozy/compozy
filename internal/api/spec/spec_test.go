@@ -3597,6 +3597,12 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSubagentChildActivity(baseline) == 0 {
 		t.Fatal("approved subagent child activity addition: no historical subagent row schemas found")
 	}
+	// #993: optional urgency order on one parent's subagent list; the default
+	// order and existing parameters keep their meaning.
+	subagentList := paths["/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"].(map[string]any)["get"].(map[string]any)
+	subagentList["parameters"] = append(subagentList["parameters"].([]any), map[string]any{
+		"in": "query", "name": "order", "schema": map[string]any{"type": "string", "enum": []any{"newest", "urgency"}},
+	})
 
 	// #813: optional opt-in query parameters on worktree cleanup, inserted before
 	// the trailing profile selector; existing parameters keep their meaning.

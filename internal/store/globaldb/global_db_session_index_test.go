@@ -2031,7 +2031,10 @@ func TestGlobalDBSubagentCatalog(t *testing.T) {
 					}
 					if _, _, err := db.FinalizeSubagent(
 						ctx,
-						store.SubagentFinalize{ID: r.ID, Status: status, SettledAt: now},
+						// Settlement records the idle child, as the live finalize path does.
+						store.SubagentFinalize{
+							ID: r.ID, Status: status, ChildActivity: store.SubagentChildActivityIdle, SettledAt: now,
+						},
 					); err != nil {
 						t.Fatal(err)
 					}

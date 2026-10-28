@@ -332,6 +332,14 @@ describe("subagent group (UT-W07)", () => {
     expect(subagentGroupClock([...settled, subagent({ id: "c", started_at: null })])).toEqual({
       kind: "none",
     });
+    const resumed = subagent({
+      id: "c",
+      status: "completed",
+      child_activity: "working",
+      started_at: at(5),
+      settled_at: at(20),
+    });
+    expect(subagentGroupClock([...settled, resumed])).toEqual({ kind: "none" });
   });
 });
 

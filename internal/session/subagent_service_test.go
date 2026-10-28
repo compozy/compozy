@@ -1183,8 +1183,10 @@ func TestSubagentNativeLifecycle(t *testing.T) {
 			want      string
 			truncated bool
 		}{
-			"within limit": {summary: long, want: long},
-			"storage cut":  {summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), truncated: true},
+			"Should keep a summary within the result limit": {summary: long, want: long},
+			"Should report a cut made at the storage bound": {
+				summary: oversized, want: strings.Repeat("é", acp.NativeTaskSummaryMaxBytes/2), truncated: true,
+			},
 		} {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
@@ -1989,6 +1991,104 @@ func TestSubagentNativeRecoveryEdges(t *testing.T) {
 		}
 		if old.Status != store.SubagentStatusCompleted || old.Result == nil || *old.Result != "old summary" {
 			t.Fatal("older candidate beyond the first page was starved:", old)
+		}
+	})
+	// Invariant: a foreground call's committed tool result is its full answer and settles the row before the
+	// shorter task summary; a summary settles a foreground row only when no tool result was committed.
+	t.Run("Should recover a foreground row from its committed tool result before the task summary", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		for _, call := range []string{"toolu_answered", "toolu_summary_only"} {
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		stored := func(sequence int64, event acp.AgentEvent) store.SessionEvent {
+			t.Helper()
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return store.SessionEvent{Sequence: sequence, TurnID: "turn", Type: event.Type, Content: payload}
+		}
+		summary := func(call string) acp.AgentEvent {
+			return acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
+					Status: acp.NativeTaskStatusCompleted, Summary: new("short summary"),
+				},
+			)
+		}
+		answer := acp.AgentEvent{Type: acp.EventTypeToolResult, TurnID: "turn", ToolCallID: "toolu_answered"}.
+			WithProviderToolMetadata("", "Agent", "completed")
+		answer.Raw = []byte(`{"status":"completed","rawOutput":"the full answer"}`)
+		r.nativeTasks = []store.SessionEvent{
+			stored(1, summary("toolu_answered")),
+			stored(2, answer),
+			stored(3, summary("toolu_summary_only")),
+		}
+		snap := r.snapshots["parent"]
+		snap.Active = false
+		r.snapshots["parent"] = snap
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for call, want := range map[string]string{
+			"toolu_answered":     "the full answer",
+			"toolu_summary_only": "short summary",
+		} {
+			row := db.rows[subagentID("parent", call)]
+			if row.Status != store.SubagentStatusCompleted || row.Result == nil || *row.Result != want {
+				t.Fatal(call, row)
+			}
+		}
+	})
+	// Invariant: result recovery reads a parent turn's transcript once for all of that turn's rows.
+	t.Run("Should read each parent turn once when recovering missing results", func(t *testing.T) {
+		t.Parallel()
+		s, db, r := newSubagentTestService(t)
+		calls := []string{"toolu_a", "toolu_b", "toolu_c"}
+		for i, call := range calls {
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: call, ToolName: "Agent",
+				Status: "in_progress", Background: true,
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := db.FinalizeSubagent(t.Context(), store.SubagentFinalize{
+				ID: subagentID("parent", call), Status: store.SubagentStatusCompleted, SettledAt: s.now().UTC(),
+			}); err != nil {
+				t.Fatal(err)
+			}
+			event := acp.AgentEvent{Type: acp.EventTypeNativeTask, TurnID: "turn", ToolCallID: call}.WithNativeTask(
+				&acp.NativeTaskObservation{
+					Kind: acp.NativeTaskKindState, TaskID: call, ToolCallID: call,
+					Status: acp.NativeTaskStatusCompleted, Summary: new(call + " summary"),
+				},
+			)
+			payload, err := transcript.MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r.nativeTasks = append(r.nativeTasks,
+				store.SessionEvent{Sequence: int64(i + 1), TurnID: "turn", Type: event.Type, Content: payload})
+		}
+		if err := s.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if r.nativeTurnReads != 1 {
+			t.Fatalf("turn transcript reads = %d, want 1", r.nativeTurnReads)
+		}
+		for _, call := range calls {
+			row := db.rows[subagentID("parent", call)]
+			if row.Result == nil || *row.Result != call+" summary" {
+				t.Fatal(call, row)
+			}
 		}
 	})
 }
