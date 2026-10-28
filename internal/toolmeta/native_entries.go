@@ -153,6 +153,8 @@ var nativeEntries = map[string]Entry{
 	"compozy__session_folder_rename":         nativeEntry("Renaming", " ", false, "💬", "auto"),
 	"compozy__session_folder_reorder":        nativeEntry("Reordering", " ", false, "💬", "auto"),
 	"compozy__session_fork":                  nativeEntry("Forking", " ", false, "💬", "auto"),
+	"compozy__session_worktree_bind":         nativeEntry("Binding", " ", false, "💬", "auto"),
+	"compozy__session_worktree_unbind":       nativeEntry("Unbinding", " ", false, "💬", "auto"),
 	"compozy__session_health":                nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_history":               nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__session_input_cancel":          nativeEntry("Canceling", " ", false, "💬", "auto"),

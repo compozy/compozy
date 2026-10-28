@@ -2,8 +2,8 @@
 
 - **Scope:** Issue #992: bind, change and unbind an existing ordinary session without replacing its identity or conversation.
 - **Cadence tier:** targeted
-- **Build:** Implementation rebased onto main at 7ccc00670; final provider and CI verification in progress.
-- **Status:** in-progress
+- **Build:** Implementation rebased onto main at 7ccc00670; provider and refusal re-walks completed; current-head CI tracked in PR #1002.
+- **Status:** targeted runtime pass; delivery gates tracked in PR #1002
 
 ## Session Matrix & Results
 
@@ -13,7 +13,7 @@
 | CH-session-environment-continuity | RT-session-worktree-lifecycle: Codex cwd, sentinel, continuity | Ada | Data | Pass |
 | CH-worktree-lifecycle-surface-parity | Bind/change/unbind through CLI, HTTP, UDS and native tools | Bruno | Feature | Pass |
 | CH-session-environment-continuity | Restart persistence and refusal boundaries | Théo | Data | Pass (focused) |
-| CH-worktree-lifecycle-surface-parity | Existing-session Web environment control and unchanged fork | Bruno | Feature | Pending |
+| CH-worktree-lifecycle-surface-parity | Existing-session Web environment control and unchanged fork | Bruno | Feature | Pre-sync pass; current-head CI on PR #1002 |
 
 ## Preliminary Engineering Evidence
 
@@ -49,6 +49,13 @@ The native unknown-checkout walk exposed an incorrect generic `tool_not_found` t
 
 The isolated lab teardown completed with `TEARDOWN_ALL_CLEAN=true`; only registered/identity-verified lab processes were stopped. Private evidence remains retained.
 
+## Review and CI Regression Follow-up
+
+- The session integration suite reproduced caller cancellation stranding a pending journal in both active and stopped paths. A detached, bounded lifecycle context now completes admitted transitions; both cases pass and the next prompt proceeds.
+- The stopped-path notification test reproduced a subscriber being refused while the conversation lock remained held. Publication now uses the same post-release path as active sessions; the regression passes.
+- Catalog stream tests cover both a changed worktree ID and a changed workspace root, while proving an ordinary upsert does not restart file search. The two affected Web suites passed 31 tests.
+- API tests assert distinct busy/stale error codes despite their shared HTTP 409 status. The CI native inventory failure was fixed by adding presentation entries for both new tools, preserving the exact inventory check.
+
 ## Final Status
 
-In progress. No PR readiness claim.
+Targeted runtime and focused checks passed. Current-head CI, browser artifacts and reviewer dispositions are recorded in [PR #1002](https://github.com/compozy/compozy/pull/1002). This report does not substitute for those delivery gates.

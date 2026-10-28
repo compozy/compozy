@@ -936,54 +936,69 @@ describe("useSessionCatalogStreams", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
-  it("Should refresh only the changed session's mounted files after a catalog wake", async () => {
-    // Invariant: externally changed CWD reaches the open mention picker without
-    // navigation, while other session/workspace file caches remain untouched.
-    // Owner: session catalog reconciliation; canonical stream suite.
-    const queryClient = createQueryClient();
-    const filesKey = sessionKeys.fileSearch(WORKSPACE_ID, SESSION_ID, "", 50);
-    const otherKey = sessionKeys.fileSearch(WORKSPACE_ID, "sess_other", "", 50);
-    const foreignKey = sessionKeys.fileSearch("ws_other", SESSION_ID, "", 50);
-    queryClient.setQueryData(filesKey, ["root.txt"]);
-    queryClient.setQueryData(otherKey, ["other.txt"]);
-    queryClient.setQueryData(foreignKey, ["foreign.txt"]);
-    queryClient.setQueryData(
-      sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
-      sessionWithState("active")
-    );
-    vi.mocked(fetchSession).mockResolvedValue({
-      ...sessionWithState("active"),
-      worktree_id: "wt_new",
-    });
-    const readFiles = vi.fn().mockResolvedValue(["checkout.txt"]);
-    const sources: FakeCatalogEventSource[] = [];
-    const factory = (url: string) => {
-      const source = new FakeCatalogEventSource(url);
-      sources.push(source);
-      return source;
-    };
-    const { result } = renderHook(
-      () => {
-        useSessionCatalogStreams({ eventSourceFactory: factory });
-        useQuery(sessionDetailOptions(WORKSPACE_ID, SESSION_ID));
-        return useQuery({ queryKey: filesKey, queryFn: readFiles, staleTime: Infinity });
-      },
-      { wrapper: wrapper(queryClient) }
-    );
-    expect(result.current.data).toEqual(["root.txt"]);
-    act(() => {
-      sources[0]?.emit("session_catalog_changed", {
-        kind: "upserted",
-        workspace_id: WORKSPACE_ID,
-        session_id: SESSION_ID,
+  it.each([{ worktree_id: "wt_new" }, { workspace_path: "/workspace/new-root" }])(
+    "Should refresh mounted files only when the catalog changes the checkout (%j)",
+    async location => {
+      // Invariant: externally changed CWD reaches the open mention picker without
+      // navigation, while other session/workspace file caches remain untouched.
+      // Owner: session catalog reconciliation; canonical stream suite.
+      const queryClient = createQueryClient();
+      const filesKey = sessionKeys.fileSearch(WORKSPACE_ID, SESSION_ID, "", 50);
+      const otherKey = sessionKeys.fileSearch(WORKSPACE_ID, "sess_other", "", 50);
+      const foreignKey = sessionKeys.fileSearch("ws_other", SESSION_ID, "", 50);
+      queryClient.setQueryData(filesKey, ["root.txt"]);
+      queryClient.setQueryData(otherKey, ["other.txt"]);
+      queryClient.setQueryData(foreignKey, ["foreign.txt"]);
+      queryClient.setQueryData(
+        sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+        sessionWithState("active")
+      );
+      vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+      const readFiles = vi.fn().mockResolvedValue(["checkout.txt"]);
+      const sources: FakeCatalogEventSource[] = [];
+      const factory = (url: string) => {
+        const source = new FakeCatalogEventSource(url);
+        sources.push(source);
+        return source;
+      };
+      const { result } = renderHook(
+        () => {
+          useSessionCatalogStreams({ eventSourceFactory: factory });
+          useQuery(sessionDetailOptions(WORKSPACE_ID, SESSION_ID));
+          return useQuery({ queryKey: filesKey, queryFn: readFiles, staleTime: Infinity });
+        },
+        { wrapper: wrapper(queryClient) }
+      );
+      expect(result.current.data).toEqual(["root.txt"]);
+      act(() => {
+        sources[0]?.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          session_id: SESSION_ID,
+        });
       });
-    });
-    await waitFor(() => expect(result.current.data).toEqual(["checkout.txt"]));
-    expect(readFiles).toHaveBeenCalledTimes(1);
-    expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false);
-    expect(queryClient.getQueryState(foreignKey)?.isInvalidated).toBe(false);
-    expect(fetchSessionTranscript).not.toHaveBeenCalled();
-  });
+      await waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(
+          queryClient.isFetching({ queryKey: sessionKeys.detail(WORKSPACE_ID, SESSION_ID) })
+        ).toBe(0)
+      );
+      expect(readFiles).not.toHaveBeenCalled();
+      vi.mocked(fetchSession).mockResolvedValue({ ...sessionWithState("active"), ...location });
+      act(() => {
+        sources[0]?.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          session_id: SESSION_ID,
+        });
+      });
+      await waitFor(() => expect(result.current.data).toEqual(["checkout.txt"]));
+      expect(readFiles).toHaveBeenCalledTimes(1);
+      expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(false);
+      expect(queryClient.getQueryState(foreignKey)?.isInvalidated).toBe(false);
+      expect(fetchSessionTranscript).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([false, true])(
     "Should wake a stopped session's mounted transcript after detail settles (upsert then layout during prior read: %s)",

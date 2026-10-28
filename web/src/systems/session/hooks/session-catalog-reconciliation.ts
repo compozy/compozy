@@ -23,6 +23,7 @@ async function refreshSessionDetail(
   isOpen: () => boolean
 ): Promise<void> {
   const detailKey = sessionKeys.detail(payload.workspace_id, payload.session_id);
+  const before = queryClient.getQueryData<SessionPayload>(detailKey);
   await queryClient.invalidateQueries(
     {
       predicate: ({ queryKey }) =>
@@ -33,10 +34,16 @@ async function refreshSessionDetail(
   if (!isOpen() || payload.kind !== "upserted") return;
   // Catalog changes can move the same session to another checkout, including
   // workspace-root changes with no worktree id. File results belong to that CWD.
-  await queryClient.invalidateQueries({
-    queryKey: sessionKeys.fileSearchRoot(payload.workspace_id, payload.session_id),
-  });
-  const state = queryClient.getQueryData<SessionPayload>(detailKey)?.state;
+  const after = queryClient.getQueryData<SessionPayload>(detailKey);
+  if (
+    before?.worktree_id !== after?.worktree_id ||
+    before?.workspace_path !== after?.workspace_path
+  ) {
+    await queryClient.invalidateQueries({
+      queryKey: sessionKeys.fileSearchRoot(payload.workspace_id, payload.session_id),
+    });
+  }
+  const state = after?.state;
   if (state === undefined || isLiveSessionState(state)) return;
   const transcriptKey = sessionKeys.transcript(payload.workspace_id, payload.session_id);
   await queryClient.invalidateQueries({

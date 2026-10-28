@@ -32,5 +32,6 @@ admission, unchanged session/transcript/window identity, next-turn cwd and file 
 process exit, and restart recovery with Claude and Codex. A missing binding still refuses resume;
 explicit unbind returns to the workspace root. Session creation and conversation/worktree fork
 retain their existing contracts. New worktree creation must reach ready before an existing
-session can bind. New behavior awaits this branch's real-run evidence; historical passes do not
-validate the added path.
+session can bind. Targeted runtime evidence is recorded in [the binding report](../reports/2026-10-28-issue-992-session-binding.md);
+current-head browser/CI results and review dispositions are recorded in [PR #1002](https://github.com/compozy/compozy/pull/1002).
+Historical passes do not validate the added path.

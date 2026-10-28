@@ -31,6 +31,49 @@ import (
 
 func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 
+	// Invariant: after admission, request cancellation cannot strand the durable
+	// location journal. Owner: session lifecycle; this integration suite.
+	for _, stopped := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should finish an admitted binding after caller cancellation stopped=%t", stopped),
+			func(t *testing.T) {
+				fixture := newSessionWorktreeRaceFixture(t, nil)
+				h := fixture.h
+				h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+				created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+				if stopped {
+					if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				h.manager.sessionCatalog = cancelBindingCatalog{GlobalDB: fixture.database, cancel: cancel}
+				changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+				if err != nil {
+					t.Fatal(err)
+				}
+				meta, err := store.ReadSessionMeta(created.MetaPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if changed.WorktreeID != fixture.item.ID || meta.WorktreeTransition == nil ||
+					meta.WorktreeTransition.Pending {
+					t.Fatalf("binding did not converge after cancellation: %#v", meta.WorktreeTransition)
+				}
+				events, err := h.manager.Prompt(t.Context(), created.ID, "Continue after the location change")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+			},
+		)
+	}
+
 	// Invariant: governed and archived conversations cannot change execution
 	// ownership. Owner: session lifecycle; canonical binding integration suite.
 	for _, kind := range []Type{SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned} {
@@ -272,6 +315,17 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 		if err := h.manager.Stop(ctx, created.ID); err != nil {
 			t.Fatal(err)
 		}
+		// Invariant: publication follows reservation release for stopped sessions too.
+		h.manager.AddWorktreeBindingNotifier(func(_ context.Context, info *Info, _ string) {
+			if _, err := h.manager.ChangeWorktreeBinding(
+				t.Context(),
+				info.ID,
+				info.WorktreeID,
+				&info.WorktreeID,
+			); err != nil {
+				t.Errorf("published stopped binding remains reserved: %v", err)
+			}
+		})
 		changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
 		if err != nil {
 			t.Fatal(err)
@@ -1524,4 +1578,18 @@ func (r sessionBindingIntegrationResolver) AcquireSessionWorktreeUnbinding(
 		return nil, worktreepkg.ErrNotFound
 	}
 	return release, nil
+}
+
+// Injects request cancellation at the catalog I/O boundary while using real SQLite.
+type cancelBindingCatalog struct {
+	*globaldb.GlobalDB
+	cancel context.CancelFunc
+}
+
+func (c cancelBindingCatalog) UpdateSessionWorktreeBinding(
+	ctx context.Context,
+	update store.SessionWorktreeBindingUpdate,
+) error {
+	c.cancel()
+	return c.GlobalDB.UpdateSessionWorktreeBinding(ctx, update)
 }

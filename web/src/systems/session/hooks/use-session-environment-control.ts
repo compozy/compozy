@@ -56,7 +56,8 @@ export function useSessionEnvironmentControl({
         { worktree: resolvedTarget, expectedWorktreeId },
         { onSuccess: () => setOpen(false) }
       ),
-    useWorkspaceRoot: () => change.mutate({ worktree: "", expectedWorktreeId: currentWorktreeId }),
+    selectWorkspaceRoot: () =>
+      change.mutate({ worktree: "", expectedWorktreeId: currentWorktreeId }),
     isPending: fork.isPending,
     materialization,
     startNewWorktree: () => {

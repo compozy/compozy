@@ -7,40 +7,45 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func (m *Manager) changeStoppedWorktreeBinding(ctx context.Context, id, ref string, expected *string) (*Info, error) {
+func (m *Manager) changeStoppedWorktreeBinding(
+	ctx context.Context,
+	id, ref string,
+	expected *string,
+) (*Info, string, bool, error) {
 	meta, err := m.reconcileInactiveSession(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	if err := validateStoppedWorktreeBinding(&meta); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, id); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	if expected != nil && *expected != meta.WorktreeIDValue() {
-		return nil, store.ErrSessionWorktreeConflict
+		return nil, "", false, store.ErrSessionWorktreeConflict
 	}
 	if err := m.requireWorktreeBindingIdle(ctx, id); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	cwd, worktreeID, release, err := m.prepareWorktreeBindingDestination(ctx, &meta, ref)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
 	defer release()
 	previous := meta.WorktreeIDValue()
 	if previous == worktreeID && cwd == meta.CWDValue() {
-		return m.sessionInfoFromMeta(ctx, &meta), nil
+		return m.sessionInfoFromMeta(ctx, &meta), "", false, nil
 	}
 	// Conversation exclusion blocks resume/delete. The lifecycle and archive locks
 	// cover the final metadata read/write without holding them during Git resolution.
-	info, err := m.persistStoppedWorktreeBinding(ctx, id, previous, cwd, worktreeID)
+	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	info, err := m.persistStoppedWorktreeBinding(execCtx, id, previous, cwd, worktreeID)
 	if err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	m.notifyWorktreeBindingChanged(ctx, info, previous)
-	return info, nil
+	return info, previous, true, nil
 }
 
 func validateStoppedWorktreeBinding(meta *store.SessionMeta) error {

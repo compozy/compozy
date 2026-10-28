@@ -39,7 +39,11 @@ func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, exp
 	defer unlock()
 	target, active := m.Get(id)
 	if !active {
-		return m.changeStoppedWorktreeBinding(ctx, id, ref, expected)
+		info, previousID, didChange, err := m.changeStoppedWorktreeBinding(ctx, id, ref, expected)
+		if didChange {
+			changed, previous = info, previousID
+		}
+		return info, err
 	}
 	if !target.worktreeBindingAdmissionMu.TryLock() {
 		return nil, ErrPromptInProgress
@@ -70,10 +74,14 @@ func (m *Manager) ChangeWorktreeBinding(ctx context.Context, id, ref string, exp
 	if worktreeID == meta.WorktreeIDValue() && cwd == meta.CWDValue() {
 		return target.Info(), nil
 	}
-	if err := m.releaseWorktreeBindingRuntime(ctx, target); err != nil {
+	// Once execution is released, finish the durable transition independently of
+	// a disconnected caller while retaining a bounded lifecycle deadline.
+	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+	defer cancel()
+	if err := m.releaseWorktreeBindingRuntime(execCtx, target); err != nil {
 		return nil, err
 	}
-	info, err := m.persistWorktreeBinding(ctx, target, cwd, worktreeID)
+	info, err := m.persistWorktreeBinding(execCtx, target, cwd, worktreeID)
 	if err == nil {
 		changed, previous = info, meta.WorktreeIDValue()
 	}

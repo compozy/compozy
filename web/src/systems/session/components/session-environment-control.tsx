@@ -56,7 +56,7 @@ export function SessionEnvironmentControl({
             {binding.bound ? (
               <DropdownMenuItem
                 disabled={!binding.bindingAvailable || control.bindingPending}
-                onClick={control.useWorkspaceRoot}
+                onClick={control.selectWorkspaceRoot}
               >
                 Use workspace root
               </DropdownMenuItem>

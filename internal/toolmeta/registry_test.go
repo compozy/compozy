@@ -229,6 +229,8 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__session_folder_rename":         expectedNativeEntry("Renaming", " ", false, "💬", "auto"),
 		"compozy__session_folder_reorder":        expectedNativeEntry("Reordering", " ", false, "💬", "auto"),
 		"compozy__session_fork":                  expectedNativeEntry("Forking", " ", false, "💬", "auto"),
+		"compozy__session_worktree_bind":         expectedNativeEntry("Binding", " ", false, "💬", "auto"),
+		"compozy__session_worktree_unbind":       expectedNativeEntry("Unbinding", " ", false, "💬", "auto"),
 		"compozy__session_health":                expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_history":               expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__session_input_cancel":          expectedNativeEntry("Canceling", " ", false, "💬", "auto"),
