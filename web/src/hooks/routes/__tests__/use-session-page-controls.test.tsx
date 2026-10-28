@@ -51,6 +51,7 @@ vi.mock("@/systems/session", async () => {
   const refusal = await import("@/systems/session/lib/session-busy-input-refusal");
   const outcome = await import("@/systems/session/lib/session-send-outcome");
   const stopAttention = await import("@/systems/session/lib/session-stop-attention");
+  const { sessionPromptRecovery } = await import("@/systems/session/lib/session-prompt-recovery");
   return {
     ...apiErrors,
     ...busyInput,
@@ -60,6 +61,7 @@ vi.mock("@/systems/session", async () => {
     ...stopAttention,
     ...unconfirmed,
     canPromptSession,
+    sessionPromptRecovery,
     cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
     invalidateSessionMutationQueries: routeHookMocks.invalidateSessionMutationQueries,
     isSessionRunning: (session: {

@@ -96,7 +96,7 @@ import {
   stopSession,
   unarchiveSession,
 } from "../../adapters/session-api";
-import { SessionGoalCommandError } from "../../adapters/session-api-errors";
+import { SessionApiError, SessionGoalCommandError } from "../../adapters/session-api-errors";
 import { toast } from "sonner";
 import { notifyUser } from "@/lib/user-feedback";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
@@ -473,6 +473,59 @@ describe("session actions", () => {
           queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
         })
       );
+    }
+  );
+
+  // Invariant: a definite rewind refusal releases its stale fence, so the retry reads the current
+  // transcript; an unknown outcome replays the exact request.
+  it.each([
+    [409, true],
+    [503, false],
+  ])(
+    "useSessionRewind retried after a %s answer rereads the fence: %s",
+    async (status, rereads) => {
+      vi.mocked(fetchSession).mockResolvedValue(createdSession);
+      vi.mocked(rewindSession)
+        .mockRejectedValueOnce(new SessionApiError("rewind failed", status, createdSession.id))
+        .mockResolvedValueOnce({
+          rewind: { draft_text: "Return to this request." },
+          session: createdSession,
+        });
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      vi.spyOn(queryClient, "fetchInfiniteQuery").mockResolvedValue(
+        transcriptCache("message-rewound")
+      );
+      const setFence = (max_sequence: number) => {
+        const cached = transcriptCache("message-001");
+        queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), {
+          ...cached,
+          pages: [{ ...cached.pages[0]!, epoch: 3, generation: 7, max_sequence }],
+        });
+      };
+      setFence(19);
+      const { result } = renderHook(() => useSessionRewind(WORKSPACE_ID), {
+        wrapper: createWrapper(queryClient),
+      });
+      const variables = {
+        idempotencyKey: "rewind-idempotency-001",
+        messageId: "message-001",
+        sessionId: createdSession.id,
+        signal: new AbortController().signal,
+      };
+      await act(async () => {
+        await expect(result.current.mutateAsync(variables)).rejects.toThrow("rewind failed");
+      });
+      setFence(23);
+      await act(async () => {
+        await result.current.mutateAsync(variables);
+      });
+
+      expect(vi.mocked(rewindSession).mock.calls[1]?.[3]).toMatchObject({
+        expected_max_sequence: rereads ? 23 : 19,
+        idempotency_key: "rewind-idempotency-001",
+      });
     }
   );
 

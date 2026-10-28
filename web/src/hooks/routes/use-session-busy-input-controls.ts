@@ -1,8 +1,7 @@
-import { use, useEffect } from "react";
+import { useEffect } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
-import { SessionPromptDispatchContext } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { createClientId } from "@/lib/client-id";
 import { awaitStoreRequest } from "@/lib/store-request";
 import {
@@ -10,6 +9,7 @@ import {
   queueCapFromInputs,
   queuedPromptsFromInputs,
   SessionBusyInputRefusalError,
+  sessionPromptRecovery,
   sessionSendOutcomeFromResult,
   useCancelSessionInput,
   useClearSessionInputs,
@@ -65,15 +65,16 @@ export function useSessionBusyInputControls({
   const promoteInput = usePromoteSessionInput(workspaceId, sessionId);
   const clearInputs = useClearSessionInputs(workspaceId, sessionId);
   // A streaming prompt POST that lost its acknowledgment mid-turn is retained
-  // here too: one unconfirmed model for every send this window made.
-  const promptDispatch = use(SessionPromptDispatchContext);
-  useEffect(() => {
-    if (promptDispatch === null) return;
-    const subscription = promptDispatch.on("sendUnconfirmed", event => {
-      store.trigger.sendUnconfirmedObserved({ send: event.envelope });
-    });
-    return () => subscription.unsubscribe();
-  }, [promptDispatch, store]);
+  // here too: one unconfirmed model for every send this window made. The
+  // app-scoped recovery owner also hands over sends lost while no page of this
+  // session was mounted (a detached edit send).
+  useEffect(
+    () =>
+      sessionPromptRecovery.subscribeUnconfirmed({ workspaceId, sessionId }, envelope => {
+        store.trigger.sendUnconfirmedObserved({ send: envelope });
+      }),
+    [sessionId, store, workspaceId]
+  );
   const unconfirmedSends = useSelector(store, snapshot => snapshot.context.unconfirmedSends);
   const refusalQueueCap = useSelector(store, snapshot => snapshot.context.queueCap);
   // The queue list owns the cap, so "full" reads before any refusal; the cap a

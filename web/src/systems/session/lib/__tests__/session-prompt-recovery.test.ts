@@ -3,7 +3,9 @@
 // quote identity, and files once; the editor text never contains the envelope.
 // Accepted prompts and unsubscribed listeners cannot restore a draft; a
 // rejection with no composer mounted waits for that session's next composer;
-// overlapping prompts of one session settle only their own identity.
+// overlapping prompts of one session settle only their own identity; a send
+// whose acknowledgment was lost with no page mounted waits for that session's
+// next page with its identity intact.
 // Owning layer: systems/session/lib prompt recovery lifecycle.
 import { describe, expect, it, vi } from "vitest";
 
@@ -192,5 +194,34 @@ describe("SessionPromptRecovery", () => {
     expect(next).toHaveBeenCalledOnce();
     expect(restored).toEqual(departing.mock.calls[0]?.[0]);
     expect(later).not.toHaveBeenCalled();
+  });
+  it("Should hand a send lost with no page mounted to that session's next page only", () => {
+    const recovery = new SessionPromptRecovery();
+    const envelope = {
+      action: "prompt" as const,
+      attachments: [],
+      expectedTurnId: null,
+      identity: { idempotencyKey: "key-1", messageId: "prompt-1" },
+      runtime: null,
+      text: "Edited request",
+    };
+    recovery.retainUnconfirmed(SCOPE, envelope);
+
+    const other = vi.fn();
+    recovery.subscribeUnconfirmed({ ...SCOPE, sessionId: "session-other" }, other);
+    const page = vi.fn();
+    const unsubscribe = recovery.subscribeUnconfirmed(SCOPE, page);
+    const later = vi.fn();
+    recovery.subscribeUnconfirmed(SCOPE, later);
+
+    expect(other).not.toHaveBeenCalled();
+    expect(page).toHaveBeenCalledExactlyOnceWith(envelope);
+    expect(later).not.toHaveBeenCalled();
+
+    unsubscribe();
+    const next = { ...envelope, identity: { idempotencyKey: "key-2", messageId: "prompt-2" } };
+    recovery.retainUnconfirmed(SCOPE, next);
+    expect(later).toHaveBeenCalledExactlyOnceWith(next);
+    expect(page).toHaveBeenCalledTimes(1);
   });
 });

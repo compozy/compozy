@@ -400,8 +400,11 @@ export function useSessionChatRuntime({
     const messageId = prompt?.envelope.identity.messageId ?? null;
     const unconfirmed =
       prompt !== null && (answered === null || answered >= 500) && isSendAcknowledgmentLost(error);
-    promptDispatch.trigger.promptFailed({ unconfirmed });
+    promptDispatch.trigger.promptFailed();
     if (unconfirmed) {
+      // The app-scoped owner keeps the identity for Retry even when this
+      // session's page is gone, as it is for a detached edit send.
+      promptRecovery.retainUnconfirmed(recoveryScope, prompt.envelope);
       consumeDraft(messageId);
       return;
     }

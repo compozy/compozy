@@ -8,10 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { SessionThread } from "@/components/assistant-ui/session-thread";
-import {
-  createSessionPromptDispatchStore,
-  SessionPromptDispatchContext,
-} from "@/components/assistant-ui/session-prompt-dispatch-store";
+import { createSessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { Toaster } from "@compozy/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -584,16 +581,16 @@ function countSessionDetailFetches(fetchMock: ReturnType<typeof vi.fn>): number 
   }).length;
 }
 
-/** Observes the dispatch store's pending-ack hand-off the page controls subscribe to. */
+/** Observes the app-scoped pending-ack hand-off the page controls subscribe to. */
 function UnconfirmedSendProbe({ onUnconfirmed }: { onUnconfirmed: (messageId: string) => void }) {
-  const store = use(SessionPromptDispatchContext);
-  useEffect(() => {
-    if (store === null) return;
-    const subscription = store.on("sendUnconfirmed", event =>
-      onUnconfirmed(event.envelope.identity.messageId)
-    );
-    return () => subscription.unsubscribe();
-  }, [onUnconfirmed, store]);
+  useEffect(
+    () =>
+      sessionPromptRecovery.subscribeUnconfirmed(
+        { workspaceId: fixtureWorkspaceId(), sessionId: primarySessionFixture.id },
+        envelope => onUnconfirmed(envelope.identity.messageId)
+      ),
+    [onUnconfirmed]
+  );
   return null;
 }
 

@@ -138,7 +138,7 @@ export {
 export type { SessionRewindRequest, SessionRewindResult } from "./adapters/session-api";
 
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
-export { resetSessionPromptRecovery } from "./lib/session-prompt-recovery";
+export { resetSessionPromptRecovery, sessionPromptRecovery } from "./lib/session-prompt-recovery";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
 // Attachment surface — byte URLs, prompt parts, item shaping, cards; ./attachments is the public list.
 export * from "./attachments";

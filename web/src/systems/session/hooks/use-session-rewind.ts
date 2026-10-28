@@ -69,7 +69,22 @@ export function useSessionRewind(workspaceId: string) {
         ...sessionDetailOptions(workspaceId, sessionId),
         staleTime: 0,
       });
-      return rewindSession(workspaceId, sessionId, parent.profile_name, request, signal);
+      try {
+        return await rewindSession(workspaceId, sessionId, parent.profile_name, request, signal);
+      } catch (error) {
+        // A definite refusal recorded nothing, so the next attempt reads a fresh
+        // fence; an unknown outcome (5xx, timeout, transport) replays exactly.
+        if (
+          error instanceof SessionApiError &&
+          error.status >= 400 &&
+          error.status < 500 &&
+          error.status !== 408 &&
+          error.status !== 429
+        ) {
+          attempt.current = null;
+        }
+        throw error;
+      }
     },
     onSuccess: async (result, { sessionId }) => {
       queryClient.setQueryData(sessionKeys.detail(workspaceId, sessionId), result.session);

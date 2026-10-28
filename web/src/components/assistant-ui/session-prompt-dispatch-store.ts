@@ -25,22 +25,17 @@ export type SessionPromptDispatchStoreEvents = {
   pendingCanceled: Record<never, never>;
   /** The daemon replied to the prompt POST with this HTTP status. */
   promptAnswered: { status: number };
-  /** The transport failed; `unconfirmed` says the request got no answer and its identity is retained. */
-  promptFailed: { unconfirmed: boolean };
+  /** The transport failed; the session runtime decides whether the send's identity is retained. */
+  promptFailed: Record<never, never>;
   /** The prompt body left for the wire with this identity and content. */
   promptPrepared: { envelope: SessionSendEnvelope };
   requestCompleted: { controller: AbortController };
   requestStarted: { controller: AbortController; at?: number };
 };
 
-export type SessionPromptDispatchEmittedEvents = {
-  sendUnconfirmed: { envelope: SessionSendEnvelope };
-};
-
 export const sessionPromptDispatchLogic = createStoreLogic<
   SessionPromptDispatchContext,
-  SessionPromptDispatchStoreEvents,
-  SessionPromptDispatchEmittedEvents
+  SessionPromptDispatchStoreEvents
 >({
   context: {
     canceled: false,
@@ -61,12 +56,7 @@ export const sessionPromptDispatchLogic = createStoreLogic<
       context.prompt === null
         ? undefined
         : { ...context, prompt: { ...context.prompt, answeredStatus: event.status } },
-    promptFailed: (context, event, enqueue) => {
-      if (context.prompt !== null && event.unconfirmed) {
-        enqueue.emit.sendUnconfirmed({ envelope: context.prompt.envelope });
-      }
-      return { ...context, prompt: null };
-    },
+    promptFailed: context => ({ ...context, prompt: null }),
     promptPrepared: (context, event) => ({
       ...context,
       prompt: { answeredStatus: null, envelope: event.envelope },

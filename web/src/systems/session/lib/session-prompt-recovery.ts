@@ -3,6 +3,7 @@ import type { UIMessage } from "ai";
 import type { TerminalQuote } from "@/systems/terminal/parts";
 
 import { splitQuotedPrompt } from "./session-terminal-quote-prompt";
+import type { SessionSendEnvelope } from "./session-unconfirmed-send";
 
 export interface RejectedSessionPromptDraft {
   quote: TerminalQuote | null;
@@ -16,6 +17,7 @@ export interface RestoredSessionPromptDraft {
 }
 
 type RecoveryListener = (draft: RestoredSessionPromptDraft) => void;
+type UnconfirmedListener = (envelope: SessionSendEnvelope) => void;
 
 export interface SessionPromptRecoveryScope {
   workspaceId: string;
@@ -61,11 +63,49 @@ export class SessionPromptRecovery {
   private readonly drafts = new Map<string, RejectedSessionPromptDraft>();
   private readonly restored = new Map<string, RestoredSessionPromptDraft[]>();
   private readonly listeners = new Map<string, Set<RecoveryListener>>();
+  private readonly unconfirmed = new Map<string, SessionSendEnvelope[]>();
+  private readonly unconfirmedListeners = new Map<string, Set<UnconfirmedListener>>();
 
   /** Forgets staged and pending drafts; suites sharing the app-scoped owner start clean. */
   public reset(): void {
     this.drafts.clear();
     this.restored.clear();
+    this.unconfirmed.clear();
+  }
+
+  /**
+   * Keeps the identity of a send whose acknowledgment was lost until a session
+   * page takes it. A detached send can lose it after its page is gone; held
+   * here, the next page of that session still offers Retry with the same
+   * identity instead of a fresh send that could run twice. Memory only: a
+   * reload drops it, and daemon replay protection still holds.
+   */
+  public retainUnconfirmed(scope: SessionPromptRecoveryScope, envelope: SessionSendEnvelope): void {
+    const key = recoveryScopeKey(scope);
+    const listeners = this.unconfirmedListeners.get(key);
+    if (listeners && listeners.size > 0) {
+      for (const listener of listeners) listener(envelope);
+      return;
+    }
+    this.unconfirmed.set(key, [...(this.unconfirmed.get(key) ?? []), envelope]);
+  }
+
+  /** A session page receives its retained unconfirmed sends, then each new one as it is lost. */
+  public subscribeUnconfirmed(
+    scope: SessionPromptRecoveryScope,
+    listener: UnconfirmedListener
+  ): () => void {
+    const key = recoveryScopeKey(scope);
+    const listeners = this.unconfirmedListeners.get(key) ?? new Set<UnconfirmedListener>();
+    listeners.add(listener);
+    this.unconfirmedListeners.set(key, listeners);
+    const pending = this.unconfirmed.get(key) ?? [];
+    this.unconfirmed.delete(key);
+    for (const envelope of pending) listener(envelope);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.unconfirmedListeners.delete(key);
+    };
   }
 
   public stage(
