@@ -294,7 +294,16 @@ describe("terminal window close lifecycle", () => {
         workspace === "ws-bound" ? [project] : [user]
       );
       const controller = new TerminalWindowClose();
-      const guard = controller.guard(desktop, new QueryClient());
+      const client = new QueryClient();
+      const affectedKeys = [
+        terminalKeys.catalog({ workspaceId: "ws-bound", profileKey: "default" }),
+        terminalKeys.catalog({ workspaceId: "@user", profileKey: "default" }),
+        terminalKeys.aggregate("", "default"),
+        terminalKeys.aggregate("@user,ws-bound", "default"),
+      ];
+      const unrelated = terminalKeys.catalog({ workspaceId: "ws-other", profileKey: "default" });
+      for (const key of [...affectedKeys, unrelated]) client.setQueryData(key, []);
+      const guard = controller.guard(desktop, client);
       const bound = (id: string, workspace: string) => ({
         ...terminalWindow,
         instanceKey: id,
@@ -306,6 +315,8 @@ describe("terminal window close lifecycle", () => {
       );
       controller.confirmation.get()?.answer(true);
       await expect(result).resolves.toBe(true);
+      for (const key of affectedKeys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
       expect(closeTerminal).toHaveBeenCalledWith(
         "ws-bound",
         project.id,

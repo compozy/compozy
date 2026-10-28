@@ -56,9 +56,9 @@ func TestTerminalBrowserIdentityShouldBindAuthorizedClient(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					terminalManager := &terminalOpenManagerStub{terminalManagerStub: terminalManagerStub{
+					terminalManager := &terminalOpenManagerStub{
 						info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID},
-					}}
+					}
 					handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "httpapi",
 						Terminal:      &terminalProviderStub{Manager: terminalManager},
 						WindowManager: &terminalWindowManagerProviderStub{service: wm}})

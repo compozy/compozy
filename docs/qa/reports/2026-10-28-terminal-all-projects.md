@@ -76,3 +76,18 @@ paired with the exact 403 response above; it does not independently show the tra
 This verifies the changed terminal slices, not every journey in the two broader scenario files.
 Their existing aggregate QA status is preserved. Required current-head CI and both external reviews
 must pass before delivery; local focused evidence alone does not establish that status.
+
+## Review and CI follow-up
+
+CodeRabbit identified a valid fallback-path defect: without the aggregate stream, closing a bound
+terminal could leave the All projects catalog stale. Close now invalidates aggregate catalogs as well
+as the affected workspace caches. The existing mixed-binding close test verifies unfiltered and
+filtered aggregates become stale while an unrelated project's catalog remains untouched.
+
+The first CI run also caught the explicit OpenAPI compatibility-baseline admission missing for the
+new optional header, and a Go modernize diagnostic in the browser-identity test. The established
+additive-schema helper now names this one addition; all historical comparators remain intact. The
+complete `internal/api/spec` suite passed after the update. No test assertion was relaxed.
+
+The initial reproduction lab was torn down through its canonical manifest; cleanup reported
+`TEARDOWN_ALL_CLEAN=true`. Final delivery status remains on the PR's current-head checks/reviews.

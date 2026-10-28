@@ -3467,6 +3467,8 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1008: optional browser registration partition; existing parameters retain their meaning.
+	addTerminalClientPartitionHeader(t, baseline)
 	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
 	automationProperties := baseline
 	for _, key := range []string{

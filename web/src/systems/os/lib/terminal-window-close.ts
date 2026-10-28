@@ -136,7 +136,8 @@ export class TerminalWindowClose {
         );
         await queryClient.invalidateQueries({
           predicate: query =>
-            query.queryKey[0] === "terminal" && scopes.has(String(query.queryKey[2])),
+            query.queryKey[0] === "terminal" &&
+            (query.queryKey[1] === "aggregate" || scopes.has(String(query.queryKey[2]))),
         });
         const failure = results.find(result => result.status === "rejected");
         if (failure) throw failure.reason;
