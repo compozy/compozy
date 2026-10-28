@@ -27,11 +27,21 @@ export class GatewayStreamAuthError extends Error {
 
 const TICKET_QUERY_PARAM = "ticket";
 
+interface ListenerDiscovery {
+  controller: AbortController;
+  promise: Promise<GatewayStreamAuthMode>;
+  waiters: number;
+}
+
 let mode: GatewayStreamAuthMode | undefined;
+let discovery: ListenerDiscovery | undefined;
 
 /** Resets the latched mode. Test-only seam. */
 export function resetGatewayStreamAuth(): void {
   mode = undefined;
+  const pending = discovery;
+  discovery = undefined;
+  pending?.controller.abort();
 }
 
 /** The latched mode, or `undefined` before listener discovery completes. */
@@ -78,8 +88,53 @@ export async function acquireStreamTicket(signal?: AbortSignal): Promise<string 
 }
 
 async function resolveGatewayStreamAuthMode(signal?: AbortSignal): Promise<GatewayStreamAuthMode> {
+  signal?.throwIfAborted();
   if (mode) return mode;
 
+  const pending = discovery ?? startListenerDiscovery();
+  pending.waiters += 1;
+  let onAbort: (() => void) | undefined;
+  try {
+    if (!signal) return await pending.promise;
+
+    return await new Promise<GatewayStreamAuthMode>((resolve, reject) => {
+      onAbort = () => reject(signal.reason);
+      signal.addEventListener("abort", onAbort, { once: true });
+      void pending.promise.then(resolve, reject);
+    });
+  } finally {
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+    pending.waiters -= 1;
+    if (pending.waiters === 0 && discovery === pending) {
+      discovery = undefined;
+      pending.controller.abort();
+    }
+  }
+}
+
+function startListenerDiscovery(): ListenerDiscovery {
+  // Each caller can stop waiting without canceling the other live connections.
+  const controller = new AbortController();
+  const pending: ListenerDiscovery = {
+    controller,
+    promise: readListenerMode(controller.signal),
+    waiters: 0,
+  };
+  discovery = pending;
+  void pending.promise.then(
+    resolvedMode => {
+      if (discovery !== pending) return;
+      mode = resolvedMode;
+      discovery = undefined;
+    },
+    () => {
+      if (discovery === pending) discovery = undefined;
+    }
+  );
+  return pending;
+}
+
+async function readListenerMode(signal: AbortSignal): Promise<GatewayStreamAuthMode> {
   const { response } = await apiClient.GET("/api/status", { signal });
   const tier = readGatewayListenerTier(response);
   if (!response.ok || !tier) {
@@ -89,8 +144,7 @@ async function resolveGatewayStreamAuthMode(signal?: AbortSignal): Promise<Gatew
     );
   }
 
-  mode = tier === "local" ? "local" : "remote";
-  return mode;
+  return tier === "local" ? "local" : "remote";
 }
 
 /**
