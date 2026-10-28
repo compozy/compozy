@@ -25,7 +25,7 @@ import (
 func TestAppStatusReportsCanonicalState(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report an authenticated shell as installed without its desktop entry", func(t *testing.T) {
+	t.Run("Should accept a tokenized shell record and report authenticated presence", func(t *testing.T) {
 		t.Parallel()
 		paths := appTestHome(t)
 		writeAppTestRecord(
@@ -34,6 +34,7 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 			map[string]any{
 				"schema_version":    2,
 				"pid":               4242,
+				"process_token":     "9cbed780-31d9-4c70-a327-5127c7b4ff70:12345",
 				"started_at":        "2026-08-10T03:00:00Z",
 				"app_version":       "9.9.9-stale",
 				"state":             "product",

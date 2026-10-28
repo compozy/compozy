@@ -16,6 +16,7 @@ import (
 )
 
 type stubUpdateManager struct {
+	appRunningFn   func() (bool, error)
 	checkFn        func(context.Context, compozyupdate.CheckOptions) (compozyupdate.State, *compozyupdate.Release, error)
 	checkAllFn     func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
 	planFn         func(context.Context, compozyupdate.Actor, []compozyupdate.Target, compozyupdate.Holder) (compozyupdate.OperationRequest, error)
@@ -26,6 +27,13 @@ type stubUpdateManager struct {
 	finalizeFn     func(compozyupdate.AppliedBinary) error
 	operationStore *compozyupdate.OperationStore
 	runtimeTarget  string
+}
+
+func (s stubUpdateManager) AppRunning() (bool, error) {
+	if s.appRunningFn != nil {
+		return s.appRunningFn()
+	}
+	return false, nil
 }
 
 func (s stubUpdateManager) CheckAll(

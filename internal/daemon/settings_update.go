@@ -195,9 +195,9 @@ func newDaemonUpdateHolder(d *Daemon, surface compozyupdate.Actor) (compozyupdat
 	if err != nil {
 		return compozyupdate.Holder{}, fmt.Errorf("daemon: resolve update executor identity: %w", err)
 	}
-	token, err := d.processToken(pid)
-	if err != nil {
-		return compozyupdate.Holder{}, err
+	token, tokenErr := d.processToken(pid)
+	if tokenErr != nil {
+		token = ""
 	}
 	generation, err := compozyupdate.NewExecutorGeneration()
 	if err != nil {

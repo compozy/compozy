@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -58,7 +59,7 @@ type OperationStore struct {
 	lockPath      string
 	historyPath   string
 	now           func() time.Time
-	holderLive    func(*Holder, time.Time) bool
+	holderLive    func(*Holder, time.Time) (bool, error)
 	events        OperationEventEmitter
 }
 
@@ -92,14 +93,19 @@ func NewOperationStore(paths compozyconfig.HomePaths, events OperationEventEmitt
 	}, nil
 }
 
-func holderProcessIsLive(holder *Holder, now time.Time) bool {
-	return holder != nil && holder.LeaseExpiresAt.After(now) && procutil.Alive(holder.PID) &&
-		procutil.MatchesProcessIdentity(holder.PID, holder.PIDStartTime, holder.ProcessToken)
+func holderProcessIsLive(holder *Holder, now time.Time) (bool, error) {
+	if holder == nil || !holder.LeaseExpiresAt.After(now) || !procutil.Alive(holder.PID) {
+		return false, nil
+	}
+	return procutil.MatchesProcessIdentity(holder.PID, holder.PIDStartTime, holder.ProcessToken)
 }
 
 // HolderLive reports whether the lease still belongs to the recorded process identity.
-func (s *OperationStore) HolderLive(holder *Holder) bool {
-	return s != nil && s.holderLive != nil && s.holderLive(holder, s.now())
+func (s *OperationStore) HolderLive(holder *Holder) (bool, error) {
+	if s == nil || s.holderLive == nil {
+		return false, errors.New("update: holder identity reader is required")
+	}
+	return s.holderLive(holder, s.now())
 }
 
 // Read returns the validated live operation, or nil when no operation exists.
@@ -133,7 +139,11 @@ func (s *OperationStore) Acquire(ctx context.Context, request OperationRequest) 
 			return err
 		}
 		if existing != nil {
-			if canResumeOperation(existing, request.Targets, s.now(), s.holderLive) {
+			canResume, err := canResumeOperation(existing, request.Targets, s.now(), s.holderLive)
+			if err != nil {
+				return err
+			}
+			if canResume {
 				return s.resumeUnlocked(ctx, existing, request, &acquired)
 			}
 			blocked := *existing
@@ -323,4 +333,49 @@ func cloneHolder(holder *Holder) *Holder {
 		return nil
 	}
 	return new(*holder)
+}
+
+func canResumeOperation(
+	operation *Operation,
+	targets []Target,
+	now time.Time,
+	holderLive func(*Holder, time.Time) (bool, error),
+) (bool, error) {
+	if !slices.Equal(operation.Targets, targets) {
+		return false, nil
+	}
+	live, err := holderLive(operation.Holder, now)
+	if err != nil {
+		return false, err
+	}
+	return operation.Waiting == WaitingForApp && operation.Holder == nil ||
+		operation.Holder != nil && !live, nil
+}
+
+func (s *OperationStore) resumeUnlocked(
+	ctx context.Context,
+	operation *Operation,
+	request OperationRequest,
+	result **Operation,
+) error {
+	resumed := cloneOperation(operation)
+	resumed.Revision++
+	resumed.RequestedBy = request.RequestedBy
+	resumed.Holder = cloneHolder(&request.Holder)
+	resumed.Waiting = WaitingNone
+	resumed.UpdatedAt = s.now()
+	if resumed.ActiveTarget == "" {
+		resumed.ActiveTarget = nextIncompleteTarget(resumed)
+	}
+	if err := s.replaceUnlocked(resumed); err != nil {
+		return err
+	}
+	s.events.EmitUpdateEvent(
+		ctx,
+		eventFromOperation(
+			EventOperationResumed, resumed, resumed.ActiveTarget, request.RequestedBy, "resumed", resumed.UpdatedAt,
+		),
+	)
+	*result = cloneOperation(resumed)
+	return nil
 }

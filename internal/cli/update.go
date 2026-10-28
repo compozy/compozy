@@ -26,6 +26,7 @@ const (
 )
 
 type updateManager interface {
+	AppRunning() (bool, error)
 	compozyupdate.CoordinatorManager
 	CheckAll(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error)
 	PlanOperation(
@@ -127,7 +128,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 	}
 	runErr := coordinator.Run(cmd.Context(), operation.ID, operation.Holder.ExecutorGeneration)
 	if errors.Is(runErr, compozyupdate.ErrExecutorFenced) {
-		return reportRecoveredUpdate(cmd, deps, manager.OperationStore(), operation, record)
+		return reportRecoveredUpdate(cmd, deps, manager, operation, record)
 	}
 	var archived *compozyupdate.Operation
 	var appRunErr error
@@ -211,9 +212,13 @@ func cancelUpdateOperation(cmd *cobra.Command, manager updateManager) error {
 		},
 	)
 	if errors.Is(err, compozyupdate.ErrOperationNotCancelable) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
+		live, identityErr := manager.OperationStore().HolderLive(operation.Holder)
+		if identityErr != nil {
+			return identityErr
+		}
 		record := updateCancelRecord{
 			Status: compozyupdate.StatusBlocked, OperationID: operation.ID, Holder: operation.Holder,
-			Message: updateCancelDeclinedMessage(operation, manager.OperationStore().HolderLive(operation.Holder)),
+			Message: updateCancelDeclinedMessage(operation, live),
 		}
 		return writeUpdateCancelFailure(cmd, record, err)
 	}

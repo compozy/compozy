@@ -1,6 +1,7 @@
 package procutil
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -22,6 +23,9 @@ func processToken(pid int, readFile func(string) ([]byte, error)) (string, error
 	}
 	stat, err := readFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err = errors.Join(ErrProcessIdentityGone, err)
+		}
 		return "", fmt.Errorf("procutil: read process identity: %w", err)
 	}
 	_, tail, ok := strings.CutLast(string(stat), ")")

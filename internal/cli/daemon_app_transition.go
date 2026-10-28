@@ -265,10 +265,7 @@ func desktopAppUpdateHolder(parentPID int, generation string, now time.Time) (*c
 	if err != nil {
 		return nil, fmt.Errorf("cli: resolve desktop app process identity: %w", err)
 	}
-	token, err := procutil.ProcessToken(parentPID)
-	if err != nil {
-		return nil, err
-	}
+	token := procutil.CreationProcessToken(parentPID)
 	return &compozyupdate.Holder{
 		PID: parentPID, PIDStartTime: startedAt, ProcessToken: token, Surface: compozyupdate.ActorShell,
 		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
@@ -298,5 +295,6 @@ func appOperationRecoverableByShell(
 			operation.App.Phase != compozyupdate.PhaseInstallerHandoff) {
 		return false
 	}
-	return operation.Holder == nil || !store.HolderLive(operation.Holder)
+	live, err := store.HolderLive(operation.Holder)
+	return err == nil && !live
 }

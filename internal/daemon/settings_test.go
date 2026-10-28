@@ -945,6 +945,21 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 }
 
 func TestSettingsUpdateControllerMutations(t *testing.T) {
+
+	t.Run("Should preserve timestamp identity when kernel identity is unavailable at creation", func(t *testing.T) {
+		t.Parallel()
+		startedAt := time.Now().UTC()
+		daemon := &Daemon{
+			pid:              func() int { return 42 },
+			processStartedAt: func(int) (time.Time, error) { return startedAt, nil },
+			processToken:     func(int) (string, error) { return "", os.ErrPermission },
+			now:              func() time.Time { return startedAt },
+		}
+		holder, err := newDaemonUpdateHolder(daemon, compozyupdate.ActorDaemon)
+		if err != nil || holder.ProcessToken != "" || holder.PID != 42 || !holder.PIDStartTime.Equal(startedAt) {
+			t.Fatalf("holder = %#v, %v", holder, err)
+		}
+	})
 	t.Run("Should derive holder identity from daemon composition seams", func(t *testing.T) {
 		t.Parallel()
 

@@ -227,22 +227,24 @@ func TestMatchesProcessIdentity(t *testing.T) {
 		recorded  string
 		observed  string
 		lookupErr error
+		wantErr   error
 		want      bool
 	}{
 		{name: "Should accept the same kernel identity despite wall clock drift", recorded: "boot:123", observed: "boot:123", want: true},
 		{name: "Should reject a reused PID", recorded: "boot:123", observed: "boot:456"},
 		{name: "Should reject an identity from a previous boot", recorded: "old:123", observed: "new:123"},
-		{name: "Should reject a vanished process", recorded: "boot:123", lookupErr: os.ErrNotExist},
+		{name: "Should reject a vanished process", recorded: "boot:123", lookupErr: ErrProcessIdentityGone},
 		{name: "Should retain timestamp verification for old records", want: false},
+		{name: "Should preserve an unavailable identity error without claiming PID reuse", recorded: "boot:123", lookupErr: os.ErrPermission, wantErr: os.ErrPermission},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := matchesProcessIdentity(42, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), tc.recorded,
+			got, err := matchesProcessIdentity(42, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), tc.recorded,
 				func(int) (string, error) { return tc.observed, tc.lookupErr },
 				func(int, time.Time) bool { return false },
 			)
-			if got != tc.want {
-				t.Fatalf("identity match = %v, want %v", got, tc.want)
+			if !errors.Is(err, tc.wantErr) || got != tc.want {
+				t.Fatalf("identity match = %v, %v, want %v", got, err, tc.want)
 			}
 		})
 	}

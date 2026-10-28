@@ -345,17 +345,17 @@ func TestOperationDormancyAndArchive(t *testing.T) {
 			t.Fatalf("procutil.StartedAt() error = %v", err)
 		}
 		live := Holder{PID: os.Getpid(), PIDStartTime: startedAt, LeaseExpiresAt: time.Now().UTC().Add(time.Minute)}
-		if !store.HolderLive(&live) {
+		if live, err := store.HolderLive(&live); err != nil || !live {
 			t.Fatal("HolderLive(current process) = false, want true")
 		}
 		dead := live
 		dead.PID = 99999999
-		if store.HolderLive(&dead) {
+		if live, err := store.HolderLive(&dead); err != nil || live {
 			t.Fatal("HolderLive(dead process) = true, want false")
 		}
 		reused := live
 		reused.PIDStartTime = startedAt.Add(-time.Hour)
-		if store.HolderLive(&reused) {
+		if live, err := store.HolderLive(&reused); err != nil || live {
 			t.Fatal("HolderLive(reused process identity) = true, want false")
 		}
 	})
@@ -930,8 +930,8 @@ func newOperationTestStore(
 		t.Fatalf("NewOperationStore() error = %v", err)
 	}
 	store.now = func() time.Time { return testOperationNow }
-	store.holderLive = func(holder *Holder, now time.Time) bool {
-		return holder != nil && holder.LeaseExpiresAt.After(now)
+	store.holderLive = func(holder *Holder, now time.Time) (bool, error) {
+		return holder != nil && holder.LeaseExpiresAt.After(now), nil
 	}
 	return store, paths, events
 }
@@ -991,6 +991,51 @@ func splitNonEmptyLines(value string) []string {
 
 func TestOperationKernelIdentity(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve ownership when identity cannot be read", func(t *testing.T) {
+		t.Parallel()
+		store, _, _ := newOperationTestStore(t)
+		request := operationTestRequest(testOperationNow)
+		operation, err := store.Acquire(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.holderLive = func(*Holder, time.Time) (bool, error) { return false, os.ErrPermission }
+		if err := store.Fence(
+			t.Context(),
+			operation.ID,
+			operation.Holder.ExecutorGeneration,
+			operation.Revision,
+		); !errors.Is(err, os.ErrPermission) ||
+			errors.Is(err, ErrExecutorFenced) {
+			t.Fatalf("fence = %v", err)
+		}
+		if _, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			Transition{
+				Kind:    TransitionRecover,
+				Actor:   ActorDaemon,
+				Holder:  new(operationTestHolder("recovery", testOperationNow)),
+				Percent: -1,
+			},
+		); !errors.Is(
+			err,
+			os.ErrPermission,
+		) {
+			t.Fatalf("recovery = %v", err)
+		}
+		if _, err := store.Acquire(t.Context(), request); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("acquisition = %v", err)
+		}
+		current, err := store.Read(t.Context())
+		if err != nil || current.Revision != operation.Revision ||
+			current.Holder.ExecutorGeneration != operation.Holder.ExecutorGeneration {
+			t.Fatalf("ownership changed: %#v, %v", current, err)
+		}
+	})
+
 	t.Run("Should reject recovery of a live holder despite timestamp drift", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS != "linux" {
@@ -1010,7 +1055,7 @@ func TestOperationKernelIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !store.HolderLive(operation.Holder) {
+		if live, err := store.HolderLive(operation.Holder); err != nil || !live {
 			t.Fatal("clock drift expired a live holder")
 		}
 		_, err = store.Transition(
@@ -1030,7 +1075,7 @@ func TestOperationKernelIdentity(t *testing.T) {
 		}
 		reused := *operation.Holder
 		reused.ProcessToken += "0"
-		if store.HolderLive(&reused) {
+		if live, err := store.HolderLive(&reused); err != nil || live {
 			t.Fatal("reused process was accepted")
 		}
 	})

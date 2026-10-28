@@ -13,10 +13,11 @@ import (
 func reportRecoveredUpdate(
 	cmd *cobra.Command,
 	deps commandDeps,
-	store *compozyupdate.OperationStore,
+	manager updateManager,
 	operation *compozyupdate.Operation,
 	record updateRecord,
 ) error {
+	store := manager.OperationStore()
 	archived, readErr := store.ReadArchived(cmd.Context(), operation.ID)
 	if readErr != nil {
 		return writeUpdateFailure(cmd, failedUpdateRecord(record, readErr, operation.Targets...), readErr)
@@ -45,9 +46,15 @@ func reportRecoveredUpdate(
 			if readErr != nil {
 				return nil, true, readErr
 			}
-			if live != nil && live.ID == operation.ID && live.Waiting == compozyupdate.WaitingForApp &&
-				(record.App == nil || !record.App.Running) {
-				return live, true, nil
+			if live != nil && live.ID == operation.ID && live.Waiting == compozyupdate.WaitingForApp {
+				running, err := manager.AppRunning()
+				if err != nil {
+					return nil, true, err
+				}
+				if record.App != nil {
+					record.App.Running = running
+				}
+				return live, !running, nil
 			}
 			return nil, false, nil
 		},

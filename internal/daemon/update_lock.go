@@ -40,11 +40,7 @@ func AcquireUpdateLock(path string, owner UpdateLockOwner) (*UpdateLock, error) 
 		return nil, errors.New("daemon: update lock owner is invalid")
 	}
 	if owner.ProcessToken == "" {
-		token, err := procutil.ProcessToken(owner.PID)
-		if err != nil {
-			return nil, err
-		}
-		owner.ProcessToken = token
+		owner.ProcessToken = procutil.CreationProcessToken(owner.PID)
 	}
 	if err := os.MkdirAll(filepath.Dir(cleanPath), 0o755); err != nil {
 		return nil, fmt.Errorf("daemon: create update lock directory for %q: %w", cleanPath, err)
@@ -69,9 +65,15 @@ func AcquireUpdateLock(path string, owner UpdateLockOwner) (*UpdateLock, error) 
 		return nil, errors.Join(err, unlockErr, closeErr)
 	}
 	var staleOwner *UpdateLockOwner
-	if priorOwner != nil &&
-		!procutil.MatchesProcessIdentity(priorOwner.PID, priorOwner.StartedAt, priorOwner.ProcessToken) {
-		staleOwner = priorOwner
+	if priorOwner != nil {
+		matches, identityErr := procutil.MatchesProcessIdentity(
+			priorOwner.PID,
+			priorOwner.StartedAt,
+			priorOwner.ProcessToken,
+		)
+		if identityErr == nil && !matches {
+			staleOwner = priorOwner
+		}
 	}
 	if err := writeUpdateLockOwner(ownerPath, owner); err != nil {
 		unlockErr := fileLock.Unlock()

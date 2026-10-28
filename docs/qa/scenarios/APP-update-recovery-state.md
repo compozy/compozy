@@ -79,3 +79,9 @@ still pending at its deadline must remain explicitly unresolved rather than clai
 The owning procutil/update/daemon/CLI suites exercise injected identity readers and isolated
 journals. Linux container runs exercise the actual `/proc` reader; they do not reproduce WSL2
 host sleep or replace a WSL2 end-to-end update rehearsal.
+
+During detached coordinator handoff, replace the parent identity with the child process token.
+If identity becomes unreadable after acquisition, report the lookup error without changing
+revision/generation or allowing takeover. With procfs restricted at initial creation, daemon
+and desktop startup retain timestamp-based identity. Close the app while a fenced CLI waits;
+the next local presence read must return the staged handoff with version and attempt details.

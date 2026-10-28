@@ -125,6 +125,7 @@ export function projectAppUpdateState(operation: UpdateOperation | null): AppUpd
 
 export class AppStatePublisher {
   readonly #path: string;
+  readonly #readProcessToken: () => Promise<string | undefined>;
   readonly #appVersion: string;
   readonly #channel: string;
   readonly #startedAt: string;
@@ -147,9 +148,11 @@ export class AppStatePublisher {
     bootId?: string;
     startupMarker?: string;
     previousCrash?: StartupMarker | null;
+    readProcessToken?: () => Promise<string | undefined>;
     onPublished?: (snapshot: ShellSnapshot) => void;
   }) {
     this.#path = options.path;
+    this.#readProcessToken = options.readProcessToken ?? readProcessToken;
     this.#appVersion = options.appVersion;
     this.#channel = options.channel;
     this.#startedAt = options.startedAt.toISOString();
@@ -230,7 +233,8 @@ export class AppStatePublisher {
       update: projectAppUpdateState(this.#operation),
     };
     const write = this.#publication.then(async () => {
-      const processToken = await readProcessToken();
+      // Token acquisition is optional at creation; retain timestamp identity if procfs is restricted.
+      const processToken = await this.#readProcessToken().catch(() => undefined);
       const data = `${JSON.stringify({ ...record, ...(processToken ? { process_token: processToken } : {}) }, null, 2)}\n`;
       await this.#persistMarker();
       await writeFileAtomic(this.#path, data, 0o600);
