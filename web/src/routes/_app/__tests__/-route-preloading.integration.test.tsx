@@ -13,17 +13,28 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAgent, useAgentAggregate, useAgentCatalog, useAgents } from "@/systems/agent";
+import {
+  useAgent,
+  useAgentAggregate,
+  useAgentCatalog,
+  useAgentCatalogMetrics,
+  useAgents,
+  useAgentSessions,
+} from "@/systems/agent";
 import {
   useAutomationJobs,
   useAutomationSuggestions,
   useAutomationTriggers,
 } from "@/systems/automation";
 import {
+  loopRunTimelineOptions,
   useLoop,
   useLoopAnnotations,
   useLoopConfig,
   useLoopRun,
+  useLoopRunBriefing,
+  useLoopRunRoster,
+  useLoopRunTimeline,
   useLoopRuns,
   useLoopRunsList,
   useLoops,
@@ -83,10 +94,14 @@ const adapterMocks = vi.hoisted(() => ({
   fetchSessions: vi.fn(),
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
+  fetchWorktrees: vi.fn(),
   getLoop: vi.fn(),
   getLoopAnnotations: vi.fn(),
   getLoopConfig: vi.fn(),
   getLoopRun: vi.fn(),
+  getLoopRunBriefing: vi.fn(),
+  getLoopRunRoster: vi.fn(),
+  getLoopRunTimeline: vi.fn(),
   getAutomationJob: vi.fn(),
   getAutomationTrigger: vi.fn(),
   getScheduler: vi.fn(),
@@ -128,6 +143,11 @@ vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/workspace/adapters/workspace-api")>()),
   fetchWorkspace: adapterMocks.fetchWorkspace,
   fetchWorkspaces: adapterMocks.fetchWorkspaces,
+}));
+
+vi.mock("@/systems/workspace/adapters/worktree-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace/adapters/worktree-api")>()),
+  fetchWorktrees: adapterMocks.fetchWorktrees,
 }));
 
 vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
@@ -237,6 +257,13 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
   listLoopsAggregate: adapterMocks.listLoopsAggregate,
 }));
 
+vi.mock("@/systems/loops/adapters/loop-run-reads-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/loops/adapters/loop-run-reads-api")>()),
+  getLoopRunBriefing: adapterMocks.getLoopRunBriefing,
+  getLoopRunRoster: adapterMocks.getLoopRunRoster,
+  getLoopRunTimeline: adapterMocks.getLoopRunTimeline,
+}));
+
 import { Route as AppRoute } from "../../_app";
 import { ensureRouteQueryData } from "../-route-preload";
 import { Route as AgentDetailRoute } from "../agents.$name.index";
@@ -272,6 +299,14 @@ const workspace = {
   root_dir: "/workspace",
   updated_at: "2026-07-10T12:00:00Z",
 };
+
+const agentScopes = [
+  { name: "project", workspaceId: workspace.id },
+  { name: "User", workspaceId: "@user" },
+  { name: "All projects", workspaceId: null },
+  { name: "bound project", workspaceId: "ws_target", binding: "ws_target" },
+  { name: "bound User", workspaceId: "@user", binding: "@user" },
+];
 
 type AdapterMock = ReturnType<typeof vi.fn>;
 
@@ -442,35 +477,11 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgentCatalog],
   },
   {
-    name: "agent detail → detail + exact agent session list/count options",
-    load: queryClient =>
-      invokeLoader(AgentDetailRoute, {
-        ...context(queryClient),
-        location: { pathname: "/agents/codex" },
-        params: { name: "codex" },
-      }),
-    mountConsumer: queryClient =>
-      mountQueries(queryClient, () => {
-        useWorkspaces();
-        useAgent("codex", workspace.id);
-        useSessions(workspace.id, {
-          filters: { agent: "codex", type: "user", sort: "last_activity" },
-        });
-        useSessions(workspace.id, {
-          filters: { agent: "codex", state: "active", type: "user", limit: 1 },
-        });
-        useSessions(workspace.id, {
-          filters: { agent: "codex", type: "user", resumable: true, limit: 1 },
-        });
-      }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgent],
-    requestCounts: [{ request: adapterMocks.fetchSessions, times: 3 }],
-  },
-  {
     name: "agent settings → definition/workspace/provider options",
     load: queryClient =>
       invokeLoader(AgentSettingsRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "codex" },
       }),
     mountConsumer: queryClient =>
@@ -666,7 +677,7 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listLoopRuns],
   },
   {
-    name: "loop run detail → run detail then dependent loop detail options",
+    name: "loop run detail → run definition, briefing, roster, and timeline",
     load: queryClient =>
       invokeLoader(LoopRunDetailRoute, {
         ...context(queryClient),
@@ -678,8 +689,18 @@ const cases: PreloadCase[] = [
         useWorkspaces();
         useLoopRun(workspace.id, "run-1");
         useLoop(workspace.id, "review");
+        useLoopRunBriefing(workspace.id, "run-1");
+        useLoopRunRoster(workspace.id, "run-1");
+        useLoopRunTimeline(workspace.id, "run-1");
       }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.getLoopRun, adapterMocks.getLoop],
+    requests: [
+      adapterMocks.fetchWorkspaces,
+      adapterMocks.getLoopRun,
+      adapterMocks.getLoop,
+      adapterMocks.getLoopRunBriefing,
+      adapterMocks.getLoopRunRoster,
+      adapterMocks.getLoopRunTimeline,
+    ],
   },
   {
     name: "general settings → general/session-defaults/update/apply-record options",
@@ -766,6 +787,7 @@ describe("route query preloading", () => {
     }
 
     adapterMocks.fetchWorkspaces.mockResolvedValue([workspace]);
+    adapterMocks.fetchWorktrees.mockResolvedValue({ worktrees: [] });
     adapterMocks.fetchWorkspace.mockResolvedValue({ ...workspace, providers: [] });
     adapterMocks.fetchOnboardingStatus.mockResolvedValue({ completed: true });
     adapterMocks.getProviderUsage.mockResolvedValue(defaultUsageEnvelope());
@@ -850,6 +872,19 @@ describe("route query preloading", () => {
     adapterMocks.getLoopRun.mockResolvedValue({
       run: { loop_name: "review", status: "running" },
     });
+    adapterMocks.getLoopRunBriefing.mockResolvedValue({ status: "running" });
+    adapterMocks.getLoopRunRoster.mockResolvedValue({
+      nodes: [],
+      fanout_rollups: [],
+      loop_name: "review",
+      run_status: "running",
+      next_cursor: "",
+    });
+    adapterMocks.getLoopRunTimeline.mockResolvedValue({
+      entries: [],
+      head_seq: 0,
+      next_cursor: "",
+    });
     setActiveWorkspaceId(workspace.id);
   });
 
@@ -903,6 +938,99 @@ describe("route query preloading", () => {
       expect(request).toHaveBeenCalledTimes(times);
     }
 
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each(agentScopes)("Should warm the real agent detail consumers under $name", async scope => {
+    const queryClient = createQueryClient();
+    setProfileView({ kind: "profile", profile: "marketing" });
+    if (scope.name === "User") focusUser();
+    if (scope.workspaceId === null) enableAllProjects();
+
+    await invokeLoader(AgentDetailRoute, {
+      ...context(queryClient),
+      deps: { workspace: scope.binding },
+      params: { name: "codex" },
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    const unmount = mountQueries(queryClient, () => {
+      useAgent("codex", scope.workspaceId);
+      useAgentCatalogMetrics(scope.workspaceId, "codex");
+      useAgentSessions(scope.workspaceId, "codex");
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(adapterMocks.fetchSessions).toHaveBeenCalledTimes(2);
+    expect(adapterMocks.fetchSessions.mock.calls.map(([filters]) => filters)).toEqual([
+      {
+        ...(scope.workspaceId ? { workspace_id: scope.workspaceId } : { all_workspaces: true }),
+        agent: "codex",
+        sort: "last_activity",
+        profile: "marketing",
+      },
+      {
+        ...(scope.workspaceId ? { workspace_id: scope.workspaceId } : { all_workspaces: true }),
+        agent: "codex",
+        sort: "last_activity",
+        archive: "only",
+        profile: "marketing",
+      },
+    ]);
+    expect(adapterMocks.fetchAgent).toHaveBeenCalledExactlyOnceWith(
+      "codex",
+      scope.workspaceId,
+      expect.any(AbortSignal),
+      "marketing"
+    );
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        workspace: scope.workspaceId ?? undefined,
+        name: "codex",
+        limit: 1,
+        profile: "marketing",
+      }),
+      expect.any(AbortSignal)
+    );
+    unmount();
+    queryClient.clear();
+  });
+
+  it.each(agentScopes)("Should warm the real agent settings consumers under $name", async scope => {
+    const queryClient = createQueryClient();
+    setProfileView({ kind: "profile", profile: "marketing" });
+    if (scope.name === "User") focusUser();
+    if (scope.workspaceId === null) enableAllProjects();
+    const projectId = scope.workspaceId === "@user" ? null : scope.workspaceId;
+
+    await invokeLoader(AgentSettingsRoute, {
+      ...context(queryClient),
+      deps: { workspace: scope.binding },
+      params: { name: "codex" },
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    const unmount = mountQueries(queryClient, () => {
+      useAgent("codex", scope.workspaceId);
+      useWorkspace(projectId ?? "", { enabled: projectId !== null });
+      useSettingsProviders();
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(adapterMocks.fetchAgent).toHaveBeenCalledExactlyOnceWith(
+      "codex",
+      scope.workspaceId,
+      expect.any(AbortSignal),
+      "marketing"
+    );
+    if (projectId) {
+      expect(adapterMocks.fetchWorkspace).toHaveBeenCalledExactlyOnceWith(
+        projectId,
+        expect.any(AbortSignal)
+      );
+    } else {
+      expect(adapterMocks.fetchWorkspace).not.toHaveBeenCalled();
+    }
+    expect(adapterMocks.listSettingsProviders).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });
@@ -1264,6 +1392,7 @@ describe("route query preloading", () => {
     await invokeLoader(AppRoute, context(queryClient));
     await invokeLoader(AgentDetailRoute, {
       ...context(queryClient),
+      deps: {},
       location: { pathname: "/agents/open-design-designer" },
       params: { name: "open-design-designer" },
     });
@@ -1271,6 +1400,7 @@ describe("route query preloading", () => {
       () => ({
         list: useAgents(workspace.id),
         catalog: useAgentCatalog(workspace.id, { limit: 1 }),
+        metrics: useAgentCatalogMetrics(workspace.id, "open-design-designer"),
         detail: useAgent("open-design-designer", workspace.id),
       }),
       { wrapper: createWrapper(queryClient) }
@@ -1284,9 +1414,14 @@ describe("route query preloading", () => {
       expect.any(AbortSignal),
       "open-design"
     );
-    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(2);
     expect(adapterMocks.fetchAgentCatalog).toHaveBeenLastCalledWith(
-      expect.objectContaining({ workspace: workspace.id, profile: "open-design" }),
+      expect.objectContaining({
+        workspace: workspace.id,
+        name: "open-design-designer",
+        limit: 1,
+        profile: "open-design",
+      }),
       expect.any(AbortSignal)
     );
     expect(adapterMocks.fetchAgent).toHaveBeenCalledTimes(1);
@@ -1333,8 +1468,34 @@ describe("route query preloading", () => {
       expect.any(AbortSignal),
       { profile: "marketing" }
     );
-    const unmount = mountQueries(queryClient, () => useLoopRun(workspace.id, "run-1"));
-    await waitFor(() => expect(adapterMocks.getLoopRun).toHaveBeenCalledTimes(1));
+    const unmount = mountQueries(queryClient, () => {
+      useLoopRun(workspace.id, "run-1");
+      useLoopRunBriefing(workspace.id, "run-1");
+      useLoopRunRoster(workspace.id, "run-1");
+      useLoopRunTimeline(workspace.id, "run-1");
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getLoopRun).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.getLoopRunBriefing).toHaveBeenCalledExactlyOnceWith(
+      workspace.id,
+      "run-1",
+      expect.any(AbortSignal),
+      { profile: "marketing" }
+    );
+    expect(adapterMocks.getLoopRunRoster).toHaveBeenCalledExactlyOnceWith(
+      workspace.id,
+      "run-1",
+      { limit: 200, cursor: undefined },
+      expect.any(AbortSignal),
+      { profile: "marketing" }
+    );
+    expect(adapterMocks.getLoopRunTimeline).toHaveBeenCalledExactlyOnceWith(
+      workspace.id,
+      "run-1",
+      { view: "notable", limit: 50, cursor: undefined },
+      expect.any(AbortSignal),
+      { profile: "marketing" }
+    );
     unmount();
     queryClient.clear();
   });
@@ -1353,6 +1514,117 @@ describe("route query preloading", () => {
       expect.any(AbortSignal),
       { profile: "destination" }
     );
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getLoopRunBriefing).toHaveBeenCalledExactlyOnceWith(
+      "ws-destination",
+      "run-1",
+      expect.any(AbortSignal),
+      { profile: "destination" }
+    );
+    for (const projection of [adapterMocks.getLoopRunRoster, adapterMocks.getLoopRunTimeline]) {
+      expect(projection).toHaveBeenCalledExactlyOnceWith(
+        "ws-destination",
+        "run-1",
+        expect.any(Object),
+        expect.any(AbortSignal),
+        { profile: "destination" }
+      );
+    }
+    queryClient.clear();
+  });
+
+  it("Should release Loop run navigation and warm only the first projection pages after the run resolves", async () => {
+    const queryClient = createQueryClient();
+    const runRead = createDeferred<{ run: { loop_name: string; status: string } }>();
+    adapterMocks.getLoopRun.mockReturnValueOnce(runRead.promise);
+    adapterMocks.getLoopRunRoster.mockResolvedValue({
+      nodes: [],
+      fanout_rollups: [],
+      loop_name: "review",
+      run_status: "running",
+      next_cursor: "next-roster-page",
+    });
+    adapterMocks.getLoopRunTimeline.mockResolvedValue({
+      entries: [],
+      head_seq: 7,
+      next_cursor: "older-timeline-page",
+    });
+    await expect(
+      invokeLoader(LoopRunDetailRoute, {
+        ...context(queryClient),
+        deps: { workspace: workspace.id },
+        params: { runId: "run-1" },
+      })
+    ).resolves.toBeUndefined();
+    for (const projection of [
+      adapterMocks.getLoopRunBriefing,
+      adapterMocks.getLoopRunRoster,
+      adapterMocks.getLoopRunTimeline,
+    ]) {
+      expect(projection).not.toHaveBeenCalled();
+    }
+
+    runRead.resolve({ run: { loop_name: "review", status: "running" } });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    for (const projection of [
+      adapterMocks.getLoopRunBriefing,
+      adapterMocks.getLoopRunRoster,
+      adapterMocks.getLoopRunTimeline,
+    ]) {
+      expect(projection).toHaveBeenCalledTimes(1);
+    }
+    queryClient.clear();
+  });
+
+  it("Should not warm Loop run projections when the scoped run read fails", async () => {
+    const queryClient = createQueryClient();
+    adapterMocks.getLoopRun.mockRejectedValue(new Error("Loop run not found"));
+    await expect(
+      invokeLoader(LoopRunDetailRoute, {
+        ...context(queryClient),
+        deps: { workspace: "ws-other" },
+        params: { runId: "run-1" },
+      })
+    ).resolves.toBeUndefined();
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    for (const projection of [
+      adapterMocks.getLoop,
+      adapterMocks.getLoopRunBriefing,
+      adapterMocks.getLoopRunRoster,
+      adapterMocks.getLoopRunTimeline,
+    ]) {
+      expect(projection).not.toHaveBeenCalled();
+    }
+    queryClient.clear();
+  });
+
+  it("Should preserve loaded Loop timeline pages on preload and recover their freshness on mount", async () => {
+    const queryClient = createQueryClient();
+    const load = () =>
+      invokeLoader(LoopRunDetailRoute, {
+        ...context(queryClient),
+        deps: { workspace: workspace.id },
+        params: { runId: "run-1" },
+      });
+    await load();
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    const options = loopRunTimelineOptions(workspace.id, "run-1", { view: "notable" });
+    const initial = queryClient.getQueryData(options.queryKey);
+    if (!initial) throw new Error("Expected the preloaded timeline page");
+    const loaded = {
+      pages: [{ ...initial.pages[0], next_cursor: "older" }, initial.pages[0]],
+      pageParams: [undefined, "older"],
+    };
+    queryClient.setQueryData(options.queryKey, loaded, { updatedAt: Date.now() - 10_000 });
+
+    await load();
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.getLoopRunTimeline).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData(options.queryKey)).toEqual(loaded);
+
+    const unmount = mountQueries(queryClient, () => useLoopRunTimeline(workspace.id, "run-1"));
+    await waitFor(() => expect(adapterMocks.getLoopRunTimeline).toHaveBeenCalledTimes(2));
+    unmount();
     queryClient.clear();
   });
 
