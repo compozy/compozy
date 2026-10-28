@@ -1,9 +1,16 @@
-import { useDesktopDock } from "../hooks/use-desktop-dock";
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { useDesktopDock, type DockPreload } from "../hooks/use-desktop-dock";
 import { useTerminalDockRunning } from "../hooks/use-terminal-dock-running";
 import { cn } from "@compozy/ui";
+import { useActiveWorkspace } from "@/systems/workspace";
+import { profileViewKey, readProfileView, useProfileReadScope } from "@/systems/profiles";
+import { preloadSessionEntry } from "@/systems/session";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import type { OsAppId } from "../lib/os-types";
+import { getOsApp, preloadOsAppCode } from "../lib/app-registry";
 import { OsDock } from "./os-dock";
 import { OsDockAppMenu } from "./os-dock-app-menu";
 import { OsRailFoot } from "./os-dock-rail-foot";
@@ -21,6 +28,7 @@ export interface DesktopDockProps {
   /** Profile switcher, supplied by the shell; the rail foot (or compact tab bar) hosts it. */
   profileSwitcher?: React.ReactNode;
   onOpenSettings: () => void;
+  onPreload?: DockPreload;
 }
 
 /** Wake as one surface — the dock brightens back when setup finishes. */
@@ -42,15 +50,17 @@ export function DesktopDock({
   dormant = false,
   profileSwitcher,
   onOpenSettings,
+  onPreload,
 }: DesktopDockProps) {
-  const { entries, presentation, commandsAvailable, handleSelect, handleLaunch } = useDesktopDock(
-    badges,
-    {
+  const { entries, presentation, commandsAvailable, handleSelect, handleLaunch, handlePreload } =
+    useDesktopDock(badges, {
       onNewSession,
+      onPreload: dormant || !contextMenusEnabled ? undefined : onPreload,
       terminalLive,
-    }
-  );
+    });
   const dormancy = cn(WAKE, dormant && DORMANT);
+  const canPreload = !!onPreload && !dormant && contextMenusEnabled;
+  const preloadSettings = useCallback(() => handlePreload("settings"), [handlePreload]);
 
   if (presentation === "compact") {
     return (
@@ -58,11 +68,13 @@ export function DesktopDock({
         className={cn("col-span-full row-start-3", dormancy)}
         items={entries}
         onSelect={handleSelect}
+        onPreload={canPreload ? handlePreload : undefined}
         disabled={!commandsAvailable}
         trailing={
           <OsRailFoot
             profileSwitcher={profileSwitcher}
             onOpenSettings={onOpenSettings}
+            onPreloadSettings={canPreload ? preloadSettings : undefined}
             tipSide="top"
           />
         }
@@ -75,6 +87,7 @@ export function DesktopDock({
       className={cn("col-start-1 row-start-2", dormancy)}
       items={entries}
       onSelect={handleSelect}
+      onPreload={canPreload ? handlePreload : undefined}
       disabled={!commandsAvailable}
       renderItemMenu={
         !commandsAvailable || !contextMenusEnabled
@@ -88,7 +101,13 @@ export function DesktopDock({
               </OsDockAppMenu>
             )
       }
-      foot={<OsRailFoot profileSwitcher={profileSwitcher} onOpenSettings={onOpenSettings} />}
+      foot={
+        <OsRailFoot
+          profileSwitcher={profileSwitcher}
+          onOpenSettings={onOpenSettings}
+          onPreloadSettings={canPreload ? preloadSettings : undefined}
+        />
+      }
     />
   );
 }
@@ -97,7 +116,24 @@ export function DesktopDock({
  * Production dock: Terminal's live mark reads the catalog, not window-open.
  * Isolated dock tests keep rendering `DesktopDock` without this query.
  */
-export function ShellDesktopDock(props: Omit<DesktopDockProps, "terminalLive">) {
+export function ShellDesktopDock(props: Omit<DesktopDockProps, "terminalLive" | "onPreload">) {
   const terminalLive = useTerminalDockRunning();
-  return <DesktopDock {...props} terminalLive={terminalLive} />;
+  const queryClient = useQueryClient();
+  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
+  const { key: profileKey } = useProfileReadScope();
+  const onPreload = useCallback<DockPreload>(
+    (appId, session) => {
+      if (pending || profileKey !== profileViewKey(readProfileView(queryClient))) return;
+      const reads: Promise<unknown>[] = [preloadOsAppCode(appId)];
+      if (appId === "session" && session !== null) {
+        reads.push(preloadSessionEntry(queryClient, session));
+      } else {
+        const preload = getOsApp(appId).preload;
+        if (preload) reads.push(preload(queryClient, { workspaceId: runtimeWorkspaceId }));
+      }
+      return Promise.allSettled(reads);
+    },
+    [pending, profileKey, queryClient, runtimeWorkspaceId]
+  );
+  return <DesktopDock {...props} onPreload={onPreload} terminalLive={terminalLive} />;
 }

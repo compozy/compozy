@@ -1,4 +1,9 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import {
   act,
   fireEvent,
@@ -16,7 +21,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
-import { workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
+import {
+  clearActiveWorkspaceSelection,
+  rehydrateActiveWorkspaceStore,
+  setActiveWorkspaceId,
+  workspacesListOptions,
+  workspaceBadgeIdentity,
+  type DataScope,
+} from "@/systems/workspace";
+import { rehydrateProfileViewStore, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
@@ -38,8 +51,16 @@ import type { SessionPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
+import { sessionScopedDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
+import { preloadSessionEntry } from "../../lib/session-entry-preload";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
 import { SessionSidebar } from "../session-sidebar";
+
+// Dynamic JavaScript acquisition is an I/O boundary; these tests exercise the real query cache.
+vi.mock("@/systems/os/lib/app-registry", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/os/lib/app-registry")>()),
+  preloadOsAppCode: vi.fn().mockResolvedValue(undefined),
+}));
 
 // Invariant: the shared catalog routes selection gestures to bulk controls without navigation.
 // Owner: SessionList through its sidebar host; no existing session-list component suite.
@@ -200,6 +221,179 @@ function renderList(
       rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
   };
 }
+
+// Invariant: catalog intent warms one scoped session head before selection, without crossing a
+// workspace/profile boundary or rereading retained history. Owner: SessionList entry + Query cache.
+describe("SessionList entry preloading", () => {
+  const session = sessions[0]!;
+  const workspace = {
+    id: session.workspace_id!,
+    name: "Session project",
+    root_dir: "/tmp/session-project",
+    add_dirs: [],
+    created_at: session.created_at,
+    updated_at: session.updated_at,
+  };
+  const transcript = {
+    entries: [],
+    epoch: 1,
+    generation: 1,
+    max_sequence: 210,
+    has_older: true,
+    next_before_sequence: 10,
+    limit: 200,
+  };
+  const readPaths: string[] = [];
+
+  beforeEach(async () => {
+    await Promise.all([rehydrateActiveWorkspaceStore(), rehydrateProfileViewStore()]);
+    setActiveWorkspaceId(workspace.id);
+    setProfileView({ kind: "profile", profile: session.profile_name });
+    readPaths.length = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async request => {
+        const url = new URL(request instanceof Request ? request.url : request);
+        readPaths.push(`${url.pathname}${url.search}`);
+        return Response.json(url.pathname.endsWith("/transcript") ? transcript : { session });
+      })
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearActiveWorkspaceSelection();
+    resetProfileViews();
+  });
+
+  function renderedEntry(target = session) {
+    const rendered = renderList({ sessions: [target] });
+    rendered.queryClient.setQueryData(workspacesListOptions().queryKey, [workspace]);
+    return rendered;
+  }
+
+  it("Should fetch detail and one transcript head before clicking, then reuse both on mount", async () => {
+    const { queryClient, onSelect } = renderedEntry();
+    const row = screen.getByTestId(`session-sidebar-session-${session.id}`);
+    fireEvent.pointerEnter(row);
+    expect(readPaths).toEqual([]);
+    await waitFor(() => expect(readPaths).toHaveLength(2));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(readPaths).toEqual([
+      `/api/sessions/${session.id}?profile=${session.profile_name}&include_health=true`,
+      `/api/workspaces/${workspace.id}/sessions/${session.id}/transcript`,
+    ]);
+    expect(onSelect).not.toHaveBeenCalled();
+
+    fireEvent.click(row);
+    expect(onSelect).toHaveBeenCalledWith(session);
+    const observer = renderHook(
+      () => {
+        useQuery(sessionScopedDetailOptions(session.id, { profile: session.profile_name }));
+        useInfiniteQuery(sessionTranscriptOptions(workspace.id, session.id));
+      },
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(readPaths).toHaveLength(2);
+    observer.unmount();
+    queryClient.clear();
+  });
+
+  it.each([{ workspace_id: "foreign-project" }, { profile_name: "foreign-profile" }])(
+    "Should skip speculative session data outside the selected scope: %j",
+    async overrides => {
+      const target = { ...session, ...overrides };
+      const { queryClient } = renderedEntry(target);
+      await preloadSessionEntry(queryClient, target);
+      expect(readPaths).toEqual([]);
+      queryClient.clear();
+    }
+  );
+
+  it("Should retry a failed detail read on later intent and then warm the transcript", async () => {
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async request => {
+      const url = new URL(request instanceof Request ? request.url : request);
+      readPaths.push(`${url.pathname}${url.search}`);
+      return Response.json({ error: "Temporarily unavailable" }, { status: 503 });
+    });
+    const { queryClient } = renderedEntry();
+    const row = screen.getByTestId(`session-sidebar-session-${session.id}`);
+    const detail = sessionScopedDetailOptions(session.id, { profile: session.profile_name });
+    fireEvent.pointerEnter(row);
+    await waitFor(() => expect(queryClient.getQueryState(detail.queryKey)?.status).toBe("error"));
+    expect(readPaths).toHaveLength(1);
+    expect(
+      queryClient.getQueryData(sessionTranscriptOptions(workspace.id, session.id).queryKey)
+    ).toBeUndefined();
+
+    fireEvent.pointerLeave(row);
+    fireEvent.pointerEnter(row);
+    await waitFor(() => expect(readPaths).toHaveLength(3));
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(readPaths).toEqual([
+      `/api/sessions/${session.id}?profile=${session.profile_name}&include_health=true`,
+      `/api/sessions/${session.id}?profile=${session.profile_name}&include_health=true`,
+      `/api/workspaces/${workspace.id}/sessions/${session.id}/transcript`,
+    ]);
+    queryClient.clear();
+  });
+
+  it("Should skip a queued session read when the profile changes before intent settles", async () => {
+    vi.useFakeTimers();
+    try {
+      const { queryClient } = renderedEntry();
+      fireEvent.pointerEnter(screen.getByTestId(`session-sidebar-session-${session.id}`));
+      act(() => setProfileView({ kind: "profile", profile: "other" }));
+      await act(() => vi.advanceTimersByTimeAsync(100));
+      expect(readPaths).toEqual([]);
+      expect(queryClient.isFetching()).toBe(0);
+      queryClient.clear();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should not read the transcript after a profile switch while detail is in flight", async () => {
+    let resolveDetail!: (response: Response) => void;
+    vi.mocked(globalThis.fetch).mockImplementationOnce(
+      () => new Promise<Response>(resolve => (resolveDetail = resolve))
+    );
+    const { queryClient } = renderedEntry();
+    const preload = preloadSessionEntry(queryClient, session);
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(1));
+    act(() => setProfileView({ kind: "profile", profile: "other" }));
+    resolveDetail(Response.json({ session }));
+    await preload;
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(
+      queryClient.getQueryData(sessionTranscriptOptions(workspace.id, session.id).queryKey)
+    ).toBeUndefined();
+    queryClient.clear();
+  });
+
+  it("Should preserve a stale multi-page transcript without refetching history on intent", async () => {
+    const { queryClient } = renderedEntry();
+    const options = sessionTranscriptOptions(workspace.id, session.id);
+    const retained = {
+      pages: [
+        { ...transcript, cursor: transcript.max_sequence },
+        { ...transcript, has_older: false, max_sequence: 10, cursor: 10 },
+      ],
+      pageParams: [undefined, { beforeSequence: 10, epoch: 1, generation: 1 }],
+    };
+    queryClient.setQueryData(options.queryKey, retained, { updatedAt: Date.now() - 60_000 });
+    await preloadSessionEntry(queryClient, session);
+    expect(readPaths).toHaveLength(1);
+    expect(readPaths[0]).not.toContain("/transcript");
+    expect(queryClient.getQueryData(options.queryKey)).toBe(retained);
+    queryClient.clear();
+  });
+});
 
 // USW W-08: a session running with the agent's `unrestricted` grant carries the warning-tone
 // Unrestricted badge on line 2, named for assistive tech with the grant's plain description.
