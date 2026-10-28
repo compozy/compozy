@@ -369,3 +369,7 @@ export function AssistantMessageTimeline({
     </TimelineRowContext.Provider>
   );
 }
+
+export function SessionTimelineRows({ rows }: { rows: readonly SessionRow[] }) {
+  return <>{renderTimelineRows(rows)}</>;
+}

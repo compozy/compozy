@@ -1,3 +1,5 @@
+import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
+import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
 import { ChevronRight, GitBranch } from "lucide-react";
 
@@ -22,11 +24,11 @@ export interface SubagentOpenOptions {
 
 export interface SubagentCardProps {
   subagent: SubagentView;
-  /** Drill-in; the card is a button only when it has a child session and this handler. */
+  /** Inspect the subagent, including pending and native rows without a child session. */
   onOpen?: (subagent: SubagentView, options: SubagentOpenOptions) => void;
   /**
-   * Provider-native inner work (S8). When set on a card with no child session,
-   * the card becomes a disclosure that expands these rows inline.
+   * Provider-native inner work for hosts without an inspection handler.
+   * Such standalone cards retain an inline disclosure.
    */
   nested?: ReactNode;
   defaultExpanded?: boolean;
@@ -53,15 +55,16 @@ const CARD_FRAME = {
 
 type SubagentCardMode = "drill" | "disclosure" | "static";
 
-/** Drill into a child session; expand provider-native rows inline; otherwise a static row. */
+/** Inspect when hosted; standalone cards can disclose available native activity. */
 function subagentCardMode(
   subagent: SubagentView,
   canOpen: boolean,
   hasNested: boolean
 ): SubagentCardMode {
-  if (subagent.child_session_id !== null) return canOpen ? "drill" : "static";
+  if (canOpen) return "drill";
+  if (subagent.child_session_id !== null) return "static";
   if (hasNested) return "disclosure";
-  return subagent.origin === "provider_native" && canOpen ? "drill" : "static";
+  return "static";
 }
 
 /**
@@ -121,6 +124,7 @@ function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settl
         >
           {subagent.title}
         </span>
+        <SubagentRuntimeMeta subagent={subagent} providerMark={false} />
         {branch || lines.lineTwo ? (
           <span
             className="flex min-w-0 items-baseline text-transcript-caption"
@@ -162,6 +166,7 @@ export function SubagentCard({
   parentLocation,
   className,
 }: SubagentCardProps) {
+  const selected = useSubagentDrawerSelected(subagent.id);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const panelId = useId();
   const mode = subagentCardMode(subagent, onOpen !== undefined, nested != null);
@@ -215,7 +220,7 @@ export function SubagentCard({
           data-origin={subagent.origin}
           data-settled={isSubagentLive(subagent.status) ? undefined : "true"}
           data-stale={stale ? "true" : undefined}
-          className={cn(cardClassName(mode, variant, open), className)}
+          className={cn(cardClassName(mode, variant, open), selected && "bg-selected", className)}
         >
           <HoverCardTrigger render={trigger}>
             <SubagentCardMain subagent={subagent} settled={display.settled} />

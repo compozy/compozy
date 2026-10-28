@@ -113,6 +113,8 @@ export type OsNavigateMode = "replace" | "push" | "pop";
 export type OsCloseScope = "tab" | "group" | "others" | "right";
 
 export interface OsDesktopBounds {
+  /** Full shell width, before dock tracks consume the work area. */
+  viewportWidth?: number;
   width: number;
   height: number;
   /** Viewport offset of the win-layer origin; converts client to layer coordinates. */

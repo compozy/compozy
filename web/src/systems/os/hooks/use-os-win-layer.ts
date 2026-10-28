@@ -55,6 +55,7 @@ export function useOsWinLayer(): OsWinLayerModel {
     const measure = (size?: { width: number; height: number }) => {
       const bounds = layer.getBoundingClientRect();
       manager.setDesktopBounds({
+        viewportWidth: window.innerWidth,
         width: size?.width ?? bounds.width,
         height: size?.height ?? bounds.height,
         origin: { x: bounds.left, y: bounds.top },

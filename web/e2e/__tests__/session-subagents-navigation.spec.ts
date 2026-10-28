@@ -103,6 +103,7 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
   runtime,
 }) => {
   test.setTimeout(180_000);
+  await appPage.setViewportSize({ width: 1600, height: 1000 });
   await ensureProjectWorkspace(appPage, runtime);
   const workspace =
     runtime.seeded.workspace ??
@@ -158,22 +159,48 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await branch.getByRole("button", { name: "Show 2 more" }).click();
     await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
     await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
-    // Invariant: a listed child opens its session, not merely a callback.
+    // Invariant: a listed child opens its live drawer while preserving the parent.
     // Owner: browser/daemon navigation; canonical suite: E2E-009.
     const opened = branch.getByRole("button", { name: /^Open Nav subagent/ }).first();
     const title = ((await opened.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
     const target = subagents.find(row => row.title === title);
     expect(target?.child_session_id).toBeTruthy();
     await opened.click();
-    const childWin = sessionWindow(appPage, target!.child_session_id!);
-    await expect(childWin).toBeVisible();
-    await browserArtifacts.captureScreenshot("subagents-sidebar-open-child", appPage);
-    await childWin.getByTestId(`session-sidebar-session-${parent.id}`).click();
+    const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toBeInViewport({ ratio: 1 });
+    await expect(drawer).toHaveCSS("opacity", "1");
+    await expect(drawer).toContainText(title);
     await expect(parentWin).toBeVisible();
+    await browserArtifacts.captureScreenshot("subagents-sidebar-open-drawer", appPage);
+    const otherRow = branch
+      .getByRole("button", { name: /^Open Nav subagent/, includeHidden: true })
+      .nth(1);
+    const otherTitle = ((await otherRow.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
+    await otherRow.click();
+    await expect(drawer).toHaveCount(1);
+    await expect(drawer.getByRole("heading")).toContainText(otherTitle);
+    await appPage.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await appPage.getByRole("button", { name: "Switch to light mode" }).click();
+    await expect
+      .poll(() =>
+        opened.evaluate(
+          element =>
+            element.getAnimations().filter(animation => animation.playState === "running").length
+        )
+      )
+      .toBe(0);
+    await opened.click();
+    await expect(drawer).toBeInViewport({ ratio: 1 });
+    await browserArtifacts.captureScreenshot("subagents-sidebar-open-drawer-light", appPage);
+    await appPage.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await appPage.getByRole("button", { name: "Switch to dark mode" }).click();
   });
 
   const roster = parentWin.getByTestId("session-inspector-subagents");
-  let revealedChildID = "";
+
   await test.step("the inspector roster lists 6 rows, then Show 4 more", async () => {
     const inspectorToggle = parentWin.getByTestId("session-inspector-toggle");
     if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true")
@@ -185,30 +212,40 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await browserArtifacts.captureScreenshot("subagents-inspector-roster", appPage);
   });
 
-  await test.step("opening a subagent reveals only it under the parent", async () => {
+  await test.step("the inspector opens the drawer beside the unchanged parent", async () => {
     const opened = roster.getByRole("button", { name: /^Open Nav subagent/ }).first();
-    const title = ((await opened.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
-    const target = subagents.find(row => row.title === title);
-    expect(target?.child_session_id).toBeTruthy();
     await opened.click();
-    revealedChildID = target!.child_session_id!;
-    const childWin = sessionWindow(appPage, revealedChildID);
+    const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toBeInViewport({ ratio: 1 });
+    await expect(drawer).toHaveCSS("opacity", "1");
+    await expect(parentWin).toBeVisible();
+    await browserArtifacts.captureScreenshot("subagents-inspector-drawer", appPage);
+    await appPage.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
+    await appPage.getByRole("button", { name: "Switch to light mode" }).click();
+    await expect
+      .poll(() =>
+        opened.evaluate(
+          element =>
+            element.getAnimations().filter(animation => animation.playState === "running").length
+        )
+      )
+      .toBe(0);
+    await opened.click();
+    await expect(drawer).toBeInViewport({ ratio: 1 });
+    await browserArtifacts.captureScreenshot("subagents-inspector-drawer-light", appPage);
+    await drawer.getByRole("button", { name: "Open as session" }).click();
+    const target = subagents[0]!;
+    const childWin = sessionWindow(appPage, target.child_session_id!);
     await expect(childWin).toBeVisible();
-    const childSidebar = childWin.getByTestId("session-sidebar");
-    await expect(
-      childSidebar
-        .getByTestId(`session-sidebar-thread-${parent.id}`)
-        .getByTestId(`session-sidebar-session-${target!.child_session_id}`)
-    ).toBeVisible();
-    for (const id of childSessionIDs.filter(id => id !== target!.child_session_id)) {
-      await expect(childSidebar.getByTestId(`session-sidebar-session-${id}`)).toHaveCount(0);
-    }
-    await browserArtifacts.captureScreenshot("subagents-revealed-child", appPage);
+    await childWin.getByTestId(`session-sidebar-session-${parent.id}`).click();
+    await expect(parentWin).toBeVisible();
   });
 
   await test.step("the indicator settles live to a quiet total once every subagent completed", async () => {
     // No reload: the parent's catalog upserts carry the fresh summary to the open sidebar.
-    const liveSidebar = sessionWindow(appPage, revealedChildID).getByTestId("session-sidebar");
+    const liveSidebar = parentWin.getByTestId("session-sidebar");
     const parentRow = liveSidebar.getByTestId(`session-sidebar-session-${parent.id}`);
     await expect(parentRow).toBeVisible();
     await expect(liveSidebar.getByRole("button", { name: "10 subagents" })).toHaveText("10", {

@@ -25,56 +25,58 @@ const failingStop = () =>
 /** Nav VC-01/03: the inspector Subagents section. */
 function RosterStates() {
   return (
-    <div className="grid w-fit grid-cols-3 items-start gap-x-6 gap-y-8 p-8">
+    <>
       <Toaster />
-      <Rail label="live + failed + previous · 11 subagents">
-        <SessionInspectorSubagentsSection subagents={roster} onOpen={fn()} onStop={neverStop} />
-      </Rail>
-      <Rail label="live only">
-        <SessionInspectorSubagentsSection
-          subagents={[
-            { ...cardStates.runningProgress, created_at: cardStates.queued.created_at },
-            cardStates.queued,
-          ]}
-          onOpen={fn()}
-          onStop={neverStop}
-        />
-      </Rail>
-      <Rail label="live + previous · open">
-        <SessionInspectorSubagentsSection
-          subagents={[
-            cardStates.failed,
-            cardStates.runningProgress,
-            cardStates.completed,
-            cardStates.canceled,
-          ]}
-          onOpen={fn()}
-          onStop={neverStop}
-          defaultPreviousOpen
-        />
-      </Rail>
-      <Rail label="paging · 6 rows, then Show 12 more">
-        <SessionInspectorSubagentsSection
-          subagents={migrationReviews(20)}
-          onOpen={fn()}
-          defaultPreviousOpen
-        />
-      </Rail>
-      <Rail label="stop pending · press Stop">
-        <SessionInspectorSubagentsSection
-          subagents={[cardStates.runningProgress, cardStates.running]}
-          onOpen={fn()}
-          onStop={neverStop}
-        />
-      </Rail>
-      <Rail label="stop failed · press Stop, toast">
-        <SessionInspectorSubagentsSection
-          subagents={[cardStates.runningProgress]}
-          onOpen={fn()}
-          onStop={failingStop}
-        />
-      </Rail>
-    </div>
+      <div className="grid w-fit grid-cols-3 items-start gap-x-6 gap-y-8 p-8">
+        <Rail label="live + failed + previous · 11 subagents">
+          <SessionInspectorSubagentsSection subagents={roster} onOpen={fn()} onStop={neverStop} />
+        </Rail>
+        <Rail label="live only">
+          <SessionInspectorSubagentsSection
+            subagents={[
+              { ...cardStates.runningProgress, created_at: cardStates.queued.created_at },
+              cardStates.queued,
+            ]}
+            onOpen={fn()}
+            onStop={neverStop}
+          />
+        </Rail>
+        <Rail label="live + previous · open">
+          <SessionInspectorSubagentsSection
+            subagents={[
+              cardStates.failed,
+              cardStates.runningProgress,
+              cardStates.completed,
+              cardStates.canceled,
+            ]}
+            onOpen={fn()}
+            onStop={neverStop}
+            defaultPreviousOpen
+          />
+        </Rail>
+        <Rail label="paging · 6 rows, then Show 12 more">
+          <SessionInspectorSubagentsSection
+            subagents={migrationReviews(20)}
+            onOpen={fn()}
+            defaultPreviousOpen
+          />
+        </Rail>
+        <Rail label="stop pending · press Stop">
+          <SessionInspectorSubagentsSection
+            subagents={[cardStates.runningProgress, cardStates.running]}
+            onOpen={fn()}
+            onStop={neverStop}
+          />
+        </Rail>
+        <Rail label="stop failed · press Stop, toast">
+          <SessionInspectorSubagentsSection
+            subagents={[cardStates.runningProgress]}
+            onOpen={fn()}
+            onStop={failingStop}
+          />
+        </Rail>
+      </div>
+    </>
   );
 }
 

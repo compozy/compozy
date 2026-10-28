@@ -27,6 +27,7 @@ export interface WindowManagerBinding {
 }
 
 export interface WindowManagerWorkArea {
+  readonly viewportWidth?: number;
   readonly rect: PixelRect;
   readonly origin: PixelPoint;
 }

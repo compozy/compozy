@@ -1,15 +1,15 @@
 ---
 id: ET-web-native-subagent
 area: ET
-title: Claude's own subagents render as nested cards
+title: Inspect Claude native subagent activity in a drawer
 persona: Rafa
 journey: J-14-read-a-finished-transcript
-expected: When Claude (claude-agent-acp) runs its own Agent or Task tool, CompozyOS records a provider-native subagent (origin provider_native, no child session, provider_tool_call_id set, model from the tool input when reported) and the parent transcript shows the same subagent card titled with the tool's description, with no chevron, expandable inline to show the subagent's own tool rows and text; those inner parts (parentToolCallId equal to the Agent call) no longer interleave with the parent's work rows or reply text, while an unknown parent tool call id falls back to the parent flow; the status line counts it in "N agents running" while live; it settles with its tool result — or, when Claude runs it in the background (the Agent tool returns a launch receipt), stays Running until its own task reports a terminal state (Completed, Failed, or Canceled for a stopped/killed task) as soon as that task finishes, while the parent and sibling tasks keep running, with the task's summary as its result once Claude reports it; only a background row with no task evidence falls back to Completed with no result when the parent's turn ends (Interrupted when the turn is canceled or the session stops) — never wakes the parent, never shows the waiting banner, cannot be canceled (409 subagent_not_cancelable, no Stop in the roster), and counts toward the parent's sidebar subagent indicator and appears in its subagent branch as a clickable row that opens the parent session, reveals its card, expands available nested activity, and briefly highlights it; the rendering survives reload from the persisted transcript.
-entry_points: web session window transcript (SubagentCard provider-native state, inline expansion); compozy session subagents <session-id> --origin provider_native --json; POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel; session inspector Subagents section; docs/design/opendesign/subagents/subagents-transcript.html#tr-native (VC-05)
-qa_status: pass
+expected: When Claude (claude-agent-acp) runs its own Agent or Task tool, CompozyOS records a provider-native subagent (origin provider_native, no child session, provider_tool_call_id set, model from the tool input when reported) and the parent transcript shows the same subagent card titled with the tool's description, with an inspect action opening a live read-only drawer of its own prompt, tool rows, text and result; those inner parts (parentToolCallId equal to the Agent call) no longer interleave with the parent's work rows or reply text, while an unknown parent tool call id falls back to the parent flow; the status line counts it in "N agents running" while live; it settles with its tool result — or, when Claude runs it in the background (the Agent tool returns a launch receipt), stays Running until its own task reports a terminal state (Completed, Failed, or Canceled for a stopped/killed task) as soon as that task finishes, while the parent and sibling tasks keep running, with the task's summary as its result once Claude reports it; only a background row with no task evidence falls back to Completed with no result when the parent's turn ends (Interrupted when the turn is canceled or the session stops) — never wakes the parent, never shows the waiting banner, cannot be canceled (409 subagent_not_cancelable, no Stop in the roster), and counts toward the parent's sidebar subagent indicator and appears in its subagent branch as a clickable row that opens its own activity drawer without switching the parent session; the rendering survives reload from the persisted transcript.
+entry_points: web session window transcript (SubagentCard provider-native state, activity drawer); compozy session subagents <session-id> --origin provider_native --json; POST /api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel; session inspector Subagents section; docs/design/opendesign/subagents/subagents-transcript.html#tr-native (VC-05)
+qa_status: untested
 bug_ids: BUG-20261009-native-subagent-title-task; BUG-20261009-subagent-preview-raw-markdown
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: e7e9b276a; 7573fab3a
 evidence: .compozy/tasks/subagents/orchestration/screens/pr/
 last_report: docs/qa/reports/2026-10-09-subagents-r2.md
@@ -30,10 +30,14 @@ shape (Known Risk: shape drift).
 
 1. **Live card (E2E-006, VC-05).** In a Claude session, ask Claude to use its own Agent tool to
    research something in parallel. Expect one card titled with the Agent call's description, the
-   Claude mark, `Running`, and no chevron. The parent's work rows do not include the subagent's reads
+   Claude mark, recorded agent/model/effort, `Working`, and an inspect chevron. The parent's work rows do not include the subagent's reads
    and searches, and the parent's reply text excludes the subagent's text chunks.
-2. **Inline expansion.** Expand the card: the subagent's own tool rows and text render inside it,
-   live while it runs, using the same work-row components. Collapsed is the default.
+2. **Activity drawer.** Click the native card, then repeat from its sidebar row, composer roster,
+   and inspector. The parent stays open. The drawer shows the delegated prompt when reported,
+   the subagent's own tool rows and text live using the existing transcript renderers, and its
+   output or error. It has no composer and no `Open as session` action because no child session
+   exists. Check resize, Escape, focus return, narrow overlay, and light/dark rendering.
+
 3. **Settle.** When the Agent tool returns, the card reads `Completed` (or `Failed` on a tool error),
    elapsed freezes, and no wake turn follows. While it ran, the status line counted
    `1 agent running`; when only native subagents are live after the parent's turn, no waiting banner
@@ -88,7 +92,7 @@ window. The broader foreground/background/native cancellation matrix above
 retains its prior status; this follow-up is recorded in the
 [issues 851–854 report](../reports/2026-10-19-issues-851-854.md).
 
-QA impact 2026-10-24 (#947): from the sidebar branch, All projects session list, composer
+Historical QA impact 2026-10-24 (#947; plain-click navigation superseded by the drawer): from the sidebar branch, All projects session list, composer
 roster, and inspector, click a provider-native row. The parent opens (or stays open), older
 transcript pages load when needed, and enclosing turn/group/card disclosures open to reveal
 that subagent with a brief focus highlight. Close it manually and click the row again: it
@@ -113,3 +117,5 @@ turn-end-only completion to per-task completion with the turn-end fallback; fore
 settle with their tool result. A real-provider walk of steps 3–4 (two background tasks, a failure,
 a parent cancel) and a daemon restart mid-run is pending; deterministic fixture evidence only
 (`claude_agent_acp_0.98.0_task_lifecycle.jsonl`, adapter 0.98.0).
+
+Drawer inspection steps were verified in the targeted [2026-10-28 run](../reports/2026-10-28-subagent-drawer.md). That run records its bounded coverage and does not re-certify unrelated lifecycle branches.

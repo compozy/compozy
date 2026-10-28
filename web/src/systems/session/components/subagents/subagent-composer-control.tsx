@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { Bot } from "lucide-react";
 import { useReducedMotionConfig } from "motion/react";
 
@@ -154,14 +155,25 @@ export function SubagentComposerControl({
   stale = false,
   ...panel
 }: SubagentComposerControlProps) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const openingDetail = useRef(false);
   const signal = subagentComposerSignal(panel.counts, panel.failed);
   const live = signal.count !== null;
 
   return (
-    <Popover onOpenChange={open => onOpenChange?.(open)}>
+    <Popover
+      open={open}
+      onOpenChange={next => {
+        if (next) openingDetail.current = false;
+        setOpen(next);
+        onOpenChange?.(next);
+      }}
+    >
       <PopoverTrigger
         render={
           <InputGroupButton
+            ref={trigger}
             type="button"
             // Icon-only while idle; the live count widens it into the tool pill.
             size={live ? "tool" : "tool-icon"}
@@ -175,8 +187,27 @@ export function SubagentComposerControl({
         <SubagentComposerGlyph signal={signal} stale={stale} />
         {live ? <span className="font-mono text-mono-id tabular-nums">{signal.count}</span> : null}
       </PopoverTrigger>
-      <PopoverContent side="top" align="start" className="w-80 max-w-[calc(100vw-2rem)] gap-2">
-        <SubagentComposerPanel {...panel} stale={stale} />
+      <PopoverContent
+        finalFocus={() => (openingDetail.current ? false : trigger.current)}
+        side="top"
+        align="start"
+        className="w-80 max-w-[calc(100vw-2rem)] gap-2"
+      >
+        <SubagentComposerPanel
+          {...panel}
+          stale={stale}
+          onOpen={
+            panel.onOpen
+              ? (subagent, options) => {
+                  openingDetail.current = true;
+                  setOpen(false);
+                  onOpenChange?.(false);
+                  trigger.current?.focus();
+                  panel.onOpen?.(subagent, options);
+                }
+              : undefined
+          }
+        />
       </PopoverContent>
     </Popover>
   );

@@ -60,7 +60,7 @@ export class BrowserArtifactSession {
 
     const tempDir = await this.tempDirPromise;
     const filePath = path.join(tempDir, `${sanitizePathComponent(name)}.png`);
-    await targetPage.screenshot({ fullPage: true, path: filePath });
+    await targetPage.screenshot({ fullPage: true, path: filePath, animations: "disabled" });
     this.screenshotPaths.push(filePath);
     if (this.qaOutputRootDir) {
       await mirrorBrowserScreenshotForQA(filePath, this.qaOutputRootDir, name);

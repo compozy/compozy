@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { SubagentDrawerContext } from "../contexts/subagent-drawer-context";
+import { use, useEffect, useRef } from "react";
 
 import { useSessionInspectorFocus } from "../hooks/use-session-inspector-focus";
 import { useSessionSubagents } from "../hooks/use-session-subagents";
@@ -20,6 +21,7 @@ export interface SessionInspectorSubagentsProps {
  * summary reports subagents; it lands in view when the sidebar chip asked.
  */
 export function SessionInspectorSubagents({ session, onOpen }: SessionInspectorSubagentsProps) {
+  const drawer = use(SubagentDrawerContext);
   const roster = useSessionSubagents(session.workspace_id ?? "", session.id);
   const focus = useSessionInspectorFocus(session.id, "subagents");
   const anchor = useRef<HTMLDivElement>(null);
@@ -40,7 +42,11 @@ export function SessionInspectorSubagents({ session, onOpen }: SessionInspectorS
       <SessionInspectorSubagentsSection
         subagents={roster.subagents}
         pending={loading ? summary : undefined}
-        onOpen={onOpen}
+        onOpen={
+          drawer
+            ? (subagent, options) => drawer.open(subagent, options, session.workspace_id ?? "")
+            : onOpen
+        }
         onStop={roster.stop}
       />
     </div>

@@ -333,9 +333,9 @@ describe("subagent card drill-in (UT-W16)", () => {
         queryClient
       )
     );
-    fireEvent.click(screen.getByRole("group", { name: "Task sub-1, Queued" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open Task sub-1" }));
     expect(openSession).not.toHaveBeenCalled();
-    expect(screen.queryByRole("button", { name: "Open Task sub-1" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open Task sub-1" })).toBeEnabled();
 
     act(() => {
       queryClient.setQueryData<SubagentRoster>(
