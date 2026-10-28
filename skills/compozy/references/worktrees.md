@@ -266,3 +266,34 @@ These events do not change the recorded setup result.
 Dismiss remains metadata-only and never runs teardown, even if a checkout reappears. Missing paths,
 already removed records and discovered, unregistered worktrees also skip teardown. Adopted records
 use the configured teardown when removed. Unset teardown preserves existing removal behavior.
+
+## Change an existing session's worktree
+
+Use `compozy__session_worktree_bind` with `session_id`, `worktree`, and optional
+`expected_worktree_id`, or `compozy__session_worktree_unbind` with the session and optional expected
+binding. These sessions-toolset mutations preserve the session ID, transcript, window, and list
+row. They do not fork. The target must be ready in the same workspace/profile. Bind and unbind
+set the execution directory to the destination root; files remain in their original checkout.
+
+Only idle ordinary project user sessions are eligible. Busy sessions (including self-calls during
+a turn), pending input, task/Loop/review/subagent ownership, archived sessions, and User scope
+are refused. `session_busy` is immediate; no deferred change is queued. A stale expected binding
+returns `session_worktree_conflict`. An explicit empty expected ID means workspace root.
+
+The daemon holds old/target checkout usage against removal and delivery, verifies the old provider
+process exit, and persists a recoverable binding transition. The next turn uses the new cwd and
+permission root with native resume or bounded transcript replay, plus one daemon directory-change
+note. Explicitly unbind to recover from an unavailable checkout; missing worktrees do not silently
+fall back. A restart completes an accepted durable transition. No database shape migration is needed.
+
+CLI: `compozy session worktree bind <session> <worktree-ref>` and
+`compozy session worktree unbind <session>`, both with optional `--expected-worktree`.
+HTTP/UDS: `PUT /api/workspaces/{ws}/sessions/{id}/worktree` accepts
+`{"worktree":"feature-auth","expected_worktree_id":""}`; `DELETE` accepts optional
+`?expected_worktree_id=`. Both return 200 with the same `SessionResponse`; app-token access is denied.
+
+Web offers Use worktree…, Change worktree…, and Use workspace root in the environment control.
+New worktree… composes materialization before explicit binding. Branch/PR/board/status/delivery
+projections update without navigation. `/worktree`, `/worktree-fork`, and conversation forks retain
+their existing new-session behavior. Confirm `worktree_id` through
+`GET /api/workspaces/{ws}/sessions/{id}` or `compozy session list --workspace <ws> --worktree <ref> -o json`.

@@ -1619,3 +1619,15 @@ captured when its turn settled. A bound session uses its live pending/ready work
 or unavailable worktrees never fall back to the root branch. Default branches and detached HEADs have
 no link. Provider failures retain cached facts and expose a sanitized lookup cause. Read
 `pull_request_lookup.stale` and `state` before treating `ready_to_merge` as current.
+
+### Existing-session execution environment
+
+An idle ordinary project user session can change its execution environment in place through
+`compozy__session_worktree_bind` / `compozy__session_worktree_unbind`. Read
+`references/worktrees.md` for selectors, expected-binding concurrency, ownership refusals, and
+recovery. Session identity and transcript stay unchanged; the old process must exit before the
+next turn starts in the new root. Provider cwd, permission/sandbox root, default native-terminal
+cwd, and file mentions use the current binding, not the immutable creation profile. Native resume
+is preferred; bounded replay preserves conversation context when native load is unavailable.
+The first accepted normal turn receives a daemon directory-change note. Busy self-binding is
+refused immediately with `session_busy`; it is never deferred.

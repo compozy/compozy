@@ -236,6 +236,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 		errors.Is(err, store.ErrConversationRewindFenceConflict),
 		errors.Is(err, store.ErrConversationRewindIdempotencyConflict),
 		errors.Is(err, session.ErrRuntimeSelectionConflict),
+		errors.Is(err, store.ErrSessionWorktreeConflict),
 		errors.Is(err, session.ErrPromptNotInProgress),
 		errors.Is(err, session.ErrActiveTurnMismatch),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotQueued),

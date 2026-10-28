@@ -47,6 +47,7 @@ type sessionStartSpec struct {
 	runtimeSelectionRevision int64
 	permissions              compozyconfig.PermissionMode
 	workspace                workspacepkg.ResolvedWorkspace
+	worktreeTransition       *store.SessionWorktreeTransition
 	worktreeID               string
 	worktreeRoot             string
 	cwd                      string

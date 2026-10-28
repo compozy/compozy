@@ -10,6 +10,22 @@ import (
 	"strings"
 )
 
+// DeleteSessionAttachmentParams carries the path, query, and header parameters.
+type DeleteSessionAttachmentParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SessionID    string `url:"session_id"`
+	AttachmentID string `url:"attachment_id"`
+}
+
+// DeleteSessionAttachment Delete a session attachment
+func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessionAttachmentParams) error {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // DeleteSessionFolderParams carries the path, query, and header parameters.
 type DeleteSessionFolderParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -430,16 +446,4 @@ func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*
 type DismissAutomationSuggestionParams struct {
 	WorkspaceID  string `url:"workspace_id"`
 	SuggestionID string `url:"suggestion_id"`
-}
-
-// DismissAutomationSuggestion Durably dismiss one automation suggestion
-func (c *Client) DismissAutomationSuggestion(ctx context.Context, params DismissAutomationSuggestionParams) (*AutomationSuggestionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{suggestion_id}", url.PathEscape(params.SuggestionID))
-	var out AutomationSuggestionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -280,6 +280,12 @@ type WorkspacesResponse struct {
 	Workspaces []WorkspacePayload `json:"workspaces"`
 }
 
+// WorktreeBindingAvailability is a daemon API value.
+type WorktreeBindingAvailability struct {
+	Available         bool   `json:"available"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
+}
+
 // WorktreeBindingsPayload is a daemon API value.
 type WorktreeBindingsPayload struct {
 	AgentActivity string `json:"agent_activity"`
@@ -440,11 +446,4 @@ type WorktreePayload struct {
 type WorktreePolicy struct {
 	Mode        WorktreeMode `json:"mode"`
 	WorktreeRef string       `json:"worktree_ref,omitempty"`
-}
-
-// WorktreeRepoPayload is a daemon API value.
-type WorktreeRepoPayload struct {
-	GitBacked    bool   `json:"git_backed"`
-	GitAvailable bool   `json:"git_available"`
-	Diagnostic   string `json:"diagnostic,omitempty"`
 }

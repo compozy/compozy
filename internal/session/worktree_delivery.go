@@ -19,8 +19,19 @@ func (m *Manager) AcquireWorktreeDeliveryFence(
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 	key := workspaceID + "\x00" + worktreeID
+	if m.worktreeBindingUses[key] != 0 {
+		return nil, ErrPromptInProgress
+	}
 	if m.worktreeDeliveryFences[key] {
 		return nil, fmt.Errorf("%w: worktree delivery is in progress", ErrValidation)
+	}
+	if target, ok := m.Get(callerID); ok {
+		target.mu.RLock()
+		reserved := target.worktreeBindingReserved
+		target.mu.RUnlock()
+		if reserved {
+			return nil, ErrPromptInProgress
+		}
 	}
 	info, err := m.Status(ctx, callerID)
 	if err != nil {

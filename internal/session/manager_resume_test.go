@@ -2041,3 +2041,54 @@ func seedLegacyRewindDatabase(t *testing.T, path string, owner store.SessionDBOw
 		t.Fatal(err)
 	}
 }
+
+func TestCurrentExecutionDirectory(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		current  bool
+		creation bool
+	}{
+		{name: "Should use persisted current location instead of creation provenance", current: true, creation: true},
+		{name: "Should retain creation location for old metadata", creation: true},
+		{name: "Should use execution root when metadata has no location"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			meta := &store.SessionMeta{}
+			want := root
+			if tc.creation {
+				creation := filepath.Join(root, "original")
+				if err := os.Mkdir(creation, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				meta.CreationProfile = &store.SessionCreationProfile{CWD: creation}
+				want = creation
+			}
+			if tc.current {
+				current := filepath.Join(root, "current")
+				if err := os.Mkdir(current, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				meta.SetCWD(current)
+				want = current
+			}
+			got, err := resumeSessionCWD(meta, root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := filepath.EvalSymlinks(want)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != resolved {
+				t.Fatalf("resume cwd = %q, want %q", got, resolved)
+			}
+			if tc.current || tc.creation {
+				if got := deriveSourceCWD(meta); got != want {
+					t.Fatalf("derived cwd = %q, want %q", got, want)
+				}
+			}
+		})
+	}
+}

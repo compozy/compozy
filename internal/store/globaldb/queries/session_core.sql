@@ -180,3 +180,20 @@ SET parent_session_id = sqlc.narg(parent_session_id),
   auto_stop_on_parent = sqlc.arg(auto_stop_on_parent),
   updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: UpdateSessionWorktreeBinding :execrows
+UPDATE sessions
+SET worktree_id = sqlc.narg(worktree_id), branch = '', updated_at = sqlc.arg(updated_at)
+WHERE sessions.id = sqlc.arg(id)
+  AND sessions.workspace_id = sqlc.arg(workspace_id)
+  AND sessions.profile_id = sqlc.arg(profile_id)
+  AND sessions.archived_at IS NULL
+  AND (sessions.worktree_id IS sqlc.narg(expected_worktree_id)
+    OR (sqlc.arg(recover_accepted) = 1 AND sessions.worktree_id IS sqlc.narg(worktree_id)))
+  AND (sqlc.narg(worktree_id) IS NULL OR EXISTS (
+    SELECT 1 FROM worktrees w
+    WHERE w.id = sqlc.narg(worktree_id)
+      AND w.workspace_id = sessions.workspace_id
+      AND w.profile_id = sessions.profile_id
+      AND (w.state = 'ready' OR sqlc.arg(recover_accepted) = 1)
+  ));

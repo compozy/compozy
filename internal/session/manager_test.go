@@ -297,13 +297,13 @@ func TestSessionWorktreeBinding(t *testing.T) {
 	})
 }
 
-// Invariant: WorkingDir follows the launch precedence (creation-profile cwd, else persisted cwd, else
+// Invariant: WorkingDir follows the launch precedence (persisted cwd, else creation-profile cwd, else
 // execution root), so mention resolution and file search see the directory the agent runs in.
 // Owner: session manager start-cwd suite (IT-010).
 func TestManagerWorkingDir(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should prefer the creation-profile cwd over a differing persisted cwd", func(t *testing.T) {
+	t.Run("Should prefer current cwd and retain creation-profile fallback for older metadata", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -324,12 +324,23 @@ func TestManagerWorkingDir(t *testing.T) {
 		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
-		want, err := canonicalDirectory(filepath.Join(h.workspace, "pkg"))
+		want, err := canonicalDirectory(h.workspace)
 		if err != nil {
-			t.Fatalf("canonicalDirectory(pkg) error = %v", err)
+			t.Fatalf("canonicalDirectory(workspace) error = %v", err)
 		}
 		if got, err := h.manager.WorkingDir(testutil.Context(t), created.ID); err != nil || got != want {
-			t.Fatalf("WorkingDir() = %q, %v; want the creation-profile cwd %q", got, err, want)
+			t.Fatalf("WorkingDir() = %q, %v; want the current cwd %q", got, err, want)
+		}
+		meta.SetCWD("")
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := canonicalDirectory(filepath.Join(h.workspace, "pkg"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := h.manager.WorkingDir(testutil.Context(t), created.ID); err != nil || got != legacy {
+			t.Fatalf("legacy WorkingDir() = %q, %v; want creation-profile fallback %q", got, err, legacy)
 		}
 	})
 

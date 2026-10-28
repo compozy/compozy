@@ -239,6 +239,36 @@ func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayI
 	return &out, nil
 }
 
+// UnbindSessionWorktreeParams carries the path, query, and header parameters.
+type UnbindSessionWorktreeParams struct {
+	WorkspaceID        string  `url:"workspace_id"`
+	SessionID          string  `url:"session_id"`
+	Profile            *string `url:"profile"`
+	ExpectedWorktreeID *string `url:"expected_worktree_id"`
+}
+
+// UnbindSessionWorktree Return an idle session to the workspace root in place
+func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ExpectedWorktreeID != nil {
+		query.Set("expected_worktree_id", *params.ExpectedWorktreeID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UndrainDaemon Resume admission of new work
 func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
 	path := "/api/undrain"
@@ -416,28 +446,5 @@ func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutom
 // UpdateExtensionParams carries the path, query, and header parameters.
 type UpdateExtensionParams struct {
 	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateExtension Update one marketplace-installed extension
-func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
-	path := "/api/extensions/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionUpdateResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateExtensionsParams carries the path, query, and header parameters.
-type UpdateExtensionsParams struct {
 	Profile *string `url:"profile"`
 }

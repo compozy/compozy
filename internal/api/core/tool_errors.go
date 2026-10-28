@@ -68,6 +68,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		return http.StatusAccepted
 	case toolspkg.ErrorCodeConflict,
 		toolspkg.ErrorCodeSessionBusy,
+		toolspkg.ErrorCodeSessionWorktreeConflict,
 		toolspkg.ErrorCodeCompactionUnsupported,
 		toolspkg.ErrorCodeSessionArchiveStopFailed,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
@@ -271,6 +272,8 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 	switch code {
 	case toolspkg.ErrorCodeSessionBusy:
 		return "session is busy"
+	case toolspkg.ErrorCodeSessionWorktreeConflict:
+		return "session worktree binding changed; refresh the session and retry"
 	case toolspkg.ErrorCodeSessionMessageHopLimit:
 		return "Message chain limit reached (8 hops). Ask the operator to continue."
 	case toolspkg.ErrorCodeSessionMessageRateLimited:

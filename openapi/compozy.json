@@ -2496,6 +2496,21 @@
         },
         "type": "object"
       },
+      "BindSessionWorktreeRequest": {
+        "properties": {
+          "expected_worktree_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "worktree": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "worktree"
+        ],
+        "type": "object"
+      },
       "BindingsConfig": {
         "properties": {
           "bottom_center": {
@@ -24871,6 +24886,19 @@
           "workspace_path": {
             "type": "string"
           },
+          "worktree_binding": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeBindingAvailability"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "worktree_id": {
             "type": "string"
           }
@@ -38168,6 +38196,7 @@
               "recording_unavailable",
               "session_archive_stop_failed",
               "session_busy",
+              "session_worktree_conflict",
               "slow_consumer",
               "subscriber_limit_reached",
               "terminal_exited",
@@ -38518,6 +38547,7 @@
               "recording_unavailable",
               "session_archive_stop_failed",
               "session_busy",
+              "session_worktree_conflict",
               "slow_consumer",
               "subscriber_limit_reached",
               "terminal_exited",
@@ -44048,6 +44078,20 @@
         },
         "required": [
           "workspaces"
+        ],
+        "type": "object"
+      },
+      "WorktreeBindingAvailability": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available"
         ],
         "type": "object"
       },
@@ -89701,6 +89745,231 @@
           "sessions"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree": {
+      "delete": {
+        "operationId": "unbindSessionWorktree",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Expected current worktree id; empty for workspace root",
+            "in": "query",
+            "name": "expected_worktree_id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Same session with updated execution location"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid binding request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or worktree not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session busy, stale binding or unavailable worktree"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Binding unavailable"
+          }
+        },
+        "summary": "Return an idle session to the workspace root in place",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "put": {
+        "operationId": "bindSessionWorktree",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindSessionWorktreeRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Same session with updated execution location"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid binding request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or worktree not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session busy, stale binding or unavailable worktree"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Binding unavailable"
+          }
+        },
+        "summary": "Bind an idle existing session to a ready worktree in place",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"

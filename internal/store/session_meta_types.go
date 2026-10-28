@@ -57,6 +57,8 @@ type SessionMeta struct {
 	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
+	// Absent in older documents: their persisted execution location remains unchanged.
+	WorktreeTransition *SessionWorktreeTransition `json:"worktree_transition,omitzero"`
 
 	SessionType            string          `json:"session_type,omitempty"`
 	Lineage                *SessionLineage `json:"lineage,omitzero"`

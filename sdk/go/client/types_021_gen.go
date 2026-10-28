@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// SkillExposeResponse is a daemon API value.
+type SkillExposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  bool                               `json:"rolled_back"`
+}
+
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -422,27 +444,4 @@ type SupervisionState struct {
 	WorkSignals  []WorkSignal        `json:"work_signals"`
 	Sources      []SignalSourceState `json:"sources"`
 	QuietWarning *QuietWarning       `json:"quiet_warning"`
-}
-
-// SupportBundleManifestArtifactPayload is a daemon API value.
-type SupportBundleManifestArtifactPayload struct {
-	Path             string `json:"path"`
-	Included         bool   `json:"included"`
-	OmittedReason    string `json:"omitted_reason,omitempty"`
-	Bytes            int64  `json:"bytes"`
-	Truncated        bool   `json:"truncated"`
-	RedactionVersion string `json:"redaction_version,omitempty"`
-}
-
-// SupportBundleManifestPayload is a daemon API value.
-type SupportBundleManifestPayload struct {
-	SchemaVersion        string                                 `json:"schema_version"`
-	OperationID          string                                 `json:"operation_id"`
-	CreatedAt            time.Time                              `json:"created_at"`
-	BundleMaxBytes       int64                                  `json:"bundle_max_bytes"`
-	ArtifactMaxBytes     int64                                  `json:"artifact_max_bytes"`
-	LogTailMaxBytes      int64                                  `json:"log_tail_max_bytes"`
-	EventSummaryMaxBytes int64                                  `json:"event_summary_max_bytes"`
-	RedactionVersion     string                                 `json:"redaction_version"`
-	Artifacts            []SupportBundleManifestArtifactPayload `json:"artifacts"`
 }

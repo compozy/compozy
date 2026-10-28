@@ -4,6 +4,13 @@ package client
 
 import "time"
 
+// WorktreeRepoPayload is a daemon API value.
+type WorktreeRepoPayload struct {
+	GitBacked    bool   `json:"git_backed"`
+	GitAvailable bool   `json:"git_available"`
+	Diagnostic   string `json:"diagnostic,omitempty"`
+}
+
 // WorktreeResponse is a daemon API value.
 type WorktreeResponse struct {
 	Worktree WorktreePayload `json:"worktree"`

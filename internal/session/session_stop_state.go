@@ -24,7 +24,7 @@ func (s *Session) beginPromptSetup() error {
 	if s.conversationRewindReserved {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved || s.turnStopPending {
+	if s.worktreeForkReserved || s.worktreeBindingReserved || s.turnStopPending {
 		return ErrPromptInProgress
 	}
 	if s.process == nil {
@@ -51,13 +51,16 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 }
 
 func (s *Session) beginExclusivePromptSetupLocked() (*AgentProcess, error) {
+	if s.worktreeTransition != nil && s.worktreeTransition.Pending {
+		return nil, ErrRecoveryPersistence
+	}
 	if s.State != StateActive {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
 	if s.conversationRewindReserved {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.worktreeForkReserved || s.turnStopPending {
+	if s.worktreeForkReserved || s.worktreeBindingReserved || s.turnStopPending {
 		return nil, ErrPromptInProgress
 	}
 	if s.promptSetupCount > 0 || s.currentTurnSource != "" {
@@ -82,8 +85,10 @@ func (s *Session) reserveConversationRewind() error {
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
-	if s.turnStopPending || s.conversationRewindReserved || s.worktreeForkReserved || s.promptSetupCount > 0 ||
-		s.currentTurnSource != "" || s.currentTurnID != "" {
+	if s.turnStopPending || s.conversationRewindReserved || s.worktreeForkReserved || s.worktreeBindingReserved ||
+		s.promptSetupCount > 0 ||
+		s.currentTurnSource != "" ||
+		s.currentTurnID != "" {
 		return fmt.Errorf("%w: %s", ErrConversationRewindBusy, s.ID)
 	}
 	if s.process != nil && s.process.HasPendingPermission() {
@@ -134,6 +139,9 @@ func (s *Session) prepareStop(now time.Time, cause StopCause, detail string) (bo
 		if s.supervisionStopAt.IsZero() || now.Before(s.supervisionStopAt) {
 			return false, nil, errSupervisionActivityResumed
 		}
+	}
+	if s.worktreeBindingReserved {
+		return false, nil, ErrPromptInProgress
 	}
 	cause = s.resolveSpawnTTLStopCauseLocked(cause)
 

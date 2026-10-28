@@ -74,7 +74,8 @@ const (
 	// ErrorCodeAgentNameReserved reports an authored agent identity reserved for daemon roles.
 	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
 	// ErrorCodeSessionBusy reports exclusive prompt admission contention.
-	ErrorCodeSessionBusy ErrorCode = "session_busy"
+	ErrorCodeSessionBusy             ErrorCode = "session_busy"
+	ErrorCodeSessionWorktreeConflict ErrorCode = "session_worktree_conflict"
 	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
 	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
 	// ErrorCodeSessionArchiveStopFailed reports a stop-first archive whose stop

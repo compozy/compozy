@@ -30,7 +30,7 @@ func registerSessionPullRequests(
 	if !ok {
 		return
 	}
-	registrar.AddTurnEndNotifier(func(ctx context.Context, identity session.PromptRunIdentity) {
+	refresh := func(ctx context.Context, identity session.PromptRunIdentity) {
 		info, err := sessions.Status(ctx, identity.SessionID)
 		if err != nil || info == nil || info.WorkspaceID == "" {
 			return
@@ -70,5 +70,13 @@ func registerSessionPullRequests(
 		reader.service.RequestRefresh(
 			worktree.PullRequestKey{WorkspaceID: info.WorkspaceID, RepoKey: repo, Branch: snapshot[info.ID]},
 		)
-	})
+	}
+	registrar.AddTurnEndNotifier(refresh)
+	if bindings, ok := sessions.(interface {
+		AddWorktreeBindingNotifier(session.WorktreeBindingNotifier)
+	}); ok {
+		bindings.AddWorktreeBindingNotifier(func(ctx context.Context, info *session.Info, _ string) {
+			refresh(ctx, session.PromptRunIdentity{SessionID: info.ID})
+		})
+	}
 }

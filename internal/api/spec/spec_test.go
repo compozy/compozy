@@ -3467,6 +3467,13 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #992: optional execution-environment availability; existing fields remain unchanged.
+	if addSessionWorktreeBindingSchemas(baseline) == 0 {
+		t.Fatal("approved session binding addition: no historical session schemas found")
+	}
+	if addToolErrorCode(baseline, string(tools.ErrorCodeSessionWorktreeConflict)) == 0 {
+		t.Fatal("approved session binding error: no historical tool error enums found")
+	}
 	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
 	automationProperties := baseline
 	for _, key := range []string{
@@ -4434,4 +4441,32 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 		}
 		configProperties["appearance"] = appearance
 	}
+}
+
+// The additive field is optional. The historical required fields remain intact.
+func addSessionWorktreeBindingSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionWorktreeBindingSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionWorktreeBindingSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["worktree_binding"] = map[string]any{"oneOf": []any{
+			map[string]any{"type": "object", "required": []any{"available"}, "properties": map[string]any{
+				"available": map[string]any{"type": "boolean"}, "unavailable_reason": map[string]any{"type": "string"},
+			}},
+			map[string]any{"enum": []any{nil}, "nullable": true},
+		}}
+		count++
+	}
+	return count
 }

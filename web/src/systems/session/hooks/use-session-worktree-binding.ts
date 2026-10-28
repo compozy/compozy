@@ -1,5 +1,7 @@
 import { useWorktrees, type WorktreePayload } from "@/systems/workspace";
 
+import type { SessionPayload } from "../types";
+
 import { findSessionCommand, type SessionCommandMenuCatalog } from "./use-session-commands";
 
 export const WORKTREE_COMMAND_TOKEN = "/worktree";
@@ -8,10 +10,13 @@ interface UseSessionWorktreeBindingParams {
   workspaceId: string;
   worktreeId: string | undefined;
   commandCatalog?: SessionCommandMenuCatalog;
+  availability?: SessionPayload["worktree_binding"];
   enabled?: boolean;
 }
 
 export interface SessionWorktreeBinding {
+  bindingAvailable?: boolean;
+  bindingUnavailableReason?: string;
   worktreeId: string;
   /** Undefined when the bound record no longer resolves — the binding is missing. */
   worktree: WorktreePayload | undefined;
@@ -24,18 +29,12 @@ export interface SessionWorktreeBinding {
   forkUnavailableReason: string | undefined;
 }
 
-/**
- * What a live session's environment actually is.
- *
- * The binding is immutable once a session exists, so this hook only reads: it
- * resolves the bound record and asks the command catalog whether forking is
- * possible. Fork availability is never computed locally — the daemon gates it
- * on session state and supplies the reason when it refuses.
- */
+/** Resolves the current environment and daemon-reported mutation availability. */
 export function useSessionWorktreeBinding({
   workspaceId,
   worktreeId,
   commandCatalog,
+  availability,
   enabled = true,
 }: UseSessionWorktreeBindingParams): SessionWorktreeBinding {
   const boundId = worktreeId?.trim() ?? "";
@@ -46,6 +45,8 @@ export function useSessionWorktreeBinding({
   const listing = worktrees.data?.worktrees ?? [];
 
   return {
+    bindingAvailable: availability?.available === true,
+    bindingUnavailableReason: availability?.unavailable_reason,
     worktreeId: boundId,
     worktree: boundId === "" ? undefined : listing.find(entry => entry.id === boundId),
     bound: boundId !== "",

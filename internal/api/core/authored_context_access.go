@@ -141,6 +141,12 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 		}
 		payload.Health = &converted
 	}
+	if bindings, ok := h.Sessions.(interface {
+		WorktreeBindingAvailability(context.Context, string) session.WorktreeBindingAvailability
+	}); ok {
+		availability := bindings.WorktreeBindingAvailability(ctx, info.ID)
+		payload.WorktreeBinding = &availability
+	}
 	payloads := []contract.SessionPayload{payload}
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return contract.SessionPayload{}, err

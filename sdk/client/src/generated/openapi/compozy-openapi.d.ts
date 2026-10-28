@@ -6155,6 +6155,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Bind an idle existing session to a ready worktree in place */
+    put: operations["bindSessionWorktree"];
+    post?: never;
+    /** Return an idle session to the workspace root in place */
+    delete: operations["unbindSessionWorktree"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork": {
     parameters: {
       query?: never;
@@ -7573,6 +7591,10 @@ export interface components {
       spawn_role?: string;
       task_id?: string;
       workflow_id?: string;
+    };
+    BindSessionWorktreeRequest: {
+      expected_worktree_id?: string | null;
+      worktree: string;
     };
     BindingsConfig: {
       bottom_center: string;
@@ -13861,6 +13883,7 @@ export interface components {
       waiting_on?: "sessions" | "monitor";
       workspace_id?: string;
       workspace_path?: string;
+      worktree_binding?: components["schemas"]["WorktreeBindingAvailability"] | null;
       worktree_id?: string;
     };
     SessionPresenceRequest: {
@@ -17833,6 +17856,7 @@ export interface components {
         | "recording_unavailable"
         | "session_archive_stop_failed"
         | "session_busy"
+        | "session_worktree_conflict"
         | "slow_consumer"
         | "subscriber_limit_reached"
         | "terminal_exited"
@@ -18026,6 +18050,7 @@ export interface components {
         | "recording_unavailable"
         | "session_archive_stop_failed"
         | "session_busy"
+        | "session_worktree_conflict"
         | "slow_consumer"
         | "subscriber_limit_reached"
         | "terminal_exited"
@@ -19581,6 +19606,10 @@ export interface components {
     };
     WorkspacesResponse: {
       workspaces: components["schemas"]["WorkspacePayload"][];
+    };
+    WorktreeBindingAvailability: {
+      available: boolean;
+      unavailable_reason?: string;
     };
     WorktreeBindingsPayload: {
       agent_activity: string;
@@ -49783,6 +49812,159 @@ export interface operations {
         };
       };
       /** @description Session wait is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  bindSessionWorktree: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BindSessionWorktreeRequest"];
+      };
+    };
+    responses: {
+      /** @description Same session with updated execution location */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Invalid binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session or worktree not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session busy, stale binding or unavailable worktree */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Binding unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unbindSessionWorktree: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+        /** @description Expected current worktree id; empty for workspace root */
+        expected_worktree_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Same session with updated execution location */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Invalid binding request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session or worktree not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session busy, stale binding or unavailable worktree */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Binding unavailable */
       503: {
         headers: {
           [name: string]: unknown;

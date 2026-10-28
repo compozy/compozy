@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// Blocker is a daemon API value.
+type Blocker struct {
+	Kind         string     `json:"kind"`
+	NodeID       NodeID     `json:"node_id,omitempty"`
+	GateID       NodeID     `json:"gate_id,omitempty"`
+	ItemIndex    int        `json:"item_index,omitzero"`
+	WaitingSince time.Time  `json:"waiting_since"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Expired      bool       `json:"expired,omitzero"`
+	Unblocker    string     `json:"unblocker"`
+}
+
+// BoardColumn is a daemon API value.
+type BoardColumn string
+
 // Briefing is a daemon API value.
 type Briefing struct {
 	RunID     RunID         `json:"run_id"`
@@ -421,27 +436,4 @@ type ContinueSessionRequest struct {
 	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
 	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
 	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
-}
-
-// Contract is a daemon API value.
-type Contract struct {
-	Goal             string             `json:"goal"`
-	DefinitionOfDone string             `json:"definition_of_done"`
-	Constraints      []string           `json:"constraints,omitempty"`
-	Boundaries       []string           `json:"boundaries,omitempty"`
-	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
-	Verification     []GateCriterion    `json:"verification,omitempty"`
-	IterationCap     int                `json:"iteration_cap"`
-	NoProgress       NoProgress         `json:"no_progress"`
-	Budget           Budget             `json:"budget"`
-	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
-	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
-	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
-	OnDone           []EffectSpec       `json:"on_done,omitempty"`
-	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
-	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
-	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
-	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
-	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
-	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
 }

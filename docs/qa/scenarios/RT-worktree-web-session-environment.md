@@ -26,3 +26,11 @@ a scenario re-walk in the branch QA tail.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-10-27 (#992) QA impact: existing-session bind/rebind/unbind is additive. Verify idle-only
+admission, unchanged session/transcript/window identity, next-turn cwd and file access, previous
+process exit, and restart recovery with Claude and Codex. A missing binding still refuses resume;
+explicit unbind returns to the workspace root. Session creation and conversation/worktree fork
+retain their existing contracts. New worktree creation must reach ready before an existing
+session can bind. New behavior awaits this branch's real-run evidence; historical passes do not
+validate the added path.

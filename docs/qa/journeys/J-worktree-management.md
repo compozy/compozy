@@ -13,7 +13,14 @@ flowchart TD
     D --> E
     E --> F{Launch path}
     F -->|new session| G[Start through CLI, API, or native tool]
-    F -->|live session| H[Review /worktree fork confirmation]
+    F -->|fork conversation| H[Review /worktree fork confirmation]
+    F -->|same idle conversation| B1[Select Use worktree or Use workspace root]
+    B1 --> B2{Destination and session eligible?}
+    B2 -->|yes| B3[Persist location and refresh connected clients]
+    B2 -->|no| B4[Read typed refusal; binding and transcript unchanged]
+    B1 -->|cancel| X1
+    B3 --> B5[Next turn starts a fresh process in the selected directory]
+    B5 --> J
     H -->|confirm| I[Create a fresh bound session]
     H -->|cancel| X1[Abandon: original session and draft stay unchanged]
     G --> J[Agent works inside the selected checkout]
@@ -57,8 +64,8 @@ journey:
       verb: "Create, adopt, or select a ready worktree"
       expected_observable: "One stable runtime identity names the checkout; creation shows pending progress, adoption proves linked-worktree identity without changing the directory, and neither path mints duplicates on retry."
     - step: 2
-      verb: "Start a new session there or fork a live session after confirmation"
-      expected_observable: "A fresh session records the worktree binding, while the origin session remains unchanged and a canceled confirmation creates nothing."
+      verb: "Start a session, fork a conversation, or change an idle conversation environment"
+      expected_observable: "A new or forked session records its binding. An in-place change keeps the conversation and window, updates connected clients, and launches the next turn in the selected checkout. Canceling changes nothing."
     - step: 3
       verb: "Read and change files during agent work"
       expected_observable: "The ACP process and local tools use the worktree root, reject paths outside it, and do not expose sibling checkout changes."

@@ -4,10 +4,32 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 )
+
+// UpdateExtension Update one marketplace-installed extension
+func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
+	path := "/api/extensions/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionUpdateResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateExtensionsParams carries the path, query, and header parameters.
+type UpdateExtensionsParams struct {
+	Profile *string `url:"profile"`
+}
 
 // UpdateExtensions Update installed extensions and report each outcome
 func (c *Client) UpdateExtensions(ctx context.Context, params UpdateExtensionsParams, body UpdateExtensionsRequest) (*ExtensionUpdateBatchResponse, error) {
@@ -424,24 +446,4 @@ func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgen
 type ValidateAgentSoulParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
-func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
-	path := "/api/agent/soul/validate"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateLoopParams carries the path, query, and header parameters.
-type ValidateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
 }

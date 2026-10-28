@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// Contract is a daemon API value.
+type Contract struct {
+	Goal             string             `json:"goal"`
+	DefinitionOfDone string             `json:"definition_of_done"`
+	Constraints      []string           `json:"constraints,omitempty"`
+	Boundaries       []string           `json:"boundaries,omitempty"`
+	StopWhen         StopWhenSpec       `json:"stop_when,omitzero"`
+	Verification     []GateCriterion    `json:"verification,omitempty"`
+	IterationCap     int                `json:"iteration_cap"`
+	NoProgress       NoProgress         `json:"no_progress"`
+	Budget           Budget             `json:"budget"`
+	RuntimeDefaults  *RuntimeDefaults   `json:"runtime_defaults,omitzero"`
+	RuntimeRules     []RuntimeRule      `json:"runtime_rules,omitempty"`
+	TerminalStates   []DslTerminalState `json:"terminal_states,omitempty"`
+	OnDone           []EffectSpec       `json:"on_done,omitempty"`
+	OnNoOp           []EffectSpec       `json:"on_noop,omitempty"`
+	OnBlocked        []EffectSpec       `json:"on_blocked,omitempty"`
+	OnFailed         []EffectSpec       `json:"on_failed,omitempty"`
+	OnExhausted      []EffectSpec       `json:"on_exhausted,omitempty"`
+	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
+	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
+}
+
 // CoordinatorConfigPayload is a daemon API value.
 type CoordinatorConfigPayload struct {
 	Enabled                       bool                    `json:"enabled"`
@@ -423,28 +446,4 @@ type DuplicateAgentOverrides struct {
 	CategoryPath    []string                            `json:"category_path,omitempty"`
 	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
 	Prompt          string                              `json:"prompt,omitempty"`
-}
-
-// DuplicateAgentRequest is a daemon API value.
-type DuplicateAgentRequest struct {
-	Name      string                   `json:"name"`
-	Scope     AgentCreateScope         `json:"scope,omitempty"`
-	Workspace string                   `json:"workspace,omitempty"`
-	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
-}
-
-// Edge is a daemon API value.
-type Edge struct {
-	From NodeID `json:"from"`
-	To   NodeID `json:"to"`
-}
-
-// Effect is a daemon API value.
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
 }

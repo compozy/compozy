@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// SettingsSkillSourceInheritancePayload is a daemon API value.
+type SettingsSkillSourceInheritancePayload struct {
+	Sources       bool `json:"sources"`
+	CustomSources bool `json:"custom_sources"`
+}
+
+// SettingsSkillSourcePayload is a daemon API value.
+type SettingsSkillSourcePayload struct {
+	Slug          string                           `json:"slug"`
+	Label         string                           `json:"label"`
+	Kind          string                           `json:"kind"`
+	Enabled       bool                             `json:"enabled"`
+	AlwaysOn      bool                             `json:"always_on"`
+	Default       bool                             `json:"default,omitzero"`
+	WorkspacePath string                           `json:"workspace_path,omitempty"`
+	GlobalPath    string                           `json:"global_path,omitempty"`
+	Path          string                           `json:"path,omitempty"`
+	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
+}
+
 // SettingsSkillSourceRootPayload is a daemon API value.
 type SettingsSkillSourceRootPayload struct {
 	RootID        string                                  `json:"root_id"`
@@ -425,25 +445,3 @@ type SkillDiagnosticPayload struct {
 
 // SkillDiagnosticState is a daemon API value.
 type SkillDiagnosticState string
-
-// SkillExposeResponse is a daemon API value.
-type SkillExposeResponse struct {
-	Name        string                             `json:"name"`
-	WorkspaceID string                             `json:"workspace_id,omitempty"`
-	Results     []SkillExposureTargetResultPayload `json:"results"`
-	RolledBack  bool                               `json:"rolled_back"`
-}
-
-// SkillExposureErrorPayload is a daemon API value.
-type SkillExposureErrorPayload struct {
-	Code       string `json:"code"`
-	Message    string `json:"message,omitempty"`
-	OccupiedBy string `json:"occupied_by,omitempty"`
-}
-
-// SkillExposurePayload is a daemon API value.
-type SkillExposurePayload struct {
-	Target string              `json:"target"`
-	Path   string              `json:"path"`
-	Status SkillExposureStatus `json:"status"`
-}

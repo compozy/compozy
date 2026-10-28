@@ -286,6 +286,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"forceFailTaskRun",
 			"forceReleaseTaskRun",
 			"forkSessionToWorktree",
+			"bindSessionWorktree",
+			"unbindSessionWorktree",
 			"getAgentContext",
 			"getAgentCoordinatorConfig",
 			"getAgentDefinitionSoul",
