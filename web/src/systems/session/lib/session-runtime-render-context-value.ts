@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import { createContext } from "react";
 
 import type { SessionInteractionRecord } from "../types";
@@ -16,6 +17,7 @@ export interface SessionRuntimeRenderContextValue {
    */
   resolvedInteractions: ReadonlyMap<string, SessionInteractionRecord>;
   resetRuntime?: () => void;
+  sendDetachedPrompt?: (message: UIMessage) => Promise<void>;
   rewindBlocked?: boolean;
   /**
    * The daemon reports a turn in flight for this session (its detail read model),

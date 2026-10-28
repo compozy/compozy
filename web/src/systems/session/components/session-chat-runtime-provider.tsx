@@ -1,3 +1,4 @@
+import type { UIMessage } from "ai";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
@@ -119,6 +120,7 @@ function SessionPromptRecoveryBridge({
 }
 
 function SessionRuntimeExtensions({
+  sendDetachedPrompt,
   sessionId,
   workspaceId,
   promptDispatch,
@@ -129,6 +131,7 @@ function SessionRuntimeExtensions({
   sessionId: string;
   workspaceId: string;
   promptDispatch: SessionPromptDispatchStore;
+  sendDetachedPrompt: (message: UIMessage) => Promise<void>;
   eventSourceFactory?: SessionStreamEventSourceFactory;
   liveTailEnabled: boolean;
   children: ReactNode;
@@ -154,6 +157,7 @@ function SessionRuntimeExtensions({
       expiredInteractions={expiredInteractions}
       resolvedInteractions={resolvedInteractions}
       resetRuntime={resetRuntime}
+      sendDetachedPrompt={sendDetachedPrompt}
       rewindBlocked={rewindBlocked}
       sessionRunning={sessionRunning}
       sessionId={sessionId}
@@ -210,7 +214,7 @@ function SessionChatRuntimeBinding({
   promptRecovery: SessionPromptRecovery;
 }) {
   const resolvedWorkspaceId = requireWorkspaceId(workspaceId, readOnly);
-  const runtime = useSessionChatRuntime({
+  const { runtime, sendDetachedPrompt } = useSessionChatRuntime({
     sessionId,
     workspaceId: resolvedWorkspaceId,
     promptDispatch,
@@ -231,6 +235,7 @@ function SessionChatRuntimeBinding({
           workspaceId={resolvedWorkspaceId}
         />
         <SessionRuntimeExtensions
+          sendDetachedPrompt={sendDetachedPrompt}
           sessionId={sessionId}
           workspaceId={resolvedWorkspaceId}
           promptDispatch={promptDispatch}

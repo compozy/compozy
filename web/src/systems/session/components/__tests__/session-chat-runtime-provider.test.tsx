@@ -3049,39 +3049,45 @@ describe("SessionChatRuntimeProvider", () => {
     expect(countPromptFetches(fetchMock)).toBe(0);
   });
 
-  it("Should send the edited prompt once after its original row leaves the transcript", async () => {
-    const user = userEvent.setup();
-    const queryClient = createQueryClient();
-    const gate = createDeferred<void>();
-    rewindResponseGate = gate.promise;
-    sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
-    const view = renderSessionThread({ queryClient });
-    await user.click(await screen.findByTestId("user-message-rewind"));
-    const draft = "Updated launch blockers\nbefore the cutover:\n\n- auth\n- billing";
-    await setComposerText(draft);
-    await user.click(screen.getByTestId("composer-send-button"));
-    await waitFor(() => expect(transcriptMessages).toHaveLength(0));
-    expect(countPromptFetches(fetchMock)).toBe(0);
-    expect(screen.getByTestId("composer-send-button")).toBeDisabled();
-    await act(async () => {
-      await queryClient.invalidateQueries({
-        queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+  it.each([false, true])(
+    "Should send the edited prompt once after row removal (unmounted: %s)",
+    async unmountBeforeRewind => {
+      const user = userEvent.setup();
+      const queryClient = createQueryClient();
+      const gate = createDeferred<void>();
+      rewindResponseGate = gate.promise;
+      sessionDetailResponse = { ...primarySessionFixture, badge: "idle" };
+      const view = renderSessionThread({ queryClient });
+      await user.click(await screen.findByTestId("user-message-rewind"));
+      const draft = "Updated launch blockers\nbefore the cutover:\n\n- auth\n- billing";
+      await setComposerText(draft);
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(transcriptMessages).toHaveLength(0));
+      expect(countPromptFetches(fetchMock)).toBe(0);
+      expect(screen.getByTestId("composer-send-button")).toBeDisabled();
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey: sessionKeys.transcript(fixtureWorkspaceId(), primarySessionFixture.id),
+        });
       });
-    });
-    await waitFor(() =>
-      expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
-    );
-    await act(async () => {
-      gate.resolve();
-    });
-    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
-    const sent = fetchMock.mock.calls.find(([input]) => getPathname(input).endsWith("/prompt"));
-    expect(String(sent?.[1]?.body)).toContain(JSON.stringify(draft).slice(1, -1));
-    expect(String(sent?.[1]?.body)).not.toContain("Summarize the launch blockers");
-    await waitFor(() => expect(composerText()).toBe(""));
-    expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
-    await act(async () => view.unmount());
-  });
+      await waitFor(() =>
+        expect(screen.queryByTestId("user-message-rewind")).not.toBeInTheDocument()
+      );
+      if (unmountBeforeRewind) await act(async () => view.unmount());
+      await act(async () => {
+        gate.resolve();
+      });
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      const sent = fetchMock.mock.calls.find(([input]) => getPathname(input).endsWith("/prompt"));
+      expect(String(sent?.[1]?.body)).toContain(JSON.stringify(draft).slice(1, -1));
+      expect(String(sent?.[1]?.body)).not.toContain("Summarize the launch blockers");
+      if (!unmountBeforeRewind) {
+        await waitFor(() => expect(composerText()).toBe(""));
+        expect(screen.queryByRole("button", { name: "Cancel edit" })).not.toBeInTheDocument();
+        await act(async () => view.unmount());
+      }
+    }
+  );
 
   it("Should retain the edit and surface a daemon refusal without sending a new prompt", async () => {
     const user = userEvent.setup();
@@ -3099,6 +3105,17 @@ describe("SessionChatRuntimeProvider", () => {
     expect(transcriptMessages).toHaveLength(2);
     expect(countPromptFetches(fetchMock)).toBe(0);
     expect(screen.getByRole("button", { name: "Cancel edit" })).toBeEnabled();
+    rewindRefusal = null;
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const requests = fetchMock.mock.calls
+      .map(([input]) => input)
+      .filter(
+        (input): input is Request =>
+          input instanceof Request && new URL(input.url).pathname.endsWith("/rewind")
+      );
+    expect(requests).toHaveLength(2);
+    expect(await requests[1]!.clone().json()).toEqual(await requests[0]!.clone().json());
   });
 
   function decidedPermissionTranscript(requestId: string, decision: string): TranscriptMessage[] {

@@ -89,3 +89,10 @@ existing clear/reload/delete checks. Component coverage verifies button submissi
 text, cancellation by button/clearing, transcript-row removal during rewind, and daemon refusal
 with the draft retained. Screenshots: `session-edit-selected` and `session-stop-edit-resend`
 in the Playwright browser artifacts. Historical CLI/provenance legs above were not rerun.
+
+Review re-walk 2026-10-27 (#995): the browser journey now holds the real rewind response,
+switches to another session, releases the response, and verifies the original session receives
+its replacement and response before returning. Both focused runtime/mutation suites passed
+(120 tests), including exact rewind request replay after a post-acceptance refetch failure.
+The submitted text and attachment references survive navigation through the existing prompt
+transport; a retry retains its original idempotency key and daemon-issued transcript fence.

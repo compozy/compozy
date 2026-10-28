@@ -330,6 +330,7 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
 }) => {
   const workspace = await prepareSessionRuntime(runtime, appPage);
   const session = await createSession(runtime, faultAgent, workspace.id);
+  const otherSession = await createSession(runtime, faultAgent, workspace.id);
 
   await appPage.goto(runtime.url(sessionPath(faultAgent, session.id)), {
     waitUntil: "domcontentloaded",
@@ -392,7 +393,39 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await expect(ui.composerTextarea).toHaveText("block until canceled");
   await expect(ui.composerTextarea).toBeFocused();
   await ui.composerTextarea.fill("continue after disconnect");
+  let releaseRewind!: () => void;
+  const heldRewind = new Promise<void>(resolve => {
+    releaseRewind = resolve;
+  });
+  let rewindAccepted!: () => void;
+  const acceptedRewind = new Promise<void>(resolve => {
+    rewindAccepted = resolve;
+  });
+  const rewindRoute = `**${sessionAPIPath(workspace.id, session.id, "/rewind")}*`;
+  await appPage.route(rewindRoute, async route => {
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    rewindAccepted();
+    await heldRewind;
+    await route.fulfill({ response });
+  });
   await ui.composerTextarea.press("Enter");
+  await acceptedRewind;
+  await sessionWin
+    .locator(`[data-slot="session-row-target"][data-testid$="-session-${otherSession.id}"]`)
+    .click();
+  const otherWin = sessionWindow(appPage, otherSession.id);
+  await expect(otherWin).toBeVisible();
+  releaseRewind();
+  await expect
+    .poll(async () =>
+      JSON.stringify((await captureSessionSnapshot(runtime, workspace.id, session.id)).transcript)
+    )
+    .toContain("recovered after disconnect");
+  await appPage.unroute(rewindRoute);
+  await otherWin
+    .locator(`[data-slot="session-row-target"][data-testid$="-session-${session.id}"]`)
+    .click();
   await expect(ui.chatView).toContainText("recovered after disconnect");
   const afterEdit = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterEdit.transcript)).not.toContain("block until canceled");
