@@ -89,14 +89,33 @@ function chunk(type: string, data: Uint8Array) {
   return bytes;
 }
 
-/** A complete PNG: IHDR with the given size, one IDAT of deflated rows and IEND, with CRCs. */
-function png(width = 2, height = 3) {
+/**
+ * A complete PNG: IHDR with the given size, one IDAT of deflated rows and IEND, with CRCs.
+ * `ihdr` overrides the header bytes (depth, color type, compression, filter, interlace); rows are
+ * sized for the declared depth and channels, so only the overridden rule can reject the file.
+ */
+function png(
+  width = 2,
+  height = 3,
+  ihdr: Partial<Record<"depth" | "color" | "compression" | "filter" | "interlace", number>> = {}
+) {
   const header = new Uint8Array(13);
   const view = new DataView(header.buffer);
   view.setUint32(0, width);
   view.setUint32(4, height);
-  header.set([8, 2, 0, 0, 0], 8);
-  const rows = deflateSync(new Uint8Array(height * (1 + width * 3)));
+  header.set(
+    [
+      ihdr.depth ?? 8,
+      ihdr.color ?? 2,
+      ihdr.compression ?? 0,
+      ihdr.filter ?? 0,
+      ihdr.interlace ?? 0,
+    ],
+    8
+  );
+  const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[ihdr.color ?? 2] ?? 3;
+  const rowBytes = 1 + Math.ceil((width * channels * (ihdr.depth ?? 8)) / 8);
+  const rows = deflateSync(new Uint8Array(height * rowBytes));
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", header),
@@ -256,6 +275,22 @@ describe("comment attachments", () => {
     expect(() =>
       inspectImage(Buffer.concat([short.subarray(0, 33), png(2, 2).subarray(33)]))
     ).toThrow("unsupported_media_type");
+    // Header values the PNG spec does not define, and bytes after IEND.
+    for (const ihdr of [
+      { depth: 3 },
+      { color: 1 },
+      { depth: 1 }, // RGB allows only 8 and 16
+      { compression: 1 },
+      { filter: 1 },
+      { interlace: 2 },
+    ]) {
+      expect(() => inspectImage(png(4, 4, ihdr)), JSON.stringify(ihdr)).toThrow(
+        "unsupported_media_type"
+      );
+    }
+    expect(() => inspectImage(Buffer.concat([png(4, 4), Buffer.from([0])]))).toThrow(
+      "unsupported_media_type"
+    );
     // A flipped byte inside IDAT fails its CRC.
     const corrupt = png(4, 4);
     corrupt[42] ^= 0xff;

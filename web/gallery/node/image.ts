@@ -60,8 +60,17 @@ function webpSize(bytes: Uint8Array, data: DataView, chunk: string) {
 /** Decoded pixel data a PNG upload may inflate to (a 4K RGBA screenshot is ~33 MB). */
 const maxDecodedBytes = 96 * 1024 * 1024;
 
-/** Channels per pixel by PNG color type: gray, RGB, palette, gray + alpha, RGBA. */
-const pngChannels: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+/**
+ * Channels per pixel and the bit depths the PNG spec allows, by color type: gray, RGB, palette,
+ * gray + alpha, RGBA.
+ */
+const pngColorTypes: Record<number, { channels: number; depths: readonly number[] }> = {
+  0: { channels: 1, depths: [1, 2, 4, 8, 16] },
+  2: { channels: 3, depths: [8, 16] },
+  3: { channels: 1, depths: [1, 2, 4, 8] },
+  4: { channels: 2, depths: [8, 16] },
+  6: { channels: 4, depths: [8, 16] },
+};
 
 /** Adam7 passes as [x start, y start, x step, y step]. */
 const adam7 = [
@@ -82,9 +91,16 @@ function pngDataSize(data: DataView) {
   const width = data.getUint32(16);
   const height = data.getUint32(20);
   const depth = data.getUint8(24);
-  const channels = pngChannels[data.getUint8(25)];
-  const interlace = data.getUint8(28);
-  if (!channels || ![1, 2, 4, 8, 16].includes(depth) || interlace > 1) return null;
+  const color = pngColorTypes[data.getUint8(25)];
+  const [compression, filter, interlace] = [
+    data.getUint8(26),
+    data.getUint8(27),
+    data.getUint8(28),
+  ];
+  if (!color || !color.depths.includes(depth)) return null;
+  // Deflate compression and adaptive filtering are the only methods defined; interlace is 0 or 1.
+  if (compression !== 0 || filter !== 0 || interlace > 1) return null;
+  const { channels } = color;
   const rowBytes = (pixels: number) => 1 + Math.ceil((pixels * channels * depth) / 8);
   if (interlace === 0) return height * rowBytes(width);
   let size = 0;
