@@ -3535,6 +3535,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionRuntimeReadSchemas(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
 	}
+	// #1046: agent limits report the caller's own spawn allowance; existing fields stay unchanged.
+	if addAgentSpawnAllowanceLimits(baseline) == 0 {
+		t.Fatal("approved agent limits addition: no historical limits schemas found")
+	}
 	// #804: optional additive field; no required/type/removal change.
 	// The pre-components fixture inlines SettingsUpdateRuntimePayload in the GET response.
 	properties := baseline
@@ -3935,6 +3939,37 @@ func addToolErrorCode(value any, code string) int {
 			}
 			count += addToolErrorCode(child, code)
 		}
+	}
+	return count
+}
+
+func addAgentSpawnAllowanceLimits(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentSpawnAllowanceLimits(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentSpawnAllowanceLimits(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["max_spawn_depth"] == nil || properties["max_active_task_leases"] == nil {
+			return count
+		}
+		properties["can_spawn_children"] = map[string]any{"type": "boolean"}
+		properties["governed_spawn_depth"] = map[string]any{"type": "integer"}
+		properties["max_active_per_workspace"] = map[string]any{"type": "integer"}
+		properties["spawn_blocked_reason"] = map[string]any{"type": "string"}
+		if required, ok := node["required"].([]any); ok {
+			required = append(required, "can_spawn_children", "governed_spawn_depth")
+			slices.SortFunc(required, func(left, right any) int {
+				return strings.Compare(left.(string), right.(string))
+			})
+			node["required"] = required
+		}
+		count++
 	}
 	return count
 }

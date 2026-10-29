@@ -36,6 +36,9 @@ var (
 	ErrInvalidPermissionDecision = errors.New("session: invalid permission decision")
 	// ErrInvalidRuntimeOverride reports that a session runtime override is invalid.
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
+	// ErrRuntimeOverrideProviderRequired reports a runtime override that needs a provider. It matches
+	// ErrInvalidRuntimeOverride.
+	ErrRuntimeOverrideProviderRequired = fmt.Errorf("%w: provider is required", ErrInvalidRuntimeOverride)
 	// ErrValidation reports structurally invalid session creation input.
 	ErrValidation = errors.New("session: validation failed")
 	// ErrHostedMCPUnavailable reports that a session requiring Compozy tools cannot host them.

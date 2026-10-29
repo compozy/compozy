@@ -182,7 +182,7 @@ func Lineage(
 		TTLExpiresAt: &ttl,
 		SpawnBudget: store.SessionSpawnBudget{
 			MaxChildren: cfg.MaxChildren,
-			MaxDepth:    session.DefaultSpawnMaxDepth,
+			MaxDepth:    store.DefaultSpawnMaxDepth,
 			TTLSeconds:  int64(cfg.TTL.Seconds()),
 			// Coordinator uniqueness is enforced by the daemon singleton; this caps managed sessions.
 			MaxActivePerWorkspace: cfg.MaxActiveSessionsPerWorkspace,

@@ -24,6 +24,8 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 		return nil
 	}
 	normalized := store.NormalizeSessionLineage("", lineage)
+	// Project the enforced budget: a stored zero means "unset" and agents read it literally.
+	budget := store.EffectiveSessionSpawnBudget(normalized.SpawnBudget)
 	payload := &SessionLineagePayload{
 		ParentSessionID:  normalized.ParentSessionID,
 		RootSessionID:    normalized.RootSessionID,
@@ -36,10 +38,10 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 		AutoStopOnParent: normalized.AutoStopOnParent,
 		NotifyCreator:    normalized.NotifyCreator,
 		SpawnBudget: SpawnBudgetPayload{
-			MaxChildren:           normalized.SpawnBudget.MaxChildren,
-			MaxDepth:              normalized.SpawnBudget.MaxDepth,
-			TTLSeconds:            normalized.SpawnBudget.TTLSeconds,
-			MaxActivePerWorkspace: normalized.SpawnBudget.MaxActivePerWorkspace,
+			MaxChildren:           budget.MaxChildren,
+			MaxDepth:              budget.MaxDepth,
+			TTLSeconds:            budget.TTLSeconds,
+			MaxActivePerWorkspace: budget.MaxActivePerWorkspace,
 		},
 		PermissionPolicy: SpawnPermissionPolicyPayload{
 			Tools:          append([]string(nil), normalized.PermissionPolicy.Tools...),

@@ -381,11 +381,15 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 			}
 			return state.tasks.store
 		},
-		CoordinatorRoleFunc: func() situation.CoordinatorRoleResolver {
-			return state.deps.CoordinatorRole
-		},
 		SoulSnapshotsFunc: func() situation.SoulSnapshotStore {
 			return soulSnapshotStoreDependency(state.registry)
+		},
+		SpawnAllowanceFunc: func() situation.SpawnAllowanceResolver {
+			resolver, ok := state.sessions.(situation.SpawnAllowanceResolver)
+			if !ok {
+				return nil
+			}
+			return resolver
 		},
 	})
 }

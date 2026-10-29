@@ -233,8 +233,8 @@ func (r *taskRoleRuntime) startStarvationSession(
 		SpawnRole:    session.DefaultSpawnRole,
 		TTLExpiresAt: &ttlExpiresAt,
 		SpawnBudget: store.SessionSpawnBudget{
-			MaxChildren:           session.DefaultSpawnMaxChildren,
-			MaxDepth:              session.DefaultSpawnMaxDepth,
+			MaxChildren:           store.DefaultSpawnMaxChildren,
+			MaxDepth:              store.DefaultSpawnMaxDepth,
 			TTLSeconds:            int64(defaultStarvationWorkerTTL / time.Second),
 			MaxActivePerWorkspace: defaultStarvationMaxActivePerWorkspace,
 		},

@@ -66,7 +66,7 @@ func NormalizeRuntimeSelection(selection RuntimeSelection) (RuntimeSelection, er
 	}
 	normalized.Speed = parsedSpeed
 	if normalized.Provider == "" {
-		return RuntimeSelection{}, fmt.Errorf("%w: provider is required", ErrInvalidRuntimeOverride)
+		return RuntimeSelection{}, ErrRuntimeOverrideProviderRequired
 	}
 	if normalized.ReasoningEffort != "" {
 		if err := ValidateReasoningEffort(normalized.ReasoningEffort); err != nil {

@@ -56,16 +56,6 @@ func (s *Service) taskStoreValue() TaskStore {
 	return s.taskStore
 }
 
-func (s *Service) coordinatorRoleValue() CoordinatorRoleResolver {
-	if s == nil {
-		return nil
-	}
-	if s.coordinatorRoleFunc != nil {
-		return s.coordinatorRoleFunc()
-	}
-	return s.coordinatorRole
-}
-
 func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 	if s == nil {
 		return nil
@@ -74,4 +64,14 @@ func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 		return s.soulSnapshotsFunc()
 	}
 	return s.soulSnapshots
+}
+
+func (s *Service) spawnAllowanceValue() SpawnAllowanceResolver {
+	if s == nil {
+		return nil
+	}
+	if s.spawnAllowanceFunc != nil {
+		return s.spawnAllowanceFunc()
+	}
+	return s.spawnAllowance
 }

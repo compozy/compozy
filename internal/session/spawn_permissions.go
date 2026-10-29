@@ -55,17 +55,6 @@ func validatePermissionAtoms(category string, parent []string, child []string) e
 	return nil
 }
 
-func effectiveSpawnBudget(budget store.SessionSpawnBudget) store.SessionSpawnBudget {
-	normalized := budget
-	if normalized.MaxChildren <= 0 {
-		normalized.MaxChildren = DefaultSpawnMaxChildren
-	}
-	if normalized.MaxDepth <= 0 {
-		normalized.MaxDepth = DefaultSpawnMaxDepth
-	}
-	return normalized
-}
-
 func hookPermissionSetFromPolicy(policy store.SessionPermissionPolicy) *hookspkg.PermissionSet {
 	normalized := store.NormalizeSessionPermissionPolicy(policy)
 	return &hookspkg.PermissionSet{

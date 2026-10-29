@@ -45,7 +45,9 @@ func (s *Service) ContextForStartup(
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	limits, err := s.limits(ctx, workspaceSection.ID)
+	limits, err := s.limits(ctx, &session.Info{
+		ID: strings.TrimSpace(startup.SessionID), Type: startup.SessionType, Lineage: startup.Lineage,
+	})
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
@@ -106,7 +108,7 @@ func (s *Service) ContextForSession(
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	limits, err := s.limits(ctx, workspaceSection.ID)
+	limits, err := s.limits(ctx, info)
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}

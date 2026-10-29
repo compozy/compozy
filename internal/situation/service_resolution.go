@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
+	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -167,21 +168,28 @@ func (s *Service) capabilitiesSection(
 	}, nil
 }
 
-func (s *Service) limits(ctx context.Context, workspaceID string) (contract.AgentLimitsPayload, error) {
-	limits := contract.AgentLimitsPayload{
-		MaxChildren:         compozyconfig.DefaultCoordinatorMaxChildren,
-		MaxSpawnDepth:       defaultMaxSpawnDepth,
-		MaxActiveTaskLeases: defaultMaxActiveTaskLeases,
-		ContextSectionLimit: s.limit(),
-	}
-	if resolver := s.coordinatorRoleValue(); resolver != nil {
-		cfg, err := resolver.ResolveCoordinatorRole(ctx, strings.TrimSpace(workspaceID))
-		if err != nil && isContextError(err) {
+// limits reports the calling session's own effective spawn budget, the same values the
+// spawn engine enforces for its governed children. Without the engine's ancestor walk,
+// it falls back to the session-type allowance.
+func (s *Service) limits(ctx context.Context, info *session.Info) (contract.AgentLimitsPayload, error) {
+	allowance := session.ChildSpawnAllowanceFor(info.Type, session.LineageSpawnBudget(info.Lineage))
+	if resolver := s.spawnAllowanceValue(); resolver != nil {
+		resolved, err := resolver.ChildSpawnAllowance(ctx, info)
+		switch {
+		case err == nil:
+			allowance = resolved
+		case isContextError(err):
 			return contract.AgentLimitsPayload{}, err
 		}
-		if err == nil && cfg.MaxChildren > 0 {
-			limits.MaxChildren = cfg.MaxChildren
-		}
 	}
-	return limits, nil
+	return contract.AgentLimitsPayload{
+		MaxChildren:           allowance.Budget.MaxChildren,
+		MaxSpawnDepth:         allowance.Budget.MaxDepth,
+		MaxActivePerWorkspace: allowance.Budget.MaxActivePerWorkspace,
+		GovernedSpawnDepth:    allowance.GovernedDepth,
+		CanSpawnChildren:      allowance.Allowed,
+		SpawnBlockedReason:    allowance.BlockedReason,
+		MaxActiveTaskLeases:   defaultMaxActiveTaskLeases,
+		ContextSectionLimit:   s.limit(),
+	}, nil
 }

@@ -185,10 +185,14 @@ export type AgentIdentityPayload = {
 };
 
 export type AgentLimitsPayload = {
+  can_spawn_children: boolean;
   context_section_limit: number;
+  governed_spawn_depth: number;
+  max_active_per_workspace?: number;
   max_active_task_leases: number;
   max_children: number;
   max_spawn_depth: number;
+  spawn_blocked_reason?: string;
 };
 
 export type AgentMCPServerJSON = {

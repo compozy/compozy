@@ -1523,7 +1523,9 @@ export function buildAgentContextFixture(
       section: { limit: 32, returned: 0, truncated: false },
     },
     limits: {
+      can_spawn_children: true,
       context_section_limit: 32,
+      governed_spawn_depth: 0,
       max_active_task_leases: 4,
       max_children: 8,
       max_spawn_depth: 3,

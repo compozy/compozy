@@ -34,19 +34,6 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 				wantErr: context.Canceled,
 			},
 			{
-				name: "coordinator config deadline",
-				deps: Deps{
-					Now: fixedNow,
-					CoordinatorRole: coordinatorResolverFunc(
-						func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
-							return compozyconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
-						},
-					),
-				},
-				info:    sessionContextCancellationInfo(),
-				wantErr: context.DeadlineExceeded,
-			},
-			{
 				name: "soul snapshot cancellation",
 				deps: Deps{
 					Now:           fixedNow,
@@ -81,11 +68,6 @@ func TestContextForSessionDependencyContextErrorsContract(t *testing.T) {
 		service := NewService(Deps{
 			Now:           fixedNow,
 			SkillRegistry: contextErrorSkillRegistry{err: errors.New("skill registry unavailable")},
-			CoordinatorRole: coordinatorResolverFunc(
-				func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
-					return compozyconfig.ResolvedCoordinatorRole{}, errors.New("coordinator unavailable")
-				},
-			),
 			SoulSnapshots: contextErrorSoulSnapshotStore{err: soul.ErrSnapshotNotFound},
 		})
 
@@ -117,18 +99,6 @@ func TestContextForStartupDependencyContextErrorsContract(t *testing.T) {
 				SkillRegistry: contextErrorSkillRegistry{err: context.Canceled},
 			},
 			wantErr: context.Canceled,
-		},
-		{
-			name: "coordinator config deadline",
-			deps: Deps{
-				Now: fixedNow,
-				CoordinatorRole: coordinatorResolverFunc(
-					func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
-						return compozyconfig.ResolvedCoordinatorRole{}, context.DeadlineExceeded
-					},
-				),
-			},
-			wantErr: context.DeadlineExceeded,
 		},
 	}
 
