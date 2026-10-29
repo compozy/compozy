@@ -16,6 +16,7 @@ import (
 )
 
 type appStateSnapshot struct {
+	ProcessToken  string    `json:"process_token,omitempty"`
 	SchemaVersion int       `json:"schema_version"`
 	PID           int       `json:"pid"`
 	StartedAt     time.Time `json:"started_at"`
@@ -113,6 +114,12 @@ func (m *Manager) Refresh(ctx context.Context) (MultiState, error) {
 // OperationStore exposes the single journal authority to composition roots.
 func (m *Manager) OperationStore() *OperationStore { return m.operationStore }
 
+// AppRunning reads only local desktop state; it never refreshes release metadata.
+func (m *Manager) AppRunning() (bool, error) {
+	app, err := m.readAppTrack(nil, "")
+	return app != nil && app.Running, err
+}
+
 func (m *Manager) readAppTrack(release *Release, installMethod string) (*AppTrackState, error) {
 	appStatePath := firstPath(
 		m.homePaths.AppStateFile,
@@ -135,8 +142,11 @@ func (m *Manager) readAppTrack(release *Release, installMethod string) (*AppTrac
 	if snapshot.SchemaVersion != appstatecontract.SchemaVersion {
 		return nil, fmt.Errorf("update: unsupported desktop app state schema version %d", snapshot.SchemaVersion)
 	}
-	running := snapshot.PID > 0 && procutil.Alive(snapshot.PID) &&
-		procutil.MatchesStartTime(snapshot.PID, snapshot.StartedAt)
+	running, err := procutil.MatchesProcessIdentity(snapshot.PID, snapshot.StartedAt, snapshot.ProcessToken)
+	if err != nil {
+		return nil, err
+	}
+	running = running && snapshot.PID > 0 && procutil.Alive(snapshot.PID)
 	return composeAppTrack(snapshot.AppVersion, running, release), nil
 }
 

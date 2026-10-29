@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,7 +11,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
+	"github.com/compozy/compozy/internal/procutil"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
@@ -732,6 +736,373 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 			if err != nil || string(got.Status) != string(phase) || got.FailureReason != record.FailureReason ||
 				got.NewPID != record.NewPID {
 				t.Fatalf("local restart status = %#v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestRecoveredUpdateOutcome(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve staged app details from the recovering executor", func(t *testing.T) {
+		t.Parallel()
+		operation := &compozyupdate.Operation{
+			App: &compozyupdate.AppOperationState{
+				Phase:     compozyupdate.PhaseStaged,
+				ToVersion: "v1.1.0",
+				AttemptID: "recovered-attempt",
+			},
+		}
+		base := updateRecord{
+			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusUpToDate},
+			App: &compozyupdate.AppTrackState{
+				CurrentVersion: "v1.0.0",
+				Status:         compozyupdate.StatusAvailable,
+				Message:        "available",
+				LastError:      "old error",
+			},
+		}
+		record, err := recoveredUpdateRecord(base, operation)
+		if err != nil || record.Status != compozyupdate.StatusStaged || record.App.LatestVersion != "v1.1.0" ||
+			record.App.AttemptID != "recovered-attempt" ||
+			record.App.LastError != "" ||
+			!strings.Contains(record.App.Message, "next launch") {
+			t.Fatalf("staged recovery = %#v, %v", record, err)
+		}
+	})
+	for _, tc := range []struct {
+		name    string
+		runtime *compozyupdate.RuntimeOperationState
+		app     *compozyupdate.AppOperationState
+	}{
+		{name: "Should report a canceled runtime without recommending restart", runtime: &compozyupdate.RuntimeOperationState{Phase: compozyupdate.PhaseDownloading}},
+		{name: "Should report a canceled staged app without claiming staged success", app: &compozyupdate.AppOperationState{Phase: compozyupdate.PhaseStaged}},
+		{name: "Should preserve a finalized runtime when the pending app is canceled", runtime: &compozyupdate.RuntimeOperationState{Phase: compozyupdate.PhaseFinalized, ToVersion: "v1.1.0", DaemonRestarted: true}, app: &compozyupdate.AppOperationState{Phase: compozyupdate.PhaseStaged}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			record, err := recoveredUpdateRecord(
+				updateRecord{App: &compozyupdate.AppTrackState{}},
+				&compozyupdate.Operation{Outcome: "canceled", Runtime: tc.runtime, App: tc.app},
+			)
+			if err != nil || record.Status != compozyupdate.StatusCanceled ||
+				strings.Contains(record.Runtime.Message, "compozy daemon stop") {
+				t.Fatalf("canceled recovery = %#v, %v", record, err)
+			}
+			if tc.runtime != nil && tc.runtime.Phase == compozyupdate.PhaseFinalized &&
+				(record.Runtime.Status != compozyupdate.StatusUpdated || record.Runtime.CurrentVersion != "v1.1.0") {
+				t.Fatalf("lost completed runtime: %#v", record.Runtime)
+			}
+			if tc.app != nil && record.App.Status != compozyupdate.StatusCanceled {
+				t.Fatalf("app status = %s", record.App.Status)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name        string
+		phase       compozyupdate.OperationPhase
+		restarted   bool
+		wantStatus  compozyupdate.Status
+		wantMessage string
+		wantErr     bool
+	}{
+		{name: "Should report the successful recovering executor", phase: compozyupdate.PhaseFinalized, restarted: true, wantStatus: compozyupdate.StatusUpdated, wantMessage: "no manual daemon restart"},
+		{name: "Should report recovery failure and manual restart", phase: compozyupdate.PhaseFailed, wantStatus: compozyupdate.StatusFailed, wantMessage: "compozy daemon stop && compozy daemon start", wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			operation := &compozyupdate.Operation{
+				Runtime: &compozyupdate.RuntimeOperationState{
+					Phase:           tc.phase,
+					ToVersion:       "v0.4.5",
+					DaemonRestarted: tc.restarted,
+				},
+				LastError: "replacement failed readiness",
+			}
+			record, err := recoveredUpdateRecord(updateRecord{}, operation)
+			if (err != nil) != tc.wantErr || record.Status != tc.wantStatus ||
+				!strings.Contains(record.Runtime.Message, tc.wantMessage) {
+				t.Fatalf("recovered outcome = %#v, %v", record, err)
+			}
+			if tc.wantErr && !strings.Contains(err.Error(), operation.LastError) {
+				t.Fatalf("lost recovery cause: %v", err)
+			}
+		})
+	}
+}
+
+func TestFencedUpdateCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should follow holderless staged and canceled outcomes after a conflict", func(t *testing.T) {
+		t.Parallel()
+		store := newCLIUpdateOperationStore(t)
+		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetApp})
+		acquired := operation
+		for _, transition := range []compozyupdate.Transition{
+			{Kind: compozyupdate.TransitionPhase, Actor: compozyupdate.ActorCLI, Target: compozyupdate.TargetApp, Phase: compozyupdate.PhaseStaged, Percent: 100},
+			{Kind: compozyupdate.TransitionWaitForApp, Actor: compozyupdate.ActorCLI, Target: compozyupdate.TargetApp, Percent: -1},
+		} {
+			var err error
+			operation, err = store.Transition(t.Context(), operation.ID, "generation-1", operation.Revision, transition)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if confirmed, err := updateRecoveryConfirmed(t.Context(), store, acquired); err != nil || !confirmed {
+			t.Fatalf("staged recovery = %v, %v", confirmed, err)
+		}
+		deps := newTestDeps(t, &stubClient{})
+		deps.now = time.Now
+		deps.pollInterval = time.Millisecond
+		reads := 0
+		manager := stubUpdateManager{
+			operationStore: store,
+			appRunningFn:   func() (bool, error) { reads++; return reads == 1, nil },
+		}
+		cmd := newRootCommand(deps)
+		cmd.SetContext(t.Context())
+		if err := cmd.PersistentFlags().Set(outputFlagName, "json"); err != nil {
+			t.Fatal(err)
+		}
+		var output bytes.Buffer
+		cmd.SetOut(&output)
+		base := updateRecord{
+			Runtime: compozyupdate.RuntimeTrackState{Status: compozyupdate.StatusUpToDate},
+			App:     &compozyupdate.AppTrackState{Running: true, CurrentVersion: "v1.0.0"},
+		}
+		if err := reportRecoveredUpdate(cmd, deps, manager, operation, base); err != nil {
+			t.Fatal(err)
+		}
+		var record updateRecord
+		if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if reads < 2 || record.Status != compozyupdate.StatusStaged || record.App.Running ||
+			record.App.CurrentVersion != "v1.0.0" ||
+			record.App.AttemptID != "attempt-1" {
+			t.Fatalf("recovery = %#v, reads = %d", record, reads)
+		}
+		_, err := store.Transition(
+			t.Context(),
+			operation.ID,
+			"",
+			operation.Revision,
+			compozyupdate.Transition{
+				Kind:    compozyupdate.TransitionCancel,
+				Actor:   compozyupdate.ActorCLI,
+				Target:  compozyupdate.TargetApp,
+				Percent: -1,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if confirmed, err := updateRecoveryConfirmed(t.Context(), store, acquired); err != nil || !confirmed {
+			t.Fatalf("canceled recovery = %v, %v", confirmed, err)
+		}
+		output.Reset()
+		if err := reportRecoveredUpdate(cmd, deps, manager, acquired, base); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record.Status != compozyupdate.StatusCanceled || record.App.Status != compozyupdate.StatusCanceled {
+			t.Fatalf("canceled outcome = %#v", record)
+		}
+	})
+	t.Run("Should transfer the detached coordinator to its own kernel identity", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("Linux kernel identity")
+		}
+		store := newCLIUpdateOperationStore(t)
+		operation := acquireCLIUpdateOperation(t, store, []compozyupdate.Target{compozyupdate.TargetRuntime})
+		holder := *operation.Holder
+		previousOwner := exec.CommandContext(t.Context(), "sleep", "30")
+		if err := previousOwner.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = previousOwner.Process.Kill(); _ = previousOwner.Wait() })
+		holder.PID = previousOwner.Process.Pid
+		var err error
+		holder.PIDStartTime, err = procutil.StartedAt(holder.PID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		holder.ProcessToken, err = procutil.ProcessToken(holder.PID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		operation, err = store.Transition(
+			t.Context(),
+			operation.ID,
+			holder.ExecutorGeneration,
+			operation.Revision,
+			compozyupdate.Transition{
+				Kind:    compozyupdate.TransitionRenewLease,
+				Actor:   compozyupdate.ActorDaemon,
+				Target:  compozyupdate.TargetRuntime,
+				Holder:  &holder,
+				Percent: -1,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := newTestDeps(t, &stubClient{})
+		deps.now = time.Now
+		probeErr := errors.New("release probe reached")
+		deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
+			return stubUpdateManager{
+				operationStore: store,
+				resolveFn:      func(context.Context, string) (*compozyupdate.Release, error) { return nil, probeErr },
+			}, nil
+		}
+		if err := runDaemonUpdateCoordinator(
+			t.Context(),
+			deps,
+			operation.ID,
+			holder.ExecutorGeneration,
+		); !errors.Is(err, probeErr) ||
+			errors.Is(err, compozyupdate.ErrExecutorFenced) {
+			t.Fatalf("detached coordinator = %v", err)
+		}
+	})
+
+	for _, tc := range []struct {
+		name       string
+		runErr     error
+		superseded bool
+	}{
+		{name: "Should print the persisted recovery failure instead of executor fenced", runErr: compozyupdate.ErrExecutorFenced},
+		{name: "Should preserve an explicit fence joined with a revision conflict", runErr: errors.Join(compozyupdate.ErrExecutorFenced, compozyupdate.ErrOperationConflict)},
+		{name: "Should report the replacement executor outcome after a revision conflict", runErr: compozyupdate.ErrOperationConflict, superseded: true},
+		{name: "Should retain same executor revision conflicts as failures", runErr: compozyupdate.ErrOperationConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			store := newCLIUpdateOperationStore(t)
+			deps := newTestDeps(t, &stubClient{})
+			now := time.Now().UTC()
+			deps.now = func() time.Time { return now }
+			var acquired *compozyupdate.Operation
+			deps.newUpdateManager = func(compozyconfig.HomePaths) (updateManager, error) {
+				return stubUpdateManager{
+					operationStore: store,
+					checkAllFn: func(context.Context, compozyupdate.CheckOptions) (compozyupdate.MultiState, *compozyupdate.Release, error) {
+						return compozyupdate.MultiState{
+							Runtime: compozyupdate.RuntimeTrackState{
+								Status:         compozyupdate.StatusAvailable,
+								CurrentVersion: "v1.0.0",
+								LatestVersion:  "v1.1.0",
+							},
+						}, nil, nil
+					},
+					planFn: func(_ context.Context, _ compozyupdate.Actor, targets []compozyupdate.Target, holder compozyupdate.Holder) (compozyupdate.OperationRequest, error) {
+						return compozyupdate.OperationRequest{
+							RequestedBy: compozyupdate.ActorCLI,
+							Targets:     targets,
+							Holder:      holder,
+							Deadline:    deps.now().Add(time.Hour),
+							Runtime: &compozyupdate.RuntimeOperationState{
+								FromVersion:   "v1.0.0",
+								ToVersion:     "v1.1.0",
+								ReleaseTag:    "v1.1.0",
+								Asset:         "runtime.tar.gz",
+								Digest:        "sha256:runtime",
+								InstallMethod: compozyupdate.InstallMethodDirectBinary,
+								Phase:         compozyupdate.PhasePending,
+							},
+						}, nil
+					},
+					acquireFn: func(ctx context.Context, request compozyupdate.OperationRequest) (*compozyupdate.Operation, error) {
+						var err error
+						acquired, err = store.Acquire(ctx, request)
+						return acquired, err
+					},
+					resolveFn: func(ctx context.Context, _ string) (*compozyupdate.Release, error) {
+						if tc.superseded {
+							holder := *acquired.Holder
+							stale := holder
+							stale.PID = 1 << 30
+							stale.ProcessToken = ""
+							var err error
+							acquired, err = store.Transition(
+								ctx,
+								acquired.ID,
+								holder.ExecutorGeneration,
+								acquired.Revision,
+								compozyupdate.Transition{
+									Kind:    compozyupdate.TransitionRenewLease,
+									Actor:   compozyupdate.ActorDaemon,
+									Target:  compozyupdate.TargetRuntime,
+									Holder:  &stale,
+									Percent: -1,
+								},
+							)
+							if err != nil {
+								return nil, err
+							}
+							holder.ExecutorGeneration += "-replacement"
+							acquired, err = store.Transition(
+								ctx,
+								acquired.ID,
+								"",
+								acquired.Revision,
+								compozyupdate.Transition{
+									Kind:    compozyupdate.TransitionRecover,
+									Actor:   compozyupdate.ActorDaemon,
+									Target:  compozyupdate.TargetRuntime,
+									Holder:  &holder,
+									Percent: -1,
+								},
+							)
+							if err != nil {
+								return nil, err
+							}
+						}
+						_, err := store.Transition(
+							ctx,
+							acquired.ID,
+							acquired.Holder.ExecutorGeneration,
+							acquired.Revision,
+							compozyupdate.Transition{
+								Kind:      compozyupdate.TransitionPhase,
+								Actor:     compozyupdate.ActorDaemon,
+								Target:    compozyupdate.TargetRuntime,
+								Phase:     compozyupdate.PhaseFailed,
+								Percent:   -1,
+								LastError: "recovery readiness failed",
+							},
+						)
+						if err != nil {
+							return nil, err
+						}
+						return nil, tc.runErr
+					},
+				}, nil
+			}
+			stdout, _, err := executeRootCommand(t, deps, "update", "-o", "json")
+			if !errors.Is(tc.runErr, compozyupdate.ErrExecutorFenced) &&
+				errors.Is(tc.runErr, compozyupdate.ErrOperationConflict) && !tc.superseded {
+				if !errors.Is(err, compozyupdate.ErrOperationConflict) ||
+					strings.Contains(stdout, "recovery readiness failed") {
+					t.Fatalf("same executor conflict = %v, output = %s", err, stdout)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), "recovery readiness failed") ||
+				strings.Contains(err.Error(), "executor fenced") {
+				t.Fatalf("error = %v, output = %s", err, stdout)
+			}
+			var record updateRecord
+			if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+				t.Fatal(err)
+			}
+			if record.Status != compozyupdate.StatusFailed ||
+				!strings.Contains(record.Runtime.Message, "compozy daemon stop && compozy daemon start") {
+				t.Fatalf("recovered output = %#v", record)
 			}
 		})
 	}

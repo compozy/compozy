@@ -23,7 +23,11 @@ func (c *Coordinator) Run(ctx context.Context, operationID string, executorGener
 	if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) {
 		return ErrExecutorFenced
 	}
-	if !c.store.HolderLive(operation.Holder) {
+	live, err := c.store.HolderLive(operation.Holder)
+	if err != nil {
+		return err
+	}
+	if !live {
 		return ErrExecutorFenced
 	}
 

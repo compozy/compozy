@@ -176,7 +176,16 @@ func (e daemonAppTransitionExecution) recover() (*compozyupdate.Operation, error
 	if err != nil {
 		return nil, err
 	}
-	if !appOperationRecoverableByShell(e.store, operation, e.operationID, e.options.expectedRevision) {
+	recoverable, err := appOperationRecoverableByShell(
+		e.store.HolderLive,
+		operation,
+		e.operationID,
+		e.options.expectedRevision,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if !recoverable {
 		return nil, compozyupdate.ErrExecutorFenced
 	}
 	holder, err := desktopAppUpdateHolder(e.parentPID, e.generation, e.now)
@@ -265,8 +274,9 @@ func desktopAppUpdateHolder(parentPID int, generation string, now time.Time) (*c
 	if err != nil {
 		return nil, fmt.Errorf("cli: resolve desktop app process identity: %w", err)
 	}
+	token := procutil.CreationProcessToken(parentPID)
 	return &compozyupdate.Holder{
-		PID: parentPID, PIDStartTime: startedAt, Surface: compozyupdate.ActorShell,
+		PID: parentPID, PIDStartTime: startedAt, ProcessToken: token, Surface: compozyupdate.ActorShell,
 		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
 	}, nil
 }
@@ -283,16 +293,20 @@ func appOperationReadyForShell(operation *compozyupdate.Operation, operationID s
 }
 
 func appOperationRecoverableByShell(
-	store *compozyupdate.OperationStore,
+	holderLive func(*compozyupdate.Holder) (bool, error),
 	operation *compozyupdate.Operation,
 	operationID string,
 	expectedRevision int64,
-) bool {
+) (bool, error) {
 	if operation == nil || operation.ID != operationID || operation.Revision != expectedRevision ||
 		operation.ActiveTarget != compozyupdate.TargetApp || operation.App == nil ||
 		(operation.App.Phase != compozyupdate.PhaseStaged && operation.App.Phase != compozyupdate.PhaseApplying &&
 			operation.App.Phase != compozyupdate.PhaseInstallerHandoff) {
-		return false
+		return false, nil
 	}
-	return operation.Holder == nil || !store.HolderLive(operation.Holder)
+	live, err := holderLive(operation.Holder)
+	if err != nil {
+		return false, err
+	}
+	return !live, nil
 }

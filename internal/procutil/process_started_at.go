@@ -7,7 +7,41 @@ import (
 	"time"
 )
 
+// ErrProcessIdentityGone distinguishes a vanished process from unreadable identity data.
+var ErrProcessIdentityGone = errors.New("procutil: process identity is gone")
+
+// CreationProcessToken preserves timestamp identity when kernel identity is unavailable at creation.
+// Existing tokenized records must still propagate lookup errors instead of downgrading identity.
+func CreationProcessToken(pid int) string {
+	token, err := ProcessToken(pid)
+	if err != nil {
+		return ""
+	}
+	return token
+}
+
 const processStartMatchTolerance = 2 * time.Second
+
+// MatchesProcessIdentity prefers a persisted kernel identity when available.
+func MatchesProcessIdentity(pid int, startedAt time.Time, token string) (bool, error) {
+	return matchesProcessIdentity(pid, startedAt, token, ProcessToken, MatchesStartTime)
+}
+
+func matchesProcessIdentity(pid int, startedAt time.Time, token string,
+	lookup func(int) (string, error), matchTime func(int, time.Time) bool,
+) (bool, error) {
+	if token == "" {
+		return matchTime(pid, startedAt), nil
+	}
+	observed, err := lookup(pid)
+	if errors.Is(err, ErrProcessIdentityGone) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return observed == token, nil
+}
 
 // MatchesStartTime reports whether pid currently belongs to a process whose
 // observed start time matches the recorded value closely enough to account for
