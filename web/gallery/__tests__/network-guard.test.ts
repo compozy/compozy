@@ -77,6 +77,16 @@ describe("prototype network guard", () => {
     );
   });
 
+  it("fails the build when a prototype reaches a helper with a computed import()", async () => {
+    const root = web({
+      "src/systems/a/load.ts": "export const load = (name: string) => import(name);",
+      "src/systems/a/card.proto.ts": "import { load } from './load';\nexport default load;",
+    });
+    await expect(buildPrototype(root, "src/systems/a/card.proto.ts")).rejects.toThrow(
+      "api_client: src/systems/a/load.ts has an import() with a computed specifier"
+    );
+  });
+
   it("allows type-only imports of the network layer", async () => {
     const root = web({
       ...client,

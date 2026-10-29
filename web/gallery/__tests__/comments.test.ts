@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { crc32, deflateSync } from "node:zlib";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -78,16 +79,30 @@ const input = (body = "Tighten the title spacing"): NewComment => ({
   },
 });
 
-/** A structurally complete PNG: IHDR with the given size, one empty IDAT and IEND (CRCs zeroed). */
-function png(width = 2, height = 3) {
-  const bytes = new Uint8Array(57);
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+function chunk(type: string, data: Uint8Array) {
+  const bytes = new Uint8Array(12 + data.length);
   const view = new DataView(bytes.buffer);
-  view.setUint32(16, width);
-  view.setUint32(20, height);
-  bytes.set([0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54], 33);
-  bytes.set([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44], 45);
+  view.setUint32(0, data.length);
+  bytes.set(new TextEncoder().encode(type), 4);
+  bytes.set(data, 8);
+  view.setUint32(8 + data.length, crc32(bytes.subarray(4, 8 + data.length)));
   return bytes;
+}
+
+/** A complete PNG: IHDR with the given size, one IDAT of deflated rows and IEND, with CRCs. */
+function png(width = 2, height = 3) {
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  header.set([8, 2, 0, 0, 0], 8);
+  const rows = deflateSync(new Uint8Array(height * (1 + width * 3)));
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", rows),
+    chunk("IEND", new Uint8Array(0)),
+  ]);
 }
 
 describe("comment store", () => {
@@ -224,7 +239,7 @@ describe("comment attachments", () => {
       type: "image/png",
       width: 640,
       height: 480,
-      size: 57,
+      size: png(640, 480).length,
     });
     const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 16, 0, 8, 0]);
     expect(inspectImage(gif)).toMatchObject({ type: "image/gif", width: 16, height: 8 });
@@ -234,6 +249,10 @@ describe("comment attachments", () => {
     expect(() => inspectImage(png(0, 10))).toThrow("unsupported_media_type");
     // Truncated before IEND: the header alone is not an image.
     expect(() => inspectImage(png(640, 480).subarray(0, 33))).toThrow("unsupported_media_type");
+    // A flipped byte inside IDAT fails its CRC.
+    const corrupt = png(4, 4);
+    corrupt[42] ^= 0xff;
+    expect(() => inspectImage(corrupt)).toThrow("unsupported_media_type");
     expect(() => inspectImage(new Uint8Array(5 * 1024 * 1024 + 1))).toThrow("attachment_too_large");
   });
 
@@ -243,7 +262,9 @@ describe("comment attachments", () => {
     const first = files.upload("screen.png", png());
     const created = comments.add("session-board-card", { ...input(), attachments: [first.id] });
     expect(created.thread[0]?.attachments).toEqual([first]);
-    expect(files.read(first.id, comments.read("session-board-card")).bytes).toHaveLength(57);
+    expect(files.read(first.id, comments.read("session-board-card")).bytes).toHaveLength(
+      png().length
+    );
     expect(readdirSync(files.pending)).toEqual([]);
 
     const more = Array.from({ length: 6 }, () => files.upload("more.png", png()));

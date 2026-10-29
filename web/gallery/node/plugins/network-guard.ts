@@ -53,11 +53,23 @@ export function networkGuard(webRootInput: string): Plugin {
   const forbidden = networkModuleMatcher(webRoot);
   const imports = new Map<string, Set<string>>();
   const parents = new Map<string, Set<string>>();
+  // Repository modules with an `import()` the graph cannot follow; reaching one counts as a
+  // violation, like reaching the network layer. Third-party packages are out of scope.
+  const computedImports = new Set<string>();
+  const sourceRoot = `${webRoot}/src/`;
   let building = false;
 
   const check = (id: string) => {
-    const chain = forbiddenChain(id, imports, forbidden);
-    return chain ? violationMessage(chain, webRoot) : undefined;
+    const chain = forbiddenChain(
+      id,
+      imports,
+      module => forbidden(module) || computedImports.has(module)
+    );
+    if (!chain) return undefined;
+    const last = chain.at(-1)!;
+    if (!computedImports.has(last)) return violationMessage(chain, webRoot);
+    const shown = chain.map(module => relative(webRoot, module)).join(" → ");
+    return `api_client: ${relative(webRoot, last)} has an import() with a computed specifier, which cannot be checked against the network layer (${shown}); import a literal path.`;
   };
 
   return {
@@ -68,6 +80,7 @@ export function networkGuard(webRootInput: string): Plugin {
     },
     buildStart() {
       imports.clear();
+      computedImports.clear();
       parents.clear();
     },
     buildEnd(error) {
@@ -90,11 +103,8 @@ export function networkGuard(webRootInput: string): Plugin {
       const from = clean(source);
       if (!/\.[cm]?[jt]sx?$/.test(from) || from.includes("\0")) return;
       const { specifiers, computed } = specifiersOf(code, from);
-      if (computed && isPrototypeModule(from)) {
-        this.error(
-          `${relative(webRoot, from)}: import() with a computed specifier cannot be checked against the network layer; import a literal path`
-        );
-      }
+      if (computed && from.startsWith(sourceRoot)) computedImports.add(from);
+      else computedImports.delete(from);
       if (building) return;
       const resolved = await Promise.all(
         [...specifiers].map(specifier => this.resolve(specifier, source))

@@ -1,7 +1,10 @@
 /**
- * Header-only image inspection for comment attachments: the type comes from the magic bytes,
- * never from the file name or the declared MIME type, and the dimensions from the header.
+ * Image inspection for comment attachments: the type comes from the magic bytes, never from the
+ * file name or the declared MIME type, and the dimensions from the header; PNG structure is
+ * verified end to end.
  */
+import { crc32, inflateSync } from "node:zlib";
+
 import { maxAttachmentBytes } from "../shell/comments/model.ts";
 
 export type ImageType = "image/png" | "image/jpeg" | "image/gif" | "image/webp";
@@ -55,20 +58,29 @@ function webpSize(bytes: Uint8Array, data: DataView, chunk: string) {
 }
 
 /**
- * A PNG whose chunks fit the buffer from IHDR through IEND with image data in between; a
- * truncated or padded upload is rejected rather than stored as a broken image.
+ * A PNG whose chunks fit the buffer from IHDR through IEND, each with a matching CRC, and whose
+ * IDAT data inflates to image data; a truncated, padded or corrupt upload is rejected rather than
+ * stored as a broken image.
  */
 function pngComplete(bytes: Uint8Array, data: DataView) {
   let offset = 8;
-  let sawData = false;
+  const imageData: Uint8Array[] = [];
   while (offset + 12 <= bytes.length) {
     const length = data.getUint32(offset);
     const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
     const end = offset + 12 + length;
     if (end > bytes.length) return false;
     if (offset === 8 && type !== "IHDR") return false;
-    if (type === "IDAT") sawData = true;
-    if (type === "IEND") return sawData && end === bytes.length;
+    if (crc32(bytes.subarray(offset + 4, end - 4)) !== data.getUint32(end - 4)) return false;
+    if (type === "IDAT") imageData.push(bytes.subarray(offset + 8, end - 4));
+    if (type === "IEND") {
+      if (end !== bytes.length || imageData.length === 0) return false;
+      try {
+        return inflateSync(Buffer.concat(imageData)).length > 0;
+      } catch {
+        return false;
+      }
+    }
     offset = end;
   }
   return false;

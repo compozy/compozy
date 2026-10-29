@@ -53,7 +53,15 @@ function points(edge: ElkExtendedEdge): Point[] {
   ]);
 }
 
-type LayoutEngine = { elk: InstanceType<typeof ELK>; worker: Worker; failed: Promise<never> };
+type LayoutEngine = {
+  elk: InstanceType<typeof ELK>;
+  worker: Worker;
+  failed: Promise<never>;
+  /** Requests still waiting on this worker (timed-out ones no longer count). */
+  pending: number;
+  /** Detached after a timeout: no new requests; terminated once `pending` drains. */
+  detached: boolean;
+};
 
 let engine: LayoutEngine | null = null;
 
@@ -77,6 +85,8 @@ function layoutEngine() {
     elk: new ELK({ workerFactory: () => worker, algorithms: ["layered"] }),
     worker,
     failed,
+    pending: 0,
+    detached: false,
   };
   return engine;
 }
@@ -84,20 +94,32 @@ function layoutEngine() {
 /** A worker that never answers fails the request, so the flow can offer "Try again". */
 const layoutTimeoutMs = 15_000;
 
+function settle(current: LayoutEngine) {
+  current.pending -= 1;
+  if (current.detached && current.pending === 0) current.worker.terminate();
+}
+
 function layoutGraph(graph: ElkNode) {
   const current = layoutEngine();
+  current.pending += 1;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    settle(current);
+  };
   const stalled = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      // A stalled worker would block every later request: drop it for a fresh one.
+      // Later requests go to a fresh worker; this one lives until its other requests settle.
       if (engine === current) engine = null;
-      current.worker.terminate();
+      current.detached = true;
+      finish();
       reject(new Error("Layout timed out"));
     }, layoutTimeoutMs);
   });
-  return Promise.race([current.elk.layout(graph), current.failed, stalled]).finally(() =>
-    clearTimeout(timer)
-  );
+  return Promise.race([current.elk.layout(graph), current.failed, stalled]).finally(finish);
 }
 
 export async function computeLayout(input: LayoutInput): Promise<Layout> {
