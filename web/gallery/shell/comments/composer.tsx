@@ -63,6 +63,12 @@ export function CommentComposer({
     <form
       className="pointer-events-auto absolute flex cursor-auto flex-col gap-2.5 overflow-y-auto overscroll-contain rounded-lg bg-popover p-3 text-fg shadow-pop"
       data-testid="comment-composer"
+      onKeyDown={event => {
+        if (event.key !== "Escape") return;
+        // The picker's Escape would drop the draft; a comment being saved cannot be cancelled.
+        event.stopPropagation();
+        if (!pending) onCancel();
+      }}
       onPointerDown={event => event.stopPropagation()}
       // The form scrolls itself; the overlay's wheel handler would scroll the prototype instead.
       onWheel={event => event.stopPropagation()}
@@ -95,10 +101,6 @@ export function CommentComposer({
             event.preventDefault();
             void submit();
           }
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            onCancel();
-          }
         }}
         onPaste={event => {
           if (event.clipboardData.files.length === 0) return;
@@ -119,7 +121,7 @@ export function CommentComposer({
           <Kbd>⌘</Kbd>
           <Kbd>↵</Kbd>
         </KbdGroup>
-        <Button onClick={onCancel} size="sm" type="button" variant="ghost">
+        <Button disabled={pending} onClick={onCancel} size="sm" type="button" variant="ghost">
           Cancel
         </Button>
         <Button data-testid="comment-submit" disabled={!canSubmit} size="sm" type="submit">

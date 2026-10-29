@@ -89,6 +89,7 @@ export const SESSION_PULL_REQUEST_CHIP_STATES: {
     label: "Checks failing",
     facts: pullRequestFacts({
       number: 932,
+      url: "https://github.com/compozy/compozy/pull/932",
       checks: {
         state: "failing",
         passed: 12,

@@ -294,6 +294,14 @@ describe("comment DOM targets", () => {
     expect(document.querySelector(selectorFor(second))).toBe(second);
   });
 
+  it("keeps the sibling position of repeated test ids", () => {
+    render(
+      `<main><div data-testid="column"><article data-testid="card">A</article><article data-testid="card">B</article></div></main>`
+    );
+    const second = document.querySelectorAll("article")[1]!;
+    expect(document.querySelector(selectorFor(second))).toBe(second);
+  });
+
   it("collects source tags nearest first and describes a click and a region", () => {
     render(
       `<div data-proto-src="web/src/a.proto.tsx:5:3"><article data-testid="card" data-proto-src="web/src/card.tsx:10:5"><span>Fix login</span></article></div>`

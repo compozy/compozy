@@ -44,8 +44,9 @@ function selectComment(comment: ReviewComment | null) {
 export function useCommentReview(options: ReviewOptions): ReviewSlots {
   const { entry, view, state, frame, picking, onPicking } = options;
   const { comments, error } = useComments(entry.slug);
-  // The frame reports the document it loaded; only review the one on screen.
-  const doc = frame && frame.slug === entry.slug ? frame.doc : null;
+  // The frame reports the document it loaded; only review the one on screen, once it renders the
+  // selected state (a state change rewrites the URL in place and reports it again).
+  const doc = frame && frame.slug === entry.slug && frame.state === state ? frame.doc : null;
   const canPick = !view.compare && doc !== null;
   const theme = view.theme ?? (options.dark ? "dark" : "light");
   // A draft belongs to the view it was picked on; changing state, theme or width discards it.

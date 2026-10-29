@@ -8,6 +8,7 @@
  * `DELETE /<key>/<id>` · `POST /<key>/attachments` (multipart `file`) ·
  * `GET|DELETE /<key>/attachments/<attachment id>`.
  */
+import { mkdirSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { basename, dirname, resolve } from "node:path";
 import type { Plugin } from "vite";
@@ -77,11 +78,16 @@ async function attachments(
   const files = store.attachments(key);
   const method = request.method ?? "GET";
   if (!id && method === "POST") {
+    const body = new Uint8Array(await readBytes(request));
     const form = await new Request("http://localhost", {
       method: "POST",
       headers: { "Content-Type": request.headers["content-type"] ?? "" },
-      body: new Uint8Array(await readBytes(request)),
-    }).formData();
+      body,
+    })
+      .formData()
+      .catch(() => {
+        throw new CommentError("Invalid multipart body", 400);
+      });
     const file = form.get("file");
     if (!(file instanceof File)) throw new CommentError("Missing file", 400);
     const image = files.upload(file.name, new Uint8Array(await file.arrayBuffer()));
@@ -179,16 +185,24 @@ export function commentsApi(): Plugin {
         if (dirname(folder) !== directory) return;
         server.ws.send({ type: "custom", event: commentsEvent, data: { slug: basename(folder) } });
       };
+      // Chokidar drops a missing path, so the first CLI write would go unnoticed.
+      mkdirSync(directory, { recursive: true });
       server.watcher.add(directory);
       server.watcher.on("add", notify);
       server.watcher.on("change", notify);
       server.watcher.on("unlink", notify);
 
       server.middlewares.use(base, (request, response) => {
-        const path = new URL(request.url ?? "/", "http://localhost").pathname;
-        const segments = path.split("/").filter(Boolean).map(decodeURIComponent);
         if (!readMethods.has(request.method ?? "GET") && !isTrustedWrite(request.headers)) {
           send(response, { status: 403, payload: { error: "Cross-origin writes are refused" } });
+          return;
+        }
+        const path = new URL(request.url ?? "/", "http://localhost").pathname;
+        let segments: string[];
+        try {
+          segments = path.split("/").filter(Boolean).map(decodeURIComponent);
+        } catch {
+          send(response, { status: 400, payload: { error: "Malformed path" } });
           return;
         }
         route(store, request, segments).then(

@@ -19,13 +19,13 @@ function CommentActions({ comment }: { comment: ReviewComment }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only a sent reply clears the draft; resolve, reopen and delete keep it.
   const run = (action: () => Promise<unknown>) => {
     setPending(true);
     setError(null);
     action()
-      .then(
-        () => setReply(""),
-        (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason))
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : String(reason))
       )
       .finally(() => setPending(false));
   };
@@ -38,9 +38,10 @@ function CommentActions({ comment }: { comment: ReviewComment }) {
         event.preventDefault();
         if (!reply.trim() || !uploads.ready) return;
         run(() =>
-          commentsApi
-            .reply(comment.slug, comment.id, reply, uploads.ids)
-            .then(() => uploads.committed())
+          commentsApi.reply(comment.slug, comment.id, reply, uploads.ids).then(() => {
+            uploads.committed();
+            setReply("");
+          })
         );
       }}
     >

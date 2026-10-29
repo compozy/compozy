@@ -39,11 +39,14 @@ export function CommentsPanel(props: PanelProps) {
   const { comments, place, selectedId } = props;
   const [status, setStatus] = useState<Status>("open");
   const [scope, setScope] = useState<Scope>("state");
-  // The selected comment (pin click or link) always shows, whatever the filters.
+  // The selected comment (pin click or link) always shows, whatever the filters; a flow's
+  // whole-flow comments (no step) show beside every step.
+  const inScope = (comment: ReviewComment) =>
+    scope === "all" ||
+    comment.context.state === place ||
+    (props.kind === "flow" && !comment.context.state);
   const shown = comments.filter(
-    comment =>
-      comment.id === selectedId ||
-      (comment.status === status && (scope === "all" || comment.context.state === place))
+    comment => comment.id === selectedId || (comment.status === status && inScope(comment))
   );
   const open = comments.filter(comment => comment.status === "open").length;
   const labelOf = (id: string) => props.places.find(option => option.id === id)?.label ?? id;

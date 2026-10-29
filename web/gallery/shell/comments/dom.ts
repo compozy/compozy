@@ -18,13 +18,19 @@ const toRect = (box: DOMRect | Rect): Rect => ({
 });
 
 function segment(element: Element) {
-  const testId = element.getAttribute("data-testid");
-  if (testId) return `[data-testid="${CSS.escape(testId)}"]`;
   const tag = element.localName;
   const parent = element.parentElement;
-  if (!parent) return tag;
-  const siblings = [...parent.children].filter(child => child.localName === tag);
-  return siblings.length > 1 ? `${tag}:nth-of-type(${siblings.indexOf(element) + 1})` : tag;
+  const siblings = parent ? [...parent.children].filter(child => child.localName === tag) : [];
+  const position = siblings.length > 1 ? `:nth-of-type(${siblings.indexOf(element) + 1})` : "";
+  const testId = element.getAttribute("data-testid");
+  if (testId) {
+    // Repeated test ids (list items, skeleton cards) keep their position among siblings.
+    const repeated = siblings.some(
+      child => child !== element && child.getAttribute("data-testid") === testId
+    );
+    return `[data-testid="${CSS.escape(testId)}"]${repeated ? position : ""}`;
+  }
+  return `${tag}${position}`;
 }
 
 /** Shortest unique `a > b > c` path from the element up, anchored on `data-testid` when present. */
