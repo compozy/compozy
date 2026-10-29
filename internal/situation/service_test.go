@@ -260,7 +260,7 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 		})
 	}
 
-	t.Run("Should prefer the engine's ancestor walk and fall back on ordinary failures", func(t *testing.T) {
+	t.Run("Should prefer the engine's ancestor walk and never claim eligibility without it", func(t *testing.T) {
 		t.Parallel()
 
 		info := sessionInfo(session.SessionTypeSpawned, &store.SessionLineage{
@@ -272,10 +272,11 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 			Allowed:       true,
 		}
 		tests := []struct {
-			name      string
-			resolver  spawnAllowanceResolverFunc
-			wantDepth int
-			wantErr   error
+			name        string
+			resolver    spawnAllowanceResolverFunc
+			wantDepth   int
+			wantBlocked bool
+			wantErr     error
 		}{
 			{
 				name: "resolved",
@@ -289,7 +290,8 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
 					return session.ChildSpawnAllowance{}, errors.New("ancestor lookup failed")
 				},
-				wantDepth: 1,
+				wantDepth:   1,
+				wantBlocked: true,
 			},
 			{
 				name: "canceled",
@@ -306,9 +308,9 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 				t.Fatalf("%s: ContextForSession() error = %v, want %v", tt.name, err, tt.wantErr)
 			}
 			if tt.wantErr == nil && (payload.Limits.GovernedSpawnDepth != tt.wantDepth ||
-				!payload.Limits.CanSpawnChildren) {
-				t.Fatalf("%s: Limits = %#v, want governed depth %d and a spawnable session",
-					tt.name, payload.Limits, tt.wantDepth)
+				payload.Limits.CanSpawnChildren == tt.wantBlocked) {
+				t.Fatalf("%s: Limits = %#v, want governed depth %d and blocked %t",
+					tt.name, payload.Limits, tt.wantDepth, tt.wantBlocked)
 			}
 		}
 	})

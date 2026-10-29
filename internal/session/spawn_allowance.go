@@ -33,15 +33,25 @@ func (m *Manager) ChildSpawnAllowance(ctx context.Context, info *Info) (ChildSpa
 	return childSpawnAllowance(info.ID, LineageSpawnBudget(info.Lineage), governance.depth), nil
 }
 
-// ChildSpawnAllowanceFor is the lookup-free allowance: user, coordinator, and
-// provenance-linked sessions sit at governed depth 0, and a spawned session is
-// assumed to sit at the shallowest spawned depth.
+// ChildSpawnAllowanceFor is the lookup-free allowance. User, coordinator, and
+// provenance-linked sessions sit at governed depth 0, so their result is exact. A
+// spawned session's depth needs the ancestor walk; without it the session is reported
+// at the shallowest spawned depth and never as eligible, since a deeper actual depth
+// could exceed the cap.
 func ChildSpawnAllowanceFor(sessionType Type, budget store.SessionSpawnBudget) ChildSpawnAllowance {
-	depth := 0
-	if normalizeSessionType(sessionType) == SessionTypeSpawned {
-		depth = minSpawnedGovernedDepth
+	if normalizeSessionType(sessionType) != SessionTypeSpawned {
+		return childSpawnAllowance("", budget, 0)
 	}
-	return childSpawnAllowance("", budget, depth)
+	allowance := childSpawnAllowance("", budget, minSpawnedGovernedDepth)
+	if allowance.Allowed {
+		allowance.Allowed = false
+		allowance.BlockedReason = fmt.Sprintf(
+			"%s: governed depth could not be resolved for this spawned session; "+
+				"compozy__session_spawn reports the authoritative refusal, and compozy__subagent_delegate has no depth cap.",
+			SpawnLimitMaxDepth,
+		)
+	}
+	return allowance
 }
 
 func childSpawnAllowance(sessionID string, budget store.SessionSpawnBudget, depth int) ChildSpawnAllowance {
