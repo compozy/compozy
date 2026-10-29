@@ -62,4 +62,5 @@ func (s *Session) applyStartAttemptRoute(spec *sessionStartSpec, runtime *sessio
 	s.providerRoute = runtime.agent
 	s.agentDef = compozyconfig.CloneAgentDef(runtime.agentDef)
 	s.startupManifest = acp.CloneStartupManifest(runtime.startupManifest)
+	s.nativeToolsUnavailable = runtime.nativeToolsUnavailable
 }

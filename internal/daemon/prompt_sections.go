@@ -104,13 +104,14 @@ func defaultStartupPromptSectionDescriptors(
 
 	if skillsProvider != nil {
 		descriptors = append(descriptors, PromptSectionDescriptor{
-			Name:           string(HarnessPromptSectionSkills),
-			Position:       PromptSectionPositionAppend,
-			Order:          startupSkillsSectionOrder,
-			Budget:         startupSkillsSectionBudget,
-			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       skillsProvider,
-			Predicate:      policyIncludesSection(HarnessPromptSectionSkills),
+			Name:             string(HarnessPromptSectionSkills),
+			Position:         PromptSectionPositionAppend,
+			Order:            startupSkillsSectionOrder,
+			Budget:           startupSkillsSectionBudget,
+			BudgetBehavior:   PromptSectionBudgetBehaviorTrim,
+			Provider:         skillsProvider,
+			Predicate:        policyIncludesSection(HarnessPromptSectionSkills),
+			StartupPredicate: startupHasNativeTools,
 		})
 	}
 
@@ -135,11 +136,24 @@ func defaultStartupPromptSectionDescriptors(
 func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 	return []PromptSectionDescriptor{
 		{
-			Name:           string(HarnessPromptSectionTools),
-			Position:       PromptSectionPositionAppend,
-			Order:          startupToolsSectionOrder,
-			Budget:         startupToolsSectionBudget,
-			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
+			Name:      string(HarnessPromptSectionTools),
+			Position:  PromptSectionPositionAppend,
+			Order:     startupToolsSectionOrder,
+			Predicate: policyIncludesSection(HarnessPromptSectionTools),
+			StartupPredicate: func(startup session.StartupPromptContext) bool {
+				return startup.NativeToolsUnavailable
+			},
+			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+				return skillbundled.LoadResource(bundledCompozySkillName, "references/cli-fallback.md")
+			}),
+		},
+		{
+			Name:             string(HarnessPromptSectionTools),
+			StartupPredicate: startupHasNativeTools,
+			Position:         PromptSectionPositionAppend,
+			Order:            startupToolsSectionOrder,
+			Budget:           startupToolsSectionBudget,
+			BudgetBehavior:   PromptSectionBudgetBehaviorTrim,
 			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
 				return skillbundled.LoadContent(bundledCompozySkillName)
 			}),
@@ -149,9 +163,10 @@ func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 			},
 		},
 		{
-			Name:     string(HarnessPromptSectionTools),
-			Position: PromptSectionPositionAppend,
-			Order:    startupToolsSectionOrder,
+			Name:             string(HarnessPromptSectionTools),
+			StartupPredicate: startupHasNativeTools,
+			Position:         PromptSectionPositionAppend,
+			Order:            startupToolsSectionOrder,
 			// Skills-disabled sessions cannot fetch omitted guidance.
 			Budget:   0,
 			Provider: promptSectionProviderFunc(bundledToolReferencesPromptSection),
@@ -210,4 +225,8 @@ func bundledToolReferencesPromptSection(context.Context, *workspacepkg.ResolvedW
 		contents = append(contents, strings.TrimSpace(content))
 	}
 	return strings.Join(contents, "\n\n"), nil
+}
+
+func startupHasNativeTools(startup session.StartupPromptContext) bool {
+	return !startup.NativeToolsUnavailable
 }

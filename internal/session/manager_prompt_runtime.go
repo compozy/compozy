@@ -295,7 +295,7 @@ func (m *Manager) replacePromptRuntime(
 		plan.spec.command,
 		plan.spec.sessionEnv,
 	)
-	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
+	session.setRuntimeDefinition(&runtime)
 	if plan.spec.resumeReplay {
 		session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
 	}
@@ -446,10 +446,13 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	); err != nil {
 		return nil, fmt.Errorf("session: validate prompt runtime ACP mode: %w", err)
 	}
-	existingDefinition, manifest := session.startupDefinition()
-	runtime.startupManifest = manifest
-	runtime.agentDef.Prompt = existingDefinition.Prompt
-	runtime.agent.Prompt = existingDefinition.Prompt
+	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP {
+		existingDefinition, manifest := session.startupDefinition()
+		runtime.startupManifest = manifest
+		runtime.agentDef.Prompt = existingDefinition.Prompt
+		runtime.agent.Prompt = existingDefinition.Prompt
+	}
+	// Pi reassembles after readiness, using the authored prompt resolved above.
 
 	resolvedSelection := RuntimeSelection{
 		Provider:        runtime.agent.Provider,

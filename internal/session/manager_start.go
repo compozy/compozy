@@ -15,10 +15,11 @@ import (
 )
 
 type sessionStartRuntime struct {
-	startupManifest acp.StartupManifest
-	agent           compozyconfig.ResolvedAgent
-	agentDef        compozyconfig.AgentDef
-	mcpServers      []compozyconfig.MCPServer
+	nativeToolsUnavailable bool
+	startupManifest        acp.StartupManifest
+	agent                  compozyconfig.ResolvedAgent
+	agentDef               compozyconfig.AgentDef
+	mcpServers             []compozyconfig.MCPServer
 }
 
 type sessionStartStorage struct {

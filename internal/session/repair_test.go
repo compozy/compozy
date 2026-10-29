@@ -18,6 +18,36 @@ import (
 func TestManagerRepairSession(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve startup diagnostics without inventing an interrupted prompt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		meta := repairSessionMeta("sess-startup-warning", store.StopShutdown, h.workspaceID)
+		warning := acp.AgentEvent{Type: acp.EventTypeRuntimeWarning, TurnID: "turn-startup",
+			Text: "Pi native tools are unavailable", ProviderError: &acp.ProviderErrorDiagnostic{
+				Code: "pi_native_tools_connection_failed",
+			}}
+		seedRepairSession(t, h, &meta, repairStoredEvent(t, meta.ID, meta.AgentName,
+			acp.EventTypeRuntimeWarning, warning.TurnID, meta.CreatedAt, warning))
+		result, err := h.manager.RepairSession(t.Context(), RepairOpts{SessionID: meta.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result.Actions) != 0 {
+			t.Fatalf("startup warning produced repair actions: %#v", result.Actions)
+		}
+		events := readRepairEvents(t, h, meta.ID)
+		if len(events) != 1 || events[0].Type != acp.EventTypeRuntimeWarning || events[0].TurnID != warning.TurnID {
+			t.Fatalf("startup warning history changed: %#v", events)
+		}
+		preserved, err := transcript.UnmarshalAgentEvent(events[0].Content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if preserved.ProviderError == nil || preserved.ProviderError.Code != warning.ProviderError.Code {
+			t.Fatalf("startup diagnostic changed: %#v", preserved.ProviderError)
+		}
+	})
+
 	t.Run("ShouldReportPlannedActionsWithoutPersistingWhenDryRun", func(t *testing.T) {
 		t.Parallel()
 

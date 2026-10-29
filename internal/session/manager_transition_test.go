@@ -2126,3 +2126,81 @@ func assertSameSessionFailure(
 		t.Fatalf("%s failure summary = %q, want %q", label, after.Summary, before.Summary)
 	}
 }
+
+func TestPromptRuntimePiStartupRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should clear unavailable tools when a non-Pi replacement commits", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		active.mu.Lock()
+		active.nativeToolsUnavailable = true
+		active.mu.Unlock()
+		plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active,
+			RuntimeSelection{Provider: "codex", Model: "gpt-6.1-sol"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot := active.runtimeBindingSnapshot()
+		if _, err := h.manager.replacePromptRuntime(t.Context(), active, &snapshot, plan); err != nil {
+			t.Fatal(err)
+		}
+		if active.NativeToolsUnavailable() {
+			t.Fatal("non-Pi runtime retained failed Pi availability")
+		}
+	})
+
+	t.Run("Should rebuild from authored instructions on every Pi recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		const overlay = "Focus only on tests."
+		active, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Name: "session", Workspace: h.workspaceID, PromptOverlay: overlay,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		original := active.AgentDefinition()
+		for attempt := range 3 {
+			prior := active.AgentDefinition()
+			prior.Prompt = original.Prompt + "\nPreviously assembled native tool instructions."
+			active.setAgentDefinition(prior, acp.OpaqueStartupManifest(prior.Prompt, false))
+			plan, err := h.manager.preparePromptRuntimePlan(
+				t.Context(),
+				active,
+				RuntimeSelection{Provider: "pi", Model: "test-model"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			startOpts := acp.StartOpts{Command: "pi-acp", Cwd: t.TempDir()}
+			if attempt > 0 {
+				startOpts.MCPServers = []compozyconfig.MCPServer{{Command: "unused-test-command"}}
+			}
+			opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, startOpts)
+			if attempt > 0 {
+				config := readProviderJSON[piBridgeConfig](t, envValue(opts.Env, piBridgeConfigEnv))
+				status := piBridgeStatus{Nonce: config.Nonce, Code: "pi_native_tools_connection_failed"}
+				if attempt == 2 {
+					status.Code, status.Count = "ready", 4
+				}
+				if err := writeProviderJSON(config.Status, status); err != nil {
+					t.Fatal(err)
+				}
+			}
+			prompt, _, err := opts.FinalizeStartup(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if active.AgentDefinition().Prompt != prompt {
+				t.Fatal("stored session definition differs from finalized guidance")
+			}
+			if !strings.HasPrefix(prompt, original.Prompt) || strings.Count(prompt, overlay) != 1 ||
+				strings.Contains(prompt, "Previously assembled") || active.NativeToolsUnavailable() != (attempt != 2) {
+				t.Fatalf("recovery retained stale guidance: %q", prompt)
+			}
+		}
+	})
+}

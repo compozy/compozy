@@ -59,6 +59,7 @@ func sessionStartSpecFromMeta(
 	}
 	if spec.creationProfile != nil {
 		spec.runtimeMode = spec.creationProfile.RuntimeMode
+		spec.promptOverlay = spec.creationProfile.PromptOverlay
 		spec.allowedToolsOverride = append([]string(nil), spec.creationProfile.AllowedTools...)
 		spec.deniedToolsOverride = append([]string(nil), spec.creationProfile.DeniedTools...)
 	}

@@ -476,6 +476,27 @@ secret_env = { GITHUB_TOKEN = "env:GITHUB_TOKEN" }
 
 Only non-empty scalar fields replace the built-in values. MCP servers merge by `name`.
 
+## Native tools in Pi sessions
+
+CompozyOS loads a session-specific extension into `pi_acp` through Pi's `--extension`
+option. The extension registers the session-bound hosted MCP server with Pi's native
+MCP client. Pi must provide `registerMcpServer` and native MCP support (verified with
+Pi 1.4.0). Older versions remain usable with CLI guidance and a typed
+`pi_native_tools_unsupported` runtime warning.
+
+The extension is embedded and versioned with the CompozyOS binary; startup does not
+download an MCP adapter. The launch layer preserves `PI_ACP_PI_COMMAND` and the
+provider's selected native authentication directory. It does not edit the operator's
+Pi settings or copy login credentials. Bound-secret providers retain their private
+CompozyOS-managed `PI_CODING_AGENT_DIR`.
+
+Before delivering the first prompt, CompozyOS checks that Pi registered discoverable
+tools. A missing extension or failed connection emits a `pi_native_tools_*` runtime
+warning and selects CLI guidance. Use the returned Pi tool names, which include an
+MCP namespace; `compozy__*` remains the canonical registry ID. Upgrading Pi or pi-acp
+does not bypass this readiness check. CompozyOS owns MCP delivery for these sessions,
+so the ACP adapter does not also receive the same hosted server.
+
 ## Configure wrapped API-key providers
 
 OpenRouter, z.ai, Moonshot/Kimi, Vercel AI Gateway, and xAI are built-in wrapped providers. Operators select them directly, and CompozyOS uses Pi only as the underlying ACP

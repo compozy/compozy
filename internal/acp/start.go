@@ -147,6 +147,17 @@ func (d *Driver) startSessionAttempt(ctx context.Context, normalized StartOpts) 
 	if err := d.negotiateSession(ctx, process, normalized); err != nil {
 		return process, err
 	}
+	if normalized.FinalizeStartup != nil {
+		prompt, manifest, err := normalized.FinalizeStartup(ctx)
+		if err != nil {
+			return process, WrapAcceptedStart(process.SessionID,
+				WrapFailure(store.FailureStartup, "runtime tool readiness failed", err))
+		}
+		process.systemPromptMu.Lock()
+		process.systemPrompt = prompt
+		process.startupManifest = CloneStartupManifest(manifest)
+		process.systemPromptMu.Unlock()
+	}
 	return process, nil
 }
 

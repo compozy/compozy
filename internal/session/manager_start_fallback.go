@@ -165,8 +165,10 @@ func (m *Manager) prepareFallbackStartRuntime(
 			return sessionStartRuntime{}, err
 		}
 	}
-	if err := m.assembleAcceptedStartupDefinition(ctx, spec, &runtime, m.now()); err != nil {
-		return sessionStartRuntime{}, startupFailure("session runtime preparation failed", err)
+	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP {
+		if err := m.assembleAcceptedStartupDefinition(ctx, spec, &runtime, m.now()); err != nil {
+			return sessionStartRuntime{}, startupFailure("session runtime preparation failed", err)
+		}
 	}
 	runtime.mcpServers, err = m.sessionMCPServers(ctx, spec, runtime.agent, runtime.agentDef)
 	if err != nil {

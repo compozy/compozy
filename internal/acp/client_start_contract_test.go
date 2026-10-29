@@ -892,6 +892,26 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 	t.Parallel()
 
+	t.Run("Should retain acceptance when startup finalization fails", func(t *testing.T) {
+		t.Parallel()
+		cause := errors.New("startup assembly failed")
+		driver := New()
+		proc, err := driver.Start(t.Context(), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnv("initialize_contract", ""),
+			FinalizeStartup: func(context.Context) (string, StartupManifest, error) { return "", StartupManifest{}, cause },
+		})
+		if proc != nil {
+			t.Fatal("failed startup retained a process")
+		}
+		id, accepted := AcceptedSessionID(err)
+		if !accepted || id != "sess-new" || !errors.Is(err, cause) {
+			t.Fatalf("finalizer failure lost acceptance or cause: %v (%s)", err, id)
+		}
+	})
+
 	t.Run("Should carry the accepted session id through failed-start cleanup", func(t *testing.T) {
 		t.Parallel()
 
@@ -2149,6 +2169,33 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		}
 		if proc.claudeTasks.enabled.Load() {
 			t.Fatal("non-Claude process accepts Claude task messages")
+		}
+	})
+}
+
+func TestStartFinalizesRuntimeGuidance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver finalized guidance on the first prompt", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			SystemPrompt: "unconfirmed tools",
+			FinalizeStartup: func(context.Context) (string, StartupManifest, error) {
+				return "confirmed runtime guidance", OpaqueStartupManifest("confirmed runtime guidance", false), nil
+			},
+		})
+		defer stopProcess(t, driver, proc)
+		text, included, _ := proc.nextPromptText("hello", false)
+		if !included || strings.Contains(text, "unconfirmed tools") ||
+			!strings.Contains(text, "confirmed runtime guidance") {
+			t.Fatalf("first prompt = %q", text)
+		}
+		proc.systemPromptMu.Lock()
+		manifest := CloneStartupManifest(proc.startupManifest)
+		proc.systemPromptMu.Unlock()
+		if len(manifest.Spans) != 1 || manifest.Spans[0].Key != "system_prompt" ||
+			manifest.Spans[0].Bytes != int64(len("confirmed runtime guidance")) {
+			t.Fatalf("finalized manifest = %#v", manifest)
 		}
 	})
 }

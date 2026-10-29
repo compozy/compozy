@@ -767,3 +767,33 @@ func TestSoulPromptIgnoresRetiredMemoryPolicy(t *testing.T) {
 		}
 	})
 }
+
+func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
+	t.Parallel()
+	t.Run("Should omit native tool and skill instructions while preserving the authored prompt", func(t *testing.T) {
+		t.Parallel()
+		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("<native-skill-catalog>"), nil)
+		descriptors = append(descriptors, PromptSectionDescriptor{
+			Name: "tools", Position: PromptSectionPositionAppend,
+			Provider: staticPromptProvider("Custom CLI workflow: compozy session list"),
+		})
+		assembler := NewComposedAssembler(WithPromptSectionDescriptors(descriptors...))
+		prompt, _, err := assembler.AssembleStartupWithManifest(
+			t.Context(),
+			session.StartupPromptContext{NativeToolsUnavailable: true},
+			testPromptAgent("authored work"),
+			&workspacepkg.ResolvedWorkspace{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(prompt, "Required Reading Router") || strings.Contains(prompt, "<native-skill-catalog>") ||
+			strings.Contains(prompt, "# Native Tools") || strings.Contains(prompt, "# Tools And Skills") ||
+			!strings.Contains(prompt, "authored work") ||
+			!strings.Contains(prompt, "Custom CLI workflow: compozy session list") ||
+			!strings.Contains(prompt, "CLI, HTTP, or UDS") ||
+			!strings.Contains(prompt, "compozy session status <session-id>") {
+			t.Fatalf("fallback prompt = %q", prompt)
+		}
+	})
+}

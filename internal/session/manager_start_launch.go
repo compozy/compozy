@@ -46,6 +46,7 @@ func (m *Manager) prepareSessionLaunch(
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
+	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
 			return acp.StartOpts{}, err
