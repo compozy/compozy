@@ -111,6 +111,32 @@ describe("useSessionTopbarSlot", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  // Invariant: an external lifecycle change invalidates a pending stop confirmation.
+  // Owner: session lifecycle header; canonical suite: use-session-topbar-slot.
+  it("Should require a new confirmation after a stopped session becomes active again", () => {
+    const onStop = vi.fn();
+    const { rerender } = renderWithTopbar(<SessionPublisher onStop={onStop} hasLiveGoal />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    expect(screen.getByRole("dialog", { name: "Stop this session?" })).toBeInTheDocument();
+
+    rerender(
+      <SessionPublisher
+        onStop={onStop}
+        hasLiveGoal
+        session={{ ...primarySessionFixture, state: "stopped" }}
+      />
+    );
+    expect(screen.queryByRole("dialog", { name: "Stop this session?" })).not.toBeInTheDocument();
+    rerender(<SessionPublisher onStop={onStop} hasLiveGoal />);
+    expect(screen.queryByRole("dialog", { name: "Stop this session?" })).not.toBeInTheDocument();
+    expect(onStop).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop this session?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Stop session" }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
   // Invariant: an unread Goal never bypasses session-stop confirmation.
   // Owner: session lifecycle header; canonical suite: use-session-topbar-slot.
   it("Should explain conditional Goal pause while its presence is unknown", () => {
@@ -134,6 +160,8 @@ describe("useSessionTopbarSlot", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
     const dialog = screen.getByRole("dialog", { name: "Stop this session?" });
     expect(dialog).toHaveTextContent("Any active goal will be paused");
+    expect(dialog).toHaveTextContent("Sending a message reopens the session.");
+    expect(dialog).not.toHaveTextContent("Resume goal");
     expect(onStop).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Keep working" }));
     expect(onStop).not.toHaveBeenCalled();

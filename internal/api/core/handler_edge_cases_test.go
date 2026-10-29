@@ -298,6 +298,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 	}
 	replaceRequired := session.GoalReasonReplaceRequired
 	replaceStale := session.GoalReasonReplaceStale
+	controlStale := session.GoalReasonCode(contract.GoalReasonControlStale)
 	notActive := session.GoalReasonNotActive
 	invalid := session.GoalReasonCommandInvalid
 	tests := []struct {
@@ -364,6 +365,13 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 				ReasonCode: &replaceStale,
 				Snapshot:   snapshot,
 			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			// Invariant: stale controls keep their typed conflict status without a success snapshot.
+			// Owner: HTTP Goal result conversion; canonical closed-outcome matrix.
+			name:       "Should map stale control to conflict",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &controlStale},
 			wantStatus: http.StatusConflict,
 		},
 		{

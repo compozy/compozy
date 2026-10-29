@@ -46,9 +46,7 @@ const NON_FAILURE_STOP_REASONS = new Set([
 
 /** The daemon's typed cancellation is a stop, including ACP request cancellation. */
 export function isSessionCancellationEvent(event: AgentEventPayload): boolean {
-  return (
-    event.type === "error" && event.failure?.kind === "cancellation" && !isProviderErrorEvent(event)
-  );
+  return event.type === "error" && event.failure?.kind === "cancellation" && !event.provider_error;
 }
 
 export function isSessionErrorEvent(event: AgentEventPayload): boolean {

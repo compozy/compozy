@@ -45,6 +45,9 @@ func (s *daemonLoopAPIService) pauseSessionGoal(
 	if post == nil {
 		post = snapshot
 	}
+	if post.RunID != snapshot.RunID {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
+	}
 	return goalCommandSuccessDecision(session.GoalOutcomePaused, post, nil), nil
 }
 
@@ -97,6 +100,9 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 			looppkg.ErrTransitionConflict,
 		)
 	}
+	if post.RunID != string(run.ID) {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
+	}
 	return goalCommandSuccessDecision(session.GoalOutcomeResumed, post, nil), nil
 }
 
@@ -144,6 +150,9 @@ func (s *daemonLoopAPIService) stopSessionGoal(
 	if post == nil {
 		// A concurrent Clear owns visibility after cancellation has committed.
 		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+	}
+	if post.RunID != snapshot.RunID {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
 	}
 	return goalCommandSuccessDecision(session.GoalOutcomeStopped, post, nil), nil
 }

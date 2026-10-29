@@ -43,9 +43,17 @@ function primaryAction(props: SessionPrimaryActionProps) {
 }
 
 export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
-  const [confirmStop, setConfirmStop] = useState(false);
   const action = primaryAction(props);
-  if (!action) return null;
+  return action ? (
+    <SessionPrimaryActionControl key={action.testId} {...props} action={action} />
+  ) : null;
+}
+
+function SessionPrimaryActionControl({
+  action,
+  ...props
+}: SessionPrimaryActionProps & { action: NonNullable<ReturnType<typeof primaryAction>> }) {
+  const [confirmStop, setConfirmStop] = useState(false);
   const Glyph = action.busy ? Spinner : action.Glyph;
   return (
     <>
@@ -81,7 +89,11 @@ export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
             ? "The current work will be interrupted and this session's goal will be paused."
             : "The current work will be interrupted. Any active goal will be paused."
         }
-        note="Sending a message reopens the session. The goal stays paused until you choose Resume goal."
+        note={
+          props.hasLiveGoal === true
+            ? "Sending a message reopens the session. The goal stays paused until you choose Resume goal."
+            : "Sending a message reopens the session."
+        }
         confirmLabel="Stop session"
         cancelLabel="Keep working"
         tone="warning"

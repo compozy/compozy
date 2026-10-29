@@ -87,6 +87,71 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: controls can acknowledge only their selected Run, never a concurrent replacement.
+	// Owner: daemon Goal command composition; canonical lifecycle suite.
+	for _, control := range []struct {
+		verb       string
+		beforeRead int
+		afterRead  int
+	}{
+		{verb: "stop", afterRead: 1},
+		{verb: "pause", beforeRead: 2},
+		{verb: "resume", beforeRead: 2},
+	} {
+		t.Run("Should report stale control when Replace races with "+control.verb, func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+			started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: "set", Objective: "Stop only this Goal"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			originalRunID := started.Result.Snapshot.RunID
+			if control.verb == "resume" {
+				paused, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+					caller, session.GoalCommand{Verb: "pause"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
+			}
+			var replacementRunID string
+			fixture.service.goalPersistence = &replaceAfterGoalProjection{
+				loopGoalAPIPersistence: fixture.service.goalPersistence,
+				beforeRead:             control.beforeRead,
+				afterRead:              control.afterRead,
+				replace: func(ctx context.Context) error {
+					replaced, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
+						caller, session.GoalCommand{Verb: "replace", ExpectedRunID: originalRunID,
+							Objective: "Preserve the replacement Goal"})
+					if err != nil {
+						return err
+					}
+					assertGoalCommandOutcome(t, replaced, session.GoalOutcomeReplaced, "")
+					replacementRunID = replaced.Result.Snapshot.RunID
+					return nil
+				},
+			}
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, result, session.GoalOutcomeError,
+				session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale))
+			if result.Result.Snapshot != nil {
+				t.Fatalf("stale control must not attach the replacement as its result: %#v", result.Result)
+			}
+			if _, err := core.GoalCommandResultPayloadFromSession(result.Result); err != nil {
+				t.Fatalf("invalid public conflict result: %v", err)
+			}
+			if run := fixture.mustRun(t, replacementRunID); run.Status != looppkg.StatusRunning {
+				t.Fatalf("control changed the replacement: %#v", run)
+			}
+		})
+	}
+
 	// Invariant: a Clear that wins after Stop commits remains the authoritative result.
 	// Owner: daemon command composition; canonical Goal lifecycle suite.
 	t.Run("Should return cleared when Clear wins after Stop cancels the run", func(t *testing.T) {
@@ -1368,6 +1433,30 @@ func (failingGoalContextEvents) Events(context.Context, string, store.EventQuery
 type clearCanceledGoalProjection struct {
 	loopGoalAPIPersistence
 	clear func(context.Context) error
+}
+
+type replaceAfterGoalProjection struct {
+	loopGoalAPIPersistence
+	replace    func(context.Context) error
+	reads      int
+	beforeRead int
+	afterRead  int
+}
+
+func (s *replaceAfterGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+	sessionID string) (goalpkg.SessionProjection, error) {
+	s.reads++
+	read := s.reads
+	if read == s.beforeRead {
+		if err := s.replace(ctx); err != nil {
+			return goalpkg.SessionProjection{}, err
+		}
+	}
+	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+	if err == nil && read == s.afterRead {
+		err = s.replace(ctx)
+	}
+	return projection, err
 }
 
 func (s clearCanceledGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,

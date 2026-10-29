@@ -114,6 +114,27 @@ The stopped response and CLI suites retain the snapshot audit fields. A determin
 also reproduced Pause winning before any prompt lease exists: preparation must reject the pending
 pause, and executor recovery settles its control boundary without creating a queued successor.
 
+Greptile's next review found a concurrent replacement race: Stop could cancel its original Run, read
+the replacement, and incorrectly acknowledge that new Goal as stopped. Stop now compares the final
+projection's RunID with its selected target and returns `goal_control_stale` (HTTP 409) if they differ.
+The same race reproduced for Pause and Resume, so both use the same identity check. The existing
+daemon lifecycle suite injects Replace after Stop's first read and before Pause/Resume's final read,
+verifies the conflict payload, and proves the replacement remains running. Clear winning Stop still
+returns cleared. The API outcome matrix explicitly verifies the 409 status without a success snapshot.
+The complete canonical daemon lifecycle suite and HTTP outcome matrix passed after this correction.
+The isolated public daemon lifecycle/restart scenario was then rerun and passed in 232 seconds.
+The separate daemon-only fast lint reported zero findings but exceeded its two-minute time limit;
+it is not counted as a completed lint gate. The preceding `40712f07c` CI Go format/lint check passed.
+
+The second CodeRabbit review also found a stale session-stop confirmation across an external
+stop/reopen cycle, unconditional Goal guidance when its presence is unknown, and cancellation
+classification hiding an unrecognized provider diagnostic. Confirmation state now belongs to the
+mounted primary action, the unknown-Goal note only explains reopening the session, and any attached
+provider error preserves failure classification. The two existing Web owner suites passed all 29
+tests; root Turborepo typecheck, changed-file lint, and React Doctor (22 files) passed. Turbo reported
+an environment cache I/O warning without failing either task. The known-live Goal states in the six
+real-app captures are unchanged.
+
 CI exposed Resume reading `COALESCE` timestamp text through an RFC3339-only parser. The owning SQLC
 query now returns the declared timestamp columns, letting the driver decode existing driver-written
 timestamps and canonical text losslessly. The reentry owner suite preserves nanosecond precision,
