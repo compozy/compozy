@@ -75,9 +75,20 @@ full release journey extends beyond this targeted walk.
 - `TestDaemonGoalControlHeldTurn`: all four public held-turn scenarios passed, including ordinary-message reopening and one explicit continuation.
 - `TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart`: all existing lifecycle, approval, removal, and restart scenarios passed.
 - Existing session, daemon, store, transport, parser, and typed CLI owner suites passed. The shared stop suite retained its original deadlines; an initial resource-contention timeout passed on the serial package rerun.
-- Root Turborepo Web tests and typecheck passed for the affected suites. React Doctor scanned 16 changed files: 93/100, no issues.
+- Root Turborepo Web tests and typecheck passed for the affected suites. The initial working-diff React Doctor scan missed a branch-level complexity warning caught by CI. After decomposing the primary control, the strict comparison against `main` scanned 18 files with no new issues.
 - `make codegen` regenerated the wire artifacts. Incidental Open Design bundle drift from the local Bun version was excluded.
-- The installed Go linter predates the repository Go version. The pinned type-aware attempt was stopped after exceeding its configured time budget; focused syntax lint and the current-head CI lane provide separate evidence. No full local gate was substituted.
+- The installed Go linter predates the repository Go version. The initial pinned type-aware attempt exceeded its time budget. CI identified an unused context parameter and a boolean simplification; after correction, the pinned `revive` and `staticcheck` checks passed for `internal/session` and `internal/daemon`. No full local gate was substituted.
+
+## Review follow-up
+
+Greptile identified Goal mutations exposed inside read-only transcripts. The header now receives
+the existing `readOnly` boundary, omits every mutation callback, and guards command dispatch while
+retaining state reads and Retry. The existing header suite exercises active, paused, approval, and
+terminal Goals in that mode; the two focused Web suites passed all 20 tests.
+
+The OpenAPI compatibility suite now explicitly admits the optional `pause_requested` and context
+`diagnostic` fields and the `stop`/`stopped` vocabulary additions. All historical required fields,
+types, and properties remain compared. Both canonical OpenAPI suites passed after this update.
 
 ## Limits
 

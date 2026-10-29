@@ -576,7 +576,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			assertEnumValues(
 				t,
 				propertySchema(t, goalResult, "outcome"),
-				"started", "replaced", "status", "paused", "resumed", "cleared", "error",
+				"started", "replaced", "status", "paused", "resumed", "stopped", "cleared", "error",
 			)
 			assertEnumValues(
 				t,

@@ -137,7 +137,11 @@ function latestPromptText(body: Record<string, unknown>): string {
     .join("\n");
 }
 
-function renderHeader(setComposerText = vi.fn(), sessionState: SessionState = "active") {
+function renderHeader(
+  setComposerText = vi.fn(),
+  sessionState: SessionState = "active",
+  readOnly = false
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -149,6 +153,7 @@ function renderHeader(setComposerText = vi.fn(), sessionState: SessionState = "a
         workspaceId={WORKSPACE_ID}
         sessionState={state}
         stopping={stopping}
+        readOnly={readOnly}
       />
     </QueryClientProvider>
   );
@@ -458,4 +463,37 @@ describe("SessionGoalHeader", () => {
       await waitFor(() => expect(operations).toEqual(["resume"]));
     }
   );
+
+  // Invariant: read-only transcripts expose Goal state and rereads, never Goal mutations.
+  // Owner: Goal header view-model; canonical suite: session-goal-header.
+  it("Should omit every Goal mutation in read-only mode while retaining state and Retry", async () => {
+    const { queryClient } = renderHeader(vi.fn(), "active", true);
+    await screen.findByRole("region", { name: "Goal status" });
+    const states: Partial<SessionGoalSnapshot>[] = [
+      {},
+      { status: "paused", run_status: "paused" },
+      { run_status: "needs-approval" },
+      { live: false, status: "complete", run_status: "done" },
+    ];
+    for (const state of states) {
+      visibleGoal = snapshot(state);
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey: sessionKeys.goal(WORKSPACE_ID, SESSION_ID),
+        });
+      });
+      expect(screen.getByRole("region", { name: "Goal status" })).toBeVisible();
+      expect(screen.queryByRole("group", { name: "Goal controls" })).not.toBeInTheDocument();
+    }
+    readFails = true;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.goal(WORKSPACE_ID, SESSION_ID) });
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't refresh the goal");
+    readFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(operations).toEqual([]);
+    expect(commands).toEqual([]);
+  });
 });

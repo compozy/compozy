@@ -35,9 +35,10 @@ export function useSessionGoalHeader(
     enabled?: boolean;
     sessionState?: SessionState;
     stopping?: boolean;
+    readOnly?: boolean;
   } = {}
 ) {
-  const { enabled = true, onPrefillComposer, stream = true } = options;
+  const { enabled = true, onPrefillComposer, stream = true, readOnly = false } = options;
   const queryClient = useQueryClient();
   const query = useSessionGoal(workspaceId, sessionId, enabled);
   const feedback = useSessionGoalFeedback(sessionId);
@@ -112,7 +113,7 @@ export function useSessionGoalHeader(
   });
 
   const command = (action: GoalControlAction) => {
-    if (submitting.current) return;
+    if (readOnly || submitting.current) return;
     if ((action === "resume" || action === "approve") && continuationDisabledReason) return;
     submitting.current = true;
     mutation.mutate(action);
@@ -141,15 +142,20 @@ export function useSessionGoalHeader(
       void query.refetch();
     },
     onApprove:
-      snapshot?.live && snapshot.run_status === "needs-approval"
+      !readOnly && snapshot?.live && snapshot.run_status === "needs-approval"
         ? () => command("approve")
         : undefined,
-    onClear: snapshot && !snapshot.live ? () => command("clear") : undefined,
-    onStop: snapshot?.live ? () => command("stop") : undefined,
-    onPause: snapshot?.live && snapshot.status === "active" ? () => command("pause") : undefined,
-    onPrefillComposer,
+    onClear: !readOnly && snapshot && !snapshot.live ? () => command("clear") : undefined,
+    onStop: !readOnly && snapshot?.live ? () => command("stop") : undefined,
+    onPause:
+      !readOnly && snapshot?.live && snapshot.status === "active"
+        ? () => command("pause")
+        : undefined,
+    onPrefillComposer: readOnly ? undefined : onPrefillComposer,
     onResume:
-      snapshot?.live && (snapshot.status === "paused" || snapshot.run_status === "paused")
+      !readOnly &&
+      snapshot?.live &&
+      (snapshot.status === "paused" || snapshot.run_status === "paused")
         ? () => command("resume")
         : undefined,
     pendingAction: mutation.isPending ? mutation.variables : undefined,

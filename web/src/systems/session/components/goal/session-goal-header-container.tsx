@@ -9,6 +9,7 @@ interface SessionGoalHeaderContainerProps {
   enabled?: boolean;
   sessionState?: SessionState;
   stopping?: boolean;
+  readOnly?: boolean;
 }
 
 export function SessionGoalHeaderContainer({
@@ -18,6 +19,7 @@ export function SessionGoalHeaderContainer({
   enabled = true,
   sessionState,
   stopping,
+  readOnly,
 }: SessionGoalHeaderContainerProps) {
   const goal = useSessionGoalHeader(workspaceId, sessionId, {
     enabled,
@@ -25,6 +27,7 @@ export function SessionGoalHeaderContainer({
     stream: enabled,
     sessionState,
     stopping,
+    readOnly,
   });
   return <SessionGoalHeader {...goal} />;
 }

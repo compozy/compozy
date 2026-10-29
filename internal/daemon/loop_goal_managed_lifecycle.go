@@ -273,7 +273,7 @@ func (l *loopGoalManagedInputLifecycle) loadOwnedOperation(
 		return managedGoalOperation{}, err
 	}
 	if !managedGoalCheckpointMatchesOwner(checkpoint, owner) &&
-		!(terminal && entry.TerminalReasonCode == string(looppkg.ReasonCodeGoalControlRevokedInFlight)) {
+		(!terminal || entry.TerminalReasonCode != string(looppkg.ReasonCodeGoalControlRevokedInFlight)) {
 		return managedGoalOperation{}, fmt.Errorf(
 			"%w: managed Goal checkpoint owner changed",
 			looppkg.ErrTransitionConflict,

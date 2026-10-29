@@ -37,7 +37,6 @@ func (m *Manager) finishManagedInputPrompt(
 	terminal, err := m.managedInputTerminal(ctx, session, execution.submission)
 	if err != nil {
 		m.recordManagedInputAmbiguous(
-			ctx,
 			execution.lifecycle,
 			execution.submission,
 			managedInputReasonRecoveryAmbiguous,
@@ -48,7 +47,6 @@ func (m *Manager) finishManagedInputPrompt(
 	}
 	if err := execution.lifecycle.RecordTerminal(ctx, terminal); err != nil {
 		m.recordManagedInputAmbiguous(
-			ctx,
 			execution.lifecycle,
 			execution.submission,
 			managedInputReasonRecoveryAmbiguous,

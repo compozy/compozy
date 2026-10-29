@@ -89,53 +89,75 @@ function primaryAction({
     : null;
 }
 
+type PrimaryGoalAction = NonNullable<ReturnType<typeof primaryAction>>;
+
+function GoalPrimaryControl({
+  primary,
+  pendingAction,
+  pauseRequested,
+  continuationDisabledReason,
+}: {
+  primary: PrimaryGoalAction;
+  pendingAction?: GoalControlAction;
+  pauseRequested: boolean;
+  continuationDisabledReason?: string;
+}) {
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const tooltipId = useId();
+  const disabledReason =
+    primary.action === "resume" || primary.action === "approve"
+      ? continuationDisabledReason
+      : undefined;
+  const pending = pendingAction === primary.action;
+  return (
+    <Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="sm"
+            variant={primary.action === "clear" ? "quiet" : "secondary"}
+            aria-disabled={disabledReason ? true : undefined}
+            aria-describedby={tooltipOpen ? tooltipId : undefined}
+            className="aria-disabled:text-subtle aria-disabled:hover:bg-surface-2"
+            disabled={pendingAction !== undefined || (primary.action === "pause" && pauseRequested)}
+            onClick={() => {
+              if (!disabledReason) primary.onAct();
+            }}
+            data-testid={`goal-control-${primary.action}`}
+          />
+        }
+      >
+        {pending ? (
+          <Spinner className="size-3" />
+        ) : (
+          <primary.Icon aria-hidden="true" className="size-3" />
+        )}
+        {pending ? primary.pending : primary.label}
+      </TooltipTrigger>
+      <TooltipContent role="tooltip" id={tooltipId}>
+        {disabledReason ?? primary.hint}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 /** Goal controls share their state and objective; stopping retains the run until explicitly cleared. */
 export function SessionGoalControls(props: SessionGoalControlsProps) {
   const [stopRunId, setStopRunId] = useState<string | null>(null);
-  const [tooltipOpen, setTooltipOpen] = useState(false);
-  const tooltipId = useId();
   const primary = primaryAction(props);
   const stoppable = props.snapshot?.live === true && props.onStop !== undefined;
   if (!primary && !stoppable) return null;
   const pending = props.pendingAction !== undefined;
-  const disabledReason =
-    primary?.action === "resume" || primary?.action === "approve"
-      ? props.continuationDisabledReason
-      : undefined;
   return (
     <div className="flex shrink-0 items-center gap-1" aria-label="Goal controls" role="group">
       {primary ? (
-        <Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
-          <TooltipTrigger
-            render={
-              <Button
-                type="button"
-                size="sm"
-                variant={primary.action === "clear" ? "quiet" : "secondary"}
-                aria-disabled={disabledReason ? true : undefined}
-                aria-describedby={tooltipOpen ? tooltipId : undefined}
-                className="aria-disabled:text-subtle aria-disabled:hover:bg-surface-2"
-                disabled={
-                  pending || (primary.action === "pause" && props.snapshot?.pause_requested)
-                }
-                onClick={() => {
-                  if (!disabledReason) primary.onAct();
-                }}
-                data-testid={`goal-control-${primary.action}`}
-              />
-            }
-          >
-            {props.pendingAction === primary.action ? (
-              <Spinner className="size-3" />
-            ) : (
-              <primary.Icon aria-hidden="true" className="size-3" />
-            )}
-            {props.pendingAction === primary.action ? primary.pending : primary.label}
-          </TooltipTrigger>
-          <TooltipContent role="tooltip" id={tooltipId}>
-            {disabledReason ?? primary.hint}
-          </TooltipContent>
-        </Tooltip>
+        <GoalPrimaryControl
+          primary={primary}
+          pendingAction={props.pendingAction}
+          pauseRequested={props.snapshot?.pause_requested === true}
+          continuationDisabledReason={props.continuationDisabledReason}
+        />
       ) : null}
       {stoppable ? (
         <Button

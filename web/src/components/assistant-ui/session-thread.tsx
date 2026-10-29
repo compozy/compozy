@@ -194,6 +194,7 @@ export function SessionThread({
                         workspaceId={workspaceId}
                         sessionState={sessionState}
                         stopping={stopPhase === "stopping"}
+                        readOnly={readOnly}
                       />
                     </ThreadContentRail>
                   ) : null}
