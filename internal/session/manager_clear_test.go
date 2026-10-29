@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
@@ -53,6 +55,9 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			}
 		})
 
+		if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
+			t.Fatal(err)
+		}
 		if got, want := cleared.ID, session.ID; got != want {
 			t.Fatalf("cleared.ID = %q, want %q", got, want)
 		}
@@ -110,6 +115,139 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			if strings.Contains(event.Content, "before clear") {
 				t.Fatalf("stored event content still contains cleared prompt: %s", event.Content)
 			}
+		}
+	})
+
+	t.Run("Should advance durable epochs across repeated clears and stopped reads", func(t *testing.T) {
+		t.Parallel()
+		database, err := openSessionTestGlobalDB(t.Context(), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := database.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		h := newHarness(t, WithSessionCatalog(database))
+		if err := database.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: h.workspaceID, Name: "clear", RootDir: h.workspace,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		active := createSession(t, h)
+		for want := int64(1); want <= 2; want++ {
+			cleared, err := h.manager.ClearConversation(t.Context(), active.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := waitForSessionStartRun(t.Context(), h.manager.sessionStartRun(cleared.ID)); err != nil {
+				t.Fatal(err)
+			}
+			epoch, err := database.SessionTranscriptEpoch(t.Context(), cleared.ID)
+			if err != nil || epoch != want {
+				t.Fatalf("durable epoch = %d, %v; want %d", epoch, err, want)
+			}
+		}
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		info, err := h.manager.Status(t.Context(), active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.TranscriptEpoch != 2 {
+			t.Fatalf("stopped transcript epoch = %d, want 2", info.TranscriptEpoch)
+		}
+	})
+
+	t.Run("Should commit clear and serve empty reads while provider startup is blocked", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.attentionStore = newPresenceAttentionStore()
+		active := createSession(t, h)
+		events, err := h.manager.Prompt(t.Context(), active.ID, "before clear")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		leaseID, err := h.manager.SessionPresence(t.Context(), active.ID, "", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		entered, release := make(chan struct{}), make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			close(entered)
+			select {
+			case <-release:
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cleared"), nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		type clearResult struct {
+			session *Session
+			err     error
+		}
+		clearDone := make(chan clearResult, 1)
+		go func() {
+			cleared, clearErr := h.manager.ClearConversation(ctx, active.ID)
+			clearDone <- clearResult{session: cleared, err: clearErr}
+		}()
+		var cleared *Session
+		select {
+		case result := <-clearDone:
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			cleared = result.session
+		case <-time.After(5 * time.Second):
+			t.Fatal("clear waited for blocked provider startup")
+		}
+		cancel()
+		select {
+		case <-entered:
+		case <-t.Context().Done():
+			t.Fatal("provider did not start")
+		}
+		if cleared.Info().State != StateStarting {
+			t.Fatalf("state = %s", cleared.Info().State)
+		}
+		readCtx, cancelRead := context.WithTimeout(t.Context(), time.Second)
+		defer cancelRead()
+		page, err := h.manager.TranscriptPage(readCtx, cleared.ID, transcript.PageQuery{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Entries) != 0 {
+			t.Fatalf("entries = %#v", page.Entries)
+		}
+		outline, err := h.manager.TranscriptOutline(readCtx, cleared.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(outline.Entries) != 0 {
+			t.Fatalf("outline = %#v", outline.Entries)
+		}
+		promptCtx, cancelPrompt := context.WithTimeout(t.Context(), time.Second)
+		defer cancelPrompt()
+		if _, err := h.manager.Prompt(promptCtx, cleared.ID, "too early"); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Prompt(starting) = %v", err)
+		}
+		if _, err := h.manager.SessionPresence(t.Context(), cleared.ID, leaseID, true); err != nil {
+			t.Fatal(err)
+		}
+		run := h.manager.sessionStartRun(cleared.ID)
+		unblock()
+		if err := waitForSessionStartRun(t.Context(), run); err != nil {
+			t.Fatal(err)
+		}
+		if cleared.Info().State != StateActive {
+			t.Fatalf("state = %s", cleared.Info().State)
 		}
 	})
 
@@ -464,6 +602,71 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 		}
 		if countEventType(stored, EventTypeSessionStopped) == 0 {
 			t.Fatalf("restored stopped history lost terminal event: %#v", stored)
+		}
+	})
+
+	t.Run("Should retain the committed empty history and a recoverable startup failure", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		events, err := h.manager.Prompt(t.Context(), active.ID, "discarded conversation")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		release := make(chan struct{})
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		failure := errors.New("provider unavailable")
+		h.driver.startContextHook = func(ctx context.Context, _ acp.StartOpts, _ int) (*fakeProcess, error) {
+			select {
+			case <-release:
+				return nil, failure
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		cleared, err := h.manager.ClearConversation(t.Context(), active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run := h.manager.sessionStartRun(cleared.ID)
+		unblock()
+		if err := waitForSessionStartRun(t.Context(), run); !errors.Is(err, failure) {
+			t.Fatalf("startup = %v", err)
+		}
+		meta := readMeta(t, cleared.metaPath)
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureStartup || meta.State != string(StateStopped) {
+			t.Fatalf("failed startup metadata = %#v", meta)
+		}
+		page, err := h.manager.TranscriptPage(t.Context(), cleared.ID, transcript.PageQuery{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range page.Entries {
+			for _, part := range entry.Message.Parts {
+				if part.Type != "data-compozy-event" {
+					t.Fatalf("restored conversational content after committed clear: %s", part.Type)
+				}
+				var payload transcript.UIAgentEventPayload
+				if err := json.Unmarshal(part.Data, &payload); err != nil {
+					t.Fatal(err)
+				}
+				switch payload.Type {
+				case acp.EventTypeError, EventTypeSessionStopped, "transcript_marker.created":
+					// Startup failure diagnostics belong to the new, cleared conversation.
+				default:
+					t.Fatalf("restored event after committed clear: %s", payload.Type)
+				}
+			}
+		}
+		h.driver.startContextHook = nil
+		resumed, err := h.manager.Resume(t.Context(), cleared.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resumed.ID != active.ID || resumed.Info().State != StateActive {
+			t.Fatalf("resumed = %#v", resumed.Info())
 		}
 	})
 

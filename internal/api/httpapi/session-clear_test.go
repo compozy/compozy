@@ -18,7 +18,7 @@ import (
 )
 
 func TestClearSessionConversationHandler(t *testing.T) {
-	t.Run("ShouldReturnTheClearedSession", func(t *testing.T) {
+	t.Run("Should return the committed clear epoch while the provider is starting", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
@@ -27,7 +27,10 @@ func TestClearSessionConversationHandler(t *testing.T) {
 				if id != "sess-123" {
 					t.Fatalf("ClearConversation() id = %q, want sess-123", id)
 				}
-				return newSession(id), nil
+				cleared := newSession(id)
+				cleared.State = session.StateStarting
+				cleared.TranscriptEpoch = 2
+				return cleared, nil
 			},
 		}
 		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
@@ -48,9 +51,12 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		if got, want := response.Session.ID, "sess-123"; got != want {
 			t.Fatalf("response.session.id = %q, want %q", got, want)
 		}
+		if response.Session.State != session.StateStarting || response.Session.TranscriptEpoch != 2 {
+			t.Fatalf("response.session = %#v, want starting with committed epoch 2", response.Session)
+		}
 	})
 
-	t.Run("ShouldReturnConflictWhenPromptIsInProgress", func(t *testing.T) {
+	t.Run("Should return conflict when a prompt is in progress", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)

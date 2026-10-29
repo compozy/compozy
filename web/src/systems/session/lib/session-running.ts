@@ -2,7 +2,7 @@ import type { SessionPayload } from "../types";
 
 const RUNNING_BADGES = new Set(["running"]);
 const NON_RUNNING_BADGES = new Set(["hung", "stopped", "unhealthy"]);
-const NON_RUNNING_STATES = new Set(["stopped"]);
+const NON_RUNNING_STATES = new Set(["starting", "stopped"]);
 const PUBLIC_SESSION_TYPES = new Set<NonNullable<SessionPayload["type"]>>([
   "user",
   "system",

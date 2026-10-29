@@ -320,12 +320,6 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
         history: queryClient.getQueryData(sessionKeys.history(mutateWorkspaceId, id)),
       };
 
-      queryClient.removeQueries({
-        queryKey: sessionKeys.transcript(mutateWorkspaceId, id),
-        exact: true,
-      });
-      queryClient.setQueryData(sessionKeys.history(mutateWorkspaceId, id), []);
-
       return snapshot;
     },
     onError: (_error, id, snapshot) => {
@@ -350,7 +344,11 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
     onSuccess: (session, id) => {
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, id), session);
-      queryClient.removeQueries({
+      queryClient.setQueryData(sessionKeys.transcript(workspaceId, id), {
+        pages: [],
+        pageParams: [],
+      });
+      void queryClient.invalidateQueries({
         queryKey: sessionKeys.transcript(workspaceId, id),
         exact: true,
       });
