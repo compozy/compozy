@@ -217,6 +217,14 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     expect(after.entries.map(entry => entry.message.id)).toEqual(
       before.entries.map(entry => entry.message.id)
     );
+    // The origin pill reopens the source, which still renders every turn.
+    await childWin.getByTestId("session-origin-pill").click();
+    await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
+    for (const entry of before.entries) {
+      await expect(
+        sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
+      ).toHaveCount(1);
+    }
   });
 
   await test.step("E2E-001: operator continues a session with another agent in a new window", async () => {
