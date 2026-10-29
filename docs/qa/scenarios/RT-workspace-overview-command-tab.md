@@ -110,3 +110,19 @@ remain actionable. The existing mixed-selection overview E2E owns this regressio
 
 Focused verification: the real-browser mobile drag/removal case failed on the old
 bundle and passed twice on the corrected production bundle (2026-10-29).
+
+## Overlay focus handoff regression (#1035)
+
+1. Open Projects with Cmd+Shift+O. Use End and Enter to open New project.
+   The incoming dialog owns focus immediately; the hidden menubar trigger must
+   not receive focus during the handoff. Cancel and reopen Projects.
+2. Focus a project tile and open its context menu. Focus must enter the menu before
+   the overview is hidden from assistive technology. Escape restores the tile.
+3. Open Archive project from that menu. Focus must enter the confirmation before
+   its originating surface becomes hidden. Cancel without archiving the project.
+4. Close Projects with Escape. Focus returns to the project menubar trigger.
+5. Observe focus transitions and the browser console throughout. No focused
+   descendant may belong to an aria-hidden/inert ancestor; modal isolation remains.
+
+Focused evidence and limits: [2026-10-29 overlay focus report](../reports/2026-10-29-overlay-focus-handoff.md).
+This focused regression does not supersede unrelated scenario verdicts above.

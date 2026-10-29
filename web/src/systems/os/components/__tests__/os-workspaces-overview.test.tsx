@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Dialog, DialogContent, DialogTitle } from "@compozy/ui";
 
 import type {
   WorkspacePayload,
@@ -136,6 +137,21 @@ function caption() {
 }
 
 describe("OsWorkspacesOverview", () => {
+  it("Should keep context-menu activation and confirmation keys out of the overview", async () => {
+    const user = userEvent.setup();
+    const callbacks = renderOverview();
+    fireEvent.contextMenu(screen.getByRole("option", { name: "compozy (current)" }));
+    await waitFor(() => expect(screen.getByRole("menu")).toHaveFocus());
+    await user.keyboard("{ArrowDown}{Enter}");
+    const dialog = await screen.findByRole("dialog", { name: "Archive compozy?" });
+    expect(dialog).toBeVisible();
+    expect(callbacks.onSelectWorkspace).not.toHaveBeenCalled();
+    expect(callbacks.onOpenChange).not.toHaveBeenCalled();
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(callbacks.onSelectWorkspace).not.toHaveBeenCalled();
+    expect(callbacks.onOpenChange).not.toHaveBeenCalled();
+  });
   beforeEach(() => vi.clearAllMocks());
 
   it("Should keep missing folders visible with history selection and lifecycle actions", async () => {
@@ -305,6 +321,66 @@ describe("OsWorkspacesOverview", () => {
       expect(screen.getByRole("button", { name: "Workspace menu" })).toHaveFocus()
     );
   });
+
+  it.each(["project", "worktree"] as const)(
+    "Should hand focus to %s creation without restoring the hidden menubar trigger",
+    async kind => {
+      const title = kind === "project" ? "Add project" : "Create worktree";
+      const user = userEvent.setup();
+      const hiddenFocus: Element[] = [];
+      const recordFocus = (event: FocusEvent) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest('[aria-hidden="true"], [inert]')) {
+          hiddenFocus.push(target);
+        }
+      };
+      function HandoffHarness() {
+        const [open, setOpen] = useState(true);
+        const [creating, setCreating] = useState(false);
+        return (
+          <>
+            <button type="button" data-slot="os-menubar-workspace">
+              Workspace menu
+            </button>
+            <OsWorkspacesOverview
+              open={open}
+              onOpenChange={setOpen}
+              workspaces={[COMPOZY]}
+              activeWorkspaceId={COMPOZY.id}
+              reducedMotion
+              onSelectWorkspace={vi.fn()}
+              onNewWorkspace={() => setCreating(true)}
+              onCreateWorktree={() => setCreating(true)}
+              onRemoveWorktrees={vi.fn()}
+              worktreesByWorkspace={{ [COMPOZY.id]: worktreeListingFixture }}
+            />
+            <Dialog open={creating} onOpenChange={setCreating}>
+              <DialogContent>
+                <DialogTitle>{title}</DialogTitle>
+              </DialogContent>
+            </Dialog>
+          </>
+        );
+      }
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HandoffHarness />
+        </QueryClientProvider>
+      );
+      document.addEventListener("focusin", recordFocus);
+      try {
+        if (kind === "worktree") await user.click(screen.getByText("Select worktrees…"));
+        await user.keyboard("{End}");
+        if (kind === "worktree")
+          expect(screen.getByRole("menuitem", { name: "New worktree" })).toHaveFocus();
+        await user.keyboard("{Enter}");
+        await waitFor(() => expect(screen.getByRole("dialog", { name: title })).toHaveFocus());
+        expect(hiddenFocus).toEqual([]);
+      } finally {
+        document.removeEventListener("focusin", recordFocus);
+      }
+    }
+  );
 
   it("Should wrap arrow focus across the strip and jump with Home/End", async () => {
     const user = userEvent.setup();

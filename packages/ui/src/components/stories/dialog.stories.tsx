@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useRef, useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
@@ -31,6 +32,47 @@ const meta: Meta<typeof Dialog> = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+function NestedFocusDialog() {
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button onClick={() => setOpen(true)}>Open projects</Button>
+      <DialogContent>
+        <DialogTitle>Projects</DialogTitle>
+        <DialogDescription>Manage your project.</DialogDescription>
+        <Button onClick={() => setConfirming(true)}>Archive project</Button>
+        <Dialog open={confirming} onOpenChange={setConfirming}>
+          <DialogContent initialFocus={cancelRef}>
+            <DialogTitle>Archive project?</DialogTitle>
+            <DialogDescription>Hide this project from navigation.</DialogDescription>
+            <DialogClose ref={cancelRef} render={<Button>Cancel</Button>} />
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** A nested modal takes focus before its parent becomes hidden to assistive technology. */
+export const NestedFocusHandoff: Story = {
+  tags: ["play-fn"],
+  render: () => <NestedFocusDialog />,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Open projects" }));
+    const page = within(document.body);
+    await userEvent.click(await page.findByRole("button", { name: "Archive project" }));
+    await waitFor(() => expect(page.getByRole("button", { name: "Cancel" })).toHaveFocus());
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(page.getByRole("button", { name: "Archive project" })).toHaveFocus()
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(page.getByRole("button", { name: "Open projects" })).toHaveFocus());
+  },
+};
 
 function BasicDialog() {
   return (

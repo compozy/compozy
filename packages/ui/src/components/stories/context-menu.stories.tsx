@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, waitFor, within } from "storybook/test";
+import { Dialog, DialogContent, DialogTitle } from "../dialog";
 
 import {
   ContextMenu,
@@ -29,6 +30,33 @@ const meta: Meta<typeof ContextMenu> = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+export const InsideDialog: Story = {
+  tags: ["play-fn"],
+  render: () => (
+    <Dialog defaultOpen>
+      <DialogContent>
+        <DialogTitle>Projects</DialogTitle>
+        <ContextMenu>
+          <ContextMenuTrigger tabIndex={0}>Project tile</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem>Archive project</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      </DialogContent>
+    </Dialog>
+  ),
+  play: async ({ userEvent }) => {
+    const body = within(document.body);
+    const trigger = await body.findByText("Project tile");
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveFocus();
+    trigger.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    await waitFor(() => expect(body.getByRole("menu").contains(document.activeElement)).toBe(true));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
 
 async function openContextMenu(
   canvasElement: HTMLElement,
