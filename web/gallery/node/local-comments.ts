@@ -14,18 +14,41 @@ import { findSpecs } from "./specs.ts";
 
 export const commentsDirectory = join(galleryRoot, "comments");
 
-function catalog() {
+type Catalog = {
+  specs: ReturnType<typeof findSpecs>;
+  prototypes: ReturnType<typeof findPrototypes>["entries"];
+  flows?: ReturnType<typeof findFlows>["flows"];
+};
+
+/**
+ * Discovery parses every prototype with the TypeScript compiler, and one store change checks its
+ * key several times; a result this young is reused. Kept short so a prototype just added is not
+ * rejected for long.
+ */
+const catalogTtlMs = 1000;
+let cached: { at: number; value: Catalog } | undefined;
+
+function catalog(): Catalog {
+  const now = Date.now();
+  if (cached && now - cached.at <= catalogTtlMs) return cached.value;
   const specs = findSpecs(repoRoot);
   const prototypes = findPrototypes(webRoot, repoRoot, specs).entries;
-  return { specs, prototypes };
+  cached = { at: now, value: { specs, prototypes } };
+  return cached.value;
+}
+
+function flowsOf(value: Catalog) {
+  value.flows ??= findFlows(webRoot, repoRoot, value.prototypes, value.specs).flows;
+  return value.flows;
 }
 
 export function assertCommentKey(key: string) {
   if (!keyPattern.test(key)) throw new CommentError(`Invalid comment key "${key}"`, 400);
-  const { specs, prototypes } = catalog();
+  const value = catalog();
+  const { prototypes } = value;
   const flow = flowOfKey(key);
   if (flow !== null) {
-    const flows = findFlows(webRoot, repoRoot, prototypes, specs).flows;
+    const flows = flowsOf(value);
     if (!flows.some(entry => entry.id === flow)) {
       throw new CommentError(`Unknown flow "${flow}"`, 404);
     }

@@ -22,10 +22,15 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
   const ref = useRef<HTMLIFrameElement>(null);
   const [initialSrc] = useState(src);
   const [loaded, setLoaded] = useState<Document | null>(null);
+  // Until a later `src` steers the frame, the iframe's own `src` attribute owns the navigation:
+  // redirecting from its initial about:blank would restart that load.
+  const steered = useRef(false);
 
   useEffect(() => {
     const view = ref.current?.contentWindow;
     if (!view) return;
+    if (!steered.current && src === initialSrc) return;
+    steered.current = true;
     const target = new URL(src, window.location.href);
     try {
       if (view.location.pathname !== target.pathname) {
@@ -38,7 +43,7 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
       // Still on the initial about:blank document: load the target instead.
       view.location.replace(target.href);
     }
-  }, [src]);
+  }, [src, initialSrc]);
 
   const report = useEffectEvent((doc: Document) => onInfo?.(infoOf(doc)));
 

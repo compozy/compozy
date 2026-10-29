@@ -18,11 +18,15 @@ export function isPrototypeModule(id: string) {
   return prototypeModule.test(id);
 }
 
+/** Module ids use forward slashes on every platform (Vite); so must the paths they meet. */
+export const posixPath = (path: string) => path.replaceAll("\\", "/");
+
 export function networkModuleMatcher(webRoot: string) {
-  const forbidden = new Set(networkModules.map(name => resolve(webRoot, "src/lib", name)));
+  const lib = posixPath(resolve(webRoot, "src/lib"));
+  const forbidden = new Set(networkModules.map(name => `${lib}/${name}`));
   return (id: string) =>
     forbidden.has(id) ||
-    (id.startsWith(resolve(webRoot, "src/lib")) && gatewayModule.test(id)) ||
+    (id.startsWith(`${lib}/`) && gatewayModule.test(id)) ||
     networkPackagePattern.test(id) ||
     networkPackageSpecifier.test(id);
 }
@@ -47,6 +51,8 @@ export function forbiddenChain(
 }
 
 export function violationMessage(chain: readonly string[], webRoot: string) {
-  const shown = chain.map(id => (id.startsWith("/") ? relative(webRoot, id) : id));
+  const shown = chain.map(id =>
+    id.startsWith("/") || /^[A-Za-z]:\//.test(id) ? posixPath(relative(webRoot, id)) : id
+  );
   return `api_client: ${shown[0]} reaches the daemon network layer: ${shown.join(" → ")}. Prototypes render views from fixtures; move data access to the route or hook that owns it.`;
 }

@@ -8,6 +8,7 @@ import {
   isPrototypeModule,
   networkModuleMatcher,
   networkPackageSpecifier,
+  posixPath,
   violationMessage,
 } from "../network-graph.ts";
 
@@ -56,7 +57,7 @@ export function networkGuard(webRootInput: string): Plugin {
   // Repository modules with an `import()` the graph cannot follow; reaching one counts as a
   // violation, like reaching the network layer. Third-party packages are out of scope.
   const computedImports = new Set<string>();
-  const sourceRoot = `${webRoot}/src/`;
+  const sourceRoot = `${posixPath(webRoot)}/src/`;
   let building = false;
 
   const check = (id: string) => {
@@ -68,8 +69,8 @@ export function networkGuard(webRootInput: string): Plugin {
     if (!chain) return undefined;
     const last = chain.at(-1)!;
     if (!computedImports.has(last)) return violationMessage(chain, webRoot);
-    const shown = chain.map(module => relative(webRoot, module)).join(" → ");
-    return `api_client: ${relative(webRoot, last)} has an import() with a computed specifier, which cannot be checked against the network layer (${shown}); import a literal path.`;
+    const shown = chain.map(module => posixPath(relative(webRoot, module))).join(" → ");
+    return `api_client: ${posixPath(relative(webRoot, last))} has an import() with a computed specifier, which cannot be checked against the network layer (${shown}); import a literal path.`;
   };
 
   return {

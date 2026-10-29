@@ -62,7 +62,8 @@ export function sourceTags(repoRoot: string): Plugin {
     transform: {
       filter: { id: /[\\/]web[\\/]src[\\/].+\.tsx$/ },
       handler(code, id) {
-        const file = relative(repoRoot, id.split("?")[0] ?? id);
+        // POSIX separators: tags and the location check read the same on Windows.
+        const file = relative(repoRoot, id.split("?")[0] ?? id).replaceAll("\\", "/");
         if (!file.startsWith("web/src/")) return null;
         const next = tagJsx(code, file);
         return next === null ? null : { code: next, map: null };
