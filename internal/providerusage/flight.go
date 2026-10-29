@@ -46,6 +46,7 @@ func explicitRecovery(provider string, e *UsageError) bool {
 		return provider == claudeProviderID
 	case ErrorCodeKeychainConsentRequired,
 		ErrorCodeKeychainDenied,
+		ErrorCodeKeychainReadTimeout,
 		ErrorCodeKeychainTokenExpired,
 		ErrorCodeAuthExpired,
 		ErrorCodeProviderRateLimited:

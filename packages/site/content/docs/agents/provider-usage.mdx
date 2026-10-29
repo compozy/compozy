@@ -110,7 +110,7 @@ want all limits side by side, for example before starting a long run.
 ## Step 5: Allow Claude on macOS
 
 On macOS, Claude Code usually keeps its login in the macOS Keychain instead of a file. CompozyOS
-reads the Keychain only with your consent and only when you ask for it. The **Allow** button and the
+reads the Keychain only with your consent. The **Allow** button and the
 **Claude Keychain access** setting appear only when the daemon runs on macOS. Until you allow it, the
 Claude row reads `Needs access`. Expand it to see:
 
@@ -121,26 +121,30 @@ Claude Code                                    • Needs access
 
 1. Click **Allow**. CompozyOS saves your consent (the **Claude Keychain access** switch in Settings)
    and the daemon refreshes Claude once.
-2. macOS asks whether `security` may use the confidential information stored in
+2. macOS may ask whether `security` may use the confidential information stored in
    `Claude Code-credentials` in your keychain. `security` is the macOS Keychain tool CompozyOS uses
-   for this one read.
+   to read the login.
 3. Click **Allow** to approve this read only, or **Always Allow** so later reads do not ask again.
    **Always Allow** lets any program on your Mac that runs `security` read that item without asking.
-   Choose **Allow** if you prefer macOS to ask each time.
+   Choose **Allow** to grant access only for this request.
 4. The Claude row fills in with Session, Weekly, and per-model weekly limits, plus Extra usage when
    your plan has it.
 
 What happens next:
 
-- The daemon keeps the Claude login in memory only, and uses it for background refreshes until it
-  expires, usually a few hours later. It never writes it to disk.
-- When it expires, the row reads `Refresh to reload your Claude login`. Click **Refresh** on the row
-  or **⟳** in the header. With **Always Allow** this is silent, otherwise macOS asks again.
-- Background refreshes never touch the Keychain and never show a macOS prompt.
-- After a daemon restart the login is gone from memory, so the row asks you to refresh
-  the login. Click **Refresh**; your consent is already saved.
-- If you click **Deny**, the row reads `Keychain access denied` with **Try again**. Nothing is
-  retried until you click it.
+- The daemon keeps the Claude login in memory only and never writes it to disk.
+- Background refreshes reuse the cached login. After expiry, an account change, or a daemon restart,
+  they can reload it through `security` after checking that the unlocked Keychain item already
+  trusts that tool, includes its `apple-tool:` partition, and does not require confirmation.
+  Claude Code token refreshes preserve this access, so they do not normally require another approval.
+- If those checks fail, the row reads `Keychain access denied` with **Try again**. Click it on the
+  host Mac to request authorization. Background refreshes do not attempt a secret read in that state.
+- If the item changes between the check and the read, macOS could briefly show a prompt. The daemon
+  stops a background read after 1.5 seconds and reports that authorization may have been required,
+  with **Refresh** for local recovery. This bounds the race; macOS does not offer this command a
+  flag that absolutely forbids a prompt.
+- Explicit **Refresh** uses `security` directly and may request authorization. If you click **Deny**,
+  the row reads `Keychain access denied` with **Try again**.
 - If Claude Code has no login in the Keychain, the row reads
   `Signed out · Sign in with Claude to read usage`. Run `claude`, sign in, then refresh.
 - If you sign in to Claude Code with another account, or sign out, CompozyOS drops the old login and
@@ -330,7 +334,7 @@ Agents read the same numbers with two native tools, in toolset `compozy__provide
 | `compozy__provider_usage_refresh` | `provider_ids`, `max_age_seconds` | Refreshes, waits up to 15 seconds, and returns the envelope.                                |
 
 An agent always works on its own session's profile. Its refreshes run in the background: they
-never read the Keychain, never show a prompt, and respect provider rate limits. An agent also cannot
+reuse the cached login or perform the consented background checks described above, and respect provider rate limits. An agent also cannot
 grant Keychain consent: the native config tools refuse
 `provider_usage.providers.claude.keychain_access`, so only you can turn it on, in Settings or with
 `compozy config set`.
@@ -349,22 +353,22 @@ The envelope and the settings response carry a read-only `keychain_supported` fl
 the daemon runs on macOS; clients use it to decide whether to offer **Allow**. A read filtered to one
 provider returns `tray: null`.
 
-Only the desktop app and the CLI on the daemon's own machine can make a refresh that reads the
-Keychain. Agents, paired remote devices, and app tokens always refresh in the background, and
+Only the desktop app and the CLI on the daemon's own machine can request interactive Keychain
+authorization. Agents, paired remote devices, and app tokens always refresh in the background, and
 app tokens from another origin cannot refresh at all. No route ever returns a credential. Request
 and response schemas: [Providers API](/docs/api/providers).
 
 ## Troubleshooting
 
-| Symptom                                                         | Fix                                                                                                             |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile. |
-| Claude row says `Signed out` right after **Allow**              | Claude Code has no login in the Keychain. Run `claude`, sign in, then refresh.                                  |
-| Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                      |
-| macOS prompt appears every few hours                            | Expected after **Allow**. Choose **Always Allow** to make later reads silent.                                   |
-| Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                      |
-| Numbers differ between two profiles                             | Expected. Each profile has its own logins and keys.                                                             |
-| `error: provider usage is turned off (provider_usage_disabled)` | Run `compozy config set provider_usage.enabled true`.                                                           |
+| Symptom                                                         | Fix                                                                                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile.         |
+| Claude row says `Signed out` right after **Allow**              | Claude Code has no login in the Keychain. Run `claude`, sign in, then refresh.                                          |
+| Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                              |
+| macOS prompt appears after each Claude token refresh            | Refresh once on the host Mac. CompozyOS reads through `security`, whose access survives the normal Claude Code rewrite. |
+| Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                              |
+| Numbers differ between two profiles                             | Expected. Each profile has its own logins and keys.                                                                     |
+| `error: provider usage is turned off (provider_usage_disabled)` | Run `compozy config set provider_usage.enabled true`.                                                                   |
 
 ## Related pages
 

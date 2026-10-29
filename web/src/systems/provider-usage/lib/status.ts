@@ -64,11 +64,11 @@ function describeNeedsConsent(
   options: DescribeStatusOptions
 ): ProviderUsageStatusPresentation {
   const code = target.error?.code;
-  if (code === "keychain_token_expired") {
+  if (code === "keychain_token_expired" || code === "keychain_read_timeout") {
     return presentation(
       "warning",
       "Needs refresh",
-      "Refresh to reload your Claude login",
+      messageOr(target, "Refresh to reload your Claude login"),
       REFRESH,
       "solid",
       options.remoteClient ? REMOTE_CONSENT_NOTE : null

@@ -15,7 +15,8 @@ func KeychainSupported() bool { return runtime.GOOS == "darwin" }
 const claudeProviderID = "claude"
 
 type KeychainReader interface {
-	// Read must never prompt when interactive is false.
+	// Background reads reject known prompting states and bound any check/read race.
+	// Explicit reads may request OS authorization.
 	Read(ctx context.Context, service, account string, interactive bool) ([]byte, error)
 }
 

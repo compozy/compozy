@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-10-24-issue-955.md
+last_report: reports/2026-10-29-issue-1023.md
 overlaps: APP-provider-usage-tray
 ---
 
@@ -29,11 +29,11 @@ not a completed operator walk.
 3. Connect SSE before refreshing. Capture `ready`, a subsequent `provider_usage_changed`, reconnect
    readiness and a changed boot ID after restarting the daemon. Frames contain revision metadata.
 4. Invoke both native tools from the non-default profile. Confirm background refresh cannot request
-   Keychain prompts or grant consent, and returned JSON excludes secrets and credential fingerprints.
+   interactive intent or grant consent, and returned JSON excludes secrets and credential fingerprints.
 5. On a non-default profile, turn Claude Keychain access on locally with the settings PATCH
    `collection_profile` selector, then off. Verify one explicit collection for that profile only,
-   credential invalidation on revocation, and only noninteractive Keychain reads for gateway/app-token/agent actions with existing consent.
-   After an OS denial, background ticks never prompt and recover if OS access becomes available.
+   credential invalidation on revocation, and metadata-gated Keychain reads for gateway/app-token/agent actions with existing consent.
+   After an OS denial, background ticks reject unsafe metadata and recover if OS access becomes available.
    After cached token expiry, reread the routed item: renewed credentials recover automatically;
    an actually expired native credential directs the operator to `claude /login`.
 6. Disable usage during a collection. Verify cancellation, the disabled envelope and refresh 409.
@@ -75,8 +75,8 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
 - Delete a custom provider with a saved usage toggle. The same config write removes its usage override.
 - When Cursor returns only auto/API percentages, the monthly total remains unknown, including 100/0.
 - Reload settings or change another section after enabling Claude Keychain access in config.
-  Neither action may prompt for Keychain access, even with an ordinary profile selector. A local usage PATCH with
-  the collection profile owns the initial consent collection; a cold restart offers explicit Refresh.
+  Neither action may request interactive Keychain authorization, even with an ordinary profile selector. A local usage PATCH with
+  the collection profile owns the initial consent collection; a cold restart uses the background metadata gate and offers explicit recovery if access is unavailable.
 - Create or delete a profile while credential resolution is slow. The mutation completes independently
   of usage reconciliation; queued events coalesce and daemon shutdown cancels and joins reconciliation.
 - Save a provider route after its startup collection finishes. Its old usage disappears and the
@@ -96,3 +96,23 @@ The profile mismatch was reproduced through the real HTTP middleware and repaire
 See [the run report](../reports/2026-10-24-issue-955.md) for evidence and limits. The broader scenario
 remains untested because packaged desktop, all transport/security variants, and forced native-token
 expiry were not part of this targeted walk.
+
+## Claude Keychain rewrite regression (#1023)
+
+- With existing consent and a fresh daemon cache, create a disposable generic-password item with
+  `/usr/bin/security`, read it through the background reader, then update its synthetic secret with
+  `add-generic-password -U ... -X` without `-T`. Both reads must succeed without a dialog.
+- Create a disposable item that trusts only another application. The background metadata preflight
+  must reject it as `needs_consent` / `keychain_denied` without launching `security -w`.
+- An explicit refresh uses `security` as the secret reader, so any authorization prompt belongs to
+  `security`, not osascript. The remaining osascript helper reads only metadata with UI disabled.
+- A background reader that exceeds 1.5 seconds is killed as a process group, publishes no partial
+  secret, and returns `needs_consent` / `keychain_read_timeout` with **Refresh**. The diagnostic must
+  remain visible in the expanded row. An item mutation between preflight and read can briefly
+  display a prompt before client termination; the timeout bounds this race, not macOS itself.
+- Delete every disposable item. Never mutate the operator's Claude item or use a real token as
+  test data. The widened-partition reset is established from Apple's `ItemImpl::updateSSGroup`
+  source; it does not require a human grant on this host.
+
+Targeted evidence: [issue-1023 report](../reports/2026-10-29-issue-1023.md). The broader scenario
+retains its existing status; unrelated transports and packaged-desktop journeys are not claimed.

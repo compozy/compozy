@@ -22,13 +22,17 @@ var errorDescriptions = map[ErrorCode]errorDescription{
 	},
 	ErrorCodeKeychainConsentRequired: {message: "Needs Keychain access", action: string(ActionAllowKeychain)},
 	ErrorCodeKeychainDenied:          {message: "Keychain access denied", action: string(ActionAllowKeychain)},
-	ErrorCodeKeychainTokenExpired:    {message: "Refresh to reload your Claude login", action: string(ActionRefresh)},
-	ErrorCodeProviderRateLimited:     {message: "Rate limited by %s", action: string(ActionRetry)},
-	ErrorCodeProviderUnavailable:     {message: "%s usage service is unavailable", action: string(ActionRetry)},
-	ErrorCodeNetworkError:            {message: "Couldn't reach %s", action: string(ActionRetry)},
-	ErrorCodeParseError:              {message: "Unexpected response from %s", action: string(ActionRetry)},
-	ErrorCodeNoCollector:             {message: "Usage not available for this provider", action: ""},
-	ErrorCodeNoPlan:                  {message: "No coding plan on this key", action: string(ActionConfigure)},
+	ErrorCodeKeychainReadTimeout: {
+		message: "Background Keychain read timed out; an authorization prompt may have been required",
+		action:  string(ActionRefresh),
+	},
+	ErrorCodeKeychainTokenExpired: {message: "Refresh to reload your Claude login", action: string(ActionRefresh)},
+	ErrorCodeProviderRateLimited:  {message: "Rate limited by %s", action: string(ActionRetry)},
+	ErrorCodeProviderUnavailable:  {message: "%s usage service is unavailable", action: string(ActionRetry)},
+	ErrorCodeNetworkError:         {message: "Couldn't reach %s", action: string(ActionRetry)},
+	ErrorCodeParseError:           {message: "Unexpected response from %s", action: string(ActionRetry)},
+	ErrorCodeNoCollector:          {message: "Usage not available for this provider", action: ""},
+	ErrorCodeNoPlan:               {message: "No coding plan on this key", action: string(ActionConfigure)},
 	ErrorCodeAuthStoreUnsupported: {
 		message: "Codex keeps its login in the system keyring; usage needs cli_auth_credentials_store = \"file\"",
 		action:  string(ActionConfigure),
@@ -83,7 +87,10 @@ func (e *UsageError) Status() Status {
 	switch e.Code {
 	case ErrorCodeAuthMissing, ErrorCodeAuthExpired, ErrorCodeAuthScope:
 		return StatusSignedOut
-	case ErrorCodeKeychainConsentRequired, ErrorCodeKeychainDenied, ErrorCodeKeychainTokenExpired:
+	case ErrorCodeKeychainConsentRequired,
+		ErrorCodeKeychainDenied,
+		ErrorCodeKeychainTokenExpired,
+		ErrorCodeKeychainReadTimeout:
 		return StatusNeedsConsent
 	case ErrorCodeProviderRateLimited:
 		return StatusRateLimited

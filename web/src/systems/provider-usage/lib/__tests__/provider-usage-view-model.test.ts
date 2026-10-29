@@ -212,6 +212,23 @@ describe("describeProviderUsageStatus (UT-063)", () => {
       "Try again",
     ],
     [
+      "keychain_read_timeout",
+      {
+        ...status.keychainDenied,
+        error: {
+          code: "keychain_read_timeout",
+          message:
+            "Background Keychain read timed out; an authorization prompt may have been required",
+          action: "refresh",
+          retry_after: null,
+        },
+      },
+      mac,
+      "Needs refresh",
+      "Background Keychain read timed out; an authorization prompt may have been required",
+      "Refresh",
+    ],
+    [
       "keychain_token_expired",
       status.keychainTokenExpired,
       mac,
