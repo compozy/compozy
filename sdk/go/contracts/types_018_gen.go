@@ -4,6 +4,16 @@ package contracts
 
 import "time"
 
+type SessionRuntimeRecoveryPayload struct {
+	Attempt       int        `json:"attempt"`
+	MaxAttempts   int        `json:"max_attempts"`
+	Generation    int64      `json:"generation"`
+	StartedAt     time.Time  `json:"started_at"`
+	LastAttemptAt time.Time  `json:"last_attempt_at"`
+	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
+	LastError     string     `json:"last_error,omitempty"`
+}
+
 type SessionRuntimeRecoveryStartedPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -108,6 +118,7 @@ type SessionStatusGetParams struct {
 }
 
 type SessionStatusResponse struct {
+	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
 	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
 	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
@@ -204,5 +215,3 @@ type SkillsListParams struct {
 	Workspace string `json:"workspace,omitempty"`
 	ForAgent  string `json:"for_agent,omitempty"`
 }
-
-type SourceKind string

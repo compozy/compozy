@@ -22,6 +22,29 @@ import (
 func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should remove an absent missing registration without filesystem or Git mutations", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		if err := os.RemoveAll(f.item.Path); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.store.SetState(t.Context(), f.workspace.ID, f.item.ID, StateMissing, f.item.UpdatedAt); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, true); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if f.mustItem(t).State != StateDismissed || len(f.runner.invocations()) != 0 ||
+			f.events.count(EventDismissed) != 1 {
+			t.Fatal("missing removal did not settle metadata exactly once")
+		}
+		if _, err := os.Lstat(f.item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("missing path = %v", err)
+		}
+	})
+
 	t.Run("Should run teardown before removal with the setup environment and redacted output", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)

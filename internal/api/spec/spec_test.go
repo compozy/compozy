@@ -3467,6 +3467,9 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
+	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
+
 	// #1005: lossless workspace archive metadata and typed busy blockers are additive.
 	if addWorkspaceArchiveSchemas(baseline) == 0 {
 		t.Fatal("no historical workspace/error schemas found")
@@ -4528,4 +4531,54 @@ func addSessionWorktreeBindingSchemas(value any) int {
 		count++
 	}
 	return count
+}
+
+// Missing-root reads add diagnostics without changing the retained payload contract.
+func addMissingWorkspaceDiagnosticsSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := map[string]any{}
+	for _, field := range []string{"category", "code", "data_freshness", "doc_url", "id", "message", "severity", "suggested_command", "title"} {
+		properties[field] = map[string]any{"type": "string"}
+	}
+	properties["evidence"] = map[string]any{"type": "object", "additionalProperties": map[string]any{}}
+	baseline["components"].(map[string]any)["schemas"].(map[string]any)["DiagnosticItem"] = map[string]any{
+		"type": "object", "properties": properties,
+		"required": []any{"category", "code", "data_freshness", "id", "message", "severity", "title"},
+	}
+	var walk func(any) int
+	walk = func(value any) int {
+		count := 0
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				count += walk(child)
+			}
+		case map[string]any:
+			for child := range maps.Values(node) {
+				count += walk(child)
+			}
+			props, ok := node["properties"].(map[string]any)
+			if !ok {
+				return count
+			}
+			sessionPayload := props["badge"] != nil && props["attachable"] != nil && props["workspace_id"] != nil &&
+				props["id"] != nil
+			sessionStatus := props["badge"] != nil && props["session_id"] != nil && props["eligible_for_wake"] != nil
+			agentCatalog := props["agents"] != nil && props["sessions_available"] != nil && props["facets"] != nil
+			if sessionPayload || sessionStatus || agentCatalog {
+				if props["diagnostics"] != nil {
+					t.Fatal("diagnostics already exists in historical payload")
+				}
+				props["diagnostics"] = map[string]any{
+					"type":  "array",
+					"items": map[string]any{"$ref": "#/components/schemas/DiagnosticItem"},
+				}
+				count++
+			}
+		}
+		return count
+	}
+	if walk(baseline) == 0 {
+		t.Fatal("no historical missing-workspace read schemas found")
+	}
 }

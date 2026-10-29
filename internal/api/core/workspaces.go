@@ -82,7 +82,19 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 
 // GetWorkspace returns one resolved workspace with related sessions, agents, and skills.
 func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
-	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRefFromRoute(c))
+	ref := workspaceRefFromRoute(c)
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		var registered workspacepkg.Workspace
+		registered, err = h.Workspaces.Get(c.Request.Context(), ref)
+		if errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			err = workspacepkg.ErrWorkspaceRootMissing
+		}
+		registered.RootMissing = true
+		resolved = workspacepkg.ResolvedWorkspace{
+			Workspace: registered, WorkspaceID: registered.ID, Scope: workspacepkg.ScopeWorkspace,
+		}
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
@@ -165,6 +177,10 @@ func (h *BaseHandlers) workspaceDetailAgentEntries(
 ) ([]AgentCatalogEntry, error) {
 	if resolved == nil {
 		return nil, errors.New("api: resolved workspace is required")
+	}
+
+	if resolved.RootMissing {
+		return nil, nil
 	}
 
 	merged := make(map[string]AgentCatalogEntry, len(resolved.Agents))

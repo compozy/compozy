@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 // Register persists a workspace registration hint and eagerly resolves it.
@@ -174,6 +176,13 @@ func (r *Resolver) Get(ctx context.Context, idOrNameOrPath string) (Workspace, e
 	}
 
 	ws, err := r.lookupWorkspace(ctx, idOrNameOrPath)
+	if errors.Is(err, ErrWorkspaceRootMissing) && filepath.IsAbs(strings.TrimSpace(idOrNameOrPath)) {
+		path, pathErr := fileutil.CanonicalPathWithExistingPrefix(strings.TrimSpace(idOrNameOrPath))
+		if pathErr != nil {
+			return Workspace{}, pathErr
+		}
+		ws, err = r.store.GetWorkspaceByPath(ctx, path)
+	}
 	if err != nil {
 		return Workspace{}, err
 	}

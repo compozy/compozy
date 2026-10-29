@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskDashboardQueuePayload struct {
+	Total                 int                              `json:"total"`
+	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
+	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
+	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
+	BacklogWarning        bool                             `json:"backlog_warning"`
+	BacklogStatus         string                           `json:"backlog_status"`
+	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
+}
+
 type TaskDashboardStatusBreakdownPayload struct {
 	Status       Status `json:"status"`
 	Count        int    `json:"count"`
@@ -230,10 +240,4 @@ type TaskRecoveredPayload struct {
 	Reason         string    `json:"reason,omitempty"`
 	Note           string    `json:"note,omitempty"`
 	At             time.Time `json:"at,omitzero"`
-}
-
-type TaskRecoveryTotals struct {
-	Requeued      int `json:"requeued"`
-	MarkedRunning int `json:"marked_running"`
-	Failed        int `json:"failed"`
 }

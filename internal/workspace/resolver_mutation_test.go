@@ -14,6 +14,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func TestResolveOrRegisterDiscoversBeforeRegistration(t *testing.T) {
@@ -812,7 +813,10 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 
 		ctx := t.Context()
 		healthyRoot := mustCanonicalRoot(t, t.TempDir())
-		missingRoot := removedWorkspaceRoot(t)
+		missingRoot, err := fileutil.CanonicalPathWithExistingPrefix(removedWorkspaceRoot(t))
+		if err != nil {
+			t.Fatal(err)
+		}
 		store := newMockWorkspaceStore(
 			Workspace{ID: "ws_healthy", RootDir: healthyRoot, Name: "healthy"},
 			Workspace{ID: "ws_missing", RootDir: missingRoot, Name: "missing"},
@@ -829,6 +833,21 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		}
 		if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
 			t.Fatalf("List() = %#v, want healthy and flagged missing workspaces", listed)
+		}
+		for _, ref := range []string{"ws_missing", "missing", missingRoot} {
+			registered, err := resolver.Get(ctx, ref)
+			if err != nil || registered.ID != "ws_missing" || !registered.RootMissing {
+				t.Fatalf("Get(%q) = %#v, %v", ref, registered, err)
+			}
+		}
+		if _, err := resolver.Get(
+			ctx,
+			filepath.Join(missingRoot, "unregistered"),
+		); !errors.Is(
+			err,
+			ErrWorkspaceNotFound,
+		) {
+			t.Fatalf("Get(unregistered missing path) = %v", err)
 		}
 		if _, err := store.GetWorkspace(ctx, "ws_missing"); err != nil {
 			t.Fatalf("GetWorkspace(retained) error = %v", err)

@@ -320,6 +320,12 @@
             },
             "type": "array"
           },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticItem"
+            },
+            "type": "array"
+          },
           "facets": {
             "$ref": "#/components/schemas/AgentCatalogFacetsPayload"
           },
@@ -24664,6 +24670,12 @@
               }
             ]
           },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticItem"
+            },
+            "type": "array"
+          },
           "effective_workspace_access": {
             "type": "string"
           },
@@ -25632,6 +25644,12 @@
                 "nullable": true
               }
             ]
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticItem"
+            },
+            "type": "array"
           },
           "eligible_for_wake": {
             "type": "boolean"

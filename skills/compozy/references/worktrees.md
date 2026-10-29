@@ -101,7 +101,10 @@ No upstream or PR is required for that evidence. Unique commits still require ex
 remote evidence reflects locally available refs, so fetch first if a recent landing is not visible.
 When dirty or unpushed work remains, the first remove call returns a machine-readable refusal; use
 `compozy worktree remove <ref> --force` only after reviewing it. Use `compozy worktree dismiss <ref>`
-to clear a retained tombstone after external deletion or an unrecoverable missing path. Every
+to clear a retained tombstone after external deletion or an unrecoverable missing path. `worktree remove` also accepts a
+`missing` record when its saved path is still absent and every bound session is archived. This
+metadata-only path runs no Git commands, hooks, or filesystem deletion; `--force` cannot override
+a reappeared path or a non-archived session. Historical attribution is retained as a dismissed record. Every
 worktree verb that takes `<ref>` accepts an ID or name. Dismissal keeps history addressable by the old
 ID while releasing the name for a new worktree; every non-dismissed row continues to reserve its name.
 Structured mutation receipts return the canonical ID after resolving a name. Because removal keeps

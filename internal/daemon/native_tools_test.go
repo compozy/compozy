@@ -15225,6 +15225,59 @@ func (s nativeProfileReaderStub) ListIdentities(ctx context.Context) ([]profilep
 	return profiles, nil
 }
 
+func TestNativeSessionMissingWorkspace(t *testing.T) {
+	t.Parallel()
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDSessionStatus, toolspkg.ToolIDSessionDescribe} {
+		t.Run("Should retain state and diagnostics for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			workspaces := nativeTestWorkspaceService(t)
+			workspaces.ResolveFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			}
+			manager := nativeTestSessionManager("ws-1")
+			status := manager.StatusFn
+			manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+				info, err := status(ctx, id)
+				if info != nil {
+					info.RuntimeStatus = session.RuntimeStatusUnbound
+				}
+				return info, err
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Workspaces: workspaces, Sessions: manager,
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(result.Structured)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response contract.SessionResponse
+			if err := json.Unmarshal(encoded, &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Session.ID != "sess-1" || len(response.Session.Diagnostics) != 1 ||
+				response.Session.Diagnostics[0].Code != "workspace_root_missing" {
+				t.Fatalf("session = %#v", response.Session)
+			}
+			for _, descriptor := range builtintools.NativeDescriptors() {
+				if descriptor.ID == toolID {
+					requireNativeOutputSchemaAccepts(t, descriptor, encoded)
+				}
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		})
+	}
+}
+
 func TestNativeArchiveRefusals(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
@@ -39,6 +40,7 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}
+	h.decorateMissingSessionWorkspaces(ctx, payloads)
 	h.decorateMonitorSummaries(payloads)
 	return h.decorateSessionOwners(ctx, payloads)
 }
@@ -82,4 +84,27 @@ func SessionPayloadsWithPageHealth(
 		payloads = append(payloads, payload)
 	}
 	return payloads, nil
+}
+
+// decorateMissingSessionWorkspaces uses one registration read for the entire page.
+func (h *BaseHandlers) decorateMissingSessionWorkspaces(ctx context.Context, payloads []contract.SessionPayload) {
+	if len(payloads) == 0 || h.Workspaces == nil {
+		return
+	}
+	workspaces, err := h.Workspaces.List(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "session catalog workspace diagnostics unavailable", "error", err)
+		return
+	}
+	missing := make(map[string]bool)
+	for _, workspace := range workspaces {
+		if workspace.RootMissing {
+			missing[workspace.ID] = true
+		}
+	}
+	for index := range payloads {
+		if missing[payloads[index].WorkspaceID] {
+			payloads[index].Diagnostics = MissingWorkspaceDiagnostics(payloads[index].WorkspaceID)
+		}
+	}
 }

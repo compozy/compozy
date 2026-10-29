@@ -98,6 +98,7 @@ export type AgentCatalogItemPayload = {
 
 export type AgentCatalogResponse = {
   agents: Array<AgentCatalogItemPayload>;
+  diagnostics?: Array<DiagnosticItem>;
   facets: AgentCatalogFacetsPayload;
   page: CountedCursorPagePayload;
   sessions_available: boolean;
@@ -6731,6 +6732,7 @@ export type SessionPayload = {
   children?: SessionChildrenPayload | null;
   created_at: string;
   derivation?: SessionDerivationPayload | null;
+  diagnostics?: Array<DiagnosticItem>;
   effective_workspace_access: string;
   escalated?: boolean | null;
   failure?: SessionFailurePayload | null;
@@ -6962,6 +6964,7 @@ export type SessionStatusResponse = {
     | "needs-attention"
     | "waiting";
   derivation?: SessionDerivationPayload | null;
+  diagnostics?: Array<DiagnosticItem>;
   eligible_for_wake: boolean;
   escalated?: boolean | null;
   health: "healthy" | "degraded" | "stale" | "dead" | "unknown";

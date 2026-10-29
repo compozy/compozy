@@ -32,6 +32,7 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		return
 	}
 	response := contract.SessionStatusResponse{
+		Diagnostics:         MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing")),
 		LifecycleState:      health.LifecycleState,
 		Verified:            health.Verified,
 		Escalated:           health.Escalated,
@@ -72,7 +73,7 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		}
 		response.PendingInteractions = PendingInteractionPayloadsFromStore(interactions)
 	}
-	if h.HeartbeatStatus != nil {
+	if h.HeartbeatStatus != nil && len(response.Diagnostics) == 0 {
 		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, false)
 		if err != nil {
 			h.respondError(c, StatusForHeartbeatError(err), err)
@@ -100,7 +101,15 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		SessionID: health.SessionID,
 		Health:    health,
 	}
-	if h.HeartbeatStatus != nil {
+	if diagnostics := MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing")); len(diagnostics) > 0 {
+		for _, diagnostic := range diagnostics {
+			response.Diagnostics = append(response.Diagnostics, contract.AuthoredContextDiagnosticPayload{
+				Code: diagnostic.Code, Severity: contract.AuthoredDiagnosticWarning,
+				Message: diagnostic.Message,
+			})
+		}
+	}
+	if h.HeartbeatStatus != nil && len(response.Diagnostics) == 0 {
 		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, true)
 		if statusErr != nil {
 			h.respondError(c, StatusForHeartbeatError(statusErr), statusErr)
@@ -114,10 +123,9 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		}
 	}
 	if includeEvents {
-		target, targetErr := h.resolveAuthoredAgentTargetForSession(c.Request.Context(), info)
-		if targetErr != nil {
-			h.respondError(c, StatusForHeartbeatError(targetErr), targetErr)
-			return
+		// Wake history is durable metadata owned by the authorized session.
+		target := authoredAgentTarget{
+			profileID: info.ProfileID, sessionWorkspaceID: info.WorkspaceID, agentName: info.AgentName,
 		}
 		events, eventsErr := h.heartbeatWakeEvents(c.Request.Context(), target, health.SessionID)
 		if eventsErr != nil {

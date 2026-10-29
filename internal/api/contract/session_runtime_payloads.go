@@ -77,6 +77,7 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
+	Diagnostics              []DiagnosticItem                     `json:"diagnostics,omitempty"`
 	WorktreeBinding          *session.WorktreeBindingAvailability `json:"worktree_binding,omitempty"`
 	Branch                   string                               `json:"branch,omitempty"`
 	PullRequest              *SessionPullRequestPayload           `json:"pull_request"`

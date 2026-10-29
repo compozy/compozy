@@ -42,6 +42,9 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if resolved.RootMissing {
+		payload.Diagnostics = core.MissingWorkspaceDiagnostics(resolved.ID)
+	}
 	owned, err := core.SessionPayloadsWithProfileOwners(ctx, []contract.SessionPayload{payload}, n.deps.Profiles)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -372,6 +375,9 @@ func (n *daemonNativeTools) sessionDescribe(
 	payload, err := core.SessionPayloadWithQueue(ctx, n.deps.Sessions, info)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if resolved.RootMissing {
+		payload.Diagnostics = core.MissingWorkspaceDiagnostics(resolved.ID)
 	}
 	return structuredResult(map[string]any{
 		nativeToolsSessionKey:     payload,

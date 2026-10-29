@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type Scope string
+
 type Section struct {
 	Title string `json:"title,omitempty"`
 	Rows  []Row  `json:"rows"`
@@ -232,13 +234,4 @@ type SessionInputPromoteParams struct {
 	MessageID      string `json:"message_id"`
 	IdempotencyKey string `json:"idempotency_key"`
 	ExpectedTurnID string `json:"expected_turn_id"`
-}
-
-type SessionInputReplaceParams struct {
-	WorkspaceID    string `json:"workspace_id"`
-	SessionID      string `json:"session_id"`
-	QueueEntryID   string `json:"queue_entry_id"`
-	Text           string `json:"text"`
-	MessageID      string `json:"message_id"`
-	IdempotencyKey string `json:"idempotency_key"`
 }

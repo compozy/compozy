@@ -46,6 +46,19 @@ type DetailBody struct {
 	Actions   []RowAction `json:"actions,omitempty"`
 }
 
+type DiagnosticItem struct {
+	ID               string         `json:"id"`
+	Code             string         `json:"code"`
+	Severity         string         `json:"severity"`
+	Category         string         `json:"category"`
+	Title            string         `json:"title"`
+	Message          string         `json:"message"`
+	SuggestedCommand string         `json:"suggested_command,omitempty"`
+	DocURL           string         `json:"doc_url,omitempty"`
+	DataFreshness    string         `json:"data_freshness"`
+	Evidence         map[string]any `json:"evidence,omitempty"`
+}
+
 type Disposition string
 
 const (
@@ -186,13 +199,4 @@ type ExtensionManifestSummary struct {
 
 type ExtensionProvideToolsResponse struct {
 	Tools []ExtensionToolRuntimeDescriptor `json:"tools"`
-}
-
-type ExtensionToolCallRequest struct {
-	ToolID           ToolID                       `json:"tool_id"`
-	Handler          string                       `json:"handler"`
-	SessionID        string                       `json:"session_id,omitempty"`
-	InvocationID     string                       `json:"invocation_id,omitempty"`
-	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
-	Input            json.RawMessage              `json:"input"`
 }

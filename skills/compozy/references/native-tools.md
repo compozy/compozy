@@ -848,6 +848,11 @@ labels User items `"User"` (previously `"Global"`; a display string).
 
 ### Session pull-request projection
 
+When a registered project's folder is missing, `compozy__session_status` and
+`compozy__session_describe` retain the session payload and add a `workspace_root_missing`
+diagnostic. Stopping and archiving remain available; these controls do not need to load the
+project's agent files. Creating or executing new work still requires an available root.
+
 `compozy__session_list` and `compozy__session_status` include `branch`, nullable `pull_request`,
 nullable `pull_request_lookup`, and `board_column`. The PR contains state, nullable draft, head SHA,
 complete check counts, review decision, mergeability and `ready_to_merge`. A null lookup means no
