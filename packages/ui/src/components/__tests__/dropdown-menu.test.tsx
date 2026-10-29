@@ -188,6 +188,10 @@ describe("DropdownMenu", () => {
     expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeInTheDocument();
     // The positioner places the popup from the virtual point, not from a trigger at the origin.
     const positioner = screen.getByRole("menu").parentElement!;
-    expect(positioner.style.transform).toMatch(/^translate\(120px, /);
+    // The zero-height test viewport flips placement above the point: y=80 minus sideOffset=4.
+    await waitFor(() => {
+      expect(screen.getByRole("menu")).toHaveAttribute("data-side", "top");
+      expect(positioner.style.transform).toBe("translate(120px, 76px)");
+    });
   });
 });

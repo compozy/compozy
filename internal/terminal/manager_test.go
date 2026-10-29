@@ -1066,7 +1066,7 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 }
 
 func TestManagerCwdAndShell(t *testing.T) {
-	t.Parallel()
+	// not parallel: fallback cases isolate the inherited SHELL with t.Setenv.
 
 	t.Run("Should reject missing escaping foreign and symlinked cwd paths [UT-056]", func(t *testing.T) {
 		t.Parallel()
@@ -1144,11 +1144,6 @@ func TestManagerCwdAndShell(t *testing.T) {
 		if err := os.WriteFile(accountShell, []byte("#!/bin/sh\n"), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		var lookups atomic.Int32
-		resolver := WithAccountShellResolver(func(context.Context) (string, error) {
-			lookups.Add(1)
-			return accountShell, nil
-		})
 		cases := []struct {
 			name, requested, configured string
 			wantBase                    string
@@ -1159,29 +1154,36 @@ func TestManagerCwdAndShell(t *testing.T) {
 			{name: "requested", requested: "sh", configured: "/definitely/not/a/shell", wantBase: "sh"},
 		}
 		for _, tc := range cases {
-			lookups.Store(0)
-			settings := DefaultSettings()
-			settings.DefaultShell = tc.configured
-			manager, _, _ := newTestManager(t, settings, resolver)
-			handle, err := manager.Open(t.Context(), OpenRequest{
-				WS: "workspace-a", Shell: tc.requested,
-				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-				Capabilities: Capabilities{Interactive: true},
+			t.Run("Should resolve the "+tc.name+" shell", func(t *testing.T) {
+				t.Parallel()
+				var lookups atomic.Int32
+				resolver := WithAccountShellResolver(func(context.Context) (string, error) {
+					lookups.Add(1)
+					return accountShell, nil
+				})
+
+				settings := DefaultSettings()
+				settings.DefaultShell = tc.configured
+				manager, _, _ := newTestManager(t, settings, resolver)
+				handle, err := manager.Open(t.Context(), OpenRequest{
+					WS: "workspace-a", Shell: tc.requested,
+					Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+					Capabilities: Capabilities{Interactive: true},
+				})
+				if err != nil {
+					t.Fatalf("%s: Open() error = %v", tc.name, err)
+				}
+				if shell := handle.Info().Shell; filepath.Base(shell) != tc.wantBase {
+					t.Fatalf("%s: Info.Shell = %q, want %s", tc.name, shell, tc.wantBase)
+				}
+				if got := lookups.Load(); got != tc.wantLookups {
+					t.Fatalf("%s: account shell lookups = %d, want %d", tc.name, got, tc.wantLookups)
+				}
 			})
-			if err != nil {
-				t.Fatalf("%s: Open() error = %v", tc.name, err)
-			}
-			if shell := handle.Info().Shell; filepath.Base(shell) != tc.wantBase {
-				t.Fatalf("%s: Info.Shell = %q, want %s", tc.name, shell, tc.wantBase)
-			}
-			if got := lookups.Load(); got != tc.wantLookups {
-				t.Fatalf("%s: account shell lookups = %d, want %d", tc.name, got, tc.wantLookups)
-			}
 		}
 	})
 
 	t.Run("Should fall back past a missing or failing account login shell", func(t *testing.T) {
-		t.Parallel()
 		if runtime.GOOS == "windows" {
 			t.Skip("Windows accounts record no login shell")
 		}
@@ -1189,19 +1191,26 @@ func TestManagerCwdAndShell(t *testing.T) {
 			"missing": func(context.Context) (string, error) { return "/definitely/not/fish", nil },
 			"failing": func(context.Context) (string, error) { return "", errors.New("directory services down") },
 		} {
-			manager, _, _ := newTestManager(t, DefaultSettings(), WithAccountShellResolver(resolver))
-			handle, err := manager.Open(t.Context(), OpenRequest{
-				WS:           "workspace-a",
-				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-				Capabilities: Capabilities{Interactive: true},
+			t.Run("Should recover from a "+name+" account shell", func(t *testing.T) {
+				fallback := filepath.Join(t.TempDir(), "inherited-shell")
+				if err := os.WriteFile(fallback, []byte("#!/bin/sh\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				t.Setenv("SHELL", fallback)
+				manager, _, _ := newTestManager(t, DefaultSettings(), WithAccountShellResolver(resolver))
+				handle, err := manager.Open(t.Context(), OpenRequest{
+					WS:           "workspace-a",
+					Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+					Capabilities: Capabilities{Interactive: true},
+				})
+				if err != nil {
+					t.Fatalf("%s: Open() error = %v", name, err)
+				}
+				shell := handle.Info().Shell
+				if shell != fallback {
+					t.Fatalf("%s: Info.Shell = %q, want inherited shell %q", name, shell, fallback)
+				}
 			})
-			if err != nil {
-				t.Fatalf("%s: Open() error = %v", name, err)
-			}
-			shell := handle.Info().Shell
-			if shell == "/definitely/not/fish" || !filepath.IsAbs(shell) {
-				t.Fatalf("%s: Info.Shell = %q, want an installed fallback shell", name, shell)
-			}
 		}
 	})
 }
@@ -1312,16 +1321,32 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		waitForInput(t, proc, threeReplies)
 
 		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		observer, err := handle.Attach(t.Context(), AttachOptions{Mode: "read", Actor: actor})
+		if err != nil {
+			t.Fatalf("Attach(read) error = %v", err)
+		}
+		if err := proc.emit([]byte("\x1b[c")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		fourReplies := strings.Repeat(primaryDeviceAttributesReply, 4)
+		waitForInput(t, proc, fourReplies)
+		if err := observer.Close(); err != nil {
+			t.Fatalf("Close(read) error = %v", err)
+		}
 		viewer, err := handle.Attach(t.Context(), AttachOptions{Mode: "write", Actor: actor, Cols: 80, Rows: 24})
 		if err != nil {
 			t.Fatalf("Attach() error = %v", err)
 		}
-		t.Cleanup(func() { _ = viewer.Close() })
+		t.Cleanup(func() {
+			if err := viewer.Close(); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
 		if err := proc.emit([]byte("\x1b[0c ready")); err != nil {
 			t.Fatalf("emit() error = %v", err)
 		}
 		waitForTailContent(t, handle, "ready")
-		if got := proc.inputString(); got != threeReplies {
+		if got := proc.inputString(); got != fourReplies {
 			t.Fatalf("input = %q, want only the replies sent before the writer attached", got)
 		}
 	})

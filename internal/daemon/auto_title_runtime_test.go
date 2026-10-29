@@ -213,6 +213,10 @@ func TestAutoTitleRuntimeRetries(t *testing.T) {
 		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{
 			"sess-retry": {autoTitleUserEvent(t, "sess-retry", "turn-1", "Fix checkout retries")},
 		}}
+		for attempt := 2; attempt <= autoTitleMaxAttempts; attempt++ {
+			sessions.events["sess-retry"] = append(sessions.events["sess-retry"],
+				autoTitleUserEvent(t, "sess-retry", fmt.Sprintf("turn-%d", attempt), "Retry checkout"))
+		}
 		events := newAutoTitleEventRecorder()
 		runtime := startAutoTitleRuntime(t, sessions, generator, withAutoTitleEventWriter(events))
 
@@ -254,11 +258,17 @@ func TestAutoTitleRuntimeRetries(t *testing.T) {
 				if request.AssistantReply == "First reply." {
 					return "", errors.New("spawn automatic title session: context deadline exceeded")
 				}
+				if request.UserMessage != "Retry the checkout fix" {
+					return "", fmt.Errorf("retry user message = %q", request.UserMessage)
+				}
 				return "Checkout retry fix", nil
 			},
 		}
 		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{
-			"sess-recover": {autoTitleUserEvent(t, "sess-recover", "turn-1", "Fix checkout retries")},
+			"sess-recover": {
+				autoTitleUserEvent(t, "sess-recover", "turn-1", "Fix checkout retries"),
+				autoTitleUserEvent(t, "sess-recover", "turn-2", "Retry the checkout fix"),
+			},
 		}}
 		events := newAutoTitleEventRecorder()
 		runtime := startAutoTitleRuntime(t, sessions, generator, withAutoTitleEventWriter(events))
@@ -449,7 +459,13 @@ func (s *autoTitleSessionsStub) Events(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.queries = append(s.queries, query)
-	return append([]store.SessionEvent(nil), s.events[id]...), nil
+	var events []store.SessionEvent
+	for _, event := range s.events[id] {
+		if query.TurnID == "" || event.TurnID == query.TurnID {
+			events = append(events, event)
+		}
+	}
+	return events, nil
 }
 
 func (s *autoTitleSessionsStub) ApplyAutomaticSessionTitle(

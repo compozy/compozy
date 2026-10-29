@@ -2582,19 +2582,15 @@ describe("SessionList breadth and Group by", () => {
         scope: { kind: "project", workspaceId: "ws-alpha" },
       }
     );
-    renderList({
+    const { queryClient } = renderList({
       sessions: [],
       view: grouped({ storedGroupBy: "profile", groupBy: "profile", groups }),
     });
 
     const header = await screen.findByTestId("session-sidebar-group-profile:p-work");
-    // Let the project catalog answer, as it does for the project header test above.
+    // A populated catalog makes the negative assertion exercise the group-kind guard.
     await waitFor(() =>
-      expect(
-        fetcher.mock.calls.some(([input]) =>
-          new URL((input as Request).url).pathname.endsWith("/api/workspaces")
-        )
-      ).toBe(true)
+      expect(queryClient.getQueryData(workspacesListOptions().queryKey)).toMatchObject(WORKSPACES)
     );
     expect(fireEvent.contextMenu(header)).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();

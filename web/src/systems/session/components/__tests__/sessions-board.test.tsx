@@ -437,47 +437,50 @@ describe("SessionsBoard swimlanes", () => {
 
   // #1029: a project lane header is a project surface: right-click and Shift+F10 open the
   // project's own actions, the same flow every other project surface uses.
-  it("Should open a project lane's actions from its header by mouse and keyboard", async () => {
-    const user = userEvent.setup();
-    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
-      sessions: [],
-      page: { has_more: false, limit: 50 },
-    });
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    client.setQueryData(workspacesListOptions().queryKey, [
-      {
-        id: "ws-alpha",
-        name: "Alpha",
-        root_dir: "/projects/alpha",
-        add_dirs: [],
-        created_at: "2026-10-29T00:00:00Z",
-        updated_at: "2026-10-29T00:00:00Z",
-      },
-    ]);
-    render(
-      <SessionsBoard
-        board={{ ...board(), columns: [], lanes: [lane("ws-alpha", 0)] }}
-        onOpen={vi.fn()}
-      />,
-      {
-        wrapper: ({ children }: { children: ReactNode }) => (
-          <QueryClientProvider client={client}>{children}</QueryClientProvider>
-        ),
-      }
-    );
+  it.each(["{Shift>}{F10}{/Shift}", "{ContextMenu}"])(
+    "Should open a project lane's actions by mouse and %s",
+    async key => {
+      const user = userEvent.setup();
+      vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+        sessions: [],
+        page: { has_more: false, limit: 50 },
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      client.setQueryData(workspacesListOptions().queryKey, [
+        {
+          id: "ws-alpha",
+          name: "Alpha",
+          root_dir: "/projects/alpha",
+          add_dirs: [],
+          created_at: "2026-10-29T00:00:00Z",
+          updated_at: "2026-10-29T00:00:00Z",
+        },
+      ]);
+      render(
+        <SessionsBoard
+          board={{ ...board(), columns: [], lanes: [lane("ws-alpha", 0)] }}
+          onOpen={vi.fn()}
+        />,
+        {
+          wrapper: ({ children }: { children: ReactNode }) => (
+            <QueryClientProvider client={client}>{children}</QueryClientProvider>
+          ),
+        }
+      );
 
-    const header = screen.getByTestId("sessions-board-lane-project:ws-alpha-header");
-    fireEvent.contextMenu(header);
-    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
-    await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(screen.queryByRole("menuitem", { name: "Archive project" })).toBeNull()
-    );
-    header.focus();
-    await user.keyboard("{Shift>}{F10}{/Shift}");
-    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
-    expect(await screen.findByRole("dialog", { name: "Remove Alpha?" })).toBeVisible();
-  });
+      const header = screen.getByTestId("sessions-board-lane-project:ws-alpha-header");
+      fireEvent.contextMenu(header);
+      expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
+      await user.keyboard("{Escape}");
+      await waitFor(() =>
+        expect(screen.queryByRole("menuitem", { name: "Archive project" })).toBeNull()
+      );
+      header.focus();
+      await user.keyboard(key);
+      await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+      expect(await screen.findByRole("dialog", { name: "Remove Alpha?" })).toBeVisible();
+    }
+  );
 });
 
 describe("SessionsBoard loading", () => {
