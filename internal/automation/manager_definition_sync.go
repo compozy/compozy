@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	storepkg "github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -107,7 +108,7 @@ func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desir
 		case !sameJobDefinition(current, job):
 			if _, err := m.store.UpdateJob(ctx, job); err != nil {
 				if m.deferArchivedDefinition(ctx, "job", job.ID, err) {
-					if err := m.pauseDeferredDefinition(ctx, "job", job.ID); err != nil {
+					if err := m.pauseDeferredDefinition(ctx, "job", job.ID, true); err != nil {
 						return 0, 0, err
 					}
 					continue
@@ -168,7 +169,7 @@ func (m *Manager) syncTriggersForSource(
 		case !sameTriggerDefinition(current, trigger):
 			if _, err := m.store.UpdateTrigger(ctx, trigger); err != nil {
 				if m.deferArchivedDefinition(ctx, "trigger", trigger.ID, err) {
-					if err := m.pauseDeferredDefinition(ctx, "trigger", trigger.ID); err != nil {
+					if err := m.pauseDeferredDefinition(ctx, "trigger", trigger.ID, true); err != nil {
 						return 0, 0, err
 					}
 					continue
@@ -308,6 +309,24 @@ func (m *Manager) resolveConfigWorkspace(
 		ref = normalizedRef
 	}
 	resolved, err := m.workspaceResolver.Resolve(ctx, ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		if registry, ok := m.workspaceResolver.(interface {
+			Get(context.Context, string) (workspacepkg.Workspace, error)
+		}); ok {
+			registered, lookupErr := registry.Get(ctx, ref)
+			if lookupErr != nil {
+				return "", lookupErr
+			}
+			m.logger.Warn(
+				"automation.config.workspace_unavailable",
+				"workspace_id",
+				registered.ID,
+				"code",
+				"workspace_root_missing",
+			)
+			return registered.ID, nil
+		}
+	}
 	if err != nil {
 		return "", err
 	}
@@ -355,7 +374,10 @@ func (m *Manager) deferArchivedDefinition(ctx context.Context, kind, id string, 
 }
 
 // A refused replacement must not leave its previous target enabled across restart.
-func (m *Manager) pauseDeferredDefinition(ctx context.Context, kind, id string) error {
+func (m *Manager) pauseDeferredDefinition(ctx context.Context, kind, id string, replacement bool) error {
+	if !replacement {
+		return nil
+	}
 	var err error
 	switch kind {
 	case "job":

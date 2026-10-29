@@ -170,3 +170,18 @@ WHERE state = 'running';
 
 -- name: ListWorktreesAggregate :many
 SELECT * FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id;
+
+-- name: RemoveMissingWorktree :execrows
+UPDATE worktrees SET state = 'dismissed', updated_at = sqlc.arg(updated_at)
+WHERE worktrees.workspace_id = sqlc.arg(workspace_id) AND worktrees.id = sqlc.arg(worktree_id) AND worktrees.state = 'missing'
+  AND NOT EXISTS (
+    SELECT 1 FROM sessions
+    WHERE sessions.workspace_id = worktrees.workspace_id AND sessions.worktree_id = worktrees.id
+      AND sessions.archived_at IS NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM worktree_exit_ops
+    WHERE worktree_exit_ops.workspace_id = worktrees.workspace_id
+      AND worktree_exit_ops.worktree_id = worktrees.id
+      AND worktree_exit_ops.state = 'running'
+  );

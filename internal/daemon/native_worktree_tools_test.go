@@ -20,14 +20,15 @@ import (
 )
 
 type nativeWorktreeServiceStub struct {
-	create        func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
-	list          func(context.Context, string, bool) (*worktree.DetailedListing, error)
-	resolve       func(context.Context, string, string) (*worktree.Worktree, error)
-	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
-	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
-	removeFound   func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
-	deleteBranch  func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
-	capabilityErr error
+	createAccepted func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	create         func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
+	list           func(context.Context, string, bool) (*worktree.DetailedListing, error)
+	resolve        func(context.Context, string, string) (*worktree.Worktree, error)
+	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
+	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	removeFound    func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	deleteBranch   func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
+	capabilityErr  error
 }
 
 func (s *nativeWorktreeServiceStub) Create(
@@ -48,10 +49,13 @@ func (s *nativeWorktreeServiceStub) Capability(
 }
 
 func (s *nativeWorktreeServiceStub) CreateAccepted(
-	context.Context,
-	string,
-	worktree.CreateOptions,
+	ctx context.Context,
+	workspaceID string,
+	opts worktree.CreateOptions,
 ) (*worktree.Worktree, error) {
+	if s.createAccepted != nil {
+		return s.createAccepted(ctx, workspaceID, opts)
+	}
 	return nil, fmt.Errorf("unexpected CreateAccepted call")
 }
 
@@ -179,6 +183,95 @@ func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
 
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		id     toolspkg.ToolID
+		input  string
+		cause  error
+		code   string
+		status int
+		detail string
+	}{
+		{"Should identify the existing worktree name", toolspkg.ToolIDWorktreeCreate,
+			`{"workspace":"ws-a","name":"existing"}`, fmt.Errorf("%w: existing", worktree.ErrNameTaken),
+			"worktree_name_taken", http.StatusConflict, "existing"},
+		{"Should explain the bound session refusal", toolspkg.ToolIDWorktreeRemove,
+			`{"workspace":"ws-a","ref":"wt-existing"}`, fmt.Errorf("%w: sess-bound", worktree.ErrSessionActive),
+			"worktree_session_active", http.StatusConflict, "sess-bound"},
+		{"Should retain a sanitized prune failure", toolspkg.ToolIDWorktreeCreate,
+			`{"workspace":"ws-a","name":"new"}`, errors.New("workspace: prune missing workspace /private/operator/repo: permission denied"),
+			"tool_backend_failed", http.StatusBadGateway, "permission denied"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			service := &nativeWorktreeServiceStub{
+				createAccepted: func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error) {
+					return nil, tc.cause
+				},
+				resolve: func(context.Context, string, string) (*worktree.Worktree, error) {
+					return &worktree.Worktree{ID: "wt-existing", WorkspaceID: "registry-a"}, nil
+				},
+				remove: func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error) {
+					return nil, tc.cause
+				},
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service,
+			}, nativeApproveAllPolicyInputs())
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			status := core.StatusForToolError(err)
+			payload := core.ToolErrorResponseForError(err, status, false).Error
+			if string(payload.Code) != tc.code || status != tc.status ||
+				!strings.Contains(payload.Message, tc.detail) ||
+				strings.Contains(payload.Message, "/private") {
+				t.Fatalf("native response = %#v status=%d, want %s status=%d", payload, status, tc.code, tc.status)
+			}
+			if !errors.Is(err, tc.cause) {
+				t.Fatalf("cause lost: %v", err)
+			}
+		})
+	}
+
+	t.Run("Should reach guarded removal when the parent root is missing", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		service := &nativeWorktreeServiceStub{
+			resolve: func(_ context.Context, ws, _ string) (*worktree.Worktree, error) {
+				return &worktree.Worktree{
+					ID:          "wt-missing",
+					WorkspaceID: ws,
+					ProfileID:   store.DefaultProfileID,
+					State:       worktree.StateMissing,
+				}, nil
+			},
+			remove: func(_ context.Context, ws, id string, _ bool) (*worktree.RemovalRefusal, error) {
+				if ws != "registry-a" || id != "wt-missing" {
+					t.Fatalf("wrong removal target %s/%s", ws, id)
+				}
+				calls++
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: apitest.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+				},
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "registry-a"}, nil
+				},
+			}, Worktrees: service,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWorktreeRemove,
+			Input:  json.RawMessage(`{"workspace":"registry-a","ref":"wt-missing"}`),
+		})
+		if err != nil || calls != 1 {
+			t.Fatalf("removal calls = %d, error = %v", calls, err)
+		}
+	})
 
 	t.Run(
 		"Should resolve workspace identity to the registry boundary without leaking another workspace",

@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type SessionInputReplaceParams struct {
+	WorkspaceID    string `json:"workspace_id"`
+	SessionID      string `json:"session_id"`
+	QueueEntryID   string `json:"queue_entry_id"`
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
 type SessionInputResult struct {
 	Input SessionInput `json:"input"`
 }
@@ -329,14 +338,4 @@ type SessionRuntimeRecoveryExhaustedPayload struct {
 	Generation     int64     `json:"generation"`
 	FailureKind    string    `json:"failure_kind,omitempty"`
 	FailureDetail  string    `json:"failure_detail,omitempty"`
-}
-
-type SessionRuntimeRecoveryPayload struct {
-	Attempt       int        `json:"attempt"`
-	MaxAttempts   int        `json:"max_attempts"`
-	Generation    int64      `json:"generation"`
-	StartedAt     time.Time  `json:"started_at"`
-	LastAttemptAt time.Time  `json:"last_attempt_at"`
-	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
-	LastError     string     `json:"last_error,omitempty"`
 }

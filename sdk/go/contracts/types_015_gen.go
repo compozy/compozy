@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type ResourceOwnerKind string
+
 type ResourceRecord struct {
 	Kind      ResourceKind    `json:"kind"`
 	ID        string          `json:"id"`
@@ -159,5 +161,3 @@ type ScheduleSpec struct {
 type SchedulerCatchUpPolicy string
 
 type SchedulerSkipReason string
-
-type Scope string

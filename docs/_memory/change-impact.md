@@ -4600,3 +4600,61 @@ workspace-list method, preserving the legacy no-argument method.
   the generated site SDK samples co-ship with their generator.
 - Focused SQLite/runtime suites and the existing all-example Go type check verify
   these changes. Complete current-head CI remains the release gate.
+
+Follow-up entry-point fixes (reviews 4407737369, 4407737376, 4407792174): session
+stop routes may resolve a missing-root registration just like retained reads; other
+mutations continue through runtime resolution. Native archive/unarchive bind registry
+identity via Get, then pass through the unchanged workspace authorization seam.
+Shared core behavior covers HTTP and UDS; Web uses those same routes. Native IDs,
+DTOs, official skill contracts, hooks/config, and storage shapes are unchanged.
+Existing handler, native binding and SQLite archive suites own the regression checks.
+
+CI also caught four native workspace descriptors requiring an explicit workspace
+although the existing binder inherits the caller workspace. Their shared input schema
+now permits omission, restoring the established native contract; operator calls without
+any scope still fail the handler's required-input check. Descriptor consumers regenerate
+through codegen. No new fields or IDs, and no persisted-data changes.
+
+## Merge train overview focus and CI follow-up — 2026-10-29
+
+The workspace overview scroll owner now enumerates listbox options, preserving
+workspace order after project context menus replace the compositional data-slot.
+A real pointer drag strengthens the existing mobile mixed-removal E2E and reproduces
+the pre-fix loss of focus. The subagent journey waits for its existing settled-turn
+disclosure after returning to the parent: route identity precedes deferred history,
+so a one-time zero-row count was not a readiness signal. All navigation assertions
+and timeouts remain unchanged. The SDK compatibility test retains the exact legacy
+method signature through an interface while complying with staticcheck.
+
+Web/QA: RT-workspace-overview-command-tab and the existing worktree/subagent journeys.
+Native tools, CLI/HTTP/UDS, hooks/config/extensions, persisted data and workspace
+isolation are unchanged. No generated contract or official skill changes.
+
+## Detached message edit acknowledgment recovery — issue #1017
+
+- **Web:** after navigation detaches a replacement send, a lost acknowledgment transfers
+  ownership to the existing unconfirmed Retry row. The edit hook releases its submitted
+  files and discards only the matching saved draft, preventing a fresh duplicate submission.
+  Definite refusals and a different newer draft retain their existing behavior.
+- **Native tools / public surfaces:** no CLI, HTTP/UDS, native ToolID, DTO, or admission
+  contract changes. Retry uses the existing message identity and idempotency key.
+- **Extensibility/hooks/config:** no extension, hook, SDK, or configuration changes.
+- **Workspace/user data:** recovery remains scoped to the original workspace/session;
+  no persisted schema changes or migrations. Browser verification uses disposable homes.
+- **Official skill / Docs / QA:** no `skills/compozy/` or public site changes needed.
+  `RT-conversation-rewind.md` records the lost-ack navigation journey, owned by the
+  existing stop/edit/resend Playwright test in `session-hardening.spec.ts`.
+
+## 2026-10-29 — SQLite Unicode function registration ordering
+
+- **Owner:** `internal/store/sqlite_unicode.go` registers the existing Unicode
+  function during package initialization, before probes, migration readers, or
+  normal runtime connections open. Lazy first-open registration could mutate
+  the driver's function map while another connection iterated it. Registration
+  failures retain the existing error path from `openSQLiteHandle`.
+- **Verification owner:** the existing SQLite connection/recovery suite checks
+  Unicode SQL on a direct connection; the existing parallel migration suite
+  exercises concurrent connection openings under the race detector.
+- **Public surfaces, native tools, hooks/config, extensibility, Web/Docs and
+  official skill:** unchanged. This is internal driver initialization ordering.
+  Workspace isolation and persisted data/schema are unchanged; no migration.

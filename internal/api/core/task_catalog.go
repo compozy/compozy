@@ -75,7 +75,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 }
 
 // ParseTaskInboxQuery parses the bounded actor-scoped inbox query parameters.
-func ParseTaskInboxQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract.TaskInboxQuery, error) {
+func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
 	unread, err := parseOptionalBoolPointer(c.Query("unread"))
 	if err != nil {
 		return contract.TaskInboxQuery{}, NewTaskValidationError(err)

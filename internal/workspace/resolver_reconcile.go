@@ -16,7 +16,6 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 		ws = r.withRootAvailability(ctx, ws)
 		// An unavailable folder is not consent to delete its registration or history.
 		reconciled = append(reconciled, ws)
-
 	}
 
 	return reconciled, nil

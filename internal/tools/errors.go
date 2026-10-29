@@ -100,6 +100,8 @@ type ToolError struct {
 	Operator      *OperatorFailure `json:"operator,omitzero"`
 	PartialResult *ToolResult      `json:"partial_result,omitzero"`
 	Err           error            `json:"-"`
+	HTTPStatus    int              `json:"-"`
+	PublicMessage string           `json:"-"`
 }
 
 // WithPartialResult returns a cloned error carrying a redacted bounded result preview.

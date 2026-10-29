@@ -61,3 +61,9 @@ Detached-worktree regression: request status details with explicit forge refresh
 branch is empty. Return local status with no forge facts, without a Git/forge lookup or a spurious
 cancellation. Repeat with the forge display service absent. Branched worktrees retain the existing
 refresh and provider-unavailable behavior. Automated coverage: `TestServiceStatus`.
+
+## Native error parity — 2026-10-28
+
+Native refusal parity (#1012): duplicate creation returns `worktree_name_taken`; removal while session-bound returns `worktree_session_active` with a readable explanation. A real workspace prune failure retains `tool_backend_failed` / `backend_unhealthy` and a sanitized cause. Verify that refusals do not replace or remove the checkout.
+
+The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.

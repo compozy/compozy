@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type ExtensionToolCallRequest struct {
+	ToolID           ToolID                       `json:"tool_id"`
+	Handler          string                       `json:"handler"`
+	SessionID        string                       `json:"session_id,omitempty"`
+	InvocationID     string                       `json:"invocation_id,omitempty"`
+	TrustedWorkspace *ExtensionToolWorkspaceScope `json:"trusted_workspace,omitempty"`
+	Input            json.RawMessage              `json:"input"`
+}
+
 type ExtensionToolCallResponse struct {
 	Result ToolResult `json:"result"`
 }
@@ -199,9 +208,4 @@ type HeartbeatActorKind string
 type HeartbeatActorPayload struct {
 	Kind HeartbeatActorKind `json:"kind"`
 	Ref  string             `json:"ref,omitempty"`
-}
-
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
 }

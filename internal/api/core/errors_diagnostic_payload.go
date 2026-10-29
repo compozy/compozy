@@ -29,7 +29,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
-		payload.Code = "workspace_root_missing"
+		payload.Code = workspaceRootMissingCode
 	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		payload.Code = "workspace_archived"
@@ -60,6 +60,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		}
 	}
 	enrichOperationError(&payload, err)
+	if errors.Is(err, session.ErrSessionArchiveRequiresStopped) {
+		payload.Code = "session_archive_requires_stopped"
+	}
 	if errors.Is(err, session.ErrBoardFilterInvalid) {
 		payload.Code = "session_list_query_invalid"
 	}
@@ -104,8 +107,9 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 		payload.Code = workspaceBreadthInvalidCode
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
-	case errors.Is(err, session.ErrSubagentArchiveFollows):
+	case errors.Is(err, session.ErrSubagentArchiveFollows), errors.Is(err, store.ErrSubagentArchiveFollowsParent):
 		payload.Code = "subagent_archive_follows_parent"
+		payload.Error = "Subagent sessions are archived with their parent session."
 	case errors.Is(err, session.ErrSessionArchiveStopFailed):
 		payload.Code = "session_archive_stop_failed"
 	case errors.Is(err, session.ErrCompactionUnsupported):

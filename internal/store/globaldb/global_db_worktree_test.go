@@ -16,6 +16,59 @@ import (
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain missing worktrees until every bound session is archived", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		ws := registerWorkspaceForGlobalTests(t, db, "missing", t.TempDir())
+		at := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
+		item := worktreepkg.Worktree{ID: "wt-missing", ProfileID: store.DefaultProfileID, WorkspaceID: ws,
+			Name: "missing", Path: t.TempDir(), State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual,
+			SetupState: worktreepkg.SetupNone, CreatedAt: at, UpdatedAt: at}
+		if err := db.Worktrees.Insert(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		info := store.SessionInfo{
+			ID:            "session-missing",
+			ProfileID:     store.DefaultProfileID,
+			WorkspaceID:   ws,
+			WorktreeID:    item.ID,
+			AgentName:     "coder",
+			Provider:      "claude",
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     at,
+			UpdatedAt:     at,
+		}
+		if err := db.RegisterSession(ctx, info); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Worktrees.SetState(ctx, ws, item.ID, worktreepkg.StateMissing, at); err != nil {
+			t.Fatal(err)
+		}
+		if removed, err := db.Worktrees.RemoveMissing(ctx, ws, item.ID, at); err != nil || removed {
+			t.Fatalf("non-archived removal = %v, %v", removed, err)
+		}
+		if _, err := db.Worktrees.db.ExecContext(
+			ctx,
+			"UPDATE sessions SET archived_at = ? WHERE id = ?",
+			store.FormatTimestamp(at),
+			info.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if removed, err := db.Worktrees.RemoveMissing(ctx, "foreign", item.ID, at); err != nil || removed {
+			t.Fatalf("foreign removal = %v, %v", removed, err)
+		}
+		if removed, err := db.Worktrees.RemoveMissing(ctx, ws, item.ID, at); err != nil || !removed {
+			t.Fatalf("archived removal = %v, %v", removed, err)
+		}
+		got, err := db.Worktrees.Get(ctx, ws, item.ID)
+		if err != nil || got.State != worktreepkg.StateDismissed {
+			t.Fatalf("retained history = %#v, %v", got, err)
+		}
+	})
+
 	// Invariant: upgrades preserve every legacy row while copying only provable identities.
 	// Owner: global SQLite migration; canonical worktree store suite.
 	t.Run("Should migrate PR identities losslessly and retain the newest collision", func(t *testing.T) {
@@ -652,6 +705,18 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			}
 		}
 
+		// A ready checkout cannot enter the metadata-only missing-record removal path.
+		insertReady("wt_remove_ready")
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_remove_ready",
+			now,
+		); err != nil ||
+			removed {
+			t.Fatalf("ready removal = %v, %v, want false nil", removed, err)
+		}
+
 		insertReady("wt_exit_first")
 		exitOperation := worktreepkg.ExitOperation{
 			ID: "op-exit-first", WorkspaceID: workspaceID, WorktreeID: "wt_exit_first",
@@ -669,6 +734,45 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if err != nil || len(running) != 1 || running[0].ID != exitOperation.ID ||
 			running[0].WorkspaceID != workspaceID || running[0].WorktreeID != "wt_exit_first" {
 			t.Fatalf("ListRunningExitOperations() = %#v, %v", running, err)
+		}
+
+		if err := globalDB.Worktrees.SetState(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			worktreepkg.StateMissing,
+			now,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			now,
+		); err != nil ||
+			removed {
+			t.Fatalf("missing removal during exit = %v, %v", removed, err)
+		}
+		if finished, err := globalDB.Worktrees.FinishExitOperation(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			exitOperation.ID,
+			"failed",
+			now,
+		); err != nil ||
+			!finished {
+			t.Fatalf("finish exit = %v, %v", finished, err)
+		}
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			now,
+		); err != nil ||
+			!removed {
+			t.Fatalf("missing removal after exit = %v, %v", removed, err)
 		}
 
 		insertReady("wt_remove_first")

@@ -276,6 +276,27 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 	})
 
+	// Registry details must remain readable for cleanup without loading missing project files.
+	t.Run("Should retain missing workspace details and sessions", func(t *testing.T) {
+		t.Parallel()
+		fixture, workspace, _, _, _, _, _, _ := setup(t)
+		fixture.Handlers.Workspaces = testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) { return workspace, nil },
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			},
+		}
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/"+workspace.ID, nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("missing workspace = %d %s", response.Code, response.Body)
+		}
+		var payload contract.WorkspaceDetailPayload
+		testutil.DecodeJSONResponse(t, response, &payload)
+		if !payload.Workspace.RootMissing || len(payload.Sessions) != 1 || len(payload.Agents) != 0 {
+			t.Fatalf("missing details = %#v", payload)
+		}
+	})
+
 	t.Run("Should get a workspace with sessions", func(t *testing.T) {
 		t.Parallel()
 

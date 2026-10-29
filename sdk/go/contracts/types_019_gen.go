@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type SourceKind string
+
 type SourceRef struct {
 	Kind            SourceKind `json:"kind"`
 	Owner           string     `json:"owner"`
@@ -287,19 +289,4 @@ type SubagentSpawnPayload struct {
 	Title      string `json:"title"`
 	Role       string `json:"role"`
 	TaskChars  int    `json:"task_chars"`
-}
-
-type SubagentWorktreePayload struct {
-	ID                string                      `json:"id"`
-	Name              string                      `json:"name"`
-	Branch            string                      `json:"branch"`
-	BaseRef           string                      `json:"base_ref"`
-	BaseSHA           string                      `json:"base_sha,omitempty"`
-	Path              string                      `json:"path"`
-	HeadSHA           string                      `json:"head_sha,omitempty"`
-	CommitsAhead      *int                        `json:"commits_ahead,omitempty"`
-	DirtyFiles        *int                        `json:"dirty_files,omitempty"`
-	ObservedAt        *time.Time                  `json:"observed_at,omitempty"`
-	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
-	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
 }

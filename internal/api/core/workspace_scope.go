@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 
@@ -84,12 +85,14 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		}, true
 	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
-	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && c.Request.Method == http.MethodGet {
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && allowsMissingWorkspace(c) {
 		var registration workspacepkg.Workspace
 		registration, err = h.Workspaces.Get(c.Request.Context(), workspaceRef)
+		registration.RootMissing = true
 		resolved = workspacepkg.ResolvedWorkspace{
 			Workspace: registration, WorkspaceID: registration.ID, Scope: workspacepkg.ScopeWorkspace,
 		}
+		c.Set("workspace_root_missing", registration.ID)
 	}
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
@@ -114,6 +117,33 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		return workspaceScope{}, false
 	}
 	return workspaceScope{Resolved: resolved, ID: workspaceID, RegistryID: registryID}, true
+}
+
+func allowsMissingWorkspace(c *gin.Context) bool {
+	if c.Request.Method == http.MethodGet {
+		return true
+	}
+	if c.Request.Method == http.MethodDelete && strings.HasSuffix(c.FullPath(), "/worktrees/:worktree_id") {
+		return true
+	}
+	return routeSessionID(c) != "" && c.Request.Method == http.MethodPost &&
+		(strings.HasSuffix(c.FullPath(), "/stop") || strings.HasSuffix(c.FullPath(), "/archive"))
+}
+
+const workspaceRootMissingCode = "workspace_root_missing"
+
+// MissingWorkspaceDiagnostics describes unavailable execution files without invalidating retained state.
+func MissingWorkspaceDiagnostics(workspaceID string) []contract.DiagnosticItem {
+	if workspaceID == "" {
+		return nil
+	}
+	return []contract.DiagnosticItem{{
+		ID: "workspace_root_missing:" + workspaceID, Code: workspaceRootMissingCode,
+		Severity: "warn", Category: "session", DataFreshness: "live",
+		Title:    "Workspace folder is missing",
+		Message:  "The workspace folder is missing. Session state is retained; stop and archive remain available.",
+		Evidence: map[string]any{"workspace_id": workspaceID},
+	}}
 }
 
 func workspaceRefFromRoute(c *gin.Context) string {

@@ -49,10 +49,10 @@ func (s *Service) Remove(
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read removal target: %w", err)
 	}
-	if item.State == StateRemoved {
+	if item.State == StateRemoved || item.State == StateDismissed {
 		return nil, nil
 	}
-	if item.State != StateReady {
+	if item.State != StateReady && item.State != StateMissing {
 		return nil, ErrNotReady
 	}
 	releaseUsage, acquired := s.usage.tryAcquireExclusive(worktreeUsageKey(item.WorkspaceID, item.ID))
@@ -68,11 +68,14 @@ func (s *Service) Remove(
 	if err != nil {
 		return nil, fmt.Errorf("worktree: reread removal target: %w", err)
 	}
-	if item.State == StateRemoved {
+	if item.State == StateRemoved || item.State == StateDismissed {
 		return nil, nil
 	}
-	if item.State != StateReady {
+	if item.State != StateReady && item.State != StateMissing {
 		return nil, ErrNotReady
+	}
+	if item.State == StateMissing {
+		return nil, s.removeMissing(ctx, *item)
 	}
 	if _, err := s.capability.Check(ctx); err != nil {
 		return nil, err

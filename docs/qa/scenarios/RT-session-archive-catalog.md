@@ -50,3 +50,9 @@ session whose stop fails stays unarchived with its own error while the rest succ
 CLI, `compozy session archive <id>` still refuses a live session with `409`, and
 `compozy session archive <id> --stop` stops and archives it; HTTP/UDS `?stop=true` and native
 tool `stop: true` behave the same.
+
+## Native error parity — 2026-10-28
+
+Native archival refusals (#1012): a subagent child returns `subagent_archive_follows_parent` through both CLI and native tools. A runtime-detached but lifecycle-active session returns `session_archive_requires_stopped`. After stopping, native archive succeeds. Verify retained state after each refusal.
+
+The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.

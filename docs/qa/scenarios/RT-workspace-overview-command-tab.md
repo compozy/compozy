@@ -86,3 +86,12 @@ Pinning and recent-use ordering are outside this regression.
 qa-impact: 2026-10-28 archive/remove lifecycle slice passed against an isolated daemon and
 production web bundle. See `docs/qa/reports/2026-10-28-archive-projects.md`; older unrelated
 scenario verdicts above are retained rather than inferred from this focused walk.
+
+qa-impact: 2026-10-29 merge integration: context-menu composition must not change the
+strip's tile population or scroll-settle focus. At 390px width with two projects,
+hover the second project's tile, drag the strip slightly, then select worktrees.
+Focus must remain on the geometrically nearest project and its worktree menu must
+remain actionable. The existing mixed-selection overview E2E owns this regression.
+
+Focused verification: the real-browser mobile drag/removal case failed on the old
+bundle and passed twice on the corrected production bundle (2026-10-29).

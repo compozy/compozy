@@ -4011,7 +4011,10 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 		if _, err := db.ReconcileSessions(t.Context(), rows); err != nil {
 			t.Fatal(err)
 		}
-		got, err := db.ListSessions(t.Context(), SessionListQuery{WorkspaceID: id, ReadScope: store.ReadScope{AllProfiles: true}})
+		got, err := db.ListSessions(
+			t.Context(),
+			SessionListQuery{WorkspaceID: id, ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil || len(got) != 1 || got[0].State != "idle" || got[0].WorkspaceID != id {
 			t.Fatalf("recovered row = %#v, %v", got, err)
 		}
@@ -4072,9 +4075,11 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 			},
 		}
 		for name, check := range checks {
-			if err := check(); !errors.Is(err, store.ErrWorkspaceArchived) {
-				t.Errorf("%s: %v", name, err)
-			}
+			t.Run("Should refuse "+name, func(t *testing.T) {
+				if err := check(); !errors.Is(err, store.ErrWorkspaceArchived) {
+					t.Fatalf("admission = %v", err)
+				}
+			})
 		}
 		// Definition reload retains the disabled overlay even when config says enabled.
 		job.Name = "reloaded-job"

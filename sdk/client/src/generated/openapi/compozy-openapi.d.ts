@@ -7047,6 +7047,7 @@ export interface components {
     };
     AgentCatalogResponse: {
       agents: components["schemas"]["AgentCatalogItemPayload"][];
+      diagnostics?: components["schemas"]["DiagnosticItem"][];
       facets: components["schemas"]["AgentCatalogFacetsPayload"];
       page: components["schemas"]["CountedCursorPagePayload"];
       sessions_available: boolean;
@@ -13877,6 +13878,7 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
+      diagnostics?: components["schemas"]["DiagnosticItem"][];
       effective_workspace_access: string;
       escalated?: boolean | null;
       failure?: components["schemas"]["SessionFailurePayload"] | null;
@@ -14106,6 +14108,7 @@ export interface components {
         | "needs-attention"
         | "waiting";
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
+      diagnostics?: components["schemas"]["DiagnosticItem"][];
       eligible_for_wake: boolean;
       escalated?: boolean | null;
       /** @enum {string} */

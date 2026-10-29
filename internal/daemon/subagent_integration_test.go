@@ -2708,6 +2708,18 @@ func TestIsolatedSubagentDaemonIntegration(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
+			// A missing sibling with an active session must not block isolated work here.
+			if failure == "" {
+				missingRoot := t.TempDir()
+				missing, err := d.workspaceResolver.ResolveOrRegister(t.Context(), missingRoot)
+				if err != nil {
+					t.Fatal(err)
+				}
+				startSubagentIntegrationParent(t, manager, missing.ID)
+				if err := os.RemoveAll(missingRoot); err != nil {
+					t.Fatal(err)
+				}
+			}
 			parent, caller := startSubagentIntegrationParent(t, manager, ws)
 			req := session.SubagentRequest{
 				Caller:    caller,

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -4024,6 +4025,62 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if observer.catalogCall != 0 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
+		}
+	})
+
+	// Invariant: lifecycle binding uses retained registry identity without bypassing access policy.
+	t.Run("Should bind missing project lifecycle targets and preserve authorization", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDWorkspaceArchive, toolspkg.ToolIDWorkspaceUnarchive} {
+			t.Run("Should bind "+string(id), func(t *testing.T) {
+				t.Parallel()
+				workspaces := apitest.StubWorkspaceService{
+					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+					},
+					GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+						if ref != "missing-project" && ref != "ws-2" {
+							return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+						}
+						return workspacepkg.Workspace{ID: "ws-2", RootMissing: true}, nil
+					},
+				}
+				policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
+				binder := newNativeWorkspaceInputBinder(workspaces, nativeTestSessionManager("ws-1"), policy, nil)
+				descriptor := toolspkg.Descriptor{
+					ID: id, Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
+					InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`),
+				}
+				for _, ref := range []string{"missing-project", "ws-2"} {
+					input := json.RawMessage(fmt.Sprintf(`{"workspace":%q}`, ref))
+					bound, err := binder.BindCallInput(t.Context(), toolspkg.Scope{Operator: true}, descriptor, input)
+					if err != nil || string(bound) != `{"workspace":"ws-2"}` {
+						t.Fatalf("operator binding = %s, %v", bound, err)
+					}
+					scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+					bound, err = binder.BindCallInput(t.Context(), scope, descriptor, input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = binder.AuthorizeCallInput(t.Context(), scope, descriptor,
+						toolspkg.CallRequest{ToolID: id, SessionID: scope.SessionID, Input: bound})
+					requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+					if policy.last.Target.WorkspaceID != "ws-2" {
+						t.Fatalf("authorized target = %#v", policy.last.Target)
+					}
+				}
+				descriptor.ID = toolspkg.ToolIDWorkspaceDescribe
+				if _, err := binder.BindCallInput(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					descriptor,
+					json.RawMessage(
+						`{"workspace":"missing-project"}`,
+					),
+				); !errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+					t.Fatalf("runtime binding = %v", err)
+				}
+			})
 		}
 	})
 
@@ -15166,4 +15223,94 @@ func (s nativeProfileReaderStub) ListIdentities(ctx context.Context) ([]profilep
 		profiles = append(profiles, item.Profile)
 	}
 	return profiles, nil
+}
+
+func TestNativeSessionMissingWorkspace(t *testing.T) {
+	t.Parallel()
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDSessionStatus, toolspkg.ToolIDSessionDescribe} {
+		t.Run("Should retain state and diagnostics for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			workspaces := nativeTestWorkspaceService(t)
+			workspaces.ResolveFn = func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			}
+			manager := nativeTestSessionManager("ws-1")
+			status := manager.StatusFn
+			manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+				info, err := status(ctx, id)
+				if info != nil {
+					info.RuntimeStatus = session.RuntimeStatusUnbound
+				}
+				return info, err
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Workspaces: workspaces, Sessions: manager,
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-1","session_id":"sess-1"}`),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, err := json.Marshal(result.Structured)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var response contract.SessionResponse
+			if err := json.Unmarshal(encoded, &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Session.ID != "sess-1" || len(response.Session.Diagnostics) != 1 ||
+				response.Session.Diagnostics[0].Code != "workspace_root_missing" {
+				t.Fatalf("session = %#v", response.Session)
+			}
+			for _, descriptor := range builtintools.NativeDescriptors() {
+				if descriptor.ID == toolID {
+					requireNativeOutputSchemaAccepts(t, descriptor, encoded)
+				}
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
+			})
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		})
+	}
+}
+
+func TestNativeArchiveRefusals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		cause   error
+		code    string
+		message string
+	}{
+		{"Should retain the child archive refusal", session.ErrSubagentArchiveFollows, "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session."},
+		{"Should retain a persisted child archive refusal", fmt.Errorf("archive transaction: %w", store.ErrSubagentArchiveFollowsParent), "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session."},
+		{"Should explain that a detached session must be stopped", session.ErrSessionArchiveRequiresStopped, "session_archive_requires_stopped", "session: session must be stopped before archiving"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			manager := apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{ID: id, WorkspaceID: "registry-a", ProfileID: store.DefaultProfileID}, nil
+				},
+				ArchiveFn: func(context.Context, string, string) (*session.Info, error) { return nil, tc.cause },
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: manager, Workspaces: nativeWorktreeWorkspaceService(),
+			}, nativeApproveAllPolicyInputs())
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"workspace":"ws-a","session_id":"sess-refused"}`),
+			})
+			status := core.StatusForToolError(err)
+			payload := core.ToolErrorResponseForError(err, status, false).Error
+			if status != http.StatusConflict || string(payload.Code) != tc.code ||
+				payload.Message != tc.message {
+				t.Fatalf("archive refusal=%#v status=%d, want %s", payload, status, tc.code)
+			}
+		})
+	}
 }

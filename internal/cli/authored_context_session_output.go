@@ -56,6 +56,9 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
 			}, derivationLines(record.Lineage, record.Derivation)...))
 			status = renderHumanBlocks(status, sessionReplyWatchesHuman(record.ReplyWatches))
+			for _, item := range record.Diagnostics {
+				status = renderHumanBlocks(status, item.Code+": "+item.Message)
+			}
 			if record.WakeState == nil {
 				return status, nil
 			}
@@ -88,7 +91,14 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 				boolString(record.EligibleForWake),
 				string(record.IneligibilityReason),
 			})
-			return renderHumanBlocks(base, sessionReplyWatchesToon(record.ReplyWatches)), nil
+			blocks := []string{base, sessionReplyWatchesToon(record.ReplyWatches)}
+			for _, item := range record.Diagnostics {
+				blocks = append(
+					blocks,
+					renderToonObject("diagnostic", []string{"code", "message"}, []string{item.Code, item.Message}),
+				)
+			}
+			return renderHumanBlocks(blocks...), nil
 		},
 	}
 }

@@ -225,3 +225,19 @@ func (c *sqliteFailureCloser) Close() error {
 	c.closed = true
 	return c.err
 }
+
+func TestSQLiteUnicodeSearch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register Unicode search before any connection opens", func(t *testing.T) {
+		t.Parallel()
+		db := openSQLitePathForTest(t, filepath.Join(t.TempDir(), "unicode.db"))
+		var got string
+		if err := db.QueryRowContext(t.Context(), `SELECT compozy_unicode_lower(?)`, "ÁRVORE").Scan(&got); err != nil {
+			t.Fatalf("query Unicode lowercase on a direct connection: %v", err)
+		}
+		if got != "árvore" {
+			t.Fatalf("Unicode lowercase = %q, want árvore", got)
+		}
+	})
+}

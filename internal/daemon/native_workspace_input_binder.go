@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -217,7 +218,25 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	if b == nil || b.workspaces == nil {
 		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
+	// Archive lifecycle uses registry identity even when the project folder is unavailable.
+	if id == toolspkg.ToolIDWorkspaceArchive || id == toolspkg.ToolIDWorkspaceUnarchive {
+		registration, err := b.workspaces.Get(ctx, ref)
+		if err != nil {
+			return nativeInputError(id, err)
+		}
+		if strings.TrimSpace(registration.ID) == "" {
+			return nativeInputError(id, fmt.Errorf("daemon: registered workspace id is empty"))
+		}
+		return setNativeWorkspaceInput(payload, registration.ID)
+	}
 	resolved, err := b.workspaces.Resolve(ctx, ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && nativeAllowsMissingWorkspace(id) {
+		registration, getErr := b.workspaces.Get(ctx, ref)
+		if getErr != nil {
+			return nativeInputError(id, getErr)
+		}
+		return setNativeWorkspaceInput(payload, registration.ID)
+	}
 	if err != nil {
 		return nativeInputError(id, err)
 	}

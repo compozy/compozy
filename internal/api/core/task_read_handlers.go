@@ -342,7 +342,7 @@ func (h *BaseHandlers) TaskInbox(c *gin.Context) {
 	}
 	readScope := actor.ReadScope
 
-	transportQuery, err := ParseTaskInboxQuery(c, h.Workspaces)
+	transportQuery, err := ParseTaskInboxQuery(c)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return

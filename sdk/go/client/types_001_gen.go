@@ -120,6 +120,7 @@ type AgentCatalogItemPayload struct {
 
 // AgentCatalogResponse is a daemon API value.
 type AgentCatalogResponse struct {
+	Diagnostics       []DiagnosticItem          `json:"diagnostics,omitempty"`
 	Agents            []AgentCatalogItemPayload `json:"agents"`
 	Page              CountedCursorPagePayload  `json:"page"`
 	Facets            AgentCatalogFacetsPayload `json:"facets"`

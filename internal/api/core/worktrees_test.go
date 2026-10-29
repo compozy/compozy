@@ -18,11 +18,35 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+func TestNativeRegisteredDomainErrors(t *testing.T) {
+	t.Parallel()
+	for _, registered := range worktreeErrorCodes {
+		t.Run("Should preserve registered domain code "+registered.code, func(t *testing.T) {
+			t.Parallel()
+			cause := fmt.Errorf("operation: %w", registered.err)
+			wrapped := toolspkg.NewToolError(toolspkg.ErrorCodeConflict, toolspkg.ToolIDWorktreeCreate,
+				"tool conflict", cause, toolspkg.ReasonConflictedID)
+			mapped := NativeToolError(toolspkg.ToolIDWorktreeCreate, wrapped)
+			status := StatusForToolError(mapped)
+			payload := ToolErrorResponseForError(mapped, status, false).Error
+			if string(payload.Code) != registered.code || payload.Message != cause.Error() ||
+				status != StatusForWorktreeError(cause) || len(payload.ReasonCodes) != 0 {
+				t.Fatalf("mapped error = %#v status=%d, want %s status=%d", payload, status,
+					registered.code, StatusForWorktreeError(cause))
+			}
+			if !errors.Is(mapped, registered.err) {
+				t.Fatal("domain error identity lost")
+			}
+		})
+	}
+}
 
 type worktreeServiceStub struct {
 	dismiss         func(context.Context, string, string) error
@@ -1295,13 +1319,17 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
 			name, method, suffix, query string
-			refuse                      bool
+			refuse, missingRoot         bool
 			branchErr                   error
 			wantStatus                  int
 			wantBody                    string
 			wantForce                   bool
 			wantDeletions               int
 		}{
+			{
+				name: "Should reach guarded removal when the parent root is missing", method: http.MethodDelete,
+				missingRoot: true, wantStatus: http.StatusNoContent,
+			},
 			{
 				name: "Should keep plain removal on 204", method: http.MethodDelete,
 				wantStatus: http.StatusNoContent,
@@ -1337,7 +1365,13 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 				deletions := 0
 				h := &BaseHandlers{
 					Workspaces: workspaceServiceStub{
+						get: func(context.Context, string) (workspacepkg.Workspace, error) {
+							return workspacepkg.Workspace{ID: "registry-alpha"}, nil
+						},
 						resolve: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+							if tc.missingRoot {
+								return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+							}
 							return workspacepkg.ResolvedWorkspace{
 								ID: "registry-alpha", Name: ref, WorkspaceID: "registry-alpha",
 							}, nil
@@ -1379,6 +1413,24 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 					},
 				}
 				router := gin.New()
+				router.GET("/workspaces/:workspace_id/worktrees/:worktree_id", h.InspectWorktree)
+				if tc.missingRoot {
+					inspection := httptest.NewRecorder()
+					router.ServeHTTP(
+						inspection,
+						httptest.NewRequestWithContext(
+							t.Context(),
+							http.MethodGet,
+							"/workspaces/registry-alpha/worktrees/wt-a",
+							http.NoBody,
+						),
+					)
+					if inspection.Code != http.StatusOK ||
+						!strings.Contains(inspection.Body.String(), "workspace_root_missing") {
+						t.Fatalf("missing-root inspection = %d %s", inspection.Code, inspection.Body)
+					}
+				}
+
 				router.DELETE("/workspaces/:workspace_id/worktrees/:worktree_id", h.RemoveWorktree)
 				router.POST("/workspaces/:workspace_id/worktrees/:worktree_id/dismiss", h.DismissWorktree)
 				response := httptest.NewRecorder()
