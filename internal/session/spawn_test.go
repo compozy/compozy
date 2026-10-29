@@ -573,7 +573,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should start an auto-title child input-only without hosted MCP even when its agent declares tools", func(t *testing.T) {
+	t.Run("Should start a tool-declaring auto-title child input-only without hosted MCP", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHostedMCPHarness(t)
