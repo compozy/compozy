@@ -209,12 +209,11 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 		}
 	})
 
-	t.Run("Should prefer the account login shell over an inherited SHELL", func(t *testing.T) {
+	t.Run("Should use the account login shell when SHELL is not an absolute path", func(t *testing.T) {
 		account := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000/account/bin\\000'\n")
-		inherited := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000/inherited/bin\\000'\n")
 		got, err := ResolveLoginShellPath(t.Context(), []string{
 			"HOME=" + t.TempDir(),
-			"SHELL=" + inherited,
+			"SHELL=bash",
 		}, LoginShellPathOptions{
 			Timeout: time.Second, MaxOutputBytes: 1024,
 			AccountShell: func(context.Context) (string, error) { return account, nil },

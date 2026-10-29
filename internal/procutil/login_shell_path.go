@@ -136,20 +136,21 @@ func validateLoginShellPath(path string) (string, error) {
 	return path, nil
 }
 
-// resolveLoginShell prefers the account's recorded shell over an inherited SHELL,
-// which reflects the launcher (launchd, the desktop app) rather than the operator's choice.
+// resolveLoginShell keeps the inherited SHELL, which a launchd-started desktop
+// app receives from the login session, and falls back to the account's
+// recorded shell before a platform default when SHELL is unusable.
 func resolveLoginShell(
 	ctx context.Context,
 	environment []string,
 	accountShell func(context.Context) (string, error),
 ) string {
+	if shell := strings.TrimSpace(environmentValue(environment, "SHELL")); filepath.IsAbs(shell) {
+		return shell
+	}
 	if accountShell == nil {
 		accountShell = AccountLoginShell
 	}
 	if shell, err := accountShell(ctx); err == nil && filepath.IsAbs(shell) {
-		return shell
-	}
-	if shell := strings.TrimSpace(environmentValue(environment, "SHELL")); filepath.IsAbs(shell) {
 		return shell
 	}
 	return defaultLoginShell()
