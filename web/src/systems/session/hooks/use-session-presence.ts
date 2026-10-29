@@ -1,4 +1,7 @@
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { sessionKeys } from "../lib/query-keys";
+import { useSessionDeletionPending, useSessionDeletedByOperator } from "./use-session-actions";
 import { isSessionUnavailable } from "../adapters/session-api-errors";
 
 import {
@@ -17,7 +20,11 @@ function releasePresence(workspaceId: string, sessionId: string, leaseId: string
   });
 }
 
-function startPresenceLoop(workspaceId: string, sessionId: string): () => void {
+function startPresenceLoop(
+  workspaceId: string,
+  sessionId: string,
+  shouldRelease: () => boolean
+): () => void {
   let leaseId: string | null = null;
   let cancelled = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -37,7 +44,7 @@ function startPresenceLoop(workspaceId: string, sessionId: string): () => void {
       try {
         const acquired = await acquireSessionPresence(workspaceId, sessionId, controller.signal);
         if (cancelled) {
-          releasePresence(workspaceId, sessionId, acquired);
+          if (shouldRelease()) releasePresence(workspaceId, sessionId, acquired);
           return;
         }
         leaseId = acquired;
@@ -68,7 +75,7 @@ function startPresenceLoop(workspaceId: string, sessionId: string): () => void {
     cancelled = true;
     controller.abort();
     if (timer !== null) clearTimeout(timer);
-    if (leaseId !== null) releasePresence(workspaceId, sessionId, leaseId);
+    if (leaseId !== null && shouldRelease()) releasePresence(workspaceId, sessionId, leaseId);
     leaseId = null;
   };
 }
@@ -86,8 +93,28 @@ export function useSessionPresence(
   sessionId: string | null,
   watching: boolean
 ): void {
+  const deletionPending = useSessionDeletionPending(sessionId);
+  const deleted = useSessionDeletedByOperator(sessionId);
+  const available = !deletionPending && !deleted;
+  const queryClient = useQueryClient();
   useEffect(() => {
-    if (!watching || !workspaceId || !sessionId) return undefined;
-    return startPresenceLoop(workspaceId, sessionId);
-  }, [workspaceId, sessionId, watching]);
+    if (!watching || !available || !workspaceId || !sessionId) return undefined;
+    // Read the captured session's live mutation state, including late acquire cleanup.
+    const shouldRelease = () =>
+      !queryClient.getMutationCache().find({
+        mutationKey: sessionKeys.deletions(),
+        predicate: mutation => {
+          const variables = mutation.state.variables;
+          return (
+            (mutation.state.status === "pending" || mutation.state.status === "success") &&
+            typeof variables === "object" &&
+            variables !== null &&
+            "id" in variables &&
+            variables.id === sessionId
+          );
+        },
+      });
+    if (!shouldRelease()) return undefined;
+    return startPresenceLoop(workspaceId, sessionId, shouldRelease);
+  }, [workspaceId, sessionId, watching, available, queryClient]);
 }

@@ -38,3 +38,16 @@ QA impact 2026-10-17 (web performance): The empty desktop/composer and worktree 
 Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
 
 Recovery follow-up: block the deferred launcher/dialog JavaScript request and confirm a contained recovery surface. Closing the unavailable dialog keeps the desktop reachable; Reload fetches the feature again and preserves the ordinary window/launcher journey. The existing OS-shell/worktree E2E journeys own these network-failure legs in CI.
+
+
+Issue #1034 targeted request-lifecycle walk (2026-10-29): capture the worktree
+catalog WebSocket while opening, minimizing, restoring, and closing ordinary
+windows. These visibility changes must not close or recreate that subscription.
+Move only the isolated project's root away, reload, and verify that known missing
+roots do not trigger worktree reads. A 410 discovered by an in-flight read must
+stop retries and stream-triggered refetches. Restore the same folder and verify
+that a fresh workspace catalog observation re-enables its worktree listing.
+Evidence and bounded verification: [gone-resource report](../reports/2026-10-29-gone-resource-requests.md).
+
+Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
+The broader historical scenario is not re-certified by this bounded walk.

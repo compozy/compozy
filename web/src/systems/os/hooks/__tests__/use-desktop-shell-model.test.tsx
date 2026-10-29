@@ -1,6 +1,6 @@
 // Suite: desktop shell model boundary
 // Invariant: the shell model mounts before OsShellContext and independently budgets optional
-// worktree traffic and continuity-critical session events.
+// HTTP continuity traffic while keeping the worktree WebSocket independent of windows.
 // Boundary IN: useDesktopShellModel's dependency graph.
 // Boundary OUT: query transports, window-manager projection, and rendered desktop chrome.
 import { renderHook } from "@testing-library/react";
@@ -52,17 +52,19 @@ describe("useDesktopShellModel", () => {
     expect(result.current.worktreeListing).toBeUndefined();
   });
 
-  it("Should budget optional and continuity streams independently", () => {
+  it("Should keep the worktree WebSocket independent of the HTTP continuity budget", () => {
     renderHook(() =>
-      useDesktopShellModel(useActiveWorkspace(), {
-        backgroundStreamsEnabled: false,
-        continuityStreamsEnabled: true,
-      })
+      useDesktopShellModel(
+        { ...useActiveWorkspace(), hasWorkspaces: true },
+        {
+          continuityStreamsEnabled: false,
+        }
+      )
     );
 
-    expect(mocks.worktreeCatalogStream).toHaveBeenLastCalledWith([], { enabled: false });
+    expect(mocks.worktreeCatalogStream).toHaveBeenLastCalledWith([], { enabled: true });
     expect(mocks.sessionCatalogStreams).toHaveBeenLastCalledWith(
-      expect.objectContaining({ enabled: true })
+      expect.objectContaining({ enabled: false })
     );
   });
 });

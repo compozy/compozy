@@ -15,6 +15,7 @@ import {
   sessionTranscriptSearchOptions,
 } from "../lib/query-options";
 import { normalizeTranscriptSearchQuery } from "../lib/session-navigation";
+import { useSessionDeletionPending, useSessionDeletedByOperator } from "./use-session-actions";
 
 /** How long the "+N new" note stays before the count settles (artboard §04). */
 export const SESSION_FIND_APPENDED_NOTE_MS = 4_000;
@@ -43,15 +44,18 @@ export function useSessionTranscriptOutline({
   refreshKey,
   enabled = true,
 }: SessionNavigationScope & { enabled?: boolean }) {
+  const deletionPending = useSessionDeletionPending(sessionId);
+  const deleted = useSessionDeletedByOperator(sessionId);
+  const canRead = enabled && !deletionPending && !deleted;
   const queryClient = useQueryClient();
-  const query = useQuery(sessionTranscriptOutlineOptions(workspaceId, sessionId, enabled));
+  const query = useQuery(sessionTranscriptOutlineOptions(workspaceId, sessionId, canRead));
   useEffect(() => {
-    if (refreshKey === undefined || !enabled) return;
+    if (refreshKey === undefined || !canRead) return;
     void queryClient.invalidateQueries({
       queryKey: sessionKeys.transcriptOutline(workspaceId, sessionId),
       exact: true,
     });
-  }, [enabled, queryClient, refreshKey, sessionId, workspaceId]);
+  }, [canRead, queryClient, refreshKey, sessionId, workspaceId]);
   return query;
 }
 
@@ -66,14 +70,18 @@ export function useSessionTranscriptSearch({
   query,
   refreshKey,
 }: SessionNavigationScope & { query: string }) {
+  const deletionPending = useSessionDeletionPending(sessionId);
+  const deleted = useSessionDeletedByOperator(sessionId);
+  const canRead = !deletionPending && !deleted;
   const queryClient = useQueryClient();
-  const search = useQuery(sessionTranscriptSearchOptions(workspaceId, sessionId, query));
+  const options = sessionTranscriptSearchOptions(workspaceId, sessionId, query);
+  const search = useQuery({ ...options, enabled: options.enabled && canRead });
   useEffect(() => {
-    if (refreshKey === undefined) return;
+    if (refreshKey === undefined || !canRead) return;
     void queryClient.invalidateQueries({
       queryKey: sessionKeys.transcriptSearchRoot(workspaceId, sessionId),
     });
-  }, [queryClient, refreshKey, sessionId, workspaceId]);
+  }, [canRead, queryClient, refreshKey, sessionId, workspaceId]);
   return search;
 }
 
@@ -100,6 +108,9 @@ export function useSessionFind({
   refreshKey,
   handlers,
 }: UseSessionFindOptions) {
+  const deletionPending = useSessionDeletionPending(sessionId);
+  const deleted = useSessionDeletedByOperator(sessionId);
+  const canRead = !deletionPending && !deleted;
   const store = useStore(sessionFindLogic);
   const input = useDebouncedInput({
     delayMs: SESSION_FIND_QUERY_DEBOUNCE_MS,
@@ -149,12 +160,18 @@ export function useSessionFind({
     isPending: draftPending || (committed.length > 0 && search.isPending),
     jump,
     jumpError,
-    jumpTo: (sequence: number) => store.trigger.jumpRequested({ handlers, sequence }),
+    jumpTo: (sequence: number) => {
+      if (canRead) store.trigger.jumpRequested({ handlers, sequence });
+    },
     matches,
-    retry: () => void search.refetch(),
+    retry: () => {
+      if (canRead) void search.refetch();
+    },
     select: (sequence: number) => store.trigger.selected({ sequence }),
     setDraftQuery: input.setDraftValue,
-    step: (direction: 1 | -1) => store.trigger.stepped({ direction, handlers }),
+    step: (direction: 1 | -1) => {
+      if (canRead) store.trigger.stepped({ direction, handlers });
+    },
     truncated: search.data?.truncated ?? false,
   };
 }

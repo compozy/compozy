@@ -2,7 +2,10 @@
 
 import type { TerminalViewHandle } from "@compozy/ui";
 import { useSelector } from "@xstate/store-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { terminalRetainedOutputQuery, terminalScope } from "../lib/query-options";
 
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalPaneState } from "../stores/terminal-store";
@@ -56,6 +59,25 @@ export function useTerminalWindowConnection({
   // The client reconnects on its own with backoff; this is how a person asks
   // for it now rather than waiting the delay out.
   const [restartKey, setRestartKey] = useState(0);
+  // This body is keyed by terminal identity. Once started, the live stream owns
+  // its end: the catalog can announce exit before the socket's final bytes arrive.
+  const [startedLive] = useState(() => terminal.state === "running");
+  // Match transcript previews: a pane that streamed retains its live scrollback.
+  const [streamed, setStreamed] = useState(false);
+  const needsRetainedOutput =
+    terminal.state === "exited" && !streamed && (!startedLive || pane?.status === "closed");
+  const output = useQuery({
+    ...terminalRetainedOutputQuery(terminalScope(workspaceId, profile), terminal.id),
+    enabled: needsRetainedOutput,
+    staleTime: Infinity,
+  });
+  useEffect(() => {
+    if (!needsRetainedOutput || !output.data) return;
+    const handle = handleRef.current;
+    if (!handle) return;
+    handle.reset();
+    void handle.write(output.data.content.replace(/\r?\n/g, "\r\n"));
+  }, [needsRetainedOutput, output.data]);
   const attachment = useTerminalAttachment({
     workspaceId,
     terminalId: terminal.id,
@@ -65,12 +87,34 @@ export function useTerminalWindowConnection({
     handleRef,
     socketFactory,
     restartKey,
+    enabled: startedLive,
+    onOutputPainted: () => setStreamed(true),
   });
 
   return {
-    pane,
+    pane:
+      output.error && needsRetainedOutput
+        ? {
+            ...pane,
+            terminalId: terminal.id,
+            status: "closed",
+            mode: terminal.mode,
+            cols: null,
+            rows: null,
+            viewers: terminal.viewers,
+            inputEnabled: false,
+            gap: null,
+            exit: pane?.exit ?? null,
+            errorCode: "client_error",
+            errorMessage: output.error.message,
+          }
+        : pane,
     attachment,
     handleRef,
-    reconnect: () => setRestartKey(key => key + 1),
+    reconnect: () => {
+      if (terminal.state === "exited") {
+        if (needsRetainedOutput) void output.refetch();
+      } else setRestartKey(key => key + 1);
+    },
   };
 }

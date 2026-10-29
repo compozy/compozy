@@ -4,10 +4,7 @@ import { useDesktopChrome } from "./use-desktop-chrome";
 import { useDesktopShellModel } from "./use-desktop-shell-model";
 import { useWorkspaceSetupDefaults } from "./use-workspace-setup-defaults";
 import { useWorktreeDialogTargets } from "./use-worktree-dialog-targets";
-import {
-  backgroundStreamsWithinConnectionBudget,
-  continuityStreamsWithinConnectionBudget,
-} from "../lib/background-stream-budget";
+import { continuityStreamsWithinConnectionBudget } from "../lib/background-stream-budget";
 import {
   useActiveWorkspace,
   USER_DESKTOP_WORKSPACE_ID,
@@ -24,16 +21,11 @@ export function useDesktopChromeController() {
       ? USER_SCOPE_SELECTOR
       : (activeWorkspace.desktopWorkspace?.id ?? null)
   );
-  const backgroundStreamsEnabled = useAtom(
-    chrome.shell.projection,
-    backgroundStreamsWithinConnectionBudget
-  );
   const continuityStreamsEnabled = useAtom(
     chrome.shell.projection,
     continuityStreamsWithinConnectionBudget
   );
   const model = useDesktopShellModel(activeWorkspace, {
-    backgroundStreamsEnabled,
     continuityStreamsEnabled,
   });
   const workspaceSetupDefaults = useWorkspaceSetupDefaults(model.isWorkspaceSetupOpen);

@@ -1,3 +1,4 @@
+import { encodeTerminalServerOutputFrame } from "../../lib/terminal-wire";
 import { act, render, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
@@ -137,6 +138,13 @@ export function recordingSocketFactory() {
           socket.onmessage?.({ data: frame.buffer } as MessageEvent<unknown>);
         }
         await Promise.resolve();
+      });
+    },
+    deliverOutput: async (seq: bigint, text: string) => {
+      await waitForListening();
+      const frame = encodeTerminalServerOutputFrame(seq, text);
+      await act(async () => {
+        for (const socket of sockets) socket.onmessage?.({ data: frame.buffer } as MessageEvent);
       });
     },
     /** Drops the newest live connection the way the browser would. */

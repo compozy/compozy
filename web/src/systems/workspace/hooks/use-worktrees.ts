@@ -23,6 +23,7 @@ import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
 import type { WorktreeBranchOutcome, WorktreePayload, WorktreesResponse } from "../types";
 import { notifyUser } from "@/lib/user-feedback";
+import { useWorkspaces } from "./use-workspaces";
 import { createdInProfileToast, useProfileReadScope } from "@/systems/profiles";
 
 interface UseWorktreesOptions {
@@ -30,7 +31,17 @@ interface UseWorktreesOptions {
 }
 
 export function useWorktrees(workspaceID: string | null, options: UseWorktreesOptions = {}) {
-  return useQuery(worktreesListOptions(workspaceID ?? "", options.enabled ?? true));
+  const catalog = useWorkspaces();
+  const workspace = catalog.data?.find(item => item.id === workspaceID);
+  return useQuery(
+    worktreesListOptions(
+      workspaceID ?? "",
+      options.enabled ?? true,
+      workspace
+        ? { rootMissing: workspace.root_missing === true, observedAt: catalog.dataUpdatedAt }
+        : undefined
+    )
+  );
 }
 
 /** Every project's worktrees in one store read (All projects), narrowed by the Project filter. */
@@ -54,6 +65,7 @@ export function useWorktreeListings(
   workspaces: ReadonlyArray<{ id: string }>,
   options: UseWorktreesOptions = {}
 ): WorktreeListingByWorkspace {
+  const catalog = useWorkspaces();
   const enabled = options.enabled ?? true;
   const workspaceIds: string[] = [];
   for (const workspace of workspaces) {
@@ -61,7 +73,16 @@ export function useWorktreeListings(
   }
 
   return useQueries({
-    queries: workspaceIds.map(id => worktreesListOptions(id, enabled)),
+    queries: workspaceIds.map(id => {
+      const workspace = catalog.data?.find(item => item.id === id);
+      return worktreesListOptions(
+        id,
+        enabled,
+        workspace
+          ? { rootMissing: workspace.root_missing === true, observedAt: catalog.dataUpdatedAt }
+          : undefined
+      );
+    }),
     combine: results => {
       const listings: Record<string, WorktreesResponse | undefined> = {};
       workspaceIds.forEach((id, index) => {

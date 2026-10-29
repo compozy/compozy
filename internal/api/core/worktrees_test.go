@@ -885,6 +885,16 @@ func TestForkSessionToWorktree(t *testing.T) {
 func TestWorktreeErrorCodes(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve missing workspace roots returned by worktree resolution", func(t *testing.T) {
+		t.Parallel()
+		cause := fmt.Errorf("resolve worktree workspace: %w", workspacepkg.ErrWorkspaceRootMissing)
+		status := StatusForWorktreeError(cause)
+		payload := ErrorPayloadForStatus(status, cause, false)
+		if status != http.StatusGone || payload.Code != "workspace_root_missing" {
+			t.Fatalf("response = %d %+v, want 410 workspace_root_missing", status, payload)
+		}
+	})
+
 	t.Run("Should map every sentinel to one unique wire code", func(t *testing.T) {
 		t.Parallel()
 

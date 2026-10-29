@@ -35,21 +35,23 @@ export function useSessionWindowResolution({
   sessionId,
   focusedScope,
   liveTailEnabled,
+  enabled = true,
 }: {
   sessionId: string | null;
   /** The window's data scope when bounded (a project or User); `null` for the aggregate or unsettled. */
   focusedScope: FocusedDataScope | null;
   liveTailEnabled: boolean;
+  enabled?: boolean;
 }): SessionWindowResolution {
   const { params } = useProfileReadScope();
   const query = useQuery(
     sessionScopedDetailOptions(sessionId ?? "", params, {
-      enabled: sessionId !== null,
+      enabled: sessionId !== null && enabled,
       liveTail: liveTailEnabled,
     })
   );
   const scopedMiss = query.isError && isSessionUnavailable(query.error);
-  const foreign = useForeignProfileSession(sessionId, scopedMiss);
+  const foreign = useForeignProfileSession(sessionId, scopedMiss && enabled);
   const foreignSession = foreign.status === "found" ? foreign.session : undefined;
   const resolvedSession = query.data ?? foreignSession;
   const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;

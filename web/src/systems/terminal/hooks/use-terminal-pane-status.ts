@@ -18,7 +18,7 @@ export function useTerminalPaneStatus(terminal: TerminalInfo, pane: TerminalPane
   }, [exit]);
 
   const status = pane?.status ?? "connecting";
-  const awaitingFirstFrame = status === "connecting" || status === "idle";
+  const awaitingFirstFrame = exit === null && (status === "connecting" || status === "idle");
   const showConnecting =
     exit === null &&
     (status === "connecting" || status === "reconnecting" || status === "resyncing");

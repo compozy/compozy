@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@compozy/ui";
+
+import { sessionKeys } from "../../lib/query-keys";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
 import type { SessionTranscriptOutlineResponse } from "../../types";
@@ -34,8 +36,10 @@ function outline(count: number): SessionTranscriptOutlineResponse {
 
 let outlineResponse: SessionTranscriptOutlineResponse = outline(0);
 
-function renderTrail(overrides: Partial<SessionMessageTrailProps> = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderTrail(
+  overrides: Partial<SessionMessageTrailProps> = {},
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) {
   const props: SessionMessageTrailProps = {
     onJumpToSequence: vi.fn(),
     paneHeightPx: 600,
@@ -75,6 +79,39 @@ describe("SessionMessageTrail", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should stop outline refetches while deletion is pending and resume after rollback", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    outlineResponse = outline(3);
+    renderTrail({}, client);
+    await screen.findAllByTestId("session-trail-tick");
+    const key = sessionKeys.transcriptOutline(WORKSPACE_ID, SESSION_ID);
+    let rejectDelete!: (error: Error) => void;
+    const deletion = client.getMutationCache().build(client, {
+      mutationKey: sessionKeys.deletions(),
+      mutationFn: (_target: { id: string }) =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject;
+        }),
+    });
+    let completion!: Promise<unknown>;
+    await act(async () => {
+      completion = deletion.execute({ id: SESSION_ID }).catch(() => undefined);
+    });
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(false)
+    );
+    const count = vi.mocked(fetch).mock.calls.length;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: key });
+    });
+    expect(fetch).toHaveBeenCalledTimes(count);
+    await act(async () => {
+      rejectDelete(new Error("Deletion refused"));
+      await completion;
+    });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(count));
   });
 
   it("Should render one tick per sent message with the reading anchor current and jump on click", async () => {

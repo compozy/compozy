@@ -24,8 +24,8 @@ export {
  * scope lives in exactly one place and no surface can quietly read unscoped.
  */
 
-/** Captured output for a pipe terminal, which has no interactive screen. */
-export function terminalPipeOutputQuery(scope: TerminalProfileQueryScope, terminalId: string) {
+/** Retained output for pipe terminals and exited interactive terminals. */
+export function terminalRetainedOutputQuery(scope: TerminalProfileQueryScope, terminalId: string) {
   return queryOptions({
     queryKey: terminalKeys.read(scope.key, terminalId, "tail"),
     queryFn: ({ signal }) =>
