@@ -705,6 +705,18 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			}
 		}
 
+		// A ready checkout cannot enter the metadata-only missing-record removal path.
+		insertReady("wt_remove_ready")
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_remove_ready",
+			now,
+		); err != nil ||
+			removed {
+			t.Fatalf("ready removal = %v, %v, want false nil", removed, err)
+		}
+
 		insertReady("wt_exit_first")
 		exitOperation := worktreepkg.ExitOperation{
 			ID: "op-exit-first", WorkspaceID: workspaceID, WorktreeID: "wt_exit_first",

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 
@@ -39,9 +40,7 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}
-	if err := h.decorateMissingSessionWorkspaces(ctx, payloads); err != nil {
-		return nil, err
-	}
+	h.decorateMissingSessionWorkspaces(ctx, payloads)
 	h.decorateMonitorSummaries(payloads)
 	return h.decorateSessionOwners(ctx, payloads)
 }
@@ -88,13 +87,14 @@ func SessionPayloadsWithPageHealth(
 }
 
 // decorateMissingSessionWorkspaces uses one registration read for the entire page.
-func (h *BaseHandlers) decorateMissingSessionWorkspaces(ctx context.Context, payloads []contract.SessionPayload) error {
+func (h *BaseHandlers) decorateMissingSessionWorkspaces(ctx context.Context, payloads []contract.SessionPayload) {
 	if len(payloads) == 0 || h.Workspaces == nil {
-		return nil
+		return
 	}
 	workspaces, err := h.Workspaces.List(ctx)
 	if err != nil {
-		return err
+		slog.WarnContext(ctx, "session catalog workspace diagnostics unavailable", "error", err)
+		return
 	}
 	missing := make(map[string]bool)
 	for _, workspace := range workspaces {
@@ -107,5 +107,4 @@ func (h *BaseHandlers) decorateMissingSessionWorkspaces(ctx context.Context, pay
 			payloads[index].Diagnostics = MissingWorkspaceDiagnostics(payloads[index].WorkspaceID)
 		}
 	}
-	return nil
 }
