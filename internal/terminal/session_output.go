@@ -17,9 +17,13 @@ func (s *session) readOutput() {
 	reads := make(chan outputRead, 1)
 	go readProcessOutput(s.ctx, s.proc.Reader(), reads)
 	coalescer := newOutputCoalescer(s.acceptOutput)
+	answersDeviceQueries := s.Info().Mode == ModePTY
 	for {
 		select {
 		case read := <-reads:
+			if answersDeviceQueries {
+				s.answerHeadlessDeviceQuery(read.data)
+			}
 			filtered := s.filter.Filter(read.data)
 			if read.err != nil {
 				final := s.filter.Flush()

@@ -37,6 +37,7 @@ type session struct {
 	closedEmitted       bool
 	vtCarry             []byte
 	subscribers         map[uint64]*subscription
+	deviceQueryTail     []byte
 	nextSubID           uint64
 	cols                uint16
 	rows                uint16

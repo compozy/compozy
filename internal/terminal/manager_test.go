@@ -1280,6 +1280,34 @@ func TestSessionTailReadContract(t *testing.T) {
 func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should answer a startup device query only while no viewer can answer it", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		// The query split across two reads, as a shell's buffered write may arrive.
+		for _, chunk := range []string{"fish \x1b[", "c"} {
+			if err := proc.emit([]byte(chunk)); err != nil {
+				t.Fatalf("emit() error = %v", err)
+			}
+		}
+		waitForInput(t, proc, primaryDeviceAttributesReply)
+
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		viewer, err := handle.Attach(t.Context(), AttachOptions{Mode: "write", Actor: actor, Cols: 80, Rows: 24})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+		t.Cleanup(func() { _ = viewer.Close() })
+		if err := proc.emit([]byte("\x1b[0c ready")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		waitForTailContent(t, handle, "ready")
+		if got := proc.inputString(); got != primaryDeviceAttributesReply {
+			t.Fatalf("input = %q, want one daemon reply before the writer attached", got)
+		}
+	})
+
 	for _, mode := range []string{"read", "write"} {
 		t.Run("Should drain process output while an attached "+mode+" viewer stops consuming", func(t *testing.T) {
 			t.Parallel()
@@ -4674,4 +4702,15 @@ type missingRootResolver struct{}
 
 func (missingRootResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+}
+
+func waitForInput(t *testing.T, proc *fakeProc, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for proc.inputString() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("input = %q, want %q", proc.inputString(), want)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
