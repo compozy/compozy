@@ -249,6 +249,8 @@ describe("comment attachments", () => {
     expect(() => inspectImage(png(0, 10))).toThrow("unsupported_media_type");
     // Truncated before IEND: the header alone is not an image.
     expect(() => inspectImage(png(640, 480).subarray(0, 33))).toThrow("unsupported_media_type");
+    // A tiny file whose pixels inflate past the decoded budget (a decompression bomb).
+    expect(() => inspectImage(png(8192, 4096))).toThrow("unsupported_media_type");
     // A flipped byte inside IDAT fails its CRC.
     const corrupt = png(4, 4);
     corrupt[42] ^= 0xff;

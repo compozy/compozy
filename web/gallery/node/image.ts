@@ -57,6 +57,9 @@ function webpSize(bytes: Uint8Array, data: DataView, chunk: string) {
   return { width: 0, height: 0 };
 }
 
+/** Decoded pixel data a PNG upload may inflate to (a 4K RGBA screenshot is ~33 MB). */
+const maxDecodedBytes = 96 * 1024 * 1024;
+
 /**
  * A PNG whose chunks fit the buffer from IHDR through IEND, each with a matching CRC, and whose
  * IDAT data inflates to image data; a truncated, padded or corrupt upload is rejected rather than
@@ -76,7 +79,11 @@ function pngComplete(bytes: Uint8Array, data: DataView) {
     if (type === "IEND") {
       if (end !== bytes.length || imageData.length === 0) return false;
       try {
-        return inflateSync(Buffer.concat(imageData)).length > 0;
+        // A highly compressible PNG under the 5 MB upload cap can still inflate to gigabytes:
+        // decoding past the budget throws and rejects the image.
+        return (
+          inflateSync(Buffer.concat(imageData), { maxOutputLength: maxDecodedBytes }).length > 0
+        );
       } catch {
         return false;
       }
