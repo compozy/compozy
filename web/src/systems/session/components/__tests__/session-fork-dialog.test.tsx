@@ -55,6 +55,7 @@ function queryClient() {
   });
 }
 
+/** Renders the open dialog over MSW; `withThisWindow: false` mimics a host with no session window. */
 function renderDialog(
   options: SessionDeriveHandlerOptions = {},
   point: SessionForkPoint | null = null,

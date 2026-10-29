@@ -92,6 +92,7 @@ export function useSessionForkDialog({
   // false for a cut, the dialog does not second-guess either way.
   const nativeClone = measured && preview.preview?.native_fork_possible === true;
 
+  /** Posts the fork the dialog measured and lands the child in this window. */
   const submit = () => {
     const measuredPreview = preview.preview;
     if (!canSubmit || !measuredPreview) return;

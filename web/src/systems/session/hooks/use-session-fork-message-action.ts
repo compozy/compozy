@@ -13,6 +13,7 @@ export function useSessionForkMessageAction() {
   const requestFork = use(SessionForkContext);
   const available = gate.durable && requestFork !== null;
 
+  /** Opens the Fork dialog through this message; a no-op while unavailable or busy. */
   const trigger = () => {
     if (!available || gate.busy) return;
     requestFork(undefined, { messageId: gate.messageId });
