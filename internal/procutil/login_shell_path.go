@@ -49,10 +49,10 @@ func ResolveLoginShellPath(
 	if home == "" || !filepath.IsAbs(home) {
 		return "", errors.New("procutil: operator home must be an absolute path")
 	}
-	shell := resolveLoginShell(ctx, environment, options.AccountShell)
-
+	// The timeout bounds the whole resolution, account-shell lookup included.
 	commandCtx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
+	shell := resolveLoginShell(commandCtx, environment, options.AccountShell)
 
 	output := &boundedCommandOutput{limit: options.MaxOutputBytes}
 	command := exec.CommandContext(commandCtx, shell, "-ilc", `printf '\000%s\000' "$PATH"`)

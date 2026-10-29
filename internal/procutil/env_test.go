@@ -367,10 +367,18 @@ func TestAccountLoginShell(t *testing.T) {
 		if err := os.WriteFile(notExecutable, []byte("#!/bin/sh\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		for _, shell := range []string{"", "fish", "/definitely/not/fish", notExecutable, t.TempDir()} {
-			if _, err := validateAccountShell(shell); !errors.Is(err, ErrAccountShellUnavailable) {
-				t.Fatalf("validateAccountShell(%q) error = %v, want unavailable", shell, err)
-			}
+		for name, shell := range map[string]string{
+			"Should reject an empty shell":        "",
+			"Should reject a relative shell":      "fish",
+			"Should reject a missing shell":       "/definitely/not/fish",
+			"Should reject a non-executable file": notExecutable,
+			"Should reject a directory":           t.TempDir(),
+		} {
+			t.Run(name, func(t *testing.T) {
+				if _, err := validateAccountShell(t.Context(), shell); !errors.Is(err, ErrAccountShellUnavailable) {
+					t.Fatalf("validateAccountShell(%q) error = %v, want unavailable", shell, err)
+				}
+			})
 		}
 	})
 

@@ -70,6 +70,18 @@ describe("TerminalAggregateLocation", () => {
     expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
   });
 
+  it("Should offer Retry when a requested terminal's catalog fails to load", () => {
+    const { props } = renderLocation(
+      { requestedId: "term-unknown" },
+      { error: new Error("daemon unavailable"), isPending: false }
+    );
+
+    expect(screen.getByText("Couldn't load Terminal")).toBeInTheDocument();
+    screen.getByRole("button", { name: "Retry" }).click();
+    expect(props.catalog.refetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
+  });
+
   it("Should leave out new-terminal destinations and name each owner for an all-profiles read", () => {
     renderLocation({ readOnly: true }, { data: [...TERMINAL_FIXTURES], isPending: false });
 

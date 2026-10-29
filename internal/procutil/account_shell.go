@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,10 +36,18 @@ func AccountLoginShell(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return validateAccountShell(shell)
+	return validateAccountShell(lookupCtx, shell)
 }
 
-func validateAccountShell(shell string) (string, error) {
+type accountShellCheck struct {
+	shell string
+	err   error
+}
+
+// validateAccountShell accepts an absolute path this user may execute. The
+// check honors the lookup deadline: a shell on an unresponsive mount must not
+// hold a terminal open, so callers can fall back to another shell.
+func validateAccountShell(ctx context.Context, shell string) (string, error) {
 	shell = strings.TrimSpace(shell)
 	if shell == "" {
 		return "", fmt.Errorf("%w: no shell recorded", ErrAccountShellUnavailable)
@@ -46,14 +55,21 @@ func validateAccountShell(shell string) (string, error) {
 	if !filepath.IsAbs(shell) {
 		return "", fmt.Errorf("%w: %q is not an absolute path", ErrAccountShellUnavailable, shell)
 	}
-	info, err := os.Stat(shell)
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrAccountShellUnavailable, err)
+	checked := make(chan accountShellCheck, 1)
+	go func() {
+		// LookPath on an absolute path checks a regular file executable by this user.
+		resolved, err := exec.LookPath(shell)
+		checked <- accountShellCheck{shell: resolved, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		return "", fmt.Errorf("%w: check %q: %w", ErrAccountShellUnavailable, shell, ctx.Err())
+	case result := <-checked:
+		if result.err != nil {
+			return "", fmt.Errorf("%w: %w", ErrAccountShellUnavailable, result.err)
+		}
+		return result.shell, nil
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-		return "", fmt.Errorf("%w: %q is not an executable file", ErrAccountShellUnavailable, shell)
-	}
-	return shell, nil
 }
 
 // parseDirectoryServicesShell reads `dscacheutil -q user -a uid <uid>` output.

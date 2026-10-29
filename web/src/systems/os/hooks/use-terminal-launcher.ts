@@ -119,6 +119,12 @@ export function useTerminalLauncher({
 export function useTerminalLauncherEntry() {
   const [open, setOpen] = useState(false);
   const allProjects = useDataScope()?.kind === "all";
+  // Leaving All projects closes the launcher for good, so returning never reopens it.
+  const [wasAllProjects, setWasAllProjects] = useState(allProjects);
+  if (wasAllProjects !== allProjects) {
+    setWasAllProjects(allProjects);
+    setOpen(false);
+  }
   return {
     open: open && allProjects,
     setOpen,

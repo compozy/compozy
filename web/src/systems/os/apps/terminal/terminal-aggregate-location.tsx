@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { toast } from "@compozy/ui";
+import { AlertCircle } from "lucide-react";
+
+import { Button, Empty, toast } from "@compozy/ui";
 import {
   createTerminal,
   TerminalAggregateSkeleton,
@@ -58,6 +60,10 @@ export function TerminalAggregateLocation({
   const [creating, setCreating] = useState(false);
   const terminals = catalog.data ?? [];
   const destinations = terminalLauncherDestinations(workspaces);
+  const defaultDestination = defaultTerminalLauncherDestination(
+    destinations,
+    rememberedWorkspaceId
+  );
 
   const openBound = (terminalId: string, workspaceId: string) =>
     void coordinator.userRetarget(windowId, {
@@ -89,13 +95,38 @@ export function TerminalAggregateLocation({
   };
 
   if (requested || (requestedId && catalog.isPending)) return <TerminalAggregateSkeleton />;
+  // A terminal asked for by id cannot bind until the catalog names its project.
+  if (requestedId && catalog.error && terminals.length === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => void catalog.refetch()}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={catalog.error.message}
+          icon={AlertCircle}
+          title="Couldn't load Terminal"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 pt-[12vh] pb-6">
       <TerminalLauncher
+        // The initial selection follows the default; a later default (the catalog settling) re-selects.
+        key={defaultDestination}
         busy={creating || viewer === null}
         className="w-full max-w-lg self-start rounded-lg border border-line"
-        defaultDestination={defaultTerminalLauncherDestination(destinations, rememberedWorkspaceId)}
+        defaultDestination={defaultDestination}
         destinations={destinations}
         onAttach={terminal => openBound(terminal.id, terminal.workspace_id)}
         onOpenNew={startNew}

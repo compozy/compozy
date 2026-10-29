@@ -14,6 +14,7 @@ const directoryServicesCacheTool = "/usr/bin/dscacheutil"
 
 // lookupAccountShell asks directory services, which also covers network and managed accounts.
 func lookupAccountShell(ctx context.Context, uid int) (string, error) {
+	//nolint:gosec // Fixed absolute tool path; the only argument is this process's own numeric uid.
 	output, err := execabs.CommandContext(
 		ctx, directoryServicesCacheTool, "-q", "user", "-a", "uid", strconv.Itoa(uid),
 	).Output()

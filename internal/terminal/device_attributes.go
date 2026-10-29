@@ -73,7 +73,9 @@ func (s *session) startDeviceReplies() {
 				return
 			case <-s.deviceReplies:
 				if err := writeAllInput([]byte(primaryDeviceAttributesReply), s.proc.Write); err != nil {
-					s.manager.logger.Debug("terminal: answer device attributes query", "terminal_id", s.info.ID, "error", err)
+					s.manager.logger.Debug(
+						"terminal: answer device attributes query", "terminal_id", s.info.ID, "error", err,
+					)
 				}
 			}
 		}
