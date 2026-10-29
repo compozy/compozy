@@ -23,6 +23,7 @@ import {
   invalidateSessionLiveQueries,
   invalidateSessionMutationQueries,
   invalidateSessionUsageQueries,
+  invalidateWorkspaceSessionCatalog,
 } from "../session-query-invalidation";
 import {
   rescheduleSessionStreamBackedReads,
@@ -398,7 +399,8 @@ describe("stream-backed session reads", () => {
 });
 
 // Invariant: each wake rereads its active read models once, invalidates inactive siblings,
-// and preserves all other workspace/session data. Owner: canonical Query cache boundaries.
+// and preserves all other workspace/session data. A session's row also lives in the All projects
+// aggregate, so every catalog wake reaches it too. Owner: canonical Query cache boundaries.
 describe("session read invalidation", () => {
   const keys = {
     detail: sessionKeys.detail("ws", "session"),
@@ -424,7 +426,21 @@ describe("session read invalidation", () => {
     {
       name: "live",
       invalidate: invalidateSessionLiveQueries,
-      affected: ["detail", "history", "inputs", "profile", "otherProfile", "catalog", "folders"],
+      affected: [
+        "detail",
+        "history",
+        "inputs",
+        "profile",
+        "otherProfile",
+        "catalog",
+        "folders",
+        "aggregate",
+      ],
+    },
+    {
+      name: "catalog",
+      invalidate: invalidateWorkspaceSessionCatalog,
+      affected: ["catalog", "folders", "aggregate"],
     },
     {
       name: "mutation",
@@ -441,6 +457,7 @@ describe("session read invalidation", () => {
         "otherProfile",
         "catalog",
         "folders",
+        "aggregate",
         "usageDescendant",
       ],
     },
