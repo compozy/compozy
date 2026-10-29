@@ -731,6 +731,12 @@ func TestCanonicalUserTextStripsPromptAugmentationLayers(t *testing.T) {
 		want   string
 	}{
 		{
+			name: "Should strip the environment change notice before situation context",
+			prompt: "<compozy-environment-change>Directory changed.</compozy-environment-change>\n" +
+				"<compozy-situation-context>{}</compozy-situation-context>\nhello alpha",
+			want: "hello alpha",
+		},
+		{
 			name: "Should preserve plain user prompt",
 			prompt: `
 hello alpha

@@ -936,6 +936,112 @@ describe("useSessionCatalogStreams", () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["catalog-first", "completed-read", "pending-read", "same-root", "reconnect"])(
+    "Should refresh mounted files only for a location transition (%s)",
+    async ordering => {
+      // Invariant: externally changed CWD reaches the open mention picker without
+      // navigation, while other session/workspace file caches remain untouched.
+      // Owner: session catalog reconciliation; canonical stream suite.
+      const queryClient = createQueryClient();
+      const filesKey = sessionKeys.fileSearch(WORKSPACE_ID, SESSION_ID, "", 50);
+      const otherKey = sessionKeys.fileSearch(WORKSPACE_ID, "sess_other", "", 50);
+      const foreignKey = sessionKeys.fileSearch("ws_other", SESSION_ID, "", 50);
+      queryClient.setQueryData(filesKey, ["root.txt"]);
+      queryClient.setQueryData(otherKey, ["other.txt"]);
+      queryClient.setQueryData(foreignKey, ["foreign.txt"]);
+      queryClient.setQueryData(
+        sessionKeys.detail(WORKSPACE_ID, SESSION_ID),
+        sessionWithState("active")
+      );
+      vi.mocked(fetchSession).mockResolvedValue(sessionWithState("active"));
+      const readFiles = vi.fn().mockResolvedValue(["checkout.txt"]);
+      const sources: FakeCatalogEventSource[] = [];
+      const factory = (url: string) => {
+        const source = new FakeCatalogEventSource(url);
+        sources.push(source);
+        return source;
+      };
+      const { result } = renderHook(
+        () => {
+          useSessionCatalogStreams({ eventSourceFactory: factory });
+          useQuery(sessionDetailOptions(WORKSPACE_ID, SESSION_ID));
+          return useQuery({ queryKey: filesKey, queryFn: readFiles, staleTime: Infinity });
+        },
+        { wrapper: wrapper(queryClient) }
+      );
+      expect(result.current.data).toEqual(["root.txt"]);
+      act(() => {
+        sources[0]?.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          session_id: SESSION_ID,
+        });
+      });
+      await waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(
+          queryClient.isFetching({ queryKey: sessionKeys.detail(WORKSPACE_ID, SESSION_ID) })
+        ).toBe(0)
+      );
+      expect(readFiles).not.toHaveBeenCalled();
+      const after = {
+        ...sessionWithState("active"),
+        ...(ordering === "same-root" ? {} : { worktree_id: "wt_new" }),
+      };
+      const detailKey = sessionKeys.detail(WORKSPACE_ID, SESSION_ID);
+      vi.mocked(fetchSession).mockResolvedValue(after);
+      if (ordering === "completed-read") {
+        await act(() => queryClient.refetchQueries({ queryKey: detailKey, exact: true }));
+      }
+      let finishRead: ((value: SessionPayload) => void) | undefined;
+      let pendingRead: Promise<void> | undefined;
+      let oldFileSignal: AbortSignal | undefined;
+      if (ordering === "pending-read") {
+        vi.mocked(fetchSession).mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              finishRead = resolve;
+            })
+        );
+        pendingRead = queryClient.refetchQueries({ queryKey: detailKey, exact: true });
+        await waitFor(() => expect(finishRead).toBeDefined());
+        readFiles.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
+          oldFileSignal = signal;
+          return new Promise(() => {});
+        });
+        void queryClient.refetchQueries({ queryKey: filesKey, exact: true });
+        await waitFor(() => expect(oldFileSignal).toBeDefined());
+      }
+      act(() => {
+        // An ordinary upsert must not erase the following transition while a read settles.
+        sources[0]?.emit("session_catalog_changed", {
+          kind: "upserted",
+          workspace_id: WORKSPACE_ID,
+          session_id: SESSION_ID,
+        });
+        if (ordering === "reconnect") {
+          sources[0]?.emit("error");
+          sources[0]?.emit("open");
+        } else {
+          sources[0]?.emit("session_catalog_changed", {
+            kind: "upserted",
+            workspace_id: WORKSPACE_ID,
+            session_id: SESSION_ID,
+            execution_location_changed: true,
+          });
+        }
+      });
+      await waitFor(() => expect(result.current.data).toEqual(["checkout.txt"]));
+      if (ordering === "pending-read") expect(oldFileSignal?.aborted).toBe(true);
+      act(() => finishRead?.(after));
+      await pendingRead;
+      expect(readFiles).toHaveBeenCalledTimes(ordering === "pending-read" ? 2 : 1);
+      expect(queryClient.getQueryState(otherKey)?.isInvalidated).toBe(ordering === "reconnect");
+      expect(queryClient.getQueryState(foreignKey)?.isInvalidated).toBe(ordering === "reconnect");
+      expect(fetchSessionTranscript).not.toHaveBeenCalled();
+    }
+  );
+
   it.each([false, true])(
     "Should wake a stopped session's mounted transcript after detail settles (upsert then layout during prior read: %s)",
     async interleaved => {

@@ -704,6 +704,11 @@ export type AutonomyMatcher = {
   workflow_id?: string;
 };
 
+export type BindSessionWorktreeRequest = {
+  expected_worktree_id?: string | null;
+  worktree: string;
+};
+
 export type BindingsConfig = {
   bottom_center: string;
   top_center: string;
@@ -6771,6 +6776,7 @@ export type SessionPayload = {
   waiting_on?: "sessions" | "monitor";
   workspace_id?: string;
   workspace_path?: string;
+  worktree_binding?: WorktreeBindingAvailability | null;
   worktree_id?: string;
 };
 
@@ -10641,6 +10647,7 @@ export type ToolCallEventPayload = {
     | "recording_unavailable"
     | "session_archive_stop_failed"
     | "session_busy"
+    | "session_worktree_conflict"
     | "slow_consumer"
     | "subscriber_limit_reached"
     | "terminal_exited"
@@ -10663,7 +10670,12 @@ export type ToolCallEventPayload = {
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
     | "tool_timed_out"
-    | "tool_unavailable";
+    | "tool_unavailable"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
+    | "worktree_operation_in_progress"
+    | "worktree_session_active";
   input_digest?: string;
   kind:
     | "tool.call_started"
@@ -10829,6 +10841,7 @@ export type ToolErrorPayload = {
     | "recording_unavailable"
     | "session_archive_stop_failed"
     | "session_busy"
+    | "session_worktree_conflict"
     | "slow_consumer"
     | "subscriber_limit_reached"
     | "terminal_exited"
@@ -10851,7 +10864,12 @@ export type ToolErrorPayload = {
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
     | "tool_timed_out"
-    | "tool_unavailable";
+    | "tool_unavailable"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
+    | "worktree_operation_in_progress"
+    | "worktree_session_active";
   details?: {
     [key: string]: unknown;
   };
@@ -11790,6 +11808,11 @@ export type WorkspaceSkillPayload = {
 
 export type WorkspacesResponse = {
   workspaces: Array<WorkspacePayload>;
+};
+
+export type WorktreeBindingAvailability = {
+  available: boolean;
+  unavailable_reason?: string;
 };
 
 export type WorktreeBindingsPayload = {
@@ -35081,6 +35104,126 @@ export type WaitForSessionResponses = {
 };
 
 export type WaitForSessionResponse = WaitForSessionResponses[keyof WaitForSessionResponses];
+
+export type UnbindSessionWorktreeData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+    /**
+     * Expected current worktree id; empty for workspace root
+     */
+    expected_worktree_id?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree";
+};
+
+export type UnbindSessionWorktreeErrors = {
+  /**
+   * Invalid binding request
+   */
+  400: ErrorPayload;
+  /**
+   * Session or worktree not found
+   */
+  404: ErrorPayload;
+  /**
+   * Session busy, stale binding or unavailable worktree
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Binding unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type UnbindSessionWorktreeError =
+  UnbindSessionWorktreeErrors[keyof UnbindSessionWorktreeErrors];
+
+export type UnbindSessionWorktreeResponses = {
+  /**
+   * Same session with updated execution location
+   */
+  200: SessionResponse;
+};
+
+export type UnbindSessionWorktreeResponse =
+  UnbindSessionWorktreeResponses[keyof UnbindSessionWorktreeResponses];
+
+export type BindSessionWorktreeData = {
+  /**
+   * JSON request body
+   */
+  body: BindSessionWorktreeRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree";
+};
+
+export type BindSessionWorktreeErrors = {
+  /**
+   * Invalid binding request
+   */
+  400: ErrorPayload;
+  /**
+   * Session or worktree not found
+   */
+  404: ErrorPayload;
+  /**
+   * Session busy, stale binding or unavailable worktree
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Binding unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type BindSessionWorktreeError = BindSessionWorktreeErrors[keyof BindSessionWorktreeErrors];
+
+export type BindSessionWorktreeResponses = {
+  /**
+   * Same session with updated execution location
+   */
+  200: SessionResponse;
+};
+
+export type BindSessionWorktreeResponse =
+  BindSessionWorktreeResponses[keyof BindSessionWorktreeResponses];
 
 export type ForkSessionToWorktreeData = {
   /**

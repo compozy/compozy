@@ -63,7 +63,9 @@ const (
 	// ToolIDSessionFork forks a user session with the same agent, whole or through one message.
 	ToolIDSessionFork ToolID = "compozy__session_fork"
 	// ToolIDSessionRuntimeSet selects the default runtime for future prompts.
-	ToolIDSessionRuntimeSet ToolID = "compozy__session_runtime_set"
+	ToolIDSessionRuntimeSet     ToolID = "compozy__session_runtime_set"
+	ToolIDSessionWorktreeBind   ToolID = "compozy__session_worktree_bind"
+	ToolIDSessionWorktreeUnbind ToolID = "compozy__session_worktree_unbind"
 	// ToolIDSessionRuntimeClear clears the default runtime for future prompts.
 	ToolIDSessionRuntimeClear ToolID = "compozy__session_runtime_clear"
 	// ToolIDSessionInputsList lists durable pending session input in dispatch order.

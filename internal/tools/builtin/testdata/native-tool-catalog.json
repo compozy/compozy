@@ -2306,6 +2306,32 @@
     "output_schema_digest": "3dd3db65b7e6b28eface2235aeb3dbf4d395a1649f55c43e073265c53e3ac1b1"
   },
   {
+    "tool_id": "compozy__session_worktree_bind",
+    "native_name": "session_worktree_bind",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1ab2bf7fd9241c4a81cb86c91e4a436f7e0688d83d8f1fd2d80dd92a36b67901",
+    "output_schema_digest": "8291d4c01c172e49903659c19844c18e85efca00cda3fda77b1e05b0bca1b4df"
+  },
+  {
+    "tool_id": "compozy__session_worktree_unbind",
+    "native_name": "session_worktree_unbind",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1aecf41755c589520030a3c1b729b5c84745d908d3586448339d7fd5b1b5984b",
+    "output_schema_digest": "8291d4c01c172e49903659c19844c18e85efca00cda3fda77b1e05b0bca1b4df"
+  },
+  {
     "tool_id": "compozy__skill_list",
     "native_name": "skill_list",
     "toolsets": [

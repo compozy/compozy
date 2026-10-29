@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+// DismissAutomationSuggestion Durably dismiss one automation suggestion
+func (c *Client) DismissAutomationSuggestion(ctx context.Context, params DismissAutomationSuggestionParams) (*AutomationSuggestionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{suggestion_id}", url.PathEscape(params.SuggestionID))
+	var out AutomationSuggestionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DismissTaskParams carries the path, query, and header parameters.
 type DismissTaskParams struct {
 	ID      string  `url:"id"`

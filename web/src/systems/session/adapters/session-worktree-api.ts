@@ -41,3 +41,34 @@ export async function forkSessionToWorktree(
     `Failed to fork session "${sessionId}" into a worktree`
   ).session;
 }
+
+/** Changes the existing session's environment without creating another session. */
+export async function changeSessionWorktree(
+  workspaceId: string,
+  sessionId: string,
+  worktree: string,
+  expectedWorktreeId: string,
+  signal?: AbortSignal
+): Promise<SessionPayload> {
+  const path = { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId };
+  const result = worktree
+    ? await apiClient.PUT("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
+        params: { path },
+        body: { worktree, expected_worktree_id: expectedWorktreeId },
+        signal,
+      })
+    : await apiClient.DELETE("/api/workspaces/{workspace_id}/sessions/{session_id}/worktree", {
+        params: { path, query: { expected_worktree_id: expectedWorktreeId } },
+        signal,
+      });
+  const { data, error, response } = result;
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(
+      response,
+      error,
+      "Failed to change the session environment",
+      sessionId
+    );
+  }
+  return requireResponseData(data, response, "Failed to change the session environment").session;
+}

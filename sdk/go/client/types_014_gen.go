@@ -7,6 +7,56 @@ import (
 	"time"
 )
 
+// RestartActionStatus is a daemon API value.
+type RestartActionStatus struct {
+	OperationID        string                 `json:"operation_id"`
+	Status             RestartOperationStatus `json:"status"`
+	OldPID             int                    `json:"old_pid"`
+	OldStartedAt       time.Time              `json:"old_started_at"`
+	OldSocketPath      string                 `json:"old_socket_path"`
+	NewPID             int                    `json:"new_pid,omitzero"`
+	ActiveSessionCount int                    `json:"active_session_count"`
+	FailureReason      string                 `json:"failure_reason,omitempty"`
+	StartedAt          time.Time              `json:"started_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
+	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+}
+
+// RestartOperationStatus is a daemon API value.
+type RestartOperationStatus string
+
+// ResultContract is a daemon API value.
+type ResultContract struct {
+	FailureField string `json:"failure_field"`
+	MessageField string `json:"message_field,omitempty"`
+}
+
+// ResultTrust is a daemon API value.
+type ResultTrust string
+
+// ResumeTaskRequest is a daemon API value.
+type ResumeTaskRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryConfig is a daemon API value.
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
+
+// RetrySpec is a daemon API value.
+type RetrySpec struct {
+	MaxAttempts  int          `json:"max_attempts,omitzero"`
+	OnFailure    string       `json:"on_failure,omitempty"`
+	Backoff      *BackoffSpec `json:"backoff,omitzero"`
+	NonRetryable []string     `json:"non_retryable,omitempty"`
+}
+
+// RetryStrategy is a daemon API value.
+type RetryStrategy string
+
 // RetryTaskRunRequest is a daemon API value.
 type RetryTaskRunRequest struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
@@ -398,46 +448,3 @@ type RuntimeLimits struct {
 	SummaryMaxBytes   int   `json:"summary_max_bytes"`
 	ContextMaxBytes   int   `json:"context_body_max_bytes"`
 }
-
-// RuntimeMatch is a daemon API value.
-type RuntimeMatch struct {
-	ID         string `json:"id,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Complexity string `json:"complexity,omitempty"`
-}
-
-// RuntimeMode is a daemon API value.
-type RuntimeMode string
-
-// RuntimePolicy is a daemon API value.
-type RuntimePolicy struct {
-	Mode RuntimeMode `json:"mode"`
-}
-
-// RuntimeRule is a daemon API value.
-type RuntimeRule struct {
-	Match   RuntimeMatch `json:"match"`
-	Runtime RuntimeSpec  `json:"runtime"`
-}
-
-// RuntimeSelectionPayload is a daemon API value.
-type RuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
-}
-
-// RuntimeSpec is a daemon API value.
-type RuntimeSpec struct {
-	Provider   string      `json:"provider,omitempty"`
-	Model      string      `json:"model,omitempty"`
-	Reasoning  string      `json:"reasoning,omitempty"`
-	Speed      Speed       `json:"speed,omitempty"`
-	ACPOptions []Selection `json:"acp_options,omitempty"`
-}
-
-// ScheduleMode is a daemon API value.
-type ScheduleMode string

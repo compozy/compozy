@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -595,4 +596,94 @@ func nativeWorktreeWorkspaceService() core.WorkspaceService {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 		}
 	}}
+}
+
+// Invariant: native binding preserves scope, expected binding, and typed refusals.
+// Owner: native tool adapter; canonical worktree tools suite.
+type nativeSessionBindingStub struct {
+	apitest.StubSessionManager
+	change func(context.Context, string, string, *string) (*session.Info, error)
+}
+
+func (s *nativeSessionBindingStub) ChangeWorktreeBinding(
+	ctx context.Context,
+	id, ref string,
+	expected *string,
+) (*session.Info, error) {
+	return s.change(ctx, id, ref, expected)
+}
+func TestNativeSessionWorktreeBinding(t *testing.T) {
+	for _, tc := range []struct {
+		name, input string
+		tool        toolspkg.ToolID
+		failure     error
+		code        toolspkg.ErrorCode
+	}{
+		{name: "bind", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`},
+		{name: "unbind", tool: toolspkg.ToolIDSessionWorktreeUnbind, input: `{"session_id":"sess-a","expected_worktree_id":""}`},
+		{name: "busy", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: session.ErrPromptInProgress, code: toolspkg.ErrorCodeSessionBusy},
+		{name: "NotFound", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrNotFound, code: toolspkg.ErrorCodeWorktreeNotFound},
+		{name: "NotReady", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrNotReady, code: toolspkg.ErrorCodeWorktreeNotReady},
+		{name: "Missing", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrMissing, code: toolspkg.ErrorCodeWorktreeMissing},
+		{name: "OperationInProgress", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrOperationInProgress, code: toolspkg.ErrorCodeWorktreeOperationInProgress},
+		{name: "SessionActive", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: worktree.ErrSessionActive, code: toolspkg.ErrorCodeWorktreeSessionActive},
+		{name: "stale", tool: toolspkg.ToolIDSessionWorktreeBind, input: `{"session_id":"sess-a","worktree":"wt-new"}`, failure: store.ErrSessionWorktreeConflict, code: toolspkg.ErrorCodeSessionWorktreeConflict},
+	} {
+		t.Run("Should handle "+tc.name, func(t *testing.T) {
+			calls := 0
+			sessions := &nativeSessionBindingStub{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						ID:          "sess-a",
+						WorkspaceID: "registry-a",
+						ProfileID:   store.DefaultProfileID,
+						WorktreeID:  "wt-old",
+					}, nil
+				},
+				change: func(_ context.Context, id, ref string, expected *string) (*session.Info, error) {
+					calls++
+					wantRef, wantExpected := "wt-new", "wt-old"
+					if tc.name == "unbind" {
+						wantRef, wantExpected = "", ""
+					}
+					if id != "sess-a" || ref != wantRef || expected == nil || *expected != wantExpected {
+						t.Fatalf("binding args: %q %q %v", id, ref, expected)
+					}
+					return &session.Info{
+						ID:          id,
+						WorkspaceID: "registry-a",
+						ProfileID:   store.DefaultProfileID,
+						WorktreeID:  ref,
+					}, tc.failure
+				},
+			}
+			native := &daemonNativeTools{
+				deps: &daemonNativeToolsDeps{Workspaces: nativeWorktreeWorkspaceService(), Sessions: sessions},
+			}
+			_, err := native.sessionWorktreeBinding(
+				t.Context(),
+				toolspkg.Scope{WorkspaceID: "ws-a", ProfileID: store.DefaultProfileID},
+				toolspkg.CallRequest{ToolID: tc.tool, Input: json.RawMessage(tc.input)},
+			)
+			if calls != 1 {
+				t.Fatalf("calls=%d err=%v", calls, err)
+			}
+			if tc.failure == nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if typed, ok := errors.AsType[*toolspkg.ToolError](err); !ok || typed.Code != tc.code {
+				t.Fatalf("error=%v want %s", err, tc.code)
+			}
+			wantStatus := http.StatusConflict
+			if tc.failure == worktree.ErrNotFound {
+				wantStatus = http.StatusNotFound
+			}
+			if got := core.StatusForToolError(err); got != wantStatus {
+				t.Fatalf("tool status=%d want %d", got, wantStatus)
+			}
+		})
+	}
 }

@@ -109,6 +109,7 @@ export function useSessionWindowController(input: {
   const worktreeBinding = useSessionWorktreeBinding({
     workspaceId,
     worktreeId: session.worktree_id,
+    availability: session.worktree_binding,
     commandCatalog: sessionCommands.catalog,
     enabled: liveDataEnabled,
   });

@@ -514,6 +514,7 @@ export type SessionAttentionEventPayload = {
 };
 
 export type SessionCatalogEventPayload = {
+  execution_location_changed?: boolean;
   kind: string;
   profile_id: string;
   profile_name: string;

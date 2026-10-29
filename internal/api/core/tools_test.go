@@ -505,6 +505,28 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 }
 
 func TestToolErrorResponses(t *testing.T) {
+	// Invariant: native checkout refusals retain actionable public messages without
+	// exposing backend details. Owner: API tool error envelope; canonical suite.
+	for _, tc := range []struct {
+		code    toolspkg.ErrorCode
+		message string
+	}{
+		{toolspkg.ErrorCodeWorktreeNotFound, "worktree not found"},
+		{toolspkg.ErrorCodeWorktreeNotReady, "worktree is not ready"},
+		{toolspkg.ErrorCodeWorktreeMissing, "worktree checkout is missing"},
+		{toolspkg.ErrorCodeWorktreeOperationInProgress, "worktree operation is in progress"},
+		{toolspkg.ErrorCodeWorktreeSessionActive, "worktree has an active session"},
+	} {
+		t.Run("Should explain "+string(tc.code)+" without backend details", func(t *testing.T) {
+			t.Parallel()
+			err := toolspkg.NewToolError(tc.code, toolspkg.ToolIDSessionWorktreeBind,
+				"private checkout details", errors.New("private checkout details"))
+			payload := core.ToolErrorResponseForError(err, core.StatusForToolError(err), true)
+			if payload.Error.Code != tc.code || payload.Error.Message != tc.message {
+				t.Fatalf("public error=%#v want %s: %s", payload.Error, tc.code, tc.message)
+			}
+		})
+	}
 	t.Run("Should preserve native request field errors without masking them", func(t *testing.T) {
 		t.Parallel()
 		err := toolspkg.NewToolError(toolspkg.ErrorCodeInvalidRequest, toolspkg.ToolIDSubagentStatus,

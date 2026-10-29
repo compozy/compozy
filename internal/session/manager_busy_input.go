@@ -214,6 +214,8 @@ func (m *Manager) submitPreparedPrompt(
 	session *Session,
 	preparation sendPromptPreparation,
 ) (SendPromptResult, error) {
+	session.worktreeBindingAdmissionMu.RLock()
+	defer session.worktreeBindingAdmissionMu.RUnlock()
 	req := preparation.request
 	if req.expectedTurnID != "" {
 		if _, err := requireExpectedActiveTurn(session, req.expectedTurnID); err != nil {

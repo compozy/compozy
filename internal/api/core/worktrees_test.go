@@ -1831,3 +1831,103 @@ func (s worktreeProfileServiceStub) ListIdentities(ctx context.Context) ([]profi
 	}
 	return profiles, nil
 }
+
+// Invariant: the binding HTTP boundary preserves identity, strict input, and
+// conflict semantics. Owner: shared API handlers; canonical worktree suite.
+func TestChangeSessionWorktreeBinding(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, method, query, body, target, expected, code string
+		cause                                             error
+		status                                            int
+		called                                            bool
+	}{
+		{name: "bind", method: http.MethodPut, body: `{"worktree":"wt-ready","expected_worktree_id":""}`, target: "wt-ready", status: 200, called: true},
+		{name: "unbind", method: http.MethodDelete, query: "?expected_worktree_id=wt-old", expected: "wt-old", status: 200, called: true},
+		{name: "stale binding", method: http.MethodPut, body: `{"worktree":"wt-ready","expected_worktree_id":"wt-old"}`, target: "wt-ready", expected: "wt-old", cause: store.ErrSessionWorktreeConflict, code: "session_worktree_conflict", status: 409, called: true},
+		{name: "busy", method: http.MethodPut, body: `{"worktree":"wt-ready","expected_worktree_id":""}`, target: "wt-ready", cause: session.ErrPromptInProgress, code: "session_busy", status: 409, called: true},
+		{name: "unknown field", method: http.MethodPut, body: `{"worktree":"wt-ready","fork":true}`, status: 400},
+		{name: "empty target", method: http.MethodPut, body: `{"worktree":" "}`, status: 400},
+		{name: "repeated fence", method: http.MethodDelete, query: "?expected_worktree_id=a&expected_worktree_id=b", status: 400},
+	} {
+		t.Run("Should handle "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			called := false
+			manager := worktreeBindingSessions{
+				status: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{
+						ID:          "sess-same",
+						WorkspaceID: "ws-a",
+						ProfileID:   store.DefaultProfileID,
+						State:       session.StateActive,
+					}, nil
+				},
+				change: func(_ context.Context, id, ref string, expected *string) (*session.Info, error) {
+					called = true
+					if id != "sess-same" || ref != tc.target || expected == nil || *expected != tc.expected {
+						t.Fatalf("mutation=(%q,%q,%v)", id, ref, expected)
+					}
+					return &session.Info{
+						ID:          id,
+						WorkspaceID: "ws-a",
+						ProfileID:   store.DefaultProfileID,
+						WorktreeID:  ref,
+						State:       session.StateActive,
+					}, tc.cause
+				},
+			}
+			h := &BaseHandlers{
+				Sessions: manager,
+				Workspaces: workspaceServiceStub{
+					resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{ID: "ws-a", WorkspaceID: "workspace-a"}, nil
+					},
+				},
+			}
+			router := gin.New()
+			route := "/workspaces/:workspace_id/sessions/:session_id/worktree"
+			router.PUT(route, h.BindSessionWorktree)
+			router.DELETE(route, h.UnbindSessionWorktree)
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				tc.method,
+				"/workspaces/workspace-a/sessions/sess-same/worktree"+tc.query,
+				strings.NewReader(tc.body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			if response.Code != tc.status || called != tc.called {
+				t.Fatalf("status=%d called=%v body=%s", response.Code, called, response.Body.String())
+			}
+			if tc.code != "" {
+				var failure contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil || failure.Code != tc.code {
+					t.Fatalf("error code=%q err=%v want %q", failure.Code, err, tc.code)
+				}
+			}
+			if tc.status == http.StatusOK {
+				var payload contract.SessionResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Session.ID != "sess-same" || payload.Session.WorktreeID != tc.target {
+					t.Fatalf("response=%#v", payload)
+				}
+			}
+		})
+	}
+}
+
+type worktreeBindingSessions struct {
+	sessionManagerStub
+	change func(context.Context, string, string, *string) (*session.Info, error)
+}
+
+func (s worktreeBindingSessions) ChangeWorktreeBinding(
+	ctx context.Context,
+	id, ref string,
+	expected *string,
+) (*session.Info, error) {
+	return s.change(ctx, id, ref, expected)
+}

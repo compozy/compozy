@@ -41,6 +41,7 @@
         "input",
         "runtime",
         "soul",
-        "subagents"
+        "subagents",
+        "worktree"
     ]
 }

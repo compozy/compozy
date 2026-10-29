@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TooltipProvider } from "@compozy/ui";
+import { DropdownMenuItem, TooltipProvider } from "@compozy/ui";
 
 import { SessionEnvironmentChip } from "../session-environment-chip";
 
@@ -89,5 +89,50 @@ describe("SessionEnvironmentChip", () => {
     expect(onFork).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+  // Invariant: the environment menu dispatches in-place actions separately from
+  // fork, and disabled daemon actions cannot run. Owner: UT-133 component suite.
+  it("Should open environment actions without invoking the existing fork", async () => {
+    const user = userEvent.setup();
+    const bind = vi.fn();
+    const fork = vi.fn();
+    renderChip(
+      <SessionEnvironmentChip
+        label="project"
+        state="root"
+        onFork={fork}
+        menu={<DropdownMenuItem onClick={bind}>Use worktree…</DropdownMenuItem>}
+      />
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Project: project — session environment" })
+    );
+    expect(fork).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("menuitem", { name: "Use worktree…" }));
+    expect(bind).toHaveBeenCalledTimes(1);
+    expect(fork).not.toHaveBeenCalled();
+  });
+
+  it("Should keep unavailable environment actions disabled", async () => {
+    const user = userEvent.setup();
+    const bind = vi.fn();
+    renderChip(
+      <SessionEnvironmentChip
+        label="feature"
+        state="worktree"
+        menu={
+          <DropdownMenuItem disabled onClick={bind}>
+            Use workspace root
+          </DropdownMenuItem>
+        }
+      />
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Worktree: feature — session environment" })
+    );
+    const action = await screen.findByRole("menuitem", { name: "Use workspace root" });
+    expect(action).toHaveAttribute("aria-disabled", "true");
+    await user.click(action);
+    expect(bind).not.toHaveBeenCalled();
   });
 });

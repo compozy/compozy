@@ -75,6 +75,10 @@ func (m *Manager) updateActiveRuntimeSelection(
 	defer active.persistMu.Unlock()
 
 	active.mu.Lock()
+	if active.worktreeBindingReserved {
+		active.mu.Unlock()
+		return nil, ErrPromptInProgress
+	}
 	if active.RuntimeSelectionRevision != expectedRevision {
 		current := active.RuntimeSelectionRevision
 		active.mu.Unlock()

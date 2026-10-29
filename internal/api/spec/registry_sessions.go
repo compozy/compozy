@@ -24,6 +24,8 @@ func registrySessionOperations() []OperationSpec {
 		readSessionAttachmentBytesOperationSpec(),
 		deleteSessionAttachmentOperationSpec(),
 		forkSessionWorktreeOperationSpec(),
+		sessionWorktreeBindingOperationSpec(true),
+		sessionWorktreeBindingOperationSpec(false),
 		setSessionRuntimeOperationSpec(),
 		clearSessionRuntimeOperationSpec(),
 		sendSessionPromptOperationSpec(),

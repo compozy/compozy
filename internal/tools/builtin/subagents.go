@@ -86,7 +86,7 @@ func subagentDescriptor(
 		[]toolspkg.ToolsetID{
 			toolspkg.ToolsetIDSessions,
 		},
-		[]string{"sessions", "subagent"},
+		[]string{sessionsSessionsKey, "subagent"},
 		[]string{"delegate", "subagent"},
 	)
 	descriptor.ToolExecutionMetadata = toolspkg.NewToolExecutionMetadata(

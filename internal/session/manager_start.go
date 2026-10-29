@@ -99,10 +99,10 @@ func resumeSessionCWD(meta *store.SessionMeta, executionRoot string) (string, er
 	if meta == nil {
 		return ResolveSessionCWD(executionRoot, requested)
 	}
-	if meta.CreationProfile != nil {
-		requested = strings.TrimSpace(meta.CreationProfile.CWD)
-	} else if cwd := strings.TrimSpace(meta.CWDValue()); cwd != "" {
+	if cwd := strings.TrimSpace(meta.CWDValue()); cwd != "" {
 		requested = cwd
+	} else if meta.CreationProfile != nil {
+		requested = strings.TrimSpace(meta.CreationProfile.CWD)
 	}
 	return ResolveSessionCWD(executionRoot, requested)
 }

@@ -154,6 +154,17 @@ func (o *Observer) loadRecoveredSession(ctx context.Context, entryName string) (
 		)
 		return recoveredSession{}, false
 	}
+	if ownerAuthoritative && meta.WorktreeTransition != nil && meta.WorktreeTransition.Pending {
+		bindingStore, ok := o.registry.(store.SessionWorktreeBindingStore)
+		if !ok {
+			o.logger.Warn("observe: worktree binding recovery store is unavailable", "session_id", sessionID)
+			return recoveredSession{}, false
+		}
+		if err := store.RecoverSessionWorktreeTransition(ctx, bindingStore, metaPath, &meta); err != nil {
+			o.logger.Warn("observe: cannot recover worktree binding", "session_id", sessionID, "error", err)
+			return recoveredSession{}, false
+		}
+	}
 	normalized := o.normalizeRecoveredMeta(metaPath, &meta, ownerAuthoritative)
 	return recoveredSessionFromMeta(&normalized), true
 }

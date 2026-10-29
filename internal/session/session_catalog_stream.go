@@ -73,15 +73,16 @@ const (
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
 type CatalogEvent struct {
-	Sequence             int64
-	Name                 CatalogEventName
-	Kind                 CatalogEventKind
-	ProfileID            string
-	ProfileName          string
-	WorkspaceID          string
-	SessionID            string
-	Attention            *AttentionEvent
-	OperatorNotification *OperatorNotification
+	ExecutionLocationChanged bool
+	Sequence                 int64
+	Name                     CatalogEventName
+	Kind                     CatalogEventKind
+	ProfileID                string
+	ProfileName              string
+	WorkspaceID              string
+	SessionID                string
+	Attention                *AttentionEvent
+	OperatorNotification     *OperatorNotification
 }
 
 type sessionCatalogBroadcaster struct {

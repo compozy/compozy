@@ -92,3 +92,53 @@ func (r daemonSessionWorktreeResolver) ValidateTaskWorktreeRef(
 	}
 	return nil
 }
+
+func (r daemonSessionWorktreeResolver) AcquireSessionWorktreeBinding(
+	ctx context.Context,
+	workspaceID, profileID, ref string,
+) (string, string, func(), error) {
+	service, ok := r.service().(interface {
+		AcquireBindingUsage(context.Context, string, string) (*worktree.Worktree, func(), error)
+	})
+	if !ok {
+		return "", "", nil, errors.New("daemon: worktree usage service is unavailable")
+	}
+	id, root, err := r.ResolveSessionWorktreeForProfile(ctx, workspaceID, profileID, ref)
+	if err != nil {
+		return "", "", nil, err
+	}
+	item, release, err := service.AcquireBindingUsage(ctx, workspaceID, id)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if item.ProfileID != profileID || item.Path != root {
+		release()
+		return "", "", nil, worktree.ErrNotFound
+	}
+	if item.State != worktree.StateReady {
+		release()
+		return "", "", nil, worktree.ErrNotReady
+	}
+	return id, root, release, nil
+}
+
+func (r daemonSessionWorktreeResolver) AcquireSessionWorktreeUnbinding(
+	ctx context.Context,
+	workspaceID, profileID, id string,
+) (func(), error) {
+	service, ok := r.service().(interface {
+		AcquireBindingUsage(context.Context, string, string) (*worktree.Worktree, func(), error)
+	})
+	if !ok {
+		return nil, errors.New("daemon: worktree usage service is unavailable")
+	}
+	item, release, err := service.AcquireBindingUsage(ctx, workspaceID, id)
+	if err != nil {
+		return nil, err
+	}
+	if item.ProfileID != profileID {
+		release()
+		return nil, worktree.ErrNotFound
+	}
+	return release, nil
+}

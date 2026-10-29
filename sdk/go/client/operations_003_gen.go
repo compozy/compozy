@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// CancelWorktreeExitAction Cancel a worktree exit action
+func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWorktreeExitActionParams, body CancelWorktreeExitActionRequest) error {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
+// CheckSettingsUpdate Refresh update discovery, limited to one upstream check per minute
+func (c *Client) CheckSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
+	path := "/api/settings/update/check"
+	var out SettingsUpdateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ClaimNextAgentTaskParams carries the path, query, and header parameters.
+type ClaimNextAgentTaskParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
 // ClaimNextAgentTask Atomically claim the next matching task run for the calling agent
 func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTaskParams, body AgentTaskClaimNextRequest) (*AgentTaskClaimResponse, error) {
 	path := "/api/agent/tasks/claim-next"
@@ -421,19 +445,4 @@ func (c *Client) CreateLoop(ctx context.Context, params CreateLoopParams, body C
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateProfile Create a profile
-func (c *Client) CreateProfile(ctx context.Context, body CreateProfileRequest) (*Profile, error) {
-	path := "/api/profiles"
-	var out Profile
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateSessionParams carries the path, query, and header parameters.
-type CreateSessionParams struct {
-	Profile *string `url:"profile"`
 }

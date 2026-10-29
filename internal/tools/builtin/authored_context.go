@@ -23,7 +23,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext, toolspkg.ToolsetIDSessions},
-		[]string{"sessions", authoredContextHealthKey, authoredContextHeartbeatKey},
+		[]string{sessionsSessionsKey, authoredContextHealthKey, authoredContextHeartbeatKey},
 		[]string{"session health", "wake eligibility", "session liveness"},
 	),
 	nativeDescriptor(

@@ -301,6 +301,50 @@ func (q *Queries) UpdateSessionLineageHierarchy(ctx context.Context, arg UpdateS
 	return result.RowsAffected()
 }
 
+const updateSessionWorktreeBinding = `-- name: UpdateSessionWorktreeBinding :execrows
+UPDATE sessions
+SET worktree_id = ?1, branch = '', updated_at = ?2
+WHERE sessions.id = ?3
+  AND sessions.workspace_id = ?4
+  AND sessions.profile_id = ?5
+  AND sessions.archived_at IS NULL
+  AND (sessions.worktree_id IS ?6
+    OR (?7 = 1 AND sessions.worktree_id IS ?1))
+  AND (?1 IS NULL OR EXISTS (
+    SELECT 1 FROM worktrees w
+    WHERE w.id = ?1
+      AND w.workspace_id = sessions.workspace_id
+      AND w.profile_id = sessions.profile_id
+      AND (w.state = 'ready' OR ?7 = 1)
+  ))
+`
+
+type UpdateSessionWorktreeBindingParams struct {
+	WorktreeID         sql.NullString `json:"worktree_id"`
+	UpdatedAt          string         `json:"updated_at"`
+	ID                 string         `json:"id"`
+	WorkspaceID        string         `json:"workspace_id"`
+	ProfileID          string         `json:"profile_id"`
+	ExpectedWorktreeID sql.NullString `json:"expected_worktree_id"`
+	RecoverAccepted    any            `json:"recover_accepted"`
+}
+
+func (q *Queries) UpdateSessionWorktreeBinding(ctx context.Context, arg UpdateSessionWorktreeBindingParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSessionWorktreeBinding,
+		arg.WorktreeID,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ProfileID,
+		arg.ExpectedWorktreeID,
+		arg.RecoverAccepted,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
  effective_workspace_access,

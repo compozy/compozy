@@ -2,6 +2,29 @@
 
 package client
 
+// SettingsMCPServerItemPayload is a daemon API value.
+type SettingsMCPServerItemPayload struct {
+	Owner          string                                 `json:"owner,omitempty"`
+	RuntimeName    string                                 `json:"runtime_name,omitempty"`
+	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
+	Name           string                                 `json:"name"`
+	Transport      string                                 `json:"transport"`
+	Command        string                                 `json:"command,omitempty"`
+	Args           []string                               `json:"args,omitempty"`
+	EnvKeys        []string                               `json:"env_keys,omitempty"`
+	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
+	URL            string                                 `json:"url,omitempty"`
+	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
+	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
+	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
+	Scope          SettingsScopeKind                      `json:"scope"`
+	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
+	Profile        string                                 `json:"profile,omitempty"`
+	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
+	CatalogVersion string                                 `json:"catalog_version,omitempty"`
+	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
+}
+
 // SettingsMCPServerPayload is a daemon API value.
 type SettingsMCPServerPayload struct {
 	Headers   map[string]string             `json:"headers,omitempty"`
@@ -420,31 +443,4 @@ type SettingsShellSessionsPayload struct {
 	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
 	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
 	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
-}
-
-// SettingsSkillSourceCollisionPayload is a daemon API value.
-type SettingsSkillSourceCollisionPayload struct {
-	Name          string `json:"name"`
-	WinnerRootID  string `json:"winner_root_id"`
-	QualifiedForm string `json:"qualified_form"`
-}
-
-// SettingsSkillSourceInheritancePayload is a daemon API value.
-type SettingsSkillSourceInheritancePayload struct {
-	Sources       bool `json:"sources"`
-	CustomSources bool `json:"custom_sources"`
-}
-
-// SettingsSkillSourcePayload is a daemon API value.
-type SettingsSkillSourcePayload struct {
-	Slug          string                           `json:"slug"`
-	Label         string                           `json:"label"`
-	Kind          string                           `json:"kind"`
-	Enabled       bool                             `json:"enabled"`
-	AlwaysOn      bool                             `json:"always_on"`
-	Default       bool                             `json:"default,omitzero"`
-	WorkspacePath string                           `json:"workspace_path,omitempty"`
-	GlobalPath    string                           `json:"global_path,omitempty"`
-	Path          string                           `json:"path,omitempty"`
-	Roots         []SettingsSkillSourceRootPayload `json:"roots"`
 }

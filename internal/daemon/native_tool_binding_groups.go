@@ -408,3 +408,16 @@ func (n *daemonNativeTools) sessionLayoutToolBindings(
 		},
 	}
 }
+
+func (n *daemonNativeTools) sessionWorktreeToolBindings() map[toolspkg.ToolID]nativeToolBinding {
+	return map[toolspkg.ToolID]nativeToolBinding{
+		toolspkg.ToolIDSessionWorktreeBind: {
+			call:         n.sessionWorktreeBinding,
+			availability: n.sessionWorktreeBindingAvailability(),
+		},
+		toolspkg.ToolIDSessionWorktreeUnbind: {
+			call:         n.sessionWorktreeBinding,
+			availability: n.sessionWorktreeBindingAvailability(),
+		},
+	}
+}

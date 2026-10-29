@@ -214,6 +214,12 @@ func (m *Manager) recoverFailedResumeStart(
 	startErr error,
 ) (*Session, error) {
 	clearACP := acp.IsLoadSessionResourceMissing(startErr) || errors.Is(startErr, acp.ErrAgentDoesNotSupportSession)
+	// A provider can reject its native session after a directory change. Match
+	// released-runtime rebinding: preserve the stored transcript through replay.
+	if meta.WorktreeTransition != nil && meta.WorktreeTransition.NoticePending && ctx.Err() == nil &&
+		errors.Is(startErr, acp.ErrLoadSessionFailed) {
+		clearACP = true
+	}
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
 	restoredMeta, err := m.restoreFailedResumeStart(metaPath, meta, clearACP)
 	if err != nil {

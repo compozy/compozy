@@ -43,6 +43,11 @@ test.use({
           fixtureAgent: worktreeSessionAgent,
           fixturePath: worktreeSessionFixture,
         },
+        {
+          agentName: "browser-binding-replay",
+          fixtureAgent: "browser-binding-replay",
+          fixturePath: worktreeSessionFixture,
+        },
       ],
     },
   },
@@ -115,7 +120,7 @@ async function selectWorkspace(page: Page, workspaceId: string) {
   await expect(page.getByTestId("os-workspace-menu")).toHaveCount(0);
 }
 
-async function openSessionCreate(page: Page) {
+async function openSessionCreate(page: Page, agentName = worktreeSessionAgent) {
   // The empty desktop now starts sessions from its composer (shell-rail P7);
   // the create dialog, with its environment picker, lives in the Session menu.
   await page.getByRole("menuitem", { name: "Session", exact: true }).click();
@@ -124,10 +129,8 @@ async function openSessionCreate(page: Page) {
   const dialog = page.getByTestId("session-create-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByTestId("session-create-agent-select").click();
-  await page.getByTestId(`agent-command-item-${worktreeSessionAgent}`).click();
-  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(
-    worktreeSessionAgent
-  );
+  await page.getByTestId(`agent-command-item-${agentName}`).click();
+  await expect(dialog.getByTestId("session-create-agent-select")).toContainText(agentName);
 }
 
 async function openOverviewMenu(page: Page, workspaceId: string) {
@@ -567,7 +570,7 @@ test("operator starts a bound environment and sends its first message", async ({
   const sessionUI = sessionWindowSelectors(sessionWin, appPage);
   const chip = appPage.locator('[data-slot="session-environment-chip"]');
   await expect(chip).toBeVisible();
-  await expect(chip).toHaveAttribute("data-locked", "");
+  await expect(chip).toBeEnabled();
   await expect(chip).toHaveAttribute("data-binding", "worktree");
 
   await sessionUI.composerTextarea.fill("Investigate the checkout latency regression");
@@ -608,6 +611,146 @@ async function pollForBoundSession(runtime: BrowserRuntime, workspaceId: string)
     .not.toBeUndefined();
   if (!bound) throw new Error("Expected a session bound to a worktree.");
   return bound;
+}
+
+// Invariant: changing execution environments preserves the session and its window.
+// Owner: daemon/browser integration; canonical worktree lifecycle suite.
+for (const bindingAgent of [worktreeSessionAgent, "browser-binding-replay"]) {
+  test(`operator changes the existing session worktree in place (${bindingAgent})`, async ({
+    appPage,
+    runtime,
+  }, testInfo) => {
+    await completeOnboardingIfPrompted(appPage);
+    const workspace = await runtime.resolveWorkspace(repo.rootDir);
+    const first = await seedReadyWorktree(runtime, workspace.id, "binding-first");
+    const second = await seedReadyWorktree(runtime, workspace.id, "binding-second");
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await selectWorkspace(appPage, workspace.id);
+    await openSessionCreate(appPage, bindingAgent);
+    const createdResponse = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/sessions"
+    );
+    await appPage.getByRole("button", { name: /start session/i }).click();
+    const response = await createdResponse;
+    expect(response.ok()).toBe(true);
+    const { session } = (await response.json()) as { session: { id: string } };
+    const win = sessionWindow(appPage, session.id);
+    const ui = sessionWindowSelectors(win, appPage);
+    const chip = win.locator('[data-slot="session-environment-chip"]');
+    const headerBinding = win.locator('[data-slot="session-worktree-binding-chip"]');
+    const headerBranch = win.locator(
+      '[data-slot="session-pull-request-chip"] [data-slot="chip-branch"]'
+    );
+    const originalURL = appPage.url();
+    await ui.composerTextarea.fill("Remember the binding fact: amber otter");
+    await ui.composerTextarea.press("Enter");
+    for (const [index, target] of [first, second].entries()) {
+      await expect
+        .poll(async () => {
+          const detail = await runtime.requestJSON<{
+            session: { worktree_binding?: { available: boolean } };
+          }>(`/api/workspaces/${workspace.id}/sessions/${session.id}`);
+          return detail.session.worktree_binding?.available;
+        })
+        .toBe(true);
+      await chip.click();
+      await appPage
+        .getByRole("menuitem", {
+          name: index === 0 ? "Use worktree…" : "Change worktree…",
+          exact: true,
+        })
+        .click();
+      const dialog = appPage
+        .getByRole("dialog")
+        .filter({ has: appPage.getByRole("heading", { name: "Use worktree", exact: true }) });
+      await dialog.getByRole("button", { name: "Session worktree" }).click();
+      await appPage.getByRole("option", { name: new RegExp(target.name) }).click();
+      await dialog.getByRole("button", { name: "Use worktree", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      await expect(chip).toHaveAttribute("data-binding", "worktree");
+      await expect(chip).toHaveAccessibleName(new RegExp(target.name));
+      // The header must converge with the composer before another turn or reload.
+      await expect(headerBinding).toContainText(target.name);
+      await expect(headerBranch).toHaveText(target.branch);
+      await ui.composerTextarea.fill("Check binding continuity");
+      await ui.composerTextarea.press("Enter");
+      await expect(win.getByText("Binding conversation continued.", { exact: true })).toHaveCount(
+        index + 1
+      );
+
+      await expect(win).toBeVisible();
+      expect(appPage.url()).toBe(originalURL);
+      await expect
+        .poll(async () =>
+          (
+            await runtime.requestJSON<{ sessions: Array<{ id: string; worktree_id?: string }> }>(
+              `/api/sessions?workspace_id=${workspace.id}`
+            )
+          ).sessions.map(row => ({ id: row.id, worktree_id: row.worktree_id }))
+        )
+        .toEqual([{ id: session.id, worktree_id: target.id }]);
+    }
+    await appPage.screenshot({ path: testInfo.outputPath("session-bound-in-place.png") });
+    await chip.click();
+    await appPage.getByRole("menuitem", { name: "Use workspace root", exact: true }).click();
+    await expect(chip).toHaveAttribute("data-binding", "root");
+    await expect(headerBinding).toHaveCount(0);
+    await expect(headerBranch.filter({ hasText: second.branch })).toHaveCount(0);
+    await expect(win).toBeVisible();
+    expect(appPage.url()).toBe(originalURL);
+    await expect
+      .poll(async () =>
+        (
+          await runtime.requestJSON<{ sessions: Array<{ id: string; worktree_id?: string }> }>(
+            `/api/sessions?workspace_id=${workspace.id}`
+          )
+        ).sessions.map(row => ({ id: row.id, worktree_id: row.worktree_id }))
+      )
+      .toEqual([{ id: session.id, worktree_id: undefined }]);
+    await ui.composerTextarea.fill("Check binding continuity");
+    await ui.composerTextarea.press("Enter");
+    await expect(win.getByText("Binding conversation continued.", { exact: true })).toHaveCount(3);
+    const transcript = await runtime.requestJSON<{
+      entries: Array<{ message: { role: string; parts: Array<{ text?: string }> } }>;
+    }>(`/api/workspaces/${workspace.id}/sessions/${session.id}/transcript`);
+    expect(
+      transcript.entries.some(
+        entry =>
+          entry.message.role === "user" &&
+          entry.message.parts.some(part => part.text?.includes("amber otter"))
+      )
+    ).toBe(true);
+    // An external operator mutation must reach the already-open window through
+    // the catalog stream, without the local mutation hook or a page reload.
+    await expect
+      .poll(async () => {
+        const detail = await runtime.requestJSON<{
+          session: { worktree_binding?: { available: boolean } };
+        }>(`/api/workspaces/${workspace.id}/sessions/${session.id}`);
+        return detail.session.worktree_binding?.available;
+      })
+      .toBe(true);
+    await runtime.requestJSON(`/api/workspaces/${workspace.id}/sessions/${session.id}/worktree`, {
+      method: "PUT",
+      body: JSON.stringify({ worktree: first.id, expected_worktree_id: "" }),
+    });
+    await expect(chip).toHaveAccessibleName(new RegExp(first.name));
+    await expect(chip).toHaveAttribute("data-binding", "worktree");
+    await expect(headerBinding).toContainText(first.name);
+    await expect(headerBranch).toHaveText(first.branch);
+    await runtime.requestJSON(
+      `/api/workspaces/${workspace.id}/sessions/${session.id}/worktree?expected_worktree_id=${first.id}`,
+      { method: "DELETE" }
+    );
+    await expect(chip).toHaveAttribute("data-binding", "root");
+    await expect(headerBinding).toHaveCount(0);
+    await expect(headerBranch.filter({ hasText: first.branch })).toHaveCount(0);
+    await expect(win).toBeVisible();
+    expect(appPage.url()).toBe(originalURL);
+    await appPage.screenshot({ path: testInfo.outputPath("session-unbound-in-place.png") });
+  });
 }
 
 // E2E-010: /worktree on a live session — the three facts, one new session per

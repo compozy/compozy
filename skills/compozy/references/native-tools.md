@@ -819,3 +819,14 @@ complete check counts, review decision, mergeability and `ready_to_merge`. A nul
 branch; `pending`, `error`, and `incomplete` do not establish that no PR exists. Stale successful facts
 remain visible during provider outages. Explicit refresh is available through
 `POST /api/sessions/{session_id}/pull-request/refresh` or `compozy session pr <id> --refresh`.
+
+### In-place session worktree tools
+
+`compozy__session_worktree_bind` and `compozy__session_worktree_unbind` belong to the sessions
+toolset and have mutating risk. They preserve the existing session rather than creating a fork.
+Use the live descriptors for `session_id`, workspace scope, `worktree` (bind only), and optional
+`expected_worktree_id`. App tokens cannot invoke these operations. Only idle ordinary project user
+sessions qualify; busy calls return `session_busy`, and stale expected IDs return
+`session_worktree_conflict`. Read `references/worktrees.md` before changing a binding, then confirm
+through `GET /api/workspaces/{ws}/sessions/{id}` or the workspace session list. The Web detail's `worktree_binding` availability is advisory; mutation
+rechecks eligibility. Existing fork tools and commands keep their new-session behavior.

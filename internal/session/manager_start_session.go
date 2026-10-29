@@ -42,6 +42,7 @@ func (s *sessionStartSpec) newStartingSession(
 		derivation:          store.CloneSessionDerivation(s.derivation),
 		importedContext:     store.CloneSessionImportedContext(s.importedContext),
 		pendingResumeReplay: s.resumeReplayBlock,
+		worktreeTransition:  store.CloneSessionWorktreeTransition(s.worktreeTransition),
 		acceptedCommand:     s.command,
 		SoulSnapshotID:      s.soulSnapshotID, SoulDigest: s.soulDigest, ParentSoulDigest: s.parentSoulDigest,
 		AdvertisedCommands: store.CloneSessionAdvertisedCommands(s.advertisedCommands),

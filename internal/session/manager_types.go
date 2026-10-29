@@ -151,6 +151,8 @@ type Manager struct {
 	mu                         sync.RWMutex
 	lifecycleMu                sync.Mutex
 	worktreeDeliveryFences     map[string]bool
+	worktreeBindingUses        map[string]int
+	worktreeBindingNotifiers   []WorktreeBindingNotifier
 	sessions                   map[string]*Session
 	pending                    map[string]sessionReservation
 	finalizing                 map[string]*sessionFinalization

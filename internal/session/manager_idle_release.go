@@ -69,7 +69,9 @@ func (s *Session) idleRuntimeReleasableLocked() bool {
 	return s.State == StateActive && s.process != nil && !isProcessDone(s.process) &&
 		s.runtimeRelease == nil && s.stopCause == CauseNone &&
 		s.RuntimeStatus == RuntimeStatusReady && !s.isPromptingLocked() &&
-		len(s.PendingInteractions) == 0 && !s.conversationRewindReserved && !s.worktreeForkReserved &&
+		len(
+			s.PendingInteractions,
+		) == 0 && !s.conversationRewindReserved && !s.worktreeForkReserved && !s.worktreeBindingReserved &&
 		strings.TrimSpace(s.ACPSessionID) != "" && s.ACPCaps.SupportsLoadSession
 }
 
