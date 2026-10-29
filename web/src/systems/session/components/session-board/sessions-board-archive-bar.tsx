@@ -1,5 +1,5 @@
 import { Archive, ChevronRight, CircleSlash } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { use, useId, useState, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
-import { SessionBoardCard } from "./session-board-card";
+import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardLoadMore, SessionsBoardReadError } from "./sessions-board-column";
 import { SESSIONS_BOARD_ARCHIVE_BAR, SESSIONS_BOARD_ARCHIVE_FRAME } from "./sessions-board-frame";
 
@@ -31,6 +31,7 @@ export function SessionsBoardArchiveBar({
   onOpen,
   actions,
 }: SessionsBoardArchiveBarProps) {
+  const BoardCard = slottedCard(use(SessionBoardCardSlot));
   const [open, setOpen] = useState(false);
   const bodyId = useId();
   if (archive.loading) {
@@ -102,7 +103,7 @@ export function SessionsBoardArchiveBar({
           ) : null}
           {archive.sessions.map(session => (
             <div className="w-66 shrink-0" key={session.id}>
-              <SessionBoardCard
+              <BoardCard
                 actions={actions}
                 archived
                 onOpen={onOpen}

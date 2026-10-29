@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "#gallery": fileURLToPath(new URL("./gallery", import.meta.url)),
     },
   },
   test: {
@@ -21,7 +22,12 @@ export default defineConfig({
     // Several UI integration suites legitimately exceed Vitest's default timeout
     // under full-suite load; use an explicit budget for stable CI/local verification.
     testTimeout: 20_000,
-    include: ["src/**/*.{test,spec}.{ts,tsx}", "e2e/**/*.test.ts", "tests/**/*.test.{ts,tsx}"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      "gallery/**/*.test.{ts,tsx}",
+      "e2e/**/*.test.ts",
+      "tests/**/*.test.{ts,tsx}",
+    ],
     exclude: ["**/node_modules/**", "**/dist/**", "tests/visual/*.spec.ts"],
     setupFiles: ["./src/test-setup.ts"],
   },

@@ -194,6 +194,14 @@ describe("compozy-ui-reuse lint plugin", () => {
       expect(reports[0].data).toEqual({ name: "ActionResultBanner" });
     });
 
+    it("Should treat the prototype gallery harness as a consumer surface", () => {
+      const reports = runRule("/repo/web/gallery/shell/toolbar.tsx", visitor => {
+        visitor.FunctionDeclaration(functionDeclaration("Pill"));
+      });
+      expect(reports).toHaveLength(1);
+      expect(reports[0].data).toEqual({ name: "Pill" });
+    });
+
     it("Should ignore data-initialized consts and non-colliding names", () => {
       const reports = runRule("/repo/web/src/routes/_app/vault.tsx", visitor => {
         visitor.VariableDeclarator(variableDeclarator("Section", "MemberExpression"));

@@ -28,6 +28,7 @@
         "msw:update": "bun --cwd web msw init public --no-save && bunx oxfmt web/public/mockServiceWorker.js",
         "postinstall": "bash scripts/postinstall.sh",
         "prepare": "husky",
+        "proto": "bun web/gallery/cli/main.ts",
         "prs:scrape": "bun run scripts/scrape-prs.ts",
         "test": "turbo run test",
         "test:cold": "turbo run test --force",

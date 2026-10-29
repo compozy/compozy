@@ -3,7 +3,7 @@ import { Layers } from "lucide-react";
 
 import { cn, identityColorsFor, identitySurfaceFor, SpriteIcon } from "@compozy/ui";
 
-import { useThemePreference } from "@/systems/theme";
+import { useThemePreference } from "@/systems/theme/hooks/use-theme-preference";
 
 import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 

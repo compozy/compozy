@@ -2,6 +2,8 @@
 
 HTML prototypes and design handoffs for Compozy web surfaces. Organized by product domain.
 
+New design work should prefer gallery prototypes over HTML boards: see [`../prototyping.md`](../prototyping.md).
+
 **Canonical design system:** [`design-system/`](design-system/) — start at [`GUIDE.md`](design-system/GUIDE.md) / [`index.html`](design-system/index.html). On conflict: production (`packages/ui` + `web/`) > `design-system/` > older prototypes.
 
 | Domain | Path | Primary entry |
