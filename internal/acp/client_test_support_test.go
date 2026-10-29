@@ -111,6 +111,7 @@ func startHelperProcess(
 	opts.ProviderAuthEnv = overrides.ProviderAuthEnv
 	opts.ActivateMCPServers = overrides.ActivateMCPServers
 	opts.FinalizeStartup = overrides.FinalizeStartup
+	opts.InputOnly = overrides.InputOnly
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {

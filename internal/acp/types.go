@@ -99,6 +99,10 @@ type StartOpts struct {
 	ActivateMCPServers   func(context.Context) error
 	FinalizeStartup      func(context.Context) (string, StartupManifest, error)
 	Inspection           bool
+	// InputOnly launches a daemon-owned child that only transforms its prompt:
+	// provider harnesses skip built-in tools, user MCP servers, plugins, hooks,
+	// and instruction files they would otherwise load at startup.
+	InputOnly bool
 
 	launchIdentity *preparedLaunchIdentity
 }

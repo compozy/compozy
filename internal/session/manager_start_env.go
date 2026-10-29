@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) sessionStartOpts(
@@ -55,6 +56,7 @@ func (m *Manager) sessionStartOpts(
 		Speed:             s.speed,
 		ACPOptions:        acp.CloneSessionConfigOptionSelections(s.acpOptions),
 		ResumeSessionID:   s.acpSessionID,
+		InputOnly:         IsInternalSpawnRole(store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole),
 		ToolGateway:       newProviderNativeToolGateway(m, session, s.runtimeMode),
 		ActivateMCPServers: m.sessionMCPServerActivator(
 			s.sessionID,

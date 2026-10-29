@@ -415,7 +415,13 @@ sessions after their first persisted assistant response. The remaining `roles.au
 select its agent, provider, model, reasoning effort, and ordered fallback routes. Role changes are
 Live desired state for later invocations at global or workspace scope. Explicit names win; disabled
 or failed generation leaves the session unnamed. Generation has a fixed 60-second deadline with no
-configuration key.
+configuration key. The title child is input-only: it gets no provider tools or hosted MCP, and a
+Claude route skips the operator's Claude Code tools, MCP servers, plugins, skills, settings hooks,
+CLAUDE.md files, and auto-memory. A failed attempt records `role.auto_title.failed` (`operation`,
+`attempt`, `max_attempts`, `retry_on_later_turn`, bounded `error`) and is retried on a later turn,
+at most three attempts per session:
+
+    compozy logs --workspace <ref> --session <session-id> --type role.auto_title.failed --last 10 -o json
 
 Other `[roles]` routing keys and the fallback-chain rules live in `references/runtime-operations.md` (Background roles).
 

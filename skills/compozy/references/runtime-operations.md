@@ -78,7 +78,7 @@ The daemon owns `coordinator` and `spawned` classification. A `session.pre_creat
 a session into or out of either type, and later lifecycle hooks cannot change any persisted session
 type or workspace identity.
 
-With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
+With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails. A failed attempt records `role.auto_title.failed` and retries on a later turn, at most three attempts per session.
 
 Attachability is explicit live runtime state. Use `compozy session list --resumable -o json` before
 `compozy session resume`. The command acquires an attach lease for an eligible live session; it does

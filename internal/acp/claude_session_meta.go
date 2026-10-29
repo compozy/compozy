@@ -65,6 +65,9 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 	if !providerexec.IsClaudeAgentBridge(opts.Command) {
 		return nil
 	}
+	if opts.InputOnly {
+		return claudeCodeInputOnlySessionMeta()
+	}
 	env := make(map[string]string, len(claudeDaemonOwnedBackgroundEnv))
 	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
 	return map[string]any{
@@ -81,6 +84,43 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 						}},
 					},
 				},
+			},
+		},
+	}
+}
+
+// claudeInputOnlySystemPrompt replaces the Claude Code preset, which describes
+// tools an input-only child does not have. Compozy still delivers the agent and
+// role guidance in the first prompt.
+const claudeInputOnlySystemPrompt = "You are a text-only assistant with no tools. " +
+	"Follow the instructions in the user message and reply with plain text only."
+
+// claudeInputOnlyEnv turns off the startup context Claude Code loads outside
+// settings: auto-memory, CLAUDE.md instruction files, and claude.ai MCP connectors.
+var claudeInputOnlyEnv = map[string]string{
+	"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+	"CLAUDE_CODE_DISABLE_CLAUDE_MDS":  "1",
+	"ENABLE_CLAUDEAI_MCP_SERVERS":     "false",
+}
+
+// claudeCodeInputOnlySessionMeta launches a daemon-owned input-only child (the
+// automatic title pass) without the operator's Claude Code environment: no
+// built-in tools, no MCP servers beyond the empty session/new list, no plugins,
+// skills, or settings hooks. Measured on a loaded host, this cuts session/new
+// from 5-9s to about 1s and the prompt from about 45k to under 1k tokens.
+func claudeCodeInputOnlySessionMeta() any {
+	env := make(map[string]string, len(claudeInputOnlyEnv))
+	maps.Copy(env, claudeInputOnlyEnv)
+	return map[string]any{
+		"systemPrompt": claudeInputOnlySystemPrompt,
+		"claudeCode": map[string]any{
+			"options": map[string]any{
+				"tools":           []string{},
+				"strictMcpConfig": true,
+				"plugins":         []any{},
+				"skills":          []string{},
+				"env":             env,
+				"settings":        map[string]any{"disableAllHooks": true},
 			},
 		},
 	}

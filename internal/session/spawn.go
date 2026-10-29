@@ -136,6 +136,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		WorkspacePath:       workspacePath,
 		Worktree:            normalized.InheritedWorktreeID,
 		PromptOverlay:       normalized.PromptOverlay,
+		RuntimeMode:         spawnRuntimeMode(normalized.SpawnRole),
 		Type:                SessionTypeSpawned,
 		Lineage:             lineage,
 		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),

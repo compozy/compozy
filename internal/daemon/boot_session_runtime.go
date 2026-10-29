@@ -138,12 +138,23 @@ func (d *Daemon) bootAutoTitleRuntime(
 	}
 	deadline := autoTitleDeadline
 	generator := newForkedAutoTitleGenerator(titleSessions, roleResolverForState(state), deadline, state.logger)
-	runtime := newAutoTitleRuntime(titleSessions, generator, deadline, state.logger)
+	runtime := newAutoTitleRuntime(
+		titleSessions, generator, deadline, state.logger,
+		withAutoTitleEventWriter(autoTitleEventWriter(state)),
+	)
 	if err := runtime.Start(ctx); err != nil {
 		return fmt.Errorf("daemon: start automatic title runtime: %w", err)
 	}
 	cleanup.add(runtime.Shutdown)
 	state.runtimeWorkers.autoTitle = runtime
+	return nil
+}
+
+// autoTitleEventWriter returns the registry when it records event summaries.
+func autoTitleEventWriter(state *bootState) roleEventSummaryWriter {
+	if writer, ok := state.registry.(roleEventSummaryWriter); ok {
+		return writer
+	}
 	return nil
 }
 

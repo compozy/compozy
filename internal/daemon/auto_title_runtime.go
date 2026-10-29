@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,13 +11,20 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
 
-const autoTitleQueueCapacity = 128
+const (
+	autoTitleQueueCapacity = 128
+	// autoTitleMaxAttempts bounds title generation per session; a failed attempt
+	// is retried on a later turn rather than in a tight loop.
+	autoTitleMaxAttempts = 3
+)
 
 var errAutoTitleQueueFull = errors.New("daemon: automatic title queue is full")
 
@@ -31,14 +39,33 @@ type autoTitleRuntime struct {
 	deadline  time.Duration
 	logger    *slog.Logger
 
-	mu      sync.Mutex
-	queue   []autoTitleJob
-	claimed map[string]struct{}
-	wake    chan struct{}
-	done    chan struct{}
-	cancel  context.CancelFunc
-	started bool
-	closing bool
+	events roleEventSummaryWriter
+
+	mu       sync.Mutex
+	queue    []autoTitleJob
+	claimed  map[string]struct{}
+	failures map[string]autoTitleFailure
+	wake     chan struct{}
+	done     chan struct{}
+	cancel   context.CancelFunc
+	started  bool
+	closing  bool
+}
+
+// autoTitleFailure fences retries of a session whose title attempt failed: the
+// next attempt waits for a different turn and stops after autoTitleMaxAttempts.
+type autoTitleFailure struct {
+	attempts int
+	turnID   string
+}
+
+type autoTitleRuntimeOption func(*autoTitleRuntime)
+
+// withAutoTitleEventWriter records failed attempts as durable role events.
+func withAutoTitleEventWriter(events roleEventSummaryWriter) autoTitleRuntimeOption {
+	return func(r *autoTitleRuntime) {
+		r.events = events
+	}
 }
 
 type autoTitleJob struct {
@@ -55,19 +82,27 @@ func newAutoTitleRuntime(
 	generator autoTitleGenerator,
 	deadline time.Duration,
 	logger *slog.Logger,
+	opts ...autoTitleRuntimeOption,
 ) *autoTitleRuntime {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &autoTitleRuntime{
+	runtime := &autoTitleRuntime{
 		sessions:  sessions,
 		generator: generator,
 		deadline:  deadline,
 		logger:    logger,
 		claimed:   make(map[string]struct{}),
+		failures:  make(map[string]autoTitleFailure),
 		wake:      make(chan struct{}, 1),
 		done:      make(chan struct{}),
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(runtime)
+		}
+	}
+	return runtime
 }
 
 func (r *autoTitleRuntime) Start(ctx context.Context) error {
@@ -118,6 +153,11 @@ func (r *autoTitleRuntime) HandleSessionMessagePersisted(
 		return nil
 	}
 	if _, exists := r.claimed[job.sessionID]; exists {
+		r.mu.Unlock()
+		return nil
+	}
+	if failure, failed := r.failures[job.sessionID]; failed &&
+		(failure.attempts >= autoTitleMaxAttempts || failure.turnID == job.turnID) {
 		r.mu.Unlock()
 		return nil
 	}
@@ -217,12 +257,12 @@ func (r *autoTitleRuntime) process(ctx context.Context, job autoTitleJob) {
 		Limit:  1,
 	})
 	if err != nil {
-		r.warn(job, "query persisted turn", err)
+		r.fail(ctx, job, "query persisted turn", err)
 		return
 	}
 	userMessage, err := firstAutoTitleUserMessage(events)
 	if err != nil {
-		r.warn(job, "decode persisted turn", err)
+		r.fail(ctx, job, "decode persisted turn", err)
 		return
 	}
 	if userMessage == "" {
@@ -240,11 +280,32 @@ func (r *autoTitleRuntime) process(ctx context.Context, job autoTitleJob) {
 		if errors.Is(err, errAutoTitleRoleDisabled) {
 			return
 		}
-		r.warn(job, "generate title", err)
+		r.fail(ctx, job, "generate title", err)
 		return
 	}
 	if _, err := r.sessions.ApplyAutomaticSessionTitle(jobCtx, job.sessionID, title); err != nil {
-		r.warn(job, "persist title", err)
+		r.fail(ctx, job, "persist title", err)
+		return
+	}
+	r.mu.Lock()
+	delete(r.failures, job.sessionID)
+	r.mu.Unlock()
+}
+
+// fail releases the session's claim so a later turn can retry, until the
+// attempt budget is spent, and records the failure for diagnostics.
+func (r *autoTitleRuntime) fail(ctx context.Context, job autoTitleJob, operation string, err error) {
+	r.mu.Lock()
+	failure := r.failures[job.sessionID]
+	failure.attempts++
+	failure.turnID = job.turnID
+	r.failures[job.sessionID] = failure
+	delete(r.claimed, job.sessionID)
+	r.mu.Unlock()
+	retry := failure.attempts < autoTitleMaxAttempts
+	r.warn(job, operation, err, failure.attempts, retry)
+	if eventErr := r.recordFailure(ctx, job, operation, err, failure.attempts, retry); eventErr != nil {
+		r.logger.Warn("daemon: record automatic title failure", "session_id", job.sessionID, "error", eventErr)
 	}
 }
 
@@ -271,7 +332,7 @@ func (r *autoTitleRuntime) signal() {
 	}
 }
 
-func (r *autoTitleRuntime) warn(job autoTitleJob, operation string, err error) {
+func (r *autoTitleRuntime) warn(job autoTitleJob, operation string, err error, attempt int, retry bool) {
 	if r == nil || r.logger == nil || err == nil {
 		return
 	}
@@ -280,6 +341,55 @@ func (r *autoTitleRuntime) warn(job autoTitleJob, operation string, err error) {
 		"operation", operation,
 		"session_id", job.sessionID,
 		"turn_id", job.turnID,
+		"attempt", attempt,
+		"max_attempts", autoTitleMaxAttempts,
+		"retry_on_later_turn", retry,
 		"error", err,
 	)
+}
+
+// autoTitleFailureErrorBytes bounds the error text a failure event retains.
+const autoTitleFailureErrorBytes = 1024
+
+type autoTitleFailureEventPayload struct {
+	Role             string `json:"role"`
+	Operation        string `json:"operation"`
+	TurnID           string `json:"turn_id"`
+	Attempt          int    `json:"attempt"`
+	MaxAttempts      int    `json:"max_attempts"`
+	RetryOnLaterTurn bool   `json:"retry_on_later_turn"`
+	Error            string `json:"error"`
+}
+
+func (r *autoTitleRuntime) recordFailure(
+	ctx context.Context,
+	job autoTitleJob,
+	operation string,
+	cause error,
+	attempt int,
+	retry bool,
+) error {
+	if r == nil || r.events == nil || cause == nil {
+		return nil
+	}
+	content, err := json.Marshal(autoTitleFailureEventPayload{
+		Role: string(compozyconfig.RoleAutoTitle), Operation: operation, TurnID: job.turnID,
+		Attempt: attempt, MaxAttempts: autoTitleMaxAttempts, RetryOnLaterTurn: retry,
+		Error: truncateUTF8Bytes(cause.Error(), autoTitleFailureErrorBytes),
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: marshal automatic title failure event: %w", err)
+	}
+	eventCtx, cancel := detachedDaemonOperationContext(ctx, roleEventWriteTimeout)
+	defer cancel()
+	summary := fmt.Sprintf("auto_title role failed to %s (attempt %d/%d)", operation, attempt, autoTitleMaxAttempts)
+	if err := r.events.WriteEventSummary(eventCtx, daemonEventSummary(store.EventSummary{
+		ProfileID: job.profileID, SessionID: job.sessionID, WorkspaceID: job.workspaceID,
+		Type: eventspkg.RoleAutoTitleFailed, AgentName: job.agentName,
+		Outcome: string(eventspkg.OutcomeFor(eventspkg.RoleAutoTitleFailed)),
+		Summary: summary,
+	}, content)); err != nil {
+		return fmt.Errorf("daemon: record %s: %w", eventspkg.RoleAutoTitleFailed, err)
+	}
+	return nil
 }
