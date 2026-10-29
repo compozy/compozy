@@ -295,7 +295,7 @@ func (m *Manager) replacePromptRuntime(
 		plan.spec.command,
 		plan.spec.sessionEnv,
 	)
-	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
+	session.setRuntimeDefinition(&runtime)
 	if plan.spec.resumeReplay {
 		session.setPendingResumeReplay(plan.spec.resumeReplayBlock)
 	}

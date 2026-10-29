@@ -35,10 +35,14 @@ func applyRepairEvent(
 		acp.EventTypeThought,
 		acp.EventTypePlan,
 		acp.EventTypeRuntimeProgress,
-		acp.EventTypeRuntimeWarning,
 		acp.EventTypePermission,
 		acp.EventTypeSystem:
 		turn.hasPromptData = true
+	case acp.EventTypeRuntimeWarning:
+		// Startup diagnostics have an event identity but no prompt run to repair.
+		if event.agent.RunID != "" {
+			turn.hasPromptData = true
+		}
 	case acp.EventTypeToolCall:
 		turn.hasPromptData = true
 		toolCallID := strings.TrimSpace(event.agent.ToolCallID)

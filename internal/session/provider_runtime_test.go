@@ -1498,6 +1498,5 @@ func TestPiBridgeStartupFailures(t *testing.T) {
 			event.ProviderError.Provider != "pi" {
 			t.Fatalf("typed diagnostic = %#v", event.ProviderError)
 		}
-
 	})
 }

@@ -772,23 +772,12 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 	t.Parallel()
 	t.Run("Should omit native tool and skill instructions while preserving the authored prompt", func(t *testing.T) {
 		t.Parallel()
-		assembler := NewComposedAssembler(WithPromptSectionDescriptors(
-			PromptSectionDescriptor{
-				Name:     "tools",
-				Position: PromptSectionPositionAppend,
-				Provider: staticPromptProvider("native tool router"),
-			},
-			PromptSectionDescriptor{
-				Name:     "skills",
-				Position: PromptSectionPositionAppend,
-				Provider: staticPromptProvider("native skill reader"),
-			},
-			PromptSectionDescriptor{
-				Name:     "runtime",
-				Position: PromptSectionPositionPrepend,
-				Provider: compozyRuntimePromptProvider{},
-			},
-		))
+		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("native skill reader"), nil)
+		descriptors = append(descriptors, PromptSectionDescriptor{
+			Name: "tools", Position: PromptSectionPositionAppend,
+			Provider: staticPromptProvider("Custom CLI workflow: compozy session list"),
+		})
+		assembler := NewComposedAssembler(WithPromptSectionDescriptors(descriptors...))
 		prompt, _, err := assembler.AssembleStartupWithManifest(
 			t.Context(),
 			session.StartupPromptContext{NativeToolsUnavailable: true},
@@ -798,8 +787,9 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(prompt, "native tool router") || strings.Contains(prompt, "native skill reader") ||
+		if strings.Contains(prompt, "Required Reading Router") || strings.Contains(prompt, "native skill reader") ||
 			!strings.Contains(prompt, "authored work") ||
+			!strings.Contains(prompt, "Custom CLI workflow: compozy session list") ||
 			!strings.Contains(prompt, "CLI, HTTP, or UDS") {
 			t.Fatalf("fallback prompt = %q", prompt)
 		}

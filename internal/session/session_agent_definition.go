@@ -58,3 +58,12 @@ func (s *Session) NativeToolsUnavailable() bool {
 	defer s.mu.RUnlock()
 	return s.nativeToolsUnavailable
 }
+
+// setRuntimeDefinition publishes startup guidance and its tool availability together.
+func (s *Session) setRuntimeDefinition(runtime *sessionStartRuntime) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.agentDef = compozyconfig.CloneAgentDef(runtime.agentDef)
+	s.startupManifest = acp.CloneStartupManifest(runtime.startupManifest)
+	s.nativeToolsUnavailable = runtime.nativeToolsUnavailable
+}
