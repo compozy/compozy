@@ -143,30 +143,52 @@ function DialogContentPopup({
   unframed = false,
   style,
   initialFocus,
+  finalFocus,
   ref,
   ...props
 }: DialogContentProps) {
   const overlayContainer = useOverlayContainer();
   const windowScoped = overlayContainer !== null;
   const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const openerRef = React.useRef<HTMLElement | null>(null);
   const mergedPopupRef = useMergedRefs(popupRef, ref);
   const resolvedInitialFocus = initialFocus ?? (() => defaultDialogInitialFocus(popupRef.current));
   React.useLayoutEffect(() => {
     const popup = popupRef.current;
-    // The focus manager records the origin in its layout effect, but defers
-    // initial focus until the next frame. Transfer our default/ref target here,
-    // before its passive effect hides the origin from assistive technology.
+    // Preserve the opener before moving focus: Base UI may initialize its
+    // previously-focused-element tracking after this layout effect.
+    const active = popup?.ownerDocument.activeElement;
+    if (active instanceof HTMLElement && !popup?.contains(active)) openerRef.current = active;
+    // Transfer our default/ref target before the passive isolation effect.
     // Boolean and interaction-dependent policies remain owned by Base UI.
     if (!popup || typeof initialFocus === "boolean" || typeof initialFocus === "function") return;
     const target = initialFocus?.current ?? defaultDialogInitialFocus(popup);
     if (target instanceof HTMLElement) target.focus({ preventScroll: true });
   }, [initialFocus]);
+  const resolveFinalFocus: NonNullable<DialogContentProps["finalFocus"]> = closeType => {
+    if (finalFocus && typeof finalFocus === "object") return finalFocus.current;
+    const requested = typeof finalFocus === "function" ? finalFocus(closeType) : finalFocus;
+    if (requested !== true && (requested !== undefined || finalFocus !== undefined))
+      return requested;
+    const popup = popupRef.current;
+    const active = popup?.ownerDocument.activeElement;
+    // Default restoration must not steal focus that already moved elsewhere.
+    if (
+      finalFocus === undefined &&
+      active &&
+      active !== popup?.ownerDocument.body &&
+      !popup?.contains(active)
+    )
+      return false;
+    return openerRef.current?.isConnected ? openerRef.current : requested;
+  };
   return (
     <DialogPrimitive.Popup
       ref={mergedPopupRef}
       data-slot="dialog-content"
       data-frame={unframed ? "unframed" : "framed"}
       initialFocus={resolvedInitialFocus}
+      finalFocus={resolveFinalFocus}
       className={cn(
         DIALOG_CONTENT_BASE,
         unframed ? DIALOG_CONTENT_UNFRAMED : DIALOG_CONTENT_FRAMED,

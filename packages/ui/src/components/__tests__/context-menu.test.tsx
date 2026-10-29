@@ -55,9 +55,20 @@ describe("ContextMenu", () => {
     fireEvent.contextMenu(screen.getByText("Project"));
     const trigger = await screen.findByRole("menuitem", { name: "Move" });
     await user.keyboard("{ArrowDown}");
-    await user.hover(trigger);
-    await screen.findByRole("menuitem", { name: "Desktop 2" });
-    expect(trigger).toHaveFocus();
+    expect(screen.queryByRole("menuitem", { name: "Desktop 2" })).not.toBeInTheDocument();
+    const movedFocus: EventTarget[] = [];
+    const recordFocus = (event: FocusEvent) => {
+      if (event.target && event.target !== trigger) movedFocus.push(event.target);
+    };
+    document.addEventListener("focusin", recordFocus);
+    try {
+      await user.hover(trigger);
+      await screen.findByRole("menuitem", { name: "Desktop 2" });
+      expect(trigger).toHaveFocus();
+      expect(movedFocus).toEqual([]);
+    } finally {
+      document.removeEventListener("focusin", recordFocus);
+    }
   });
 
   it("Should transfer focus before hiding its trigger inside a dialog", async () => {
@@ -75,21 +86,24 @@ describe("ContextMenu", () => {
     trigger.tabIndex = 0;
     trigger.focus();
     const hiddenFocus: Element[] = [];
-    const observer = new MutationObserver(() => {
-      const active = document.activeElement;
-      if (active?.closest('[aria-hidden="true"], [inert]')) hiddenFocus.push(active);
-    });
-    observer.observe(document.body, {
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["aria-hidden", "inert"],
+    const setAttribute = Element.prototype.setAttribute;
+    const writes = vi.spyOn(Element.prototype, "setAttribute").mockImplementation(function (
+      this: Element,
+      name: string,
+      value: string
+    ) {
+      const active = this.ownerDocument.activeElement;
+      if ((name === "aria-hidden" && value === "true") || name === "inert") {
+        if (active && this.contains(active)) hiddenFocus.push(active);
+      }
+      setAttribute.call(this, name, value);
     });
     try {
       fireEvent.contextMenu(trigger);
       await waitFor(() => expect(screen.getByRole("menu")).toHaveFocus());
       expect(hiddenFocus).toEqual([]);
     } finally {
-      observer.disconnect();
+      writes.mockRestore();
     }
   });
 

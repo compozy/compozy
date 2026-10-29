@@ -290,56 +290,65 @@ describe("OsWorkspacesOverview", () => {
     );
   });
 
-  it("Should hand focus to project creation without restoring the hidden menubar trigger", async () => {
-    const user = userEvent.setup();
-    const hiddenFocus: Element[] = [];
-    const recordFocus = (event: FocusEvent) => {
-      const target = event.target;
-      if (target instanceof Element && target.closest('[aria-hidden="true"], [inert]')) {
-        hiddenFocus.push(target);
+  it.each(["project", "worktree"] as const)(
+    "Should hand focus to %s creation without restoring the hidden menubar trigger",
+    async kind => {
+      const title = kind === "project" ? "Add project" : "Create worktree";
+      const user = userEvent.setup();
+      const hiddenFocus: Element[] = [];
+      const recordFocus = (event: FocusEvent) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest('[aria-hidden="true"], [inert]')) {
+          hiddenFocus.push(target);
+        }
+      };
+      function HandoffHarness() {
+        const [open, setOpen] = useState(true);
+        const [creating, setCreating] = useState(false);
+        return (
+          <>
+            <button type="button" data-slot="os-menubar-workspace">
+              Workspace menu
+            </button>
+            <OsWorkspacesOverview
+              open={open}
+              onOpenChange={setOpen}
+              workspaces={[COMPOZY]}
+              activeWorkspaceId={COMPOZY.id}
+              reducedMotion
+              onSelectWorkspace={vi.fn()}
+              onNewWorkspace={() => setCreating(true)}
+              onCreateWorktree={() => setCreating(true)}
+              onRemoveWorktrees={vi.fn()}
+              worktreesByWorkspace={{ [COMPOZY.id]: worktreeListingFixture }}
+            />
+            <Dialog open={creating} onOpenChange={setCreating}>
+              <DialogContent>
+                <DialogTitle>{title}</DialogTitle>
+              </DialogContent>
+            </Dialog>
+          </>
+        );
       }
-    };
-    function HandoffHarness() {
-      const [open, setOpen] = useState(true);
-      const [creating, setCreating] = useState(false);
-      return (
-        <>
-          <button type="button" data-slot="os-menubar-workspace">
-            Workspace menu
-          </button>
-          <OsWorkspacesOverview
-            open={open}
-            onOpenChange={setOpen}
-            workspaces={[COMPOZY]}
-            activeWorkspaceId={COMPOZY.id}
-            reducedMotion
-            onSelectWorkspace={vi.fn()}
-            onNewWorkspace={() => setCreating(true)}
-          />
-          <Dialog open={creating} onOpenChange={setCreating}>
-            <DialogContent>
-              <DialogTitle>Add project</DialogTitle>
-            </DialogContent>
-          </Dialog>
-        </>
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <HandoffHarness />
+        </QueryClientProvider>
       );
+      document.addEventListener("focusin", recordFocus);
+      try {
+        if (kind === "worktree") await user.click(screen.getByText("Select worktrees…"));
+        await user.keyboard("{End}");
+        if (kind === "worktree")
+          expect(screen.getByRole("menuitem", { name: "New worktree" })).toHaveFocus();
+        await user.keyboard("{Enter}");
+        await waitFor(() => expect(screen.getByRole("dialog", { name: title })).toHaveFocus());
+        expect(hiddenFocus).toEqual([]);
+      } finally {
+        document.removeEventListener("focusin", recordFocus);
+      }
     }
-    render(
-      <QueryClientProvider client={new QueryClient()}>
-        <HandoffHarness />
-      </QueryClientProvider>
-    );
-    document.addEventListener("focusin", recordFocus);
-    try {
-      await user.keyboard("{End}{Enter}");
-      await waitFor(() =>
-        expect(screen.getByRole("dialog", { name: "Add project" })).toHaveFocus()
-      );
-      expect(hiddenFocus).toEqual([]);
-    } finally {
-      document.removeEventListener("focusin", recordFocus);
-    }
-  });
+  );
 
   it("Should wrap arrow focus across the strip and jump with Home/End", async () => {
     const user = userEvent.setup();

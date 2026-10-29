@@ -49,7 +49,7 @@ evidence; the captured context-menu warning is not relabeled as either original.
 - The overview ignores keyboard events from portaled surfaces. Before this change,
   Enter on Archive project also selected the tile and closed the overview. The owning
   regression failed before the fix and passed afterward.
-- Overview suite: 42 passed after the fix.
+- Overview suite: 43 passed, including both project and worktree creation handoffs.
 - Dialog, ConfirmDialog, ContextMenu and DropdownMenu suites: 38 passed.
 - React Doctor: no issues in the nine changed source/test/story files, via Turbo.
 - Web/UI typecheck and lint: four Turbo tasks passed after building the SDK client
@@ -88,3 +88,24 @@ in the other lab.
 Accessibility-tree inspection verifies names, roles, and focused nodes. Native
 screen-reader speech has not been verified. Heavy local gates and full E2E are
 excluded by the assignment; current-head CI and both PR reviews remain required.
+
+## CI and review follow-up
+
+The first full CI run exposed two existing launcher-restoration regressions in
+`OsSessionsModal` and `SessionCreateDialog`. Early focus could precede Base UI's
+previously-focused-element registration for dialogs opened without a DialogTrigger.
+Dialog now preserves that opener before moving focus and supplies it for default/true
+restoration, while retaining explicit opt-out/target policies and respecting focus
+that has already moved elsewhere. The failing expectations were not changed.
+
+- Focused web suites (sessions modal, session creation, overview): 74 passed.
+- UI overlay suites: 38 passed; types/lint and React Doctor passed through Turbo.
+- The nested-dialog story now uses a plain button and controlled Dialog to exercise
+  programmatic opening. Its real-browser play completed with no dialogs remaining
+  and Open projects focused.
+- ContextMenu tests now sample focus synchronously when isolation attributes are
+  written and record transient focus changes during submenu hover. Both pass.
+- CodeRabbit's claim that Base UI 1.8.0 never emits data-nested was checked against
+  the installed package: MenuPopup's nested state is mapped to data-nested by
+  getStateAttributesProps. The strengthened behavioral submenu test confirms that
+  focus never leaves its parent item during hover; no production change is needed.

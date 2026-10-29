@@ -34,11 +34,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function NestedFocusDialog() {
+  const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   return (
-    <Dialog>
-      <DialogTrigger render={<Button>Open projects</Button>} />
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button onClick={() => setOpen(true)}>Open projects</Button>
       <DialogContent>
         <DialogTitle>Projects</DialogTitle>
         <DialogDescription>Manage your project.</DialogDescription>
