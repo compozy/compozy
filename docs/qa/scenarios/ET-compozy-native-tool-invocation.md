@@ -67,3 +67,9 @@ requires Task guidance only when exercising daemon Task authority: ordinary dele
 coding/review work can continue without unavailable native manuals, while capability bypass
 remains forbidden. Static instruction review is not a model-compliance score. See
 [focused verification](../reports/2026-10-23-harness-dogfood.md).
+
+## Native error parity — 2026-10-28
+
+Native error parity (#1012): exercise archive/worktree refusals through both the CLI and native gateway. Registered domain codes must survive generic adapter wrapping, existing specialized reasons/partial results must remain compatible, and backend failures must retain a bounded sanitized cause. Do not infer a transport outage from `tool_backend_failed` alone.
+
+The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.

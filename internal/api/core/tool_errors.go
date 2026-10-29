@@ -22,6 +22,16 @@ func StatusForToolError(err error) int {
 		return http.StatusBadRequest
 	}
 	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
+		if strings.HasPrefix(string(toolErr.ToolID), "compozy__") && toolErr.PublicMessage == "" {
+			if normalized, matched := errors.AsType[*toolspkg.ToolError](
+				NativeToolError(toolErr.ToolID, err),
+			); matched {
+				toolErr = normalized
+			}
+		}
+		if toolErr.HTTPStatus != 0 {
+			return toolErr.HTTPStatus
+		}
 		return statusForToolCode(toolErr.Code, toolErr.ReasonCodes)
 	}
 	switch {
@@ -117,6 +127,10 @@ func RespondToolError(c *gin.Context, err error, maskInternal bool) {
 
 // ToolErrorResponseForError builds the stable tool error response payload.
 func ToolErrorResponseForError(err error, status int, maskInternal bool) contract.ToolErrorResponse {
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok &&
+		strings.HasPrefix(string(toolErr.ToolID), "compozy__") && toolErr.PublicMessage == "" {
+		err = NativeToolError(toolErr.ToolID, err)
+	}
 	payload := contract.ToolErrorPayload{
 		Code:    toolspkg.ErrorCodeBackendFailed,
 		Message: http.StatusText(status),
@@ -129,6 +143,9 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.ToolID = toolErr.ToolID
 		payload.ReasonCodes = append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...)
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
+		if toolErr.PublicMessage != "" {
+			payload.Message = toolErr.PublicMessage
+		}
 		if toolErr.Code == toolspkg.ErrorCodeInvalidRequest ||
 			(toolErr.Code == toolspkg.ErrorCodeSessionMessageRateLimited && strings.TrimSpace(toolErr.Message) != "") {
 			// The daemon composes both messages; the rate limit names the budget and when to retry.

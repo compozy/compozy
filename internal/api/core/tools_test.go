@@ -505,6 +505,24 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 }
 
 func TestToolErrorResponses(t *testing.T) {
+	t.Run("Should retain a sanitized backend cause without promoting it to a domain refusal", func(t *testing.T) {
+		t.Parallel()
+		cause := errors.New(
+			`workspace: prune missing workspace "/private/operator/private project": permission denied token=secret-value`,
+		)
+		mapped := core.NativeToolError(toolspkg.ToolIDWorktreeCreate, cause)
+		status := core.StatusForToolError(mapped)
+		payload := core.ToolErrorResponseForError(mapped, status, false).Error
+		if status != http.StatusBadGateway || payload.Code != toolspkg.ErrorCodeBackendFailed ||
+			!strings.Contains(payload.Message, "prune missing workspace") ||
+			!strings.Contains(payload.Message, "permission denied") ||
+			strings.Contains(payload.Message, "private") || strings.Contains(payload.Message, "secret-value") {
+			t.Fatalf("unsafe or uninformative error: %#v status=%d", payload, status)
+		}
+		if !errors.Is(mapped, cause) || !errors.Is(mapped, toolspkg.ErrToolBackendFailed) {
+			t.Fatal("backend error identity lost")
+		}
+	})
 	// Invariant: native checkout refusals retain actionable public messages without
 	// exposing backend details. Owner: API tool error envelope; canonical suite.
 	for _, tc := range []struct {
