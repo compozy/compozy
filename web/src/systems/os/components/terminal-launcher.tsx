@@ -74,7 +74,7 @@ export function TerminalLauncher({
             {destinations.map(destination => (
               <CommandItem
                 data-testid={`terminal-launcher-new-${destination.value}`}
-                disabled={busy}
+                disabled={busy || destination.unavailableReason !== null}
                 key={destination.value}
                 keywords={[destination.label]}
                 onSelect={() => onOpenNew(destination.value)}
@@ -82,6 +82,11 @@ export function TerminalLauncher({
               >
                 <Plus aria-hidden="true" className="text-subtle" />
                 <span className="min-w-0 truncate">{destination.label}</span>
+                {destination.unavailableReason ? (
+                  <span className="ms-auto ps-3 text-micro text-subtle">
+                    {destination.unavailableReason}
+                  </span>
+                ) : null}
               </CommandItem>
             ))}
           </CommandGroup>

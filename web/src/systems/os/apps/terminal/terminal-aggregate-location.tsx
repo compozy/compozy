@@ -28,7 +28,7 @@ export interface TerminalAggregateLocationProps {
   coordinator: Pick<RoutingCoordinator, "userRetarget">;
   /** The terminal this window was asked to show before it knew the terminal's project. */
   requestedId: string | null;
-  workspaces: readonly { id: string; name: string }[];
+  workspaces: readonly { id: string; name: string; root_missing?: boolean }[];
   /** The project a new terminal starts in unless the operator picks another. */
   rememberedWorkspaceId?: string | null;
   /** The profile a new terminal opens in. */

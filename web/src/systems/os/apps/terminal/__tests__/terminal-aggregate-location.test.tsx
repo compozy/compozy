@@ -1,7 +1,8 @@
 // Suite: terminal aggregate location
 // Invariant: the All projects Terminal window is the launcher — new-terminal destinations stay live
-// while the catalog loads, the remembered project is preselected so one Enter opens it, an
-// all-profiles read offers no destination, and only running terminals are listed.
+// while the catalog loads, the remembered project is preselected so one Enter opens it, a project
+// whose folder is gone stays listed but unavailable, an all-profiles read offers no destination,
+// and only running terminals are listed.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
 import { render, screen } from "@testing-library/react";
@@ -45,6 +46,21 @@ describe("TerminalAggregateLocation", () => {
       "true"
     );
     expect(screen.queryByText("Running")).not.toBeInTheDocument();
+  });
+
+  it("Should show a project whose folder is gone as unavailable and select the next one", () => {
+    renderLocation({
+      rememberedWorkspaceId: "ws-atlas",
+      workspaces: [{ ...WORKSPACES[0], root_missing: true }, WORKSPACES[1]],
+    });
+
+    const missing = screen.getByTestId("terminal-launcher-new-ws-atlas");
+    expect(missing).toHaveAttribute("aria-disabled", "true");
+    expect(missing).toHaveTextContent("Folder not found");
+    expect(screen.getByTestId("terminal-launcher-new-ws-beacon")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("Should hold the loading shape while a requested terminal waits for its project", () => {
