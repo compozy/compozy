@@ -13,13 +13,14 @@
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 // Boundary: daemon reads and refreshes run over a stubbed `fetch`.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
+import { primaryWorkspaceFixture, type WorkspacePayload } from "@/systems/workspace";
 import {
   codexOkTarget,
   statusTargets,
@@ -136,6 +137,7 @@ function renderMenubar({
   activeOverlay = null,
   onOverlayOpenChange = vi.fn(),
   usage,
+  workspaces = [],
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
@@ -145,6 +147,7 @@ function renderMenubar({
   onOverlayOpenChange?: (overlay: DesktopOverlay, open: boolean) => void;
   /** Cached and served usage envelope for the default profile. */
   usage?: ProviderUsageEnvelope;
+  workspaces?: WorkspacePayload[];
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
@@ -158,7 +161,7 @@ function renderMenubar({
       <UIProvider reducedMotion="never" skipAnimations>
         <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
           <DesktopMenubar
-            workspaces={[]}
+            workspaces={workspaces}
             activeWorkspace={undefined}
             breadthMode={breadthMode}
             focus={{ kind: "user" }}
@@ -177,6 +180,33 @@ function renderMenubar({
     </QueryClientProvider>
   );
 }
+
+// #1029: a menubar menu cannot nest a context menu, so a context click on a project row closes
+// the workspace menu and the host opens that project's actions at the point; the confirm
+// outlives the menu that opened it.
+describe("DesktopMenubar project context menu", () => {
+  it("Should relay a project row's context click to that project's actions", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    renderMenubar({ workspaces: [project], activeOverlay: "workspace-menu", onOverlayOpenChange });
+
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    // Shift+F10 on the focused row relays the same click from the keyboard.
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    expect(onOverlayOpenChange).toHaveBeenCalledWith("workspace-menu", false);
+    expect(await screen.findByTestId(`workspace-project-menu-${project.id}`)).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull()
+    );
+    expect(fireEvent.contextMenu(row, { clientX: 40, clientY: 60 })).toBe(false);
+    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+    expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+  });
+});
 
 describe("DesktopMenubar scope control", () => {
   it("Should aria-disable the scope control while scope resolution is pending [RA0289]", () => {

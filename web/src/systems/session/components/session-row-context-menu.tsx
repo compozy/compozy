@@ -15,8 +15,10 @@ import {
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
+import type { SessionSelectionVerbs } from "../hooks/use-session-list-bulk-selection";
 import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";
 import type { SessionFolderPayload, SessionPayload } from "../types";
+import { SessionSelectionContextItems } from "./session-list/session-list-selection-menu";
 
 /** Folder and manual-order verbs a root session row adds to its context menu. */
 export interface SessionRowLayoutMenu {
@@ -37,11 +39,17 @@ export interface SessionRowContextMenuProps {
   render: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
   /** Content for an empty `render` wrapper (a board card's button and `…`). */
   children?: React.ReactNode;
+  /**
+   * The multi-selection this row belongs to: the menu then acts on all of it.
+   * One trigger serves both menus, so the row never remounts as the selection grows.
+   */
+  selection?: { verbs: SessionSelectionVerbs; testId: string };
 }
 
 /**
  * Right-click menu for one session row: the same lifecycle verbs as the row's
- * `…` menu, plus folder moves and the keyboard alternative to dragging.
+ * `…` menu, plus folder moves and the keyboard alternative to dragging. Inside
+ * a multi-selection it offers the selection's verbs instead.
  */
 export function SessionRowContextMenu({
   session,
@@ -49,6 +57,7 @@ export function SessionRowContextMenu({
   layout,
   render,
   children,
+  selection,
 }: SessionRowContextMenuProps) {
   const items = useSessionRowMenuItems(session, actions);
   const disabled = actions.pendingAction !== null;
@@ -61,37 +70,64 @@ export function SessionRowContextMenu({
         {...(children === undefined ? {} : { children })}
       />
       <ContextMenuContent className="min-w-56">
-        {items.map(item =>
-          item.choices ? (
-            <ContextMenuSub key={item.id}>
-              <ContextMenuSubTrigger disabled={disabled}>
-                <item.icon aria-hidden="true" className="size-3" />
-                {item.label}
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent>
-                {item.choices.map(choice => (
-                  <ContextMenuItem key={choice.id} onClick={choice.onSelect} disabled={disabled}>
-                    {choice.label}
-                  </ContextMenuItem>
-                ))}
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          ) : (
-            <ContextMenuItem
-              key={item.id}
-              data-testid={`session-row-menu-${item.id}-${session.id}`}
-              disabled={disabled || item.disabled}
-              onClick={item.onSelect}
-              variant={item.destructive ? "destructive" : undefined}
-            >
-              <item.icon aria-hidden="true" className="size-3" />
-              {item.label}
-            </ContextMenuItem>
-          )
+        {selection ? (
+          <SessionSelectionContextItems verbs={selection.verbs} testId={selection.testId} />
+        ) : (
+          <SessionRowMenuContent
+            session={session}
+            items={items}
+            disabled={disabled}
+            layout={layout}
+          />
         )}
-        {layout ? <SessionRowLayoutItems session={session} layout={layout} /> : null}
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+function SessionRowMenuContent({
+  session,
+  items,
+  disabled,
+  layout,
+}: {
+  session: SessionPayload;
+  items: ReturnType<typeof useSessionRowMenuItems>;
+  disabled: boolean;
+  layout: SessionRowLayoutMenu | undefined;
+}) {
+  return (
+    <>
+      {items.map(item =>
+        item.choices ? (
+          <ContextMenuSub key={item.id}>
+            <ContextMenuSubTrigger disabled={disabled}>
+              <item.icon aria-hidden="true" className="size-3" />
+              {item.label}
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {item.choices.map(choice => (
+                <ContextMenuItem key={choice.id} onClick={choice.onSelect} disabled={disabled}>
+                  {choice.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        ) : (
+          <ContextMenuItem
+            key={item.id}
+            data-testid={`session-row-menu-${item.id}-${session.id}`}
+            disabled={disabled || item.disabled}
+            onClick={item.onSelect}
+            variant={item.destructive ? "destructive" : undefined}
+          >
+            <item.icon aria-hidden="true" className="size-3" />
+            {item.label}
+          </ContextMenuItem>
+        )
+      )}
+      {layout ? <SessionRowLayoutItems session={session} layout={layout} /> : null}
+    </>
   );
 }
 

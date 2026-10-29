@@ -6,6 +6,7 @@ import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
+import type { SessionSelectionVerbs } from "./use-session-list-bulk-selection";
 
 interface SessionSelectionContext {
   selectedIds: readonly string[];
@@ -39,6 +40,8 @@ export const sessionSelectionLogic = createStoreLogic({
         anchorId: anchor < 0 ? toId : context.anchorId,
       };
     },
+    /** Finder's retarget: the one row a context click lands on outside the selection. */
+    selectOnly: (_context, { id }: { id: string }) => ({ selectedIds: [id], anchorId: id }),
     selectAll: (context, { ids }: { ids: readonly string[] }) => ({
       ...context,
       selectedIds: [...new Set([...context.selectedIds, ...ids])],
@@ -107,6 +110,7 @@ export function useSessionSelection(
     toggle: (id: string) => store.trigger.toggle({ id }),
     toggleRange: (toId: string, visibleOrder: readonly string[]) =>
       store.trigger.toggleRange({ toId, visibleOrder }),
+    selectOnly: (id: string) => store.trigger.selectOnly({ id }),
     selectAll: (ids: readonly string[]) => store.trigger.selectAll({ ids }),
     clear: () => store.trigger.clear(),
     prune: (ids: readonly string[]) => store.trigger.prune({ ids }),
@@ -118,4 +122,8 @@ export interface SessionRowSelection {
   mode: boolean;
   toggle: (id: string) => void;
   toggleRange: (id: string) => void;
+  /** Replaces the selection with one row (a context click outside it). */
+  selectOnly: (id: string) => void;
+  /** The selection's verbs; a selected row's context menu acts on all of them. */
+  verbs?: SessionSelectionVerbs;
 }

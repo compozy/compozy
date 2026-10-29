@@ -6,8 +6,10 @@ import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
   useSessionListBulkFolders,
+  type SessionBulkFolderMenu,
   type SessionBulkFolderSource,
 } from "./use-session-list-bulk-folders";
+import { copySessionText } from "../lib/session-copy";
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
@@ -21,6 +23,24 @@ interface SessionListBulkSelectionInput {
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
   folders: SessionBulkFolderSource;
+}
+
+/** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
+export interface SessionSelectionVerbs {
+  count: number;
+  stoppable: number;
+  archivable: number;
+  /** Archivable sessions that archiving stops first. */
+  archivableLive: number;
+  unarchivable: number;
+  disabled: boolean;
+  onDelete?: () => void;
+  onStop?: () => void;
+  onArchive?: () => void;
+  onUnarchive?: () => void;
+  onCopyIds: () => void;
+  /** Move to folder; absent while the list has no folders to move into. */
+  folders?: SessionBulkFolderMenu;
 }
 
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;
@@ -93,6 +113,22 @@ export function useSessionListBulkSelection({
     shortcuts[shortcut]();
   };
 
+  const counts = sessionSelectionCounts(selectedSessions, visibleOrder);
+  const verbs: SessionSelectionVerbs = {
+    count: selection.selectedIds.length,
+    stoppable: counts.stoppable,
+    archivable: counts.archivable,
+    archivableLive: counts.archivableLive,
+    unarchivable: counts.unarchivable,
+    disabled: actionPending,
+    onDelete: deleteSelected,
+    onStop: bindToSelection(sessionActions.onStopMany, selectedSessions),
+    onArchive: bindToSelection(sessionActions.onArchiveMany, selectedSessions),
+    onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
+    onCopyIds: () => void copySessionText(selection.selectedIds.join("\n"), "Session IDs"),
+    folders: folderMove?.menu,
+  };
+
   return {
     /** The selection bar replaces the toolbar while rows are selected. */
     active: selection.mode,
@@ -100,19 +136,14 @@ export function useSessionListBulkSelection({
       ...selection,
       selectedIds: selectedIdSet,
       toggleRange: (id: string) => selection.toggleRange(id, visibleOrderRef.current),
+      verbs,
     },
     bar: {
-      count: selection.selectedIds.length,
-      ...sessionSelectionCounts(selectedSessions, visibleOrder),
+      verbs,
+      hiddenByFilter: counts.hiddenByFilter,
       allSelected: visibleOrder.length > 0 && visibleOrder.every(id => selectedIdSet.has(id)),
-      disabled: actionPending,
       onSelectAll: shortcuts["select-all"],
       onClear: selection.clear,
-      onDelete: deleteSelected,
-      onStop: bindToSelection(sessionActions.onStopMany, selectedSessions),
-      onArchive: bindToSelection(sessionActions.onArchiveMany, selectedSessions),
-      onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
-      folders: folderMove?.menu,
     },
     /** What dragging a selected row carries; absent without folders. */
     drag: folderMove?.drag,

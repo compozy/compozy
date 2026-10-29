@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
 import {
   Button,
@@ -14,11 +14,58 @@ import {
 } from "@compozy/ui";
 import { WorkspaceApiError } from "@/systems/workspace/adapters/workspace-api";
 import {
-  useDeleteWorkspace,
-  useSetWorkspaceArchived,
-} from "@/systems/workspace/hooks/use-workspaces";
+  useWorkspaceProjectAction,
+  type WorkspaceProjectAction,
+  type WorkspaceProjectActionFlow,
+} from "@/systems/workspace/hooks/use-workspace-project-action";
 import type { WorkspacePayload } from "@/systems/workspace/types";
 
+type ProjectAction = WorkspaceProjectAction;
+
+/** The confirm every project action passes through, with the daemon's refusal. */
+function WorkspaceProjectActionDialog({
+  workspace,
+  flow,
+}: {
+  workspace: WorkspacePayload;
+  flow: WorkspaceProjectActionFlow;
+}) {
+  const { action, archived, pending, failure } = flow;
+  const copy = projectActionCopy(action, archived);
+  return (
+    <ConfirmDialog
+      open={action !== null}
+      onOpenChange={open => {
+        if (!open) flow.dismiss();
+      }}
+      title={`${copy.verb} ${workspace.name}?`}
+      description={copy.description}
+      confirmLabel={`${copy.verb} project`}
+      cancelLabel="Cancel"
+      tone={copy.tone}
+      isPending={pending}
+      onConfirm={flow.submit}
+      error={
+        failure instanceof WorkspaceApiError && failure.code === "workspace_busy"
+          ? "Stop active work before archiving this project."
+          : failure?.message
+      }
+      body={<WorkspaceArchiveBlockers blockers={flow.blockers} />}
+      footNote={
+        action === "remove" && !archived ? (
+          <Button variant="ghost" disabled={pending} onClick={() => flow.choose("archive")}>
+            Archive instead
+          </Button>
+        ) : undefined
+      }
+    />
+  );
+}
+
+/**
+ * A project's actions: a context menu on `children` (right-click; the child
+ * owns Shift+F10 by dispatching `contextmenu`), or a `…` button without one.
+ */
 export function WorkspaceProjectActions({
   workspace,
   children,
@@ -26,103 +73,135 @@ export function WorkspaceProjectActions({
   workspace: WorkspacePayload;
   children?: ReactElement;
 }) {
-  const [action, setAction] = useState<"archive" | "remove" | null>(null);
-  const archive = useSetWorkspaceArchived();
-  const remove = useDeleteWorkspace();
-  const pending = archive.isPending || remove.isPending;
-  const failure = action === "remove" ? remove.error : archive.error;
-  const blockers = failure instanceof WorkspaceApiError ? failure.blockers : [];
-  const archived = Boolean(workspace.archived_at);
-  const choose = (next: "archive" | "remove") => {
-    archive.reset();
-    remove.reset();
-    setAction(next);
-  };
-  const submit = () => {
-    const onSuccess = () => setAction(null);
-    if (action === "remove") remove.mutate(workspace.id, { onSuccess });
-    else archive.mutate({ id: workspace.id, archived: !archived }, { onSuccess });
-  };
-  const copy = projectActionCopy(action, archived);
+  const flow = useWorkspaceProjectAction(workspace);
+  if (children) {
+    return (
+      <WorkspaceProjectContextMenu workspace={workspace}>{children}</WorkspaceProjectContextMenu>
+    );
+  }
   return (
     <>
-      <WorkspaceActionMenu workspace={workspace} choose={choose}>
-        {children}
-      </WorkspaceActionMenu>
-      <ConfirmDialog
-        open={action !== null}
-        onOpenChange={open => {
-          if (!open && !pending) setAction(null);
-        }}
-        title={`${copy.verb} ${workspace.name}?`}
-        description={copy.description}
-        confirmLabel={`${copy.verb} project`}
-        cancelLabel="Cancel"
-        tone={copy.tone}
-        isPending={pending}
-        onConfirm={submit}
-        error={
-          failure instanceof WorkspaceApiError && failure.code === "workspace_busy"
-            ? "Stop active work before archiving this project."
-            : failure?.message
-        }
-        body={<WorkspaceArchiveBlockers blockers={blockers} />}
-        footNote={
-          action === "remove" && !archived ? (
-            <Button variant="ghost" disabled={pending} onClick={() => choose("archive")}>
-              Archive instead
-            </Button>
-          ) : undefined
-        }
-      />
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon" aria-label={`Manage ${workspace.name}`} />}
+        >
+          <MoreHorizontal />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="dropdown" />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <WorkspaceProjectActionDialog workspace={workspace} flow={flow} />
     </>
   );
 }
 
-function WorkspaceActionMenu({
+/**
+ * Right-click (and Shift+F10, which the child dispatches as `contextmenu`) on
+ * `children` opens the project's actions. Without a project yet the trigger
+ * stays mounted but inert, so the child never remounts when the project loads.
+ */
+export function WorkspaceProjectContextMenu({
   workspace,
-  choose,
   children,
 }: {
-  workspace: WorkspacePayload;
-  choose: (action: "archive" | "remove") => void;
-  children?: ReactElement;
+  workspace: WorkspacePayload | undefined;
+  children: ReactElement;
 }) {
-  const archived = Boolean(workspace.archived_at);
-  const archiveLabel = archived ? "Unarchive project" : "Archive project";
-  const ArchiveIcon = archived ? ArchiveRestore : Archive;
-  return children ? (
-    <ContextMenu>
-      <ContextMenuTrigger render={children} />
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => choose("archive")}>
-          <ArchiveIcon />
-          {archiveLabel}
-        </ContextMenuItem>
-        <ContextMenuItem variant="destructive" onClick={() => choose("remove")}>
-          <Trash2 />
-          Remove project
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  ) : (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" aria-label={`Manage ${workspace.name}`} />}
+  const flow = useWorkspaceProjectAction(workspace);
+  return (
+    <>
+      <ContextMenu disabled={!workspace}>
+        <ContextMenuTrigger render={children} />
+        {workspace ? (
+          <ContextMenuContent>
+            <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="context" />
+          </ContextMenuContent>
+        ) : null}
+      </ContextMenu>
+      {workspace ? <WorkspaceProjectActionDialog workspace={workspace} flow={flow} /> : null}
+    </>
+  );
+}
+
+/** Where a relayed project context click landed, in viewport coordinates. */
+export interface WorkspaceProjectMenuPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * A project's actions at a point, for a surface that cannot nest a context
+ * menu of its own (a menubar menu): the host relays the click and keeps this
+ * mounted, so the confirm dialog outlives the menu.
+ */
+export function WorkspaceProjectPointMenu({
+  workspace,
+  point,
+  onClose,
+}: {
+  workspace: WorkspacePayload;
+  /** The open menu's position; `null` while closed. */
+  point: WorkspaceProjectMenuPoint | null;
+  onClose: () => void;
+}) {
+  const flow = useWorkspaceProjectAction(workspace);
+  return (
+    <>
+      <DropdownMenu
+        open={point !== null}
+        onOpenChange={open => {
+          if (!open) onClose();
+        }}
       >
-        <MoreHorizontal />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => choose("archive")}>
-          <ArchiveIcon />
-          {archiveLabel}
-        </DropdownMenuItem>
-        <DropdownMenuItem variant="destructive" onClick={() => choose("remove")}>
-          <Trash2 />
-          Remove project
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <DropdownMenuContent
+          anchor={point ? pointAnchor(point) : undefined}
+          side="bottom"
+          align="start"
+          sideOffset={0}
+          className="w-auto"
+          data-testid={`workspace-project-menu-${workspace.id}`}
+        >
+          <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="dropdown" />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <WorkspaceProjectActionDialog workspace={workspace} flow={flow} />
+    </>
+  );
+}
+
+function pointAnchor({ x, y }: WorkspaceProjectMenuPoint) {
+  return { getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) };
+}
+
+const PROJECT_MENU_KITS = {
+  context: { Item: ContextMenuItem },
+  dropdown: { Item: DropdownMenuItem },
+} as const;
+
+function WorkspaceActionItems({
+  workspace,
+  choose,
+  kind,
+}: {
+  workspace: WorkspacePayload;
+  choose: (action: ProjectAction) => void;
+  kind: keyof typeof PROJECT_MENU_KITS;
+}) {
+  const { Item } = PROJECT_MENU_KITS[kind];
+  const archived = Boolean(workspace.archived_at);
+  const ArchiveIcon = archived ? ArchiveRestore : Archive;
+  return (
+    <>
+      <Item onClick={() => choose("archive")}>
+        <ArchiveIcon />
+        {archived ? "Unarchive project" : "Archive project"}
+      </Item>
+      <Item variant="destructive" onClick={() => choose("remove")}>
+        <Trash2 />
+        Remove project
+      </Item>
+    </>
   );
 }
 
@@ -142,7 +221,7 @@ function WorkspaceArchiveBlockers({ blockers }: { blockers: WorkspaceApiError["b
   );
 }
 
-function projectActionCopy(action: "archive" | "remove" | null, archived: boolean) {
+function projectActionCopy(action: ProjectAction | null, archived: boolean) {
   if (action === "remove")
     return {
       verb: "Remove",

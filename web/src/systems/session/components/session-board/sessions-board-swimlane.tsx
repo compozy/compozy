@@ -10,6 +10,7 @@ import {
 } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionListGroupIdentity } from "../session-list/session-list-group-header";
+import { SessionListGroupProjectMenu } from "../session-list/session-list-group-project-menu";
 import { SessionsBoardColumn } from "./sessions-board-column";
 import {
   SESSIONS_BOARD_COLUMNS_ROW,
@@ -78,12 +79,14 @@ export function SessionsBoardSwimlane({
   const testId = `sessions-board-lane-${lane.group.key}`;
   return (
     <section aria-label={name} className={SESSIONS_BOARD_LANE} data-testid={testId}>
-      <header className={SESSIONS_BOARD_LANE_HEADER}>
-        <SessionListGroupIdentity group={lane.group} />
-        <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
-          {lane.group.total}
-        </span>
-      </header>
+      <SessionListGroupProjectMenu group={lane.group}>
+        <header className={SESSIONS_BOARD_LANE_HEADER} data-testid={`${testId}-header`}>
+          <SessionListGroupIdentity group={lane.group} />
+          <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
+            {lane.group.total}
+          </span>
+        </header>
+      </SessionListGroupProjectMenu>
       <SessionsBoardColumnsRow
         {...props}
         // A project lane names its project once, in its header, like a List project group.

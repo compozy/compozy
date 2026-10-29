@@ -2,6 +2,7 @@ import { ChevronRight } from "lucide-react";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
 
+import { openContextMenuFromKeyboard } from "@/systems/os";
 import { ProfileOwnerTag } from "@/systems/profiles";
 import {
   CreateDestinationPicker,
@@ -17,6 +18,7 @@ import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListCreateMenu } from "./session-list-create-menu";
+import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 
 /** Collapsed header signal: needs-you outranks working; an open group shows its rows instead. */
 function GroupSignal({ group }: { group: SessionListGroupSpec }) {
@@ -80,38 +82,46 @@ export function SessionListGroupHeader({
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = groupName(group);
   return (
-    <div className="flex min-h-7 min-w-0 items-center gap-1">
-      <button
-        type="button"
-        aria-expanded={!collapsed}
-        data-testid={testId}
-        className="flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
-        onClick={onToggle}
-      >
-        <Icon
-          as={ChevronRight}
-          size="sm"
-          className={cn("shrink-0 text-faint transition-transform", !collapsed && "rotate-90")}
-        />
-        <span className="flex min-w-0 flex-1 items-center">
-          <SessionListGroupIdentity group={group} />
-        </span>
-        {collapsed ? <GroupSignal group={group} /> : null}
-        <span className="font-mono text-micro text-faint">{group.total}</span>
-      </button>
-      <SessionListCreateMenu
-        variant="quiet"
-        size="icon-xs"
-        label={{ session: `New session in ${name}`, menu: `New session or folder in ${name}` }}
-        onNewSession={() =>
-          onNewSession({
-            ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
-            ...(target.profile ? { profile: target.profile } : {}),
-          })
-        }
-        onNewFolder={folder.openDialog}
-        testId={testId}
-      />
+    <>
+      <SessionListGroupProjectMenu group={group}>
+        <div
+          className="flex min-h-7 min-w-0 items-center gap-1"
+          data-testid={`${testId}-header`}
+          onKeyDown={openContextMenuFromKeyboard}
+        >
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            data-testid={testId}
+            className="flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-sm px-2 py-1 text-left transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
+            onClick={onToggle}
+          >
+            <Icon
+              as={ChevronRight}
+              size="sm"
+              className={cn("shrink-0 text-faint transition-transform", !collapsed && "rotate-90")}
+            />
+            <span className="flex min-w-0 flex-1 items-center">
+              <SessionListGroupIdentity group={group} />
+            </span>
+            {collapsed ? <GroupSignal group={group} /> : null}
+            <span className="font-mono text-micro text-faint">{group.total}</span>
+          </button>
+          <SessionListCreateMenu
+            variant="quiet"
+            size="icon-xs"
+            label={{ session: `New session in ${name}`, menu: `New session or folder in ${name}` }}
+            onNewSession={() =>
+              onNewSession({
+                ...(target.workspaceId ? { workspaceId: target.workspaceId } : {}),
+                ...(target.profile ? { profile: target.profile } : {}),
+              })
+            }
+            onNewFolder={folder.openDialog}
+            testId={testId}
+          />
+        </div>
+      </SessionListGroupProjectMenu>
       <SessionFolderDialogs
         state={folder.open ? { kind: "create" } : null}
         onClose={folder.close}
@@ -148,7 +158,7 @@ export function SessionListGroupHeader({
           ) : undefined
         }
       />
-    </div>
+    </>
   );
 }
 

@@ -1,13 +1,6 @@
 import { Check, Folder, FolderInput, FolderOutput, FolderPlus } from "lucide-react";
 
-import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  Pill,
-} from "@compozy/ui";
+import { Pill } from "@compozy/ui";
 
 import type {
   SessionBulkFolderMenu,
@@ -15,45 +8,48 @@ import type {
 } from "../../hooks/use-session-list-bulk-folders";
 import { sessionCountLabel } from "../../lib/session-folders";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import type { SessionSelectionMenuKit } from "./session-list-selection-menu";
 
 /**
- * Move to folder in the selection bar's menu: the folders, No folder when a
+ * Move to folder in a selection menu: the folders, No folder when a
  * selected session is filed, and New folder… to create one around the
  * selection. A selection that cannot move says why in place of the targets.
  */
 export function SessionSelectionFolderMenu({
+  kit,
   menu,
   disabled,
-  testIdPrefix,
+  testId,
 }: {
+  kit: SessionSelectionMenuKit;
   menu: SessionBulkFolderMenu;
   disabled: boolean;
-  testIdPrefix: string;
+  testId: string;
 }) {
-  const testId = `${testIdPrefix}-selection-move`;
+  const { Item, Separator, Sub, SubTrigger, SubContent } = kit;
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger disabled={disabled} data-testid={testId}>
+    <Sub>
+      <SubTrigger disabled={disabled} data-testid={testId}>
         <FolderInput aria-hidden="true" className="size-3" />
         Move to folder
-      </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent className="max-w-64 min-w-44">
+      </SubTrigger>
+      <SubContent className="max-w-64 min-w-44">
         {menu.blockedReason !== null ? (
           // Focusable but inert, unlike a disabled item: keyboard and screen
           // reader users land on the reason instead of an empty submenu.
-          <DropdownMenuItem
+          <Item
             closeOnClick={false}
             className="text-muted focus:text-muted"
             data-testid={`${testId}-blocked`}
           >
             {menu.blockedReason}
-          </DropdownMenuItem>
+          </Item>
         ) : (
           <>
             {menu.folders.map(folder => {
               const current = folder.id === menu.sharedFolderId;
               return (
-                <DropdownMenuItem
+                <Item
                   key={folder.id}
                   disabled={current}
                   onClick={() => menu.onMove(folder.id)}
@@ -65,24 +61,24 @@ export function SessionSelectionFolderMenu({
                     <Folder aria-hidden="true" className="size-3" />
                   )}
                   <span className="min-w-0 truncate">{folder.name}</span>
-                </DropdownMenuItem>
+                </Item>
               );
             })}
             {menu.canUnfile ? (
-              <DropdownMenuItem onClick={() => menu.onMove(null)} data-testid={`${testId}-root`}>
+              <Item onClick={() => menu.onMove(null)} data-testid={`${testId}-root`}>
                 <FolderOutput aria-hidden="true" className="size-3" />
                 No folder
-              </DropdownMenuItem>
+              </Item>
             ) : null}
-            {menu.folders.length > 0 || menu.canUnfile ? <DropdownMenuSeparator /> : null}
-            <DropdownMenuItem onClick={menu.onNewFolder} data-testid={`${testId}-new`}>
+            {menu.folders.length > 0 || menu.canUnfile ? <Separator /> : null}
+            <Item onClick={menu.onNewFolder} data-testid={`${testId}-new`}>
               <FolderPlus aria-hidden="true" className="size-3" />
               New folder…
-            </DropdownMenuItem>
+            </Item>
           </>
         )}
-      </DropdownMenuSubContent>
-    </DropdownMenuSub>
+      </SubContent>
+    </Sub>
   );
 }
 

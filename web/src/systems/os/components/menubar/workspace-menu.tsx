@@ -23,7 +23,10 @@ import {
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
+  type WorkspaceProjectMenuPoint,
 } from "@/systems/workspace";
+
+import { openContextMenuFromKeyboard } from "../../lib/context-menu-keyboard";
 
 import { MenubarCommandGroups } from "./menubar-command-groups";
 import { MenubarCommandItem } from "./menubar-command-item";
@@ -58,6 +61,26 @@ export interface WorkspaceMenuProps {
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /** Scope fallback sentence, shown first so the chip's warning dot has its reason. */
   notice?: string | null;
+  /**
+   * A context click on a project row. A menubar menu cannot nest a context
+   * menu, so the host closes this menu and opens the project's at the point.
+   */
+  onProjectContextMenu?: (workspace: WorkspacePayload, point: WorkspaceProjectMenuPoint) => void;
+}
+
+/** Right-click and Shift+F10 on a project row relay its project menu to the host. */
+function projectRowMenuHandlers(
+  workspace: WorkspacePayload,
+  onProjectContextMenu: WorkspaceMenuProps["onProjectContextMenu"]
+) {
+  if (!onProjectContextMenu) return {};
+  return {
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault();
+      onProjectContextMenu(workspace, { x: event.clientX, y: event.clientY });
+    },
+    onKeyDown: openContextMenuFromKeyboard,
+  };
 }
 
 /** The name alone, like the topbar chip, then what is working there. */
@@ -134,6 +157,7 @@ export function WorkspaceMenu({
   onRemoveWorktree,
   onRemoveWorktrees,
   notice,
+  onProjectContextMenu,
 }: WorkspaceMenuProps) {
   const focusedProjectId =
     breadthMode === "focused" && focus.kind === "project" ? focus.workspaceId : undefined;
@@ -196,6 +220,7 @@ export function WorkspaceMenu({
                             key={workspace.id}
                             data-testid={`os-workspace-option-${workspace.id}`}
                             onClick={() => onSelectWorkspace(workspace.id)}
+                            {...projectRowMenuHandlers(workspace, onProjectContextMenu)}
                           >
                             {rowLabel}
                             <ActiveCheck active={isActive} />
@@ -209,6 +234,7 @@ export function WorkspaceMenu({
                             // active check and the chevron share one trailing lane.
                             className="[&>svg:last-child]:hidden"
                             data-testid={`os-workspace-option-${workspace.id}`}
+                            {...projectRowMenuHandlers(workspace, onProjectContextMenu)}
                             onClick={event => {
                               // Enter and screen-reader activation (detail 0) keep opening
                               // the submenu per the menu contract; a pointer click selects.

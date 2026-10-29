@@ -120,3 +120,46 @@ export const WithSubmenu: Story = {
     </DropdownMenu>
   ),
 };
+
+/** A virtual element at a point: the menu opens where the pointer was, with no trigger. */
+function pointAnchor(x: number, y: number) {
+  return { getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) };
+}
+
+export const AtPoint: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A controlled menu anchored to a point instead of a trigger, for a context click that a host relays from a surface that cannot nest its own menu.",
+      },
+    },
+  },
+  render: function AtPointStory() {
+    const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
+    return (
+      <>
+        <div
+          className="grid h-40 w-72 place-items-center rounded-lg border border-dashed border-line text-small-body text-muted"
+          onContextMenu={event => {
+            event.preventDefault();
+            setPoint({ x: event.clientX, y: event.clientY });
+          }}
+        >
+          Right-click anywhere here
+        </div>
+        <DropdownMenu open={point !== null} onOpenChange={open => !open && setPoint(null)}>
+          <DropdownMenuContent
+            anchor={point ? pointAnchor(point.x, point.y) : undefined}
+            side="bottom"
+            align="start"
+            sideOffset={0}
+          >
+            <DropdownMenuItem>Archive project</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive">Remove project</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </>
+    );
+  },
+};

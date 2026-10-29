@@ -77,8 +77,8 @@ export interface SessionListRowProps {
  * siblings — no interactive control nests inside another.
  */
 export function SessionListRow(props: SessionListRowProps) {
-  const { session, sessionActions, showActions = true, layoutMenu } = props;
-  const selected = props.selection?.selectedIds.has(session.id) ?? false;
+  const { session, sessionActions, showActions = true, layoutMenu, selection } = props;
+  const selected = selection?.selectedIds.has(session.id) ?? false;
   const row = (
     <SessionRowDragFrame
       className={cn(
@@ -91,17 +91,24 @@ export function SessionListRow(props: SessionListRowProps) {
       dropEdge={props.dropEdge ?? null}
       dragging={props.dragging ?? false}
       dropTestId={`${props.testIdPrefix}-drop-${props.dropEdge}-${session.id}`}
+      onContextMenu={() => {
+        // Finder's rule: a context click outside the selection makes that row the selection.
+        if (selection?.mode && !selected) selection.selectOnly(session.id);
+      }}
     >
       <SessionListRowBody {...props} />
     </SessionRowDragFrame>
   );
   if (!showActions) return row;
+  // A row inside a multi-selection offers the selection's verbs; one selected row keeps its own.
+  const verbs = selected && selection?.verbs && selection.verbs.count > 1 ? selection.verbs : null;
   return (
     <SessionRowContextMenu
       session={session}
       actions={sessionActions}
       layout={layoutMenu}
       render={row}
+      selection={verbs ? { verbs, testId: `${props.testIdPrefix}-selection-menu` } : undefined}
     />
   );
 }
