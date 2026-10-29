@@ -32,6 +32,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const InsideDialog: Story = {
+  tags: ["play-fn"],
   render: () => (
     <Dialog defaultOpen>
       <DialogContent>
