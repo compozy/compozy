@@ -11,6 +11,7 @@ import {
   acceptFrameStatus,
   nextPreviewStatus,
   previewTimeoutMs,
+  type FrameStatus,
 } from "#gallery/shell/frame-status";
 
 const page = { width: 1440, height: 900 };
@@ -27,28 +28,33 @@ export function PreviewFrame({ src, title, width, height, onSettle }: PreviewFra
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const [status, dispatch] = useReducer(nextPreviewStatus, "loading");
 
+  const settle = useEffectEvent(() => onSettle());
   useEffect(() => {
+    // The first accepted status or the timeout ends loading: settle once, then only track errors.
+    let settled = false;
+    const apply = (event: FrameStatus["status"] | "timeout") => {
+      dispatch(event);
+      if (settled) return;
+      settled = true;
+      settle();
+    };
     const onMessage = (event: MessageEvent) => {
       const next = acceptFrameStatus(
         event,
         frameRef.current?.contentWindow ?? null,
         window.location.origin
       );
-      if (next) dispatch(next);
+      if (next) apply(next);
     };
     window.addEventListener("message", onMessage);
-    const timer = window.setTimeout(() => dispatch("timeout"), previewTimeoutMs);
+    const timer = window.setTimeout(() => apply("timeout"), previewTimeoutMs);
     return () => {
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
     };
   }, []);
 
-  const settle = useEffectEvent(() => onSettle());
   const loading = status === "loading";
-  useEffect(() => {
-    if (!loading) settle();
-  }, [loading]);
 
   if (status === "error") {
     return (

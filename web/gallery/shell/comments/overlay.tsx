@@ -107,6 +107,49 @@ function CommentPins({ comments, located, scale, bounds, selectedId, onSelect }:
   });
 }
 
+/** Pins on screen: open comments of `state` inside the canvas, plus the selected one. */
+function visibleComments(
+  comments: readonly ReviewComment[],
+  located: ReadonlyMap<string, Located>,
+  view: { state: string; selectedId: string | null; height: number }
+) {
+  return comments.filter(comment => {
+    if (comment.id === view.selectedId) return located.has(comment.id);
+    if (comment.context.state !== view.state || comment.status === "resolved") return false;
+    const rect = located.get(comment.id)?.rect;
+    return rect !== undefined && rect.y + rect.height >= 0 && rect.y <= view.height;
+  });
+}
+
+type HighlightsProps = {
+  picking: boolean;
+  hover: Rect | null;
+  drag: Rect | null;
+  draft: ElementTarget | null;
+  selectedRect: Rect | undefined;
+  scale: number;
+};
+
+/** The comment-mode hint and the hover, drag, selected and draft outlines. */
+function PickerHighlights({ picking, hover, drag, draft, selectedRect, scale }: HighlightsProps) {
+  if (draft) return <Highlight rect={draft.rect} scale={scale} />;
+  return (
+    <>
+      {picking ? (
+        <p
+          className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-pill bg-fg px-3 py-1 text-meta whitespace-nowrap text-canvas"
+          role="status"
+        >
+          Click an element or drag an area · Esc to exit
+        </p>
+      ) : null}
+      {picking && hover && !drag ? <Highlight rect={hover} scale={scale} /> : null}
+      {drag ? <Highlight rect={drag} scale={scale} /> : null}
+      {selectedRect ? <Highlight rect={selectedRect} scale={scale} selected /> : null}
+    </>
+  );
+}
+
 export function CommentOverlay(props: OverlayProps) {
   const { doc, picking, selectedId } = props;
   const [ref, size] = useElementSize<HTMLDivElement>();
@@ -115,15 +158,12 @@ export function CommentOverlay(props: OverlayProps) {
   const scale = canvas.width > 0 && size.width > 0 ? size.width / canvas.width : 1;
   const located = useLocated(doc, props.comments, canvas);
   const picker = useCommentPicker({ doc, canvas, scale, picking, onExit: props.onExit });
-  const { hover, drag, draft } = picker;
-
-  const visible = props.comments.filter(comment => {
-    if (comment.id === selectedId) return located.has(comment.id);
-    if (comment.context.state !== props.state || comment.status === "resolved") return false;
-    const rect = located.get(comment.id)?.rect;
-    return rect !== undefined && rect.y + rect.height >= 0 && rect.y <= canvas.height;
+  const { draft } = picker;
+  const visible = visibleComments(props.comments, located, {
+    state: props.state,
+    selectedId,
+    height: canvas.height,
   });
-  const selectedRect = selectedId ? located.get(selectedId)?.rect : undefined;
 
   return (
     <div
@@ -135,18 +175,14 @@ export function CommentOverlay(props: OverlayProps) {
       ref={ref}
       {...(picking ? picker.handlers : {})}
     >
-      {picking && !draft ? (
-        <p
-          className="pointer-events-none absolute top-3 left-1/2 z-10 -translate-x-1/2 rounded-pill bg-fg px-3 py-1 text-meta whitespace-nowrap text-canvas"
-          role="status"
-        >
-          Click an element or drag an area · Esc to exit
-        </p>
-      ) : null}
-      {picking && hover && !drag && !draft ? <Highlight rect={hover} scale={scale} /> : null}
-      {drag ? <Highlight rect={drag} scale={scale} /> : null}
-      {selectedRect && !draft ? <Highlight rect={selectedRect} scale={scale} selected /> : null}
-      {draft ? <Highlight rect={draft.rect} scale={scale} /> : null}
+      <PickerHighlights
+        drag={picker.drag}
+        draft={draft}
+        hover={picker.hover}
+        picking={picking}
+        scale={scale}
+        selectedRect={selectedId ? located.get(selectedId)?.rect : undefined}
+      />
       <CommentPins
         bounds={size}
         comments={visible}

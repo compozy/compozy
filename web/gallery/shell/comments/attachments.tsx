@@ -3,7 +3,7 @@
  * thumbnails of saved images, each opening full size in a dialog.
  */
 import { ImageIcon, RotateCcwIcon, XIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   Button,
@@ -81,6 +81,7 @@ export function AttachmentInput({
   disabled?: boolean;
 }) {
   const [limit, setLimit] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const accept = (files: File[]) => {
     setLimit(uploads.items.length + files.length > capacity);
     uploads.add(files, capacity);
@@ -99,25 +100,28 @@ export function AttachmentInput({
       <div className="flex items-center gap-2">
         <Button
           disabled={disabled || uploads.items.length >= capacity}
-          render={<label />}
-          nativeButton={false}
+          onClick={() => inputRef.current?.click()}
           size="xs"
+          type="button"
           variant="ghost"
         >
           <ImageIcon aria-hidden="true" />
           Attach image
-          <input
-            accept={accepted}
-            className="sr-only"
-            disabled={disabled}
-            multiple
-            onChange={event => {
-              accept([...(event.target.files ?? [])]);
-              event.target.value = "";
-            }}
-            type="file"
-          />
         </Button>
+        <input
+          accept={accepted}
+          aria-label="Attach image"
+          className="hidden"
+          disabled={disabled}
+          multiple
+          onChange={event => {
+            accept([...(event.target.files ?? [])]);
+            event.target.value = "";
+          }}
+          ref={inputRef}
+          tabIndex={-1}
+          type="file"
+        />
         <span className="text-meta text-subtle">Paste or drop · up to 6 images of 5 MB</span>
       </div>
       {limit ? (
