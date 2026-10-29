@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Plus, TerminalSquare } from "lucide-react";
 
 import {
@@ -60,11 +61,15 @@ export function TerminalLauncher({
       : running[0]
         ? `${ATTACH_PREFIX}${running[0].id}`
         : undefined;
+  // `null` follows the default, so a default that settles later (the catalog
+  // arriving) re-selects; a row the operator moves to, or a search, sticks.
+  const [chosen, setChosen] = useState<string | null>(null);
   return (
     <Command
       className={cn("h-auto", className)}
       data-testid="terminal-launcher"
-      defaultValue={defaultValue}
+      onValueChange={value => setChosen(value === defaultValue ? null : value)}
+      value={chosen ?? defaultValue ?? ""}
     >
       <CommandInput autoFocus placeholder="Open a terminal in…" variant="quiet" />
       <CommandList className="max-h-[min(24rem,50vh)]">

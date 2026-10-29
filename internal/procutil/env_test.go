@@ -209,20 +209,31 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 		}
 	})
 
-	t.Run("Should use the account login shell when SHELL is not an absolute path", func(t *testing.T) {
+	t.Run("Should use the account login shell when SHELL cannot run", func(t *testing.T) {
 		account := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000/account/bin\\000'\n")
-		got, err := ResolveLoginShellPath(t.Context(), []string{
-			"HOME=" + t.TempDir(),
-			"SHELL=bash",
-		}, LoginShellPathOptions{
-			Timeout: time.Second, MaxOutputBytes: 1024,
-			AccountShell: func(context.Context) (string, error) { return account, nil },
-		})
-		if err != nil {
-			t.Fatalf("ResolveLoginShellPath() error = %v", err)
+		notExecutable := filepath.Join(t.TempDir(), "bash")
+		if err := os.WriteFile(notExecutable, []byte("#!/bin/sh\n"), 0o600); err != nil {
+			t.Fatal(err)
 		}
-		if got != "/account/bin" {
-			t.Fatalf("ResolveLoginShellPath() = %q, want the account shell PATH", got)
+		for name, inherited := range map[string]string{
+			"Should skip a relative SHELL":       "bash",
+			"Should skip a non-executable SHELL": notExecutable,
+		} {
+			t.Run(name, func(t *testing.T) {
+				got, err := ResolveLoginShellPath(t.Context(), []string{
+					"HOME=" + t.TempDir(),
+					"SHELL=" + inherited,
+				}, LoginShellPathOptions{
+					Timeout: time.Second, MaxOutputBytes: 1024,
+					AccountShell: func(context.Context) (string, error) { return account, nil },
+				})
+				if err != nil {
+					t.Fatalf("ResolveLoginShellPath() error = %v", err)
+				}
+				if got != "/account/bin" {
+					t.Fatalf("ResolveLoginShellPath() = %q, want the account shell PATH", got)
+				}
+			})
 		}
 	})
 

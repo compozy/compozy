@@ -5,7 +5,7 @@
 // and only running terminals are listed.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TERMINAL_FIXTURES } from "@/systems/terminal/mocks/terminal-fixtures";
@@ -58,6 +58,42 @@ describe("TerminalAggregateLocation", () => {
     expect(missing).toHaveAttribute("aria-disabled", "true");
     expect(missing).toHaveTextContent("Folder not found");
     expect(screen.getByTestId("terminal-launcher-new-ws-beacon")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  it("Should follow a default that settles late but keep the operator's search", () => {
+    const { rerender, props } = renderLocation({ workspaces: [] });
+    expect(screen.getByTestId("terminal-launcher-new-@user")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    rerender(
+      <TerminalAggregateLocation
+        {...props}
+        rememberedWorkspaceId="ws-beacon"
+        workspaces={WORKSPACES}
+      />
+    );
+    expect(screen.getByTestId("terminal-launcher-new-ws-beacon")).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Open a terminal in…"), {
+      target: { value: "atl" },
+    });
+    rerender(
+      <TerminalAggregateLocation
+        {...props}
+        rememberedWorkspaceId="ws-beacon"
+        workspaces={[...WORKSPACES]}
+      />
+    );
+    expect(screen.getByPlaceholderText("Open a terminal in…")).toHaveValue("atl");
+    expect(screen.getByTestId("terminal-launcher-new-ws-atlas")).toHaveAttribute(
       "aria-selected",
       "true"
     );

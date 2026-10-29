@@ -122,8 +122,6 @@ export function TerminalAggregateLocation({
   return (
     <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 pt-[12vh] pb-6">
       <TerminalLauncher
-        // The initial selection follows the default; a later default (the catalog settling) re-selects.
-        key={defaultDestination}
         busy={creating || viewer === null}
         className="w-full max-w-lg self-start rounded-lg border border-line"
         defaultDestination={defaultDestination}

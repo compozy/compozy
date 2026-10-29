@@ -10,8 +10,7 @@ export interface TerminalLauncherDialogProps {
 
 function TerminalLauncherDialogBody({ onClose }: { onClose: () => void }) {
   const launcher = useTerminalLauncher({ enabled: true, onOpened: onClose });
-  // The initial selection follows the default; a later default (the catalog settling) re-selects.
-  return <TerminalLauncher key={launcher.defaultDestination} {...launcher} />;
+  return <TerminalLauncher {...launcher} />;
 }
 
 /** The Terminal rail item on All projects: choose where it opens, without a window. */

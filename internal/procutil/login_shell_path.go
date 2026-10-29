@@ -137,15 +137,17 @@ func validateLoginShellPath(path string) (string, error) {
 }
 
 // resolveLoginShell keeps the inherited SHELL, which a launchd-started desktop
-// app receives from the login session, and falls back to the account's
-// recorded shell before a platform default when SHELL is unusable.
+// app receives from the login session, when it names an executable; otherwise
+// it falls back to the account's recorded shell before a platform default.
 func resolveLoginShell(
 	ctx context.Context,
 	environment []string,
 	accountShell func(context.Context) (string, error),
 ) string {
 	if shell := strings.TrimSpace(environmentValue(environment, "SHELL")); filepath.IsAbs(shell) {
-		return shell
+		if _, err := exec.LookPath(shell); err == nil {
+			return shell
+		}
 	}
 	if accountShell == nil {
 		accountShell = AccountLoginShell
