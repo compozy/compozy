@@ -63,7 +63,7 @@ evidence, not a passing journey.
 
 ## Evidence and verification limits
 
-The [redacted network capture summary](../evidence/2026-10-29-gone-resource-requests/network-summary.json)
+The [redacted network capture summary](./2026-10-29-gone-resource-requests.network.json)
 contains before/after status counts and the pending-deletion intervals.
 
 Raw captures are retained in the isolated lab: `before-workspace-catalog.json`,
@@ -91,7 +91,8 @@ PASS for the four targeted journeys and the running-terminal canary. The canary
 minted one attach ticket (201), displayed live and final output, and kept that
 buffer on exit without a retained-output reread. Focused Web checks total 211
 passing tests across ten existing suites; typecheck/lint passed and React Doctor
-reported 100/100 with no issues. No full local E2E or heavy gate was run. The targeted evidence audit passed.
+reported 100/100 with no issues. No full local E2E or heavy gate was run. The targeted evidence audit passed. Manifest-based teardown confirmed all lab
+processes were stopped.
 
 PR delivery remains in progress until current-head CI and both requested
 reviewers complete.
