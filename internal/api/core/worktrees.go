@@ -110,7 +110,20 @@ func (h *BaseHandlers) InspectWorktree(c *gin.Context) {
 	if !ok {
 		return
 	}
-	inspection, err := h.Worktrees.Inspect(c.Request.Context(), scope.RegistryID, id)
+	var inspection *worktree.Inspection
+	var err error
+	if scope.Resolved.RootMissing {
+		var item *worktree.Worktree
+		item, err = h.Worktrees.Resolve(c.Request.Context(), scope.RegistryID, id)
+		if err == nil {
+			inspection = &worktree.Inspection{
+				Worktree: *item,
+				Repo:     worktree.RepoState{Diagnostic: "workspace_root_missing"},
+			}
+		}
+	} else {
+		inspection, err = h.Worktrees.Inspect(c.Request.Context(), scope.RegistryID, id)
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return

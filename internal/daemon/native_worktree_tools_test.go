@@ -180,6 +180,45 @@ func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
 func TestNativeWorktreeTools(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reach guarded removal when the parent root is missing", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		service := &nativeWorktreeServiceStub{
+			resolve: func(_ context.Context, ws, ref string) (*worktree.Worktree, error) {
+				return &worktree.Worktree{
+					ID:          "wt-missing",
+					WorkspaceID: ws,
+					ProfileID:   store.DefaultProfileID,
+					State:       worktree.StateMissing,
+				}, nil
+			},
+			remove: func(_ context.Context, ws, id string, force bool) (*worktree.RemovalRefusal, error) {
+				if ws != "registry-a" || id != "wt-missing" {
+					t.Fatalf("wrong removal target %s/%s", ws, id)
+				}
+				calls++
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: apitest.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+				},
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "registry-a"}, nil
+				},
+			}, Worktrees: service,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWorktreeRemove,
+			Input:  json.RawMessage(`{"workspace":"registry-a","ref":"wt-missing"}`),
+		})
+		if err != nil || calls != 1 {
+			t.Fatalf("removal calls = %d, error = %v", calls, err)
+		}
+	})
+
 	t.Run(
 		"Should resolve workspace identity to the registry boundary without leaking another workspace",
 		func(t *testing.T) {

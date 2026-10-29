@@ -49,3 +49,5 @@ In an isolated lab, create a managed worktree, remove its checkout externally, a
 - Recreate the saved path with a sentinel before removal. Removal must fail closed and preserve the sentinel.
 - Bind a session before removing its checkout. Even a stopped session blocks removal until archived; `--force` does not bypass this guard.
 - Ordinary removal preserves the branch. `--delete-branch` remains a separate opt-in governed by the existing branch ownership, occupancy, and merge-safety checks.
+
+Repeat metadata-only removal through CLI/HTTP and the native tool after deleting the parent project folder as well. The retained project registration must allow the lifecycle guard to run; a ready or recreated checkout must still refuse filesystem removal.

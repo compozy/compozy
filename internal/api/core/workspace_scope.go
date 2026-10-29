@@ -123,6 +123,9 @@ func allowsMissingWorkspace(c *gin.Context) bool {
 	if c.Request.Method == http.MethodGet {
 		return true
 	}
+	if c.Request.Method == http.MethodDelete && strings.HasSuffix(c.FullPath(), "/worktrees/:worktree_id") {
+		return true
+	}
 	return routeSessionID(c) != "" && c.Request.Method == http.MethodPost &&
 		(strings.HasSuffix(c.FullPath(), "/stop") || strings.HasSuffix(c.FullPath(), "/archive"))
 }

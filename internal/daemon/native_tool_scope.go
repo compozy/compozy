@@ -102,7 +102,8 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 
 func nativeAllowsMissingWorkspace(id toolspkg.ToolID) bool {
 	switch id {
-	case toolspkg.ToolIDSessionStatus,
+	case toolspkg.ToolIDWorktreeRemove,
+		toolspkg.ToolIDSessionStatus,
 		toolspkg.ToolIDSessionDescribe,
 		toolspkg.ToolIDSessionArchive,
 		toolspkg.ToolIDSessionUnarchive:
