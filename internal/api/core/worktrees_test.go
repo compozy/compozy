@@ -18,11 +18,35 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+func TestNativeRegisteredDomainErrors(t *testing.T) {
+	t.Parallel()
+	for _, registered := range worktreeErrorCodes {
+		t.Run("Should preserve registered domain code "+registered.code, func(t *testing.T) {
+			t.Parallel()
+			cause := fmt.Errorf("operation: %w", registered.err)
+			wrapped := toolspkg.NewToolError(toolspkg.ErrorCodeConflict, toolspkg.ToolIDWorktreeCreate,
+				"tool conflict", cause, toolspkg.ReasonConflictedID)
+			mapped := NativeToolError(toolspkg.ToolIDWorktreeCreate, wrapped)
+			status := StatusForToolError(mapped)
+			payload := ToolErrorResponseForError(mapped, status, false).Error
+			if string(payload.Code) != registered.code || payload.Message != cause.Error() ||
+				status != StatusForWorktreeError(cause) || len(payload.ReasonCodes) != 0 {
+				t.Fatalf("mapped error = %#v status=%d, want %s status=%d", payload, status,
+					registered.code, StatusForWorktreeError(cause))
+			}
+			if !errors.Is(mapped, registered.err) {
+				t.Fatal("domain error identity lost")
+			}
+		})
+	}
+}
 
 type worktreeServiceStub struct {
 	dismiss         func(context.Context, string, string) error
