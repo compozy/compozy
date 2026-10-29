@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { findPrototypes } from "../node/discovery";
-import { findSpecs, type SpecCatalog } from "../node/specs";
+import { findSpecs, watchSpecs, type SpecCatalog } from "../node/specs";
 
 const roots: string[] = [];
 
@@ -129,5 +129,29 @@ describe("spec derivation", () => {
         { id: "sessions-kanban", title: "Sessions Kanban" },
       ],
     });
+  });
+
+  it("notices a retitled spec and a new spec folder while watching", async () => {
+    const app = project();
+    app.write(".compozy/tasks/sessions-kanban/_spec.md", "# Sessions Kanban");
+    let changes = 0;
+    const stop = watchSpecs(app.root, () => {
+      changes += 1;
+    });
+    const settle = async (before: number) => {
+      for (let tries = 0; tries < 100 && changes === before; tries += 1) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      return changes > before;
+    };
+    try {
+      app.write(".compozy/tasks/sessions-kanban/_spec.md", "# Sessions Board");
+      expect(await settle(0)).toBe(true);
+      const seen = changes;
+      mkdirSync(join(app.root, ".compozy/tasks/agent-plugins"));
+      expect(await settle(seen)).toBe(true);
+    } finally {
+      stop();
+    }
   });
 });

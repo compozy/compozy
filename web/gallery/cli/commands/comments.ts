@@ -17,6 +17,7 @@ import { execFileSync } from "node:child_process";
 
 import { prototypeParams } from "../../contract.ts";
 import { flowOfKey } from "../../flow.ts";
+import { CommentError } from "../../node/comments-store.ts";
 import { localCommentStore } from "../../node/local-comments.ts";
 import { galleryOrigin } from "../../node/paths.ts";
 import {
@@ -141,7 +142,17 @@ function list(args: ParsedArgs) {
   const status = oneOf(stringFlag(args, "status"), ["open", "resolved", "all"], "status") ?? "open";
   const slug = stringFlag(args, "slug");
   const comments = (slug ? [slug] : store.keys())
-    .flatMap(key => store.read(key))
+    .flatMap(key => {
+      if (slug) return store.read(key);
+      try {
+        return store.read(key);
+      } catch (error) {
+        // A prototype or flow deleted or renamed since: its saved threads stay on disk.
+        if (!(error instanceof CommentError)) throw error;
+        console.warn(`Skipping ${store.displayPath(key)}: ${error.message}`);
+        return [];
+      }
+    })
     .filter(comment => status === "all" || comment.status === status);
   if (args.flags.json === true) {
     console.log(JSON.stringify(comments, null, 2));

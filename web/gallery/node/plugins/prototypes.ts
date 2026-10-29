@@ -3,7 +3,7 @@ import type { Plugin } from "vite";
 
 import { findPrototypes } from "../discovery.ts";
 import { findFlows } from "../flows.ts";
-import { findSpecs } from "../specs.ts";
+import { findSpecs, watchSpecs } from "../specs.ts";
 
 export const registryModuleId = "virtual:compozy-prototypes";
 
@@ -73,13 +73,18 @@ export const prototypes = [${loaders.join(",")}];`;
       // Prototypes live outside the gallery root, including files nothing imports yet; flows are
       // never imported at all (discovery reads them).
       server.watcher.add([resolve(webRoot, "src"), resolve(webRoot, "gallery/flows")]);
-      const refresh = (path: string) => {
-        if (!path.endsWith(".proto.tsx") && !path.endsWith(".flow.ts")) return;
+      const reload = () => {
         const module = server.moduleGraph.getModuleById(id);
         if (module) server.moduleGraph.invalidateModule(module);
         server.ws.send({ type: "full-reload" });
       };
+      const refresh = (path: string) => {
+        if (path.endsWith(".proto.tsx") || path.endsWith(".flow.ts")) reload();
+      };
       server.watcher.on("add", refresh).on("unlink", refresh).on("change", refresh);
+      // Spec groups and titles come from `.compozy/tasks/`, outside every watched root.
+      const stopSpecs = watchSpecs(repoRoot, reload);
+      server.httpServer?.once("close", stopSpecs);
     },
   };
 }
