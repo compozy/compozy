@@ -391,7 +391,7 @@ type Service interface {
 		actor task.ActorContext,
 	) error
 	Pause(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error
-	// Resume clears pause_requested on running runs or transitions paused runs back to running.
+	// Resume reactivates paused runs; session Goals must settle pending pauses before reentry.
 	Resume(ctx context.Context, ws WorkspaceID, runID RunID, actor task.ActorContext) error
 	Approve(
 		ctx context.Context,

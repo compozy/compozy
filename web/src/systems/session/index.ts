@@ -444,9 +444,9 @@ export {
   type SessionDecisionDockProps,
 } from "./components/session-decision-dock";
 export {
-  SessionGoalHeadAction,
-  type SessionGoalHeadActionProps,
-} from "./components/goal/goal-head-action";
+  SessionGoalControls,
+  type SessionGoalControlsProps,
+} from "./components/goal/session-goal-controls";
 export { SessionGoalStrip, type SessionGoalStripProps } from "./components/goal/session-goal-strip";
 export {
   ClarificationReceipt,

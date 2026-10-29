@@ -25,6 +25,9 @@ func (s *service) Pause(
 	if err := rejectHistoricalRunMutation(run); err != nil {
 		return err
 	}
+	if run.Origin != nil && run.Origin.Kind == RunOriginSession {
+		return s.pauseSessionGoal(ctx, run, actor)
+	}
 	if run.Status != StatusRunning {
 		return reasonError(
 			ReasonCodeInvalidStatusTransition,
@@ -58,6 +61,11 @@ func (s *service) Resume(
 	case StatusRunning:
 		if !run.PauseRequested {
 			return nil
+		}
+		if run.Origin != nil && run.Origin.Kind == RunOriginSession {
+			// The interrupted turn must settle with its pause actor before explicit reentry.
+			return reasonError(ReasonCodeGoalControlStale, ErrTransitionConflict,
+				map[string]string{reasonMetaRunID: string(run.ID)})
 		}
 		return s.store.SetLoopRunPauseRequested(ctx, ws, runID, false, actor)
 	case StatusPaused:

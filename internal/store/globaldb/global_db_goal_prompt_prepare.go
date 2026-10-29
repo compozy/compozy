@@ -48,9 +48,7 @@ func prepareGoalPromptWithExecutor(
 	if err != nil {
 		return goal.PromptTicket{}, err
 	}
-	if checkpoint.ControlEpoch != req.ExpectedControlEpoch || checkpoint.Status != goalStatusActive ||
-		(checkpoint.Phase != goalCheckpointPhaseIdle && checkpoint.Phase != goalCheckpointPhasePreparing &&
-			checkpoint.Phase != goalCheckpointPhaseQueued) {
+	if !goalPromptPrepareOwnerMatches(checkpoint, req.ExpectedControlEpoch) {
 		return goal.PromptTicket{}, goalControlStaleError("Goal prompt prepare checkpoint changed")
 	}
 	if !goalUsageSequenceMatches(checkpoint.UsageSequence, req.ContextUsageSequence) &&
@@ -98,6 +96,13 @@ func prepareGoalPromptWithExecutor(
 		QueueEntryID: strings.TrimSpace(req.QueueEntryID),
 		PromptID:     strings.TrimSpace(req.PromptID),
 	}, nil
+}
+
+func goalPromptPrepareOwnerMatches(checkpoint goal.Checkpoint, epoch int64) bool {
+	return checkpoint.ControlEpoch == epoch && checkpoint.Status == goalStatusActive &&
+		checkpoint.ControlActorKind == "" && checkpoint.ControlActorID == "" &&
+		(checkpoint.Phase == goalCheckpointPhaseIdle || checkpoint.Phase == goalCheckpointPhasePreparing ||
+			checkpoint.Phase == goalCheckpointPhaseQueued)
 }
 
 func existingPreparedGoalPromptTicket(

@@ -1,19 +1,14 @@
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "../lib/query-keys";
-import type { SessionGoalCommandResult, SessionGoalResponse } from "../types";
-import { useSendSessionPrompt } from "./use-session-actions";
+import type { SessionGoalCommandResult, SessionGoalResponse, SessionState } from "../types";
+import { describeGoalCommandFailure } from "../lib/session-goal-chat-transport";
 import { mutateSessionGoal } from "../adapters/session-goal-api";
 import { sessionStore } from "../stores/session-store";
 import { useSessionGoalFeedback } from "./use-session-store";
 import { useSessionGoal } from "./use-sessions";
 import { type GoalControlAction, loopsKeys, useLoopStream } from "@/systems/loops";
-
-function isGoalResult(value: unknown): value is SessionGoalCommandResult {
-  return typeof value === "object" && value !== null && "outcome" in value;
-}
 
 function replacementObjective(command: string | undefined): string | null {
   const value = command?.trim();
@@ -33,20 +28,32 @@ export function useSessionGoalHeader(
     onPrefillComposer?: (text: string) => void;
     /**
      * One owner per session subscribes to the loop stream for reconciliation
-     * (the goal strip); secondary readers (the window-head action) pass false
+     * (the goal strip); secondary readers pass false
      * and read the shared query cache.
      */
     stream?: boolean;
     enabled?: boolean;
+    sessionState?: SessionState;
+    stopping?: boolean;
+    readOnly?: boolean;
   } = {}
 ) {
-  const { enabled = true, onPrefillComposer, stream = true } = options;
+  const { enabled = true, onPrefillComposer, stream = true, readOnly = false } = options;
   const queryClient = useQueryClient();
   const query = useSessionGoal(workspaceId, sessionId, enabled);
   const feedback = useSessionGoalFeedback(sessionId);
-  const mutation = useSendSessionPrompt({ workspaceId });
-  const [pendingAction, setPendingAction] = useState<GoalControlAction>();
+  const submitting = useRef(false);
   const snapshot = query.data?.goal ?? null;
+  const continuationDisabledReason =
+    options.sessionState === "stopping"
+      ? "Wait for the session to stop. Send a message to reopen it, then resume the goal."
+      : options.stopping
+        ? "Wait for the current work to stop before continuing this goal."
+        : options.sessionState === "starting"
+          ? "Wait for the session to finish starting before continuing this goal."
+          : options.sessionState !== "active"
+            ? "Send a message to reopen this session, then resume the goal."
+            : undefined;
 
   useLoopStream(workspaceId, snapshot?.run_id ?? "", {
     enabled: enabled && snapshot?.live === true && stream,
@@ -64,42 +71,52 @@ export function useSessionGoalHeader(
           );
         }
       }
-      if (frame.kind === "goal_status_changed") {
+      if (frame.kind === "goal_status_changed" || frame.kind === "status_changed") {
         void queryClient.invalidateQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
       }
     },
   });
 
   const applyResult = (next: SessionGoalCommandResult) => {
-    sessionStore.trigger.goalCommandReported({ sessionId, result: next });
+    // Control errors stay beside these controls; prompt-command errors belong to the composer.
+    if (next.outcome !== "error")
+      sessionStore.trigger.goalCommandReported({ sessionId, result: next });
     if (next.snapshot !== null || next.outcome === "cleared") {
       queryClient.setQueryData<SessionGoalResponse>(sessionKeys.goal(workspaceId, sessionId), {
         goal: next.snapshot,
       });
     }
     void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, sessionId) });
   };
 
-  const command = (action: GoalControlAction, message: string) => {
-    setPendingAction(action);
-    const operation = action === "approve" ? "resume" : action;
-    if (operation === "pause" || operation === "resume" || operation === "clear") {
-      void mutateSessionGoal(workspaceId, sessionId, { operation })
-        .then(applyResult)
-        .catch(error => toast.error(error.message))
-        .finally(() => setPendingAction(undefined));
-      return;
-    }
-    mutation.mutate(
-      { id: sessionId, message },
-      {
-        onSuccess: response => {
-          if (isGoalResult(response)) applyResult(response);
-        },
-        onError: error => toast.error(error.message),
-        onSettled: () => setPendingAction(undefined),
+  const mutation = useMutation({
+    mutationFn: async (action: GoalControlAction) => {
+      // An older read must not replace the control's acknowledged state.
+      await queryClient.cancelQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      const operation = action === "approve" ? "resume" : action;
+      const next = await mutateSessionGoal(workspaceId, sessionId, { operation });
+      await queryClient.cancelQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      applyResult(next);
+      if (next.outcome === "error") {
+        throw new Error(
+          describeGoalCommandFailure(next.reason_code) ?? "Couldn't update the goal. Try again."
+        );
       }
-    );
+      // A terminal frame can race the HTTP response; reread after installing its receipt.
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.goal(workspaceId, sessionId) });
+      return next;
+    },
+    onSettled: () => {
+      submitting.current = false;
+    },
+  });
+
+  const command = (action: GoalControlAction) => {
+    if (readOnly || submitting.current) return;
+    if ((action === "resume" || action === "approve") && continuationDisabledReason) return;
+    submitting.current = true;
+    mutation.mutate(action);
   };
 
   const result = feedback?.result;
@@ -117,22 +134,32 @@ export function useSessionGoalHeader(
 
   return {
     composerAffordance,
+    continuationDisabledReason,
+    hasLiveGoal: query.data === undefined ? undefined : snapshot?.live === true,
     error: query.error,
+    actionError: mutation.error,
+    refreshing: query.isFetching,
+    onRefresh: () => {
+      void query.refetch();
+    },
     onApprove:
-      snapshot?.live && snapshot.run_status === "needs-approval"
-        ? () => command("approve", "/goal resume")
+      !readOnly && snapshot?.live && snapshot.run_status === "needs-approval"
+        ? () => command("approve")
         : undefined,
-    onClear: snapshot ? () => command("clear", "/goal clear") : undefined,
+    onClear: !readOnly && snapshot && !snapshot.live ? () => command("clear") : undefined,
+    onStop: !readOnly && snapshot?.live ? () => command("stop") : undefined,
     onPause:
-      snapshot?.live && snapshot.status === "active"
-        ? () => command("pause", "/goal pause")
+      !readOnly && snapshot?.live && snapshot.status === "active"
+        ? () => command("pause")
         : undefined,
-    onPrefillComposer,
+    onPrefillComposer: readOnly ? undefined : onPrefillComposer,
     onResume:
-      snapshot?.live && (snapshot.status === "paused" || snapshot.run_status === "paused")
-        ? () => command("resume", "/goal resume")
+      !readOnly &&
+      snapshot?.live &&
+      (snapshot.status === "paused" || snapshot.run_status === "paused")
+        ? () => command("resume")
         : undefined,
-    pendingAction,
+    pendingAction: mutation.isPending ? mutation.variables : undefined,
     snapshot,
   };
 }

@@ -192,6 +192,9 @@ export function SessionThread({
                         onPrefillComposer={readOnly ? undefined : thread.composer.prefillComposer}
                         sessionId={sessionId}
                         workspaceId={workspaceId}
+                        sessionState={sessionState}
+                        stopping={stopPhase === "stopping"}
+                        readOnly={readOnly}
                       />
                     </ThreadContentRail>
                   ) : null}

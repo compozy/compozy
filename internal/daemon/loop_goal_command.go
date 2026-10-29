@@ -79,7 +79,14 @@ func (s *daemonLoopAPIService) Handle(
 	if goalCommandChangesToolState(verb) {
 		defer s.notifyGoalToolsChanged()
 	}
-	switch verb {
+	return s.dispatchSessionGoalControl(ctx, workspaceID, sessionID, command, runtime, actor)
+}
+
+func (s *daemonLoopAPIService) dispatchSessionGoalControl(
+	ctx context.Context, workspaceID, sessionID string, command session.GoalCommand,
+	runtime *looppkg.RuntimeSpec, actor taskpkg.ActorContext,
+) (session.GoalDispatchDecision, error) {
+	switch strings.TrimSpace(command.Verb) {
 	case session.GoalCommandVerbSet:
 		return s.startSessionGoal(ctx, workspaceID, sessionID, command.Objective, runtime, actor)
 	case session.GoalCommandVerbReplace:
@@ -98,6 +105,8 @@ func (s *daemonLoopAPIService) Handle(
 		return s.pauseSessionGoal(ctx, workspaceID, sessionID, actor)
 	case session.GoalCommandVerbResume:
 		return s.resumeSessionGoal(ctx, workspaceID, sessionID, actor)
+	case session.GoalCommandVerbStop:
+		return s.stopSessionGoal(ctx, workspaceID, sessionID, actor)
 	case session.GoalCommandVerbClear:
 		return s.clearSessionGoal(ctx, workspaceID, sessionID, actor)
 	default:

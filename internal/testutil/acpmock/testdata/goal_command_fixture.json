@@ -12,36 +12,68 @@
                     "id": "model",
                     "name": "Model",
                     "current": "goal-e2e-judge",
-                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                    "values": [
+                        {
+                            "value": "goal-e2e-judge",
+                            "label": "Goal E2E judge"
+                        }
+                    ]
                 }
             ],
             "turns": [
                 {
                     "name": "goal-rejections-work-1",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 1
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
                     "name": "goal-rejections-work-2",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 2
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
                     "name": "goal-rejections-work-3",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 3 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 3
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
                     "name": "goal-rejections-judge-1",
                     "match": {
                         "turn_source": "user",
-                        "judge": { "role": "agent-judge", "attempt": 1 }
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1
+                        }
                     },
                     "steps": [
                         {
@@ -54,7 +86,10 @@
                     "name": "goal-rejections-judge-2",
                     "match": {
                         "turn_source": "user",
-                        "judge": { "role": "agent-judge", "attempt": 2 }
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2
+                        }
                     },
                     "steps": [
                         {
@@ -67,7 +102,10 @@
                     "name": "goal-rejections-judge-3",
                     "match": {
                         "turn_source": "user",
-                        "judge": { "role": "agent-judge", "attempt": 3 }
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 3
+                        }
                     },
                     "steps": [
                         {
@@ -89,13 +127,23 @@
                     "id": "model",
                     "name": "Model",
                     "current": "goal-e2e-judge",
-                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                    "values": [
+                        {
+                            "value": "goal-e2e-judge",
+                            "label": "Goal E2E judge"
+                        }
+                    ]
                 }
             ],
             "turns": [
                 {
                     "name": "goal-pause-work-1",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 1
+                        }
+                    },
                     "steps": [
                         {
                             "kind": "command_exec",
@@ -109,9 +157,17 @@
                 },
                 {
                     "name": "goal-pause-work-2",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 2
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
@@ -144,30 +200,54 @@
                     "id": "model",
                     "name": "Model",
                     "current": "goal-e2e-judge",
-                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                    "values": [
+                        {
+                            "value": "goal-e2e-judge",
+                            "label": "Goal E2E judge"
+                        }
+                    ]
                 }
             ],
             "turns": [
                 {
                     "name": "goal-approval-refusal",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 1
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ],
                     "stop_reason": "refusal"
                 },
                 {
                     "name": "goal-approval-reentry",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 2
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
                     "name": "goal-approval-judge",
                     "match": {
                         "turn_source": "user",
-                        "judge": { "role": "agent-judge", "attempt": 2 }
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 2
+                        }
                     },
                     "steps": [
                         {
@@ -189,27 +269,133 @@
                     "id": "model",
                     "name": "Model",
                     "current": "goal-e2e-judge",
-                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                    "values": [
+                        {
+                            "value": "goal-e2e-judge",
+                            "label": "Goal E2E judge"
+                        }
+                    ]
                 }
             ],
             "turns": [
                 {
                     "name": "goal-clear-completed-work",
-                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 1
+                        }
+                    },
                     "steps": [
-                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
                     ]
                 },
                 {
                     "name": "goal-clear-judge",
                     "match": {
                         "turn_source": "user",
-                        "judge": { "role": "agent-judge", "attempt": 1 }
+                        "judge": {
+                            "role": "agent-judge",
+                            "attempt": 1
+                        }
                     },
                     "steps": [
                         {
                             "kind": "driver_control",
-                            "driver_control": { "action": "block_until_cancel" }
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "goal_controls",
+            "provider": "claude",
+            "model": "goal-e2e-judge",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic pause and resume Goal worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [
+                        {
+                            "value": "goal-e2e-judge",
+                            "label": "Goal E2E judge"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "goal-controls-held-work",
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 1
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Holding Goal turn until canceled."
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "block_until_cancel"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-pause-work-2",
+                    "match": {
+                        "turn_source": "synthetic",
+                        "goal": {
+                            "turn": 2
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "```json\n{\"status\":\"complete\"}\n```"
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-pause-judge",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": {
+                            "role": "agent-judge",
+                            "gate_id": "goal:goal-judge",
+                            "criterion_id": "objective_satisfied"
+                        }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"evidence\":{\"mode\":\"constrained\"}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "ordinary-message-while-paused",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "Reopen the conversation; keep the Goal paused."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "The conversation is open. The Goal remains paused."
                         }
                     ]
                 }

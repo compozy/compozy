@@ -4,7 +4,7 @@ area: GL
 title: Let an agent control an authorized child Goal through typed surfaces
 persona: Ada
 journey: J-29
-expected: An authenticated agent sets, replaces, reads, pauses, resumes, and clears a target session Goal through native, HTTP, UDS, and CLI surfaces with matching structured results, while an unrelated session is rejected and the Goal keeps its immutable origin and workspace scope.
+expected: An authenticated agent sets, replaces, reads, pauses, resumes, stops, and clears a target session Goal through native, HTTP, UDS, and CLI surfaces with matching structured results, while an unrelated session is rejected and the Goal keeps its immutable origin and workspace scope.
 entry_points: compozy__goal_control; POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal; UDS equivalent; compozy session goal
 qa_status: skipped
 bug_ids:
@@ -44,3 +44,11 @@ not a new full cross-surface scenario sweep.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+Issue #1015 acceptance (2026-10-29): Exercise typed Stop in addition to the existing operations. Stop preserves a visible canceled snapshot until Clear; repeated controls remain safe. Session Stop pauses only its own Goal; removal cancels it. Goal command admission must not implicitly reopen a stopped session. Preserve independent catalog Runs, immutable origins, and caller/workspace boundaries.
+
+While a session Goal is still pausing, an early Resume must return `goal_control_stale` (HTTP 409), retain the pause actor, and admit no successor. After Paused is effective, an explicit Resume must continue without an extra approval.
+
+A client disconnect after Stop selects its target must not abort the bounded cancellation commit. If Clear wins during Pause, Resume, or Stop, return `cleared` without restoring a snapshot; confirm the retained terminal Run through an independent read.
+
+Targeted verification and limits are recorded in [the issue #1015 report](../reports/2026-10-29-goal-control.md).

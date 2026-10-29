@@ -37,7 +37,6 @@ func (m *Manager) finishManagedInputPrompt(
 	terminal, err := m.managedInputTerminal(ctx, session, execution.submission)
 	if err != nil {
 		m.recordManagedInputAmbiguous(
-			ctx,
 			execution.lifecycle,
 			execution.submission,
 			managedInputReasonRecoveryAmbiguous,
@@ -48,7 +47,6 @@ func (m *Manager) finishManagedInputPrompt(
 	}
 	if err := execution.lifecycle.RecordTerminal(ctx, terminal); err != nil {
 		m.recordManagedInputAmbiguous(
-			ctx,
 			execution.lifecycle,
 			execution.submission,
 			managedInputReasonRecoveryAmbiguous,
@@ -124,6 +122,16 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 		return nil
 	}
 	if a.terminalEvent != nil {
+		if agentEvent.Type == acp.EventTypeUsage {
+			if err := a.observeUsage(agentEvent.Usage); err != nil {
+				return fmt.Errorf("session: invalid managed input usage at sequence %d: %w", event.Sequence, err)
+			}
+			return nil
+		}
+		if agentEvent.Type == acp.EventTypeSystem ||
+			agentEvent.Type == acp.EventTypeAvailableCommands {
+			return nil
+		}
 		return errors.New("session: managed input requires one final terminal event")
 	}
 	if a.terminal.EventStartSeq == 0 {
@@ -146,6 +154,7 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 
 func isManagedInputProofAuxiliaryEvent(eventType string) bool {
 	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted ||
+		eventType == eventspkg.SessionTurnQuiesced ||
 		eventType == sessionCompactionRequestedEvent || eventType == eventspkg.SessionCompactionFired
 }
 

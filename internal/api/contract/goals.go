@@ -30,6 +30,7 @@ const (
 	SessionGoalOperationReplace SessionGoalOperation = "replace"
 	SessionGoalOperationStatus  SessionGoalOperation = "status"
 	SessionGoalOperationPause   SessionGoalOperation = "pause"
+	SessionGoalOperationStop    SessionGoalOperation = "stop"
 	SessionGoalOperationResume  SessionGoalOperation = "resume"
 	SessionGoalOperationClear   SessionGoalOperation = "clear"
 )
@@ -39,6 +40,7 @@ const (
 	GoalOutcomeReplaced GoalCommandOutcome = "replaced"
 	GoalOutcomeStatus   GoalCommandOutcome = "status"
 	GoalOutcomePaused   GoalCommandOutcome = "paused"
+	GoalOutcomeStopped  GoalCommandOutcome = "stopped"
 	GoalOutcomeResumed  GoalCommandOutcome = "resumed"
 	GoalOutcomeCleared  GoalCommandOutcome = "cleared"
 	GoalOutcomeError    GoalCommandOutcome = "error"
@@ -133,7 +135,7 @@ func (r SessionGoalCommandRequest) Validate() error {
 			return fmt.Errorf("objective and expected_run_id are required for %q", op)
 		}
 	case SessionGoalOperationStatus, SessionGoalOperationPause,
-		SessionGoalOperationResume, SessionGoalOperationClear:
+		SessionGoalOperationResume, SessionGoalOperationStop, SessionGoalOperationClear:
 		if objective != "" || expectedRunID != "" || r.Runtime != nil {
 			return fmt.Errorf("operation %q does not accept objective, expected_run_id, or runtime", op)
 		}
@@ -204,6 +206,7 @@ type GoalCriterionResult struct {
 // GoalContextSnapshot is checkpoint-pinned context telemetry.
 type GoalContextSnapshot struct {
 	State      GoalContextState `json:"state"`
+	Diagnostic string           `json:"diagnostic,omitempty"`
 	Used       *int64           `json:"used"`
 	Size       *int64           `json:"size"`
 	Ratio      *float64         `json:"ratio"`
@@ -232,6 +235,7 @@ type GoalSnapshot struct {
 	TurnsUsed       int                 `json:"turns_used"`
 	TurnLimit       int                 `json:"turn_limit"`
 	Live            bool                `json:"live"`
+	PauseRequested  bool                `json:"pause_requested,omitzero"`
 	ContractSummary string              `json:"contract_summary"`
 	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
 	Context         GoalContextSnapshot `json:"context"`

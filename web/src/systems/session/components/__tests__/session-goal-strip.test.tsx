@@ -183,7 +183,9 @@ describe("SessionGoalStrip", () => {
       />
     );
     const strip = screen.getByTestId("session-goal-strip");
-    expect(strip).toHaveAttribute("data-state", "moved");
+    // Moving sessions must not hide the Goal's actual lifecycle state.
+    expect(strip).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Active");
     expect(screen.getByTestId("goal-strip-facts")).toHaveTextContent(/^Moved · /);
 
     fireEvent.click(screen.getByTestId("goal-strip-line"));

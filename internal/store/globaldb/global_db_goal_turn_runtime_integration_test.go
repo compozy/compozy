@@ -20,6 +20,44 @@ import (
 )
 
 func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
+	// Invariant: pause intent prevents a new queue ticket even before a prompt lease exists.
+	// Owner: durable Goal prompt transaction; canonical turn lifecycle integration suite.
+	t.Run("Should fence preparation after a pause without a prompt lease", func(t *testing.T) {
+		for _, phase := range []string{"idle", "preparing"} {
+			t.Run(phase, func(t *testing.T) {
+				t.Parallel()
+				db, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-pause-before-prepare-"+phase)
+				ctx := t.Context()
+				if _, err := db.db.ExecContext(ctx, `UPDATE loop_goal_checkpoints SET phase = ? WHERE loop_run_id = ?`,
+					phase, key.LoopRunID); err != nil {
+					t.Fatal(err)
+				}
+				leases, err := db.RequestGoalPause(ctx, key.WorkspaceID, key.LoopRunID,
+					operatorActorContextForTest("user:pause-operator"))
+				if err != nil || len(leases) != 0 {
+					t.Fatalf("pause before prepare = %#v, %v", leases, err)
+				}
+				_, err = db.PrepareGoalPrompt(ctx, goal.PreparePromptRequest{
+					Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID,
+					QueueEntryID: "queue:paused", PromptID: "prompt-paused", PromptKind: "work",
+					SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", BindingEpoch: 1,
+					Message: "Must not dispatch after pause", PreparedAt: now,
+				})
+				if err == nil {
+					t.Fatal("pause allowed a new prepared Goal prompt")
+				}
+				requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+				checkpoint, err := db.LoadCheckpoint(ctx, key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if checkpoint.PromptID != "" || checkpoint.ControlActorID != "user:pause-operator" {
+					t.Fatalf("pause lost its checkpoint intent: %#v", checkpoint)
+				}
+			})
+		}
+	})
+
 	t.Run("Should keep one prepared prompt identity per control epoch", func(t *testing.T) {
 		t.Parallel()
 
@@ -1492,6 +1530,48 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 				TerminalAt: canceledAt.Add(time.Second),
 			}); err == nil {
 				t.Fatal("FinalizeGoalPrompt(after operator Stop) error = nil")
+			}
+
+			// Invariant: the original dispatch token can retain a late terminal witness,
+			// but cannot revive a canceled run or rewrite its control outcome.
+			late := goal.FinalizePromptRequest{
+				Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1,
+				TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
+				SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", DispatchToken: claimed.DispatchToken,
+				Result: looppkg.ActionPromptResult{PromptID: promptID, Outcome: looppkg.ActionPromptOutcomeCompleted,
+					StopReason: looppkg.ActionStopCancelled, EventStartSeq: 12, EventEndSeq: 13,
+					TokensReported: true, TokensUsed: 17}, TerminalAt: canceledAt.Add(time.Second),
+			}
+			for range 2 {
+				if err := globalDB.FinalizeGoalPrompt(ctx, late); err != nil {
+					t.Fatalf("retain late terminal: %v", err)
+				}
+			}
+			wrongToken := late
+			wrongToken.DispatchToken = "another-dispatch"
+			if err := globalDB.FinalizeGoalPrompt(ctx, wrongToken); err == nil {
+				t.Fatal("foreign dispatch rewrote terminal")
+			}
+			conflicting := late
+			conflicting.Result.EventEndSeq++
+			if err := globalDB.FinalizeGoalPrompt(ctx, conflicting); err == nil {
+				t.Fatal("conflicting terminal was accepted")
+			}
+			receipt, err := globalDB.GetSessionInputQueueEntryByID(ctx, ticket.QueueEntryID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if receipt.TerminalEventStartSeq == nil || *receipt.TerminalEventStartSeq != 12 ||
+				receipt.TerminalEventEndSeq == nil || *receipt.TerminalEventEndSeq != 13 ||
+				receipt.TerminalTokensUsed == nil || *receipt.TerminalTokensUsed != 17 ||
+				receipt.TerminalReasonCode != string(looppkg.ReasonCodeGoalControlRevokedInFlight) {
+				t.Fatalf("lost revoked terminal witness: %#v", receipt)
+			}
+			assertGoalRuntimeTurn(t, globalDB, key, promptID, "ambiguous", "")
+			assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalTurnCompleted, 1)
+			after, err := globalDB.GetLoopRun(ctx, key.WorkspaceID, key.LoopRunID)
+			if err != nil || after.Status != looppkg.StatusCanceled {
+				t.Fatalf("late terminal resumed run: %#v %v", after, err)
 			}
 
 			var eventsBefore, turnsBefore int

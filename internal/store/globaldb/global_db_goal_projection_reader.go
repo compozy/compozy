@@ -74,6 +74,7 @@ func readSessionGoalProjection(
 	projection.Quarantined = row.Quarantined
 	projection.RunID = looppkg.RunID(strings.TrimSpace(row.ID))
 	projection.RunStatus = looppkg.Status(strings.TrimSpace(row.Status))
+	projection.PauseRequested = row.PauseRequested != 0
 	projection.DefinitionDigest = strings.TrimSpace(row.DefinitionDigest)
 	projection.OriginSessionID = strings.TrimSpace(row.OriginSessionID.String)
 	projection.ContextNudgeRatio = row.GoalContextNudgeRatio

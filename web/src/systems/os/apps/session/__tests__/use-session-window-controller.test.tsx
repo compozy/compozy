@@ -16,6 +16,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   inspectorOpen: false,
+  hasLiveGoal: undefined as boolean | undefined,
   sessionCommands: vi.fn(),
   sessionTopbar: vi.fn(),
   sessionUsage: vi.fn(),
@@ -61,7 +62,6 @@ vi.mock("../use-session-window-sidebar", () => ({
 vi.mock("@/systems/session", () => ({
   getSessionPromptRuntimeSnapshot: () => ({ model: "gpt-5.6-terra", provider: "codex" }),
   isSessionTransportDisconnected: () => false,
-  SessionGoalHeadAction: () => null,
   SessionTransportChip: () => null,
   useSessionTransportState: () => ({ phase: "live", retry: vi.fn() }),
   useSessionCommands: (...args: unknown[]) => {
@@ -69,6 +69,7 @@ vi.mock("@/systems/session", () => ({
     return { catalog: [], isPending: false, refetch: vi.fn() };
   },
   useSessionGoalHeader: () => ({
+    hasLiveGoal: mocks.hasLiveGoal,
     onApprove: vi.fn(),
     onClear: vi.fn(),
     onPause: vi.fn(),
@@ -119,6 +120,7 @@ const session: SessionPayload = {
 describe("useSessionWindowController", () => {
   beforeEach(() => {
     mocks.inspectorOpen = false;
+    mocks.hasLiveGoal = undefined;
     mocks.sessionCommands.mockReset();
     mocks.sessionTopbar.mockReset();
     mocks.sessionUsage.mockReset();
@@ -170,6 +172,27 @@ describe("useSessionWindowController", () => {
     });
     expect(mocks.sessionVault).not.toHaveBeenCalled();
   });
+
+  // Invariant: unknown Goal presence reaches the stop-confirmation owner unchanged.
+  // Owner: session window controller; canonical suite: use-session-window-controller.
+  it.each([undefined, false, true])(
+    "Should preserve Goal presence %s in lifecycle controls",
+    hasLiveGoal => {
+      mocks.hasLiveGoal = hasLiveGoal;
+      renderHook(() =>
+        useSessionWindowController({
+          windowId: "window:sess-1",
+          sessionId: "sess-1",
+          workspaceId: "ws-1",
+          session,
+          liveDataEnabled: true,
+        })
+      );
+      expect(mocks.sessionTopbar).toHaveBeenLastCalledWith(
+        expect.objectContaining({ hasLiveGoal })
+      );
+    }
+  );
 
   it("Should route a bound worktree chip through the shell-owned lifecycle dialogs", () => {
     const worktree = { id: "wt-1", state: "ready" };

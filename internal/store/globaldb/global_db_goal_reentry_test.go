@@ -20,7 +20,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 
 		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC)
+		now := time.Date(2026, 7, 10, 20, 0, 0, 978822482, time.UTC)
 		resumeAt := now.Add(3 * time.Minute)
 		globalDB.now = func() time.Time { return resumeAt }
 		loopRun, err := globalDB.CreateLoopRunForStart(
@@ -195,9 +195,12 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 			ctx,
 			`UPDATE loop_goal_checkpoints
 			 SET phase = 'awaiting_control', goal_status = 'paused', control_cause = 'operator_resume',
-			     updated_at = ?
+			     control_actor_kind = 'human', control_actor_id = 'user:goal-operator',
+			     control_requested_at = ?, updated_at = ?
 			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'converge'`,
-			now.Add(time.Second).Format(time.RFC3339Nano),
+			// Preserve the driver's historical timestamp encoding as well as canonical text.
+			now.Add(time.Second),
+			now.Add(2*time.Second).Format(time.RFC3339Nano),
 			string(loopRun.ID),
 		); err != nil {
 			t.Fatalf("settle paused Goal checkpoint error = %v", err)

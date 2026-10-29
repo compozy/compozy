@@ -20,37 +20,37 @@ Toolset `compozy__loops` — 29 native tools. All 26 Loop tools have matching `c
 the three session-bound Goal tools use the session command/native control and report surfaces. The CLI also exposes
 operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without new native tool IDs.
 
-| Native tool                  | Mode                            | CLI                         | Purpose                                                                                |
-| ---------------------------- | ------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
-| `compozy__loop_list`         | read                            | `compozy loop list`         | List Loop definitions in the workspace.                                                |
-| `compozy__loop_inspect`      | read                            | `compozy loop inspect`      | Read one definition: inputs, contract, start bindings, version.                        |
-| `compozy__loop_validate`     | read                            | `compozy loop validate`     | Lint + compile a definition without saving.                                            |
-| `compozy__loop_status`       | read                            | `compozy loop status`       | Read one run's status with generation detail.                                          |
-| `compozy__loop_runs`         | read                            | `compozy loop runs`         | List runs in the workspace.                                                            |
-| `compozy__loop_requests`     | read                            | `compozy loop requests`     | List pending or resolved human requests.                                               |
-| `compozy__loop_request`      | read                            | `compozy loop request`      | Read one request with its full redacted context.                                       |
-| `compozy__loop_respond`      | mutating · **capability-gated** | `compozy loop respond`      | Admit one schema-valid request answer or review decision.                              |
-| `compozy__loop_node_amend`   | mutating · **capability-gated** | `compozy loop node amend`   | Append an overlay to one parked, settled node output.                                  |
-| `compozy__loop_diff`         | read                            | `compozy loop diff`         | Compare generations or same-Loop runs.                                                 |
-| `compozy__loop_rerun`        | mutating · **capability-gated** | `compozy loop rerun`        | Rerun one settled node and its dependents.                                             |
-| `compozy__loop_fork`         | mutating · **capability-gated** | `compozy loop fork`         | Create a linked run from a historical generation.                                      |
-| `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                            |
-| `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                                |
-| `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                               |
-| `compozy__loop_pause`        | mutating                        | `compozy loop pause`        | Request a generation-boundary pause.                                                   |
-| `compozy__loop_resume`       | mutating                        | `compozy loop resume`       | Resume a paused or pause-requested run.                                                |
-| `compozy__loop_approve`      | mutating · **capability-gated** | `compozy loop approve`      | Apply one human-gate decision.                                                         |
-| `compozy__loop_cancel`       | destructive                     | `compozy loop cancel`       | Immediately cancel one active run and stop its owned sessions.                         |
-| `compozy__loop_nodes`        | read                            | `compozy loop nodes`        | List waiting, quarantined, attention, or retrying nodes.                               |
-| `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node or addressed fan-out cell.                                     |
-| `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node, cell, or manual wait.                                          |
-| `compozy__loop_node_cancel`  | destructive                     | `compozy loop node cancel`  | Immediately cancel one authored node or addressed cell.                                |
-| `compozy__loop_node_requeue` | mutating                        | `compozy loop node requeue` | Requeue one quarantined node into a successor generation.                              |
-| `compozy__loop_delete`       | destructive                     | `compozy loop delete`       | Delete a writable definition plus its config and editor annotations.                   |
-| `compozy__goal_get`          | read · session-scoped           | `/goal status`              | Read the caller session's visible Goal, including terminal-until-clear.                |
-| `compozy__goal_control`      | mutating · session-scoped       | `session goal`              | Set, replace, pause, resume, clear, or inspect a Goal on an authorized target session. |
-| `compozy__goal_report`       | mutating · prompt-scoped        | —                           | Record one current-prompt `complete` or evidenced `blocked` boundary intent.           |
-| `compozy__loop_turns`        | read                            | `compozy loop turns`        | Read a Run's total-order Goal turn audit with cursor and node/item filters.            |
+| Native tool                  | Mode                            | CLI                         | Purpose                                                                                      |
+| ---------------------------- | ------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------- |
+| `compozy__loop_list`         | read                            | `compozy loop list`         | List Loop definitions in the workspace.                                                      |
+| `compozy__loop_inspect`      | read                            | `compozy loop inspect`      | Read one definition: inputs, contract, start bindings, version.                              |
+| `compozy__loop_validate`     | read                            | `compozy loop validate`     | Lint + compile a definition without saving.                                                  |
+| `compozy__loop_status`       | read                            | `compozy loop status`       | Read one run's status with generation detail.                                                |
+| `compozy__loop_runs`         | read                            | `compozy loop runs`         | List runs in the workspace.                                                                  |
+| `compozy__loop_requests`     | read                            | `compozy loop requests`     | List pending or resolved human requests.                                                     |
+| `compozy__loop_request`      | read                            | `compozy loop request`      | Read one request with its full redacted context.                                             |
+| `compozy__loop_respond`      | mutating · **capability-gated** | `compozy loop respond`      | Admit one schema-valid request answer or review decision.                                    |
+| `compozy__loop_node_amend`   | mutating · **capability-gated** | `compozy loop node amend`   | Append an overlay to one parked, settled node output.                                        |
+| `compozy__loop_diff`         | read                            | `compozy loop diff`         | Compare generations or same-Loop runs.                                                       |
+| `compozy__loop_rerun`        | mutating · **capability-gated** | `compozy loop rerun`        | Rerun one settled node and its dependents.                                                   |
+| `compozy__loop_fork`         | mutating · **capability-gated** | `compozy loop fork`         | Create a linked run from a historical generation.                                            |
+| `compozy__loop_create`       | mutating                        | `compozy loop create`       | Create/fork, or CAS-publish when `expected_version` is set.                                  |
+| `compozy__loop_run`          | mutating                        | `compozy loop run`          | Start a run, or dry-run with `dry: true` / `--dry-run`.                                      |
+| `compozy__loop_configure`    | mutating                        | `compozy loop configure`    | Write per-Loop runtime config overrides.                                                     |
+| `compozy__loop_pause`        | mutating                        | `compozy loop pause`        | Request a generation-boundary pause.                                                         |
+| `compozy__loop_resume`       | mutating                        | `compozy loop resume`       | Resume a paused or pause-requested run.                                                      |
+| `compozy__loop_approve`      | mutating · **capability-gated** | `compozy loop approve`      | Apply one human-gate decision.                                                               |
+| `compozy__loop_cancel`       | destructive                     | `compozy loop cancel`       | Immediately cancel one active run and stop its owned sessions.                               |
+| `compozy__loop_nodes`        | read                            | `compozy loop nodes`        | List waiting, quarantined, attention, or retrying nodes.                                     |
+| `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node or addressed fan-out cell.                                           |
+| `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node, cell, or manual wait.                                                |
+| `compozy__loop_node_cancel`  | destructive                     | `compozy loop node cancel`  | Immediately cancel one authored node or addressed cell.                                      |
+| `compozy__loop_node_requeue` | mutating                        | `compozy loop node requeue` | Requeue one quarantined node into a successor generation.                                    |
+| `compozy__loop_delete`       | destructive                     | `compozy loop delete`       | Delete a writable definition plus its config and editor annotations.                         |
+| `compozy__goal_get`          | read · session-scoped           | `/goal status`              | Read the caller session's visible Goal, including terminal-until-clear.                      |
+| `compozy__goal_control`      | mutating · session-scoped       | `session goal`              | Set, replace, pause, resume, stop, clear, or inspect a Goal on an authorized target session. |
+| `compozy__goal_report`       | mutating · prompt-scoped        | —                           | Record one current-prompt `complete` or evidenced `blocked` boundary intent.                 |
+| `compozy__loop_turns`        | read                            | `compozy loop turns`        | Read a Run's total-order Goal turn audit with cursor and node/item filters.                  |
 
 When `loop why` publishes a request unblocker, execute it and enter the response JSON at the
 `Response JSON:` prompt. The command uses `--payload-stdin`; it never invents an empty response for
@@ -229,8 +229,9 @@ Authenticated Web/HTTP/UDS/CLI session prompt ingress recognizes this closed gra
 | `/goal <objective>`                           | Start one session-origin Goal; an existing live Goal returns `goal_replace_required`.         |
 | `/goal replace <expected-run-id> <objective>` | Compare-and-swap replacement; stale identity returns `goal_replace_stale` without mutation.   |
 | `/goal status`                                | Return the newest visible Goal snapshot.                                                      |
-| `/goal pause`                                 | Persist an actor-aware pause and settle at a safe boundary.                                   |
+| `/goal pause`                                 | Persist pause intent, interrupt the current turn, and park after its terminal is retained.    |
 | `/goal resume`                                | Resume paused work or approve the active synthetic Goal gate.                                 |
+| `/goal stop`                                  | Cancels the Goal Run and interrupts its work; keeps the terminal snapshot until Clear.        |
 | `/goal clear`                                 | Revoke live work when needed, then hide the newest projection without deleting its audit.     |
 | `/goal draft <text>`                          | Run one idle-only ordinary streaming turn that proposes objective/clauses without activation. |
 
@@ -240,11 +241,11 @@ Draft never queues, steers, interrupts, or consumes a Goal turn; busy admission 
 synthetic agent-judge rubric. `verify:` text is never executed as a command.
 
 Agents can control a Goal without composing prompt text. `compozy__goal_control` accepts one typed
-`operation` (`set`, `replace`, `status`, `pause`, `resume`, or `clear`), a required target
+`operation` (`set`, `replace`, `status`, `pause`, `resume`, `stop`, or `clear`), a required target
 `session_id`, and an optional `runtime` selection for `set` or `replace`. Its caller is the
 authenticated agent session: the target must be that session or a descendant in the same workspace.
 The daemon preserves the Goal's immutable creation identity while
-applying the per-run worker runtime. `session goal set|replace|status|pause|resume|clear` and
+applying the per-run worker runtime. `session goal set|replace|status|pause|resume|stop|clear` and
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal` expose the same typed contract over
 CLI, HTTP, and UDS. Invalid runtime, stale replacement, and unauthorized lineage return stable
 structured reason codes; failed bindings remain in the Goal audit instead of being hidden.
@@ -308,10 +309,42 @@ during that turn.
 
 ### Session stop, removal, and recovery
 
-Explicitly stopping a session-origin Goal's origin or current bound session cancels its live Run
-through the canonical cancellation path. Removing the session does the same before deleting its
-session history. If Goal cancellation fails, the existing stop settlement receipt remains durable;
-retrying the stop or restarting the daemon retries cancellation before settlement completes.
+The Goal and session state machines compose as follows:
+
+| Action         | In-flight work                                             | Goal after settlement                  | Session after settlement                |
+| -------------- | ---------------------------------------------------------- | -------------------------------------- | --------------------------------------- |
+| Pause Goal     | Interrupt the exact managed turn; retain its terminal      | Paused, resumable                      | Active and available for ordinary input |
+| Resume Goal    | Admit one successor after explicit control                 | Active                                 | Must be active                          |
+| Stop Goal      | Cancel the Run and interrupt its exact prompt/judge leases | Terminal canceled; visible until Clear | Preserved                               |
+| Stop session   | Persist Goal pause before session termination              | Paused; requires explicit Goal Resume  | Stopped                                 |
+| Resume session | Restore the session runtime only                           | Remains paused                         | Active                                  |
+| Clear Goal     | Cancel live work, then hide its projection                 | Audit retained                         | Preserved                               |
+| Remove session | Cancel Goal before history deletion                        | Terminal canceled; Run audit retained  | Removed                                 |
+
+`pause_requested: true` means the pause is committed but work is still settling. The Web strip shows
+**Pausing…** until the effective state arrives and keeps Stop available. Repeated Pause, Resume, or
+Stop requests are idempotent within the same Goal. A terminal Goal cannot be resumed.
+Resume is available after **Paused**. An API or command request during **Pausing…** returns
+`goal_control_stale` (HTTP 409) and preserves the pause; refresh status and retry once it settles.
+If Clear wins while Pause, Resume, or Stop is finishing, the control returns `cleared` without a stale
+snapshot. Stop's cancellation step runs independently of client disconnect within a bounded deadline;
+after a lost response, read Goal status to confirm the result.
+
+User controls fence further prompt claims before interrupting work. A late provider terminal may
+attach its exact event range to the original token-authenticated receipt after revocation, but cannot
+advance its checkpoint, resurrect the Run, or create a second turn terminal. The control outcome
+remains authoritative. Trailing usage/command telemetry does not invalidate a completed turn;
+a second terminal or result-bearing output after the terminal still fails validation.
+
+Context usage is supplementary: an event-read failure yields `context.state: unknown` and
+`context.diagnostic: goal_context_unavailable`, while durable state and controls remain available.
+The Web preserves the last snapshot during a failed refresh, surfaces the error, and offers Retry.
+
+Stopping the origin or current bound session pauses its session Goal before stopping the runtime.
+The Goal remains resumable, and resuming the session alone never resumes the Goal. Resume the session,
+then explicitly resume the Goal. Removing the session cancels its Goal before deleting history.
+If lifecycle settlement fails, the durable stop receipt remains pending; retrying Stop or restarting
+the daemon retries the settlement. Deletion cannot bypass a pending settlement.
 Run, turn, and task audit records remain available. Catalog Loop origin lineage
 stays informational; stopping that origin does not cancel independent catalog work. Daemon shutdown
 and closing a window or disconnecting a stream do not mean an operator stopped the Goal session.
@@ -911,3 +944,5 @@ reference forwards that exact original value to the child.
 ### Verification session audit
 
 Agent judges run as daemon-owned `system` sessions. Verdict-only judges are excluded from default session lists and operator attention; expand a Goal and choose **Verification sessions** for attributed transcript links, or use `compozy session list --all --type system --parent <bound-session-id> -o json`. New judges carry informational parent lineage to the bound Goal session (ordinary gates use the Loop origin); this grants no spawn governance. Older parentless judges remain available with `--type system` alone. Per-turn verdicts remain in Run history. Completed idle judges close with verified process exit without false cancellation escalation; genuine stop failures remain recorded.
+
+A stopped session reopens when you send an ordinary message. Control-only `/goal` commands do not reopen it. The Goal stays paused until an explicit Resume after the session is active.

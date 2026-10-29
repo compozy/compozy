@@ -42,7 +42,16 @@ func (m *Manager) CancelManagedInputLease(owner ManagedInputOwner) bool {
 	}
 	m.managedInputMu.Unlock()
 	if ok && lease.cancel != nil {
-		lease.cancel()
+		// Context cancellation alone does not send ACP cancellation. Claim the
+		// exact provider turn before releasing its prompt context, preserving its terminal.
+		_, err := m.requestTurnStop(m.fallbackLifecycleContext(), owner.SessionID, owner.PromptID, CauseUserRequested)
+		if err != nil {
+			lease.cancel() // Admission/setup or an already drained owner has no provider turn to stop.
+			if !errors.Is(err, ErrPromptNotInProgress) && !errors.Is(err, ErrSessionNotActive) &&
+				!errors.Is(err, ErrSessionNotFound) && !errors.Is(err, ErrActiveTurnMismatch) {
+				m.logManagedInputError("session: interrupt managed input failed", err, owner)
+			}
+		}
 	}
 	return ok
 }

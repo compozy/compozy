@@ -25,7 +25,7 @@ func GoalSnapshotPayloadFromSession(snapshot *session.GoalSnapshot) (*contract.G
 		OriginSessionID: snapshot.OriginSessionID, BoundSessionID: snapshot.BoundSessionID,
 		Status: status, RunStatus: contract.LoopRunStatus(snapshot.RunStatus),
 		TurnsUsed: snapshot.TurnsUsed, TurnLimit: snapshot.TurnLimit, Live: snapshot.Live,
-		ContractSummary: snapshot.ContractSummary, Context: contextPayload,
+		ContractSummary: snapshot.ContractSummary, Context: contextPayload, PauseRequested: snapshot.PauseRequested,
 	}
 	if snapshot.Cause != nil {
 		value := contract.GoalReasonCode(*snapshot.Cause)
@@ -72,7 +72,7 @@ func goalContextPayload(value session.GoalContextSnapshot) (contract.GoalContext
 	}
 	return contract.GoalContextSnapshot{
 		State: state, Used: value.Used, Size: value.Size, Ratio: value.Ratio,
-		NudgeRatio: value.NudgeRatio, ReportedAt: value.ReportedAt,
+		NudgeRatio: value.NudgeRatio, ReportedAt: value.ReportedAt, Diagnostic: value.Diagnostic,
 	}, nil
 }
 

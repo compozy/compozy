@@ -30,7 +30,11 @@ func (s *daemonLoopAPIService) GetSessionGoal(
 	}
 	contextSnapshot, err := s.goalContextSnapshot(ctx, ws, projection)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: build Goal context snapshot for run %q: %w", projection.RunID, err)
+		s.logGoalCommandWarning(ctx, "Goal context telemetry is unavailable", workspaceID, sessionID, err)
+		contextSnapshot = session.GoalContextSnapshot{
+			State: loopManagedContextStateUnknown, NudgeRatio: projection.ContextNudgeRatio,
+			Diagnostic: "goal_context_unavailable",
+		}
 	}
 	return composeSessionGoalSnapshot(projection, params, nodeID, contractSummary, contextSnapshot), nil
 }

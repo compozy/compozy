@@ -5,7 +5,7 @@ func GoalCommandOutcomeValues() []string {
 	return []string{
 		string(GoalOutcomeStarted), string(GoalOutcomeReplaced), string(GoalOutcomeStatus),
 		string(GoalOutcomePaused), string(GoalOutcomeResumed), string(GoalOutcomeCleared),
-		string(GoalOutcomeError),
+		string(GoalOutcomeStopped), string(GoalOutcomeError),
 	}
 }
 
@@ -14,7 +14,7 @@ func SessionGoalOperationValues() []string {
 	return []string{
 		string(SessionGoalOperationSet), string(SessionGoalOperationReplace),
 		string(SessionGoalOperationStatus), string(SessionGoalOperationPause),
-		string(SessionGoalOperationResume), string(SessionGoalOperationClear),
+		string(SessionGoalOperationResume), string(SessionGoalOperationStop), string(SessionGoalOperationClear),
 	}
 }
 

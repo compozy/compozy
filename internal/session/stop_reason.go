@@ -203,6 +203,10 @@ func (m *Manager) prepareStopWithCauseMode(
 			)
 		}
 	}
+	if err := m.stopSessionGoals(ctx, session.Info()); err != nil {
+		// Verified stop finalization retries this durable intent before releasing its receipt.
+		m.sessionLogger(session).Warn("session: prepare Goal pause failed", "error", err)
+	}
 	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
 		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop prompt setup wait for %q: %w", id, err)
 	}

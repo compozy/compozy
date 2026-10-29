@@ -113,7 +113,7 @@ func GoalCommandHTTPStatus(result contract.GoalCommandResult) int {
 	case contract.GoalOutcomeStarted, contract.GoalOutcomeReplaced:
 		return 202
 	case contract.GoalOutcomeStatus, contract.GoalOutcomePaused,
-		contract.GoalOutcomeResumed, contract.GoalOutcomeCleared:
+		contract.GoalOutcomeResumed, contract.GoalOutcomeStopped, contract.GoalOutcomeCleared:
 		return 200
 	case contract.GoalOutcomeError:
 		if result.ReasonCode == nil {
@@ -142,7 +142,7 @@ func validateGoalCommandResultPayload(result contract.GoalCommandResult) error {
 	hasReplaced := result.ReplacedRunID != nil && strings.TrimSpace(*result.ReplacedRunID) != ""
 	switch result.Outcome {
 	case contract.GoalOutcomeStarted, contract.GoalOutcomeStatus,
-		contract.GoalOutcomePaused, contract.GoalOutcomeResumed:
+		contract.GoalOutcomePaused, contract.GoalOutcomeResumed, contract.GoalOutcomeStopped:
 		if !hasSnapshot || hasReason || hasReplaced {
 			return goalContractValidationError(fmt.Sprintf(
 				"Goal %s result requires a snapshot and no reason or replacement run ID",

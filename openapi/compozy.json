@@ -8781,6 +8781,7 @@
               "paused",
               "resumed",
               "cleared",
+              "stopped",
               "error"
             ],
             "type": "string"
@@ -8853,6 +8854,9 @@
       },
       "GoalContextSnapshot": {
         "properties": {
+          "diagnostic": {
+            "type": "string"
+          },
           "nudge_ratio": {
             "format": "double",
             "type": "number"
@@ -9096,6 +9100,9 @@
           },
           "origin_session_id": {
             "type": "string"
+          },
+          "pause_requested": {
+            "type": "boolean"
           },
           "run_id": {
             "type": "string"
@@ -23936,6 +23943,7 @@
               "status",
               "pause",
               "resume",
+              "stop",
               "clear"
             ],
             "type": "string"

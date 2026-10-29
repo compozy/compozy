@@ -216,7 +216,6 @@ func (m *Manager) prepareManagedInputPrompt(
 		return nil
 	}
 	request, ok := m.validatedManagedInputPromptRequest(
-		leaseCtx,
 		lifecycle,
 		owner,
 		entry,
@@ -240,7 +239,6 @@ func (m *Manager) prepareManagedInputPrompt(
 }
 
 func (m *Manager) validatedManagedInputPromptRequest(
-	leaseCtx context.Context,
 	lifecycle ManagedInputLifecycle,
 	owner ManagedInputOwner,
 	entry managedInput,
@@ -248,7 +246,6 @@ func (m *Manager) validatedManagedInputPromptRequest(
 ) (promptRequest, bool) {
 	if err := validateManagedInputSubmission(owner, submission); err != nil {
 		m.recordManagedInputAmbiguous(
-			leaseCtx,
 			lifecycle,
 			submission,
 			managedInputReasonRecoveryAmbiguous,
@@ -260,7 +257,6 @@ func (m *Manager) validatedManagedInputPromptRequest(
 	request, err := managedInputPromptRequest(entry, submission)
 	if err != nil {
 		m.recordManagedInputAmbiguous(
-			leaseCtx,
 			lifecycle,
 			submission,
 			managedInputReasonRecoveryAmbiguous,
@@ -274,7 +270,6 @@ func (m *Manager) validatedManagedInputPromptRequest(
 
 func (m *Manager) failManagedInputPrompt(setup *managedInputPromptSetup, err error) {
 	m.recordManagedInputAmbiguous(
-		setup.leaseCtx,
 		setup.lifecycle,
 		setup.execution.submission,
 		managedInputReasonRecoveryAmbiguous,
@@ -382,7 +377,7 @@ func (m *Manager) handleManagedInputBeginError(
 			return
 		}
 	case EffectUnknown:
-		m.recordManagedInputAmbiguous(ctx, lifecycle, ManagedInputSubmission{Owner: owner}, effectErr.ReasonCode, cause)
+		m.recordManagedInputAmbiguous(lifecycle, ManagedInputSubmission{Owner: owner}, effectErr.ReasonCode, cause)
 	}
 }
 
@@ -405,7 +400,6 @@ func (m *Manager) recordManagedDriverAttached(
 }
 
 func (m *Manager) recordManagedInputAmbiguous(
-	ctx context.Context,
 	lifecycle ManagedInputLifecycle,
 	submission ManagedInputSubmission,
 	reasonCode string,
@@ -418,7 +412,9 @@ func (m *Manager) recordManagedInputAmbiguous(
 	if reason == "" || reason == managedInputReasonBudgetFenced || reason == managedInputReasonControlFenced {
 		reason = managedInputReasonRecoveryAmbiguous
 	}
-	if err := lifecycle.RecordAmbiguous(ctx, ManagedInputReceipt{
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	if err := lifecycle.RecordAmbiguous(cleanupCtx, ManagedInputReceipt{
 		Owner:         submission.Owner,
 		DispatchToken: submission.DispatchToken,
 		DriverTurnID:  submission.Owner.PromptID,

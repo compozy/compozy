@@ -3,6 +3,7 @@ import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import {
   isOperationalStatusEvent,
   isSessionErrorEvent,
+  isSessionCancellationEvent,
   isRuntimeActivityEvent,
   isTranscriptMarkerEvent,
 } from "../runtime-activity-notice";
@@ -89,6 +90,27 @@ describe("runtime activity predicates", () => {
         failure: { kind: "provider_exit", summary: "exit 137" },
       })
     ).toBe(true);
+  });
+
+  // Invariant: typed cancellation remains a stop; genuine provider diagnostics remain errors.
+  // Owner: runtime event classification; canonical suite: runtime-activity-notice.
+  it("Should distinguish typed cancellation from actual failures", () => {
+    const cancellation: AgentEventPayload = {
+      type: "error",
+      error: "context canceled",
+      failure: { kind: "cancellation", summary: "Request cancelled" },
+    };
+    expect(isSessionErrorEvent(cancellation)).toBe(false);
+    expect(isSessionErrorEvent({ ...cancellation, stop_reason: "user_canceled" })).toBe(false);
+    // Any attached provider diagnostic remains a failure, including future codes.
+    for (const code of ["provider_auth_required", "provider_backend_unavailable"]) {
+      const diagnostic = {
+        ...cancellation,
+        provider_error: providerErrorEvent({ code }).provider_error,
+      };
+      expect(isSessionCancellationEvent(diagnostic)).toBe(false);
+      expect(isSessionErrorEvent(diagnostic)).toBe(true);
+    }
   });
 
   it("recognizes an actionable provider error even without free-text detail", () => {

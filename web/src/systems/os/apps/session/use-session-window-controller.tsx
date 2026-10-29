@@ -9,7 +9,6 @@ import {
   getSessionPromptRuntimeSnapshot,
   type InspectorUsage,
   isSessionTransportDisconnected,
-  SessionGoalHeadAction,
   type SessionOriginView,
   type SessionPayload,
   SessionTransportChip,
@@ -99,11 +98,13 @@ export function useSessionWindowController(input: {
       transport.phase === "failed" || isSessionTransportDisconnected(transport),
     windowId,
   });
-  // Secondary goal reader for the head action — the goal strip inside the
-  // thread owns the loop-stream reconciliation, so this instance reads cache only.
+  // The strip owns Goal controls and stream reconciliation. This reader only
+  // supplies activity and the session-stop consequence from the shared cache.
   const goal = useSessionGoalHeader(workspaceId, sessionId, {
     enabled: liveDataEnabled,
     stream: false,
+    sessionState: session.state,
+    stopping: controls.isStopping,
   });
 
   const worktreeBinding = useSessionWorktreeBinding({
@@ -149,16 +150,7 @@ export function useSessionWindowController(input: {
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
-    goalAction: (
-      <SessionGoalHeadAction
-        snapshot={goal.snapshot}
-        pendingAction={goal.pendingAction}
-        onPause={goal.onPause}
-        onResume={goal.onResume}
-        onApprove={goal.onApprove}
-        onClear={goal.onClear}
-      />
-    ),
+    hasLiveGoal: goal.hasLiveGoal,
     onInspectorToggle: inspector.toggle,
     onStop: controls.handleStop,
     onUnarchive: controls.handleUnarchive,

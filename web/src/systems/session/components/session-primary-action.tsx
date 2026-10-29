@@ -1,4 +1,12 @@
-import { Button, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
+import { useState } from "react";
+import {
+  Button,
+  ConfirmDialog,
+  Spinner,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 import { RotateCcw, Square } from "lucide-react";
 
 interface SessionPrimaryActionProps {
@@ -9,6 +17,7 @@ interface SessionPrimaryActionProps {
   isStopping: boolean;
   onUnarchive: () => void;
   onStop: () => void;
+  hasLiveGoal?: boolean;
 }
 
 function primaryAction(props: SessionPrimaryActionProps) {
@@ -35,27 +44,65 @@ function primaryAction(props: SessionPrimaryActionProps) {
 
 export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
   const action = primaryAction(props);
-  if (!action) return null;
+  return action ? (
+    <SessionPrimaryActionControl key={action.testId} {...props} action={action} />
+  ) : null;
+}
+
+function SessionPrimaryActionControl({
+  action,
+  ...props
+}: SessionPrimaryActionProps & { action: NonNullable<ReturnType<typeof primaryAction>> }) {
+  const [confirmStop, setConfirmStop] = useState(false);
   const Glyph = action.busy ? Spinner : action.Glyph;
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="focus-visible:shadow-focus-inset"
-            onClick={action.onClick}
-            disabled={action.disabled}
-            data-testid={action.testId}
-            aria-label={action.label}
-          />
+    <>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="focus-visible:shadow-focus-inset"
+              onClick={() => {
+                if (props.showStopAction && props.hasLiveGoal !== false && !props.isStopping)
+                  setConfirmStop(true);
+                else action.onClick();
+              }}
+              disabled={action.disabled}
+              data-testid={action.testId}
+              aria-label={action.label}
+            />
+          }
+        >
+          <Glyph aria-hidden="true" className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipContent>{action.label}</TooltipContent>
+      </Tooltip>
+      <ConfirmDialog
+        open={confirmStop && props.showStopAction}
+        onOpenChange={setConfirmStop}
+        title="Stop this session?"
+        description={
+          props.hasLiveGoal === true
+            ? "The current work will be interrupted and this session's goal will be paused."
+            : "The current work will be interrupted. Any active goal will be paused."
         }
-      >
-        <Glyph aria-hidden="true" className="size-3.5" />
-      </TooltipTrigger>
-      <TooltipContent>{action.label}</TooltipContent>
-    </Tooltip>
+        note={
+          props.hasLiveGoal === true
+            ? "Sending a message reopens the session. The goal stays paused until you choose Resume goal."
+            : "Sending a message reopens the session."
+        }
+        confirmLabel="Stop session"
+        cancelLabel="Keep working"
+        tone="warning"
+        icon={Square}
+        onConfirm={() => {
+          setConfirmStop(false);
+          props.onStop();
+        }}
+      />
+    </>
   );
 }

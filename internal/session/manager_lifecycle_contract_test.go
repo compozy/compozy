@@ -1101,7 +1101,7 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		failure := errors.New("task recovery unavailable")
 		var stopEventID string
 		h.manager.SetSupervisedWorkRecovery(func(_ context.Context, info *Info, eventID string) error {
-			if info.State != StateStopped || info.StopCause != CauseInactivity {
+			if (info.State != StateStopped && info.State != StateStopping) || info.StopCause != CauseInactivity {
 				t.Errorf("stop identity = %#v", info)
 			}
 			stopEventID = eventID
@@ -1165,7 +1165,8 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			var calls atomic.Int32
 			handler := &stopGoalHandler{stop: func(_ context.Context, info *Info) error {
 				calls.Add(1)
-				if info.ID != active.ID || info.State != StateStopped || info.StopCause != CauseUserRequested {
+				if info.ID != active.ID || (info.State != StateStopped && info.State != StateStopping) ||
+					info.StopCause != CauseUserRequested {
 					t.Errorf("Goal cancellation identity = %#v", info)
 				}
 				if fail.Load() {
@@ -2636,6 +2637,10 @@ type stopGoalHandler struct {
 }
 
 func (h *stopGoalHandler) StopSessionGoals(ctx context.Context, info *Info) error {
+	return h.stop(ctx, info)
+}
+
+func (h *stopGoalHandler) RemoveSessionGoals(ctx context.Context, info *Info) error {
 	return h.stop(ctx, info)
 }
 

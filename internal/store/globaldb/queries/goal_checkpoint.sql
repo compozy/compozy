@@ -194,6 +194,7 @@ LIMIT 1;
 
 -- name: GetGoalReentryState :one
 SELECT c.generation, c.node_id, c.item_index, c.control_epoch, c.goal_status,
+       c.control_requested_at, c.updated_at,
        COALESCE(c.control_cause, '') AS control_cause,
        c.turns_used, c.turn_limit, COALESCE(c.task_run_id, '') AS task_run_id,
        COALESCE(c.queue_entry_id, '') AS queue_entry_id,

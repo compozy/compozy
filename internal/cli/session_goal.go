@@ -23,6 +23,12 @@ func newSessionGoalCommand(deps commandDeps) *cobra.Command {
 		newSessionGoalReplaceCommand(deps),
 		newSessionGoalStatusCommand(deps),
 		newSessionGoalPauseCommand(deps),
+		newSessionGoalSimpleCommand(
+			deps,
+			"stop",
+			"Stop the current Goal and its in-flight work",
+			contract.SessionGoalOperationStop,
+		),
 		newSessionGoalResumeCommand(deps),
 		newSessionGoalClearCommand(deps),
 	)

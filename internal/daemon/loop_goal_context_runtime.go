@@ -26,7 +26,9 @@ func (r *loopGoalContextRuntime) Usage(
 	if r == nil || r.sessions == nil {
 		return goalpkg.ContextUsage{}, errors.New("daemon: Goal context event reader is unavailable")
 	}
-	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{})
+	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{
+		Types: []string{acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypeCompaction},
+	})
 	if err != nil {
 		return goalpkg.ContextUsage{}, err
 	}
@@ -63,7 +65,10 @@ func (r *loopGoalContextRuntime) UsageAtSequence(
 	if sequence < 1 {
 		return goalpkg.ContextUsage{}, errors.New("daemon: Goal context usage sequence must be positive")
 	}
-	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{})
+	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{
+		Types:         []string{acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypeCompaction},
+		AfterSequence: sequence - 1,
+	})
 	if err != nil {
 		return goalpkg.ContextUsage{}, err
 	}
@@ -121,7 +126,9 @@ func (r *loopGoalContextRuntime) CompactionCommand(
 	if r == nil || r.sessions == nil {
 		return "", false, errors.New("daemon: Goal command event reader is unavailable")
 	}
-	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{})
+	events, err := r.sessions.Events(ctx, binding.SessionID, store.EventQuery{
+		Types: []string{acp.EventTypeAvailableCommands, acp.EventTypeSystem},
+	})
 	if err != nil {
 		return "", false, err
 	}

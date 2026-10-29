@@ -87,6 +87,202 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: controls can acknowledge only their selected Run, never a concurrent replacement.
+	// Owner: daemon Goal command composition; canonical lifecycle suite.
+	for _, control := range []struct {
+		verb       string
+		beforeRead int
+		afterRead  int
+	}{
+		{verb: "stop", afterRead: 1},
+		{verb: "pause", beforeRead: 2},
+		{verb: "resume", beforeRead: 2},
+	} {
+		t.Run("Should report stale control when Replace races with "+control.verb, func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+			started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: "set", Objective: "Stop only this Goal"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			originalRunID := started.Result.Snapshot.RunID
+			if control.verb == "resume" {
+				paused, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+					caller, session.GoalCommand{Verb: "pause"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
+			}
+			var replacementRunID string
+			fixture.service.goalPersistence = &interleaveGoalProjection{
+				loopGoalAPIPersistence: fixture.service.goalPersistence,
+				beforeRead:             control.beforeRead,
+				afterRead:              control.afterRead,
+				mutate: func(ctx context.Context) error {
+					replaced, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
+						caller, session.GoalCommand{Verb: "replace", ExpectedRunID: originalRunID,
+							Objective: "Preserve the replacement Goal"})
+					if err != nil {
+						return err
+					}
+					assertGoalCommandOutcome(t, replaced, session.GoalOutcomeReplaced, "")
+					replacementRunID = replaced.Result.Snapshot.RunID
+					return nil
+				},
+			}
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, result, session.GoalOutcomeError,
+				session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale))
+			if result.Result.Snapshot != nil {
+				t.Fatalf("stale control must not attach the replacement as its result: %#v", result.Result)
+			}
+			if _, err := core.GoalCommandResultPayloadFromSession(result.Result); err != nil {
+				t.Fatalf("invalid public conflict result: %v", err)
+			}
+			if run := fixture.mustRun(t, replacementRunID); run.Status != looppkg.StatusRunning {
+				t.Fatalf("control changed the replacement: %#v", run)
+			}
+		})
+	}
+
+	// Invariant: a Clear that wins after a control commits remains the authoritative result.
+	// Owner: daemon command composition; canonical Goal lifecycle suite.
+	for _, control := range []struct {
+		verb   string
+		status looppkg.Status
+	}{
+		{"stop", looppkg.StatusCanceled},
+		{"pause", looppkg.StatusFailed},
+		{"resume", looppkg.StatusFailed},
+	} {
+		t.Run("Should return cleared when Clear wins after "+control.verb, func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+			started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: "set", Objective: "Preserve the winning clear"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if control.verb == "resume" {
+				paused, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+					caller, session.GoalCommand{Verb: "pause"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
+			}
+			actor, err := taskpkg.DeriveHumanActorContextForWorkspace("operator", fixture.workspaceID,
+				taskpkg.OriginKindHTTP, "http")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture.service.goalPersistence = &interleaveGoalProjection{
+				loopGoalAPIPersistence: fixture.service.goalPersistence,
+				beforeRead:             2,
+				mutate: func(ctx context.Context) error {
+					return fixture.service.aggregate.ClearInlineGoal(ctx, looppkg.WorkspaceID(fixture.workspaceID),
+						fixture.sessionID, actor)
+				},
+			}
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, result, session.GoalOutcomeCleared, "")
+			if result.Result.Snapshot != nil {
+				t.Fatal("concurrent Clear must not restore the hidden snapshot")
+			}
+			if _, err := core.GoalCommandResultPayloadFromSession(result.Result); err != nil {
+				t.Fatalf("committed control produced an invalid public result: %v", err)
+			}
+			if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != control.status {
+				t.Fatalf("cleared run = %#v", run)
+			}
+		})
+	}
+
+	// Invariant: an admitted Stop commits even when its client disconnects at cancellation entry.
+	// Owner: daemon control lifetime; canonical Goal lifecycle suite.
+	t.Run("Should commit Stop after its request is canceled", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "set", Objective: "Retain accepted Stop"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		aggregate := &cancelRequestOnGoalStop{Service: fixture.service.aggregate, cancelRequest: cancel}
+		fixture.service.aggregate = aggregate
+		if _, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "stop"}); err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("Stop after client disconnect: %v", err)
+		}
+		if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != looppkg.StatusCanceled {
+			t.Fatalf("request cancellation lost Stop: %#v", run)
+		}
+		if _, bounded := aggregate.stopContext.Deadline(); !bounded {
+			t.Fatal("detached Stop has no deadline")
+		}
+		if !errors.Is(aggregate.stopContext.Err(), context.Canceled) {
+			t.Fatal("detached Stop context was not released")
+		}
+	})
+
+	// Invariant: unavailable usage telemetry never disables durable Goal controls.
+	// Owner: daemon Goal read/control boundary; canonical Goal command suite.
+	t.Run("Should retain status and controls when context event reads fail", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "set", Objective: "Keep controls available"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.service.goalPersistence = contextUnavailableGoalProjection{fixture.service.goalPersistence}
+		fixture.service.goalContext = &loopGoalContextRuntime{sessions: failingGoalContextEvents{}}
+		for _, control := range []struct {
+			verb    string
+			outcome session.GoalCommandOutcome
+			status  looppkg.Status
+		}{
+			{"status", session.GoalOutcomeStatus, looppkg.StatusRunning},
+			{"pause", session.GoalOutcomePaused, looppkg.StatusPaused},
+			{"pause", session.GoalOutcomePaused, looppkg.StatusPaused},
+			{"resume", session.GoalOutcomeResumed, looppkg.StatusRunning},
+			{"resume", session.GoalOutcomeResumed, looppkg.StatusRunning},
+			{"stop", session.GoalOutcomeStopped, looppkg.StatusCanceled},
+			{"stop", session.GoalOutcomeStopped, looppkg.StatusCanceled},
+		} {
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatalf("%s unavailable: %v", control.verb, err)
+			}
+			assertGoalCommandOutcome(t, result, control.outcome, "")
+			if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != control.status {
+				t.Fatalf("%s during telemetry outage left %s, want %s", control.verb, run.Status, control.status)
+			}
+			if result.Result.Snapshot == nil ||
+				result.Result.Snapshot.Context.Diagnostic != "goal_context_unavailable" ||
+				result.Result.Snapshot.Context.State != "unknown" {
+				t.Fatalf("missing degraded context: %#v", result)
+			}
+		}
+	})
+
 	t.Run("Should start and project a Goal in User scope", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixtureWithRuntime(
@@ -145,9 +341,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	// Invariant: stopping a Goal origin cancels its run without crossing profile/workspace boundaries.
+	// Invariant: session Stop fences its Goal; removal cancels it without crossing scope boundaries.
 	// Owner: daemon Goal lifecycle dispatcher; canonical session Goal command suite.
-	t.Run("Should cancel a stopped session quarantined Goal and preserve its terminal history", func(t *testing.T) {
+	t.Run("Should fence a stopped session quarantined Goal and cancel on removal", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixture(t)
 		ctx := testutil.Context(t)
@@ -192,6 +388,13 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 		}
 		run := fixture.mustRun(t, started.Result.Snapshot.RunID)
+		if run.Status != looppkg.StatusPaused || run.PauseRequested {
+			t.Fatalf("session Stop did not preserve a paused Goal intent: %#v", run)
+		}
+		if err := fixture.service.RemoveSessionGoals(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		run = fixture.mustRun(t, started.Result.Snapshot.RunID)
 		if run.Status != looppkg.StatusCanceled {
 			t.Fatalf("run after stop = %#v", run)
 		}
@@ -294,8 +497,12 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(pause) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
-		if run := fixture.mustRun(t, replaced.Result.Snapshot.RunID); !run.PauseRequested {
-			t.Fatal("paused Goal pause_requested = false")
+		if run := fixture.mustRun(
+			t,
+			replaced.Result.Snapshot.RunID,
+		); run.Status != looppkg.StatusPaused ||
+			run.PauseRequested {
+			t.Fatalf("Goal before its first checkpoint must be effectively paused: %#v", run)
 		}
 
 		resumed, err := fixture.service.Handle(
@@ -1263,4 +1470,60 @@ func (s *goalCommandSessionStatus) Status(_ context.Context, id string) (*sessio
 	}
 	cloned := *s.info
 	return &cloned, nil
+}
+
+// These fakes replace read-only I/O boundaries; control transitions use the real store.
+type contextUnavailableGoalProjection struct{ loopGoalAPIPersistence }
+
+func (s contextUnavailableGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+	sessionID string) (goalpkg.SessionProjection, error) {
+	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+	if err == nil && projection.Found {
+		projection.Checkpoint = &goalpkg.Checkpoint{ContextState: "known", UsageSequence: new(int64(100)),
+			SessionID: sessionID, ContextNudgeRatio: 0.8, Status: "active"}
+	}
+	return projection, err
+}
+
+type failingGoalContextEvents struct{}
+
+func (failingGoalContextEvents) Events(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+	return nil, errors.New("query events: injected read outage")
+}
+
+type interleaveGoalProjection struct {
+	loopGoalAPIPersistence
+	mutate     func(context.Context) error
+	reads      int
+	beforeRead int
+	afterRead  int
+}
+
+func (s *interleaveGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+	sessionID string) (goalpkg.SessionProjection, error) {
+	s.reads++
+	read := s.reads
+	if read == s.beforeRead {
+		if err := s.mutate(ctx); err != nil {
+			return goalpkg.SessionProjection{}, err
+		}
+	}
+	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+	if err == nil && read == s.afterRead {
+		err = s.mutate(ctx)
+	}
+	return projection, err
+}
+
+type cancelRequestOnGoalStop struct {
+	looppkg.Service
+	cancelRequest context.CancelFunc
+	stopContext   context.Context
+}
+
+func (s *cancelRequestOnGoalStop) CancelRun(ctx context.Context, ws looppkg.WorkspaceID,
+	runID looppkg.RunID, reason string, actor taskpkg.ActorContext) error {
+	s.stopContext = ctx
+	s.cancelRequest()
+	return s.Service.CancelRun(ctx, ws, runID, reason, actor)
 }

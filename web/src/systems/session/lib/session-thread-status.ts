@@ -10,7 +10,10 @@ import type {
 } from "@/systems/session/lib/session-working-status";
 import type { SessionPayload } from "@/systems/session/types";
 import { isAgentEventPayload, messageHasCompactionPart } from "@/systems/session/lib/message-parts";
-import { isSessionErrorEvent } from "@/systems/session/lib/runtime-activity-notice";
+import {
+  isSessionCancellationEvent,
+  isSessionErrorEvent,
+} from "@/systems/session/lib/runtime-activity-notice";
 import { providerErrorView } from "@/systems/session/lib/provider-error";
 
 import type { SessionTimelinePart } from "./session-timeline-parts";
@@ -273,6 +276,7 @@ export function lastSettledTurn(
   // a stop the daemon attributed — the live tail marks stopped replies as
   // incomplete too.
   let failedByEvidence = false;
+  let canceledByEvidence = false;
   const messageFailedStatus = messageFailed(message);
   let failureCause: string | null = null;
   let noWorkMs: number | null = null;
@@ -326,6 +330,7 @@ export function lastSettledTurn(
     ) {
       superseded = true;
     }
+    if (isAgentEventPayload(data) && isSessionCancellationEvent(data)) canceledByEvidence = true;
     if (isAgentEventPayload(data) && isSessionErrorEvent(data)) {
       failedByEvidence = true;
       const provider = providerErrorView(data);
@@ -339,7 +344,14 @@ export function lastSettledTurn(
   // recorded the turn's end (its receipt, an interrupting stop): then the call
   // was cut short and the turn is settled.
   const sessionStop = sessionStopAttribution(facts, noWorkMs, recordedCause);
-  if (awaitingResult && turnReceipt === null && !stopped && sessionStop === null) return null;
+  if (
+    awaitingResult &&
+    turnReceipt === null &&
+    !stopped &&
+    !canceledByEvidence &&
+    sessionStop === null
+  )
+    return null;
   if (startedAtMs === null) {
     const created = instantMs(message.createdAt);
     startedAtMs = created;
@@ -351,13 +363,13 @@ export function lastSettledTurn(
   if (sessionStop !== null) {
     return { startedAtMs, endedAtMs, cause: "stopped", failureCause: null, stop: sessionStop };
   }
-  if (turnReceipt !== null || stopped) {
+  if (turnReceipt !== null || stopped || canceledByEvidence) {
     return {
       startedAtMs,
       endedAtMs,
       cause: "stopped",
       failureCause: null,
-      stop: turnReceipt ?? { kind: "user" },
+      stop: turnReceipt ?? (stopped ? { kind: "user" } : { kind: "other", detail: null }),
     };
   }
   if (messageFailedStatus) {

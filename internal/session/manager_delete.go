@@ -128,7 +128,7 @@ func (m *Manager) prepareSessionDelete(ctx context.Context, target string) (*Inf
 	// canceled Goal. Also settle Goals left live by older versions for a stopped session.
 	stopInfo := *info
 	stopInfo.StopCause = CauseUserRequested
-	if err := m.stopSessionGoals(ctx, &stopInfo); err != nil {
+	if err := m.removeSessionGoals(ctx, &stopInfo); err != nil {
 		return nil, fmt.Errorf("session: cancel Goals before delete: %w", err)
 	}
 	return info, nil

@@ -1,6 +1,10 @@
 package loop
 
-import "context"
+import (
+	"context"
+
+	"github.com/compozy/compozy/internal/task"
+)
 
 // GoalPromptLease is the neutral identity required to revoke one managed Goal prompt lease.
 type GoalPromptLease struct {
@@ -36,4 +40,9 @@ func (f GoalPromptLeaseRevokerFunc) RevokeGoalPromptLease(
 		return nil
 	}
 	return f(ctx, lease, reason)
+}
+
+// GoalPauseStore persists pause intent before identifying the exact work to interrupt.
+type GoalPauseStore interface {
+	RequestGoalPause(context.Context, WorkspaceID, RunID, task.ActorContext) ([]GoalPromptLease, error)
 }

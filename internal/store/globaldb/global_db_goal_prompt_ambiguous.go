@@ -39,14 +39,11 @@ func markGoalPromptAmbiguousWithExecutor(
 	if err != nil {
 		return err
 	}
-	if checkpoint.ControlEpoch != req.ExpectedControlEpoch ||
-		checkpoint.BindingEpoch != req.ExpectedBindingEpoch ||
-		checkpoint.TaskRunID != strings.TrimSpace(req.TaskRunID) ||
-		checkpoint.QueueEntryID != strings.TrimSpace(req.QueueEntryID) ||
-		checkpoint.PromptID != strings.TrimSpace(req.PromptID) {
+	if !ambiguousGoalOwnerMatches(checkpoint, req) {
 		return goalControlStaleError("ambiguous Goal operation owner changed")
 	}
-	if checkpoint.Phase == goalCheckpointPhaseAwaitingControl && checkpoint.ControlCause == req.Cause {
+	paused := checkpoint.ControlCause == looppkg.ReasonCode(looppkg.TransitionCausePauseBoundary)
+	if checkpoint.Phase == goalCheckpointPhaseAwaitingControl && (checkpoint.ControlCause == req.Cause || paused) {
 		return nil
 	}
 	if err := validateActiveGoalPromptBinding(
@@ -79,7 +76,17 @@ func markGoalPromptAmbiguousWithExecutor(
 			return err
 		}
 	}
-	if err := checkpointAmbiguousGoalPrompt(ctx, exec, req, now); err != nil {
+	controlRequest := req
+	actorKind, actorID := "system", "goal-recovery"
+	pending, pauseActorKind, pauseActorID, _, err := pendingGoalPauseActor(ctx, exec, req.Key.LoopRunID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		controlRequest.Cause = looppkg.ReasonCode(looppkg.TransitionCausePauseBoundary)
+		actorKind, actorID = pauseActorKind, pauseActorID
+	}
+	if err := checkpointAmbiguousGoalPrompt(ctx, exec, controlRequest, now); err != nil {
 		return err
 	}
 	if err := projectGoalCheckpointCounts(
@@ -93,11 +100,19 @@ func markGoalPromptAmbiguousWithExecutor(
 		req.Key,
 		checkpoint.Status,
 		goalStatusPaused,
-		req.Cause,
-		"system",
-		"goal-recovery",
+		controlRequest.Cause,
+		actorKind,
+		actorID,
 		now,
 	)
+}
+
+func ambiguousGoalOwnerMatches(checkpoint goal.Checkpoint, req goal.AmbiguousRequest) bool {
+	return checkpoint.ControlEpoch == req.ExpectedControlEpoch &&
+		checkpoint.BindingEpoch == req.ExpectedBindingEpoch &&
+		checkpoint.TaskRunID == strings.TrimSpace(req.TaskRunID) &&
+		checkpoint.QueueEntryID == strings.TrimSpace(req.QueueEntryID) &&
+		checkpoint.PromptID == strings.TrimSpace(req.PromptID)
 }
 
 func ensureAmbiguousGoalQueueTerminal(

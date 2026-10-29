@@ -43,7 +43,10 @@ func (s *daemonLoopAPIService) pauseSessionGoal(
 		return session.GoalDispatchDecision{}, err
 	}
 	if post == nil {
-		post = snapshot
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+	}
+	if post.RunID != snapshot.RunID {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
 	}
 	return goalCommandSuccessDecision(session.GoalOutcomePaused, post, nil), nil
 }
@@ -54,6 +57,9 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 	sessionID string,
 	actor taskpkg.ActorContext,
 ) (session.GoalDispatchDecision, error) {
+	if _, reason, err := s.sessionGoalOrigin(ctx, workspaceID, sessionID); err != nil || reason != "" {
+		return goalCommandErrorDecision(reason, nil), err
+	}
 	_, run, decision, err := s.activeSessionGoal(ctx, workspaceID, sessionID)
 	if err != nil || decision.Result != nil {
 		return decision, err
@@ -62,9 +68,6 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 	case looppkg.StatusPaused:
 		err = s.aggregate.Resume(ctx, run.WorkspaceID, run.ID, actor)
 	case looppkg.StatusRunning:
-		if !run.PauseRequested {
-			return goalCommandErrorDecision(session.GoalReasonNotActive, nil), nil
-		}
 		err = s.aggregate.Resume(ctx, run.WorkspaceID, run.ID, actor)
 	case looppkg.StatusNeedsApproval:
 		if strings.TrimSpace(string(run.ActiveGateID)) == "" {
@@ -92,10 +95,10 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 		return session.GoalDispatchDecision{}, err
 	}
 	if post == nil {
-		return session.GoalDispatchDecision{}, fmt.Errorf(
-			"%w: resumed Goal snapshot is unavailable",
-			looppkg.ErrTransitionConflict,
-		)
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+	}
+	if post.RunID != string(run.ID) {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
 	}
 	return goalCommandSuccessDecision(session.GoalOutcomeResumed, post, nil), nil
 }
@@ -116,6 +119,41 @@ func (s *daemonLoopAPIService) clearSessionGoal(
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
 	return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+}
+
+func (s *daemonLoopAPIService) stopSessionGoal(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	actor taskpkg.ActorContext,
+) (session.GoalDispatchDecision, error) {
+	snapshot, err := s.GetSessionGoal(ctx, workspaceID, sessionID)
+	if err != nil {
+		return session.GoalDispatchDecision{}, err
+	}
+	if snapshot == nil {
+		return goalCommandErrorDecision(session.GoalReasonNotActive, nil), nil
+	}
+	if snapshot.Live {
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
+		defer cancel()
+		if err := s.aggregate.CancelRun(cancelCtx, looppkg.WorkspaceID(workspaceID), looppkg.RunID(snapshot.RunID),
+			"Goal stopped by the operator", actor); err != nil {
+			return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
+		}
+	}
+	post, err := s.GetSessionGoal(ctx, workspaceID, sessionID)
+	if err != nil {
+		return session.GoalDispatchDecision{}, err
+	}
+	if post == nil {
+		// A concurrent Clear owns visibility after cancellation has committed.
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+	}
+	if post.RunID != snapshot.RunID {
+		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
+	}
+	return goalCommandSuccessDecision(session.GoalOutcomeStopped, post, nil), nil
 }
 
 func (s *daemonLoopAPIService) activeSessionGoal(

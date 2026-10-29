@@ -12,6 +12,7 @@ import (
 
 type loopManagedInputLeaseRevoker interface {
 	RevokeManagedInput(session.ManagedInputOwner, string)
+	CancelManagedInputLease(session.ManagedInputOwner) bool
 }
 
 type loopGoalPromptLeaseRevoker struct {
@@ -30,7 +31,7 @@ func (r loopGoalPromptLeaseRevoker) RevokeGoalPromptLease(
 		return errors.New("daemon: loop Goal revoke context is required")
 	}
 	if r.sessions != nil {
-		r.sessions.RevokeManagedInput(session.ManagedInputOwner{
+		owner := session.ManagedInputOwner{
 			QueueEntryID:  lease.QueueEntryID,
 			SessionID:     lease.SessionID,
 			OwnerKind:     lease.OwnerKind,
@@ -42,7 +43,12 @@ func (r loopGoalPromptLeaseRevoker) RevokeGoalPromptLease(
 			BindingEpoch:  lease.BindingEpoch,
 			PromptID:      lease.PromptID,
 			PromptKind:    lease.PromptKind,
-		}, reason)
+		}
+		if reason == string(looppkg.TransitionCausePauseBoundary) {
+			r.sessions.CancelManagedInputLease(owner)
+		} else {
+			r.sessions.RevokeManagedInput(owner, reason)
+		}
 	}
 	if strings.TrimSpace(lease.JudgeAttemptID) == "" {
 		return nil

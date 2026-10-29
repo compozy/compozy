@@ -1239,6 +1239,41 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 	})
 
+	// A session Goal's interrupted turn must retain its pause actor until the boundary settles.
+	t.Run("Should reject Resume while a session Goal pause is still settling", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusRunning)
+		run.Origin = new(inlineGoalOrigin("session-pausing"))
+		run.StartedBy = humanActor(t).Actor
+		store.seed(run)
+		svc := newTestService(t, store, validDefinition())
+		pauseActor, err := task.DeriveHumanActorContext("pause-operator", task.OriginKindHTTP, "http")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.Pause(t.Context(), run.WorkspaceID, run.ID, pauseActor); err != nil {
+			t.Fatalf("Pause(session Goal) error = %v", err)
+		}
+		paused := store.mustRun(t, run.ID)
+		if !paused.PauseRequested || paused.ControlActor != pauseActor.Actor ||
+			paused.ControlActor == run.StartedBy || paused.ControlRequestedAt.IsZero() {
+			t.Fatalf("Pause did not retain its authenticated actor: %#v", paused)
+		}
+
+		err = svc.Resume(t.Context(), run.WorkspaceID, run.ID, humanActor(t))
+		reason, ok := errors.AsType[*loop.ReasonError](err)
+		if !errors.Is(err, loop.ErrTransitionConflict) || !ok || reason.Code != loop.ReasonCodeGoalControlStale {
+			t.Fatalf("Resume(pausing session Goal) error = %v, want stale control conflict", err)
+		}
+		stored := store.mustRun(t, run.ID)
+		if stored.Status != loop.StatusRunning || !stored.PauseRequested ||
+			stored.ControlActor != paused.ControlActor || !stored.ControlRequestedAt.Equal(paused.ControlRequestedAt) {
+			t.Fatalf("early Resume changed pending pause ownership: %#v", stored)
+		}
+	})
+
 	t.Run("Should resume by clearing intent or transitioning paused to running", func(t *testing.T) {
 		t.Parallel()
 
@@ -4212,6 +4247,11 @@ func (s *fakeLoopStore) ListLoopGateDecisions(
 
 func gateDecisionKey(ws loop.WorkspaceID, runID loop.RunID, generation int, gateID loop.NodeID) string {
 	return string(ws) + "/" + string(runID) + "/" + strconv.Itoa(generation) + "/" + string(gateID)
+}
+
+func (s *fakeLoopStore) RequestGoalPause(ctx context.Context, ws loop.WorkspaceID,
+	runID loop.RunID, actor task.ActorContext) ([]loop.GoalPromptLease, error) {
+	return nil, s.SetLoopRunPauseRequested(ctx, ws, runID, true, actor)
 }
 
 func (s *fakeLoopStore) SetLoopRunPauseRequested(

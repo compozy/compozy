@@ -13,6 +13,7 @@ type SessionProjection struct {
 	Quarantined       bool
 	RunID             loop.RunID
 	RunStatus         loop.Status
+	PauseRequested    bool
 	DefinitionDigest  string
 	OriginSessionID   string
 	ContextNudgeRatio float64

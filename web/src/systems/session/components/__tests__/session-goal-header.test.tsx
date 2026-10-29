@@ -1,10 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import { sessionStore } from "@/systems/session/stores/session-store";
-import type { SessionGoalCommandResult, SessionGoalSnapshot } from "@/systems/session/types";
+import type {
+  SessionGoalCommandResult,
+  SessionGoalSnapshot,
+  SessionState,
+} from "@/systems/session/types";
+import { sessionKeys } from "../../lib/query-keys";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
@@ -24,8 +30,6 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { SessionGoalHeaderContainer } = await import("../goal/session-goal-header-container");
-const { SessionGoalHeadAction } = await import("../goal/goal-head-action");
-const { useSessionGoalHeader } = await import("../../hooks/use-session-goal-header");
 
 const WORKSPACE_ID = "ws_1";
 const SESSION_ID = "session_1";
@@ -133,37 +137,34 @@ function latestPromptText(body: Record<string, unknown>): string {
     .join("\n");
 }
 
-// Mirrors the production split: the strip (container) owns stream
-// reconciliation; the window-head action reads the shared query cache.
-function HeadActionHarness() {
-  const goal = useSessionGoalHeader(WORKSPACE_ID, SESSION_ID, { stream: false });
-  return (
-    <SessionGoalHeadAction
-      snapshot={goal.snapshot}
-      pendingAction={goal.pendingAction}
-      onPause={goal.onPause}
-      onResume={goal.onResume}
-      onApprove={goal.onApprove}
-      onClear={goal.onClear}
-    />
-  );
-}
-
-function renderHeader(setComposerText = vi.fn()) {
+function renderHeader(
+  setComposerText = vi.fn(),
+  sessionState: SessionState = "active",
+  readOnly = false
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  const result = render(
+  const header = (state: SessionState, stopping = false) => (
     <QueryClientProvider client={queryClient}>
-      <HeadActionHarness />
       <SessionGoalHeaderContainer
         onPrefillComposer={setComposerText}
         sessionId={SESSION_ID}
         workspaceId={WORKSPACE_ID}
+        sessionState={state}
+        stopping={stopping}
+        readOnly={readOnly}
       />
     </QueryClientProvider>
   );
-  return { ...result, queryClient, setComposerText };
+  const result = render(header(sessionState));
+  return {
+    ...result,
+    queryClient,
+    setComposerText,
+    setSessionLifecycle: (state: SessionState, stopping = false) =>
+      result.rerender(header(state, stopping)),
+  };
 }
 
 describe("SessionGoalHeader", () => {
@@ -171,12 +172,16 @@ describe("SessionGoalHeader", () => {
   let goalReads: number;
   let commands: string[];
   let operations: string[];
+  let controlResponse: (() => Promise<Response>) | null;
+  let readFails: boolean;
 
   beforeEach(() => {
     visibleGoal = snapshot();
     goalReads = 0;
     commands = [];
     operations = [];
+    controlResponse = null;
+    readFails = false;
     FakeEventSource.latest = null;
     resetGatewayStreamAuth();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: SESSION_ID });
@@ -195,6 +200,7 @@ describe("SessionGoalHeader", () => {
           const body = await requestBody(input, init);
           const operation = typeof body.operation === "string" ? body.operation : "";
           operations.push(operation);
+          if (controlResponse) return controlResponse();
           if (operation === "pause") {
             visibleGoal = snapshot({ status: "paused", run_status: "paused" });
           }
@@ -212,6 +218,7 @@ describe("SessionGoalHeader", () => {
         }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/goal`)) {
           goalReads += 1;
+          if (readFails) return Response.json({ error: "Usage read failed" }, { status: 500 });
           return Response.json({ goal: visibleGoal });
         }
         if (pathname.endsWith(`/sessions/${SESSION_ID}/prompt`)) {
@@ -263,7 +270,7 @@ describe("SessionGoalHeader", () => {
     resetGatewayStreamAuth();
   });
 
-  it("Should merge live turns, invalidate only on status, and pause from the window head", async () => {
+  it("Should merge live turns, invalidate only on status, and pause from the Goal surface", async () => {
     renderHeader();
     expect(await screen.findByTestId("session-goal-header")).toBeInTheDocument();
     expect(goalReads).toBe(1);
@@ -286,9 +293,8 @@ describe("SessionGoalHeader", () => {
     });
     await waitFor(() => expect(goalReads).toBe(2));
 
-    // The one gated head action pauses the goal; the strip reflects the change
-    // and the head action flips to Resume (never two actions at once).
-    fireEvent.click(screen.getByTestId("goal-head-pause"));
+    // The action and its confirmed status stay in the same Goal surface.
+    fireEvent.click(screen.getByTestId("goal-control-pause"));
     await waitFor(() => expect(operations).toContain("pause"));
     expect(commands).not.toContain("/goal pause");
     await waitFor(() =>
@@ -297,16 +303,16 @@ describe("SessionGoalHeader", () => {
         "paused"
       )
     );
-    expect(screen.getByTestId("goal-head-resume")).toBeInTheDocument();
-    expect(screen.queryByTestId("goal-head-pause")).not.toBeInTheDocument();
+    expect(screen.getByTestId("goal-control-resume")).toBeInTheDocument();
+    expect(screen.queryByTestId("goal-control-pause")).not.toBeInTheDocument();
   });
 
-  it("Should clear only a terminal snapshot from the window head", async () => {
+  it("Should clear only a terminal snapshot from the Goal surface", async () => {
     visibleGoal = snapshot({ live: false, status: "complete", run_status: "done" });
     renderHeader();
 
-    const clear = await screen.findByTestId("goal-head-clear");
-    expect(screen.queryByTestId("goal-head-pause")).not.toBeInTheDocument();
+    const clear = await screen.findByTestId("goal-control-clear");
+    expect(screen.queryByTestId("goal-control-pause")).not.toBeInTheDocument();
     fireEvent.click(clear);
 
     await waitFor(() => expect(operations).toContain("clear"));
@@ -337,5 +343,157 @@ describe("SessionGoalHeader", () => {
     expect(screen.getByRole("region", { name: "Goal status" })).toHaveTextContent(
       "Current objective"
     );
+  });
+
+  // Invariant: accepted control stays pending until the authoritative snapshot says it is effective.
+  // Owner: Goal mutation/read reconciliation; canonical suite: session-goal-header.
+  it("Should distinguish a pending request, an accepted pause, and an effective pause", async () => {
+    let release!: (response: Response) => void;
+    controlResponse = () =>
+      new Promise(resolve => {
+        release = resolve;
+      });
+    renderHeader();
+    fireEvent.click(await screen.findByRole("button", { name: "Pause goal" }));
+    await waitFor(() => expect(operations).toEqual(["pause"]));
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Pausing…");
+    expect(screen.getByRole("button", { name: "Stop goal" })).toBeDisabled();
+    visibleGoal = snapshot({ pause_requested: true });
+    await act(async () =>
+      release(
+        Response.json({
+          outcome: "paused",
+          reason_code: null,
+          replaced_run_id: null,
+          snapshot: visibleGoal,
+        })
+      )
+    );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop goal" })).toBeEnabled());
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Pausing…");
+    expect(screen.queryByRole("button", { name: "Resume goal" })).not.toBeInTheDocument();
+    visibleGoal = snapshot({ status: "paused", run_status: "paused" });
+    act(() => FakeEventSource.latest?.dispatch("goal_status_changed", { to: "paused" }, 1));
+    expect(await screen.findByRole("button", { name: "Resume goal" })).toBeEnabled();
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Paused");
+  });
+
+  it("Should retain confirmed state and usable controls after a failed reread, then recover on retry", async () => {
+    const { queryClient } = renderHeader();
+    await screen.findByRole("button", { name: "Pause goal" });
+    readFails = true;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.goal(WORKSPACE_ID, SESSION_ID) });
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't refresh the goal");
+    expect(screen.getByRole("button", { name: "Pause goal" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Stop goal" })).toBeEnabled();
+    readFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("Should surface control failures in place without announcing an effective pause", async () => {
+    controlResponse = async () => Response.json({ error: "Control unavailable" }, { status: 503 });
+    renderHeader();
+    fireEvent.click(await screen.findByRole("button", { name: "Pause goal" }));
+    expect(await screen.findByTestId("session-goal-control-error")).toBeVisible();
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Active");
+    expect(screen.getByRole("button", { name: "Pause goal" })).toBeEnabled();
+  });
+
+  it("Should stop through the typed Goal endpoint and keep the terminal Goal visible until Clear", async () => {
+    controlResponse = async () => {
+      visibleGoal = snapshot({ live: false, status: "paused", run_status: "canceled" });
+      return Response.json({
+        outcome: "stopped",
+        reason_code: null,
+        replaced_run_id: null,
+        snapshot: visibleGoal,
+      });
+    };
+    renderHeader();
+    fireEvent.click(await screen.findByRole("button", { name: "Stop goal" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Stop goal" }));
+    await waitFor(() => expect(operations).toEqual(["stop"]));
+    expect(await screen.findByRole("button", { name: "Clear goal" })).toBeEnabled();
+    expect(screen.getByTestId("goal-control-state")).toHaveTextContent("Stopped");
+    expect(screen.queryByRole("button", { name: "Resume goal" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-goal-strip")).toBeVisible();
+  });
+
+  // Invariant: continuing a Goal requires an active session; session resume never resumes the Goal.
+  // Owner: Goal header view-model; canonical suite: session-goal-header.
+  it.each(["resume", "approve"] as const)(
+    "Should keep %s unavailable until the session is active and require an explicit click",
+    async action => {
+      visibleGoal = snapshot({
+        status: "paused",
+        run_status: action === "approve" ? "needs-approval" : "paused",
+      });
+      const user = userEvent.setup();
+      const { setSessionLifecycle } = renderHeader(vi.fn(), "stopped");
+      const control = await screen.findByTestId(`goal-control-${action}`);
+      expect(control).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("button", { name: "Stop goal" })).toBeEnabled();
+      await user.tab();
+      expect(control).toHaveFocus();
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "Send a message to reopen this session, then resume the goal."
+      );
+      expect(control).toHaveAttribute("aria-describedby", screen.getByRole("tooltip").id);
+      await user.keyboard("{Enter}");
+      fireEvent.click(control);
+      expect(operations).toEqual([]);
+
+      setSessionLifecycle("stopping");
+      expect(control).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(control);
+      expect(operations).toEqual([]);
+
+      setSessionLifecycle("active", true);
+      expect(control).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(control);
+      expect(operations).toEqual([]);
+
+      setSessionLifecycle("active");
+      expect(control).not.toHaveAttribute("aria-disabled");
+      expect(operations).toEqual([]);
+      fireEvent.click(control);
+      await waitFor(() => expect(operations).toEqual(["resume"]));
+    }
+  );
+
+  // Invariant: read-only transcripts expose Goal state and rereads, never Goal mutations.
+  // Owner: Goal header view-model; canonical suite: session-goal-header.
+  it("Should omit every Goal mutation in read-only mode while retaining state and Retry", async () => {
+    const { queryClient } = renderHeader(vi.fn(), "active", true);
+    await screen.findByRole("region", { name: "Goal status" });
+    const states: Partial<SessionGoalSnapshot>[] = [
+      {},
+      { status: "paused", run_status: "paused" },
+      { run_status: "needs-approval" },
+      { live: false, status: "complete", run_status: "done" },
+    ];
+    for (const state of states) {
+      visibleGoal = snapshot(state);
+      await act(async () => {
+        await queryClient.invalidateQueries({
+          queryKey: sessionKeys.goal(WORKSPACE_ID, SESSION_ID),
+        });
+      });
+      expect(screen.getByRole("region", { name: "Goal status" })).toBeVisible();
+      expect(screen.queryByRole("group", { name: "Goal controls" })).not.toBeInTheDocument();
+    }
+    readFails = true;
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.goal(WORKSPACE_ID, SESSION_ID) });
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't refresh the goal");
+    readFails = false;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(operations).toEqual([]);
+    expect(commands).toEqual([]);
   });
 });

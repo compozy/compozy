@@ -281,6 +281,13 @@ func (e *Executor) handlePreparedPromptError(
 	if checkpointHasPendingPrompt(checkpoint) {
 		return e.recoverPendingPrompt(context.WithoutCancel(ctx), segment)
 	}
+	if control, paused, pauseErr := e.pendingPauseBoundary(
+		context.WithoutCancel(ctx),
+		segment,
+	); paused ||
+		pauseErr != nil {
+		return &turnBoundary{checkpoint: segment.checkpoint, control: control, completed: true}, pauseErr
+	}
 	return nil, prepareErr
 }
 

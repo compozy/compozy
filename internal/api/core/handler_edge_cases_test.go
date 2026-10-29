@@ -298,6 +298,7 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 	}
 	replaceRequired := session.GoalReasonReplaceRequired
 	replaceStale := session.GoalReasonReplaceStale
+	controlStale := session.GoalReasonCode(contract.GoalReasonControlStale)
 	notActive := session.GoalReasonNotActive
 	invalid := session.GoalReasonCommandInvalid
 	tests := []struct {
@@ -325,6 +326,11 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 		{
 			name:       "Should map status to OK",
 			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStatus, Snapshot: snapshot},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "Should map stop to OK with retained audit",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStopped, Snapshot: snapshot},
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -359,6 +365,13 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 				ReasonCode: &replaceStale,
 				Snapshot:   snapshot,
 			},
+			wantStatus: http.StatusConflict,
+		},
+		{
+			// Invariant: stale controls keep their typed conflict status without a success snapshot.
+			// Owner: HTTP Goal result conversion; canonical closed-outcome matrix.
+			name:       "Should map stale control to conflict",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeError, ReasonCode: &controlStale},
 			wantStatus: http.StatusConflict,
 		},
 		{
@@ -430,6 +443,15 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			result := *response.Prompt.Goal
 			if result.Outcome != contract.GoalCommandOutcome(tt.result.Outcome) {
 				t.Fatalf("body outcome = %q, want %q", result.Outcome, tt.result.Outcome)
+			}
+			if result.Outcome == contract.GoalOutcomeStopped {
+				got, want := result.Snapshot, tt.result.Snapshot
+				if got == nil || got.RunID != want.RunID || got.NodeID != want.NodeID ||
+					got.OriginSessionID != want.OriginSessionID || got.BoundSessionID != want.BoundSessionID ||
+					got.TurnsUsed != want.TurnsUsed || got.TurnLimit != want.TurnLimit ||
+					string(got.RunStatus) != want.RunStatus || got.Live != want.Live {
+					t.Fatalf("stopped snapshot audit = %#v, want %#v", got, want)
+				}
 			}
 			if (result.ReasonCode == nil) != (tt.result.ReasonCode == nil) ||
 				(result.ReasonCode != nil && string(*result.ReasonCode) != string(*tt.result.ReasonCode)) {

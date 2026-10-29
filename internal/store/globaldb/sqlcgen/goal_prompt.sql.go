@@ -691,6 +691,47 @@ func (q *Queries) RejectPreparedGoalQueueRow(ctx context.Context, arg RejectPrep
 	return result.RowsAffected()
 }
 
+const retainRevokedGoalTerminal = `-- name: RetainRevokedGoalTerminal :execrows
+UPDATE session_input_queue
+SET terminal_event_start_seq = ?1,
+    terminal_event_end_seq = ?2,
+    terminal_stop_reason = ?3,
+    terminal_tokens_reported = ?4,
+    terminal_tokens_used = ?5,
+    updated_at = CAST(?6 AS TEXT)
+WHERE id = ?7 AND dispatch_token_hash = ?8
+  AND terminal_reason_code = 'goal_control_revoked_in_flight'
+  AND terminal_event_start_seq IS NULL AND terminal_event_end_seq IS NULL
+`
+
+type RetainRevokedGoalTerminalParams struct {
+	EventStartSeq     sql.NullInt64  `json:"event_start_seq"`
+	EventEndSeq       sql.NullInt64  `json:"event_end_seq"`
+	StopReason        sql.NullString `json:"stop_reason"`
+	TokensReported    int64          `json:"tokens_reported"`
+	TokensUsed        sql.NullInt64  `json:"tokens_used"`
+	UpdatedAt         string         `json:"updated_at"`
+	ID                string         `json:"id"`
+	DispatchTokenHash sql.NullString `json:"dispatch_token_hash"`
+}
+
+func (q *Queries) RetainRevokedGoalTerminal(ctx context.Context, arg RetainRevokedGoalTerminalParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, retainRevokedGoalTerminal,
+		arg.EventStartSeq,
+		arg.EventEndSeq,
+		arg.StopReason,
+		arg.TokensReported,
+		arg.TokensUsed,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.DispatchTokenHash,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const startGoalCompactionCheckpoint = `-- name: StartGoalCompactionCheckpoint :execrows
 UPDATE loop_goal_checkpoints
 SET phase = 'compacting', updated_at = CAST(?1 AS TEXT)

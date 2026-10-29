@@ -1219,6 +1219,12 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		driver := newHarnessIntegrationDriver()
 		promptStarted := make(chan struct{})
 		promptCanceled := make(chan struct{})
+		providerCancel := make(chan struct{})
+		var cancelOnce sync.Once
+		driver.cancelHook = func(context.Context, *session.AgentProcess) error {
+			cancelOnce.Do(func() { close(providerCancel) })
+			return nil
+		}
 		driver.promptHook = func(
 			ctx context.Context,
 			proc *session.AgentProcess,
@@ -1228,7 +1234,10 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			close(promptStarted)
 			go func() {
 				defer close(events)
-				<-ctx.Done()
+				select {
+				case <-ctx.Done():
+				case <-providerCancel:
+				}
 				close(promptCanceled)
 				events <- acp.AgentEvent{
 					Type: acp.EventTypeDone, SessionID: proc.SessionID, TurnID: req.TurnID,
@@ -1291,7 +1300,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatalf("AwaitActionPrompt(after Cancel) error = %v", err)
 		}
 		if result.PromptID != promptID || result.Outcome != looppkg.ActionPromptOutcomeAmbiguous ||
-			result.ReasonCode != looppkg.ReasonCodeGoalControlRevokedInFlight || result.StopReason != "" {
+			result.ReasonCode != looppkg.ReasonCodeGoalControlRevokedInFlight || result.StopReason != looppkg.ActionStopCancelled ||
+			result.EventStartSeq < 1 || result.EventEndSeq < result.EventStartSeq {
 			t.Fatalf("stopped managed prompt result = %#v", result)
 		}
 		checkpoint, err := fixture.goalStore.LoadCheckpoint(testutil.Context(t), fixture.key)

@@ -3467,6 +3467,10 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1015: optional Goal control/telemetry state and an additive Stop command.
+	if addGoalControlSchemas(baseline) == 0 {
+		t.Fatal("approved Goal control additions: no historical Goal schemas found")
+	}
 	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
 	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
 
@@ -4529,6 +4533,41 @@ func addSessionWorktreeBindingSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		count++
+	}
+	return count
+}
+
+func addGoalControlSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addGoalControlSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addGoalControlSchemas(child)
+		}
+		if properties, ok := node["properties"].(map[string]any); ok {
+			if properties["objective"] != nil && properties["turns_used"] != nil && properties["live"] != nil {
+				properties["pause_requested"] = map[string]any{"type": "boolean"}
+				count++
+			}
+			if properties["nudge_ratio"] != nil && properties["reported_at"] != nil && properties["used"] != nil {
+				properties["diagnostic"] = map[string]any{"type": "string"}
+				count++
+			}
+		}
+		if values, ok := node["enum"].([]any); ok {
+			if slices.Equal(values, []any{"set", "replace", "status", "pause", "resume", "clear"}) {
+				node["enum"] = slices.Insert(values, len(values)-1, "stop")
+				count++
+			}
+			if slices.Equal(values, []any{"started", "replaced", "status", "paused", "resumed", "cleared", "error"}) {
+				node["enum"] = slices.Insert(values, len(values)-1, "stopped")
+				count++
+			}
+		}
 	}
 	return count
 }
