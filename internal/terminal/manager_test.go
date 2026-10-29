@@ -1116,6 +1116,76 @@ func TestManagerCwdAndShell(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should default to the account login shell only when nothing names a shell", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows accounts record no login shell")
+		}
+		accountShell := filepath.Join(t.TempDir(), "fish")
+		if err := os.WriteFile(accountShell, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		var lookups atomic.Int32
+		resolver := WithAccountShellResolver(func(context.Context) (string, error) {
+			lookups.Add(1)
+			return accountShell, nil
+		})
+		cases := []struct {
+			name, requested, configured string
+			wantBase                    string
+			wantLookups                 int32
+		}{
+			{name: "default", wantBase: "fish", wantLookups: 1},
+			{name: "configured", configured: "sh", wantBase: "sh"},
+			{name: "requested", requested: "sh", configured: "/definitely/not/a/shell", wantBase: "sh"},
+		}
+		for _, tc := range cases {
+			lookups.Store(0)
+			settings := DefaultSettings()
+			settings.DefaultShell = tc.configured
+			manager, _, _ := newTestManager(t, settings, resolver)
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: tc.requested,
+				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+				Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("%s: Open() error = %v", tc.name, err)
+			}
+			if shell := handle.Info().Shell; filepath.Base(shell) != tc.wantBase {
+				t.Fatalf("%s: Info.Shell = %q, want %s", tc.name, shell, tc.wantBase)
+			}
+			if got := lookups.Load(); got != tc.wantLookups {
+				t.Fatalf("%s: account shell lookups = %d, want %d", tc.name, got, tc.wantLookups)
+			}
+		}
+	})
+
+	t.Run("Should fall back past a missing or failing account login shell", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows accounts record no login shell")
+		}
+		for name, resolver := range map[string]AccountShellResolver{
+			"missing": func(context.Context) (string, error) { return "/definitely/not/fish", nil },
+			"failing": func(context.Context) (string, error) { return "", errors.New("directory services down") },
+		} {
+			manager, _, _ := newTestManager(t, DefaultSettings(), WithAccountShellResolver(resolver))
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS:           "workspace-a",
+				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+				Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("%s: Open() error = %v", name, err)
+			}
+			shell := handle.Info().Shell
+			if shell == "/definitely/not/fish" || !filepath.IsAbs(shell) {
+				t.Fatalf("%s: Info.Shell = %q, want an installed fallback shell", name, shell)
+			}
+		}
+	})
 }
 
 func TestSessionTailReadContract(t *testing.T) {

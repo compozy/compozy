@@ -4,6 +4,8 @@ package terminal
 
 import "os"
 
-func platformShellCandidates() []string {
-	return []string{os.Getenv("SHELL"), "zsh", "bash", "sh"}
+// platformShellCandidates orders the account login shell before the daemon's
+// inherited SHELL, which reflects its launcher rather than the operator's choice.
+func platformShellCandidates(accountShell string) []string {
+	return []string{accountShell, os.Getenv("SHELL"), "zsh", "bash", "sh"}
 }

@@ -22,6 +22,8 @@ var errLoginShellPathOutputTooLarge = errors.New("procutil: login shell PATH out
 type LoginShellPathOptions struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
+	// AccountShell resolves the account's recorded login shell. Nil uses AccountLoginShell.
+	AccountShell func(context.Context) (string, error)
 }
 
 // ResolveLoginShellPath returns the PATH produced by the operator's login shell.
@@ -47,10 +49,7 @@ func ResolveLoginShellPath(
 	if home == "" || !filepath.IsAbs(home) {
 		return "", errors.New("procutil: operator home must be an absolute path")
 	}
-	shell := strings.TrimSpace(environmentValue(environment, "SHELL"))
-	if !filepath.IsAbs(shell) {
-		shell = defaultLoginShell()
-	}
+	shell := resolveLoginShell(ctx, environment, options.AccountShell)
 
 	commandCtx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
@@ -135,6 +134,25 @@ func validateLoginShellPath(path string) (string, error) {
 		return "", errors.New("procutil: login shell PATH contains an invalid delimiter")
 	}
 	return path, nil
+}
+
+// resolveLoginShell prefers the account's recorded shell over an inherited SHELL,
+// which reflects the launcher (launchd, the desktop app) rather than the operator's choice.
+func resolveLoginShell(
+	ctx context.Context,
+	environment []string,
+	accountShell func(context.Context) (string, error),
+) string {
+	if accountShell == nil {
+		accountShell = AccountLoginShell
+	}
+	if shell, err := accountShell(ctx); err == nil && filepath.IsAbs(shell) {
+		return shell
+	}
+	if shell := strings.TrimSpace(environmentValue(environment, "SHELL")); filepath.IsAbs(shell) {
+		return shell
+	}
+	return defaultLoginShell()
 }
 
 func defaultLoginShell() string {

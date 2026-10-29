@@ -197,7 +197,7 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 			"HOME=" + home,
 			"PATH=/gui/bin",
 			"SHELL=" + shell,
-		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024})
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024, AccountShell: noAccountShell})
 		if err != nil {
 			t.Fatalf("ResolveLoginShellPath() error = %v", err)
 		}
@@ -209,13 +209,31 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 		}
 	})
 
+	t.Run("Should prefer the account login shell over an inherited SHELL", func(t *testing.T) {
+		account := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000/account/bin\\000'\n")
+		inherited := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000/inherited/bin\\000'\n")
+		got, err := ResolveLoginShellPath(t.Context(), []string{
+			"HOME=" + t.TempDir(),
+			"SHELL=" + inherited,
+		}, LoginShellPathOptions{
+			Timeout: time.Second, MaxOutputBytes: 1024,
+			AccountShell: func(context.Context) (string, error) { return account, nil },
+		})
+		if err != nil {
+			t.Fatalf("ResolveLoginShellPath() error = %v", err)
+		}
+		if got != "/account/bin" {
+			t.Fatalf("ResolveLoginShellPath() = %q, want the account shell PATH", got)
+		}
+	})
+
 	t.Run("Should reject an empty login shell PATH", func(t *testing.T) {
 		shell := writeExecutableShell(t, "#!/bin/sh\nprintf '\\000\\000'\n")
 		got, err := ResolveLoginShellPath(t.Context(), []string{
 			"HOME=" + t.TempDir(),
 			"PATH=/gui/bin",
 			"SHELL=" + shell,
-		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024})
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 1024, AccountShell: noAccountShell})
 		if err == nil {
 			t.Fatal("ResolveLoginShellPath() error = nil, want empty PATH error")
 		}
@@ -233,7 +251,7 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 			"HOME=" + t.TempDir(),
 			"PATH=/gui/bin",
 			"SHELL=" + shell,
-		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 32})
+		}, LoginShellPathOptions{Timeout: time.Second, MaxOutputBytes: 32, AccountShell: noAccountShell})
 		if !errors.Is(err, errLoginShellPathOutputTooLarge) {
 			t.Fatalf("ResolveLoginShellPath() error = %v, want output limit error", err)
 		}
@@ -248,7 +266,9 @@ printf 'startup noise\000/login/bin:/usr/bin\000trailing noise'
 			"HOME=" + t.TempDir(),
 			"PATH=/gui/bin",
 			"SHELL=" + shell,
-		}, LoginShellPathOptions{Timeout: 20 * time.Millisecond, MaxOutputBytes: 1024})
+		}, LoginShellPathOptions{
+			Timeout: 20 * time.Millisecond, MaxOutputBytes: 1024, AccountShell: noAccountShell,
+		})
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("ResolveLoginShellPath() error = %v, want deadline exceeded", err)
 		}
@@ -313,6 +333,62 @@ func hasEnvPrefix(env []string, prefix string) bool {
 		}
 	}
 	return false
+}
+
+func noAccountShell(context.Context) (string, error) { return "", ErrAccountShellUnavailable }
+
+func TestAccountLoginShell(t *testing.T) {
+	t.Run("Should read the shell of the matching directory services record", func(t *testing.T) {
+		output := []byte("name: other\nuid: 500\nshell: /bin/zsh\n\nname: operator\nuid: 501\n" +
+			"dir: /Users/operator\nshell: /opt/homebrew/bin/fish\n\n")
+		got, err := parseDirectoryServicesShell(output, 501)
+		if err != nil || got != "/opt/homebrew/bin/fish" {
+			t.Fatalf("parseDirectoryServicesShell() = %q, %v; want fish", got, err)
+		}
+		if _, err := parseDirectoryServicesShell(output, 502); !errors.Is(err, ErrAccountShellUnavailable) {
+			t.Fatalf("parseDirectoryServicesShell(unknown uid) error = %v, want unavailable", err)
+		}
+	})
+
+	t.Run("Should read the shell field of the matching passwd entry", func(t *testing.T) {
+		passwd := []byte("# comment\nroot:x:0:0:root:/root:/bin/bash\n" +
+			"operator:x:1000:1000:Operator:/home/operator:/usr/bin/fish\n")
+		got, err := parsePasswdShell(passwd, 1000)
+		if err != nil || got != "/usr/bin/fish" {
+			t.Fatalf("parsePasswdShell() = %q, %v; want fish", got, err)
+		}
+		if _, err := parsePasswdShell(passwd, 1001); !errors.Is(err, ErrAccountShellUnavailable) {
+			t.Fatalf("parsePasswdShell(unknown uid) error = %v, want unavailable", err)
+		}
+	})
+
+	t.Run("Should reject recorded shells that cannot run", func(t *testing.T) {
+		notExecutable := filepath.Join(t.TempDir(), "fish")
+		if err := os.WriteFile(notExecutable, []byte("#!/bin/sh\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		for _, shell := range []string{"", "fish", "/definitely/not/fish", notExecutable, t.TempDir()} {
+			if _, err := validateAccountShell(shell); !errors.Is(err, ErrAccountShellUnavailable) {
+				t.Fatalf("validateAccountShell(%q) error = %v, want unavailable", shell, err)
+			}
+		}
+	})
+
+	t.Run("Should resolve the current account shell from the host database", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			if _, err := AccountLoginShell(t.Context()); !errors.Is(err, ErrAccountShellUnavailable) {
+				t.Fatalf("AccountLoginShell() error = %v, want unavailable on Windows", err)
+			}
+			return
+		}
+		shell, err := AccountLoginShell(t.Context())
+		if errors.Is(err, ErrAccountShellUnavailable) {
+			t.Skipf("host account records no usable shell: %v", err)
+		}
+		if err != nil || !filepath.IsAbs(shell) {
+			t.Fatalf("AccountLoginShell() = %q, %v; want an absolute executable", shell, err)
+		}
+	})
 }
 
 func writeExecutableShell(t *testing.T, contents string) string {
