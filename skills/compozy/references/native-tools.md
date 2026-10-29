@@ -496,8 +496,11 @@ Provider usage tools (experimental, toolset `compozy__provider_usage`): `compozy
 (optional `provider_id`) is read-only and returns the cached envelope for the session's own profile
 without contacting providers. `compozy__provider_usage_refresh` (optional `provider_ids`,
 `max_age_seconds`) is mutating, always runs with background intent, waits up to 15 seconds, and
-returns the same envelope. Agent refreshes never prompt and honor provider rate-limit cooldowns. With existing operator consent,
-they may silently reread the exact routed macOS Keychain item; they cannot grant missing consent or
+returns the same envelope. Agent refreshes honor provider rate-limit cooldowns. With existing operator consent,
+they may reread the exact routed macOS Keychain item through `security` after a noninteractive
+ACL/partition/unlocked-state check. Unsafe metadata prevents the secret read. A concurrent item
+change can still briefly prompt; a 1.5-second deadline kills the reader and reports
+`keychain_read_timeout` / `needs_consent`. Agents cannot grant missing consent or
 OS authorization, and
 `compozy__config_set` refuses `provider_usage.providers.claude.keychain_access`: report it to the
 operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are

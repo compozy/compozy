@@ -75,6 +75,7 @@ const (
 	ErrorCodeAuthScope               ErrorCode = "auth_scope"
 	ErrorCodeKeychainConsentRequired ErrorCode = "keychain_consent_required"
 	ErrorCodeKeychainDenied          ErrorCode = "keychain_denied"
+	ErrorCodeKeychainReadTimeout     ErrorCode = "keychain_read_timeout"
 	ErrorCodeKeychainTokenExpired    ErrorCode = "keychain_token_expired"
 	ErrorCodeProviderRateLimited     ErrorCode = "provider_rate_limited"
 	ErrorCodeProviderUnavailable     ErrorCode = "provider_unavailable"

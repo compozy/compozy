@@ -75,7 +75,7 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 	return c.readKeychainLocked(ctx, target, intent)
 }
 
-// readKeychainLocked releases the collector lock during OS access; only explicit reads may prompt.
+// readKeychainLocked releases the collector lock during OS access; the reader enforces refresh intent.
 func (c *ClaudeCollector) readKeychainLocked(
 	ctx context.Context,
 	target Target,

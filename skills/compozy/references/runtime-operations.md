@@ -1115,18 +1115,27 @@ Refresh intent is `background` (scheduler, popover open, agents, gateway devices
 `explicit` (local desktop Refresh/Allow and the local CLI). Keychain reads require
 `provider_usage.providers.claude.keychain_access = true`. Background refreshes reuse a valid cached
 Claude token, then silently reread the exact routed Keychain item after expiry, account changes, or
-daemon restart. They never prompt; only explicit local refreshes may request OS authorization.
+daemon restart. Before a background secret read, a noninteractive metadata check requires an unlocked
+keychain, `/usr/bin/security` in the decrypt ACL, its `apple-tool:` partition, and no confirmation
+flags. Unsafe or unreadable metadata returns `needs_consent` / `keychain_denied` without running the
+secret reader. Both background and explicit reads use `/usr/bin/security`; osascript only checks
+metadata with UI disabled. Explicit local refreshes may request OS authorization.
+A concurrent item change can race the check: background reads have a 1.5-second deadline and kill
+the process group on timeout, canceling a waiting client. A prompt could briefly appear in that
+window; this is not an absolute macOS no-dialog guarantee. `keychain_read_timeout` is an additive
+`needs_consent` diagnostic with an explicit Refresh action.
 CompozyOS never redeems Claude Code refresh tokens or writes its credentials.
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 
 Per-row recovery: `signed_out` → the operator signs in with the provider's own CLI (on macOS this
 includes a Claude login missing from the Keychain, `auth_missing`); `needs_consent`
-`keychain_consent_required`/`keychain_denied` (a real OS denial) → the operator clicks
+`keychain_consent_required`/`keychain_denied` (OS denial or an unsafe background preflight) → the operator clicks
 **Allow**/**Try again** or runs
 `compozy config set provider_usage.providers.claude.keychain_access true` then
 `compozy provider usage refresh claude` on the daemon host. Agents cannot grant consent: native config
-tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` → an explicit
+tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` or
+`keychain_read_timeout` → an explicit
 local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
 `provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
 collection. With consent and readable credentials, Claude recovers automatically; if OS authorization

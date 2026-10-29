@@ -1,5 +1,25 @@
 # Compozy Change Impact
 
+## Claude Keychain token refresh (#1023) — 2026-10-29
+
+Owner: `fix/issue-1023-claude-keychain-access`; targeted evidence in
+`docs/qa/reports/2026-10-29-issue-1023.md`.
+
+- **Runtime / native tools / CLI / HTTP / UDS:** macOS Claude usage reads through the Apple
+  `security` tool. Background intent checks ACL, partitions, unlock state, and confirmation flags
+  without UI first. Explicit local intent may authorize directly. Existing fields and statuses
+  remain; `keychain_read_timeout` is an additive error code in the existing unconstrained string
+  field, mapped to `needs_consent` and Refresh. No DTO/schema/SDK shape changes or migrations.
+- **Security / config / isolation:** `keychain_access` remains operator opt-in. Routed service and
+  account, credential cache ownership, revocation, and profile boundaries remain authoritative.
+  No shell, secret logging/persistence, or Keychain mutation. A short background deadline kills the
+  process group; a check/read race can still show a brief prompt. No new hook or extension surface.
+- **Web / docs / official skill:** the existing status model renders timeout recovery with its
+  diagnostic. Provider usage docs, both affected QA scenarios, and `skills/compozy/` explain the
+  metadata gate, stable reader, recovery, and race limit. No UI structure or copy framework changes.
+- **Verification:** focused Go race tests and real macOS Keychain probes; isolated-daemon public
+  API/CLI walk. Broad gates belong to CI per the issue's explicit instruction.
+
 ## TanStack data loading — 2026-10-28
 
 Owner: branch `perf/tanstack-data-loading`; evidence and verification in

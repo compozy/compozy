@@ -4,7 +4,7 @@ area: APP
 title: See provider limits from the topbar, popover, and Usage app, and grant Claude Keychain consent
 persona: Bruno
 journey: J-provider-usage
-expected: The topbar Provider usage meter shows the tightest known window with an accessible label; the popover and Usage app show one truthful row per provider, collapsed to a single line with a compact cue (percent used, or the status in a word or two) and detail only on expand, in an overlay scroll area whose bar appears only on hover or scroll; Refresh and Allow run explicit refreshes while popover open and the scheduler stay background; Claude Keychain consent on macOS prompts only after Allow or a local CLI refresh, and denial, token expiry, and daemon restart each show their recovery; settings changes apply live; CLI, HTTP, UDS, and native tools return the same profile-scoped envelope.
+expected: The topbar Provider usage meter shows the tightest known window with an accessible label; the popover and Usage app show one truthful row per provider, collapsed to a single line with a compact cue (percent used, or the status in a word or two) and detail only on expand, in an overlay scroll area whose bar appears only on hover or scroll; Refresh and Allow run explicit refreshes while popover open and the scheduler stay background; Claude Keychain authorization on macOS is requested by local explicit actions; background reads enforce metadata checks and a short timeout, and denial, token expiry, and daemon restart each show their recovery; settings changes apply live; CLI, HTTP, UDS, and native tools return the same profile-scoped envelope.
 entry_points: topbar Provider usage control; Provider usage popover; Usage app (/usage); Settings → Provider usage; compozy provider usage list|refresh; GET/POST /api/provider-usage*; compozy__provider_usage_list; compozy__provider_usage_refresh
 qa_status: untested
 bug_ids:
@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report: reports/2026-10-24-issue-955.md
+last_report: reports/2026-10-29-issue-1023.md
 overlaps: ET-provider-usage-surfaces
 ---
 
@@ -51,8 +51,7 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
   through a background interval;
 - **Allow** saves the Settings switch; the daemon runs exactly one explicit collection and the web only invalidates its query (no follow-up refresh POST); macOS asks for
   `Claude Code-credentials`; **Allow** fills Session, Weekly, per-model weekly, and Extra usage;
-- **Deny** shows `Keychain access denied` with **Try again**; background retries are silent and never
-  prompt, including when OS access is later granted outside CompozyOS;
+- **Deny** shows `Keychain access denied` with **Try again**; background retries reject unsafe metadata without reading the secret and recover when OS access becomes available;
 - with Claude Code signed out of the Keychain (no `Claude Code-credentials` item), **Allow** ends in
   `Signed out · Sign in with claude /login to read usage`, not a denial;
 - while the loaded token is valid, background refreshes keep the row fresh without a prompt; once
@@ -60,7 +59,7 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
   recovers automatically; an actually expired credential directs the operator to `claude /login`;
 - `compozy provider usage refresh claude` from the host terminal behaves like **Allow** once
   consent is on and prints only the Claude row; a gateway device sees `Approve on the host Mac: open CompozyOS there and refresh`
-  and never triggers a prompt;
+  and uses the background metadata gate;
 - restart only the isolated lab daemon: rows read `Loading…` until their first collection; Claude
   recovers automatically when consent is still on and OS access is available;
 - sign in to Claude Code with another account or sign out: the old numbers disappear instead of
@@ -90,7 +89,7 @@ Parity and profile isolation:
 
 - the CLI JSON, `GET /api/provider-usage` over HTTP and UDS, and `compozy__provider_usage_list`
   from an agent session return the same revision and rows for the same profile;
-- `compozy__provider_usage_refresh` from an agent never prompts, even with consent on, and
+- `compozy__provider_usage_refresh` from an agent always uses the background metadata gate, even with consent on, and
   `compozy__config_set provider_usage.providers.claude.keychain_access true` is refused while
   `provider_usage.providers.<id>.enabled` is accepted;
 - switch the shell to a second profile with different logins: the meter, popover, and
@@ -120,7 +119,7 @@ status stays `untested`.
 - Switch profiles and refresh a single row. Verify the POST names the displayed profile and provider,
   the busy indicator appears, and an unsuccessful collection ends with a precise visible result.
 - From a gateway client, a cached-login refresh warning explains that OS authorization must happen
-  on the host Mac. Refresh never opens an OS prompt remotely.
+  on the host Mac. Refresh uses the background gate and never requests interactive intent.
 
 ## Targeted verification — 2026-10-24
 
@@ -130,3 +129,23 @@ The profile mismatch was reproduced through the real HTTP middleware and repaire
 See [the run report](../reports/2026-10-24-issue-955.md) for evidence and limits. The broader scenario
 remains untested because packaged desktop, all transport/security variants, and forced native-token
 expiry were not part of this targeted walk.
+
+## Claude Keychain rewrite regression (#1023)
+
+- With existing consent and a fresh daemon cache, create a disposable generic-password item with
+  `/usr/bin/security`, read it through the background reader, then update its synthetic secret with
+  `add-generic-password -U ... -X` without `-T`. Both reads must succeed without a dialog.
+- Create a disposable item that trusts only another application. The background metadata preflight
+  must reject it as `needs_consent` / `keychain_denied` without launching `security -w`.
+- An explicit refresh uses `security` as the secret reader, so any authorization prompt belongs to
+  `security`, not osascript. The remaining osascript helper reads only metadata with UI disabled.
+- A background reader that exceeds 1.5 seconds is killed as a process group, publishes no partial
+  secret, and returns `needs_consent` / `keychain_read_timeout` with **Refresh**. The diagnostic must
+  remain visible in the expanded row. An item mutation between preflight and read can briefly
+  display a prompt before client termination; the timeout bounds this race, not macOS itself.
+- Delete every disposable item. Never mutate the operator's Claude item or use a real token as
+  test data. The widened-partition reset is established from Apple's `ItemImpl::updateSSGroup`
+  source; it does not require a human grant on this host.
+
+Targeted evidence: [issue-1023 report](../reports/2026-10-29-issue-1023.md). The broader scenario
+retains its existing status; unrelated transports and packaged-desktop journeys are not claimed.
