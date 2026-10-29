@@ -23,7 +23,7 @@ These are single-run observations in the same lab, not a percentile benchmark. T
 | Journey | Result | Evidence |
 | --- | --- | --- |
 | Clear a completed Claude conversation in the same session | Pass | Real confirmation dialog; independent HTTP returned empty history |
-| Show readiness and prevent sending during startup | Pass | Rendered “Getting conversation ready…” and disabled “Session is starting…” composer; no transcript skeleton |
+| Show readiness and prevent sending during startup | Pass | Rendered “Getting conversation ready…” and disabled “Session is starting…” composer; no transcript skeleton, Thinking indicator or turn-cancel control |
 | Reload after readiness | Pass | Empty thread remained in the same session |
 | Send after readiness | Pass | Claude returned a new welcome greeting after clear/reload |
 | Durable repeated-clear epochs | Pass | Real SQLite regression and final isolated HTTP check |
@@ -35,6 +35,7 @@ The initial shared-browser observations were discarded after another executor re
 ## Focused verification
 
 - Go `-race`: clear, HTTP clear, lifecycle, presence and session-action suites passed. After the epoch wiring change, the complete clear suite passed again (17.505 s).
+- Starting-state rendering plus two adjacent thread cases: 3 tests passed after reproducing the misleading turn-cancel control.
 - Web actions/presence: 52 tests passed through root Turborepo, including pending-clear cache retention.
 - Web typecheck and lint passed through root Turborepo, with zero lint warnings/errors.
 - React Doctor through root Turborepo: 100/100, no findings.
