@@ -159,9 +159,11 @@ function anchorOf(doc: Document, target: ElementTarget) {
   } catch {
     // A selector from an older DOM shape can be invalid; fall back to the source location.
   }
-  return target.source
-    ? doc.querySelector(`[${sourceAttribute}="${CSS.escape(target.source)}"]`)
-    : null;
+  if (!target.source) return null;
+  // Repeated instances share a source tag: only a unique match identifies the target, otherwise
+  // the pin falls back to the recorded rect.
+  const matches = doc.querySelectorAll(`[${sourceAttribute}="${CSS.escape(target.source)}"]`);
+  return matches.length === 1 ? matches[0]! : null;
 }
 
 export type Located = { rect: Rect; anchored: boolean };
@@ -196,20 +198,33 @@ export function locateTarget(doc: Document, target: ElementTarget, canvas: Size)
   };
 }
 
-/** Scrolls the nearest scrollable ancestor under the pointer (the overlay swallows wheel events). */
+/**
+ * Scrolls the nearest scrollable ancestor under the pointer, per axis (the overlay swallows wheel
+ * events): a horizontal-only scroller takes the horizontal delta and lets the vertical one reach
+ * an outer vertical scroller, or the page.
+ */
 export function scrollAt(doc: Document, x: number, y: number, deltaX: number, deltaY: number) {
   const view = doc.defaultView;
+  if (!view) return;
+  let remainingX = deltaX;
+  let remainingY = deltaY;
   let node: Element | null = elementAt(doc, x, y);
-  while (node && view) {
+  while (node && (remainingX !== 0 || remainingY !== 0)) {
     const style = view.getComputedStyle(node);
-    const scrollable =
-      (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) ||
-      (/(auto|scroll)/.test(style.overflowX) && node.scrollWidth > node.clientWidth);
-    if (scrollable) {
-      node.scrollBy(deltaX, deltaY);
-      return;
+    const takesY =
+      remainingY !== 0 &&
+      /(auto|scroll)/.test(style.overflowY) &&
+      node.scrollHeight > node.clientHeight;
+    const takesX =
+      remainingX !== 0 &&
+      /(auto|scroll)/.test(style.overflowX) &&
+      node.scrollWidth > node.clientWidth;
+    if (takesX || takesY) {
+      node.scrollBy(takesX ? remainingX : 0, takesY ? remainingY : 0);
+      if (takesX) remainingX = 0;
+      if (takesY) remainingY = 0;
     }
     node = node.parentElement;
   }
-  view?.scrollBy(deltaX, deltaY);
+  if (remainingX !== 0 || remainingY !== 0) view.scrollBy(remainingX, remainingY);
 }

@@ -9,7 +9,7 @@
  * same text as the real button or link.
  */
 
-/** Places a Compozy journey can leave the web app for. */
+/** Places a CompozyOS journey can leave the web app for. */
 export type ExternalService = "github" | "terminal" | "desktop" | "docs" | "other";
 export type EdgeKind = "navigate" | "overlay" | "redirect" | "external";
 export type PrototypeNode = { proto: string; state: string; end?: boolean };
@@ -45,7 +45,7 @@ export const externalLabels: Record<ExternalService, string> = {
   github: "GitHub",
   terminal: "Terminal",
   desktop: "Desktop app",
-  docs: "Compozy docs",
+  docs: "CompozyOS docs",
   other: "",
 };
 

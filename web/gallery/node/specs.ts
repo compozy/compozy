@@ -14,11 +14,15 @@ export type SpecCatalog = { available: boolean; specs: SpecInfo[] };
 const specIdPattern = /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/;
 
 function specTitle(directory: string, id: string) {
-  const file = join(directory, "_spec.md");
-  if (!existsSync(file)) return id;
-  const heading = readFileSync(file, "utf8")
-    .split("\n")
-    .find(line => line.startsWith("# "));
+  let source: string;
+  try {
+    source = readFileSync(join(directory, "_spec.md"), "utf8");
+  } catch (error) {
+    // No `_spec.md` yet, or removed while the catalog is read: the id is the title.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return id;
+    throw error;
+  }
+  const heading = source.split("\n").find(line => line.startsWith("# "));
   const title = heading
     ?.slice(2)
     .replace(/\s+[—–-]\s+spec(?:ification)?$/i, "")
@@ -47,7 +51,33 @@ export function findSpecs(repoRoot: string): SpecCatalog {
  */
 export function watchSpecs(repoRoot: string, onChange: () => void) {
   const tasks = join(repoRoot, ".compozy", "tasks");
-  if (!existsSync(tasks)) return () => undefined;
+  if (existsSync(tasks)) return watchTasks(tasks, onChange);
+  // Not there yet: watch the nearest existing parent until `.compozy/tasks/` appears.
+  let parent: FSWatcher | null = null;
+  let stopTasks: (() => void) | null = null;
+  const arm = () => {
+    parent?.close();
+    parent = null;
+    if (existsSync(tasks)) {
+      stopTasks = watchTasks(tasks, onChange);
+      onChange();
+      return;
+    }
+    const compozy = join(repoRoot, ".compozy");
+    try {
+      parent = watch(existsSync(compozy) ? compozy : repoRoot, arm).on("error", () => undefined);
+    } catch {
+      // The parent vanished between the check and the watch; nothing to follow.
+    }
+  };
+  arm();
+  return () => {
+    parent?.close();
+    stopTasks?.();
+  };
+}
+
+function watchTasks(tasks: string, onChange: () => void) {
   type Watched = { folder: FSWatcher; spec: FSWatcher | null };
   const watched = new Map<string, Watched>();
   const ignore = () => undefined;

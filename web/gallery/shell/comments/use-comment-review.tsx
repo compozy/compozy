@@ -49,8 +49,9 @@ export function useCommentReview(options: ReviewOptions): ReviewSlots {
   const doc = frame && frame.slug === entry.slug && frame.state === state ? frame.doc : null;
   const canPick = !view.compare && doc !== null;
   const theme = view.theme ?? (options.dark ? "dark" : "light");
-  // A draft belongs to the view it was picked on; changing state, theme or width discards it.
-  const draftView = `${state}|${theme}|${view.width}`;
+  // A draft belongs to the view it was picked on; changing prototype, state, theme or width
+  // discards it.
+  const draftView = `${entry.slug}|${state}|${theme}|${view.width}`;
 
   const create = async (
     target: ElementTarget,

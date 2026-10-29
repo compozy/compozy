@@ -8,6 +8,7 @@ import { MessageSquareIcon, PanelRightIcon } from "lucide-react";
 import { Separator } from "@compozy/ui";
 
 import type { FlowEntry } from "#gallery/flow";
+import { commentsAvailable } from "#gallery/shell/comments/api";
 import { copyTargets, flowCrumbs } from "#gallery/shell/crumbs";
 import { plural, type Group } from "#gallery/shell/registry-model";
 import { ShortcutsHelp } from "#gallery/shell/shortcuts";
@@ -42,20 +43,22 @@ export function FlowToolbar(props: FlowToolbarProps) {
       </div>
       <GalleryThemeToggle dark={props.dark} />
       <Separator className="mx-0.5 h-5" orientation="vertical" />
-      <IconAction
-        aria-pressed={commentsOn}
-        className="w-auto gap-1.5 px-2 font-mono"
-        data-testid="comments-toggle"
-        label="Flow comments"
-        onClick={() => {
-          props.onSide(true);
-          updateView({ comments: !commentsOn, comment: null });
-        }}
-        shortcut="C"
-      >
-        <MessageSquareIcon aria-hidden="true" />
-        {props.openComments}
-      </IconAction>
+      {commentsAvailable ? (
+        <IconAction
+          aria-pressed={commentsOn}
+          className="w-auto gap-1.5 px-2 font-mono"
+          data-testid="comments-toggle"
+          label="Flow comments"
+          onClick={() => {
+            props.onSide(true);
+            updateView({ comments: !commentsOn, comment: null });
+          }}
+          shortcut="C"
+        >
+          <MessageSquareIcon aria-hidden="true" />
+          {props.openComments}
+        </IconAction>
+      ) : null}
       <IconAction
         aria-pressed={side}
         data-testid="flow-side-toggle"

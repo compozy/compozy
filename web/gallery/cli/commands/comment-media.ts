@@ -10,7 +10,7 @@ import {
   type CommentAuthor,
   type ReviewComment,
 } from "../../shell/comments/model.ts";
-import { stringFlag, UsageError, type ParsedArgs } from "../args.ts";
+import { oneOf, stringFlag, UsageError, type ParsedArgs } from "../args.ts";
 
 /**
  * The 0-based message `--message <n>` (1-based) names, else the latest one by `author`; either
@@ -85,7 +85,8 @@ export async function commentMedia(
     return;
   }
   if (rest.length === 0) throw new UsageError("comments attach needs at least one image file");
-  const message = comment.thread[messageIndex(comment, stringFlag(args, "message"), "agent")]!;
+  const author = oneOf(stringFlag(args, "author"), ["agent", "reviewer"], "author") ?? "agent";
+  const message = comment.thread[messageIndex(comment, stringFlag(args, "message"), author)]!;
   if (message.attachments.length + rest.length > maxAttachments) {
     throw new UsageError(`A message takes up to ${maxAttachments} images`);
   }

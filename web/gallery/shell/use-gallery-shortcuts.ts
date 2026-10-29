@@ -2,6 +2,7 @@ import { flushSync } from "react-dom";
 import { useState, type RefObject } from "react";
 
 import { useTheme } from "#gallery/render/use-theme";
+import { commentsAvailable } from "#gallery/shell/comments/api";
 import type { FrameInfo } from "#gallery/shell/use-frame";
 import { matches, type Registry } from "#gallery/shell/registry-model";
 import { step, type GallerySelection } from "#gallery/shell/use-selection";
@@ -94,6 +95,8 @@ export function useGalleryShortcuts(
     "previous-state": () => stepState(-1),
     theme: () => updateView({ theme: dark ? "light" : "dark" }),
     comment: () => {
+      // The static build has no comments API (`commentsAvailable`).
+      if (!commentsAvailable) return;
       if (selection.flow) {
         ui.setFlowSide(true);
         updateView({ comments: !selection.view.comments, comment: null });
