@@ -220,6 +220,18 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
     const branch = sidebar.getByTestId(`session-sidebar-subagents-${parent.id}`);
     await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(8);
+    // The rows mount before their grid fold finishes opening. Clicking while
+    // clipped makes scrollIntoView scroll the fold, then its settling geometry
+    // can move Show more between pointerdown and pointerup.
+    await expect
+      .poll(() =>
+        branch.evaluate(element => {
+          const fold = element.closest('[data-slot="session-list-branch"]');
+          if (!fold) throw new Error("Subagent branch is missing its fold");
+          return fold.getAnimations().filter(animation => animation.playState === "running").length;
+        })
+      )
+      .toBe(0);
     await branch.getByRole("button", { name: "Show 2 more" }).click();
     await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
     await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
