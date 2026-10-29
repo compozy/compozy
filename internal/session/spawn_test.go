@@ -573,10 +573,17 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should start an auto-title child input-only without hosted MCP", func(t *testing.T) {
+	t.Run("Should start an auto-title child input-only without hosted MCP even when its agent declares tools", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHostedMCPHarness(t)
+		addHarnessAgent(t, h, compozyconfig.AgentDef{
+			Name:     "tool-coder",
+			Provider: "claude",
+			Prompt:   "Use the available tools.",
+			Tools:    []string{toolspkg.ToolIDTaskRead.String()},
+			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
+		})
 		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
 			MaxChildren: 1, MaxDepth: 1, MaxActivePerWorkspace: 2,
 		})
@@ -584,7 +591,7 @@ func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
 
 		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
 			ParentSessionID:  parent.ID,
-			AgentName:        "coder",
+			AgentName:        "tool-coder",
 			Name:             "Session title",
 			SpawnRole:        SpawnRoleAutoTitle,
 			TTL:              time.Minute,

@@ -2160,6 +2160,7 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 					Tools           *[]string         `json:"tools"`
 					StrictMCPConfig bool              `json:"strictMcpConfig"`
 					Plugins         *[]any            `json:"plugins"`
+					Skills          *[]string         `json:"skills"`
 					Env             map[string]string `json:"env"`
 					Settings        struct {
 						DisableAllHooks bool `json:"disableAllHooks"`
@@ -2172,8 +2173,9 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		}
 		options := meta.ClaudeCode.Options
 		if options.Tools == nil || len(*options.Tools) != 0 || !options.StrictMCPConfig ||
-			options.Plugins == nil || len(*options.Plugins) != 0 || !options.Settings.DisableAllHooks {
-			t.Fatalf("input-only options = %+v, want no tools, strict MCP, no plugins, hooks off", options)
+			options.Plugins == nil || len(*options.Plugins) != 0 || options.Skills == nil ||
+			len(*options.Skills) != 0 || !options.Settings.DisableAllHooks {
+			t.Fatalf("input-only options = %+v, want no tools, strict MCP, no plugins or skills, hooks off", options)
 		}
 		for _, key := range []string{"CLAUDE_CODE_DISABLE_AUTO_MEMORY", "CLAUDE_CODE_DISABLE_CLAUDE_MDS"} {
 			if options.Env[key] != "1" {
@@ -2183,8 +2185,9 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		if options.Env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
 			t.Fatalf("input-only env = %#v, want claude.ai MCP connectors off", options.Env)
 		}
-		if meta.SystemPrompt == "" || strings.Contains(meta.SystemPrompt, "claude_code") {
-			t.Fatalf("input-only systemPrompt = %q, want the text-only override", meta.SystemPrompt)
+		if meta.SystemPrompt != claudeInputOnlySystemPrompt {
+			t.Fatalf("input-only systemPrompt = %q, want the text-only override %q",
+				meta.SystemPrompt, claudeInputOnlySystemPrompt)
 		}
 		if mcpServers := string(params["mcpServers"]); mcpServers != "[]" {
 			t.Fatalf("input-only mcpServers = %s, want []", mcpServers)
