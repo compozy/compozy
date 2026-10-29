@@ -4658,3 +4658,16 @@ isolation are unchanged. No generated contract or official skill changes.
 - **Public surfaces, native tools, hooks/config, extensibility, Web/Docs and
   official skill:** unchanged. This is internal driver initialization ordering.
   Workspace isolation and persisted data/schema are unchanged; no migration.
+
+## 2026-10-29 — Project overlay focus handoff (#1035)
+
+- **Owner / Web:** overview creation handoffs skip obsolete trigger restoration;
+  shared Dialog and ContextMenu popups transfer focus before modal isolation.
+  Existing owning suites and interactive stories cover focus entry/restoration.
+- **Native tools / CLI / HTTP / UDS:** unchanged; no routes, DTOs or tool IDs change.
+- **Extensibility / hooks / config:** unchanged; no new setting or hook.
+- **Workspace data / isolation:** no persisted state or schema changes. Runtime
+  verification uses a disposable home, socket, ports and project.
+- **Official skill / Docs:** no public operational contract or `skills/compozy/`
+  change. Affected QA scenarios and the dated overlay focus report track evidence
+  and limits; no public site change is needed.

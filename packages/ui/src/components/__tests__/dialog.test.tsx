@@ -49,6 +49,51 @@ function RerenderingDialogExample() {
 }
 
 describe("Dialog", () => {
+  it("Should transfer focus before hiding the origin of a nested dialog", async () => {
+    const user = userEvent.setup();
+    function NestedDialog() {
+      const [nestedOpen, setNestedOpen] = React.useState(false);
+      const target = React.useRef<HTMLButtonElement | null>(null);
+      return (
+        <Dialog defaultOpen>
+          <DialogContent>
+            <DialogTitle>Projects</DialogTitle>
+            <button type="button" onClick={() => setNestedOpen(true)}>
+              Archive
+            </button>
+            <Dialog open={nestedOpen} onOpenChange={setNestedOpen}>
+              <DialogContent initialFocus={target}>
+                <DialogTitle>Archive project</DialogTitle>
+                <DialogClose ref={target}>Cancel</DialogClose>
+              </DialogContent>
+            </Dialog>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    render(<NestedDialog />);
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveFocus());
+    const hiddenFocus: string[] = [];
+    const observer = new MutationObserver(() => {
+      const active = document.activeElement;
+      if (active?.closest('[aria-hidden="true"], [inert]')) {
+        hiddenFocus.push(active.textContent ?? "");
+      }
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["aria-hidden", "inert"],
+    });
+    try {
+      await user.click(screen.getByRole("button", { name: "Archive" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus());
+      expect(hiddenFocus).toEqual([]);
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("Should render the trigger without opening the content", () => {
     render(<DialogExample />);
     expect(screen.getByRole("button", { name: "Open" })).toBeInTheDocument();

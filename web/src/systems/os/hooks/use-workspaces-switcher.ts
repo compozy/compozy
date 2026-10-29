@@ -256,7 +256,10 @@ export function useWorkspacesSwitcher({
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('[data-slot="dropdown-menu-trigger"], [data-slot="dropdown-menu-content"]')
+      // Portaled menus/dialogs own their keyboard events even though React
+      // bubbles them through the overview's stage.
+      (!event.currentTarget.contains(target) ||
+        target.closest('[data-slot="dropdown-menu-trigger"], [data-slot="dropdown-menu-content"]'))
     ) {
       return;
     }

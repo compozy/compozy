@@ -48,3 +48,14 @@ untested; the next browser QA cycle owns live retesting.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Project menu overlay handoff regression (#1035)
+
+Using the keyboard, open the Project menu, choose Workspace picker, then press
+Escape. Repeat with Add project and cancel the creation dialog. Each incoming
+overlay must own focus before hiding the previous surface, and Escape must return
+focus to the visible project trigger. Verify accessible dialog/menu names and
+roles, focus containment, and absence of retained-focus aria-hidden warnings.
+
+Focused evidence and limits: [2026-10-29 overlay focus report](../reports/2026-10-29-overlay-focus-handoff.md).
+Historical unrelated menu coverage remains unchanged.

@@ -65,6 +65,10 @@ export interface OsWorkspacesOverviewProps {
  */
 export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspacesOverviewProps) {
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const restoreTriggerFocus = useRef(true);
+  useEffect(() => {
+    if (open) restoreTriggerFocus.current = true;
+  }, [open]);
   // Escape steps one layer at a time: popover → menu → overlay. The stage
   // registers its layer guard here so the dialog's own escape close can be
   // vetoed while the worktree menu owns focus.
@@ -80,7 +84,11 @@ export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspa
     >
       <DialogContent
         ref={contentRef}
-        finalFocus={() => document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')}
+        finalFocus={() =>
+          restoreTriggerFocus.current
+            ? document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')
+            : false
+        }
         unframed
         showCloseButton={false}
         data-testid="os-workspaces-overview"
@@ -103,6 +111,18 @@ export function OsWorkspacesOverview({ open, onOpenChange, ...stage }: OsWorkspa
       >
         <OsWorkspacesStage
           {...stage}
+          onNewWorkspace={() => {
+            restoreTriggerFocus.current = false;
+            stage.onNewWorkspace();
+          }}
+          onCreateWorktree={
+            stage.onCreateWorktree
+              ? workspaceId => {
+                  restoreTriggerFocus.current = false;
+                  stage.onCreateWorktree?.(workspaceId);
+                }
+              : undefined
+          }
           overlayRef={contentRef}
           escapeGuardRef={escapeGuardRef}
           onOpenChange={onOpenChange}
