@@ -23,6 +23,8 @@ import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { SessionSidebar } from "../session-sidebar";
+import { projectGroupTreeGroups } from "../../lib/workspace-folders";
+import { PROJECT_GROUPS, PROJECT_LAYOUT, PROJECT_TREE } from "./project-folder-fixtures";
 import {
   sessionListCatalogFixture,
   sessionListViewFixture,
@@ -458,5 +460,38 @@ export const LongAgentNames: Story = {
       ),
     ],
     currentSessionId: "sess-long-child",
+  },
+};
+
+/**
+ * All projects grouped by project with one profile's project folders (#1044):
+ * folders sit on top and hang their projects on the same tree elbow as child
+ * sessions; loose projects follow. Projects and folders drag to reorder, and
+ * the quiet footer totals the whole scope by state.
+ */
+export const ProjectFolders: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...ProvenanceThreads.args,
+    sessions: [],
+    view: sessionListViewFixture({
+      ...ProvenanceThreads.args!.view!,
+      storedGroupBy: "project",
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      newFolderUnavailable: null,
+      groups: projectGroupTreeGroups(PROJECT_TREE),
+      collapsedGroupKeys: new Set(PROJECT_GROUPS.map(group => group.key)),
+      projectFolders: { layout: PROJECT_LAYOUT, tree: PROJECT_TREE },
+      totals: { needsYou: 1, working: 3, idle: 8 },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const product = canvas.getByTestId("session-sidebar-project-folder-wfold-product");
+    await expect(within(product).getByTestId("session-sidebar-group-project:ws-api")).toBeVisible();
+    await expect(canvas.getByTestId("session-sidebar-totals")).toHaveTextContent(
+      "1 needs you3 working8 idle"
+    );
   },
 };

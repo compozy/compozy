@@ -121,6 +121,20 @@ const (
 	ToolIDWorkspaceList      ToolID = "compozy__workspace_list"
 	ToolIDWorkspaceArchive   ToolID = "compozy__workspace_archive"
 	ToolIDWorkspaceUnarchive ToolID = "compozy__workspace_unarchive"
+	// ToolIDWorkspaceFolderList reads the profile's root workspace folders and manual workspace order.
+	ToolIDWorkspaceFolderList ToolID = "compozy__workspace_folder_list"
+	// ToolIDWorkspaceFolderCreate creates one root workspace folder.
+	ToolIDWorkspaceFolderCreate ToolID = "compozy__workspace_folder_create"
+	// ToolIDWorkspaceFolderRename renames one workspace folder.
+	ToolIDWorkspaceFolderRename ToolID = "compozy__workspace_folder_rename"
+	// ToolIDWorkspaceFolderDelete deletes one workspace folder without touching its workspaces.
+	ToolIDWorkspaceFolderDelete ToolID = "compozy__workspace_folder_delete"
+	// ToolIDWorkspaceFolderReorder sets the complete workspace folder order.
+	ToolIDWorkspaceFolderReorder ToolID = "compozy__workspace_folder_reorder"
+	// ToolIDWorkspaceMove moves one workspace into a folder or back to the root.
+	ToolIDWorkspaceMove ToolID = "compozy__workspace_move"
+	// ToolIDWorkspaceReorder sets the manual workspace order in a folder or the root.
+	ToolIDWorkspaceReorder ToolID = "compozy__workspace_reorder"
 	// ToolIDProfileList lists the daemon profile catalog for the bound session.
 	ToolIDProfileList ToolID = "compozy__profile_list"
 	// ToolIDProfileCurrent reads the immutable profile bound to the caller session.

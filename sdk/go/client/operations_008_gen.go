@@ -9,6 +9,69 @@ import (
 	"strings"
 )
 
+// GetAutomationJobParams carries the path, query, and header parameters.
+type GetAutomationJobParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetAutomationJob Get one automation job
+func (c *Client) GetAutomationJob(ctx context.Context, params GetAutomationJobParams) (*JobResponse, error) {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAutomationRunParams carries the path, query, and header parameters.
+type GetAutomationRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetAutomationRun Get one automation run
+func (c *Client) GetAutomationRun(ctx context.Context, params GetAutomationRunParams) (*RunResponse, error) {
+	path := "/api/automation/runs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAutomationTriggerParams carries the path, query, and header parameters.
+type GetAutomationTriggerParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetAutomationTrigger Get one automation trigger
 func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationTriggerParams) (*TriggerResponse, error) {
 	path := "/api/automation/triggers/{id}"
@@ -381,68 +444,4 @@ type GetGlobalSessionTranscriptParams struct {
 	BeforeSequence *int64  `url:"before_sequence"`
 	Profile        *string `url:"profile"`
 	AllProfiles    *bool   `url:"all_profiles"`
-}
-
-// GetGlobalSessionTranscript Get a bounded materialized transcript page for a Global session
-func (c *Client) GetGlobalSessionTranscript(ctx context.Context, params GetGlobalSessionTranscriptParams) (*SessionTranscriptResponse, error) {
-	path := "/api/sessions/{session_id}/transcript"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.BeforeSequence != nil {
-		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionTranscriptResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGlobalSessionTranscriptOutlineParams carries the path, query, and header parameters.
-type GetGlobalSessionTranscriptOutlineParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetGlobalSessionTranscriptOutline Get the full retained operator-message trail with reply previews for a Global session
-func (c *Client) GetGlobalSessionTranscriptOutline(ctx context.Context, params GetGlobalSessionTranscriptOutlineParams) (*OutlineResult, error) {
-	path := "/api/sessions/{session_id}/transcript/outline"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out OutlineResult
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetHookCatalogParams carries the path, query, and header parameters.
-type GetHookCatalogParams struct {
-	Workspace *string `url:"workspace"`
-	Agent     *string `url:"agent"`
-	Event     *string `url:"event"`
-	Source    *string `url:"source"`
-	Mode      *string `url:"mode"`
 }

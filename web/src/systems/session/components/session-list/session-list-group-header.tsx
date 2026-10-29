@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Icon, StatusDot, cn } from "@compozy/ui";
 
@@ -14,6 +15,7 @@ import {
   useSessionListGroupFolderCreate,
   type SessionGroupFolderAxis,
 } from "../../hooks/use-session-list-group-folder-create";
+import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupTarget, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
@@ -62,6 +64,17 @@ export interface SessionListGroupHeaderProps {
   onToggle: () => void;
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   testIdPrefix: string;
+  /** Drag source and reorder target among project folders (issue #1044). */
+  arrange?: SessionListGroupArrange;
+}
+
+/** How a project header takes part in project folders: drag, drop edge, and menu items. */
+export interface SessionListGroupArrange {
+  drag: SessionDragHandlers;
+  dropEdge: SessionDropPosition | null;
+  dragging: boolean;
+  /** Folder verbs shown first in the header's context menu. */
+  menuItems?: ReactNode;
 }
 
 /**
@@ -76,6 +89,7 @@ export function SessionListGroupHeader({
   onToggle,
   onNewSession,
   testIdPrefix,
+  arrange,
 }: SessionListGroupHeaderProps) {
   const target = sessionListGroupTarget(group);
   const folder = useSessionListGroupFolderCreate(target);
@@ -83,12 +97,27 @@ export function SessionListGroupHeader({
   const name = groupName(group);
   return (
     <>
-      <SessionListGroupProjectMenu group={group}>
+      <SessionListGroupProjectMenu group={group} leadingItems={arrange?.menuItems}>
         <div
-          className="flex min-h-7 min-w-0 items-center gap-1"
+          {...arrange?.drag}
+          className={cn(
+            "relative flex min-h-7 min-w-0 items-center gap-1 rounded-sm",
+            arrange?.dragging && "opacity-50"
+          )}
           data-testid={`${testId}-header`}
+          data-drop={arrange?.dropEdge ?? undefined}
+          data-dragging={arrange?.dragging || undefined}
           onKeyDown={openContextMenuFromKeyboard}
         >
+          {arrange?.dropEdge ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+                arrange.dropEdge === "before" ? "-top-px" : "-bottom-px"
+              )}
+            />
+          ) : null}
           <button
             type="button"
             aria-expanded={!collapsed}

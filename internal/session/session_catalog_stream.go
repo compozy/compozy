@@ -44,6 +44,11 @@ func (s CatalogScope) Validate() error {
 }
 
 func (s CatalogScope) matches(event CatalogEvent) bool {
+	if event.Kind == CatalogEventWorkspaceLayout {
+		// The workspace layout spans every workspace, so only aggregate
+		// subscribers of the owning profile reconcile it.
+		return s.AllWorkspaces && s.ReadScope.Matches(event.ProfileID)
+	}
 	workspaceMatches := (s.WorkspaceID == workspaceaccess.UserSelector && event.WorkspaceID == "") || s.AllWorkspaces ||
 		strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
 	return workspaceMatches && s.ReadScope.Matches(event.ProfileID)
@@ -69,6 +74,10 @@ const (
 	// CatalogEventLayout reports a workspace folder or manual-order change.
 	// It carries no session id: clients reread folders and the catalog.
 	CatalogEventLayout CatalogEventKind = "layout"
+	// CatalogEventWorkspaceLayout reports a workspace folder or manual
+	// workspace-order change. It names only the owning profile: All-projects
+	// clients reread the workspace layout.
+	CatalogEventWorkspaceLayout CatalogEventKind = "workspace_layout"
 )
 
 // CatalogEvent identifies the workspace-scoped catalog snapshot to reconcile.
@@ -140,7 +149,7 @@ func (b *sessionCatalogBroadcaster) publish(event CatalogEvent) int {
 	if strings.TrimSpace(event.ProfileID) == "" {
 		return 0
 	}
-	if strings.TrimSpace(event.SessionID) == "" &&
+	if strings.TrimSpace(event.SessionID) == "" && event.Kind != CatalogEventWorkspaceLayout &&
 		(event.Kind != CatalogEventLayout || strings.TrimSpace(event.WorkspaceID) == "") {
 		return 0
 	}

@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// GoalSnapshotChangedPayload is a daemon API value.
+type GoalSnapshotChangedPayload struct {
+	SessionID      string                  `json:"session_id"`
+	RunID          *string                 `json:"run_id"`
+	BoundSessionID *string                 `json:"bound_session_id"`
+	Revision       int64                   `json:"revision"`
+	Cause          GoalSnapshotChangeCause `json:"cause"`
+}
+
+// GoalStatus is a daemon API value.
+type GoalStatus string
+
 // GoalTurn is a daemon API value.
 type GoalTurn struct {
 	Seq            int64                   `json:"seq"`
@@ -430,19 +442,4 @@ type Image struct {
 	URL   string `json:"url,omitempty"`
 	Token string `json:"token,omitempty"`
 	Emoji string `json:"emoji,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
 }

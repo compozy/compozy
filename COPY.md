@@ -279,6 +279,15 @@ A session message is a prompt one agent session sends to another; a reply wake b
 - Isolated subagent facts follow the Subagent Terms line above: "PR status unknown" when CompozyOS could not check, never "No PR"; "No pull request" only when the forge answered.
 - Never in this feature's copy: "thread", "worker", "inbox", "DM", "chat", or "No PR".
 
+### Session List Organization Terms
+
+Project folders group projects in All projects (grouped by project) for one profile; session folders stay inside one project and profile. Nouns are `folder`, `project`, and `session`.
+
+- Project folder: header menu "Rename folder…" · "Move folder up" · "Move folder down" · "Delete folder…" (no New session). An empty folder reads "Drag a project here."; dragging a foldered project with no loose projects shows "Drop here to take it out of the folder." Delete confirm: "Projects in this folder move back to the list. No projects or sessions are deleted."
+- Project header menu, before the project's own actions: "Move to folder" (submenu of folder names) · "Move out of folder" · "Move project up" · "Move project down".
+- New folder unavailable under All profiles: "Project folders belong to one profile. Choose a profile to add one."
+- Totals footer (aria "Session totals"): "{n} needs you · {n} working · {n} idle", each beside its state glyph; only non-zero states show, and nothing renders when all are zero. It never filters.
+
 ### Model List Issue Terms
 
 The runtime selector reports provider model list problems behind one warning mark in its search header, placed before the refresh control. Nothing appears while every model list is healthy.

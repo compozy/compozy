@@ -425,3 +425,159 @@ func TestSessionLayoutUserScope(t *testing.T) {
 		}
 	})
 }
+
+func TestWorkspaceLayout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should order folders and placements and keep unlisted members after a partial reorder", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		profile := store.DefaultProfileID
+		alpha := registerWorkspaceForGlobalTests(t, db, "alpha", filepath.Join(t.TempDir(), "alpha"))
+		beta := registerWorkspaceForGlobalTests(t, db, "beta", filepath.Join(t.TempDir(), "beta"))
+		gamma := registerWorkspaceForGlobalTests(t, db, "gamma", filepath.Join(t.TempDir(), "gamma"))
+
+		createWorkspaceLayoutFolder(ctx, t, db, profile, "wfold-a", "Clients")
+		createWorkspaceLayoutFolder(ctx, t, db, profile, "wfold-b", "Internal")
+		for _, move := range []struct{ workspace, folder string }{
+			{alpha, "wfold-a"}, {beta, "wfold-a"}, {gamma, ""}, {"", ""},
+		} {
+			if err := db.MoveWorkspace(ctx, profile, move.workspace, move.folder); err != nil {
+				t.Fatalf("MoveWorkspace(%q, %q) error = %v", move.workspace, move.folder, err)
+			}
+		}
+		if err := db.ReorderWorkspaces(ctx, profile, "wfold-a", []string{beta}); err != nil {
+			t.Fatalf("ReorderWorkspaces() error = %v", err)
+		}
+		if err := db.ReorderWorkspaceFolders(ctx, profile, []string{"wfold-a", "wfold-b"}); err != nil {
+			t.Fatalf("ReorderWorkspaceFolders() error = %v", err)
+		}
+		err := db.ReorderWorkspaceFolders(ctx, profile, []string{"wfold-a"})
+		if !errors.Is(err, store.ErrWorkspaceLayoutConflict) {
+			t.Fatalf("partial folder order error = %v, want ErrWorkspaceLayoutConflict", err)
+		}
+
+		layout := readWorkspaceLayoutForTest(ctx, t, db, profile)
+		if got := workspaceFolderIDs(layout.Folders); !reflect.DeepEqual(got, []string{"wfold-a", "wfold-b"}) {
+			t.Fatalf("folders = %v", got)
+		}
+		if layout.Folders[0].WorkspaceCount != 2 || layout.Folders[1].WorkspaceCount != 0 {
+			t.Fatalf("folder counts = %+v", layout.Folders)
+		}
+		want := []store.WorkspacePlacement{
+			{WorkspaceID: beta, FolderID: "wfold-a", Position: 0},
+			{WorkspaceID: alpha, FolderID: "wfold-a", Position: 1},
+			{WorkspaceID: gamma, Position: 0},
+			{WorkspaceID: "", Position: 1},
+		}
+		if !reflect.DeepEqual(layout.Placements, want) {
+			t.Fatalf("placements = %+v, want %+v", layout.Placements, want)
+		}
+	})
+
+	t.Run("Should return workspaces to the root when their folder or workspace is deleted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		profile := store.DefaultProfileID
+		alpha := registerWorkspaceForGlobalTests(t, db, "alpha", filepath.Join(t.TempDir(), "alpha"))
+		beta := registerWorkspaceForGlobalTests(t, db, "beta", filepath.Join(t.TempDir(), "beta"))
+		createWorkspaceLayoutFolder(ctx, t, db, profile, "wfold-a", "Clients")
+		for _, workspace := range []string{alpha, beta} {
+			if err := db.MoveWorkspace(ctx, profile, workspace, "wfold-a"); err != nil {
+				t.Fatalf("MoveWorkspace(%s) error = %v", workspace, err)
+			}
+		}
+		if err := db.DeleteWorkspace(ctx, beta); err != nil {
+			t.Fatalf("DeleteWorkspace() error = %v", err)
+		}
+		if got := readWorkspaceLayoutForTest(
+			ctx,
+			t,
+			db,
+			profile,
+		).Placements; len(got) != 1 ||
+			got[0].WorkspaceID != alpha {
+			t.Fatalf("placements after workspace delete = %+v", got)
+		}
+		if err := db.DeleteWorkspaceFolder(ctx, profile, "wfold-a"); err != nil {
+			t.Fatalf("DeleteWorkspaceFolder() error = %v", err)
+		}
+		layout := readWorkspaceLayoutForTest(ctx, t, db, profile)
+		if len(layout.Folders) != 0 || len(layout.Placements) != 0 {
+			t.Fatalf("layout after folder delete = %+v", layout)
+		}
+		if _, err := db.GetWorkspace(ctx, alpha); err != nil {
+			t.Fatalf("GetWorkspace(alpha) after folder delete error = %v", err)
+		}
+		if err := db.DeleteWorkspaceFolder(ctx, profile, "wfold-a"); !errors.Is(err, store.ErrWorkspaceFolderNotFound) {
+			t.Fatalf("second delete error = %v, want ErrWorkspaceFolderNotFound", err)
+		}
+	})
+
+	t.Run("Should isolate folders by profile and reject unknown targets", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		other := insertLayoutTestProfile(ctx, t, db)
+		alpha := registerWorkspaceForGlobalTests(t, db, "alpha", filepath.Join(t.TempDir(), "alpha"))
+		createWorkspaceLayoutFolder(ctx, t, db, store.DefaultProfileID, "wfold-a", "Clients")
+
+		if err := db.MoveWorkspace(ctx, other, alpha, "wfold-a"); !errors.Is(err, store.ErrWorkspaceFolderNotFound) {
+			t.Fatalf("foreign folder move error = %v, want ErrWorkspaceFolderNotFound", err)
+		}
+		if _, err := db.RenameWorkspaceFolder(ctx, other, "wfold-a", "Mine"); !errors.Is(
+			err,
+			store.ErrWorkspaceFolderNotFound,
+		) {
+			t.Fatalf("foreign rename error = %v, want ErrWorkspaceFolderNotFound", err)
+		}
+		if err := db.MoveWorkspace(ctx, other, "ws-missing", ""); !errors.Is(
+			err,
+			store.ErrWorkspaceLayoutTargetNotFound,
+		) {
+			t.Fatalf("unknown workspace move error = %v, want ErrWorkspaceLayoutTargetNotFound", err)
+		}
+		if _, err := db.CreateWorkspaceFolder(ctx, other, "wfold-x", "   "); !errors.Is(
+			err,
+			store.ErrWorkspaceLayoutInvalid,
+		) {
+			t.Fatalf("blank name error = %v, want ErrWorkspaceLayoutInvalid", err)
+		}
+		if layout := readWorkspaceLayoutForTest(ctx, t, db, other); len(layout.Folders) != 0 {
+			t.Fatalf("foreign profile layout = %+v", layout)
+		}
+	})
+}
+
+func createWorkspaceLayoutFolder(
+	ctx context.Context,
+	t *testing.T,
+	db *GlobalDB,
+	profile string,
+	id string,
+	name string,
+) {
+	t.Helper()
+	if _, err := db.CreateWorkspaceFolder(ctx, profile, id, name); err != nil {
+		t.Fatalf("CreateWorkspaceFolder(%s) error = %v", id, err)
+	}
+}
+
+func readWorkspaceLayoutForTest(ctx context.Context, t *testing.T, db *GlobalDB, profile string) store.WorkspaceLayout {
+	t.Helper()
+	layout, err := db.WorkspaceLayout(ctx, profile)
+	if err != nil {
+		t.Fatalf("WorkspaceLayout() error = %v", err)
+	}
+	return layout
+}
+
+func workspaceFolderIDs(folders []store.WorkspaceFolder) []string {
+	ids := make([]string, 0, len(folders))
+	for _, folder := range folders {
+		ids = append(ids, folder.ID)
+	}
+	return ids
+}

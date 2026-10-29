@@ -4700,3 +4700,26 @@ isolation are unchanged. No generated contract or official skill changes.
 - **Official skill / Docs:** no public operational contract or `skills/compozy/`
   change. Affected QA scenarios and the dated overlay focus report track evidence
   and limits; no public site change is needed.
+
+## Workspace folders and totals footer — 2026-10-29
+
+Issue #1044 adds root workspace (project) folders and a manual workspace order for All projects, plus
+a sessions-sidebar totals footer. Persisted state: global SQLite tables `workspace_folders` and
+`workspace_placements` (append-only migration 00156, additive, no backfill; existing users see no
+workspace folders and the current name order; session folders and placements are untouched). The
+`workspaces` delete trigger also clears placements; `workspace_placements` joins the user-scope
+migration inventory. Public surfaces, all additive (SD-013): HTTP/UDS `GET|POST
+/api/workspace-folders`, `PATCH|DELETE /api/workspace-folders/{folder_id}`, `PUT
+/api/workspace-order/{folders,workspaces}`, `POST /api/workspace-order/move` (operator or
+unrestricted agent; app tokens denied; one profile, `all_profiles` rejected); the catalog stream
+adds kind `workspace_layout` (profile only) to `session_catalog_changed`, delivered to
+`all_workspaces` subscribers. CLI: `compozy workspace folder list|create|rename|delete|reorder`,
+`compozy workspace move`, `compozy workspace reorder`. Native tools:
+`compozy__workspace_folder_{list,create,rename,delete,reorder}`, `compozy__workspace_move`,
+`compozy__workspace_reorder` in the workspace toolset; naming follows the canonical `workspace`
+term while UI copy says "project". Isolation: folders and placements are keyed by profile;
+workspaces are global, so any registered workspace (or `@user`) may be placed; foreign folders read
+as not found. The totals footer reads the existing exact session facets (no contract change). Hooks
+and extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
+`docs/sessions/index.mdx`, generated CLI docs, and QA scenario
+`ET-web-session-folders-manual-order` record the contract.

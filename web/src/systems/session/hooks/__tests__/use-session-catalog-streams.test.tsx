@@ -412,6 +412,33 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: sessionKeys.byIdRoot("") });
   });
 
+  // #1044: a project-folder change names no workspace or session; only the layout rereads.
+  it("Should reread project folders on a workspace layout change without waking the lists", () => {
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "workspace_layout",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "",
+        session_id: "",
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLayouts() });
+    expect(invalidate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      expect.anything()
+    );
+  });
+
   it("Should bound catalog reads under continuous lifecycle activity and stop pending wakes on unmount", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
@@ -646,9 +673,11 @@ describe("useSessionCatalogStreams", () => {
     unmount();
   });
 
-  it("Should re-read an open monitor list when the catalog stream reconnects", async () => {
+  it("Should re-read open monitor and project folder reads when the catalog stream reconnects", async () => {
     const queryClient = createQueryClient();
     const read = vi.fn(async () => ({ monitors: [] }));
+    // A workspace_layout event missed while disconnected can fall outside the replay window.
+    const readLayout = vi.fn(async () => ({ folders: [], placements: [] }));
     let source: FakeCatalogEventSource;
     const factory = (url: string) => (source = new FakeCatalogEventSource(url));
     const { unmount } = renderHook(
@@ -660,12 +689,20 @@ describe("useSessionCatalogStreams", () => {
           staleTime: Infinity,
           retry: false,
         });
+        useQuery({
+          queryKey: sessionKeys.workspaceLayout("default"),
+          queryFn: readLayout,
+          staleTime: Infinity,
+          retry: false,
+        });
       },
       { wrapper: wrapper(queryClient) }
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readLayout).toHaveBeenCalledTimes(1));
     act(() => source.emit("open"));
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readLayout).toHaveBeenCalledTimes(2));
     unmount();
   });
 

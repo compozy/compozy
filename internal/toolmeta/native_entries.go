@@ -251,6 +251,13 @@ var nativeEntries = map[string]Entry{
 	"compozy__workspace_archive":        nativeEntry("Archiving", " ", false, "🗂️", "auto"),
 	"compozy__workspace_unarchive":      nativeEntry("Restoring", " ", false, "🗂️", "auto"),
 	"compozy__workspace_list":           nativeEntry("Reading", " ", false, "🗂️", "auto"),
+	"compozy__workspace_folder_list":    nativeEntry("Reading", " ", false, "🗂️", "auto"),
+	"compozy__workspace_folder_create":  nativeEntry("Creating", " ", false, "🗂️", "auto"),
+	"compozy__workspace_folder_rename":  nativeEntry("Renaming", " ", false, "🗂️", "auto"),
+	"compozy__workspace_folder_delete":  nativeEntry("Deleting", " ", false, "🗂️", "auto"),
+	"compozy__workspace_folder_reorder": nativeEntry("Reordering", " ", false, "🗂️", "auto"),
+	"compozy__workspace_move":           nativeEntry("Moving", " ", false, "🗂️", "auto"),
+	"compozy__workspace_reorder":        nativeEntry("Reordering", " ", false, "🗂️", "auto"),
 }
 
 func nativeEntry(verb string, connector string, dropsPreview bool, emoji string, preview string) Entry {

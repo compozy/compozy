@@ -2,6 +2,25 @@
 
 package client
 
+// SettingsMCPExtensionOverridePayload is a daemon API value.
+type SettingsMCPExtensionOverridePayload struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
+	URL     string            `json:"url,omitempty"`
+}
+
+// SettingsMCPSecretPreservationPayload is a daemon API value.
+type SettingsMCPSecretPreservationPayload struct {
+	SecretEnv         []string `json:"secret_env,omitempty"`
+	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
+}
+
+// SettingsMCPSecretValuesPayload is a daemon API value.
+type SettingsMCPSecretValuesPayload struct {
+	SecretEnv         map[string]string `json:"secret_env,omitempty"`
+	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
+}
+
 // SettingsMCPServerItemPayload is a daemon API value.
 type SettingsMCPServerItemPayload struct {
 	Owner          string                                 `json:"owner,omitempty"`
@@ -427,20 +446,4 @@ type SettingsShellResponse struct {
 	Scope           SettingsUserScopeKind           `json:"scope"`
 	AvailableScopes []SettingsUserScopeKind         `json:"available_scopes"`
 	Config          SettingsShellPayload            `json:"config"`
-}
-
-// SettingsShellSessionGroupBy is a daemon API value.
-type SettingsShellSessionGroupBy string
-
-// SettingsShellSessionScope is a daemon API value.
-type SettingsShellSessionScope string
-
-// SettingsShellSessionSort is a daemon API value.
-type SettingsShellSessionSort string
-
-// SettingsShellSessionsPayload is a daemon API value.
-type SettingsShellSessionsPayload struct {
-	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
-	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
-	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
 }

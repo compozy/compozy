@@ -1,6 +1,7 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../adapters/session-catalog-api";
 import { fetchSessionFolders, type SessionLayoutScope } from "../adapters/session-folders-api";
+import { fetchWorkspaceLayout } from "../adapters/workspace-layout-api";
 import type { SessionListFilters } from "../types";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters } from "./session-list-query";
@@ -95,6 +96,17 @@ export function sessionFoldersOptions(scope: SessionLayoutScope) {
   return queryOptions({
     queryKey: sessionKeys.folders(scope.workspaceId, scope.profile ?? ""),
     queryFn: ({ signal }) => fetchSessionFolders(scope, signal),
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** One profile's project folders and placements; empty `profile` resolves the daemon default. */
+export function workspaceLayoutOptions(profile: string) {
+  return queryOptions({
+    queryKey: sessionKeys.workspaceLayout(profile),
+    queryFn: ({ signal }) => fetchWorkspaceLayout(profile.trim() || undefined, signal),
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

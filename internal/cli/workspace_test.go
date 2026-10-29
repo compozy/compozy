@@ -782,3 +782,122 @@ func derefStringSlice(value *[]string) []string {
 	}
 	return append([]string(nil), (*value)...)
 }
+
+type workspaceLayoutStubClient struct {
+	*stubClient
+	calls []string
+}
+
+func (s *workspaceLayoutStubClient) record(call string) contract.WorkspaceLayoutResponse {
+	s.calls = append(s.calls, call)
+	return contract.WorkspaceLayoutResponse{
+		Folders: []contract.WorkspaceFolderPayload{{ID: "wfold-1", Name: "Clients", WorkspaceCount: 1}},
+		Placements: []contract.WorkspacePlacementPayload{
+			{WorkspaceID: "ws-1", FolderID: "wfold-1", Position: 0},
+			{WorkspaceID: "@user", Position: 0},
+		},
+	}
+}
+
+func (s *workspaceLayoutStubClient) WorkspaceLayout(context.Context) (contract.WorkspaceLayoutResponse, error) {
+	return s.record("list"), nil
+}
+
+func (s *workspaceLayoutStubClient) CreateWorkspaceFolder(
+	_ context.Context,
+	name string,
+) (contract.WorkspaceFolderResponse, error) {
+	s.record("create " + name)
+	return contract.WorkspaceFolderResponse{Folder: contract.WorkspaceFolderPayload{ID: "wfold-1", Name: name}}, nil
+}
+
+func (s *workspaceLayoutStubClient) RenameWorkspaceFolder(
+	_ context.Context,
+	folderID string,
+	name string,
+) (contract.WorkspaceFolderResponse, error) {
+	s.record("rename " + folderID + " " + name)
+	return contract.WorkspaceFolderResponse{Folder: contract.WorkspaceFolderPayload{ID: folderID, Name: name}}, nil
+}
+
+func (s *workspaceLayoutStubClient) DeleteWorkspaceFolder(
+	_ context.Context,
+	folderID string,
+) (contract.WorkspaceLayoutResponse, error) {
+	return s.record("delete " + folderID), nil
+}
+
+func (s *workspaceLayoutStubClient) ReorderWorkspaceFolders(
+	_ context.Context,
+	folderIDs []string,
+) (contract.WorkspaceLayoutResponse, error) {
+	return s.record("reorder-folders " + strings.Join(folderIDs, ",")), nil
+}
+
+func (s *workspaceLayoutStubClient) MoveWorkspace(
+	_ context.Context,
+	request contract.MoveWorkspaceRequest,
+) (contract.WorkspaceLayoutResponse, error) {
+	return s.record("move " + request.WorkspaceID + " " + request.FolderID), nil
+}
+
+func (s *workspaceLayoutStubClient) ReorderWorkspaces(
+	_ context.Context,
+	request contract.ReorderWorkspacesRequest,
+) (contract.WorkspaceLayoutResponse, error) {
+	return s.record("reorder " + request.FolderID + " " + strings.Join(request.WorkspaceIDs, ",")), nil
+}
+
+func TestWorkspaceLayoutCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should route workspace folder, move, and reorder commands to the workspace layout API", func(t *testing.T) {
+		t.Parallel()
+		client := &workspaceLayoutStubClient{stubClient: &stubClient{}}
+		deps := newTestDeps(t, client)
+		commands := [][]string{
+			{"workspace", "folder", "create", "Clients"},
+			{"workspace", "folder", "rename", "wfold-1", "Partners"},
+			{"workspace", "folder", "reorder", "wfold-2", "wfold-1"},
+			{"workspace", "move", "checkout-api", "--folder", "wfold-1"},
+			{"workspace", "move", "@user"},
+			{"workspace", "reorder", "web", "checkout-api", "--folder", "wfold-1"},
+			{"workspace", "folder", "delete", "wfold-1"},
+		}
+		for _, args := range commands {
+			if _, _, err := executeRootCommand(t, deps, args...); err != nil {
+				t.Fatalf("%v error = %v", args, err)
+			}
+		}
+		human, _, err := executeRootCommand(t, deps, "workspace", "folder", "list")
+		if err != nil {
+			t.Fatalf("workspace folder list error = %v", err)
+		}
+		want := []string{
+			"create Clients",
+			"rename wfold-1 Partners",
+			"reorder-folders wfold-2,wfold-1",
+			"move checkout-api wfold-1",
+			"move @user ",
+			"reorder wfold-1 web,checkout-api",
+			"delete wfold-1",
+			"list",
+		}
+		if strings.Join(client.calls, "\n") != strings.Join(want, "\n") {
+			t.Fatalf("layout calls = %#v, want %#v", client.calls, want)
+		}
+		for _, value := range []string{"Clients", "wfold-1", "ws-1", "@user", "(root)"} {
+			if !strings.Contains(human, value) {
+				t.Fatalf("human layout output omits %q: %s", value, human)
+			}
+		}
+		jsonOut, _, err := executeRootCommand(t, deps, "workspace", "folder", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("workspace folder list -o json error = %v", err)
+		}
+		var listed contract.WorkspaceLayoutResponse
+		if err := json.Unmarshal([]byte(jsonOut), &listed); err != nil || len(listed.Placements) != 2 {
+			t.Fatalf("json layout = %#v err=%v; stdout=%s", listed, err, jsonOut)
+		}
+	})
+}

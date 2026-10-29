@@ -4,6 +4,38 @@ package client
 
 import "time"
 
+// SessionMonitorPayload is a daemon API value.
+type SessionMonitorPayload struct {
+	MonitorID   string     `json:"monitor_id"`
+	SessionID   string     `json:"session_id"`
+	Kind        string     `json:"kind"`
+	Description string     `json:"description"`
+	TerminalID  string     `json:"terminal_id,omitempty"`
+	Until       string     `json:"until,omitempty"`
+	Pattern     string     `json:"pattern,omitempty"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	DeadlineAt  time.Time  `json:"deadline_at"`
+	FiredAt     *time.Time `json:"fired_at,omitempty"`
+	Reason      string     `json:"reason,omitempty"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
+}
+
+// SessionMonitorResponse is a daemon API value.
+type SessionMonitorResponse struct {
+	Monitor SessionMonitorPayload `json:"monitor"`
+}
+
+// SessionMonitorSummaryPayload is a daemon API value.
+type SessionMonitorSummaryPayload struct {
+	Active int `json:"active"`
+}
+
+// SessionMonitorsResponse is a daemon API value.
+type SessionMonitorsResponse struct {
+	Monitors []SessionMonitorPayload `json:"monitors"`
+}
+
 // SessionOwner is a daemon API value.
 type SessionOwner struct {
 	SessionID     string `json:"session_id"`
@@ -413,22 +445,3 @@ type SetSessionRuntimeRequest struct {
 	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
 	ExpectedRevision *int64                        `json:"expected_revision"`
 }
-
-// SettingsActionMetadataPayload is a daemon API value.
-type SettingsActionMetadataPayload struct {
-	Name      string                   `json:"name"`
-	Available bool                     `json:"available"`
-	Behavior  SettingsMutationBehavior `json:"behavior"`
-}
-
-// SettingsApplyFailurePayload is a daemon API value.
-type SettingsApplyFailurePayload struct {
-	Subsystem  string         `json:"subsystem"`
-	Diagnostic DiagnosticItem `json:"diagnostic"`
-}
-
-// SettingsApplyLifecycle is a daemon API value.
-type SettingsApplyLifecycle string
-
-// SettingsApplyNextAction is a daemon API value.
-type SettingsApplyNextAction string

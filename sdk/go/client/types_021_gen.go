@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// SkillContentResponse is a daemon API value.
+type SkillContentResponse struct {
+	Content string `json:"content"`
+}
+
 // SkillDiagnosticPayload is a daemon API value.
 type SkillDiagnosticPayload struct {
 	Name               string                            `json:"name"`

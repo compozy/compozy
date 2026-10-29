@@ -260,8 +260,30 @@ type WorkspaceDetailPayload struct {
 	ProfileHints []WorkspaceProfileHintPayload  `json:"profile_hints,omitempty"`
 }
 
+// WorkspaceFolderPayload is a daemon API value.
+type WorkspaceFolderPayload struct {
+	ID             string    `json:"id"`
+	ProfileID      string    `json:"profile_id"`
+	Name           string    `json:"name"`
+	Position       int       `json:"position"`
+	WorkspaceCount int       `json:"workspace_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// WorkspaceFolderResponse is a daemon API value.
+type WorkspaceFolderResponse struct {
+	Folder WorkspaceFolderPayload `json:"folder"`
+}
+
 // WorkspaceID is a daemon API value.
 type WorkspaceID string
+
+// WorkspaceLayoutResponse is a daemon API value.
+type WorkspaceLayoutResponse struct {
+	Folders    []WorkspaceFolderPayload    `json:"folders"`
+	Placements []WorkspacePlacementPayload `json:"placements"`
+}
 
 // WorkspacePayload is a daemon API value.
 type WorkspacePayload struct {
@@ -274,6 +296,13 @@ type WorkspacePayload struct {
 	DefaultAgent string     `json:"default_agent,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+// WorkspacePlacementPayload is a daemon API value.
+type WorkspacePlacementPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	FolderID    string `json:"folder_id,omitempty"`
+	Position    int    `json:"position"`
 }
 
 // WorkspaceProfileHintPayload is a daemon API value.
@@ -419,15 +448,3 @@ type WorktreeForgeStatusPayload struct {
 	Merged    *bool      `json:"merged"`
 	FetchedAt *time.Time `json:"fetched_at"`
 }
-
-// WorktreeInspectionResponse is a daemon API value.
-type WorktreeInspectionResponse struct {
-	Worktree WorktreePayload             `json:"worktree"`
-	Status   *WorktreeStatusPayload      `json:"status"`
-	Forge    *WorktreeForgeStatusPayload `json:"forge"`
-	Repo     WorktreeRepoPayload         `json:"repo"`
-	Bindings WorktreeBindingsPayload     `json:"bindings"`
-}
-
-// WorktreeMode is a daemon API value.
-type WorktreeMode string

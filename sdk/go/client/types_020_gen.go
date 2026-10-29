@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// SettingsShellSessionGroupBy is a daemon API value.
+type SettingsShellSessionGroupBy string
+
+// SettingsShellSessionScope is a daemon API value.
+type SettingsShellSessionScope string
+
+// SettingsShellSessionSort is a daemon API value.
+type SettingsShellSessionSort string
+
+// SettingsShellSessionsPayload is a daemon API value.
+type SettingsShellSessionsPayload struct {
+	GroupBy SettingsShellSessionGroupBy `json:"group_by,omitempty"`
+	Sort    SettingsShellSessionSort    `json:"sort,omitempty"`
+	Scope   SettingsShellSessionScope   `json:"scope,omitempty"`
+}
+
 // SettingsSkillSourceCollisionPayload is a daemon API value.
 type SettingsSkillSourceCollisionPayload struct {
 	Name          string `json:"name"`
@@ -429,9 +445,4 @@ type SkillActivationReasonPayload struct {
 	Code    SkillActivationReasonCode `json:"code"`
 	Missing []string                  `json:"missing,omitempty"`
 	Message string                    `json:"message"`
-}
-
-// SkillContentResponse is a daemon API value.
-type SkillContentResponse struct {
-	Content string `json:"content"`
 }

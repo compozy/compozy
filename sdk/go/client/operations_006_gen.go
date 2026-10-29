@@ -4,11 +4,71 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// DiffLoopRun Compare Loop generations or runs
+func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Generation != nil {
+		query.Set("generation", strconv.Itoa(*params.Generation))
+	}
+	if params.AgainstGeneration != nil {
+		query.Set("against_generation", strconv.Itoa(*params.AgainstGeneration))
+	}
+	if params.AgainstRun != nil {
+		query.Set("against_run", *params.AgainstRun)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopDiffResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DisableGatewayProviderParams carries the path, query, and header parameters.
+type DisableGatewayProviderParams struct {
+	Name string `url:"name"`
+	Tier string `url:"tier"`
+}
+
+// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
+func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
+	path := "/api/gateway/providers/{name}/disable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("tier", params.Tier)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out GatewayStatusPayload
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DisableSkillParams carries the path, query, and header parameters.
+type DisableSkillParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+	ForAgent  *string `url:"for_agent"`
+}
 
 // DisableSkill Disable one skill
 func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*SkillActionResponse, error) {
@@ -380,71 +440,4 @@ func (c *Client) ExecuteWindowManagerCommand(ctx context.Context, params Execute
 type ExportWindowManagerLayoutParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// ExportWindowManagerLayout Export one declarative window layout
-func (c *Client) ExportWindowManagerLayout(ctx context.Context, params ExportWindowManagerLayoutParams) (*WindowManagerLayoutDocument, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerLayoutDocument
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ExposeSkillParams carries the path, query, and header parameters.
-type ExposeSkillParams struct {
-	Name     string  `url:"name"`
-	Profile  *string `url:"profile"`
-	ForAgent *string `url:"for_agent"`
-}
-
-// ExposeSkill Expose one user- or workspace-owned skill to provider roots
-func (c *Client) ExposeSkill(ctx context.Context, params ExposeSkillParams, body SkillExposureRequest) (*SkillExposeResponse, error) {
-	path := "/api/skills/{name}/expose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillExposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// FailAgentTaskRunParams carries the path, query, and header parameters.
-type FailAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
-}
-
-// FailAgentTaskRun Fail a claimed task run for the calling agent
-func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunParams, body AgentTaskFailRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/fail"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

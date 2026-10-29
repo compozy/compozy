@@ -4,6 +4,18 @@ package client
 
 import "time"
 
+// WorktreeInspectionResponse is a daemon API value.
+type WorktreeInspectionResponse struct {
+	Worktree WorktreePayload             `json:"worktree"`
+	Status   *WorktreeStatusPayload      `json:"status"`
+	Forge    *WorktreeForgeStatusPayload `json:"forge"`
+	Repo     WorktreeRepoPayload         `json:"repo"`
+	Bindings WorktreeBindingsPayload     `json:"bindings"`
+}
+
+// WorktreeMode is a daemon API value.
+type WorktreeMode string
+
 // WorktreePayload is a daemon API value.
 type WorktreePayload struct {
 	ID              string    `json:"id"`

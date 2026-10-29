@@ -38,6 +38,8 @@ import { agentsListOptions } from "@/systems/agent";
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import { buildProjectGroupTree, projectGroupTreeGroups } from "../../lib/workspace-folders";
+import { workspaceFolderFixture } from "../../mocks/workspace-layout-handlers";
 import {
   sessionListCatalogFixture,
   sessionListViewFixture,
@@ -47,7 +49,7 @@ import {
   type SessionClearRequest,
 } from "../../contexts/session-clear-context-value";
 import type { SessionThreadSegment } from "../../lib/session-thread-branch";
-import type { SessionPayload } from "../../types";
+import type { SessionPayload, WorkspacePlacementPayload } from "../../types";
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
@@ -2616,6 +2618,161 @@ describe("SessionList breadth and Group by", () => {
     expect(await screen.findByTestId("session-sidebar-selection-move-blocked")).toHaveTextContent(
       "Select sessions from one project and profile to move them."
     );
+  });
+
+  // Invariant (#1044): under All projects by project, one profile's project folders sit
+  // above the root, hold projects only, and a folder never lands on or in a project.
+  const PROJECT_FOLDER = workspaceFolderFixture("wf-1", "Clients");
+  function projectFoldered(placements: WorkspacePlacementPayload[] = []) {
+    const layout = {
+      folders: [PROJECT_FOLDER],
+      placements,
+      createFolder: vi.fn().mockResolvedValue(PROJECT_FOLDER),
+      renameFolder: vi.fn().mockResolvedValue(undefined),
+      deleteFolder: vi.fn().mockResolvedValue(undefined),
+      moveFolder: vi.fn(),
+      reorderFolders: vi.fn(),
+      moveWorkspace: vi.fn(),
+      reorderWorkspaces: vi.fn(),
+    };
+    const tree = buildProjectGroupTree(projectGroups(), layout);
+    return {
+      layout,
+      view: grouped({
+        groups: projectGroupTreeGroups(tree),
+        projectFolders: { layout, tree },
+        newFolderUnavailable: null,
+      }),
+    };
+  }
+  function groupHeaders() {
+    return [
+      ...document.querySelectorAll<HTMLElement>(
+        "[data-testid^='session-sidebar-group-'][aria-expanded]:not([aria-haspopup])"
+      ),
+    ].map(header => header.dataset.testid);
+  }
+
+  it("Should hang a foldered project on the folder's rail above the root projects", async () => {
+    const { view: foldered } = projectFoldered([
+      { workspace_id: "ws-beta", folder_id: "wf-1", position: 0 },
+      { workspace_id: "@user", position: 0 },
+    ]);
+    renderList({ sessions: [], view: foldered });
+
+    const folder = await screen.findByTestId("session-sidebar-project-folder-wf-1");
+    expect(within(folder).getByTestId("session-sidebar-group-project:ws-beta")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-project-folder-wf-1-count")).toHaveTextContent("1");
+    expect(
+      within(folder)
+        .getByTestId("session-sidebar-group-project:ws-beta-header")
+        .closest("[data-slot='project-folder-member']")
+    ).not.toBeNull();
+    // Placed root projects lead in their order; never-placed ones follow in switcher order.
+    expect(groupHeaders()).toEqual([
+      "session-sidebar-group-project:ws-beta",
+      "session-sidebar-group-user",
+      "session-sidebar-group-project:ws-alpha",
+    ]);
+    // A project folder starts no session of its own.
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-project-folder-wf-1-header"));
+    expect(
+      await screen.findByTestId("session-sidebar-project-folder-wf-1-menu-rename")
+    ).toBeVisible();
+    expect(
+      screen.queryByTestId("session-sidebar-project-folder-wf-1-menu-new-session")
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should create a project folder from the list's New folder", async () => {
+    const user = userEvent.setup();
+    const { layout, view: foldered } = projectFoldered();
+    renderList({ sessions: [], view: foldered });
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByRole("menuitem", { name: "New folder" }));
+    await user.type(await screen.findByTestId("session-folder-name"), "Clients");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+    expect(layout.createFolder).toHaveBeenCalledWith("Clients");
+  });
+
+  // jsdom reports zero-size boxes, so every pointer lands on the target's lower half ("after").
+  it("Should drag projects into, within, and out of a folder, and never a folder into a project", async () => {
+    const { layout, view: foldered } = projectFoldered([
+      { workspace_id: "ws-beta", folder_id: "wf-1", position: 0 },
+    ]);
+    renderList({ sessions: [], view: foldered });
+    const header = (key: string) => screen.getByTestId(`session-sidebar-group-${key}-header`);
+    const folderHeader = await screen.findByTestId("session-sidebar-project-folder-wf-1-header");
+
+    fireEvent.dragStart(header("project:ws-alpha"));
+    fireEvent.dragOver(folderHeader);
+    expect(folderHeader).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(folderHeader);
+    expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-alpha", "wf-1");
+
+    fireEvent.dragStart(header("project:ws-alpha"));
+    fireEvent.dragOver(header("user"));
+    expect(header("user")).toHaveAttribute("data-drop", "after");
+    fireEvent.drop(header("user"));
+    expect(layout.reorderWorkspaces).toHaveBeenCalledWith(null, ["@user", "ws-alpha"]);
+
+    fireEvent.dragStart(header("project:ws-beta"));
+    const root = screen.getByTestId("session-sidebar-project-root");
+    fireEvent.dragOver(root);
+    expect(root).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(root);
+    expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-beta", null);
+
+    // A folder offers no drop on a project, and lands nowhere it is let go of there.
+    fireEvent.dragStart(folderHeader);
+    fireEvent.dragOver(header("project:ws-alpha"));
+    expect(header("project:ws-alpha")).not.toHaveAttribute("data-drop");
+    fireEvent.drop(header("project:ws-alpha"));
+    fireEvent.dragOver(root);
+    expect(root).not.toHaveAttribute("data-drop");
+    expect(layout.reorderFolders).not.toHaveBeenCalled();
+    expect(layout.reorderWorkspaces).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should move a project between folders from its header menu", async () => {
+    const user = userEvent.setup();
+    const { layout, view: foldered } = projectFoldered([
+      { workspace_id: "ws-beta", folder_id: "wf-1", position: 0 },
+    ]);
+    renderList({ sessions: [], view: foldered });
+    fireEvent.contextMenu(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-header")
+    );
+    await user.hover(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-arrange-move-to")
+    );
+    // The submenu opens on hover; its item is pressed directly once it mounts.
+    fireEvent.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-arrange-move-to-wf-1")
+    );
+    expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-alpha", "wf-1");
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-project:ws-beta-header"));
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-beta-arrange-move-out")
+    );
+    expect(layout.moveWorkspace).toHaveBeenCalledWith("ws-beta", null);
+  });
+
+  // Invariant (#1044): the footer states the scope's exact facet totals, only the
+  // non-zero ones, and stays out of the way when there is nothing to count.
+  it("Should total the scope's sessions by state in a quiet footer", () => {
+    const { update } = renderList({
+      sessions: [],
+      view: grouped({ totals: { needsYou: 1, working: 3, idle: 0 } }),
+    });
+    const footer = screen.getByTestId("session-sidebar-totals");
+    expect(footer).toHaveTextContent("1 needs you3 working");
+    expect(screen.queryByTestId("session-sidebar-totals-idle")).not.toBeInTheDocument();
+    expect(within(footer).queryByRole("button")).not.toBeInTheDocument();
+
+    update([], grouped({ totals: { needsYou: 0, working: 0, idle: 0 } }));
+    expect(screen.queryByTestId("session-sidebar-totals")).not.toBeInTheDocument();
   });
 });
 

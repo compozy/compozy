@@ -12,9 +12,12 @@ import type { SessionListGroupSpec } from "../../lib/session-list-groups";
  */
 export function SessionListGroupProjectMenu({
   group,
+  leadingItems,
   children,
 }: {
   group: Pick<SessionListGroupSpec, "kind" | "scope">;
+  /** Host items before the project's actions (project folder verbs); they open the menu for User too. */
+  leadingItems?: React.ReactNode;
   /** The header element; it becomes the right-click and Shift+F10 target. */
   children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 }) {
@@ -25,6 +28,8 @@ export function SessionListGroupProjectMenu({
       ? workspaces.data?.find(candidate => candidate.id === scope.workspaceId)
       : undefined;
   return (
-    <WorkspaceProjectContextMenu workspace={workspace}>{children}</WorkspaceProjectContextMenu>
+    <WorkspaceProjectContextMenu workspace={workspace} leadingItems={leadingItems}>
+      {children}
+    </WorkspaceProjectContextMenu>
   );
 }

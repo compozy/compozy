@@ -10,12 +10,17 @@ import type { SessionListViewModel } from "./use-session-list-view";
 import { useSessionListDnd } from "./use-session-list-dnd";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
 
+/** A folder as its dialogs need it: a session folder by default, or a project folder. */
+type DialogFolder = { id: string; name: string };
+
 /** Which folder dialog is open, if any. */
-export type SessionFolderDialogState =
+export type SessionFolderDialogState<
+  F extends DialogFolder = NonNullable<SessionListViewModel["layout"]>["folders"][number],
+> =
   /** `moveCount` set: the folder is created around the selection, which moves into it. */
   | { kind: "create"; moveCount?: number }
-  | { kind: "rename"; folder: NonNullable<SessionListViewModel["layout"]>["folders"][number] }
-  | { kind: "delete"; folder: NonNullable<SessionListViewModel["layout"]>["folders"][number] }
+  | { kind: "rename"; folder: F }
+  | { kind: "delete"; folder: F }
   | null;
 
 /** What one folder-capable query contributes: its layout (if one pair), order, and page. */

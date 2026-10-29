@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// SettingsActionMetadataPayload is a daemon API value.
+type SettingsActionMetadataPayload struct {
+	Name      string                   `json:"name"`
+	Available bool                     `json:"available"`
+	Behavior  SettingsMutationBehavior `json:"behavior"`
+}
+
+// SettingsApplyFailurePayload is a daemon API value.
+type SettingsApplyFailurePayload struct {
+	Subsystem  string         `json:"subsystem"`
+	Diagnostic DiagnosticItem `json:"diagnostic"`
+}
+
+// SettingsApplyLifecycle is a daemon API value.
+type SettingsApplyLifecycle string
+
+// SettingsApplyNextAction is a daemon API value.
+type SettingsApplyNextAction string
+
 // SettingsApplyResponse is a daemon API value.
 type SettingsApplyResponse struct {
 	Section          SettingsApplyTargetName       `json:"section,omitempty"`
@@ -424,23 +443,4 @@ type SettingsMCPAuthStatusPayload struct {
 	Refreshable  bool       `json:"refreshable"`
 	TokenPresent bool       `json:"token_present"`
 	Diagnostic   string     `json:"diagnostic,omitempty"`
-}
-
-// SettingsMCPExtensionOverridePayload is a daemon API value.
-type SettingsMCPExtensionOverridePayload struct {
-	Env     map[string]string `json:"env,omitempty"`
-	Headers map[string]string `json:"headers,omitempty"`
-	URL     string            `json:"url,omitempty"`
-}
-
-// SettingsMCPSecretPreservationPayload is a daemon API value.
-type SettingsMCPSecretPreservationPayload struct {
-	SecretEnv         []string `json:"secret_env,omitempty"`
-	OAuthClientSecret bool     `json:"oauth_client_secret,omitzero"`
-}
-
-// SettingsMCPSecretValuesPayload is a daemon API value.
-type SettingsMCPSecretValuesPayload struct {
-	SecretEnv         map[string]string `json:"secret_env,omitempty"`
-	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
 }

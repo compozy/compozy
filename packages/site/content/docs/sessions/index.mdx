@@ -162,6 +162,39 @@ sessions across groups; Stop, Archive, and Delete act on each session in its own
 The flat list under All projects or All profiles has no single owner for folders, so **New folder**
 stays disabled there with the reason, and **Manual** sort shows a note until you group the list.
 
+### Group projects into folders
+
+Under **All projects** with **Group by → Project**, folders can also hold whole projects. Choose
+**New folder** in the toolbar to add a root folder, then drag a project header onto it, or right-click
+the project header and choose **Move to folder**. Drag a project header between projects to reorder
+them, or onto the list below the folders (or choose **Move out of folder**) to take it out. Drag a
+folder header to reorder folders. A project folder holds projects only and is one level deep; a
+project's own **+** still starts sessions in that project, and a folder can never go inside a
+project. Deleting a project folder moves its projects back to the list; no project or session is
+touched. Project folders and project order belong to your profile, so under **All profiles**
+**New folder** stays disabled with the reason. Projects you never moved keep their name order after
+the ones you placed.
+
+```bash
+compozy workspace folder create "Clients" -o json
+# {"id":"wfold-…","name":"Clients","position":0,"workspace_count":0,…}
+compozy workspace move checkout-api --folder wfold-…
+compozy workspace reorder web-app checkout-api   # pin the root order
+compozy workspace folder list -o json             # {"folders":[…],"placements":[…]}
+```
+
+Agents with the `workspace_access: unrestricted` grant use `compozy__workspace_folder_list`,
+`compozy__workspace_folder_create`, `compozy__workspace_folder_rename`,
+`compozy__workspace_folder_delete`, `compozy__workspace_folder_reorder`, `compozy__workspace_move`, and
+`compozy__workspace_reorder`; `@user` names the User group.
+
+### Session totals
+
+A quiet line under the sessions list counts the sessions in the current scope (one project, All
+projects, or All profiles) that need you, are working, or are idle, for example
+`1 needs you · 3 working · 8 idle`. Only states with sessions appear. The counts cover the whole scope,
+not just the loaded rows, and update live; archived sessions are not counted.
+
 Which folders and threads are expanded is a view choice, not shared data. Each session window keeps
 its own sessions sidebar: whether it is open and which folders and threads are collapsed. A new
 window starts from the sidebar you used last, each window's sidebar survives a reload, and **⌘B**

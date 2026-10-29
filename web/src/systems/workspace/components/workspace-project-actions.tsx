@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactElement } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
 import {
   Button,
@@ -6,6 +6,7 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
   DropdownMenu,
   DropdownMenuContent,
@@ -112,19 +113,27 @@ export function WorkspaceProjectActions({
  */
 export function WorkspaceProjectContextMenu({
   workspace,
+  leadingItems,
   children,
 }: {
   workspace: WorkspacePayload | undefined;
+  /** Host items shown before the project's own actions; they keep the menu available without one. */
+  leadingItems?: ReactNode;
   children: ReactElement;
 }) {
   const flow = useWorkspaceProjectAction(workspace);
+  const enabled = Boolean(workspace) || Boolean(leadingItems);
   return (
     <>
-      <ContextMenu disabled={!workspace}>
+      <ContextMenu disabled={!enabled}>
         <ContextMenuTrigger render={children} />
-        {workspace ? (
+        {enabled ? (
           <ContextMenuContent>
-            <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="context" />
+            {leadingItems}
+            {leadingItems && workspace ? <ContextMenuSeparator /> : null}
+            {workspace ? (
+              <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="context" />
+            ) : null}
           </ContextMenuContent>
         ) : null}
       </ContextMenu>
