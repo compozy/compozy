@@ -17,6 +17,9 @@ export function useProjectPointMenu(workspaces: readonly WorkspacePayload[]) {
   const live = target
     ? workspaces.find(candidate => candidate.id === target.workspace.id)
     : undefined;
+  // A project that leaves the catalog closes its menu for good: a later return
+  // must not reopen it at the old pointer. The payload stays for a running confirm.
+  if (target?.point && !live) setTarget({ ...target, point: null });
   return {
     workspace: live ?? target?.workspace ?? null,
     /** Whether the catalog still lists the project; an unlisted one offers no actions. */

@@ -223,8 +223,20 @@ describe("DesktopMenubar project context menu", () => {
     });
 
     const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    const menuId = `workspace-project-menu-${project.id}`;
+    // An open menu closes when its project leaves and stays closed when it returns.
     fireEvent.contextMenu(row, { clientX: 40, clientY: 60 });
-    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    expect(await screen.findByTestId(menuId)).toBeVisible();
+    setWorkspaces([]);
+    await waitFor(() => expect(screen.queryByTestId(menuId)).toBeNull());
+    setWorkspaces([project]);
+    expect(screen.queryByTestId(menuId)).toBeNull();
+
+    fireEvent.contextMenu(await screen.findByTestId(`os-workspace-option-${project.id}`), {
+      clientX: 40,
+      clientY: 60,
+    });
+    const menu = await screen.findByTestId(menuId);
     await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
     expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
 
@@ -234,6 +246,33 @@ describe("DesktopMenubar project context menu", () => {
     setWorkspaces([project]);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+  });
+
+  it("Should keep a failed archive readable, but not retryable, once its project leaves", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    const { setWorkspaces } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+    });
+
+    fireEvent.contextMenu(await screen.findByTestId(`os-workspace-option-${project.id}`), {
+      clientX: 40,
+      clientY: 60,
+    });
+    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
+    const dialog = await screen.findByRole("dialog", { name: `Archive ${project.name}?` });
+    // The stubbed daemon refuses the archive.
+    await user.click(within(dialog).getByRole("button", { name: "Archive project" }));
+    const error = await within(dialog).findByRole("alert");
+
+    setWorkspaces([]);
+    expect(screen.getByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+    expect(error).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Archive project" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
 

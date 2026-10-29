@@ -45,6 +45,8 @@ function WorkspaceProjectActionDialog({
       tone={copy.tone}
       isPending={pending}
       onConfirm={flow.submit}
+      // A project that left the catalog can no longer be acted on; its failure stays readable.
+      confirmButtonProps={flow.listed ? undefined : { disabled: true }}
       error={
         failure instanceof WorkspaceApiError && failure.code === "workspace_busy"
           ? "Stop active work before archiving this project."
