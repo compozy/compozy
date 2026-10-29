@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// StreamLogsParams carries the path, query, and header parameters.
+type StreamLogsParams struct {
+	WorkspaceID      *string `url:"workspace_id"`
+	SessionID        *string `url:"session_id"`
+	AgentName        *string `url:"agent_name"`
+	Type             *string `url:"type"`
+	Run              *string `url:"run"`
+	Actor            *string `url:"actor"`
+	ActorKind        *string `url:"actor_kind"`
+	ActorID          *string `url:"actor_id"`
+	Provider         *string `url:"provider"`
+	Outcome          *string `url:"outcome"`
+	Component        *string `url:"component"`
+	ErrorOnly        *bool   `url:"error_only"`
+	AfterSeq         *int    `url:"after_seq"`
+	Since            *string `url:"since"`
+	Limit            *int    `url:"limit"`
+	Replay           *bool   `url:"replay"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
 // StreamLogs Stream runtime logs
 func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stream[LogEventPayload], error) {
 	path := "/api/logs/stream"
@@ -422,12 +446,4 @@ func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionC
 func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
 	path := "/api/settings/observability/log-tail"
 	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
-}
-
-// StreamTaskParams carries the path, query, and header parameters.
-type StreamTaskParams struct {
-	ID            string  `url:"id"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

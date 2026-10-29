@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type terminalSessionEnvironment interface {
@@ -63,6 +65,8 @@ func terminalEnvironmentProvider(state *bootState) terminal.EnvironmentProvider 
 	}
 }
 
+// terminalEnvironmentDeclarations loads active-run declarations for agents or the acting
+// profile's project/User declarations for human terminals.
 func terminalEnvironmentDeclarations(
 	ctx context.Context, state *bootState, workspaceID, profileName string, actor terminal.Actor,
 ) (config.SessionEnv, error) {
@@ -76,7 +80,13 @@ func terminalEnvironmentDeclarations(
 			RunID: actor.RunID, Generation: actor.Generation,
 		})
 	}
-	resolved, err := state.workspaceResolver.ResolveForProfile(ctx, workspaceID, profileName)
+	var resolved workspace.ResolvedWorkspace
+	var err error
+	if workspaceID == "" || workspaceID == workspaceaccess.UserSelector {
+		resolved, err = state.workspaceResolver.ResolveUser(ctx, actor.ProfileID)
+	} else {
+		resolved, err = state.workspaceResolver.ResolveForProfile(ctx, workspaceID, profileName)
+	}
 	if err != nil {
 		return nil, err
 	}

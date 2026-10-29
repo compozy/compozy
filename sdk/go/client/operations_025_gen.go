@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// ReorderSessionFolders Set the complete session folder order
+func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessionFoldersParams, body ReorderSessionFoldersRequest) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-order/folders"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReorderSessionsParams carries the path, query, and header parameters.
+type ReorderSessionsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ReorderSessions Set the manual session order in a folder or the workspace root
 func (c *Client) ReorderSessions(ctx context.Context, params ReorderSessionsParams, body ReorderSessionsRequest) (*SessionFoldersResponse, error) {
 	path := "/api/workspaces/{workspace_id}/session-order/sessions"
@@ -422,21 +446,4 @@ func (c *Client) RevokeAppToken(ctx context.Context, params RevokeAppTokenParams
 // RevokeGatewayDeviceParams carries the path, query, and header parameters.
 type RevokeGatewayDeviceParams struct {
 	ID string `url:"id"`
-}
-
-// RevokeGatewayDevice Revoke one paired gateway device and its live streams
-func (c *Client) RevokeGatewayDevice(ctx context.Context, params RevokeGatewayDeviceParams) (*GatewayRevokePayload, error) {
-	path := "/api/gateway/devices/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out GatewayRevokePayload
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RevokeToolApprovalGrantParams carries the path, query, and header parameters.
-type RevokeToolApprovalGrantParams struct {
-	ID          string `url:"id"`
-	WorkspaceID string `url:"workspace_id"`
 }

@@ -50318,6 +50318,8 @@ export interface operations {
       header?: {
         /** @description Registered browser client attachment token */
         "X-Compozy-Client-Token"?: string;
+        /** @description Browser client registration partition (project id, global, or user); defaults to the terminal workspace */
+        "X-Compozy-Client-Workspace"?: string;
       };
       path: {
         /** @description Workspace id */
@@ -51193,6 +51195,8 @@ export interface operations {
       header?: {
         /** @description Registered browser client attachment token */
         "X-Compozy-Client-Token"?: string;
+        /** @description Browser client registration partition (project id, global, or user); defaults to the terminal workspace */
+        "X-Compozy-Client-Workspace"?: string;
       };
       path: {
         /** @description Workspace id */

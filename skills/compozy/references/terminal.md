@@ -33,6 +33,17 @@ Native `compozy__window_close` and CLI/API window close remain view-only. Detach
 closing the browser does not terminate the process. A closed managed window does not reopen
 automatically for the same terminal.
 
+Under All projects, choose a project or User when opening a new terminal. The window stays bound
+to that destination: new tabs and Close use its binding even while the desktop shows All projects.
+A window whose terminal is gone closes without a running confirmation. User terminals load the
+acting profile's User environment, independently of project selection.
+
+Browser create and attach requests send the registered window-manager client ID and attachment
+token, plus `X-Compozy-Client-Workspace` naming the registration partition (`global`, `user`, or a
+project ID). The daemon verifies that exact partition/client/token in the selected profile; it
+does not search other registrations. Omitting the partition preserves the terminal-workspace
+default, with User mapped to `user`. This header identifies the viewer, not the terminal's owner.
+
 For routine internal commands, keep using the provider's normal command tool. Provider-internal
 commands render in session activity as plain command output; they do not create a CompozyOS
 terminal or terminal journal row.

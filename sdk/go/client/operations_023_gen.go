@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// PutResourceParams carries the path, query, and header parameters.
+type PutResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
 // PutResource Create or replace one desired-state resource on the local operator control plane
 func (c *Client) PutResource(ctx context.Context, params PutResourceParams, body PutResourceRequest) (*ResourceResponse, error) {
 	path := "/api/resources/{kind}/{id}"
@@ -434,16 +440,6 @@ func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMar
 	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
 	var out MarketplaceSourceResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshProviderModels Refresh provider model catalog sources across providers
-func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
-	path := "/api/model-catalog/models/refresh"
-	var out ProviderModelRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

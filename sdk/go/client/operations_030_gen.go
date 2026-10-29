@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+// UpdateAutomationTrigger Update one automation trigger
+func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TriggerResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateExtensionParams carries the path, query, and header parameters.
+type UpdateExtensionParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateExtension Update one marketplace-installed extension
 func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
 	path := "/api/extensions/{name}"
@@ -422,28 +446,4 @@ func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params Validat
 type ValidateAgentHeartbeatParams struct {
 	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
-}
-
-// ValidateAgentHeartbeat Validate a proposed HEARTBEAT.md body
-func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgentHeartbeatParams, body HeartbeatValidateByPathRequest) (*HeartbeatPolicyPayload, error) {
-	path := "/api/agents/{name}/heartbeat/validate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatPolicyPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentSoulParams carries the path, query, and header parameters.
-type ValidateAgentSoulParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
 }

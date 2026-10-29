@@ -57,6 +57,7 @@ func terminalCreateOperation(transports []Transport, workspace ParameterSpec) Op
 		withProfileSelector(
 			workspace,
 			terminalClientIdentityHeaderParam(),
+			terminalClientWorkspaceHeaderParam(),
 		),
 		contract.TerminalCreateRequest{},
 		[]ResponseSpec{
@@ -117,6 +118,7 @@ func terminalTicketOperation(transports []Transport, workspace, id ParameterSpec
 			workspace,
 			id,
 			terminalClientIdentityHeaderParam(),
+			terminalClientWorkspaceHeaderParam(),
 		),
 		contract.TerminalAttachTicketRequest{},
 		[]ResponseSpec{

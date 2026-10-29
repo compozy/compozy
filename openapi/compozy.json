@@ -90460,6 +90460,14 @@
             }
           },
           {
+            "description": "Browser client registration partition (project id, global, or user); defaults to the terminal workspace",
+            "in": "header",
+            "name": "X-Compozy-Client-Workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -91690,6 +91698,14 @@
             "description": "Registered browser client attachment token",
             "in": "header",
             "name": "X-Compozy-Client-Token",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Browser client registration partition (project id, global, or user); defaults to the terminal workspace",
+            "in": "header",
+            "name": "X-Compozy-Client-Workspace",
             "schema": {
               "type": "string"
             }

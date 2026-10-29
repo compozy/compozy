@@ -101,6 +101,7 @@ function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
   return <TerminalWindowLoaded windowId={windowId} />;
 }
 
+/** Wires a resolved window to process controls while preserving its data binding on retarget and new tabs. */
 function TerminalWindowLoaded({ windowId }: { windowId: string }) {
   const activeSessionWindowId = useDesktop(state => mostRecentSession(state, windowId)?.id ?? null);
   const activeSessionId = useDesktop(
@@ -128,6 +129,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     wait,
     viewerId,
     viewerToken,
+    viewerWorkspaceId,
     viewer,
     projectLabel,
     retargetSearch,
@@ -159,7 +161,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
         app: "terminal",
         forceNewInstance: true,
         stackTargetWindowId: windowId,
-        route: { pathname: "/terminal", search: { new: "1" } },
+        route: { pathname: "/terminal", search: { ...retargetSearch, new: "1" } },
       });
     },
     close: terminalId => close.mutate(terminalId),
@@ -217,6 +219,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       terminals={terminals}
       viewerId={viewerId}
       viewerToken={viewerToken}
+      viewerWorkspaceId={viewerWorkspaceId}
       windowedTerminalIds={windowedTerminalIds}
       workspaceId={workspaceId}
     />

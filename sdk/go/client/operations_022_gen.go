@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// PauseScheduler Pause scheduler dispatch and task-run claims
+func (c *Client) PauseScheduler(ctx context.Context, body SchedulerPauseRequest) (*SchedulerStatusResponse, error) {
+	path := "/api/scheduler/pause"
+	var out SchedulerStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PauseTaskParams carries the path, query, and header parameters.
 type PauseTaskParams struct {
 	ID      string  `url:"id"`
@@ -437,10 +447,4 @@ func (c *Client) PutProfileSelection(ctx context.Context, body ProfileSelection)
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutResourceParams carries the path, query, and header parameters.
-type PutResourceParams struct {
-	Kind string `url:"kind"`
-	ID   string `url:"id"`
 }

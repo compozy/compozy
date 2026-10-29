@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// StreamTaskParams carries the path, query, and header parameters.
+type StreamTaskParams struct {
+	ID            string  `url:"id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // StreamTask Stream task-native live events for one task
 func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
 	path := "/api/tasks/{id}/stream"
@@ -422,29 +430,5 @@ func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomatio
 // UpdateAutomationTriggerParams carries the path, query, and header parameters.
 type UpdateAutomationTriggerParams struct {
 	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationTrigger Update one automation trigger
-func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateExtensionParams carries the path, query, and header parameters.
-type UpdateExtensionParams struct {
-	Name    string  `url:"name"`
 	Profile *string `url:"profile"`
 }

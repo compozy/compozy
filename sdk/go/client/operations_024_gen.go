@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// RefreshProviderModels Refresh provider model catalog sources across providers
+func (c *Client) RefreshProviderModels(ctx context.Context, body ProviderModelRefreshRequest) (*ProviderModelRefreshResponse, error) {
+	path := "/api/model-catalog/models/refresh"
+	var out ProviderModelRefreshResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RefreshProviderModelsByProviderParams carries the path, query, and header parameters.
 type RefreshProviderModelsByProviderParams struct {
 	ProviderID string `url:"provider_id"`
@@ -419,30 +429,6 @@ func (c *Client) RenameSessionFolder(ctx context.Context, params RenameSessionFo
 
 // ReorderSessionFoldersParams carries the path, query, and header parameters.
 type ReorderSessionFoldersParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// ReorderSessionFolders Set the complete session folder order
-func (c *Client) ReorderSessionFolders(ctx context.Context, params ReorderSessionFoldersParams, body ReorderSessionFoldersRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/session-order/folders"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReorderSessionsParams carries the path, query, and header parameters.
-type ReorderSessionsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 }

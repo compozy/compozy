@@ -35,6 +35,8 @@ export type TerminalAttachTicket =
 export interface TerminalViewerIdentity {
   id: string;
   attachmentToken: string;
+  /** Desktop partition that issued the attachment token. Omission uses the terminal scope. */
+  workspaceId?: string;
 }
 
 export type TerminalAttachMode = TerminalTicketRequest["mode"];

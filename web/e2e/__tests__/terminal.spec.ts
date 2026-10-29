@@ -12,7 +12,13 @@ import { promisify, stripVTControlCharacters } from "node:util";
 import type { Locator, Page } from "@playwright/test";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import { focusWindowThroughPalette, openAppWindow, windowFrame } from "../fixtures/os-navigation";
+import {
+  focusUserScope,
+  focusWindowThroughPalette,
+  openAppWindow,
+  setGlobalScope,
+  windowFrame,
+} from "../fixtures/os-navigation";
 import { type BrowserRuntime, type RuntimePaths } from "../fixtures/runtime";
 import {
   closeTerminalWatchers,
@@ -637,6 +643,134 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
   ]);
   expect(firstQuote.quote).toContain("first-screen-intact");
 });
+
+// Invariant: desktop viewer identity and a terminal's data binding remain independent.
+// Owner: browser terminal lifecycle; this suite exercises real registration, PTY, and close.
+for (const destination of ["global-project", "global-user", "user"] as const) {
+  test(`E2E-020: ${destination} terminal creation and bound close`, async ({
+    appPage,
+    runtime,
+    browserArtifacts,
+  }) => {
+    assertLaunchRuntime(runtime);
+    const workspace = await runtimeWorkspace(runtime);
+    const target = destination === "global-project" ? workspace.id : "@user";
+    const partition = destination === "user" ? "user" : "global";
+    await ensureProjectWorkspace(appPage, runtime);
+    if (partition === "global") await setGlobalScope(appPage, true);
+    else await focusUserScope(appPage);
+    const created = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/api/workspaces/${encodeURIComponent(target)}/terminals`
+    );
+    await openAppWindow(appPage, "Terminal", "terminal");
+    if (partition === "global") {
+      await appPage.getByTestId("terminal-aggregate-project").click();
+      await appPage.getByTestId(`terminal-aggregate-project-item-${target}`).click();
+      await appPage
+        .getByTestId("terminal-aggregate-new")
+        .getByRole("button", { name: "Open", exact: true })
+        .click();
+    }
+    const response = await created;
+    expect(response.status()).toBe(201);
+    expect(response.request().headers()["x-compozy-client-workspace"]).toBe(partition);
+    expect(response.request().headers()["x-compozy-client-id"]).toMatch(/^web-/);
+    let terminal = focusedTerminalWindow(appPage);
+    const firstID = await visibleTerminalPaneID(terminal);
+    const log = await interactiveTerminalLog(terminal);
+    await log.click();
+    await appPage.keyboard.type("PS1='$ '; clear; printf 'bound-%s\\n' terminal-live");
+    await appPage.keyboard.press("Enter");
+    await expect
+      .poll(async () => (await terminalScreen(runtime, target, firstID)).content)
+      .toContain("bound-terminal-live");
+    await expect(log).toContainText("bound-terminal-live");
+    await browserArtifacts.captureScreenshot(`${destination}-attached`, appPage);
+    const nextCreated = appPage.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/api/workspaces/${encodeURIComponent(target)}/terminals`
+    );
+    await terminal.getByTestId("terminal-new").click();
+    expect((await nextCreated).status()).toBe(201);
+    terminal = focusedTerminalWindow(appPage);
+    const secondID = await visibleTerminalPaneID(terminal);
+    expect(secondID).not.toBe(firstID);
+    const secondLog = await interactiveTerminalLog(terminal);
+    await secondLog.click();
+    await appPage.keyboard.type("PS1='$ '; clear; printf 'second-%s\\n' terminal-live");
+    await appPage.keyboard.press("Enter");
+    await expect
+      .poll(async () => (await terminalScreen(runtime, target, secondID)).content)
+      .toContain("second-terminal-live");
+    await expect(secondLog).toContainText("second-terminal-live");
+    await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+    const confirmation = appPage.getByTestId("terminal-close-dialog");
+    await expect(confirmation).toBeVisible();
+    await browserArtifacts.captureScreenshot(`${destination}-confirm`, appPage);
+    await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+    const list = () =>
+      runtime.requestJSON<TerminalListEnvelope>(
+        `/api/workspaces/${encodeURIComponent(target)}/terminals`
+      );
+    expect(
+      (await list()).terminals.filter(
+        item => [firstID, secondID].includes(item.id) && item.state === "running"
+      )
+    ).toHaveLength(2);
+    await windowFrame(terminal).getByRole("button", { name: "Close window" }).click();
+    await confirmation.getByRole("button", { name: "Terminate and close" }).click();
+    await expect(terminal).toBeHidden();
+    await expect
+      .poll(
+        async () =>
+          (await list()).terminals.filter(
+            item => [firstID, secondID].includes(item.id) && item.state === "running"
+          ).length
+      )
+      .toBe(0);
+    await browserArtifacts.captureScreenshot(`${destination}-closed`, appPage);
+
+    // Recreate a persisted window whose terminal no longer exists through the public WM API.
+    const wmPath = `/api/workspaces/${partition}/window-manager`;
+    const snapshot = await runtime.requestJSON<{ revision: number }>(wmPath);
+    await runtime.requestJSON(`${wmPath}/commands`, {
+      method: "POST",
+      body: JSON.stringify({
+        workspace_id: partition,
+        command_id: "window.open",
+        expected_revision: snapshot.revision,
+        actor: { kind: "e2e", id: "terminal" },
+        origin: "web-e2e",
+        payload: {
+          window: {
+            id: "e2e-missing-terminal",
+            app: "terminal",
+            instance_key: "term-missing",
+            route: { pathname: "/terminal/term-missing", search: { workspace: target } },
+            desktop_id: "desktop-default",
+            insert_tiled: false,
+            floating_rect: { x: 0.1, y: 0.1, width: 0.6, height: 0.6 },
+          },
+        },
+      }),
+    });
+    const missing = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
+    await expect(missing).toBeVisible();
+    await browserArtifacts.captureScreenshot(`${destination}-missing`, appPage);
+    await windowFrame(missing).getByRole("button", { name: "Close window" }).click();
+    await expect(missing).toBeHidden();
+    await expect(confirmation).toBeHidden();
+    await expect(appPage.getByText("Could not close terminal", { exact: true })).toBeHidden();
+    await browserArtifacts.captureScreenshot(`${destination}-missing-closed`, appPage);
+    await appPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(missing).toHaveCount(0);
+  });
+}
 
 test("E2E-020: terminal window close preserves Stop and retries after disconnect", async ({
   appPage,
