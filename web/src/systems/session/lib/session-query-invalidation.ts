@@ -3,13 +3,26 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { sessionKeys } from "./query-keys";
 import { queryKeyHasScope } from "./session-query-policy";
 
+/**
+ * Every catalog family that can hold a row of this workspace: its own lists and
+ * the All projects aggregate, which keys under the empty workspace segment. A
+ * session-scoped reread that skipped the aggregate left those rows to the
+ * throttled catalog-stream wake alone.
+ */
+function sessionCatalogScopes(workspaceId: string): QueryKey[] {
+  const aggregate = sessionKeys.workspaceLists("");
+  return workspaceId.trim() === ""
+    ? [aggregate]
+    : [sessionKeys.workspaceLists(workspaceId), aggregate];
+}
+
 export function invalidateWorkspaceSessionCatalog(
   queryClient: QueryClient,
   workspaceId: string
 ): Promise<void> {
-  return queryClient.invalidateQueries({
-    queryKey: sessionKeys.workspaceLists(workspaceId),
-  });
+  return Promise.all(
+    sessionCatalogScopes(workspaceId).map(queryKey => queryClient.invalidateQueries({ queryKey }))
+  ).then(() => undefined);
 }
 
 export function invalidateSessionMutationQueries(
@@ -23,7 +36,7 @@ export function invalidateSessionMutationQueries(
     // lens read it. A mutation knows the session, not the lens, so it sweeps the
     // whole family rather than guessing which one is on screen.
     sessionKeys.byIdRoot(sessionId),
-    sessionKeys.workspaceLists(workspaceId),
+    ...sessionCatalogScopes(workspaceId),
   ]);
 }
 
@@ -34,7 +47,7 @@ export function invalidateSessionLiveQueries(
 ): Promise<void> {
   return invalidateSessionReads(
     queryClient,
-    [sessionKeys.byIdRoot(sessionId), sessionKeys.workspaceLists(workspaceId)],
+    [sessionKeys.byIdRoot(sessionId), ...sessionCatalogScopes(workspaceId)],
     [
       sessionKeys.detail(workspaceId, sessionId),
       sessionKeys.history(workspaceId, sessionId),

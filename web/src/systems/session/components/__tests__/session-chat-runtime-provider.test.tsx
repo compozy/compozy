@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
@@ -24,6 +24,7 @@ import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-r
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
+import { sessionRuntime as runtimeFixture } from "@/systems/session/mocks/runtime-fixture";
 import type { SessionInteractionRecord, TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
@@ -2472,6 +2473,91 @@ describe("SessionChatRuntimeProvider", () => {
     expect(typeof body.idempotency_key).toBe("string");
     expect(body.messageId).toBeUndefined();
   });
+
+  // Invariant: a prompt the daemon accepts under another provider or model has
+  // rebound the session before answering, so every catalog showing its row —
+  // the All projects aggregate included — rereads at the answer, not at turn end.
+  // Owning layer: session chat transport integration. Canonical suite: this provider suite.
+  for (const testCase of [
+    { name: "rebinds", runtime: { provider: "claude", model: "claude-opus-5-5" }, rereads: 1 },
+    {
+      name: "changes the model of",
+      runtime: { provider: "codex", model: "gpt-6-astra" },
+      rereads: 1,
+    },
+    {
+      // An omitted model resolves to the agent default, not the bound model.
+      name: "defaults the model of",
+      runtime: { provider: "codex" },
+      boundModel: "gpt-6-astra",
+      rereads: 1,
+    },
+    { name: "keeps", runtime: { provider: "codex" }, rereads: 0 },
+  ] as {
+    name: string;
+    runtime: SessionPromptRuntimeSnapshot;
+    boundModel?: string;
+    rereads: number;
+  }[]) {
+    it(`Should reread catalog rows only when an accepted prompt ${testCase.name} the runtime`, async () => {
+      const queryClient = createQueryClient();
+      // The session runs Codex before the prompt, as its detail read reports.
+      const bound = runtimeFixture("codex");
+      sessionDetailResponse = {
+        ...primarySessionFixture,
+        runtime: testCase.boundModel
+          ? { ...bound, effective: { provider: "codex", model: testCase.boundModel } }
+          : bound,
+      };
+      queryClient.setQueryData(
+        sessionKeys.detail(fixtureWorkspaceId(), primarySessionFixture.id),
+        sessionDetailResponse
+      );
+      const catalogs = [
+        sessionKeys.list(),
+        sessionKeys.list({ workspace_id: fixtureWorkspaceId() }),
+      ];
+      const reads = catalogs.map(queryKey => {
+        const queryFn = vi.fn(async () => "catalog");
+        const observer = new QueryObserver(queryClient, { queryKey, queryFn, staleTime: Infinity });
+        return { queryFn, unsubscribe: observer.subscribe(() => undefined) };
+      });
+      // The turn stays open, so only the answer can reread the catalogs.
+      const promptResponse = openSseResponse([
+        'data: {"type":"start","messageId":"rebind-turn"}\n\n',
+      ]);
+      promptResponsePromise = Promise.resolve(promptResponse.response);
+      try {
+        await waitFor(() => reads.forEach(read => expect(read.queryFn).toHaveBeenCalledOnce()));
+        const user = userEvent.setup();
+        // Without the live tail, nothing else rereads the catalogs while the turn runs.
+        renderSessionThread({
+          queryClient,
+          liveTailEnabled: false,
+          runtimeSnapshot: testCase.runtime,
+        });
+        await screen.findByTestId("composer-input");
+        const transcriptReads = countTranscriptFetches(fetchMock);
+
+        await setComposerText("Answer on the selected runtime");
+        await user.click(screen.getByTestId("composer-send-button"));
+        // The accepted answer also reconciles the admitted input from the transcript.
+        await waitFor(() =>
+          expect(countTranscriptFetches(fetchMock)).toBeGreaterThan(transcriptReads)
+        );
+
+        for (const read of reads) {
+          await waitFor(() => expect(read.queryFn).toHaveBeenCalledTimes(1 + testCase.rereads));
+        }
+      } finally {
+        for (const read of reads) read.unsubscribe();
+        promptResponse.close([
+          'data: {"type":"finish","finishReason":"stop"}\n\n',
+          "data: [DONE]\n\n",
+        ]);
+      }
+    });
+  }
 
   // Invariant: admitted input metadata renders during the POST without replacing
   // its live assistant output. Owner and canonical suite: runtime provider integration.
