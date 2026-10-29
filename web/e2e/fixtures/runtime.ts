@@ -27,6 +27,7 @@ import {
   buildResolveWorkspaceRequest,
   prependPath,
   requiresHTTPAPIReadinessProbe,
+  hermeticTerminalShell,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
@@ -205,6 +206,7 @@ async function createBrowserRuntimeAttempt(
         port: httpPort,
         socketPath: paths.daemonSocket,
         toolsExternalDefault: options.toolsExternalDefault,
+        terminalDefaultShell: hermeticTerminalShell(env),
       }),
       "utf8"
     );

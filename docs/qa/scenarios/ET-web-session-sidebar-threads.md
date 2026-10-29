@@ -160,3 +160,16 @@ fold animation, not the children's continuously spinning Working glyphs.
 Focused re-walk: all three repetitions of the unchanged full E2E-009 journey
 passed against the isolated daemon (including the 8-to-10 row assertion, drawer
 navigation, inspector roster, and live completion). No full local E2E lane ran.
+
+QA impact 2026-10-29 (#1036): when a session's runtime moves to another provider, its row's provider
+mark now follows the new binding in every scope, not only after a reload. Session-scoped rereads
+(runtime and other session mutations, the open session's live tail, prompt completion) also cover
+the All projects aggregate catalog, and an accepted prompt that binds another provider or model
+rereads the catalogs when the daemon answers rather than at turn end. Changes from the CLI, a native
+tool, or a daemon transition still arrive through the catalog stream. Walked in an isolated lab with
+acpmock Claude and Codex providers. Composer switch with a held turn, catalog-stream wake suppressed
+(window blur): before the fix the row kept the old mark for the whole turn in All projects and in a
+single project; after it, the mark changed within 1s in both. `compozy session runtime set` plus
+`session prompt` from the CLI, focused window: the mark changed within 1s in All projects and in a
+single project. Owning suites: `session read invalidation` in `query-options.test.ts` and the
+catalog-rows cases in `session-chat-runtime-provider.test.tsx`. Verdict for this leg: pass.

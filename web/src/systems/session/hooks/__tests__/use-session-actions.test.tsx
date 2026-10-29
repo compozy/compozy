@@ -311,8 +311,12 @@ describe("session actions", () => {
     expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "marketing");
   });
 
-  it("useClearSessionConversation clears transcript caches optimistically without touching drafts", async () => {
-    vi.mocked(clearSessionConversation).mockResolvedValue(createdSession);
+  it("useClearSessionConversation publishes an empty transcript after commit without touching drafts", async () => {
+    let resolveClear!: (session: typeof createdSession) => void;
+    const clearResult = new Promise<typeof createdSession>(resolve => {
+      resolveClear = resolve;
+    });
+    vi.mocked(clearSessionConversation).mockReturnValue(clearResult);
 
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -331,8 +335,20 @@ describe("session actions", () => {
       wrapper: createWrapper(queryClient),
     });
 
+    let mutation: Promise<typeof createdSession>;
     await act(async () => {
-      await result.current.mutateAsync(createdSession.id);
+      mutation = result.current.mutateAsync(createdSession.id);
+    });
+    await waitFor(() => expect(clearSessionConversation).toHaveBeenCalled());
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toEqual(transcriptCache());
+    expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual([
+      { id: "turn-1" },
+    ]);
+    await act(async () => {
+      resolveClear(createdSession);
+      await mutation;
     });
 
     expect(clearSessionConversation).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
@@ -341,7 +357,7 @@ describe("session actions", () => {
     );
     expect(
       queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
-    ).toBeUndefined();
+    ).toEqual({ pages: [], pageParams: [] });
     expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       []
     );
@@ -351,7 +367,7 @@ describe("session actions", () => {
     ).toBe(true);
   });
 
-  it("useClearSessionConversation rolls back optimistic cache changes on failure", async () => {
+  it("useClearSessionConversation preserves cached conversation on failure", async () => {
     vi.mocked(clearSessionConversation).mockRejectedValue(new Error("clear failed"));
 
     const queryClient = new QueryClient({

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/terminal/pty"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -231,4 +232,19 @@ func defaultServiceOptions(service *Service) {
 	service.now = func() time.Time { return time.Now().UTC() }
 	service.entropy = rand.Reader
 	service.inputRequestTTL = inputRequestTTL
+	service.accountShell = procutil.AccountLoginShell
+}
+
+// AccountShellResolver returns the login shell recorded for the daemon user's account.
+type AccountShellResolver func(context.Context) (string, error)
+
+// WithAccountShellResolver replaces the account database lookup behind the default shell.
+func WithAccountShellResolver(resolver AccountShellResolver) Option {
+	return func(service *Service) error {
+		if resolver == nil {
+			return errors.New("terminal: account shell resolver is required")
+		}
+		service.accountShell = resolver
+		return nil
+	}
 }

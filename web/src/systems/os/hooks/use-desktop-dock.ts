@@ -42,6 +42,11 @@ export interface UseDesktopDockOptions {
    * the same open-window rule as every other app (isolated dock tests).
    */
   terminalLive?: boolean;
+  /**
+   * Opens the Terminal launcher instead of a window when no Terminal window is
+   * open (All projects: the operator picks the project first).
+   */
+  onOpenTerminalLauncher?: () => void;
 }
 
 /**
@@ -52,7 +57,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { onNewSession, onPreload, terminalLive }: UseDesktopDockOptions
+  { onNewSession, onPreload, terminalLive, onOpenTerminalLauncher }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
@@ -171,6 +176,10 @@ export function useDesktopDock(
       }
     );
     if (target === null) {
+      if (appId === "terminal" && onOpenTerminalLauncher) {
+        onOpenTerminalLauncher();
+        return;
+      }
       void coordinator.userOpen({ app: appId });
       return;
     }

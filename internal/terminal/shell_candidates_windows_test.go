@@ -7,6 +7,7 @@ package terminal
 // Boundary IN: default shell request. Boundary OUT: host executable lookup.
 
 import (
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -17,7 +18,8 @@ func TestWindowsDefaultShellResolution(t *testing.T) { // IT-038
 
 	t.Run("Should resolve a native Windows shell when no default is configured", func(t *testing.T) {
 		t.Parallel()
-		resolved, err := resolveShell("", "")
+		manager := &Service{logger: slog.Default()}
+		resolved, err := manager.resolveShell(t.Context(), "", "")
 		if err != nil {
 			t.Fatalf("resolveShell() error = %v", err)
 		}

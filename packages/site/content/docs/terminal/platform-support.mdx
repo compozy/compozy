@@ -15,6 +15,15 @@ support from the route, operating-system label, or presence of a Terminal launch
 macOS, Linux, and Windows use the full local terminal path. Windows runs through ConPTY, with the
 process tree owned by a Job Object so closing a terminal also ends its descendants.
 
+## Default shell
+
+A terminal opened without a shell runs `[terminal].default_shell` when it is set. Otherwise macOS
+and Linux use the login shell recorded for your account (directory services on macOS, the passwd
+database on Linux), the shell you chose with `chsh`, even when the daemon was started by the
+desktop app or a service manager with a different `SHELL`. If that shell is missing or not
+executable, CompozyOS falls back to `$SHELL`, then `zsh`, `bash`, and `sh`. Windows uses `COMSPEC`,
+then PowerShell 7, Windows PowerShell, and `cmd.exe`.
+
 Limits are also explicit. Terminal count, viewer count, dimensions, frame size, scrollback, and
 recording retention come from the daemon configuration. Hitting a limit returns a typed error such as
 `terminal_limit_reached` or `subscriber_limit_reached`; CompozyOS does not silently queue an

@@ -81,3 +81,13 @@ invalid-shim failure; launching the installed mise through `FilteredDaemonEnv`
 with the simulated AppImage environment returned its version successfully.
 The Linux packaged-AppImage walk remains unverified on this
 host; these checks do not claim Linux dynamic-loader or packaged-desktop evidence.
+
+2026-10-29 qa-impact (#1025): with no requested shell and an empty `[terminal].default_shell`, a new
+terminal runs the account login shell (directory services on macOS, passwd/NSS on Linux) even when
+the daemon inherited a different `SHELL`; a configured or requested shell still wins and a missing
+account shell falls back to `$SHELL` and zsh/bash/sh. A PTY nobody has attached for writing gets
+the daemon's answer to the startup Primary Device Attributes query, so fish 4.1+ reaches its prompt
+without the 10-second "could not read response to Primary Device Attribute query" warning. Walk:
+start an isolated daemon with `SHELL=/bin/bash` for an account whose login shell is fish; open a
+terminal through the API with no shell and confirm `shell` is the fish path and the tail shows the
+fish prompt within a few seconds; set `default_shell = "sh"` and confirm the next terminal is sh.

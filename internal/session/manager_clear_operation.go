@@ -72,11 +72,17 @@ func (m *Manager) clearStoppedConversation(
 	}
 	familyLease.Release()
 
-	restarted, err := m.restartClearedConversation(ctx, spec, target, dbPath, manifest.Generation)
+	restarted, err := m.prepareClearedConversationStart(ctx, spec, target, dbPath, manifest.Generation)
 	if err != nil {
 		return nil, err
 	}
 	clearDisposition = sessionDBClearPreserveCommittedRecovery
 	clearDisposition = sessionDBClearFinalizeCommitted
-	return restarted, nil
+	// The start run already owns the Manager shutdown wait-group reservation.
+	go func() {
+		if startErr := m.runAcceptedSessionStartAndDispatch(restarted); startErr != nil {
+			m.clearLogger().Warn("session.clear.start_failed", "session_id", target, "error", startErr)
+		}
+	}()
+	return restarted.session, nil
 }

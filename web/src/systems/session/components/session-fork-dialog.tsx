@@ -16,10 +16,9 @@ import type { SessionDerivePlacementHandlers } from "../hooks/use-session-derive
 import { useSessionForkDialog } from "../hooks/use-session-fork-dialog";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import type { SessionPayload } from "../types";
-import { SessionDerivePlacementField } from "./session-derive-placement";
 import { SessionDeriveSubmitOutcome } from "./session-derive-committed-child";
 import { SessionDerivePreviewLine } from "./session-derive-preview";
-import { SessionForkFields } from "./session-fork-fields";
+import { SessionForkAgentField } from "./session-fork-agent-field";
 
 export interface SessionForkDialogProps {
   source: SessionPayload;
@@ -29,13 +28,15 @@ export interface SessionForkDialogProps {
   point: SessionForkPoint | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The child replaces the source in this window; a host without one opens it in its own. */
   placement: SessionDerivePlacementHandlers;
 }
 
 /**
- * Fork session: the Continue shell with less to choose — the agent is locked,
- * the fork point is named, and the context line carries the daemon's own
- * decisions (cut settled, native clone possible). The source is never touched.
+ * Fork session: the Continue shell with nothing to choose — the agent is locked,
+ * the context line carries the daemon's own decisions (what the cut carries,
+ * turn settled, native clone possible), and the child opens in this window.
+ * The source is never touched.
  */
 export function SessionForkDialog({
   source,
@@ -83,27 +84,13 @@ export function SessionForkDialog({
 
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col gap-4">
-            <SessionForkFields
-              agentName={model.agentName}
-              disabled={model.isSubmitting}
-              onChangePoint={() => handleOpenChange(false)}
-              pointQuote={model.pointQuote}
-              provider={model.provider}
-            />
+            <SessionForkAgentField agentName={model.agentName} provider={model.provider} />
 
             <SessionDerivePreviewLine
               nativeClone={model.nativeClone}
               refusal={model.previewRefusal}
               view={model.previewView}
             />
-
-            {model.canChoosePlacement ? (
-              <SessionDerivePlacementField
-                disabled={model.isSubmitting}
-                onChange={model.onPlacementChange}
-                value={model.placement}
-              />
-            ) : null}
 
             <SessionDeriveSubmitOutcome
               error={model.submitError}

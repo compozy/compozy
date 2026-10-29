@@ -1,8 +1,8 @@
 // Suite: Fork dialog (S5)
-// Invariant: the dialog forks the same agent (shown read-only), names the fork point, states
-// what travels from the daemon's own preview (including the native-clone decision, never
-// guessed), refuses an unsettled cut and a changed transcript truthfully, and posts exactly
-// the fork the operator saw.
+// Invariant: the dialog forks the same agent (shown read-only), states what travels from the
+// daemon's own preview (including the native-clone decision, never guessed), refuses an
+// unsettled cut and a changed transcript truthfully, posts exactly the fork the operator saw,
+// and lands the child in this window — its own window only for a host without one.
 // Owning layer: SessionForkDialog with its hooks over MSW, plus the shared derive host that
 // opens it. Canonical suite: this file.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -55,9 +55,11 @@ function queryClient() {
   });
 }
 
+/** Renders the open dialog over MSW; `withThisWindow: false` mimics a host with no session window. */
 function renderDialog(
   options: SessionDeriveHandlerOptions = {},
-  point: SessionForkPoint | null = null
+  point: SessionForkPoint | null = null,
+  { withThisWindow = true }: { withThisWindow?: boolean } = {}
 ) {
   handlers = sessionDeriveHandlers(options);
   const openInNewWindow = vi.fn<(child: SessionPayload) => void>();
@@ -69,7 +71,7 @@ function renderDialog(
         <SessionForkDialog
           onOpenChange={onOpenChange}
           open
-          placement={{ openInNewWindow, openInThisWindow }}
+          placement={withThisWindow ? { openInNewWindow, openInThisWindow } : { openInNewWindow }}
           point={point}
           source={source}
           workspaceId={workspaceId}
@@ -98,8 +100,8 @@ describe("SessionForkDialog", () => {
     vi.unstubAllGlobals();
   });
 
-  // UT-067: whole session — locked agent, preview, no message_id on the wire.
-  it("Should fork the whole session with the agent locked and open the child", async () => {
+  // UT-067: whole session — locked agent, preview, no message_id on the wire, child in this window.
+  it("Should fork the whole session with the agent locked and open the child here", async () => {
     const user = userEvent.setup();
     const onFork = vi.fn<(request: ForkSessionRequest) => void>();
     const child = forkedSessionFixture(source);
@@ -112,11 +114,12 @@ describe("SessionForkDialog", () => {
     await measured();
     expect(screen.getByTestId("session-fork-agent")).toHaveTextContent("codex·claude");
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-fork-point")).toHaveTextContent("Whole session");
-    expect(screen.queryByTestId("session-fork-point-change")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
       "Carries over 42 messages · 61.3 KiB"
     );
+    // Nothing to choose: no fork-point field and no Open in choice.
+    expect(screen.queryByText("Fork point")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-derive-preview-native")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-fork-source-note")).toHaveTextContent(
       "From Refactor flaky manager tests"
@@ -124,8 +127,8 @@ describe("SessionForkDialog", () => {
 
     await user.click(screen.getByTestId("session-fork-submit"));
 
-    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledExactlyOnceWith(child));
-    expect(openInThisWindow).not.toHaveBeenCalled();
+    await waitFor(() => expect(openInThisWindow).toHaveBeenCalledExactlyOnceWith(child));
+    expect(openInNewWindow).not.toHaveBeenCalled();
     expect(onOpenChange).toHaveBeenCalledWith(false);
     const request = onFork.mock.calls[0]![0];
     expect(request).not.toHaveProperty("message_id");
@@ -148,8 +151,22 @@ describe("SessionForkDialog", () => {
     );
   });
 
-  // UT-067 (fork from here): the point names the message; its id reaches preview and fork.
-  it("Should fork through the clicked message and quote its first 60 characters", async () => {
+  // Invariant: a host without a session window of its own (sessions modal, agent detail)
+  // has no "this" window, so the child opens in its own.
+  it("Should open the child in its own window when the host has no session window", async () => {
+    const user = userEvent.setup();
+    const child = forkedSessionFixture(source);
+    const { openInNewWindow } = renderDialog({ result: forkResultFixture(child) }, null, {
+      withThisWindow: false,
+    });
+
+    await measured();
+    await user.click(screen.getByTestId("session-fork-submit"));
+    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledExactlyOnceWith(child));
+  });
+
+  // UT-067 (fork from here): the message id reaches preview and fork; the line states the cut.
+  it("Should fork through the clicked message", async () => {
     const user = userEvent.setup();
     const onFork = vi.fn<(request: ForkSessionRequest) => void>();
     const onPreview = vi.fn<(messageId: string | null) => void>();
@@ -165,9 +182,6 @@ describe("SessionForkDialog", () => {
 
     await measured();
     expect(onPreview).toHaveBeenCalledWith(forkPointFixture.messageId);
-    expect(screen.getByTestId("session-fork-point")).toHaveTextContent(
-      "Through Refactor the flaky manager tests so they wait on the lifecyc…"
-    );
     expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
       "Carries over 18 of 42 messages · 24.1 KiB"
     );
@@ -177,14 +191,6 @@ describe("SessionForkDialog", () => {
     await waitFor(() => expect(onFork).toHaveBeenCalledOnce());
     expect(onFork.mock.calls[0]![0].message_id).toBe(forkPointFixture.messageId);
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-  });
-
-  it("Should close on Change: the fork point is chosen on the message", async () => {
-    const user = userEvent.setup();
-    const { onOpenChange } = renderDialog({ preview: forkCutPreviewFixture }, forkPointFixture);
-
-    await user.click(screen.getByTestId("session-fork-point-change"));
-    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 
   // UT-069: an unsettled cut disables Fork session and says so in the line's place.
@@ -230,7 +236,7 @@ describe("SessionForkDialog", () => {
   // UT-069: a fence conflict after opening is terminal for this open — reopen to refresh.
   it("Should refuse a changed transcript and offer only Close", async () => {
     const user = userEvent.setup();
-    const { openInNewWindow } = renderDialog(
+    const { openInThisWindow } = renderDialog(
       {
         preview: forkCutPreviewFixture,
         result: {
@@ -252,7 +258,7 @@ describe("SessionForkDialog", () => {
     const close = screen.getByTestId("session-fork-cancel");
     expect(close).toHaveTextContent("Close");
     expect(close).toBeEnabled();
-    expect(openInNewWindow).not.toHaveBeenCalled();
+    expect(openInThisWindow).not.toHaveBeenCalled();
   });
 
   it("Should show any other refusal verbatim and keep Fork session available", async () => {
@@ -282,7 +288,7 @@ describe("SessionForkDialog", () => {
   it("Should keep the committed session reachable when a retry fails without naming it", async () => {
     const user = userEvent.setup();
     const child = forkedSessionFixture(source);
-    const { openInNewWindow } = renderDialog({
+    const { openInThisWindow } = renderDialog({
       preview: forkNativePreviewFixture,
       result: [
         { status: 422, error: "provider not authenticated", child_session_id: child.id },
@@ -300,8 +306,8 @@ describe("SessionForkDialog", () => {
     );
     await user.click(screen.getByTestId("session-fork-open-committed-child"));
 
-    await waitFor(() => expect(openInNewWindow).toHaveBeenCalledTimes(1));
-    expect(openInNewWindow.mock.calls[0]?.[0].id).toBe(child.id);
+    await waitFor(() => expect(openInThisWindow).toHaveBeenCalledTimes(1));
+    expect(openInThisWindow.mock.calls[0]?.[0].id).toBe(child.id);
   });
 
   it("Should leave the fences out for a running source", async () => {
@@ -364,7 +370,10 @@ describe("SessionDeriveHost fork", () => {
     await user.click(screen.getByRole("button", { name: "Fork entry" }));
 
     expect(await screen.findByTestId("session-fork-dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("session-fork-point")).toHaveTextContent("Whole session");
+    await measured();
+    expect(screen.getByTestId("session-derive-preview")).toHaveTextContent(
+      "Carries over 42 messages"
+    );
     expect(screen.queryByTestId("session-continue-dialog")).not.toBeInTheDocument();
   });
   // Invariant: readiness belongs to this opening's own measurement. A reopened dialog

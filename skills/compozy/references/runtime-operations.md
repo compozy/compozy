@@ -78,7 +78,7 @@ The daemon owns `coordinator` and `spawned` classification. A `session.pre_creat
 a session into or out of either type, and later lifecycle hooks cannot change any persisted session
 type or workspace identity.
 
-With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails.
+With `roles.auto_title.enabled = true`, an unnamed user session receives at most one daemon-owned durable title after its first assistant response is persisted. Configure its agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`. An explicit session name wins any race; daemon-managed session types are ineligible. Treat the persisted session name as catalog identity and leave the session unnamed when generation is disabled or fails. A failed attempt records `role.auto_title.failed` and retries on a later turn, at most three attempts per session.
 
 Attachability is explicit live runtime state. Use `compozy session list --resumable -o json` before
 `compozy session resume`. The command acquires an attach lease for an eligible live session; it does
@@ -113,6 +113,18 @@ as the next generation-fenced input. Use `steer` for the same fenced replacement
 operator intent is guidance. Neither mode reuses or combines the canceled authored prompt.
 
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache or JSONL sidecars.
+
+### Clear conversation
+
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/clear` returns the existing
+session resource after the transcript reset and its new epoch commit. The response may
+report `state: "starting"`: provider startup continues under the daemon lifecycle, and
+transcript and outline reads remain available with the cleared history. Wait for readiness
+before sending; the Web shows the starting state and disables sending until ready.
+A provider startup failure is retained as a typed session failure and can be recovered
+through the usual resume/prompt path. It does not undo an already committed clear.
+Failures before the reset commits retain the existing rollback behavior. Session identity,
+attachments and presence leases survive the clear; clients keep renewing their leases.
 
 ### User scope and All projects
 

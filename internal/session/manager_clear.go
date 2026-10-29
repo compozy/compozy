@@ -15,11 +15,9 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 )
 
-// ClearConversation resets the persisted transcript and ACP conversation context
-// for an existing session while preserving the same session id. The session is
-// restarted on a fresh event store so subsequent prompts start from a clean
-// conversation. Attachments are retained because they remain scoped to the
-// unchanged session identity and may still be referenced outside the cleared epoch.
+// ClearConversation commits a fresh transcript before starting the replacement provider.
+// The session identity and attachments are retained. The returned session may
+// still be starting; provider failures are persisted without restoring old history.
 func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session, err error) {
 	if m == nil {
 		return nil, errors.New("session: manager is required")
@@ -76,25 +74,37 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	return m.clearStoppedConversation(ctx, target, owner, &meta, &sanitized, &spec)
 }
 
-func (m *Manager) restartClearedConversation(
+// prepareClearedConversationStart prepares readable storage and commits the new epoch.
+// The accepted run is launched only after this returns successfully; earlier errors roll back.
+func (m *Manager) prepareClearedConversationStart(
 	ctx context.Context,
 	spec *sessionStartSpec,
 	target string,
 	dbPath string,
 	clearGeneration string,
-) (_ *Session, err error) {
-	session, err := m.startSession(ctx, spec)
+) (_ *acceptedSessionStart, err error) {
+	accepted, err := m.acceptSessionStart(ctx, m.lifecycleCtx, spec)
 	if err != nil {
 		return nil, err
 	}
+	session := accepted.session
 	defer func() {
 		if err == nil {
 			return
 		}
+		accepted.run.cancel(err)
+		m.finishSessionStartRun(target, accepted.run, err)
 		if rollbackErr := m.rollbackClearedRestart(session, target); rollbackErr != nil {
 			err = errors.Join(err, fmt.Errorf("session: rollback failed clear restart for %q: %w", target, rollbackErr))
 		}
 	}()
+	storage, err := m.openSessionStartRecorder(ctx, spec, accepted.storage)
+	if err != nil {
+		return nil, err
+	}
+	accepted.storage = storage
+	session.setRecorder(storage.recorder)
+	accepted.run.signalRecorderReady()
 	targetEpoch, err := m.nextTranscriptEpoch(ctx, session, target)
 	if err != nil {
 		return nil, err
@@ -106,14 +116,16 @@ func (m *Manager) restartClearedConversation(
 		return nil, err
 	}
 	m.clearLogger().Info(
-		"session.clear.restart_complete",
+		"session.clear.reset_committed",
 		"session_id",
 		target,
 		"db_path",
 		dbPath,
 	)
 
-	return session, nil
+	accepted.async = true
+	accepted.persistFailure = true
+	return accepted, nil
 }
 
 func (m *Manager) rollbackClearedRestart(session *Session, target string) error {

@@ -2143,6 +2143,57 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		assertClaudeOptions(t, "session/resume", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionResume))
 	})
 
+	t.Run("Should launch an input-only child without the operator's Claude Code environment", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+		proc := startHelperProcess(t, New(), "stream_updates", "", StartOpts{
+			Command:   claudeBridge,
+			InputOnly: true,
+			Env:       helperEnvWithCapture("stream_updates", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+		var meta struct {
+			SystemPrompt string `json:"systemPrompt"`
+			ClaudeCode   struct {
+				Options struct {
+					Tools           *[]string         `json:"tools"`
+					StrictMCPConfig bool              `json:"strictMcpConfig"`
+					Plugins         *[]any            `json:"plugins"`
+					Skills          *[]string         `json:"skills"`
+					Env             map[string]string `json:"env"`
+					Settings        struct {
+						DisableAllHooks bool `json:"disableAllHooks"`
+					} `json:"settings"`
+				} `json:"options"`
+			} `json:"claudeCode"`
+		}
+		if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+			t.Fatalf("session/new _meta = %s, decode error = %v", params["_meta"], err)
+		}
+		options := meta.ClaudeCode.Options
+		if options.Tools == nil || len(*options.Tools) != 0 || !options.StrictMCPConfig ||
+			options.Plugins == nil || len(*options.Plugins) != 0 || options.Skills == nil ||
+			len(*options.Skills) != 0 || !options.Settings.DisableAllHooks {
+			t.Fatalf("input-only options = %+v, want no tools, strict MCP, no plugins or skills, hooks off", options)
+		}
+		for _, key := range []string{"CLAUDE_CODE_DISABLE_AUTO_MEMORY", "CLAUDE_CODE_DISABLE_CLAUDE_MDS"} {
+			if options.Env[key] != "1" {
+				t.Fatalf("input-only env %s = %q, want 1", key, options.Env[key])
+			}
+		}
+		if options.Env["ENABLE_CLAUDEAI_MCP_SERVERS"] != "false" {
+			t.Fatalf("input-only env = %#v, want claude.ai MCP connectors off", options.Env)
+		}
+		if meta.SystemPrompt != claudeInputOnlySystemPrompt {
+			t.Fatalf("input-only systemPrompt = %q, want the text-only override %q",
+				meta.SystemPrompt, claudeInputOnlySystemPrompt)
+		}
+		if mcpServers := string(params["mcpServers"]); mcpServers != "[]" {
+			t.Fatalf("input-only mcpServers = %s, want []", mcpServers)
+		}
+	})
+
 	t.Run("Should give Windows a PowerShell hook that does not need Git Bash", func(t *testing.T) {
 		t.Parallel()
 		hook := claudeBackgroundShellDenyHook("windows")

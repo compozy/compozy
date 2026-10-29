@@ -9,7 +9,11 @@ import { modelCatalogKeys } from "@/systems/model-catalog";
 
 import type { SessionPromptDispatchStore } from "@/components/assistant-ui/session-prompt-dispatch-store";
 import { sessionKeys } from "../lib/query-keys";
-import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
+import {
+  invalidateSessionLiveQueries,
+  invalidateSessionMutationQueries,
+} from "../lib/session-query-invalidation";
+import { promptRebindsRuntime } from "../lib/session-prompt-rebind";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import {
   createSessionPromptChatTransport,
@@ -28,6 +32,7 @@ import {
 } from "../lib/session-prompt-refusal";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
+import type { SessionPayload } from "../types";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
 import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
@@ -212,6 +217,12 @@ function buildSessionRuntimeConfig(
     const controller = new AbortController();
     const upstreamSignal = init?.signal;
     const messageId = promptRequestMessageId(init?.body);
+    // Read before dispatch: the 1s control poll may land the new binding before the answer.
+    const rebindsRuntime = promptRebindsRuntime(
+      init?.body,
+      queryClient.getQueryData<SessionPayload>(sessionKeys.detail(workspaceId, sessionId))?.runtime
+        .effective
+    );
     let answered = false;
     let detached = false;
     let request: Promise<Response> | null = null;
@@ -269,6 +280,9 @@ function buildSessionRuntimeConfig(
       await reportGatewayResponse(response);
       if (response.ok) {
         promptOutcome.accepted(messageId);
+        // The catalog rows show the bound runtime; reread them now rather than
+        // waiting for the turn to end or the throttled catalog-stream wake.
+        if (rebindsRuntime) void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
         // The POST streams the assistant, not the daemon's verified user-input
         // metadata. Read that input once while the parallel transcript SSE is
         // suspended, retaining its cursor and every streaming assistant message.

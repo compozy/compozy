@@ -18,6 +18,7 @@ import {
   buildResolveWorkspaceRequest,
   normalizeBaseURL,
   requiresHTTPAPIReadinessProbe,
+  hermeticTerminalShell,
   renderRuntimeConfig,
   resolveRuntimeMode,
   runtimeURL,
@@ -205,6 +206,20 @@ describe("runtime helpers", () => {
         socketPath: "/tmp/compozy.sock",
       })
     ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
+  });
+
+  it("Should pin a POSIX default shell so specs never inherit the host account's shell", () => {
+    expect(hermeticTerminalShell({ SHELL: "/bin/zsh" }, "darwin")).toBe("/bin/zsh");
+    expect(hermeticTerminalShell({}, "linux")).toBe("/bin/sh");
+    expect(hermeticTerminalShell({ SHELL: "/bin/bash" }, "win32")).toBeUndefined();
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        port: 4321,
+        socketPath: "/tmp/compozy.sock",
+        terminalDefaultShell: "/bin/sh",
+      })
+    ).toContain('[terminal]\ndefault_shell = "/bin/sh"\n');
   });
 
   it("Should pin the new-window policy for specs whose invariants need one placement", () => {

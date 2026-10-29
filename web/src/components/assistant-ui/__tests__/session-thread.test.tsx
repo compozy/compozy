@@ -37,6 +37,7 @@ import { useSessionComposerState } from "../hooks/use-session-composer-state";
 
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
 import {
+  isSessionRunning,
   SessionApiError,
   SessionBusyInputRefusalError,
   type SessionBusyInputDraft,
@@ -1179,7 +1180,15 @@ describe("SessionThread transcript states", () => {
   });
 
   it("Should prioritize durable starting state and keep the composer disabled", async () => {
-    renderThreadState({ status: "pending", sessionState: "starting" });
+    renderThreadState({
+      status: "pending",
+      sessionState: "starting",
+      isSessionRunning: isSessionRunning({
+        ...primarySessionFixture,
+        state: "starting",
+        badge: "running",
+      }),
+    });
 
     const pane = await screen.findByTestId("thread-session-starting");
     expect(pane).toHaveAttribute("role", "status");
@@ -1191,6 +1200,8 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("composer-input")).toHaveAttribute("inert");
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
     expect(screen.getByTestId("composer-input")).toHaveTextContent("Session is starting…");
+    expect(screen.queryByText("Thinking…")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop generation" })).not.toBeInTheDocument();
   });
 
   it("Should surface durable startup failure and link to the agent runtime settings", async () => {
@@ -2187,7 +2198,6 @@ describe("SessionThread transcript states", () => {
     fireEvent.click(fork);
     expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
       messageId: "transcript_user_001",
-      messageText: "Summarize the launch blockers before the 18:30 UTC cutover.",
     });
   });
 

@@ -65,7 +65,7 @@ export function MessageActions({ align, copyLabel, testId }: MessageActionsProps
           {copy}
           {readOnly ? null : (
             <>
-              <SessionForkMessageAction messageText={source} />
+              <SessionForkMessageAction />
               <SessionRewindMessageAction />
             </>
           )}

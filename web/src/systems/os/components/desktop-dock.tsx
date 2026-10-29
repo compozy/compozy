@@ -1,20 +1,18 @@
 import { useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 
 import { useDesktopDock, type DockPreload } from "../hooks/use-desktop-dock";
 import { useTerminalDockRunning } from "../hooks/use-terminal-dock-running";
+import { useTerminalLauncherEntry } from "../hooks/use-terminal-launcher";
+import { useShellDockPreload } from "../hooks/use-shell-dock-preload";
 import { cn } from "@compozy/ui";
-import { useActiveWorkspace } from "@/systems/workspace";
-import { profileViewKey, readProfileView, useProfileReadScope } from "@/systems/profiles";
-import { preloadSessionEntry } from "@/systems/session";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import type { OsAppId } from "../lib/os-types";
-import { getOsApp, preloadOsAppCode } from "../lib/app-registry";
 import { OsDock } from "./os-dock";
 import { OsDockAppMenu } from "./os-dock-app-menu";
 import { OsRailFoot } from "./os-dock-rail-foot";
 import { OsDockTabBar } from "./os-dock-tab-bar";
+import { TerminalLauncherDialog } from "./terminal-launcher-dialog";
 
 export interface DesktopDockProps {
   onNewSession: () => void;
@@ -29,6 +27,8 @@ export interface DesktopDockProps {
   profileSwitcher?: React.ReactNode;
   onOpenSettings: () => void;
   onPreload?: DockPreload;
+  /** Opens the Terminal launcher instead of an empty Terminal window. */
+  onOpenTerminalLauncher?: () => void;
 }
 
 /** Wake as one surface — the dock brightens back when setup finishes. */
@@ -51,12 +51,14 @@ export function DesktopDock({
   profileSwitcher,
   onOpenSettings,
   onPreload,
+  onOpenTerminalLauncher,
 }: DesktopDockProps) {
   const { entries, presentation, commandsAvailable, handleSelect, handleLaunch, handlePreload } =
     useDesktopDock(badges, {
       onNewSession,
       onPreload: dormant || !contextMenusEnabled ? undefined : onPreload,
       terminalLive,
+      onOpenTerminalLauncher,
     });
   const dormancy = cn(WAKE, dormant && DORMANT);
   const canPreload = !!onPreload && !dormant && contextMenusEnabled;
@@ -113,27 +115,25 @@ export function DesktopDock({
 }
 
 /**
- * Production dock: Terminal's live mark reads the catalog, not window-open.
- * Isolated dock tests keep rendering `DesktopDock` without this query.
+ * Production dock: Terminal's live mark reads the catalog, not window-open,
+ * and under All projects the Terminal item opens the launcher dialog.
+ * Isolated dock tests keep rendering `DesktopDock` without these reads.
  */
-export function ShellDesktopDock(props: Omit<DesktopDockProps, "terminalLive" | "onPreload">) {
+export function ShellDesktopDock(
+  props: Omit<DesktopDockProps, "terminalLive" | "onPreload" | "onOpenTerminalLauncher">
+) {
   const terminalLive = useTerminalDockRunning();
-  const queryClient = useQueryClient();
-  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
-  const { key: profileKey } = useProfileReadScope();
-  const onPreload = useCallback<DockPreload>(
-    (appId, session) => {
-      if (pending || profileKey !== profileViewKey(readProfileView(queryClient))) return;
-      const reads: Promise<unknown>[] = [preloadOsAppCode(appId)];
-      if (appId === "session" && session !== null) {
-        reads.push(preloadSessionEntry(queryClient, session));
-      } else {
-        const preload = getOsApp(appId).preload;
-        if (preload) reads.push(preload(queryClient, { workspaceId: runtimeWorkspaceId }));
-      }
-      return Promise.allSettled(reads);
-    },
-    [pending, profileKey, queryClient, runtimeWorkspaceId]
+  const launcher = useTerminalLauncherEntry();
+  const onPreload = useShellDockPreload();
+  return (
+    <>
+      <DesktopDock
+        {...props}
+        onOpenTerminalLauncher={launcher.onOpen}
+        onPreload={onPreload}
+        terminalLive={terminalLive}
+      />
+      <TerminalLauncherDialog onOpenChange={launcher.setOpen} open={launcher.open} />
+    </>
   );
-  return <DesktopDock {...props} onPreload={onPreload} terminalLive={terminalLive} />;
 }

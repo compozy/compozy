@@ -2,15 +2,18 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -192,6 +195,85 @@ func TestAutoTitleRuntime(t *testing.T) {
 		}
 		if err := runtime.HandleSessionMessagePersisted(testutil.Context(t), retryPayload); err != nil {
 			t.Fatalf("HandleSessionMessagePersisted(retry) error = %v", err)
+		}
+	})
+}
+
+func TestAutoTitleRuntimeRetries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry a failed title only on a later turn until the attempt budget is spent", func(t *testing.T) {
+		t.Parallel()
+
+		generator := &autoTitleGeneratorStub{
+			generate: func(context.Context, autoTitleRequest) (string, error) {
+				return "", errors.New("collect automatic title output: context deadline exceeded")
+			},
+		}
+		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{
+			"sess-retry": {autoTitleUserEvent(t, "sess-retry", "turn-1", "Fix checkout retries")},
+		}}
+		events := newAutoTitleEventRecorder()
+		runtime := startAutoTitleRuntime(t, sessions, generator, withAutoTitleEventWriter(events))
+
+		for attempt := 1; attempt <= autoTitleMaxAttempts; attempt++ {
+			turnID := fmt.Sprintf("turn-%d", attempt)
+			deliverAutoTitlePayload(t, runtime, autoTitleHookPayload("sess-retry", turnID, "Working on it."))
+			summary := events.next(t)
+			var content autoTitleFailureEventPayload
+			if err := json.Unmarshal(summary.Content, &content); err != nil {
+				t.Fatalf("failure event content = %s, decode error = %v", summary.Content, err)
+			}
+			wantRetry := attempt < autoTitleMaxAttempts
+			if summary.Type != eventspkg.RoleAutoTitleFailed || summary.SessionID != "sess-retry" ||
+				content.Attempt != attempt || content.TurnID != turnID ||
+				content.RetryOnLaterTurn != wantRetry || content.Operation != "generate title" ||
+				!strings.Contains(content.Error, "deadline exceeded") {
+				t.Fatalf("attempt %d failure event = %#v content = %#v", attempt, summary, content)
+			}
+			// More persisted messages of the failed turn must not retry it.
+			deliverAutoTitlePayload(t, runtime, autoTitleHookPayload("sess-retry", turnID, "Still working."))
+			if runtime.isClaimed("sess-retry") {
+				t.Fatalf("attempt %d: the failed turn re-enqueued its own title", attempt)
+			}
+		}
+		deliverAutoTitlePayload(t, runtime, autoTitleHookPayload("sess-retry", "turn-late", "Done."))
+		if runtime.isClaimed("sess-retry") {
+			t.Fatal("a session past the attempt budget enqueued another title")
+		}
+		if got := generator.callCount(); got != autoTitleMaxAttempts {
+			t.Fatalf("Generate() calls = %d, want %d", got, autoTitleMaxAttempts)
+		}
+	})
+
+	t.Run("Should apply the title when a later turn recovers from a failed attempt", func(t *testing.T) {
+		t.Parallel()
+
+		generator := &autoTitleGeneratorStub{
+			generate: func(_ context.Context, request autoTitleRequest) (string, error) {
+				if request.AssistantReply == "First reply." {
+					return "", errors.New("spawn automatic title session: context deadline exceeded")
+				}
+				return "Checkout retry fix", nil
+			},
+		}
+		sessions := &autoTitleSessionsStub{events: map[string][]store.SessionEvent{
+			"sess-recover": {autoTitleUserEvent(t, "sess-recover", "turn-1", "Fix checkout retries")},
+		}}
+		events := newAutoTitleEventRecorder()
+		runtime := startAutoTitleRuntime(t, sessions, generator, withAutoTitleEventWriter(events))
+
+		deliverAutoTitlePayload(t, runtime, autoTitleHookPayload("sess-recover", "turn-1", "First reply."))
+		events.next(t)
+		deliverAutoTitlePayload(t, runtime, autoTitleHookPayload("sess-recover", "turn-2", "Second reply."))
+		shutdownCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+		if err := runtime.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		applied := sessions.appliedSnapshot()
+		if len(applied) != 1 || applied[0].title != "Checkout retry fix" {
+			t.Fatalf("applied titles = %#v, want the recovered title", applied)
 		}
 	})
 }
@@ -494,4 +576,67 @@ func (s *autoTitleSpawnSessionsStub) StopWithCause(
 ) error {
 	s.stops = append(s.stops, autoTitleStopCall{id: id, cause: cause})
 	return nil
+}
+
+func startAutoTitleRuntime(
+	t *testing.T,
+	sessions autoTitleSessions,
+	generator autoTitleGenerator,
+	opts ...autoTitleRuntimeOption,
+) *autoTitleRuntime {
+	t.Helper()
+	runtime := newAutoTitleRuntime(sessions, generator, time.Second, slog.Default(), opts...)
+	if err := runtime.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := runtime.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
+	})
+	return runtime
+}
+
+func deliverAutoTitlePayload(
+	t *testing.T,
+	runtime *autoTitleRuntime,
+	payload hookspkg.SessionMessagePersistedPayload,
+) {
+	t.Helper()
+	if err := runtime.HandleSessionMessagePersisted(testutil.Context(t), payload); err != nil {
+		t.Fatalf("HandleSessionMessagePersisted(%s) error = %v", payload.TurnID, err)
+	}
+}
+
+func (r *autoTitleRuntime) isClaimed(sessionID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, claimed := r.claimed[sessionID]
+	return claimed
+}
+
+type autoTitleEventRecorder struct {
+	summaries chan store.EventSummary
+}
+
+func newAutoTitleEventRecorder() *autoTitleEventRecorder {
+	return &autoTitleEventRecorder{summaries: make(chan store.EventSummary, autoTitleMaxAttempts+1)}
+}
+
+func (r *autoTitleEventRecorder) WriteEventSummary(_ context.Context, summary store.EventSummary) error {
+	r.summaries <- summary
+	return nil
+}
+
+func (r *autoTitleEventRecorder) next(t *testing.T) store.EventSummary {
+	t.Helper()
+	select {
+	case summary := <-r.summaries:
+		return summary
+	case <-time.After(2 * time.Second):
+		t.Fatal("automatic title failure event was not recorded")
+		return store.EventSummary{}
+	}
 }

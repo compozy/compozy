@@ -4,9 +4,9 @@ area: ET
 title: Fork a session from the web, whole or from a message
 persona: Bruno
 journey: J-14
-expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Fork session…" right after "Continue with another agent…" (absent for archived, spawned, coordinator, and system rows). A durable user message shows "Fork from here" right before "Rewind to here" (absent for an optimistic tail, assistant messages, and read-only threads; disabled together with Rewind while the thread runs, a rewind is pending, or rewind is blocked). The dialog ("Fork session", eyebrow "Operate · Session", "Start a second session with the same agent and this conversation. This session stays unchanged.") shows the agent read-only as "{agent} · {provider}", the fork point "Whole session" (menus) or "Through “{first 60 characters}”" with a "Change" link that closes the dialog (message), the daemon-measured context line, "Uses the agent's own session clone." only when the preview reports `native_fork_possible`, and Open in (New window default). A cut whose turn has not settled reads "That turn hasn't settled yet." and keeps Fork session disabled; a transcript that changed after opening reads "Transcript changed — reopen to fork from the current state." with Fork session disabled and Cancel reading Close; other refusals show the daemon message verbatim. Fork session shows "Starting the new session…", creates exactly one child with the same agent, and opens it per Open in. The child's status line shows "Forked from {source title}"; the inspector shows Origin "fork · through {message id}" (message cut) or "fork" (whole) and Seed "replay" / "native clone · loaded" / "native clone · failed — carried context used". The source keeps every turn and its `max_sequence`.
-entry_points: web session window overflow (fork-menu-item); session row overflow (session-row-fork-{id}) in the sessions modal, window sidebar, and agent detail; user message action (user-message-fork); SessionForkDialog (session-fork-dialog, session-fork-agent, session-fork-point, session-fork-point-change, session-derive-preview, session-derive-preview-native, session-derive-placement, session-fork-submit, session-fork-submit-error); SessionOriginPill (session-origin-pill); inspector Origin section (ledger-origin, ledger-seed); GET …/derive/preview[?message_id=]; POST …/fork
-qa_status: untested
+expected: A user session's row menu (sessions modal, window sidebar, agent detail) and its window overflow offer "Fork session…" right after "Continue with another agent…" (absent for archived, spawned, coordinator, and system rows). A durable user message shows "Fork from here" right before "Rewind to here" (absent for an optimistic tail, assistant messages, and read-only threads; disabled together with Rewind while the thread runs, a rewind is pending, or rewind is blocked). The dialog ("Fork session", eyebrow "Operate · Session", "Start a second session with the same agent and this conversation. This session stays unchanged.") shows the agent read-only as "{agent} · {provider}", the daemon-measured context line ("Carries over N messages" for the whole session from menus, "Carries over N of M messages" through the clicked message's turn), and "Uses the agent's own session clone." only when the preview reports `native_fork_possible`. It has no fork-point field and no Open in choice. A cut whose turn has not settled reads "That turn hasn't settled yet." and keeps Fork session disabled; a transcript that changed after opening reads "Transcript changed — reopen to fork from the current state." with Fork session disabled and Cancel reading Close; other refusals show the daemon message verbatim. Fork session shows "Starting the new session…", creates exactly one child with the same agent, and opens it in the same window, replacing the source there (a list outside any session window — sessions modal, agent detail — opens it in its own window). The child's status line shows "Forked from {source title}"; the inspector shows Origin "fork · through {message id}" (message cut) or "fork" (whole) and Seed "replay" / "native clone · loaded" / "native clone · failed — carried context used". The source keeps every turn and its `max_sequence`.
+entry_points: web session window overflow (fork-menu-item); session row overflow (session-row-fork-{id}) in the sessions modal, window sidebar, and agent detail; user message action (user-message-fork); SessionForkDialog (session-fork-dialog, session-fork-agent, session-derive-preview, session-derive-preview-native, session-fork-submit, session-fork-submit-error); SessionOriginPill (session-origin-pill); inspector Origin section (ledger-origin, ledger-seed); GET …/derive/preview[?message_id=]; POST …/fork
+qa_status: pass
 bug_ids: BUG-20260928-message-actions-enabled-during-remote-turn; BUG-20261006-derived-child-runtime-not-selected; BUG-20261006-derived-child-nested-under-source
 fix_status: fixed
 retest_status: pending
@@ -23,12 +23,12 @@ for the native line, one that advertises `session/fork` + `session/load`
 
 1. Prompt three turns. Hover the second user message: "Fork from here" sits before "Rewind to here".
    While a fourth prompt runs, both are disabled.
-2. Click "Fork from here": the dialog shows the locked agent, "Through “…”" quoting that message,
-   "Carries over N messages · X KiB"; Change closes the dialog without creating anything.
-3. Fork session with New window: a second window opens on the child; the pill reads
-   "Forked from {source title}" and opens the source; `GET …/transcript` on the source reports the
-   same `max_sequence` as before and all three turns remain.
-4. From the window overflow → "Fork session…": the dialog reads "Whole session"; on the native agent
+2. Click "Fork from here": the dialog shows the locked agent and "Carries over N of M messages · X B";
+   there is no fork-point field and no Open in choice. Cancel closes without creating anything.
+3. Fork session: the same window now shows the child (same window id, no second session window);
+   the pill reads "Forked from {source title}" and opens the source; `GET …/transcript` on the source
+   reports the same `max_sequence` as before and all three turns remain.
+4. From the window overflow → "Fork session…": the line reads "Carries over N messages"; on the native agent
    (idle, bound) the line adds "Uses the agent's own session clone."; on a replay-only agent it does not.
 5. Open the dialog from a message whose turn is still running: "That turn hasn't settled yet.", Fork
    session disabled.
@@ -82,3 +82,15 @@ The session-manager regression is `TestDeriveLineageReadModel/Should_derive_*_af
 The inherited-root workspace rejection remains owned by `TestCreateUserSessionRecordsProvenanceLineage`.
 The deleted-root UI walk and restart persistence checks passed on 2026-10-21; see
 [the targeted QA report](../reports/2026-10-21-issue-883-deleted-root.md).
+
+## 2026-10-29 issue #1024 — simplified dialog, same-window landing
+
+The dialog dropped the Fork point field (and its Change link) and the Open in choice; a fork always
+opens in the window it was started from. Walked in an isolated lab (`fork-web-agent`, branch build
+served from `web/dist`): "Fork from here" on "Second step" showed only Agent, "Carries over 4 of 6
+messages · 636 B", the "From" note, and Cancel / Fork session (light and dark). Submitting retargeted
+the source window to the child (same window id, one session window), the child's lineage named the
+clicked message, and the source kept `max_sequence` 14. The sidebar row menu → "Fork session…"
+("Carries over 6 messages") landed the child in that same window too. Steps 5–8 are unchanged by this
+change. Regressions: `session-fork-dialog.test.tsx`, `session-thread.test.tsx`, E2E-002 in
+`web/e2e/__tests__/session-derive.spec.ts`. Evidence: the PR for #1024.

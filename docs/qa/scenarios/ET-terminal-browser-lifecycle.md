@@ -4,7 +4,7 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects an unbound Terminal window lists every project's terminals (plus User's) from `/api/terminals?all_workspaces=true`, kept live by the selection-bound aggregate stream, each with a project badge; opening one, or New terminal in the chosen project, binds the window to that terminal's scope in place, and a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope, and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
 qa_status: untested
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
@@ -82,3 +82,14 @@ Issue #1034 review regression: catalog exit may arrive before final stream frame
 Keep the existing attachment until its own exit; final bytes must remain visible.
 Reconnect on a streamed exited pane must not fetch an unused retained snapshot.
 The delayed-real-frame browser canary and canonical window suite cover this path.
+
+2026-10-29 qa-impact (#1025): the All projects list window became the Terminal launcher. Walk:
+with running terminals in a project and User plus one exited terminal, click the dock Terminal item
+with no Terminal window open; confirm a dialog (not a window) opens with the remembered project
+preselected, the Running group lists only the running terminals with badges, and the exited one is
+absent. Type part of a project name and press Enter; confirm a bound window opens on a new
+terminal. Reopen the launcher, arrow to a Running row, press Enter; confirm it re-attaches without
+creating a terminal. Use the dock menu's Open in new window; confirm the window shows the launcher
+in place. Choose a project whose folder was removed; confirm the toast names the missing folder
+(typed `invalid_cwd`) instead of "Internal Server Error". Project desktops keep the direct open.
+Isolated-lab evidence for this walk is linked from the PR.

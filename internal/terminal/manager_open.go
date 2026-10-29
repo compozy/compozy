@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -67,7 +66,7 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 		return nil, err
 	}
 	defer releaseAdmission()
-	shell, err := resolveShell(request.Shell, settings.DefaultShell)
+	shell, err := m.resolveShell(ctx, request.Shell, settings.DefaultShell)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +286,14 @@ func (m *Service) resolveOpenWorkspace(
 		return resolved, workspaceID, err
 	}
 	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		return "", "", &Error{
+			Code: ErrorCodeInvalidCwd,
+			Message: "this project's folder no longer exists; restore the folder or update the project location " +
+				"before opening a terminal",
+			Err: errors.Join(ErrInvalidCwd, err),
+		}
+	}
 	if err != nil {
 		return "", "", fmt.Errorf(
 			"terminal: resolve workspace %q: %w",
@@ -389,31 +396,6 @@ func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested st
 func pathWithin(root, path string) bool {
 	relative, err := filepath.Rel(root, path)
 	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
-}
-
-func resolveShell(requested, configured string) (string, error) {
-	candidates := append([]string{requested, configured}, platformShellCandidates()...)
-	seen := make(map[string]struct{}, len(candidates))
-	for _, candidate := range candidates {
-		candidate = strings.TrimSpace(candidate)
-		if candidate == "" {
-			continue
-		}
-		if _, exists := seen[candidate]; exists {
-			continue
-		}
-		seen[candidate] = struct{}{}
-		resolved, err := exec.LookPath(candidate)
-		if err == nil {
-			return resolved, nil
-		}
-	}
-	return "", &Error{
-		Code:     ErrorCodeInteractiveUnavailable,
-		Message:  "no terminal shell is available",
-		Platform: runtime.GOOS,
-		Err:      errors.Join(ErrInteractive, exec.ErrNotFound),
-	}
 }
 
 func normalizedDimensions(cols, rows uint16) (uint16, uint16) {

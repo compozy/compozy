@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -567,6 +568,95 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			t.Fatalf("overridden child speed = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestManagerSpawnStartsInternalRolesInputOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start a tool-declaring auto-title child input-only without hosted MCP", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHostedMCPHarness(t)
+		addHarnessAgent(t, h, compozyconfig.AgentDef{
+			Name:     "tool-coder",
+			Provider: "claude",
+			Prompt:   "Use the available tools.",
+			Tools:    []string{toolspkg.ToolIDTaskRead.String()},
+			Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
+		})
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1, MaxDepth: 1, MaxActivePerWorkspace: 2,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:  parent.ID,
+			AgentName:        "tool-coder",
+			Name:             "Session title",
+			SpawnRole:        SpawnRoleAutoTitle,
+			TTL:              time.Minute,
+			AutoStopOnParent: true,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(auto-title) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		start := spawnStartCall(t, h, child.ID)
+		if !start.InputOnly {
+			t.Fatal("auto-title start InputOnly = false, want true")
+		}
+		if len(start.MCPServers) != 0 {
+			t.Fatalf("auto-title start MCPServers = %#v, want none", start.MCPServers)
+		}
+		if !child.Info().VerdictOnly {
+			t.Fatal("auto-title child VerdictOnly = false, want provider-native tools disabled")
+		}
+	})
+
+	t.Run("Should keep ordinary spawns on the full provider runtime", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHostedMCPHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1, MaxDepth: 1, MaxActivePerWorkspace: 2,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID,
+			AgentName:       "coder",
+			TTL:             time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(worker) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		start := spawnStartCall(t, h, child.ID)
+		if start.InputOnly || child.Info().VerdictOnly {
+			t.Fatalf("worker start InputOnly = %v VerdictOnly = %v, want full runtime",
+				start.InputOnly, child.Info().VerdictOnly)
+		}
+		if len(start.MCPServers) == 0 {
+			t.Fatal("worker start MCPServers = none, want hosted MCP")
+		}
+	})
+}
+
+func spawnStartCall(t *testing.T, h *harness, sessionID string) acp.StartOpts {
+	t.Helper()
+
+	h.driver.mu.Lock()
+	calls := slices.Clone(h.driver.startCalls)
+	h.driver.mu.Unlock()
+	for _, call := range calls {
+		if call.CompozySessionID == sessionID {
+			return call
+		}
+	}
+	t.Fatalf("no provider start recorded for %q", sessionID)
+	return acp.StartOpts{}
 }
 
 func TestManagerSpawnRejectsPolicyViolations(t *testing.T) {

@@ -57,6 +57,7 @@ type Service struct {
 	entropy         io.Reader
 	inputRequestTTL time.Duration
 	agentNiceness   int
+	accountShell    AccountShellResolver
 
 	mu                  sync.RWMutex
 	terminals           map[terminalKey]*session
