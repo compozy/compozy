@@ -149,3 +149,14 @@ and inspector display recorded provider, agent, model/effort, status and elapsed
 replacement, resize and reopen, inspector coexistence, narrow overlay, Escape and focus return.
 
 Drawer inspection steps were verified in the targeted [2026-10-28 run](../reports/2026-10-28-subagent-drawer.md). That run records its bounded coverage and does not re-certify unrelated lifecycle branches.
+
+2026-10-29 merge-train synchronization: E2E-009 waits for the branch's grid-fold
+animation to settle before clicking `Show 2 more`. In CI run 40807072482,
+Playwright scrolled the still-clipped fold to reach the button; its scrollTop
+changed from 19 to 2 during the pointer action, so the click did not expand the
+live ten-child roster. The test still asserts eight rows before the click and
+ten afterwards, with unchanged timeouts. This synchronization observes only the
+fold animation, not the children's continuously spinning Working glyphs.
+Focused re-walk: all three repetitions of the unchanged full E2E-009 journey
+passed against the isolated daemon (including the 8-to-10 row assertion, drawer
+navigation, inspector roster, and live completion). No full local E2E lane ran.

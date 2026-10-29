@@ -10,6 +10,7 @@ import type { UIMessage } from "ai";
 import {
   attachmentsFromPromptMessageParts,
   sessionStore,
+  isSendAcknowledgmentLost,
   discardSessionTerminalQuote,
 } from "@/systems/session";
 import { useSessionRewind } from "@/systems/session/hooks/use-session-rewind";
@@ -111,17 +112,20 @@ export function useSessionMessageEdit(composer: SessionComposerState): SessionMe
       if (!mounted.current) {
         try {
           await runtime.sendDetachedPrompt(message);
-          for (const attachment of submitted.attachments) {
-            if (attachment.file) releaseComposerDraftFile(attachment.file);
-          }
-          const draft = sessionStore.getSnapshot().context.drafts[runtime.sessionId];
-          if (draft === submitted.text)
-            sessionStore.trigger.composerDraftDiscarded({ sessionId: runtime.sessionId });
         } catch (error) {
           toast.error("Couldn't send the edited message.", {
             description: error instanceof Error ? error.message : undefined,
           });
+          if (!isSendAcknowledgmentLost(error)) return;
         }
+        // An unconfirmed send belongs to Retry, including its uploaded attachments.
+        // Keeping the submitted draft would allow a second send with a new identity.
+        for (const attachment of submitted.attachments) {
+          if (attachment.file) releaseComposerDraftFile(attachment.file);
+        }
+        const draft = sessionStore.getSnapshot().context.drafts[runtime.sessionId];
+        if (draft === submitted.text)
+          sessionStore.trigger.composerDraftDiscarded({ sessionId: runtime.sessionId });
         return;
       }
       runtime.resetRuntime();

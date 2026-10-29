@@ -76,7 +76,8 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 				ctx context.Context,
 				scope toolspkg.Scope,
 				req toolspkg.CallRequest,
-			) (toolspkg.ToolResult, error) {
+			) (result toolspkg.ToolResult, callErr error) {
+				defer func() { callErr = core.NativeToolError(req.ToolID, callErr) }()
 				effectiveScope, err := adapter.nativeEffectiveScope(ctx, scope)
 				if err != nil {
 					return toolspkg.ToolResult{}, err
