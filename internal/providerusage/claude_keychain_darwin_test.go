@@ -166,21 +166,35 @@ func TestClaudeKeychainCommand(t *testing.T) {
 		}
 		requireNoError(t, procutil.WaitForCommandProcessGroupExit(cmd, time.Second))
 	})
-	t.Run("Should classify a background timeout as consent recovery without exposing output", func(t *testing.T) {
+	t.Run("Should classify background timeouts as consent recovery without exposing output", func(t *testing.T) {
 		t.Parallel()
-		reader := claudeExecKeychain{run: func(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
-			if cmd.Path == "/usr/bin/osascript" {
-				return []byte(`{"status":0,"safe":true}`), nil
-			}
-			<-ctx.Done()
-			return []byte("secret"), ctx.Err()
-		}}
-		_, err := reader.Read(t.Context(), "service", "account", false)
-		usage := AsUsageError(err, "Claude")
-		requireEqual(t, ErrorCodeKeychainReadTimeout, usage.Code)
-		requireEqual(t, StatusNeedsConsent, usage.Status())
-		requireEqual(t, string(ActionRefresh), usage.Action)
-		requireEqual(t, true, explicitRecovery("claude", usage))
+		for _, phase := range []string{"preflight", "secret read"} {
+			t.Run("Should recover from a timed out "+phase, func(t *testing.T) {
+				t.Parallel()
+				secretReads := 0
+				reader := claudeExecKeychain{run: func(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
+					if cmd.Path == "/usr/bin/osascript" && phase == "secret read" {
+						return []byte(`{"status":0,"safe":true}`), nil
+					}
+					if cmd.Path == "/usr/bin/security" {
+						secretReads++
+					}
+					<-ctx.Done()
+					return []byte("secret"), ctx.Err()
+				}}
+				_, err := reader.Read(t.Context(), "service", "account", false)
+				usage := AsUsageError(err, "Claude")
+				requireEqual(t, ErrorCodeKeychainReadTimeout, usage.Code)
+				requireEqual(t, StatusNeedsConsent, usage.Status())
+				requireEqual(t, string(ActionRefresh), usage.Action)
+				requireEqual(t, true, explicitRecovery("claude", usage))
+				wantReads := 0
+				if phase == "secret read" {
+					wantReads = 1
+				}
+				requireEqual(t, wantReads, secretReads)
+			})
+		}
 	})
 	t.Run("Should bound captured secret output", func(t *testing.T) {
 		t.Parallel()

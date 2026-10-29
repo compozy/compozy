@@ -19,7 +19,7 @@ func TestClaudeKeychainIntegration(t *testing.T) {
 		t.Skip("set COMPOZY_KEYCHAIN_TEST=1 to authorize disposable Keychain items")
 	}
 	t.Run(
-		"Should read rotated credentials with security without renewing a foreign partition grant",
+		"Should read Claude-style security rewrites without renewing permission",
 		func(t *testing.T) {
 			t.Parallel()
 			service := claudeTestKeychainItem(t, true)

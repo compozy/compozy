@@ -30,6 +30,8 @@ func claudeKeychainCommand(ctx context.Context, service, account string) *exec.C
 	return exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-s", service, "-a", account, "-w")
 }
 
+// Read returns secret bytes for the caller to clear. Explicit reads may authorize;
+// background reads require safe metadata and bound the remaining check/read race.
 func (c claudeExecKeychain) Read(ctx context.Context, service, account string, interactive bool) ([]byte, error) {
 	if !interactive {
 		if err := c.preflight(ctx, service, account); err != nil {
@@ -61,6 +63,7 @@ func (c claudeExecKeychain) Read(ctx context.Context, service, account string, i
 	return bytes.TrimSuffix(data, []byte{'\n'}), nil
 }
 
+// preflight inspects metadata with UI disabled and never requests secret data.
 func (c claudeExecKeychain) preflight(ctx context.Context, service, account string) error {
 	checkCtx, cancel := context.WithTimeout(ctx, claudeBackgroundReadTimeout)
 	defer cancel()
@@ -69,6 +72,9 @@ func (c claudeExecKeychain) preflight(ctx context.Context, service, account stri
 	data, err := c.run(checkCtx, command)
 	defer clear(data)
 	if err != nil {
+		if errors.Is(checkCtx.Err(), context.DeadlineExceeded) {
+			return NewUsageError(ErrorCodeKeychainReadTimeout, "Claude")
+		}
 		return os.ErrPermission
 	}
 	return decodeClaudeKeychainPreflight(data)
@@ -91,6 +97,8 @@ func decodeClaudeKeychainPreflight(data []byte) error {
 	return nil
 }
 
+// runClaudeKeychainCommand kills the isolated process group on cancellation,
+// discards stderr, and transfers ownership only of a successful bounded stdout.
 func runClaudeKeychainCommand(ctx context.Context, command *exec.Cmd) ([]byte, error) {
 	procutil.ConfigureCommandProcessGroup(command)
 	command.Cancel = func() error { return procutil.SignalCommandProcessGroup(command, syscall.SIGKILL) }
