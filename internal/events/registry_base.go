@@ -93,6 +93,7 @@ var baseRegistryEntries = []Metadata{
 	global(info(SettingsChanged, "settings", ComponentConfig)),
 	global(info(RoleFallbackUsed, "role", ComponentRole)),
 	global(failure(RoleResolveError, "role", ComponentRole)),
+	global(warning(RoleAutoTitleFailed, "role", ComponentRole)),
 	global(success(ProfileCreated, "profile.lifecycle", ComponentProfile)),
 	global(success(ProfileRenamed, "profile.lifecycle", ComponentProfile)),
 	global(info(ProfileIdentityUpdated, "profile.identity", ComponentProfile)),

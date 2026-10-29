@@ -1224,6 +1224,9 @@ acp_options = [{ id = "thinking", bool_value = true }]
 
 `compozy roles show auto_title` prints each route with its `command`, and
 `compozy logs --type role.fallback.used` shows which route each attempt used by fingerprint.
+A failed title attempt records `role.auto_title.failed` with its `operation`, `attempt`,
+`max_attempts`, `retry_on_later_turn`, and a bounded `error`; the title is retried on a later turn,
+at most three attempts per session.
 
 ### `[roles.coordinator]`
 

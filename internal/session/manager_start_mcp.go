@@ -62,13 +62,20 @@ func (m *Manager) sessionMCPServers(
 }
 
 func sessionRequiresHostedMCP(spec *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {
+	var lineage *store.SessionLineage
+	if spec != nil {
+		lineage = store.NormalizeSessionLineage(spec.sessionID, spec.lineage)
+		// Input-only children only transform their prompt, whatever tools their agent declares.
+		if IsInternalSpawnRole(lineage.SpawnRole) {
+			return false
+		}
+	}
 	if len(resolved.Tools) > 0 || len(resolved.Toolsets) > 0 {
 		return true
 	}
 	if spec == nil {
 		return false
 	}
-	lineage := store.NormalizeSessionLineage(spec.sessionID, spec.lineage)
 	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
 	return len(policy.Tools) > 0
 }

@@ -69,6 +69,16 @@ session metadata and the catalog. An explicit name always wins any race. If gene
 or fails, the session remains unnamed; daemon-managed session types are never eligible. Configure
 the title pass agent, provider, model, reasoning, and fallback routes under `[roles.auto_title]`.
 
+The title pass runs in a hidden, input-only child session. It receives no provider tools or hosted
+MCP server, and a Claude route starts without your Claude Code tools, MCP servers, plugins, skills,
+settings hooks, `CLAUDE.md` files, or auto-memory, so a title costs about one thousand prompt tokens
+and a few seconds. A failed attempt records a `role.auto_title.failed` log event and is retried on a
+later turn, at most three attempts per session:
+
+```bash
+compozy logs --workspace <ref> --session <session-id> --type role.auto_title.failed --last 10 -o json
+```
+
 The request must include exactly one of:
 
 - `workspace`: a registered workspace name or ID

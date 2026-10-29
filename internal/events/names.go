@@ -96,6 +96,8 @@ const (
 	// SessionDerived records a continued or forked child after its commit.
 	SessionDerived   = "session.derived"
 	RoleResolveError = "role.resolve.error"
+	// RoleAutoTitleFailed records one failed automatic-title attempt and whether a later turn retries it.
+	RoleAutoTitleFailed = "role.auto_title.failed"
 
 	ProfileCreated              = "profile.created"
 	ProfileRenamed              = "profile.renamed"
