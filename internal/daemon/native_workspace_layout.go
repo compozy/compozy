@@ -39,7 +39,10 @@ func (n *daemonNativeTools) workspaceLayoutTool(call workspaceLayoutCall) toolsp
 		}
 		manager, ok := n.deps.Sessions.(core.WorkspaceLayoutManager)
 		if !ok {
-			return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "workspace layout capability is unavailable")
+			return toolspkg.ToolResult{}, nativeUnavailableError(
+				req.ToolID,
+				"workspace layout capability is unavailable",
+			)
 		}
 		if err := n.requireWorkspaceLayoutAuthority(ctx, req.ToolID, scope); err != nil {
 			return toolspkg.ToolResult{}, err
@@ -94,7 +97,13 @@ func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 			return "", nil
 		}
 		if ref == "" {
-			return "", nativeInputError(id, fmt.Errorf("%w: workspace is required outside a workspace-bound session", store.ErrWorkspaceLayoutInvalid))
+			return "", nativeInputError(
+				id,
+				fmt.Errorf(
+					"%w: workspace is required outside a workspace-bound session",
+					store.ErrWorkspaceLayoutInvalid,
+				),
+			)
 		}
 		if n.deps.Workspaces == nil {
 			return "", nativeUnavailableError(id, "workspace registry is unavailable")

@@ -7,7 +7,7 @@ import {
   applyWorkspaceFolderRemoval,
   applyWorkspaceMove,
   applyWorkspaceOrder,
-} from "../lib/workspace-folders";
+} from "../lib/workspace-layout-edits";
 import type { WorkspaceFolderPayload, WorkspaceLayoutResponse } from "../types";
 
 const STORY_TIME = "2026-10-29T12:00:00Z";

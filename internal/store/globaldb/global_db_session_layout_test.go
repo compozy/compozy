@@ -492,7 +492,13 @@ func TestWorkspaceLayout(t *testing.T) {
 		if err := db.DeleteWorkspace(ctx, beta); err != nil {
 			t.Fatalf("DeleteWorkspace() error = %v", err)
 		}
-		if got := readWorkspaceLayoutForTest(ctx, t, db, profile).Placements; len(got) != 1 || got[0].WorkspaceID != alpha {
+		if got := readWorkspaceLayoutForTest(
+			ctx,
+			t,
+			db,
+			profile,
+		).Placements; len(got) != 1 ||
+			got[0].WorkspaceID != alpha {
 			t.Fatalf("placements after workspace delete = %+v", got)
 		}
 		if err := db.DeleteWorkspaceFolder(ctx, profile, "wfold-a"); err != nil {

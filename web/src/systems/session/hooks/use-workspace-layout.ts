@@ -17,15 +17,17 @@ import { shiftId } from "../lib/session-folders";
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import type { SessionListGroupBy } from "../lib/session-list-preferences";
 import {
-  applyWorkspaceFolderOrder,
-  applyWorkspaceFolderRemoval,
-  applyWorkspaceMove,
-  applyWorkspaceOrder,
   buildProjectGroupTree,
   projectGroupTreeGroups,
   withPlacedProjectGroups,
   type ProjectGroupTree,
 } from "../lib/workspace-folders";
+import {
+  applyWorkspaceFolderOrder,
+  applyWorkspaceFolderRemoval,
+  applyWorkspaceMove,
+  applyWorkspaceOrder,
+} from "../lib/workspace-layout-edits";
 import type { WorkspaceFolderPayload, WorkspaceLayoutResponse } from "../types";
 
 /** One profile's project folders and project order, plus the operator's layout verbs. */

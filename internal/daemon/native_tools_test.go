@@ -14700,8 +14700,14 @@ func TestNativeWorkspaceLayoutTools(t *testing.T) {
 	t.Run("Should move the caller's own workspace when workspace is omitted", func(t *testing.T) {
 		t.Parallel()
 		sessions, registry := newRegistry(t, "")
-		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, WorkspaceID: "ws-1"},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceMove, Input: json.RawMessage(`{"folder_id":"wfold-1"}`)})
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorkspaceMove,
+				Input:  json.RawMessage(`{"folder_id":"wfold-1"}`),
+			},
+		)
 		if err != nil {
 			t.Fatalf("workspace_move without workspace error = %v", err)
 		}

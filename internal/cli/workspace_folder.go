@@ -12,11 +12,12 @@ import (
 const (
 	workspaceFolderWorkspacesLabel = "Workspaces"
 	workspaceRootContainerLabel    = "(root)"
+	workspaceLayoutPositionKey     = "position"
 )
 
 func newWorkspaceFolderCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "folder",
+		Use:   sessionFolderFlagName,
 		Short: "Group workspaces into root folders",
 		Long: "Manage the profile's root workspace folders shown in All projects. " +
 			"Folders are one level deep and hold workspaces only. " +
@@ -34,7 +35,7 @@ func newWorkspaceFolderCommand(deps commandDeps) *cobra.Command {
 
 func newWorkspaceFolderListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   agentListKey,
 		Short: "List workspace folders and placements in manual order",
 		Example: `  # Show the profile's workspace folders and manual order
   compozy workspace folder list`,
@@ -225,7 +226,7 @@ func workspaceFolderBundle(folder contract.WorkspaceFolderPayload) outputBundle 
 		toon: func() (string, error) {
 			return renderToonObject(
 				"workspace_folder",
-				[]string{"id", automationNameKey, "position", "workspace_count"},
+				[]string{"id", automationNameKey, workspaceLayoutPositionKey, "workspace_count"},
 				[]string{folder.ID, folder.Name, strconv.Itoa(folder.Position), strconv.Itoa(folder.WorkspaceCount)},
 			), nil
 		},
@@ -249,7 +250,7 @@ func workspaceLayoutBundle(layout contract.WorkspaceLayoutResponse) outputBundle
 	}
 	rows := make([]row, 0, len(layout.Folders)+len(layout.Placements))
 	for _, folder := range layout.Folders {
-		rows = append(rows, row{"folder", folder.ID, folder.Name, workspaceRootContainerLabel,
+		rows = append(rows, row{sessionFolderFlagName, folder.ID, folder.Name, workspaceRootContainerLabel,
 			strconv.Itoa(folder.Position)})
 	}
 	for _, placement := range layout.Placements {
@@ -266,7 +267,7 @@ func workspaceLayoutBundle(layout contract.WorkspaceLayoutResponse) outputBundle
 		"Workspace Layout",
 		[]string{"Kind", "ID", automationNameValue, "Container", sessionFolderPositionLabel},
 		"workspace_layout",
-		[]string{"kind", "id", automationNameKey, "container", "position"},
+		[]string{"kind", "id", automationNameKey, "container", workspaceLayoutPositionKey},
 		render,
 		render,
 	)

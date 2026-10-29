@@ -29,13 +29,15 @@ import {
 import { buildSessionListThreads } from "../session-list-threads";
 import { projectSessionGroups } from "../session-list-groups";
 import {
-  applyWorkspaceFolderRemoval,
-  applyWorkspaceMove,
-  applyWorkspaceOrder,
   buildProjectGroupTree,
   withPlacedProjectGroups,
   projectGroupContainerIds,
 } from "../workspace-folders";
+import {
+  applyWorkspaceFolderRemoval,
+  applyWorkspaceMove,
+  applyWorkspaceOrder,
+} from "../workspace-layout-edits";
 
 function session(id: string, folderId?: string, parentId?: string): SessionPayload {
   return {
