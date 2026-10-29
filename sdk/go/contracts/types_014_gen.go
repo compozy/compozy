@@ -4,6 +4,17 @@ package contracts
 
 import "time"
 
+type ProbeResult struct {
+	AgentName  string    `json:"agent_name,omitempty"`
+	Provider   string    `json:"provider,omitempty"`
+	Command    string    `json:"command,omitempty"`
+	Executable string    `json:"executable,omitempty"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	DurationMS int64     `json:"duration_ms"`
+}
+
 type ProfileLens struct {
 	ID   ProfileLensID `json:"profile_lens_id"`
 	Name string        `json:"profile_name"`
@@ -143,5 +154,3 @@ type ResourceOwner struct {
 	Kind ResourceOwnerKind `json:"kind"`
 	ID   string            `json:"id"`
 }
-
-type ResourceOwnerKind string

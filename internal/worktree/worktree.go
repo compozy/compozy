@@ -160,6 +160,7 @@ type PendingUpdate struct {
 
 // Store owns workspace-predicated persistence for the worktree domain.
 type Store interface {
+	RemoveMissing(context.Context, string, string, time.Time) (bool, error)
 	Insert(context.Context, Worktree) error
 	Get(context.Context, string, string) (*Worktree, error)
 	GetByPath(context.Context, string, string) (*Worktree, error)

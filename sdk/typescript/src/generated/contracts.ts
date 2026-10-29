@@ -3946,6 +3946,19 @@ export interface SessionStatusGetParams {
   session_id: string;
 }
 
+export interface DiagnosticItem {
+  id: string;
+  code: string;
+  severity: string;
+  category: string;
+  title: string;
+  message: string;
+  suggested_command?: string;
+  doc_url?: string;
+  data_freshness: string;
+  evidence?: Record<string, JSONValue>;
+}
+
 export interface ReplyWatchPayload {
   id: string;
   target_session_id: string;
@@ -4030,6 +4043,7 @@ export interface SessionDerivationPayload {
 }
 
 export interface SessionStatusResponse {
+  diagnostics?: DiagnosticItem[];
   reply_watches?: ReplyWatchPayload[];
   queue?: SessionQueueSummaryPayload;
   lifecycle_state?: State;

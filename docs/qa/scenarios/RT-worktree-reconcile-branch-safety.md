@@ -40,3 +40,12 @@ unrelated stale entry, and remain retryable while cleanup fails. If the saved Gi
 even force must preserve the registration and the other checkout. These cases are owned by
 `TestWorktreeLifecycleIntegration` in `internal/worktree/worktree_integration_test.go`; validation
 uses real isolated Git repositories and the race detector.
+
+## Missing registration removal regression: GitHub #1011
+
+In an isolated lab, create a managed worktree, remove its checkout externally, and refresh until its state is `missing`.
+
+- `worktree remove <id> --force` removes it from visible catalogs without Git commands, hooks, or filesystem deletion. Repeat removal is idempotent and historical attribution remains retained.
+- Recreate the saved path with a sentinel before removal. Removal must fail closed and preserve the sentinel.
+- Bind a session before removing its checkout. Even a stopped session blocks removal until archived; `--force` does not bypass this guard.
+- Ordinary removal preserves the branch. `--delete-branch` remains a separate opt-in governed by the existing branch ownership, occupancy, and merge-safety checks.

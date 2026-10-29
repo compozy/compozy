@@ -242,6 +242,7 @@ type SessionHealthResponse struct {
 
 // SessionStatusResponse returns compact session status plus wake eligibility.
 type SessionStatusResponse struct {
+	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
 	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
 	LifecycleState      session.State                    `json:"lifecycle_state,omitempty"`

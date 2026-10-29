@@ -32,6 +32,7 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		return
 	}
 	response := contract.SessionStatusResponse{
+		Diagnostics:         MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing")),
 		LifecycleState:      health.LifecycleState,
 		Verified:            health.Verified,
 		Escalated:           health.Escalated,
@@ -72,7 +73,7 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		}
 		response.PendingInteractions = PendingInteractionPayloadsFromStore(interactions)
 	}
-	if h.HeartbeatStatus != nil {
+	if h.HeartbeatStatus != nil && len(response.Diagnostics) == 0 {
 		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, false)
 		if err != nil {
 			h.respondError(c, StatusForHeartbeatError(err), err)

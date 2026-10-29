@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+type TerminalClosedPayload struct {
+	Event       HookEvent    `json:"event"`
+	Timestamp   time.Time    `json:"timestamp"`
+	WorkspaceID string       `json:"workspace_id"`
+	ProfileID   string       `json:"profile_id"`
+	TerminalID  string       `json:"terminal_id,omitempty"`
+	ActorKind   string       `json:"actor_kind"`
+	ActorID     string       `json:"actor_id"`
+	SessionID   string       `json:"session_id,omitempty"`
+	RunID       string       `json:"run_id,omitempty"`
+	Generation  int64        `json:"generation,omitempty"`
+	At          time.Time    `json:"at"`
+	Exit        TerminalExit `json:"exit"`
+	Reason      string       `json:"reason"`
+}
+
 type TerminalCommandFinishedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -331,12 +347,4 @@ type ToolResult struct {
 	Bytes      int64                      `json:"bytes"`
 	DurationMS int64                      `json:"duration_ms"`
 	Trust      ResultTrust                `json:"trust,omitempty"`
-}
-
-type ToolResultPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	ToolResult json.RawMessage `json:"tool_result,omitempty"`
-	Error      *string         `json:"error,omitempty"`
 }

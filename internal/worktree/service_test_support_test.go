@@ -484,3 +484,7 @@ func (s *memoryWorktreeStore) phases() []PendingPhase {
 }
 
 var _ Store = (*memoryWorktreeStore)(nil)
+
+func (s *memoryWorktreeStore) RemoveMissing(ctx context.Context, workspaceID, id string, at time.Time) (bool, error) {
+	return s.CompareAndSwapState(ctx, workspaceID, id, StateMissing, StateDismissed, at)
+}

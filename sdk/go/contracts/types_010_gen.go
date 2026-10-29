@@ -4,6 +4,10 @@ package contracts
 
 import "time"
 
+type HeartbeatWakeResponse struct {
+	Decision HeartbeatWakeDecisionPayload `json:"decision"`
+}
+
 type HeartbeatWakeResult string
 
 type HeartbeatWakeSource string
@@ -160,11 +164,4 @@ type InputMentionMetadata struct {
 	Label  string           `json:"label"`
 	Start  int              `json:"start"`
 	End    int              `json:"end"`
-}
-
-type InputPreSubmitPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Message       *string        `json:"message,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }

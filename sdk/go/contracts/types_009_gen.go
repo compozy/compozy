@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
+
 type HeartbeatConfigSubsetPayload struct {
 	Enabled                      bool   `json:"enabled"`
 	MaxBodyBytes                 int64  `json:"max_body_bytes"`
@@ -210,8 +215,4 @@ type HeartbeatWakeRequest struct {
 	Source         HeartbeatWakeSource `json:"source"`
 	DryRun         bool                `json:"dry_run,omitempty"`
 	IdempotencyKey string              `json:"idempotency_key,omitempty"`
-}
-
-type HeartbeatWakeResponse struct {
-	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }

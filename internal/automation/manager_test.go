@@ -2054,6 +2054,46 @@ func TestManagerCRUDBeforeStartUsesPersistenceWithoutRuntime(t *testing.T) {
 func TestManagerStartWrapsSyncConfigDefinitionFailure(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: an unavailable registered project cannot abort healthy config synchronization.
+	// Owner: automation manager; canonical config startup suite.
+	t.Run("Should retain missing project definitions and synchronize healthy jobs", func(t *testing.T) {
+		t.Parallel()
+		h := newManagerHarness(t)
+		manager := h.newManager(t, compozyconfig.AutomationConfig{
+			Enabled: true, Timezone: DefaultTimezone, MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+			DefaultFireLimit: DefaultFireLimitConfig(),
+			Jobs: []compozyconfig.AutomationJob{
+				managerConfigJob(
+					AutomationScopeWorkspace,
+					"missing-root",
+					h.workspace.ID,
+					ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1h"},
+				),
+				managerConfigJob(
+					AutomationScopeGlobal,
+					"healthy-user",
+					"",
+					ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1h"},
+				),
+			},
+		})
+		if err := os.RemoveAll(h.workspaceRoot); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		jobs, err := manager.store.ListJobDefinitions(h.ctx, JobSourceConfig)
+		if err != nil || len(jobs) != 2 {
+			t.Fatalf("synchronized jobs = %#v, %v", jobs, err)
+		}
+	})
+
 	t.Run("Should wrap a missing workspace reference", func(t *testing.T) {
 		t.Parallel()
 

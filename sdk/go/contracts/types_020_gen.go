@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type SubagentWorktreePayload struct {
+	ID                string                      `json:"id"`
+	Name              string                      `json:"name"`
+	Branch            string                      `json:"branch"`
+	BaseRef           string                      `json:"base_ref"`
+	BaseSHA           string                      `json:"base_sha,omitempty"`
+	Path              string                      `json:"path"`
+	HeadSHA           string                      `json:"head_sha,omitempty"`
+	CommitsAhead      *int                        `json:"commits_ahead,omitempty"`
+	DirtyFiles        *int                        `json:"dirty_files,omitempty"`
+	ObservedAt        *time.Time                  `json:"observed_at,omitempty"`
+	PullRequestStatus string                      `json:"pull_request_status,omitempty"`
+	PullRequest       *SubagentPullRequestPayload `json:"pull_request,omitempty"`
+}
+
 type TargetKind string
 
 type Task struct {
@@ -302,14 +317,4 @@ type TaskDashboardQueueDepthPayload struct {
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
-}
-
-type TaskDashboardQueuePayload struct {
-	Total                 int                              `json:"total"`
-	Depth                 []TaskDashboardQueueDepthPayload `json:"depth,omitempty"`
-	OldestQueuedAt        time.Time                        `json:"oldest_queued_at"`
-	OldestQueueAgeMilli   int64                            `json:"oldest_queue_age_ms"`
-	BacklogWarning        bool                             `json:"backlog_warning"`
-	BacklogStatus         string                           `json:"backlog_status"`
-	BacklogThresholdMilli int64                            `json:"backlog_threshold_ms"`
 }

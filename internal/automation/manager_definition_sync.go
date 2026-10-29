@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	storepkg "github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // SyncManagedDefinitions reconciles one daemon-managed automation source
@@ -308,6 +309,24 @@ func (m *Manager) resolveConfigWorkspace(
 		ref = normalizedRef
 	}
 	resolved, err := m.workspaceResolver.Resolve(ctx, ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		if registry, ok := m.workspaceResolver.(interface {
+			Get(context.Context, string) (workspacepkg.Workspace, error)
+		}); ok {
+			registered, lookupErr := registry.Get(ctx, ref)
+			if lookupErr != nil {
+				return "", lookupErr
+			}
+			m.logger.Warn(
+				"automation.config.workspace_unavailable",
+				"workspace_id",
+				registered.ID,
+				"code",
+				"workspace_root_missing",
+			)
+			return registered.ID, nil
+		}
+	}
 	if err != nil {
 		return "", err
 	}

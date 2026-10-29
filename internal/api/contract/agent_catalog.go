@@ -31,6 +31,7 @@ type AgentCatalogFacetsPayload struct {
 
 // AgentCatalogResponse is one bounded Global or workspace agent fleet page.
 type AgentCatalogResponse struct {
+	Diagnostics       []DiagnosticItem          `json:"diagnostics,omitempty"`
 	Agents            []AgentCatalogItemPayload `json:"agents"`
 	Page              CountedCursorPagePayload  `json:"page"`
 	Facets            AgentCatalogFacetsPayload `json:"facets"`

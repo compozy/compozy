@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -229,6 +230,13 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 		return setNativeWorkspaceInput(payload, registration.ID)
 	}
 	resolved, err := b.workspaces.Resolve(ctx, ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && nativeAllowsMissingWorkspace(id) {
+		registration, getErr := b.workspaces.Get(ctx, ref)
+		if getErr != nil {
+			return nativeInputError(id, getErr)
+		}
+		return setNativeWorkspaceInput(payload, registration.ID)
+	}
 	if err != nil {
 		return nativeInputError(id, err)
 	}

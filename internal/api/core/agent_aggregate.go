@@ -2,6 +2,7 @@ package core
 
 import (
 	"cmp"
+	"errors"
 	"net/http"
 	"slices"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/listcursor"
 	"github.com/compozy/compozy/internal/session"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,14 +65,15 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		h.respondError(c, statusForAgentWorkspaceError(err), err)
 		return
 	}
-	userAgentNames := make(map[string]struct{}, len(userAgents.Entries))
-	for _, entry := range userAgents.Entries {
-		userAgentNames[entry.Def.Name] = struct{}{}
-	}
+	userAgentNames := aggregateUserAgentNames(userAgents.Entries)
 	for workspace := range allowed {
 		resolved := userAgents
 		if workspace != "" {
 			resolved, err = h.workspaceAgentEntriesWithDiagnostics(c.Request.Context(), workspace, profileName)
+			if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+				response.Diagnostics = append(response.Diagnostics, MissingWorkspaceDiagnostics(workspace)...)
+				continue
+			}
 			if err != nil {
 				h.respondError(c, statusForAgentWorkspaceError(err), err)
 				return
@@ -144,6 +147,9 @@ func newAggregateAgentPaging(
 
 // finish sorts the merged rows and facets, then cuts the requested page and its next cursor.
 func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) error {
+	slices.SortFunc(response.Diagnostics, func(a, b contract.DiagnosticItem) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
 	slices.Sort(response.Facets.Categories)
 	response.Facets.Categories = slices.Compact(response.Facets.Categories)
 	slices.SortFunc(response.Agents, func(a, b contract.AgentCatalogItemPayload) int {
@@ -240,4 +246,12 @@ func inheritedUserAgentWithoutProjectWork(
 		return false
 	}
 	return metrics[entry.Def.Name].Total == 0
+}
+
+func aggregateUserAgentNames(entries []AgentCatalogEntry) map[string]struct{} {
+	names := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		names[entry.Def.Name] = struct{}{}
+	}
+	return names
 }

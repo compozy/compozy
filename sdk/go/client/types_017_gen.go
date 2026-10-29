@@ -13,6 +13,7 @@ type SessionOwner struct {
 
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
+	Diagnostics              []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	WorktreeBinding          *WorktreeBindingAvailability     `json:"worktree_binding,omitempty"`
 	Branch                   string                           `json:"branch,omitempty"`
 	PullRequest              *SessionPullRequestPayload       `json:"pull_request"`
@@ -253,6 +254,7 @@ type SessionSpec struct {
 
 // SessionStatusResponse is a daemon API value.
 type SessionStatusResponse struct {
+	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
 	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
 	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
 	LifecycleState      State                            `json:"lifecycle_state,omitempty"`

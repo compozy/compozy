@@ -84,10 +84,32 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 		return resolver.ResolveUser(ctx, scope.ProfileID)
 	}
 	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && nativeAllowsMissingWorkspace(id) {
+		registration, getErr := n.deps.Workspaces.Get(ctx, ref)
+		if getErr != nil {
+			return workspacepkg.ResolvedWorkspace{}, nativeInputError(id, getErr)
+		}
+		registration.RootMissing = true
+		return workspacepkg.ResolvedWorkspace{
+			Workspace: registration, WorkspaceID: registration.ID, Scope: workspacepkg.ScopeWorkspace,
+		}, nil
+	}
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, nativeInputError(id, err)
 	}
 	return resolved, nil
+}
+
+func nativeAllowsMissingWorkspace(id toolspkg.ToolID) bool {
+	switch id {
+	case toolspkg.ToolIDSessionStatus,
+		toolspkg.ToolIDSessionDescribe,
+		toolspkg.ToolIDSessionArchive,
+		toolspkg.ToolIDSessionUnarchive:
+		return true
+	default:
+		return false
+	}
 }
 
 func nativeCallerWorkspaceInput(

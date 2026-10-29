@@ -606,6 +606,30 @@ func (q *Queries) ListWorktreesAggregate(ctx context.Context) ([]Worktree, error
 	return items, nil
 }
 
+const removeMissingWorktree = `-- name: RemoveMissingWorktree :execrows
+UPDATE worktrees SET state = 'dismissed', updated_at = ?1
+WHERE worktrees.workspace_id = ?2 AND worktrees.id = ?3 AND worktrees.state = 'missing'
+  AND NOT EXISTS (
+    SELECT 1 FROM sessions
+    WHERE sessions.workspace_id = worktrees.workspace_id AND sessions.worktree_id = worktrees.id
+      AND sessions.archived_at IS NULL
+  )
+`
+
+type RemoveMissingWorktreeParams struct {
+	UpdatedAt   string `json:"updated_at"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+}
+
+func (q *Queries) RemoveMissingWorktree(ctx context.Context, arg RemoveMissingWorktreeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, removeMissingWorktree, arg.UpdatedAt, arg.WorkspaceID, arg.WorktreeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setWorktreeState = `-- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = ?1, updated_at = ?2
 WHERE workspace_id = ?3

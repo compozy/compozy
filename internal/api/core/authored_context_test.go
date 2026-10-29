@@ -447,12 +447,38 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		stopVerificationFailed bool
+		missingRoot            bool
 		path                   string
 		heartbeatErr           error
 		wantStatus             int
 		registerRoute          func(handlerFixture)
 		assertPayload          func(*testing.T, map[string]any)
 	}{
+		{
+			name:        "Should retain session status and diagnose a missing workspace root",
+			path:        "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
+			missingRoot: true,
+			wantStatus:  http.StatusOK,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/status",
+					fixture.Handlers.GetSessionStatus,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				if payload["session_id"] != "sess-deleted-agent" || payload["lifecycle_state"] != "active" {
+					t.Fatalf("retained status = %#v", payload)
+				}
+				diagnostics, ok := payload["diagnostics"].([]any)
+				if !ok || len(diagnostics) != 1 || diagnostics[0].(map[string]any)["code"] != "workspace_root_missing" {
+					t.Fatalf("missing-root diagnostics = %#v", payload["diagnostics"])
+				}
+				if _, ok := payload["wake_state"]; ok {
+					t.Fatal("missing root exposed wake policy")
+				}
+			},
+		},
 		{
 			name:         "Should return status without Heartbeat enrichment after agent deletion",
 			path:         "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
@@ -584,7 +610,13 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 				},
 			}
 			workspaces := testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot}, nil
+				},
 				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if testCase.missingRoot {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+					}
 					if err := ctx.Err(); err != nil {
 						return workspacepkg.ResolvedWorkspace{}, err
 					}
@@ -629,7 +661,11 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 				t.Fatalf("Unmarshal(response) error = %v", err)
 			}
 			testCase.assertPayload(t, payload)
-			if got, want := statusSpy.calls, 1; got != want {
+			wantCalls := 1
+			if testCase.missingRoot {
+				wantCalls = 0
+			}
+			if got, want := statusSpy.calls, wantCalls; got != want {
 				t.Fatalf("HeartbeatStatus.Status() calls = %d, want %d", got, want)
 			}
 		})
