@@ -24,7 +24,8 @@ Added 2026-10-19 for issue #825. Walk, on a single desktop unless noted:
 4. With two Session windows, one of them retired to the empty state, create a session: the empty-state window receives it. Without an empty one, the most recently focused Session window receives it.
 5. Pin the only Session window, or move it to another desktop, then create a session: a new Session window opens, and the pinned or other-desktop window is left as it was.
 6. Close every Session window and create a session: a new window opens (today's behavior).
-7. Fork or continue a session with "open in new window": it still opens beside the current window.
+7. Continue a session with "open in new window": it still opens beside the current window. (Fork has no
+   placement choice since #1024; it always replaces the conversation in the current window.)
 8. Start a session from the empty-desktop composer while a minimized Session window sits on that desktop: the window is restored with the new session.
 
 QA 2026-10-19: steps 1–8 walked in an isolated Playwright lab against the branch daemon; see the dated report. Dialog steps used Session > New session; the dock, ⌘K, list "+", sidebar and agent-page launchers open the same dialog and share its submit path. The palette prompt fallback was not walked (it shares the empty-desktop composer's created-session jump, step 8).

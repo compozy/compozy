@@ -8,14 +8,14 @@ import { useSessionMessageActionGate } from "./use-session-message-action-gate";
  * here" is (a durable user message) and only under a host that can open the
  * Fork dialog; busy under the same gates.
  */
-export function useSessionForkMessageAction(messageText: string) {
+export function useSessionForkMessageAction() {
   const gate = useSessionMessageActionGate();
   const requestFork = use(SessionForkContext);
   const available = gate.durable && requestFork !== null;
 
   const trigger = () => {
     if (!available || gate.busy) return;
-    requestFork(undefined, { messageId: gate.messageId, messageText });
+    requestFork(undefined, { messageId: gate.messageId });
   };
 
   return { available, busy: gate.busy, trigger };

@@ -36,7 +36,7 @@ const meta: Meta<typeof SessionForkDialog> = {
     docs: {
       description: {
         component:
-          "Fork session (dialogs board §02). The agent is locked — another agent is a Continue. The fork point is the whole session or, from “Fork from here”, the clicked message and its turn; Change closes the dialog because the point is chosen on the message. The native-clone sentence appears only when the daemon's preview reports `native_fork_possible`.",
+          "Fork session (dialogs board §02). The agent is locked — another agent is a Continue. The context line states what travels: the whole session or, from “Fork from here”, the clicked message and its turn. The child always opens in this window. The native-clone sentence appears only when the daemon's preview reports `native_fork_possible`.",
       },
     },
   },
@@ -56,7 +56,7 @@ async function submitWhenMeasured(canvasElement: HTMLElement) {
 /** VC-11: opened from a menu — the whole session. */
 export const WholeSession: Story = { parameters: deriveParameters() };
 
-/** VC-12: opened by "Fork from here" — through the quoted message, with Change. */
+/** VC-12: opened by "Fork from here" — the line carries the messages through that turn. */
 export const FromMessage: Story = {
   args: { point: forkPointFixture },
   parameters: deriveParameters({ preview: forkCutPreviewFixture }),

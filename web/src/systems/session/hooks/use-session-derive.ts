@@ -13,14 +13,18 @@ import { sessionDerivePreviewOptions } from "../lib/session-derive-query";
 import { sessionDerivePreviewView } from "../lib/session-derive-view";
 import type { SessionPayload } from "../types";
 
-/** Where a derived child opens. `new-window` keeps the source visible (the default). */
+/**
+ * Where a derived child opens. Continue offers both (`new-window` keeps the
+ * source visible and is its default); Fork always lands `this-window`.
+ */
 export type SessionDerivePlacement = "new-window" | "this-window";
 
 /**
  * Host-owned landings. New window is the attention-jump `userOpen` path, which
  * focuses a window the child already owns instead of opening a second one;
  * This window is the host's in-place retarget. A host without a session window
- * of its own omits `openInThisWindow`, and the choice is not offered.
+ * of its own omits `openInThisWindow`: Continue does not offer the choice and
+ * every child, a fork's included, opens in its own window.
  */
 export interface SessionDerivePlacementHandlers {
   openInNewWindow: (child: SessionPayload) => void;
