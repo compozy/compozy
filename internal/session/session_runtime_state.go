@@ -12,27 +12,28 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
-	runtimeStrategy     acp.RuntimeApplicationStrategy
-	process             *AgentProcess
-	selection           RuntimeSelection
-	status              RuntimeStatus
-	transition          RuntimeTransitionStrategy
-	failure             string
-	generation          int64
-	recovery            *store.SessionRuntimeRecovery
-	acpSessionID        string
-	acceptedRoute       *store.SessionAcceptedRoute
-	acceptedCommand     string
-	acceptedSessionEnv  compozyconfig.SessionEnv
-	pendingResumeReplay string
-	acpCaps             acp.Caps
-	acpCapsKnown        bool
-	speedResolution     *speedpkg.Resolution
-	liveness            *store.SessionLivenessMeta
-	agentDef            compozyconfig.AgentDef
-	advertisedCommands  []store.SessionAdvertisedCommand
-	startupManifest     acp.StartupManifest
-	runtimeRelease      *runtimeRelease
+	runtimeStrategy        acp.RuntimeApplicationStrategy
+	process                *AgentProcess
+	selection              RuntimeSelection
+	status                 RuntimeStatus
+	transition             RuntimeTransitionStrategy
+	failure                string
+	generation             int64
+	recovery               *store.SessionRuntimeRecovery
+	acpSessionID           string
+	acceptedRoute          *store.SessionAcceptedRoute
+	acceptedCommand        string
+	acceptedSessionEnv     compozyconfig.SessionEnv
+	pendingResumeReplay    string
+	acpCaps                acp.Caps
+	acpCapsKnown           bool
+	speedResolution        *speedpkg.Resolution
+	liveness               *store.SessionLivenessMeta
+	agentDef               compozyconfig.AgentDef
+	advertisedCommands     []store.SessionAdvertisedCommand
+	startupManifest        acp.StartupManifest
+	nativeToolsUnavailable bool
+	runtimeRelease         *runtimeRelease
 }
 
 func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
@@ -51,24 +52,25 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 			Speed:           s.Speed,
 			ACPOptions:      acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		},
-		status:              s.RuntimeStatus,
-		transition:          s.RuntimeTransition,
-		failure:             s.RuntimeFailure,
-		generation:          s.RuntimeGeneration,
-		recovery:            store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
-		acpSessionID:        s.ACPSessionID,
-		acceptedRoute:       store.CloneSessionAcceptedRoute(s.acceptedRoute),
-		acceptedCommand:     s.acceptedCommand,
-		acceptedSessionEnv:  compozyconfig.MergeSessionEnv(nil, s.acceptedSessionEnv),
-		pendingResumeReplay: s.pendingResumeReplay,
-		acpCaps:             cloneCaps(s.ACPCaps),
-		acpCapsKnown:        s.ACPCapsKnown,
-		speedResolution:     speedpkg.CloneResolution(s.SpeedResolution),
-		liveness:            store.CloneSessionLivenessMeta(s.Liveness),
-		agentDef:            compozyconfig.CloneAgentDef(s.agentDef),
-		advertisedCommands:  store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
-		startupManifest:     acp.CloneStartupManifest(s.startupManifest),
-		runtimeRelease:      s.runtimeRelease,
+		status:                 s.RuntimeStatus,
+		transition:             s.RuntimeTransition,
+		failure:                s.RuntimeFailure,
+		generation:             s.RuntimeGeneration,
+		recovery:               store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
+		acpSessionID:           s.ACPSessionID,
+		acceptedRoute:          store.CloneSessionAcceptedRoute(s.acceptedRoute),
+		acceptedCommand:        s.acceptedCommand,
+		acceptedSessionEnv:     compozyconfig.MergeSessionEnv(nil, s.acceptedSessionEnv),
+		pendingResumeReplay:    s.pendingResumeReplay,
+		acpCaps:                cloneCaps(s.ACPCaps),
+		acpCapsKnown:           s.ACPCapsKnown,
+		speedResolution:        speedpkg.CloneResolution(s.SpeedResolution),
+		liveness:               store.CloneSessionLivenessMeta(s.Liveness),
+		agentDef:               compozyconfig.CloneAgentDef(s.agentDef),
+		advertisedCommands:     store.CloneSessionAdvertisedCommands(s.AdvertisedCommands),
+		startupManifest:        acp.CloneStartupManifest(s.startupManifest),
+		nativeToolsUnavailable: s.nativeToolsUnavailable,
+		runtimeRelease:         s.runtimeRelease,
 	}
 }
 
@@ -247,6 +249,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.agentDef = compozyconfig.CloneAgentDef(snapshot.agentDef)
 	s.AdvertisedCommands = store.CloneSessionAdvertisedCommands(snapshot.advertisedCommands)
 	s.startupManifest = acp.CloneStartupManifest(snapshot.startupManifest)
+	s.nativeToolsUnavailable = snapshot.nativeToolsUnavailable
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}

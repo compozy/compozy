@@ -2152,3 +2152,23 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 		}
 	})
 }
+
+func TestStartFinalizesRuntimeGuidance(t *testing.T) {
+	t.Parallel()
+	t.Run("Should deliver finalized guidance on the first prompt", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "initialize_contract", "", StartOpts{
+			SystemPrompt: "unconfirmed tools",
+			FinalizeStartup: func(context.Context) (string, StartupManifest, error) {
+				return "confirmed runtime guidance", OpaqueStartupManifest("confirmed runtime guidance", false), nil
+			},
+		})
+		defer stopProcess(t, driver, proc)
+		text, included, _ := proc.nextPromptText("hello", false)
+		if !included || strings.Contains(text, "unconfirmed tools") ||
+			!strings.Contains(text, "confirmed runtime guidance") {
+			t.Fatalf("first prompt = %q", text)
+		}
+	})
+}

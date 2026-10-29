@@ -59,8 +59,9 @@ func (m *Manager) resolveSessionStartRuntime(
 	}
 	spec.commandFingerprint = providerCommandFingerprint(resolved.Command)
 	return sessionStartRuntime{
-		agent:    resolved,
-		agentDef: compozyconfig.CloneAgentDef(agentDef),
+		nativeToolsUnavailable: resolved.Harness == compozyconfig.ProviderHarnessPiACP,
+		agent:                  resolved,
+		agentDef:               compozyconfig.CloneAgentDef(agentDef),
 	}, nil
 }
 
@@ -101,6 +102,10 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 	if err := m.prepareSessionStartSoul(ctx, spec, &artifacts, updatedAt); err != nil {
 		return fmt.Errorf("session: prepare soul for %q: %w", spec.sessionID, err)
 	}
+	if runtime.agent.Harness == compozyconfig.ProviderHarnessPiACP {
+		// Pi confirms extension tools before assembling its startup guidance.
+		return nil
+	}
 	return m.assembleAcceptedStartupDefinition(ctx, spec, runtime, updatedAt)
 }
 
@@ -114,6 +119,7 @@ func (m *Manager) assembleAcceptedStartupDefinition(
 ) error {
 	agentDef := compozyconfig.CloneAgentDef(runtime.agentDef)
 	startupCtx := spec.startupPromptContext(updatedAt)
+	startupCtx.NativeToolsUnavailable = runtime.nativeToolsUnavailable
 	if strings.TrimSpace(startupCtx.AgentName) == "" {
 		startupCtx.AgentName = strings.TrimSpace(agentDef.Name)
 	}

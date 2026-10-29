@@ -265,6 +265,10 @@ func gatherPromptSections(
 		if descriptor.Provider == nil {
 			continue
 		}
+		if startup.NativeToolsUnavailable && (descriptor.Name == string(HarnessPromptSectionSkills) ||
+			descriptor.Name == string(HarnessPromptSectionTools)) {
+			continue
+		}
 
 		section, err := promptSection(ctx, descriptor.Provider, startup, agent, workspace, filter)
 		if err != nil {

@@ -95,20 +95,28 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 			"runtime guidance. Prefer Compozy-native tools when they are visible and callable; " +
 			"otherwise use Compozy CLI, HTTP, or UDS surfaces for Compozy runtime operations.\n\n",
 	)
-	builder.WriteString(
-		"Compozy native tool IDs such as `compozy__tool_search` are canonical registry IDs, not guaranteed " +
-			"direct harness invocation names. When you need a native tool, search or load it by " +
-			"capability and canonical ID, then call the tool reference surfaced by the active harness " +
-			"exactly as returned. Use bare `compozy__*` IDs inside Compozy descriptor fields, policy config, " +
-			"CLI/API commands, and `tool_id` inputs.\n\n",
-	)
-	builder.WriteString(
-		"Background work that outlives your turn must wake you through Compozy. Provider-internal " +
-			"background tasks, monitors, scheduled wakeups, and \"I will report when it finishes\" promises " +
-			"cannot start a Compozy turn, so their results never reach the user. Run long commands with " +
-			"`compozy__terminal_exec`, register `compozy__monitor_create` on the returned terminal or as a " +
-			"timer, then end your turn; Compozy wakes this session when the monitor fires.\n\n",
-	)
+	if startup.NativeToolsUnavailable {
+		builder.WriteString(
+			"Compozy native tools are unavailable in this runtime. Use authorized Compozy CLI, HTTP, or UDS surfaces. " +
+				"Do not assume a native tool or skill reader is callable. " +
+				"Background work cannot resume this session without a confirmed daemon wake.\n\n",
+		)
+	} else {
+		builder.WriteString(
+			"Compozy native tool IDs such as `compozy__tool_search` are canonical registry IDs, not guaranteed " +
+				"direct harness invocation names. When you need a native tool, search or load it by " +
+				"capability and canonical ID, then call the tool reference surfaced by the active harness " +
+				"exactly as returned. Use bare `compozy__*` IDs inside Compozy descriptor fields, policy config, " +
+				"CLI/API commands, and `tool_id` inputs.\n\n",
+		)
+		builder.WriteString(
+			"Background work that outlives your turn must wake you through Compozy. Provider-internal " +
+				"background tasks, monitors, scheduled wakeups, and \"I will report when it finishes\" promises " +
+				"cannot start a Compozy turn, so their results never reach the user. Run long commands with " +
+				"`compozy__terminal_exec`, register `compozy__monitor_create` on the returned terminal or as a " +
+				"timer, then end your turn; Compozy wakes this session when the monitor fires.\n\n",
+		)
+	}
 	builder.WriteString("Current session facts:\n")
 	writeCompozyRuntimeFact(&builder, "session_id", startup.SessionID)
 	writeCompozyRuntimeFact(&builder, "session_name", startup.SessionName)

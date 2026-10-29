@@ -23,6 +23,16 @@
 
 ## Operating Rule
 
+For `pi_acp`, CompozyOS loads its versioned session extension through Pi's
+`--extension` option. Pi's native MCP client exposes the hosted tools under its
+`mcp__...` names; discover by the canonical `compozy__*` ID and call the returned
+reference. Do not construct the session-specific namespace. The bridge requires
+Pi's `registerMcpServer` API and native MCP support (verified on Pi 1.4.0).
+Startup checks tool registration before advertising native tools. A
+`pi_native_tools_*` runtime warning means the bridge is unavailable and startup
+uses CLI guidance. The launch layer does not edit native Pi settings or copy login
+credentials; bound-secret sessions keep their managed Pi directory.
+
 Inside CompozyOS, prefer callable daemon-native tools over shelling out. They are policy-filtered, structured, auditable, and redaction-aware. Use shell only when a native tool is absent, denied, too narrow, or explicitly requested.
 
 Never guess a tool schema from this reference. Resolve canonical `compozy__tool_info` for the exact descriptor, input schema, risks, and availability diagnostics before the first call.

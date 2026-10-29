@@ -222,10 +222,11 @@ type Session struct {
 	deriveCommitted bool
 	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
 	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
-	acceptedCommand    string
-	acceptedSessionEnv compozyconfig.SessionEnv
-	agentDef           compozyconfig.AgentDef
-	startupManifest    acp.StartupManifest
+	acceptedCommand        string
+	acceptedSessionEnv     compozyconfig.SessionEnv
+	agentDef               compozyconfig.AgentDef
+	startupManifest        acp.StartupManifest
+	nativeToolsUnavailable bool
 
 	sessionDir                 string
 	metaPath                   string

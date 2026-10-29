@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -1291,4 +1292,150 @@ func readProviderJSON[T any](t *testing.T, path string) T {
 		t.Fatalf("Unmarshal(%q) error = %v", path, err)
 	}
 	return value
+}
+
+func TestPiNativeToolsLaunch(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve native authentication and bind each launch to its own server", func(t *testing.T) {
+		t.Parallel()
+		session := &Session{sessionDir: t.TempDir()}
+		original := acp.StartOpts{
+			Cwd: t.TempDir(),
+			Env: []string{"PI_CODING_AGENT_DIR=/operator/pi", "PI_ACP_PI_COMMAND=/operator/bin/pi"},
+			MCPServers: []compozyconfig.MCPServer{
+				{
+					Name:    "hosted",
+					Command: "/bin/compozy",
+					Args:    []string{"mcp", "hosted"},
+					Env:     map[string]string{"SESSION_TOKEN": "private-token"},
+				},
+			},
+		}
+		first, statusPath, err := preparePiNativeTools(session, original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, secondPath, err := preparePiNativeTools(session, original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if statusPath == secondPath ||
+			envValue(first.Env, "PI_ACP_PI_COMMAND") == envValue(second.Env, "PI_ACP_PI_COMMAND") {
+			t.Fatal("launches share bridge state")
+		}
+		if envValue(first.Env, "PI_CODING_AGENT_DIR") != "/operator/pi" ||
+			envValue(first.Env, "COMPOZY_PI_COMMAND") != "/operator/bin/pi" {
+			t.Fatal("native authentication or executable changed")
+		}
+		if len(first.MCPServers) != 0 {
+			t.Fatal("ACP passthrough would duplicate extension-owned servers")
+		}
+		config := readProviderJSON[piBridgeConfig](t, envValue(first.Env, "COMPOZY_PI_BRIDGE"))
+		if len(config.Servers) != 1 || config.Servers[0].Config["command"] != "/bin/compozy" {
+			t.Fatalf("server = %#v", config.Servers)
+		}
+		assertProviderRuntimeFileMode(t, envValue(first.Env, "COMPOZY_PI_BRIDGE"), 0o600)
+		assertProviderRuntimeFileMode(t, filepath.Dir(statusPath), 0o700)
+		if err := writeProviderJSON(
+			statusPath,
+			piBridgeStatus{Nonce: config.Nonce, Code: "ready", Count: 4},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if code := readPiBridgeStatus(t.Context(), statusPath); code != "" {
+			t.Fatalf("readiness = %s", code)
+		}
+	})
+	t.Run("Should reject stale readiness and preserve typed bridge failures", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			status piBridgeStatus
+			want   string
+		}{
+			{piBridgeStatus{Nonce: "old-launch", Code: "ready", Count: 4}, "pi_native_tools_status_invalid"},
+			{piBridgeStatus{Nonce: "launch", Code: "ready", Count: 0}, "pi_native_tools_status_invalid"},
+			{piBridgeStatus{Nonce: "launch", Code: "pi_native_tools_unsupported"}, "pi_native_tools_unsupported"},
+		} {
+			path := filepath.Join(t.TempDir(), "launch", "status.json")
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeProviderJSON(path, tc.status); err != nil {
+				t.Fatal(err)
+			}
+			if got := readPiBridgeStatus(t.Context(), path); got != tc.want {
+				t.Fatalf("code = %q, want %q", got, tc.want)
+			}
+		}
+	})
+	t.Run("Should cancel readiness without waiting for the provider", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if got := readPiBridgeStatus(
+			ctx,
+			filepath.Join(t.TempDir(), "missing"),
+		); got != "pi_native_tools_startup_canceled" {
+			t.Fatalf("code = %q", got)
+		}
+	})
+}
+
+func TestPiNativeToolsExtension(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should confirm connected tools after the start handler returns and clean failed registrations",
+		func(t *testing.T) {
+			t.Parallel()
+			node, err := exec.LookPath("node")
+			if err != nil {
+				t.Skip("Node is required to exercise the Pi extension")
+			}
+			dir := t.TempDir()
+			extension := filepath.Join(dir, "extension.mjs")
+			if err := os.WriteFile(extension, piNativeToolsExtension, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			harness := `
+import assert from "node:assert/strict";
+import {writeFileSync, readFileSync} from "node:fs";
+import {setTimeout} from "node:timers/promises";
+const {pathToFileURL} = await import("node:url");
+const {default: setup} = await import(pathToFileURL(process.argv[1]).href);
+const config = {nonce:"launch",status:process.argv[2]+"/status.json",timeout_ms:1000,
+ servers:[{name:"first",config:{}},{name:"second",config:{}}]};
+process.env.COMPOZY_PI_BRIDGE=process.argv[2]+"/bridge.json";
+writeFileSync(process.env.COMPOZY_PI_BRIDGE, JSON.stringify(config));
+const status=()=>JSON.parse(readFileSync(config.status));
+setup({});
+assert.equal(status().code,"pi_native_tools_unsupported");
+const removed=[];
+setup({getAllTools(){return [];},registerMcpServer(name){if(name==="second") throw Error("private detail");},
+ unregisterMcpServer(name){removed.push(name);}});
+assert.deepEqual(removed,["first"]);
+assert.equal(status().code,"pi_native_tools_registration_failed");
+const handlers={};let connected=false;
+const api={registerMcpServer(){},unregisterMcpServer(name){removed.push(name);},
+ on(name,handler){handlers[name]=handler;},
+ getAllTools(){return connected?config.servers.map(s=>({name:"mcp__"+s.name+"__compozy__test",exposure:"codemode"})):[];}};
+setup(api);
+assert.equal(handlers.session_start(),undefined);
+connected=true;
+await setTimeout(100);
+assert.equal(status().code,"ready");
+assert.equal(status().count,2);
+handlers.session_shutdown();
+connected=false;
+handlers.session_start();
+await setTimeout(1100);
+assert.equal(status().code,"pi_native_tools_connection_failed");
+assert.deepEqual(removed,["first","first","second"]);
+handlers.session_shutdown();
+`
+			cmd := exec.CommandContext(t.Context(), node, "--input-type=module", "-e", harness, extension, dir)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("Pi extension lifecycle: %v\n%s", err, output)
+			}
+		},
+	)
 }

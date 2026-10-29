@@ -103,7 +103,7 @@ func (a *skillsCatalogAugmenter) augment(
 	message string,
 	filter SkillInjectionFilter,
 ) (string, error) {
-	if a == nil || a.registry == nil || sess == nil {
+	if a == nil || a.registry == nil || sess == nil || sess.NativeToolsUnavailable() {
 		return message, nil
 	}
 

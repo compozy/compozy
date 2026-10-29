@@ -48,3 +48,13 @@ func (s *Session) startupDefinition() (compozyconfig.AgentDef, acp.StartupManife
 	defer s.mu.RUnlock()
 	return compozyconfig.CloneAgentDef(s.agentDef), acp.CloneStartupManifest(s.startupManifest)
 }
+
+// NativeToolsUnavailable reports a runtime-confirmed failure to expose native tools.
+func (s *Session) NativeToolsUnavailable() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.nativeToolsUnavailable
+}
