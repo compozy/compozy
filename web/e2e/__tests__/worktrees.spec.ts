@@ -998,6 +998,17 @@ for (const surface of ["menubar", "overview"] as const) {
     if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
     else await openOverviewMenu(appPage, workspace.id);
     if (surface === "overview") {
+      // The strip owns scroll-settle focus: composing a context menu must not change tile order.
+      const tile = appPage.getByTestId(`os-workspace-tile-${workspace.id}`);
+      const box = await tile.boundingBox();
+      expect(box).not.toBeNull();
+      await appPage.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await appPage.mouse.down();
+      await appPage.mouse.move(box!.x + box!.width / 2 + 12, box!.y + box!.height / 2, {
+        steps: 3,
+      });
+      await appPage.mouse.up();
+      await expect(tile).toBeFocused();
       await appPage.getByText("Select worktrees…", { exact: true }).click();
       await appPage.keyboard.press("End");
       await expect(

@@ -4614,3 +4614,18 @@ although the existing binder inherits the caller workspace. Their shared input s
 now permits omission, restoring the established native contract; operator calls without
 any scope still fail the handler's required-input check. Descriptor consumers regenerate
 through codegen. No new fields or IDs, and no persisted-data changes.
+
+## Merge train overview focus and CI follow-up — 2026-10-29
+
+The workspace overview scroll owner now enumerates listbox options, preserving
+workspace order after project context menus replace the compositional data-slot.
+A real pointer drag strengthens the existing mobile mixed-removal E2E and reproduces
+the pre-fix loss of focus. The subagent journey waits for its existing settled-turn
+disclosure after returning to the parent: route identity precedes deferred history,
+so a one-time zero-row count was not a readiness signal. All navigation assertions
+and timeouts remain unchanged. The SDK compatibility test retains the exact legacy
+method signature through an interface while complying with staticcheck.
+
+Web/QA: RT-workspace-overview-command-tab and the existing worktree/subagent journeys.
+Native tools, CLI/HTTP/UDS, hooks/config/extensions, persisted data and workspace
+isolation are unchanged. No generated contract or official skill changes.

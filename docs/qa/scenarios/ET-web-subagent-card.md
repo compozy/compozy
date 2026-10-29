@@ -143,3 +143,12 @@ the group leads its summary with the most urgent member glyph. Owning suites: `s
 (display-state table) and `subagent-components`. Steps 1–3 and 8 updated; live walk pending.
 
 Drawer inspection steps were verified in the targeted [2026-10-28 run](../reports/2026-10-28-subagent-drawer.md). That run records its bounded coverage and does not re-certify unrelated lifecycle branches.
+
+QA impact 2026-10-29 merge integration: in E2E-004, returning from the child to the
+parent must finish hydrating the settled-turn disclosure before opening its cards.
+A visible window route alone does not prove that its deferred transcript has loaded.
+The journey still checks read-only inspection, draft retention, explicit navigation,
+and modifier-click splitting with both sessions visible; no timeouts were increased.
+
+Focused verification: E2E-004 completed the full drawer, parent return and
+modifier-click journey on the production bundle (2026-10-29).

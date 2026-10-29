@@ -393,7 +393,8 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
 
   await divider.getByRole("button", { name: "Open parent" }).click();
   await expect(scene.window).toBeVisible();
-
+  // The window identity changes before deferred history finishes hydrating its settled fold.
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
   await openFolds(scene);
   await card(scene, reviewTitle)
     .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })

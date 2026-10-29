@@ -284,8 +284,10 @@ func TestClientGeneratedOperations(t *testing.T) {
 			})
 			var err error
 			if options == nil {
-				var list func(context.Context) (*WorkspacesResponse, error) = c.ListWorkspaces
-				_, err = list(t.Context())
+				var legacy interface {
+					ListWorkspaces(context.Context) (*WorkspacesResponse, error)
+				} = c
+				_, err = legacy.ListWorkspaces(t.Context())
 			} else {
 				_, err = c.ListWorkspacesWithParams(t.Context(), options[0])
 			}
