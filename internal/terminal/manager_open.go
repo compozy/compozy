@@ -286,6 +286,14 @@ func (m *Service) resolveOpenWorkspace(
 		return resolved, workspaceID, err
 	}
 	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+		return "", "", &Error{
+			Code: ErrorCodeInvalidCwd,
+			Message: "this project's folder no longer exists; restore the folder or update the project location " +
+				"before opening a terminal",
+			Err: errors.Join(ErrInvalidCwd, err),
+		}
+	}
 	if err != nil {
 		return "", "", fmt.Errorf(
 			"terminal: resolve workspace %q: %w",

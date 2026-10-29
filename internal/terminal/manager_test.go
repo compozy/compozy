@@ -1096,6 +1096,24 @@ func TestManagerCwdAndShell(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a project whose folder is gone with an actionable invalid cwd", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithWorkspaceResolver(missingRootResolver{}))
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh",
+			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Capabilities: Capabilities{Interactive: true},
+		})
+		terminalErr, ok := errors.AsType[*Error](err)
+		if !ok || terminalErr.Code != ErrorCodeInvalidCwd || !errors.Is(err, ErrInvalidCwd) ||
+			!errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) || !strings.Contains(err.Error(), "folder") {
+			t.Fatalf("Open(missing root) error = %#v", err)
+		}
+		if starter.starts.Load() != 0 {
+			t.Fatalf("missing root started %d processes", starter.starts.Load())
+		}
+	})
+
 	t.Run(
 		"Should fall back from an unavailable requested shell and report the actual shell [UT-005]",
 		func(t *testing.T) {
@@ -4650,4 +4668,10 @@ func receiveTerminalEvent(t *testing.T, events <-chan Event) Event {
 		t.Fatal("timed out waiting for terminal event")
 		return Event{}
 	}
+}
+
+type missingRootResolver struct{}
+
+func (missingRootResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
 }
