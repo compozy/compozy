@@ -4600,3 +4600,17 @@ workspace-list method, preserving the legacy no-argument method.
   the generated site SDK samples co-ship with their generator.
 - Focused SQLite/runtime suites and the existing all-example Go type check verify
   these changes. Complete current-head CI remains the release gate.
+
+Follow-up entry-point fixes (reviews 4407737369, 4407737376, 4407792174): session
+stop routes may resolve a missing-root registration just like retained reads; other
+mutations continue through runtime resolution. Native archive/unarchive bind registry
+identity via Get, then pass through the unchanged workspace authorization seam.
+Shared core behavior covers HTTP and UDS; Web uses those same routes. Native IDs,
+DTOs, official skill contracts, hooks/config, and storage shapes are unchanged.
+Existing handler, native binding and SQLite archive suites own the regression checks.
+
+CI also caught four native workspace descriptors requiring an explicit workspace
+although the existing binder inherits the caller workspace. Their shared input schema
+now permits omission, restoring the established native contract; operator calls without
+any scope still fail the handler's required-input check. Descriptor consumers regenerate
+through codegen. No new fields or IDs, and no persisted-data changes.

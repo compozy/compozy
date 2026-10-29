@@ -503,7 +503,7 @@ func TestTaskBreadthQuerySemantics(t *testing.T) {
 		if err != nil || query.AllWorkspaces || len(query.WorkspaceIDs) != 0 {
 			t.Fatalf("default list = %+v, %v", query, err)
 		}
-		inbox, err := ParseTaskInboxQuery(c, catalog)
+		inbox, err := ParseTaskInboxQuery(c)
 		if err != nil || len(inbox.WorkspaceIDs) != 0 {
 			t.Fatalf("default inbox = %+v, %v", inbox, err)
 		}

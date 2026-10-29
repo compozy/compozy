@@ -4027,6 +4027,62 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	// Invariant: lifecycle binding uses retained registry identity without bypassing access policy.
+	t.Run("Should bind missing project lifecycle targets and preserve authorization", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDWorkspaceArchive, toolspkg.ToolIDWorkspaceUnarchive} {
+			t.Run(string(id), func(t *testing.T) {
+				t.Parallel()
+				workspaces := apitest.StubWorkspaceService{
+					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+					},
+					GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+						if ref != "missing-project" && ref != "ws-2" {
+							return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+						}
+						return workspacepkg.Workspace{ID: "ws-2", RootMissing: true}, nil
+					},
+				}
+				policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
+				binder := newNativeWorkspaceInputBinder(workspaces, nativeTestSessionManager("ws-1"), policy, nil)
+				descriptor := toolspkg.Descriptor{
+					ID: id, Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "test"},
+					InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`),
+				}
+				for _, ref := range []string{"missing-project", "ws-2"} {
+					input := json.RawMessage(fmt.Sprintf(`{"workspace":%q}`, ref))
+					bound, err := binder.BindCallInput(t.Context(), toolspkg.Scope{Operator: true}, descriptor, input)
+					if err != nil || string(bound) != `{"workspace":"ws-2"}` {
+						t.Fatalf("operator binding = %s, %v", bound, err)
+					}
+					scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+					bound, err = binder.BindCallInput(t.Context(), scope, descriptor, input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					err = binder.AuthorizeCallInput(t.Context(), scope, descriptor,
+						toolspkg.CallRequest{ToolID: id, SessionID: scope.SessionID, Input: bound})
+					requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+					if policy.last.Target.WorkspaceID != "ws-2" {
+						t.Fatalf("authorized target = %#v", policy.last.Target)
+					}
+				}
+				descriptor.ID = toolspkg.ToolIDWorkspaceDescribe
+				if _, err := binder.BindCallInput(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					descriptor,
+					json.RawMessage(
+						`{"workspace":"missing-project"}`,
+					),
+				); !errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
+					t.Fatalf("runtime binding = %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should fail closed for unresolved and global native workspace inputs", func(t *testing.T) {
 		t.Parallel()
 

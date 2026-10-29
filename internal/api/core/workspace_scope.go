@@ -84,7 +84,9 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		}, true
 	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
-	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && c.Request.Method == http.MethodGet {
+	canUseRegistration := c.Request.Method == http.MethodGet ||
+		(c.Request.Method == http.MethodPost && routeSessionID(c) != "" && strings.HasSuffix(c.FullPath(), "/stop"))
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && canUseRegistration {
 		var registration workspacepkg.Workspace
 		registration, err = h.Workspaces.Get(c.Request.Context(), workspaceRef)
 		resolved = workspacepkg.ResolvedWorkspace{
