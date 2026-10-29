@@ -51,6 +51,10 @@ export async function screenshot(args: ParsedArgs) {
       const status = await page.evaluate(() => document.documentElement.dataset.prototypeStatus);
       if (status !== "ready") throw new Error(`${slug} failed to render (see proto dev)`);
       await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      // Images load after the render commits: wait until each has loaded or failed.
+      await page.waitForFunction(() => [...document.images].every(image => image.complete), null, {
+        timeout: 30_000,
+      });
       mkdirSync(dirname(out), { recursive: true });
       await page.screenshot({ path: out, fullPage: true, animations: "disabled" });
       console.log(relative(process.cwd(), out) || out);

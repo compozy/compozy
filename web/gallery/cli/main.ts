@@ -4,17 +4,25 @@
  */
 import { parseArgs, UsageError, type FlagSpec, type ParsedArgs } from "./args.ts";
 
-type Command = { flags: FlagSpec; usage: string; run: (args: ParsedArgs) => unknown };
+type Command = {
+  flags: FlagSpec;
+  usage: string;
+  run: (args: ParsedArgs) => unknown;
+  /** Commands that take no positionals reject them instead of ignoring them. */
+  positionals?: false;
+};
 
 const commands: Record<string, Command> = {
   dev: {
     flags: {},
     usage: "dev                       Start the gallery on http://127.0.0.1:4400",
+    positionals: false,
     run: async () => (await import("./commands/dev.ts")).dev(),
   },
   build: {
     flags: {},
     usage: "build                     Build the static gallery into web/dist-gallery",
+    positionals: false,
     run: async () => (await import("./commands/build.ts")).build(),
   },
   check: {
@@ -79,7 +87,11 @@ async function main(argv: readonly string[]) {
   }
   const command = commands[name];
   if (!command) throw new UsageError(`Unknown command "${name}"\n\n${help()}`);
-  await command.run(parseArgs(rest, command.flags));
+  const args = parseArgs(rest, command.flags);
+  if (command.positionals === false && args.positionals.length > 0) {
+    throw new UsageError(`${name} takes no arguments (got "${args.positionals.join(" ")}")`);
+  }
+  await command.run(args);
 }
 
 try {

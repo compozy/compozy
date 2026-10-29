@@ -1,4 +1,5 @@
 import { realpathSync } from "node:fs";
+import { relative } from "node:path";
 import ts from "typescript";
 import type { Plugin } from "vite";
 
@@ -12,10 +13,14 @@ import {
 
 const clean = (id: string) => id.split("?")[0] ?? id;
 
-/** Runtime import specifiers of emitted JavaScript (type-only imports are already erased). */
+/**
+ * Runtime import specifiers of emitted JavaScript (type-only imports are already erased), and
+ * whether a dynamic `import()` computes its specifier, which no graph check can follow.
+ */
 function specifiersOf(code: string, file: string) {
   const syntax = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
   const specifiers = new Set<string>();
+  let computed = false;
   const visit = (node: ts.Node) => {
     if (
       (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
@@ -27,15 +32,15 @@ function specifiersOf(code: string, file: string) {
     if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      node.arguments[0] &&
-      ts.isStringLiteralLike(node.arguments[0])
+      node.arguments[0]
     ) {
-      specifiers.add(node.arguments[0].text);
+      if (ts.isStringLiteralLike(node.arguments[0])) specifiers.add(node.arguments[0].text);
+      else computed = true;
     }
     ts.forEachChild(node, visit);
   };
   visit(syntax);
-  return specifiers;
+  return { specifiers, computed };
 }
 
 /**
@@ -82,10 +87,15 @@ export function networkGuard(webRootInput: string): Plugin {
       }
     },
     async transform(code, source) {
-      if (building) return;
       const from = clean(source);
       if (!/\.[cm]?[jt]sx?$/.test(from) || from.includes("\0")) return;
-      const specifiers = specifiersOf(code, from);
+      const { specifiers, computed } = specifiersOf(code, from);
+      if (computed && isPrototypeModule(from)) {
+        this.error(
+          `${relative(webRoot, from)}: import() with a computed specifier cannot be checked against the network layer; import a literal path`
+        );
+      }
+      if (building) return;
       const resolved = await Promise.all(
         [...specifiers].map(specifier => this.resolve(specifier, source))
       );

@@ -11,6 +11,9 @@ export type ShortcutAction =
   | "help"
   | "sidebar";
 
+/** Held keys repeat only stepping; toggles fire once per press. */
+const repeatable = new Set<ShortcutAction>(["next", "previous", "next-state", "previous-state"]);
+
 const keys: Record<string, ShortcutAction> = {
   j: "next",
   k: "previous",
@@ -39,7 +42,7 @@ export function useShortcuts(onAction: (action: ShortcutAction) => void, frame: 
   const handle = useEffectEvent((event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
       event.preventDefault();
-      onAction("sidebar");
+      if (!event.repeat) onAction("sidebar");
       return;
     }
     if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
@@ -47,6 +50,7 @@ export function useShortcuts(onAction: (action: ShortcutAction) => void, frame: 
     const action = keys[event.key.length === 1 ? event.key.toLowerCase() : event.key];
     if (!action) return;
     event.preventDefault();
+    if (event.repeat && !repeatable.has(action)) return;
     onAction(action);
   });
 

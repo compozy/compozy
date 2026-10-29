@@ -99,6 +99,10 @@ function show(id: string | undefined, args: ParsedArgs) {
     return found.kind === "prototype" ? `${found.title} (${found.state})` : found.label;
   };
   console.log(`${flow.title} · ${flow.id} · start: ${flow.start.join(", ")}`);
+  for (const node of flow.nodes) {
+    const terminal = node.end ? " · end" : "";
+    console.log(`${node.step}. ${node.id} · ${node.kind} · ${label(node.id)}${terminal}`);
+  }
   for (const edge of flow.edges) {
     console.log(`${label(edge.from)} → ${label(edge.to)} · "${edge.on}" · ${edge.kind}`);
   }

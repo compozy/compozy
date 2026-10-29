@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import ts from "typescript";
 
 import type { PrototypeMeta } from "../contract.ts";
@@ -21,6 +21,7 @@ export type ProblemCode =
   | "invalid_slug"
   | "outside_root"
   | "missing_meta"
+  | "missing_default"
   | "unknown_spec"
   | "markup"
   | "api_client";
@@ -52,9 +53,12 @@ function optionalText(value: unknown) {
 }
 
 /** The literal `meta` when it satisfies the contract, otherwise null. */
+const metaFields = new Set(["title", "spec", "surface", "route", "states"]);
+
 function validMeta(raw: unknown): PrototypeMeta | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const meta = raw as Record<string, unknown>;
+  if (Object.keys(meta).some(key => !metaFields.has(key))) return null;
   if (typeof meta.title !== "string" || meta.title.trim().length === 0) return null;
   if (!optionalText(meta.spec) || !optionalText(meta.surface) || !optionalText(meta.route)) {
     return null;
@@ -63,6 +67,26 @@ function validMeta(raw: unknown): PrototypeMeta | null {
   if (!Array.isArray(states) || states.length === 0 || !states.every(isState)) return null;
   if (new Set(states.map(state => state.id)).size !== states.length) return null;
   return raw as PrototypeMeta;
+}
+
+/** `export default …`, `export default function …` or `export { X as default }`. */
+function hasDefaultExport(source: ts.SourceFile) {
+  return source.statements.some(statement => {
+    if (ts.isExportAssignment(statement)) return !statement.isExportEquals;
+    if (ts.isExportDeclaration(statement)) {
+      const clause = statement.exportClause;
+      return (
+        !!clause &&
+        ts.isNamedExports(clause) &&
+        clause.elements.some(item => item.name.text === "default")
+      );
+    }
+    const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) : undefined;
+    return (
+      !!modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) &&
+      modifiers.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)
+    );
+  });
 }
 
 function metadata(source: ts.SourceFile): PrototypeMeta | null {
@@ -132,8 +156,9 @@ export function findPrototypes(webRoot: string, repoRoot: string, catalog: SpecC
   const problems: Problem[] = [];
   const specIds = new Set(catalog.specs.map(spec => spec.id));
   for (const path of files(join(webRoot, "src")).sort()) {
-    const local = relative(webRoot, path);
-    const file = relative(repoRoot, path);
+    // POSIX separators, so the location rules and slugs hold on Windows too.
+    const local = relative(webRoot, path).split(sep).join("/");
+    const file = relative(repoRoot, path).split(sep).join("/");
     const slug = slugOf(local);
     const kind: PrototypeKind = local.startsWith("src/drafts/") ? "draft" : "component";
     const report = (code: ProblemCode, message: string) =>
@@ -164,6 +189,9 @@ export function findPrototypes(webRoot: string, repoRoot: string, catalog: SpecC
       ts.ScriptKind.TSX
     );
     const meta = metadata(source);
+    if (!hasDefaultExport(source)) {
+      report("missing_default", `${slug}: missing "export default" component`);
+    }
     if (!meta) {
       report("missing_meta", `${slug}: missing or invalid literal "export const meta"`);
     } else if (meta.spec && catalog.available && !specIds.has(meta.spec)) {

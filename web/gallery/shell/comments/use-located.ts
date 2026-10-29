@@ -35,11 +35,14 @@ export function useLocated(doc: Document | null, comments: readonly ReviewCommen
     observer.observe(doc.body, { subtree: true, childList: true, attributes: true });
     doc.addEventListener("scroll", measure, true);
     view?.addEventListener("resize", measure);
+    // A web font that finishes loading reflows text without a mutation.
+    doc.fonts.addEventListener("loadingdone", measure);
     return () => {
       cancelAnimationFrame(frame);
       observer.disconnect();
       doc.removeEventListener("scroll", measure, true);
       view?.removeEventListener("resize", measure);
+      doc.fonts.removeEventListener("loadingdone", measure);
     };
   }, [doc, comments, width, height]);
   return located;

@@ -25,8 +25,22 @@ const tooLarge = "Images can be up to 5 MB.";
 
 const endpoint = (slug: string) => `${commentsBase}/${slug}/attachments`;
 
-function discard(slug: string, id: string) {
-  void fetch(`${endpoint(slug)}/${id}`, { method: "DELETE" }).catch(() => undefined);
+const discardRetries = 3;
+
+/**
+ * Deletes an unclaimed upload, retrying with backoff while the dev server is unreachable; one it
+ * never reaches still expires on the server after 24 hours.
+ */
+function discard(slug: string, id: string, attempt = 0) {
+  void fetch(`${endpoint(slug)}/${id}`, { method: "DELETE" })
+    .then(response => {
+      if (response.ok || response.status === 404) return;
+      throw new Error(`HTTP ${response.status}`);
+    })
+    .catch(() => {
+      if (attempt >= discardRetries) return;
+      setTimeout(() => discard(slug, id, attempt + 1), 1000 * 2 ** attempt);
+    });
 }
 
 export function useAttachments(slug: string) {

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
-import { dirname, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { maxSlugLength, reservedSlugPrefix, slugPattern } from "../../node/discovery.ts";
 import { repoRoot, webRoot } from "../../node/paths.ts";
@@ -14,12 +14,16 @@ function template(meta: Record<string, unknown>, draft: boolean) {
 }
 
 /** The folder must stay inside web/ after resolving symlinks of its closest existing ancestor. */
-function assertInsideWeb(folder: string) {
+/** The folder as `web/`-relative POSIX path with symlinks resolved (its missing tail kept). */
+function canonicalLocal(folder: string) {
   let ancestor = folder;
   while (!existsSync(ancestor)) ancestor = dirname(ancestor);
-  if (relative(realpathSync(webRoot), realpathSync(ancestor)).startsWith("..")) {
+  const canonical = resolve(realpathSync(ancestor), relative(ancestor, folder));
+  const local = relative(realpathSync(webRoot), canonical).split(sep).join("/");
+  if (local.startsWith("..") || isAbsolute(local)) {
     throw new UsageError("Prototype path escapes web/");
   }
+  return local;
 }
 
 /** `proto new <slug> --in <dir> | --draft [--spec <id>] [--title <text>]`. */
@@ -43,10 +47,11 @@ export function create(args: ParsedArgs) {
   const existing = entries.find(entry => entry.slug === slug);
   if (existing) throw new UsageError(`Prototype slug "${slug}" already exists: ${existing.file}`);
   const folder = draft ? resolve(webRoot, "src/drafts", slug) : resolve(repoRoot, into ?? "");
-  if (!draft && !/^src\/(systems|components)(\/|$)/.test(relative(webRoot, folder))) {
+  // Checked on the resolved path, so a symlink cannot point --in outside the allowed roots.
+  const local = canonicalLocal(folder);
+  if (!draft && !/^src\/(systems|components)(\/|$)/.test(local)) {
     throw new UsageError("--in must be inside web/src/systems or web/src/components");
   }
-  assertInsideWeb(folder);
   const file = resolve(folder, draft ? "index.proto.tsx" : `${slug}.proto.tsx`);
   const meta = {
     title: stringFlag(args, "title") ?? slug,

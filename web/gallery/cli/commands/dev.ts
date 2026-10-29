@@ -5,7 +5,13 @@ export async function dev() {
   const server = await startGallery();
   server.printUrls();
   const stop = () => {
-    void server.close().then(() => process.exit(0));
+    server.close().then(
+      () => process.exit(0),
+      (error: unknown) => {
+        console.error(`proto dev did not shut down cleanly: ${String(error)}`);
+        process.exit(1);
+      }
+    );
   };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);

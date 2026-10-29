@@ -73,6 +73,8 @@ describe("gallery URL view", () => {
     });
     const index = "?state=x&compare=themes&theme=light";
     expect(canonicalParams(index, resolve(index), null)).toEqual({ state: null, compare: null });
+    const compare = "?p=session-board-card&state=merged&compare=yes";
+    expect(canonicalParams(compare, resolve(compare), "merged")).toEqual({ compare: null });
     const clean = "?p=session-board-card&state=merged&theme=light";
     expect(canonicalParams(clean, resolve(clean), "merged")).toBeNull();
   });

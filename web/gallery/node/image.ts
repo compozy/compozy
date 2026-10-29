@@ -54,11 +54,32 @@ function webpSize(bytes: Uint8Array, data: DataView, chunk: string) {
   return { width: 0, height: 0 };
 }
 
+/**
+ * A PNG whose chunks fit the buffer from IHDR through IEND with image data in between; a
+ * truncated or padded upload is rejected rather than stored as a broken image.
+ */
+function pngComplete(bytes: Uint8Array, data: DataView) {
+  let offset = 8;
+  let sawData = false;
+  while (offset + 12 <= bytes.length) {
+    const length = data.getUint32(offset);
+    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
+    const end = offset + 12 + length;
+    if (end > bytes.length) return false;
+    if (offset === 8 && type !== "IHDR") return false;
+    if (type === "IDAT") sawData = true;
+    if (type === "IEND") return sawData && end === bytes.length;
+    offset = end;
+  }
+  return false;
+}
+
 function detect(bytes: Uint8Array): { type: ImageType; width: number; height: number } | null {
   const data = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const text = (offset: number, length: number) =>
     String.fromCharCode(...bytes.subarray(offset, offset + length));
   if (bytes[0] === 0x89 && text(1, 7) === "PNG\r\n\u001a\n" && text(12, 4) === "IHDR") {
+    if (!pngComplete(bytes, data)) return null;
     return { type: "image/png", width: data.getUint32(16), height: data.getUint32(20) };
   }
   if (text(0, 6) === "GIF87a" || text(0, 6) === "GIF89a") {

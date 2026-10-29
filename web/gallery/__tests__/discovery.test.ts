@@ -29,6 +29,7 @@ afterEach(() => {
 const meta = (extra = "") =>
   `export const meta = definePrototype({ title: "Board", ${extra} states: [{ id: "ready", label: "Ready" }] });`;
 const noSpecs: SpecCatalog = { available: false, specs: [] };
+const component = "export default function Prototype() { return null; }";
 
 function codes(app: ReturnType<typeof project>, catalog: SpecCatalog = noSpecs) {
   return findPrototypes(app.web, app.root, catalog).problems.map(problem => problem.code);
@@ -39,7 +40,7 @@ describe("prototype discovery", () => {
     const app = project();
     app.write(
       "web/src/systems/session/board.proto.tsx",
-      `${meta('surface: "S5",')}\nthrow new Error("must not execute");`
+      `${meta('surface: "S5",')}\n${component}\nthrow new Error("must not execute");`
     );
     const result = findPrototypes(app.web, app.root, noSpecs);
     expect(result.problems).toEqual([]);
@@ -80,8 +81,8 @@ describe("prototype discovery", () => {
 
   it("rejects invalid and reserved slugs", () => {
     const app = project();
-    app.write("web/src/systems/session/Board.proto.tsx", meta());
-    app.write("web/src/systems/session/flow-board.proto.tsx", meta());
+    app.write("web/src/systems/session/Board.proto.tsx", `${meta()}\n${component}`);
+    app.write("web/src/systems/session/flow-board.proto.tsx", `${meta()}\n${component}`);
     expect(codes(app)).toEqual(["invalid_slug", "invalid_slug"]);
   });
 
@@ -97,13 +98,31 @@ describe("prototype discovery", () => {
     ],
   ])("rejects metadata with %s and files outside the supported roots", (_label, source) => {
     const app = project();
-    app.write("web/src/routes/board.proto.tsx", source);
+    app.write("web/src/routes/board.proto.tsx", `${source}\n${component}`);
     expect(codes(app)).toEqual(["outside_root", "missing_meta"]);
+  });
+
+  it("rejects unknown metadata fields, a missing default export and reads parenthesized values", () => {
+    const app = project();
+    app.write(
+      "web/src/systems/session/board.proto.tsx",
+      `export const meta = definePrototype({ title: ("Board"), states: [{ id: "ready", label: "Ready" }] });\nexport { Board as default };`
+    );
+    expect(codes(app)).toEqual([]);
+    app.write("web/src/systems/session/card.proto.tsx", meta());
+    app.write(
+      "web/src/systems/session/row.proto.tsx",
+      `export const meta = definePrototype({ title: "Row", owner: "x", states: [{ id: "a", label: "A" }] });\n${component}`
+    );
+    expect(codes(app)).toEqual(["missing_default", "missing_meta"]);
   });
 
   it("validates spec ids against the catalog only when the catalog exists", () => {
     const app = project();
-    app.write("web/src/systems/session/board.proto.tsx", meta('spec: "sessions-kanban",'));
+    app.write(
+      "web/src/systems/session/board.proto.tsx",
+      `${meta('spec: "sessions-kanban",')}\n${component}`
+    );
     expect(codes(app)).toEqual([]);
     const known = { available: true, specs: [{ id: "sessions-kanban", title: "Sessions Kanban" }] };
     expect(codes(app, known)).toEqual([]);

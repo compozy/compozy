@@ -8,7 +8,7 @@ import { PanelRightCloseIcon } from "lucide-react";
 import { Button, Tabs, TabsList, TabsTrigger } from "@compozy/ui";
 
 import { flowKey, type FlowEntry, type ResolvedNode } from "#gallery/flow";
-import { commentsApi, galleryCommit } from "#gallery/shell/comments/api";
+import { commentsApi, commentsAvailable, galleryCommit } from "#gallery/shell/comments/api";
 import { FlowComposer } from "#gallery/shell/comments/flow-composer";
 import type { NodeTarget, ReviewComment } from "#gallery/shell/comments/model";
 import { CommentsPanel } from "#gallery/shell/comments/panel";
@@ -79,15 +79,17 @@ export function FlowSide(props: FlowSideProps) {
           onValueChange={(value: string) =>
             updateView({ comments: value === "comments", comment: null })
           }
-          value={props.panel ? "comments" : "step"}
+          value={props.panel && commentsAvailable ? "comments" : "step"}
         >
           <TabsList aria-label="Flow panel">
             <TabsTrigger data-testid="flow-tab-step" value="step">
               Step
             </TabsTrigger>
-            <TabsTrigger count={open} data-testid="flow-tab-comments" value="comments">
-              Comments
-            </TabsTrigger>
+            {commentsAvailable ? (
+              <TabsTrigger count={open} data-testid="flow-tab-comments" value="comments">
+                Comments
+              </TabsTrigger>
+            ) : null}
           </TabsList>
         </Tabs>
         <Button
@@ -100,7 +102,7 @@ export function FlowSide(props: FlowSideProps) {
           <PanelRightCloseIcon aria-hidden="true" />
         </Button>
       </div>
-      {props.panel ? (
+      {props.panel && commentsAvailable ? (
         <CommentsPanel
           className="rounded-none bg-transparent p-0"
           comments={comments}

@@ -81,9 +81,23 @@ function layoutEngine() {
   return engine;
 }
 
+/** A worker that never answers fails the request, so the flow can offer "Try again". */
+const layoutTimeoutMs = 15_000;
+
 function layoutGraph(graph: ElkNode) {
-  const { elk, failed } = layoutEngine();
-  return Promise.race([elk.layout(graph), failed]);
+  const current = layoutEngine();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      // A stalled worker would block every later request: drop it for a fresh one.
+      if (engine === current) engine = null;
+      current.worker.terminate();
+      reject(new Error("Layout timed out"));
+    }, layoutTimeoutMs);
+  });
+  return Promise.race([current.elk.layout(graph), current.failed, stalled]).finally(() =>
+    clearTimeout(timer)
+  );
 }
 
 export async function computeLayout(input: LayoutInput): Promise<Layout> {

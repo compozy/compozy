@@ -15,6 +15,11 @@ import {
 } from "#gallery/shell/comments/model";
 
 export const commentsBase = "/__comments";
+/**
+ * Review comments are served by `proto dev` only; the static `proto build` output has no
+ * comments API, so it renders without review controls.
+ */
+export const commentsAvailable = import.meta.env.DEV;
 
 export const galleryQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },

@@ -4,8 +4,10 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   utimesSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -76,13 +78,15 @@ const input = (body = "Tighten the title spacing"): NewComment => ({
   },
 });
 
-/** Smallest valid PNG header (IHDR with the given size). */
+/** A structurally complete PNG: IHDR with the given size, one empty IDAT and IEND (CRCs zeroed). */
 function png(width = 2, height = 3) {
-  const bytes = new Uint8Array(33);
+  const bytes = new Uint8Array(57);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
   const view = new DataView(bytes.buffer);
   view.setUint32(16, width);
   view.setUint32(20, height);
+  bytes.set([0, 0, 0, 0, 0x49, 0x44, 0x41, 0x54], 33);
+  bytes.set([0, 0, 0, 0, 0x49, 0x45, 0x4e, 0x44], 45);
   return bytes;
 }
 
@@ -220,7 +224,7 @@ describe("comment attachments", () => {
       type: "image/png",
       width: 640,
       height: 480,
-      size: 33,
+      size: 57,
     });
     const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 16, 0, 8, 0]);
     expect(inspectImage(gif)).toMatchObject({ type: "image/gif", width: 16, height: 8 });
@@ -228,6 +232,8 @@ describe("comment attachments", () => {
       "unsupported_media_type"
     );
     expect(() => inspectImage(png(0, 10))).toThrow("unsupported_media_type");
+    // Truncated before IEND: the header alone is not an image.
+    expect(() => inspectImage(png(640, 480).subarray(0, 33))).toThrow("unsupported_media_type");
     expect(() => inspectImage(new Uint8Array(5 * 1024 * 1024 + 1))).toThrow("attachment_too_large");
   });
 
@@ -237,7 +243,7 @@ describe("comment attachments", () => {
     const first = files.upload("screen.png", png());
     const created = comments.add("session-board-card", { ...input(), attachments: [first.id] });
     expect(created.thread[0]?.attachments).toEqual([first]);
-    expect(files.read(first.id, comments.read("session-board-card")).bytes).toHaveLength(33);
+    expect(files.read(first.id, comments.read("session-board-card")).bytes).toHaveLength(57);
     expect(readdirSync(files.pending)).toEqual([]);
 
     const more = Array.from({ length: 6 }, () => files.upload("more.png", png()));
@@ -265,6 +271,23 @@ describe("comment attachments", () => {
     expect(() => files.read(image.id, [])).toThrow("not_found");
     files.upload("next.png", png());
     expect(readdirSync(files.pending).filter(name => name.startsWith(image.id))).toEqual([]);
+  });
+
+  it("makes an image claimable again after a commit died before the comments write", () => {
+    const comments = store();
+    const files = comments.attachments("session-board-card");
+    const image = files.upload("screen.png", png());
+    // The writer moved the file into place and died before persisting the message.
+    expect(() =>
+      files.commit([], [image.id], [], () => {
+        throw new Error("killed");
+      })
+    ).toThrow("killed");
+    renameSync(join(files.pending, `${image.id}.png`), join(files.directory, `${image.id}.png`));
+    writeFileSync(join(files.pending, "broken.json"), "{");
+    const created = comments.add("session-board-card", { ...input(), attachments: [image.id] });
+    expect(created.thread[0]?.attachments).toEqual([image]);
+    expect(readdirSync(files.pending)).toEqual(["broken.json"]);
   });
 });
 

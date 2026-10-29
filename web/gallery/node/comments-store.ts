@@ -188,7 +188,15 @@ export class CommentStore {
   /** Holds the key's lock for one whole change, attachment moves included. */
   private mutate<T>(key: string, change: () => T): T {
     this.options.assertKey(key);
-    return withKeyLock(join(this.options.directory, key), change);
+    return withKeyLock(join(this.options.directory, key), () => {
+      const referenced = new Set(
+        this.read(key).flatMap(comment =>
+          comment.thread.flatMap(item => item.attachments.map(image => image.id))
+        )
+      );
+      this.attachments(key).recover(referenced);
+      return change();
+    });
   }
 
   /** Keys that have a comments file, alphabetically. */

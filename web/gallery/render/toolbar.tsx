@@ -55,7 +55,10 @@ export function PrototypeToolbar({
       {meta.states.length > 1 ? (
         <NativeSelect
           aria-label="Prototype state"
-          onChange={event => setParams({ [prototypeParams.state]: event.target.value })}
+          // Each state is a history entry: Back returns to the previous one.
+          onChange={event =>
+            setParams({ [prototypeParams.state]: event.target.value }, { push: true })
+          }
           size="sm"
           value={state}
         >

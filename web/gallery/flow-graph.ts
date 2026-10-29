@@ -33,6 +33,29 @@ export function deadEnds(
   return nodes.flatMap(node => (!node.end && !sources.has(node.id) ? [node.id] : []));
 }
 
+/** Nodes that declare `end: true` yet have an outgoing edge. */
+export function endsWithEdges(
+  nodes: readonly { id: string; end: boolean }[],
+  edges: readonly ResolvedEdge[]
+): string[] {
+  const sources = new Set(edges.map(edge => edge.from));
+  return nodes.flatMap(node => (node.end && sources.has(node.id) ? [node.id] : []));
+}
+
+/** `external` edges between two prototype nodes: the journey never leaves the app there. */
+export function externalEdgesInsideApp(
+  nodes: readonly { id: string; kind: "prototype" | "external" }[],
+  edges: readonly ResolvedEdge[]
+): ResolvedEdge[] {
+  const kindOf = new Map(nodes.map(node => [node.id, node.kind]));
+  return edges.filter(
+    edge =>
+      edge.kind === "external" &&
+      kindOf.get(edge.from) === "prototype" &&
+      kindOf.get(edge.to) === "prototype"
+  );
+}
+
 /** Every repeat of an edge with the same source, target and trigger. */
 export function duplicateEdges(edges: readonly ResolvedEdge[]): ResolvedEdge[] {
   const seen = new Set<string>();

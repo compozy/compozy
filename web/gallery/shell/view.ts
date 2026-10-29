@@ -283,6 +283,10 @@ export function canonicalParams(
   if (resolved.kind === "prototype" && rawWidth !== null && widthOf(rawWidth) === "fit") {
     patch.w = null;
   }
+  const rawCompare = params.get("compare");
+  if (resolved.kind === "prototype" && rawCompare !== null && rawCompare !== "themes") {
+    patch.compare = null;
+  }
   const rawComments = params.get("comments");
   if (resolved.kind === "prototype" && rawComments !== null && rawComments !== "1") {
     patch.comments = null;

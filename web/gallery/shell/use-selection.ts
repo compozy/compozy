@@ -27,10 +27,14 @@ export type NavLevel = "specs" | "prototypes" | "states";
 
 export const navLevels: readonly NavLevel[] = ["specs", "prototypes", "states"];
 
-/** The item after (or before) `current`, wrapping around; the first one when nothing is current. */
+/**
+ * The item after (or before) `current`, wrapping around; with nothing current, the first one
+ * forward and the last one backward.
+ */
 export function step<T>(items: readonly T[], current: T | undefined, direction: 1 | -1) {
   if (items.length === 0) return undefined;
-  const index = current === undefined ? -1 : items.indexOf(current);
+  const found = current === undefined ? -1 : items.indexOf(current);
+  const index = found === -1 ? (direction === 1 ? -1 : items.length) : found;
   return items[(index + direction + items.length) % items.length];
 }
 

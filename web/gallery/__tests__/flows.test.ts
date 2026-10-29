@@ -83,7 +83,7 @@ function project() {
   };
   write(
     "web/src/systems/session/board.proto.tsx",
-    `export const meta = definePrototype({ title: "Board", spec: "kanban", states: [{ id: "ready", label: "Ready" }, { id: "empty", label: "Empty" }] });`
+    `export const meta = definePrototype({ title: "Board", spec: "kanban", states: [{ id: "ready", label: "Ready" }, { id: "empty", label: "Empty" }] });\nexport default function Board() { return null; }`
   );
   return { root, web, write };
 }
@@ -147,8 +147,13 @@ describe("flow discovery", () => {
     ],
     [
       "duplicate edges and undeclared nodes",
-      `{ title: "J", start: ["a"], nodes: { a: { proto: "board", state: "ready", end: true } }, edges: [["a", "a", { on: "Go" }], ["a", "a", { on: "Go" }], ["a", "z", { on: "Go" }]] }`,
+      `{ title: "J", start: ["a"], nodes: { a: { proto: "board", state: "ready" } }, edges: [["a", "a", { on: "Go" }], ["a", "a", { on: "Go" }], ["a", "z", { on: "Go" }]] }`,
       ["unknown_node", "duplicate_edge"],
+    ],
+    [
+      "an end node with an outgoing edge and an external edge inside the app",
+      `{ title: "J", start: ["a"], nodes: { a: { proto: "board", state: "ready", end: true }, b: { proto: "board", state: "empty", end: true } }, edges: [["a", "b", { on: "Go", kind: "external" }]] }`,
+      ["end_with_edges", "external_edge"],
     ],
     [
       "unknown external kinds, missing labels and unsafe URLs",

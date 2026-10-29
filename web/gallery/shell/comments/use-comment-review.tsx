@@ -4,7 +4,7 @@
  * and the selected comment live in the URL (`comments=1`, `comment=<id>`); comment mode does not.
  */
 import { type ElementTarget, type ReviewComment } from "#gallery/shell/comments/model";
-import { commentsApi, galleryCommit } from "#gallery/shell/comments/api";
+import { commentsApi, commentsAvailable, galleryCommit } from "#gallery/shell/comments/api";
 import { CommentOverlay } from "#gallery/shell/comments/overlay";
 import { CommentsPanel } from "#gallery/shell/comments/panel";
 import { ReviewActions } from "#gallery/shell/comments/review-actions";
@@ -73,6 +73,7 @@ export function useCommentReview(options: ReviewOptions): ReviewSlots {
     updateView({ comment: created.id, comments: true });
   };
 
+  if (!commentsAvailable) return {};
   return {
     actions: (
       <ReviewActions

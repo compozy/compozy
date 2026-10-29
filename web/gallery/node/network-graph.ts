@@ -2,14 +2,15 @@ import { relative, resolve } from "node:path";
 
 /**
  * The daemon network layer prototypes and drafts must never reach at runtime: the API client,
- * ticketed SSE and WebSocket transports, gateway stream auth and TanStack Query. Prototypes render
+ * generated `@compozy/client`, ticketed SSE and WebSocket transports, gateway stream auth and
+ * TanStack Query. Prototypes render
  * views from fixtures; data access belongs to the route or hook that owns it.
  */
 const networkModules = ["api-client.ts", "ticketed-event-source.ts", "ticketed-web-socket.ts"];
 const gatewayModule = /[\\/]src[\\/]lib[\\/]gateway-[^\\/]+\.ts$/;
 export const networkPackagePattern =
-  /(?:^|[\\/]node_modules[\\/])@tanstack[\\/]react-query(?:[\\/]|$)/;
-export const networkPackageSpecifier = /^@tanstack\/react-query(?:\/|$)/;
+  /(?:^|[\\/]node_modules[\\/])@(?:tanstack[\\/]react-query|compozy[\\/]client)(?:[\\/]|$)/;
+export const networkPackageSpecifier = /^@(?:tanstack\/react-query|compozy\/client)(?:\/|$)/;
 
 const prototypeModule = /\.proto\.[cm]?[jt]sx?$|[\\/]src[\\/]drafts[\\/]/;
 

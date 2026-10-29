@@ -75,12 +75,37 @@ export class AttachmentStore {
     return image.createdAt < this.now() - pendingLifetime;
   }
 
+  private pendingMetadata() {
+    const images: Pending[] = [];
+    if (!existsSync(this.pending)) return images;
+    for (const file of readdirSync(this.pending)) {
+      if (!file.endsWith(".json")) continue;
+      try {
+        images.push(this.metadata(file.slice(0, -".json".length)));
+      } catch {
+        // Malformed or foreign metadata: leave it, keep cleaning the rest.
+      }
+    }
+    return images;
+  }
+
   /** Drops pending uploads older than 24 hours. */
   expire() {
-    if (!existsSync(this.pending)) return;
-    for (const file of readdirSync(this.pending).filter(name => name.endsWith(".json"))) {
-      const image = this.metadata(file.slice(0, -".json".length));
+    for (const image of this.pendingMetadata()) {
       if (this.expired(image)) this.discard(image.id);
+    }
+  }
+
+  /**
+   * Repairs a commit interrupted between moving files and the comments write: a moved image that
+   * no message references goes back to pending (claimable again); one that is referenced only
+   * lost its metadata cleanup. Callers hold the key's lock and pass every referenced id.
+   */
+  recover(referenced: ReadonlySet<string>) {
+    for (const image of this.pendingMetadata()) {
+      if (existsSync(this.path(image, true)) || !existsSync(this.path(image))) continue;
+      if (referenced.has(image.id)) rmSync(join(this.pending, `${image.id}.json`), { force: true });
+      else renameSync(this.path(image), this.path(image, true));
     }
   }
 

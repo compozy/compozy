@@ -6,10 +6,18 @@
  * coverage warnings (states no flow reaches) never do.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, join, relative, sep } from "node:path";
 import ts from "typescript";
 
-import { bfsOrder, coverage, deadEnds, duplicateEdges, unreachable } from "../flow-graph.ts";
+import {
+  bfsOrder,
+  coverage,
+  deadEnds,
+  duplicateEdges,
+  endsWithEdges,
+  externalEdgesInsideApp,
+  unreachable,
+} from "../flow-graph.ts";
 import {
   edgeKinds,
   externalLabels,
@@ -313,6 +321,15 @@ function resolveFlow(
   for (const node of deadEnds(nodes, edges)) {
     report("dead_end", `node "${node}" is a dead end (no outgoing edge and not end)`, node);
   }
+  for (const node of endsWithEdges(nodes, edges)) {
+    report("end_with_edges", `node "${node}" declares end but has an outgoing edge`, node);
+  }
+  for (const edge of externalEdgesInsideApp(nodes, edges)) {
+    report(
+      "external_edge",
+      `edge ${edge.from} → ${edge.to} is "external" but both nodes are prototypes`
+    );
+  }
   const sorted = order.flatMap((node, index) => {
     const found = nodes.find(item => item.id === node);
     return found ? [{ ...found, step: index + 1 }] : [];
@@ -378,9 +395,10 @@ export function findFlows(
   const problems: FlowProblem[] = [];
   const paths = [...files(join(webRoot, "src")), ...files(join(webRoot, "gallery"))].sort();
   for (const path of paths) {
-    const local = relative(webRoot, path);
-    const file = relative(repoRoot, path);
-    const id = (path.split("/").at(-1) ?? "").slice(0, -flowSuffix.length);
+    // POSIX separators, so the location rules hold on Windows too.
+    const local = relative(webRoot, path).split(sep).join("/");
+    const file = relative(repoRoot, path).split(sep).join("/");
+    const id = basename(path, flowSuffix);
     const before = problems.length;
     const report: Report = (code, message, node) =>
       problems.push({ code, flow: id, file, ...(node ? { node } : {}), message });

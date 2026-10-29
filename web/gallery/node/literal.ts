@@ -17,7 +17,11 @@ export function readLiteral(node: ts.Node, path: readonly string[] = []): Litera
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
   if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
   if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
-  if (ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) {
+  if (
+    ts.isAsExpression(node) ||
+    ts.isSatisfiesExpression(node) ||
+    ts.isParenthesizedExpression(node)
+  ) {
     return readLiteral(node.expression, path);
   }
   if (ts.isArrayLiteralExpression(node)) {

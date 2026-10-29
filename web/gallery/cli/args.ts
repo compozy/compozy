@@ -21,7 +21,8 @@ export function parseArgs(argv: readonly string[], spec: FlagSpec): ParsedArgs {
       continue;
     }
     const [name = "", inline] = arg.slice(2).split(/=(.*)/s, 2);
-    const kind = spec[name];
+    // Own keys only: `--constructor` must not resolve through the prototype chain.
+    const kind = Object.hasOwn(spec, name) ? spec[name] : undefined;
     if (!kind) throw new UsageError(`Unknown flag --${name}`);
     if (kind === "boolean") {
       if (inline !== undefined) throw new UsageError(`--${name} takes no value`);

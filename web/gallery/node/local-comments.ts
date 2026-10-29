@@ -31,7 +31,8 @@ export function assertCommentKey(key: string) {
     }
     return;
   }
-  if (!prototypes.some(entry => entry.slug === key)) {
+  // A prototype without valid metadata never renders in the gallery, so it takes no comments.
+  if (!prototypes.some(entry => entry.slug === key && entry.meta)) {
     throw new CommentError(`Unknown prototype "${key}"`, 404);
   }
 }

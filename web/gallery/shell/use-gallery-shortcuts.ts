@@ -11,6 +11,15 @@ import { select, updateView } from "#gallery/shell/view";
 const collapsedKey = "gallery-sidebar-collapsed";
 
 /** Gallery-wide UI state that is not part of the URL. */
+/** The saved sidebar state; storage that throws (blocked, private mode) means expanded. */
+function readCollapsed() {
+  try {
+    return localStorage.getItem(collapsedKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export function useGalleryState(registry: Registry) {
   const [query, setQuery] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -19,11 +28,13 @@ export function useGalleryState(registry: Registry) {
   const [picking, setPicking] = useState(false);
   /** Side panel of the flow canvas (step inspector and comments). */
   const [flowSide, setFlowSide] = useState(true);
-  const [collapsed, setCollapsedState] = useState(
-    () => localStorage.getItem(collapsedKey) === "true"
-  );
+  const [collapsed, setCollapsedState] = useState(() => readCollapsed());
   const setCollapsed = (next: boolean) => {
-    localStorage.setItem(collapsedKey, String(next));
+    try {
+      localStorage.setItem(collapsedKey, String(next));
+    } catch {
+      // Storage off (private mode, quota): the choice lasts for this page only.
+    }
     setCollapsedState(next);
   };
   const navigable = registry.entries.filter(entry => matches(entry, query));

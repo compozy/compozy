@@ -16,8 +16,8 @@ export type PrototypeModule = { meta: PrototypeMeta; default: ComponentType<Prot
 
 export type Entry = { slug: string; kind: PrototypeKind; file: string; meta: PrototypeMeta };
 
-/** Group id of prototypes without a known spec. */
-export const standaloneGroup = "standalone";
+/** Group id of prototypes without a known spec; the underscore keeps it out of spec ids. */
+export const standaloneGroup = "_standalone";
 
 export type Group = {
   id: string;

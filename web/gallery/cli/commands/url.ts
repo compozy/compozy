@@ -21,6 +21,9 @@ export function prototypeUrl(
 export function resolveTarget(args: ParsedArgs) {
   const slug = requirePositional(args, "slug");
   const entry = findEntry(slug);
+  if (!entry.meta) {
+    throw new UsageError(`${slug} has missing or invalid metadata; run bun run proto check`);
+  }
   const state = stringFlag(args, "state");
   if (state && !entry.meta?.states.some(option => option.id === state)) {
     throw new UsageError(

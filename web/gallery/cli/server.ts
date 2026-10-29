@@ -10,10 +10,15 @@ export async function startGallery() {
   return server;
 }
 
+/** A gallery answers its comments API (`{ counts }`); any other server on the port does not. */
 async function running() {
   try {
-    const response = await fetch(galleryOrigin, { signal: AbortSignal.timeout(1500) });
-    return response.ok;
+    const response = await fetch(`${galleryOrigin}/__comments`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!response.ok) return false;
+    const body = (await response.json()) as unknown;
+    return typeof body === "object" && body !== null && "counts" in body;
   } catch {
     return false;
   }
@@ -30,15 +35,22 @@ export async function ensureGallery(): Promise<{ origin: string; stop: () => Pro
     cwd: repoRoot,
     stdio: "ignore",
   });
+  // Set by the exit listener, so a signal exit (exitCode stays null) counts too.
+  let exited = false;
+  const exit = new Promise<void>(done =>
+    child.once("exit", () => {
+      exited = true;
+      done();
+    })
+  );
   const stop = async () => {
-    if (child.exitCode !== null) return;
-    const exited = new Promise(done => child.once("exit", done));
+    if (exited) return;
     child.kill("SIGTERM");
-    await exited;
+    await exit;
   };
   const deadline = Date.now() + 120_000;
   while (!(await running())) {
-    if (child.exitCode !== null) throw new Error("proto dev exited before it was ready");
+    if (exited) throw new Error("proto dev exited before it was ready");
     if (Date.now() > deadline) {
       await stop();
       throw new Error(`proto dev did not answer on ${galleryOrigin}`);

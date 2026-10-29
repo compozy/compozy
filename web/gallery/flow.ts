@@ -93,7 +93,9 @@ export type FlowProblemCode =
   | "unknown_node"
   | "duplicate_edge"
   | "unreachable"
-  | "dead_end";
+  | "dead_end"
+  | "end_with_edges"
+  | "external_edge";
 export type FlowProblem = {
   code: FlowProblemCode;
   flow: string | null;
