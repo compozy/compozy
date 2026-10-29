@@ -26,3 +26,9 @@ QA impact 2026-10-18: an allowed browser origin can read `/api/status/identity`,
 operator diagnostics at `/api/status` return 403 with app_token_route_forbidden. Exercise
 per-origin rate isolation through the identity route; preserve all invalid-token, origin,
 revocation, and tokenless local-process checks.
+
+2026-10-29 transport regression: the denied-settings-mutation check validates
+uptime drift with the existing sampled-uptime helper, then compares the complete
+settings envelope with only that volatile counter normalized. A controlled
+reproduction differed solely in `runtime.uptime_seconds` (17 to 18); no settings
+changed. Forbidden response codes and terminal non-creation remain asserted.
