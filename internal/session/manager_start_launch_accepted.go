@@ -48,12 +48,16 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 	ctx := accepted.run.ctx
 	spec := accepted.spec
 	session := accepted.session
-	storage, err := m.openSessionStartRecorder(ctx, spec, accepted.storage)
-	if err != nil {
-		return startupFailure(
-			"session event store startup failed",
-			fmt.Errorf("session: open %s event store for %q: %w", spec.startAction, spec.sessionID, err),
-		)
+	storage := accepted.storage
+	if storage.recorder == nil {
+		var err error
+		storage, err = m.openSessionStartRecorder(ctx, spec, storage)
+		if err != nil {
+			return startupFailure(
+				"session event store startup failed",
+				fmt.Errorf("session: open %s event store for %q: %w", spec.startAction, spec.sessionID, err),
+			)
+		}
 	}
 	accepted.storage = storage
 	session.setRecorder(storage.recorder)

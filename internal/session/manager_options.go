@@ -153,6 +153,9 @@ func WithSessionHealthStore(store HealthStore) Option {
 func WithSessionCatalog(catalog store.SessionCatalog) Option {
 	return func(manager *Manager) {
 		manager.sessionCatalog = catalog
+		if epochStore, ok := catalog.(store.SessionTranscriptEpochStore); ok {
+			manager.transcriptEpochStore = epochStore
+		}
 		if attentionStore, ok := catalog.(store.SessionAttentionStore); ok {
 			manager.attentionStore = attentionStore
 		}
