@@ -347,7 +347,8 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 			}
 			var page contract.AgentCatalogResponse
 			decodeJSON(t, response.Body.Bytes(), &page)
-			if len(page.Diagnostics) != 1 || page.Diagnostics[0].Code != "workspace_root_missing" ||
+			if page.SessionsAvailable || len(page.Diagnostics) != 1 ||
+				page.Diagnostics[0].Code != "workspace_root_missing" ||
 				page.Diagnostics[0].Evidence["workspace_id"] != "ws-missing" {
 				t.Fatalf("diagnostics = %#v", page.Diagnostics)
 			}

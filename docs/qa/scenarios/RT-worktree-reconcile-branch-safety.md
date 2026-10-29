@@ -48,6 +48,7 @@ In an isolated lab, create a managed worktree, remove its checkout externally, a
 - `worktree remove <id> --force` removes it from visible catalogs without Git commands, hooks, or filesystem deletion. Repeat removal is idempotent and historical attribution remains retained.
 - Recreate the saved path with a sentinel before removal. Removal must fail closed and preserve the sentinel.
 - Bind a session before removing its checkout. Even a stopped session blocks removal until archived; `--force` does not bypass this guard.
+- A running exit operation blocks metadata dismissal until the exit operation terminates, even after reconciliation marks its checkout missing.
 - Ordinary removal preserves the branch. `--delete-branch` remains a separate opt-in governed by the existing branch ownership, occupancy, and merge-safety checks.
 
 Repeat metadata-only removal through CLI/HTTP and the native tool after deleting the parent project folder as well. The retained project registration must allow the lifecycle guard to run; a ready or recreated checkout must still refuse filesystem removal.

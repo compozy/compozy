@@ -178,4 +178,10 @@ WHERE worktrees.workspace_id = sqlc.arg(workspace_id) AND worktrees.id = sqlc.ar
     SELECT 1 FROM sessions
     WHERE sessions.workspace_id = worktrees.workspace_id AND sessions.worktree_id = worktrees.id
       AND sessions.archived_at IS NULL
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM worktree_exit_ops
+    WHERE worktree_exit_ops.workspace_id = worktrees.workspace_id
+      AND worktree_exit_ops.worktree_id = worktrees.id
+      AND worktree_exit_ops.state = 'running'
   );

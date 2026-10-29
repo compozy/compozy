@@ -1025,6 +1025,50 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 
 func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Parallel()
+	// Invariant: both catalog modes retain missing-root sessions with a diagnostic.
+	for _, attention := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should diagnose retained sessions with attention=%t", attention), func(t *testing.T) {
+			t.Parallel()
+			manager := testutil.StubSessionManager{
+				ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+					if query.AttentionOnly != attention {
+						t.Fatalf("attention = %v", query.AttentionOnly)
+					}
+					return session.ListPage{
+						Sessions: []*session.Info{
+							{ID: "retained", WorkspaceID: "ws-missing"},
+							{ID: "healthy", WorkspaceID: "ws-healthy"},
+						},
+						Total: 2,
+						Limit: 50,
+					}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+				ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "ws-missing", RootMissing: true}, {ID: "ws-healthy"}}, nil
+				},
+			})
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				fmt.Sprintf("/sessions?all_workspaces=true&attention=%t", attention),
+				nil,
+			)
+			var payload contract.SessionCatalogResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if response.Code != http.StatusOK || len(payload.Sessions) != 2 || payload.Page.Total == nil ||
+				*payload.Page.Total != 2 {
+				t.Fatalf("catalog = %d %s", response.Code, response.Body)
+			}
+			if len(payload.Sessions[0].Diagnostics) != 1 ||
+				payload.Sessions[0].Diagnostics[0].Code != "workspace_root_missing" ||
+				len(payload.Sessions[1].Diagnostics) != 0 {
+				t.Fatalf("diagnostics = %#v", payload.Sessions)
+			}
+		})
+	}
 
 	t.Run("Should reject invalid board and child selectors", func(t *testing.T) {
 		t.Parallel()

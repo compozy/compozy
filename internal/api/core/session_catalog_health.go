@@ -39,6 +39,9 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}
+	if err := h.decorateMissingSessionWorkspaces(ctx, payloads); err != nil {
+		return nil, err
+	}
 	h.decorateMonitorSummaries(payloads)
 	return h.decorateSessionOwners(ctx, payloads)
 }
@@ -82,4 +85,27 @@ func SessionPayloadsWithPageHealth(
 		payloads = append(payloads, payload)
 	}
 	return payloads, nil
+}
+
+// decorateMissingSessionWorkspaces uses one registration read for the entire page.
+func (h *BaseHandlers) decorateMissingSessionWorkspaces(ctx context.Context, payloads []contract.SessionPayload) error {
+	if len(payloads) == 0 || h.Workspaces == nil {
+		return nil
+	}
+	workspaces, err := h.Workspaces.List(ctx)
+	if err != nil {
+		return err
+	}
+	missing := make(map[string]bool)
+	for _, workspace := range workspaces {
+		if workspace.RootMissing {
+			missing[workspace.ID] = true
+		}
+	}
+	for index := range payloads {
+		if missing[payloads[index].WorkspaceID] {
+			payloads[index].Diagnostics = MissingWorkspaceDiagnostics(payloads[index].WorkspaceID)
+		}
+	}
+	return nil
 }

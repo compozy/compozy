@@ -72,6 +72,7 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 			resolved, err = h.workspaceAgentEntriesWithDiagnostics(c.Request.Context(), workspace, profileName)
 			if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
 				response.Diagnostics = append(response.Diagnostics, MissingWorkspaceDiagnostics(workspace)...)
+				response.SessionsAvailable = false
 				continue
 			}
 			if err != nil {

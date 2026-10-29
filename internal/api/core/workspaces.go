@@ -87,6 +87,9 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
 		var registered workspacepkg.Workspace
 		registered, err = h.Workspaces.Get(c.Request.Context(), ref)
+		if errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+			err = workspacepkg.ErrWorkspaceRootMissing
+		}
 		registered.RootMissing = true
 		resolved = workspacepkg.ResolvedWorkspace{
 			Workspace: registered, WorkspaceID: registered.ID, Scope: workspacepkg.ScopeWorkspace,

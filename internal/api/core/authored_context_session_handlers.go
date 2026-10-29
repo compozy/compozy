@@ -101,6 +101,16 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		SessionID: health.SessionID,
 		Health:    health,
 	}
+	if diagnostics := MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing")); len(diagnostics) > 0 {
+		for _, diagnostic := range diagnostics {
+			response.Diagnostics = append(response.Diagnostics, contract.AuthoredContextDiagnosticPayload{
+				Code: diagnostic.Code, Severity: contract.AuthoredDiagnosticWarning,
+				Message: diagnostic.Message,
+			})
+		}
+		h.respondAuthoredJSON(c, http.StatusOK, response)
+		return
+	}
 	if h.HeartbeatStatus != nil {
 		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, true)
 		if statusErr != nil {

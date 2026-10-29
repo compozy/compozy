@@ -184,7 +184,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 		t.Parallel()
 		calls := 0
 		service := &nativeWorktreeServiceStub{
-			resolve: func(_ context.Context, ws, ref string) (*worktree.Worktree, error) {
+			resolve: func(_ context.Context, ws, _ string) (*worktree.Worktree, error) {
 				return &worktree.Worktree{
 					ID:          "wt-missing",
 					WorkspaceID: ws,
@@ -192,7 +192,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 					State:       worktree.StateMissing,
 				}, nil
 			},
-			remove: func(_ context.Context, ws, id string, force bool) (*worktree.RemovalRefusal, error) {
+			remove: func(_ context.Context, ws, id string, _ bool) (*worktree.RemovalRefusal, error) {
 				if ws != "registry-a" || id != "wt-missing" {
 					t.Fatalf("wrong removal target %s/%s", ws, id)
 				}

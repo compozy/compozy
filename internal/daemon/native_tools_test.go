@@ -15271,9 +15271,8 @@ func TestNativeSessionMissingWorkspace(t *testing.T) {
 			_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 				ToolID: toolID, Input: json.RawMessage(`{"workspace":"ws-foreign","session_id":"sess-1"}`),
 			})
-			if err == nil {
-				t.Fatal("missing root bypassed session ownership")
-			}
+			requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		})
 	}
 }

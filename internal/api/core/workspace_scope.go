@@ -130,13 +130,15 @@ func allowsMissingWorkspace(c *gin.Context) bool {
 		(strings.HasSuffix(c.FullPath(), "/stop") || strings.HasSuffix(c.FullPath(), "/archive"))
 }
 
+const workspaceRootMissingCode = "workspace_root_missing"
+
 // MissingWorkspaceDiagnostics describes unavailable execution files without invalidating retained state.
 func MissingWorkspaceDiagnostics(workspaceID string) []contract.DiagnosticItem {
 	if workspaceID == "" {
 		return nil
 	}
 	return []contract.DiagnosticItem{{
-		ID: "workspace_root_missing:" + workspaceID, Code: "workspace_root_missing",
+		ID: "workspace_root_missing:" + workspaceID, Code: workspaceRootMissingCode,
 		Severity: "warn", Category: "session", DataFreshness: "live",
 		Title:    "Workspace folder is missing",
 		Message:  "The workspace folder is missing. Session state is retained; stop and archive remain available.",

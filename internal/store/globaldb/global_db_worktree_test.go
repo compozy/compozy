@@ -724,6 +724,45 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			t.Fatalf("ListRunningExitOperations() = %#v, %v", running, err)
 		}
 
+		if err := globalDB.Worktrees.SetState(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			worktreepkg.StateMissing,
+			now,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			now,
+		); err != nil ||
+			removed {
+			t.Fatalf("missing removal during exit = %v, %v", removed, err)
+		}
+		if finished, err := globalDB.Worktrees.FinishExitOperation(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			exitOperation.ID,
+			"failed",
+			now,
+		); err != nil ||
+			!finished {
+			t.Fatalf("finish exit = %v, %v", finished, err)
+		}
+		if removed, err := globalDB.Worktrees.RemoveMissing(
+			ctx,
+			workspaceID,
+			"wt_exit_first",
+			now,
+		); err != nil ||
+			!removed {
+			t.Fatalf("missing removal after exit = %v, %v", removed, err)
+		}
+
 		insertReady("wt_remove_first")
 		if swapped, err := globalDB.Worktrees.CompareAndSwapState(
 			ctx, workspaceID, "wt_remove_first", worktreepkg.StateReady, worktreepkg.StateRemoving, now,

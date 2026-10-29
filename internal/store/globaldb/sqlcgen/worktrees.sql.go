@@ -614,6 +614,12 @@ WHERE worktrees.workspace_id = ?2 AND worktrees.id = ?3 AND worktrees.state = 'm
     WHERE sessions.workspace_id = worktrees.workspace_id AND sessions.worktree_id = worktrees.id
       AND sessions.archived_at IS NULL
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM worktree_exit_ops
+    WHERE worktree_exit_ops.workspace_id = worktrees.workspace_id
+      AND worktree_exit_ops.worktree_id = worktrees.id
+      AND worktree_exit_ops.state = 'running'
+  )
 `
 
 type RemoveMissingWorktreeParams struct {

@@ -480,6 +480,31 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 			},
 		},
 		{
+			name:        "Should retain session inspection and diagnose a missing workspace root",
+			path:        "/workspaces/ws-stable/sessions/sess-deleted-agent/inspect?include_recent_wake_events=true",
+			missingRoot: true,
+			wantStatus:  http.StatusOK,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/inspect",
+					fixture.Handlers.InspectSession,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				if payload["session_id"] != "sess-deleted-agent" {
+					t.Fatalf("retained status = %#v", payload)
+				}
+				diagnostics, ok := payload["diagnostics"].([]any)
+				if !ok || len(diagnostics) != 1 || diagnostics[0].(map[string]any)["code"] != "workspace_root_missing" {
+					t.Fatalf("missing-root diagnostics = %#v", payload["diagnostics"])
+				}
+				if _, ok := payload["wake_state"]; ok {
+					t.Fatal("missing root exposed wake policy")
+				}
+			},
+		},
+		{
 			name:         "Should return status without Heartbeat enrichment after agent deletion",
 			path:         "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
 			heartbeatErr: heartbeat.ErrAuthoringAgentNotFound,

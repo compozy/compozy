@@ -118,7 +118,7 @@ func (h *BaseHandlers) InspectWorktree(c *gin.Context) {
 		if err == nil {
 			inspection = &worktree.Inspection{
 				Worktree: *item,
-				Repo:     worktree.RepoState{Diagnostic: "workspace_root_missing"},
+				Repo:     worktree.RepoState{Diagnostic: workspaceRootMissingCode},
 			}
 		}
 	} else {
