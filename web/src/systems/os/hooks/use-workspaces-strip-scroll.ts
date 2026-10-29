@@ -50,7 +50,8 @@ interface DragState {
 }
 
 function tileElements(track: HTMLElement): HTMLElement[] {
-  return Array.from(track.querySelectorAll<HTMLElement>('[data-slot="os-workspace-tile"]'));
+  // Context-menu composition can replace data-slot; the strip option role owns tile identity.
+  return Array.from(track.querySelectorAll<HTMLElement>('[role="option"]'));
 }
 
 /**

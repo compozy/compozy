@@ -4032,7 +4032,7 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should bind missing project lifecycle targets and preserve authorization", func(t *testing.T) {
 		t.Parallel()
 		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDWorkspaceArchive, toolspkg.ToolIDWorkspaceUnarchive} {
-			t.Run(string(id), func(t *testing.T) {
+			t.Run("Should bind "+string(id), func(t *testing.T) {
 				t.Parallel()
 				workspaces := apitest.StubWorkspaceService{
 					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
