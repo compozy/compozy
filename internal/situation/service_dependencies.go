@@ -65,3 +65,13 @@ func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 	}
 	return s.soulSnapshots
 }
+
+func (s *Service) spawnAllowanceValue() SpawnAllowanceResolver {
+	if s == nil {
+		return nil
+	}
+	if s.spawnAllowanceFunc != nil {
+		return s.spawnAllowanceFunc()
+	}
+	return s.spawnAllowance
+}

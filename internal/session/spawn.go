@@ -473,6 +473,7 @@ func (m *Manager) validateSpawnCaps(
 	if activeChildren >= budget.MaxChildren {
 		limitErr := &SpawnLimitError{
 			Limit: SpawnLimitMaxChildren, Max: budget.MaxChildren, Live: activeChildren, Scope: parent.ID,
+			DefaultCap: LineageSpawnBudget(parent.Lineage).MaxChildren <= 0,
 		}
 		if coordinatorBudget {
 			limitErr.ConfigKey = coordinatorMaxChildrenConfigKey

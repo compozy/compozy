@@ -62,8 +62,9 @@ it:
 - `max_depth 1 reached` — the caller is a spawned child. Delegate with a subagent, which has no
   depth cap, or ask the root session to spawn the child.
 
-A `model` or `reasoning_effort` override without `provider` is refused with
-`provider is required when model is set`; pass `provider` with the model.
+A `model` or `reasoning_effort` override requires `provider` too. The refusal names the field
+(`provider is required when model is set` or `provider is required when reasoning_effort is set`);
+pass `provider` with either override.
 
 [Subagents](/docs/sessions/subagents) reuse the permission-subset rules but not the TTL, depth, or
 child caps: a delegated subagent has no TTL and no depth or count limit, and it inherits the caller's

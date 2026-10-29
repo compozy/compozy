@@ -175,7 +175,7 @@ func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupProm
 		WorktreeID:   strings.TrimSpace(s.worktreeID),
 		SessionType:  normalizeSessionType(s.sessionType),
 		SpawnRole:    store.NormalizeSessionLineage(s.sessionID, s.lineage).SpawnRole,
-		SpawnBudget:  LineageSpawnBudget(s.lineage),
+		Lineage:      store.NormalizeSessionLineage(s.sessionID, s.lineage),
 		SoulSnapshot: cloneSoulSnapshotPointer(s.soulSnapshot),
 		CreatedAt:    s.createdAt,
 		UpdatedAt:    updatedAt,

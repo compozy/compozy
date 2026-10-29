@@ -19,12 +19,9 @@ const (
 	coordinatorMaxChildrenConfigKey = "roles.coordinator.max_children"
 	coordinatorMaxActiveConfigKey   = "roles.coordinator.max_active_sessions_per_workspace"
 
-	minSpawnedGovernedDepth = 1
-
 	spawnSubagentRecovery           = "use compozy__subagent_delegate for answers your current turn waits on."
 	spawnDefaultMaxChildrenRecovery = "This session uses the default per-session cap; " +
 		"roles.coordinator.max_children applies only to coordinator sessions."
-	spawnDepthBlocked = "Spawned child sessions cannot spawn governed children"
 )
 
 // SpawnLimitError reports a spawn refused by a live-child cap. It matches ErrSpawnLimitExceeded.
@@ -37,8 +34,11 @@ type SpawnLimitError struct {
 	Live  int
 	// Scope is the parent session ID or the target workspace ID the cap applies to.
 	Scope string
-	// ConfigKey names the config key that sets Max, or is empty for a daemon default.
+	// ConfigKey names the config key that sets Max, or is empty when the session's own
+	// stored budget or a daemon default sets it.
 	ConfigKey string
+	// DefaultCap reports that Max is the daemon default because the stored cap is unset.
+	DefaultCap bool
 }
 
 // Error names the cap, its value, and the live count.
@@ -69,13 +69,13 @@ func (e *SpawnLimitError) Recovery() string {
 	recovery := "Stop a live child (compozy__session_stop) or wait for one to stop, then retry; " +
 		spawnSubagentRecovery
 	if e.Limit == SpawnLimitMaxActivePerWorkspace {
-		recovery = "Stop a live spawned session in this workspace or wait for one to stop, then retry; " +
-			spawnSubagentRecovery
+		recovery = "Stop a live spawned session of this session tree in this workspace or wait for one to stop, " +
+			"then retry; " + spawnSubagentRecovery
 	}
 	switch {
 	case e.ConfigKey != "":
 		return recovery + " The cap is set by " + e.ConfigKey + "."
-	case e.Limit == SpawnLimitMaxChildren:
+	case e.Limit == SpawnLimitMaxChildren && e.DefaultCap:
 		return recovery + " " + spawnDefaultMaxChildrenRecovery
 	default:
 		return recovery
@@ -119,48 +119,12 @@ func (e *SpawnDepthError) Recovery() string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"%s (max_depth %d is a daemon default, not a config key). Delegate with "+
+		"Governed children of this session would exceed %s %d (child depth %d). Delegate with "+
 			"compozy__subagent_delegate, which has no depth cap, or ask the root session to spawn the child.",
-		spawnDepthBlocked,
+		SpawnLimitMaxDepth,
 		e.Max,
+		e.ChildDepth,
 	)
-}
-
-// ChildSpawnAllowance is the spawn budget a session holds for its own governed children.
-type ChildSpawnAllowance struct {
-	// Budget is the effective budget the spawn engine enforces for this session's children.
-	Budget store.SessionSpawnBudget
-	// GovernedDepth counts only spawned-type ancestors, unlike the display lineage depth.
-	// It is 0 for user, coordinator, and provenance-linked sessions and a lower bound of
-	// 1 for spawned sessions.
-	GovernedDepth int
-	// Allowed reports whether the session's depth still admits a governed child.
-	Allowed bool
-	// BlockedReason explains a false Allowed in agent-readable terms.
-	BlockedReason string
-}
-
-// ChildSpawnAllowanceFor derives a session's child-spawn allowance from its type and
-// stored budget, matching the engine: only spawned-type ancestors count toward depth,
-// so user, coordinator, and provenance-linked sessions sit at governed depth 0.
-func ChildSpawnAllowanceFor(sessionType Type, budget store.SessionSpawnBudget) ChildSpawnAllowance {
-	allowance := ChildSpawnAllowance{Budget: store.EffectiveSessionSpawnBudget(budget), Allowed: true}
-	if normalizeSessionType(sessionType) != SessionTypeSpawned {
-		return allowance
-	}
-	// A spawned session sits at governed depth >= 1. Exact depth needs an ancestor walk;
-	// the lower bound is exact for every budget the daemon writes (max_depth 1).
-	allowance.GovernedDepth = minSpawnedGovernedDepth
-	if allowance.GovernedDepth+1 > allowance.Budget.MaxDepth {
-		allowance.Allowed = false
-		allowance.BlockedReason = fmt.Sprintf(
-			"%s: this is a spawned child session and %s is %d. Use compozy__subagent_delegate instead.",
-			spawnDepthBlocked,
-			SpawnLimitMaxDepth,
-			allowance.Budget.MaxDepth,
-		)
-	}
-	return allowance
 }
 
 // LineageSpawnBudget returns the stored spawn budget of a possibly nil lineage.

@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
-	"github.com/compozy/compozy/internal/store"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -170,9 +169,19 @@ func (s *Service) capabilitiesSection(
 }
 
 // limits reports the calling session's own effective spawn budget, the same values the
-// spawn engine enforces for its governed children.
-func (s *Service) limits(sessionType session.Type, budget store.SessionSpawnBudget) contract.AgentLimitsPayload {
-	allowance := session.ChildSpawnAllowanceFor(sessionType, budget)
+// spawn engine enforces for its governed children. Without the engine's ancestor walk,
+// it falls back to the session-type allowance.
+func (s *Service) limits(ctx context.Context, info *session.Info) (contract.AgentLimitsPayload, error) {
+	allowance := session.ChildSpawnAllowanceFor(info.Type, session.LineageSpawnBudget(info.Lineage))
+	if resolver := s.spawnAllowanceValue(); resolver != nil {
+		resolved, err := resolver.ChildSpawnAllowance(ctx, info)
+		switch {
+		case err == nil:
+			allowance = resolved
+		case isContextError(err):
+			return contract.AgentLimitsPayload{}, err
+		}
+	}
 	return contract.AgentLimitsPayload{
 		MaxChildren:           allowance.Budget.MaxChildren,
 		MaxSpawnDepth:         allowance.Budget.MaxDepth,
@@ -182,5 +191,5 @@ func (s *Service) limits(sessionType session.Type, budget store.SessionSpawnBudg
 		SpawnBlockedReason:    allowance.BlockedReason,
 		MaxActiveTaskLeases:   defaultMaxActiveTaskLeases,
 		ContextSectionLimit:   s.limit(),
-	}
+	}, nil
 }

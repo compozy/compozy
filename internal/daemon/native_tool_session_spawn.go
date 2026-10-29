@@ -219,11 +219,15 @@ func nativeSpawnLimitRecovery(err error) string {
 // generic invalid-input mask otherwise hides why a model-only override was refused.
 func nativeRuntimeOverrideError(id toolspkg.ToolID, err error) error {
 	cause := diagnostics.RedactAndBound(err.Error(), nativeSpawnRefusalMaxBytes)
+	recovery := "Correct the runtime field named in the cause; " +
+		"compozy__provider_models_list lists each provider's models, reasoning efforts, and options."
+	if errors.Is(err, session.ErrRuntimeOverrideProviderRequired) {
+		recovery = "Pass provider together with model or reasoning_effort; " +
+			"compozy__provider_models_list lists the models of each provider."
+	}
 	return toolspkg.NewOperatorToolError(
 		toolspkg.ErrorCodeInvalidRequest, id, cause,
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-		cause, "Pass provider together with model or reasoning_effort; "+
-			"compozy__provider_models_list lists the models of each provider.",
-		toolspkg.ReasonConfigValidationFailed,
+		cause, recovery, toolspkg.ReasonConfigValidationFailed,
 	)
 }

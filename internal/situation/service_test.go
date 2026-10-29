@@ -260,6 +260,59 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 		})
 	}
 
+	t.Run("Should prefer the engine's ancestor walk and fall back on ordinary failures", func(t *testing.T) {
+		t.Parallel()
+
+		info := sessionInfo(session.SessionTypeSpawned, &store.SessionLineage{
+			ParentSessionID: "sess-parent", SpawnBudget: store.SessionSpawnBudget{MaxDepth: 3},
+		})
+		resolved := session.ChildSpawnAllowance{
+			Budget:        store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			GovernedDepth: 2,
+			Allowed:       true,
+		}
+		tests := []struct {
+			name      string
+			resolver  spawnAllowanceResolverFunc
+			wantDepth int
+			wantErr   error
+		}{
+			{
+				name: "resolved",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return resolved, nil
+				},
+				wantDepth: 2,
+			},
+			{
+				name: "fallback",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return session.ChildSpawnAllowance{}, errors.New("ancestor lookup failed")
+				},
+				wantDepth: 1,
+			},
+			{
+				name: "canceled",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return session.ChildSpawnAllowance{}, context.Canceled
+				},
+				wantErr: context.Canceled,
+			},
+		}
+		for _, tt := range tests {
+			payload, err := NewService(Deps{Now: fixedNow, SpawnAllowance: tt.resolver}).
+				ContextForSession(t.Context(), info)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("%s: ContextForSession() error = %v, want %v", tt.name, err, tt.wantErr)
+			}
+			if tt.wantErr == nil && (payload.Limits.GovernedSpawnDepth != tt.wantDepth ||
+				!payload.Limits.CanSpawnChildren) {
+				t.Fatalf("%s: Limits = %#v, want governed depth %d and a spawnable session",
+					tt.name, payload.Limits, tt.wantDepth)
+			}
+		}
+	})
+
 	t.Run("Should block governed spawns in a spawned child's startup context", func(t *testing.T) {
 		t.Parallel()
 
@@ -268,7 +321,9 @@ func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
 			session.StartupPromptContext{
 				SessionID: "sess-child", AgentName: "coder", Provider: "codex",
 				SessionType: session.SessionTypeSpawned,
-				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-parent", SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
+				},
 			},
 			compozyconfig.AgentDef{Name: "coder", Provider: "codex"},
 			nil,
@@ -1483,6 +1538,15 @@ func (fn skillRegistryFunc) ForAgent(
 	_ string,
 ) ([]*skillspkg.Skill, error) {
 	return fn(ctx, workspace)
+}
+
+type spawnAllowanceResolverFunc func(context.Context, *session.Info) (session.ChildSpawnAllowance, error)
+
+func (fn spawnAllowanceResolverFunc) ChildSpawnAllowance(
+	ctx context.Context,
+	info *session.Info,
+) (session.ChildSpawnAllowance, error) {
+	return fn(ctx, info)
 }
 
 type taskStoreStub struct {

@@ -47,6 +47,8 @@ the native `session_spawn` runtime-override case.
 
 ## Verdict
 
-PASS. Remaining limitation: `governed_spawn_depth` for spawned sessions is reported as the lower
-bound 1; it does not change `can_spawn_children`, because every daemon-written budget has
-`max_depth` 1.
+PASS. Review follow-up: live and startup contexts resolve `governed_spawn_depth` with the spawn
+engine's own ancestor walk (`Manager.ChildSpawnAllowance`); the type-based lower bound is only the
+fallback when that walk fails for a non-context reason. `can_spawn_children` reflects depth, not
+live slot usage, which changes between prompts; a full cap is reported by the refusal with its
+live count.

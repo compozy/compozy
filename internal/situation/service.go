@@ -6,6 +6,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/session"
 
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
@@ -55,6 +56,12 @@ type TaskStore interface {
 	ListRunReviews(ctx context.Context, query taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error)
 }
 
+// SpawnAllowanceResolver resolves a session's child-spawn allowance with the spawn
+// engine's ancestor walk.
+type SpawnAllowanceResolver interface {
+	ChildSpawnAllowance(ctx context.Context, info *session.Info) (session.ChildSpawnAllowance, error)
+}
+
 // SoulSnapshotStore loads immutable Soul snapshots for compact context projection.
 type SoulSnapshotStore interface {
 	GetSoulSnapshot(ctx context.Context, id string) (soul.Snapshot, error)
@@ -80,6 +87,9 @@ type Deps struct {
 
 	SoulSnapshots     SoulSnapshotStore
 	SoulSnapshotsFunc func() SoulSnapshotStore
+
+	SpawnAllowance     SpawnAllowanceResolver
+	SpawnAllowanceFunc func() SpawnAllowanceResolver
 }
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
@@ -97,9 +107,11 @@ type Service struct {
 	taskStore             TaskStore
 	taskStoreFunc         func() TaskStore
 
-	soulSnapshots     SoulSnapshotStore
-	soulSnapshotsFunc func() SoulSnapshotStore
-	promptSections    *promptSectionCache
+	soulSnapshots      SoulSnapshotStore
+	soulSnapshotsFunc  func() SoulSnapshotStore
+	spawnAllowance     SpawnAllowanceResolver
+	spawnAllowanceFunc func() SpawnAllowanceResolver
+	promptSections     *promptSectionCache
 }
 
 // NewService constructs a deterministic situation context assembler.
@@ -126,8 +138,10 @@ func NewService(deps Deps) *Service {
 		taskStore:             deps.TaskStore,
 		taskStoreFunc:         deps.TaskStoreFunc,
 
-		soulSnapshots:     deps.SoulSnapshots,
-		soulSnapshotsFunc: deps.SoulSnapshotsFunc,
-		promptSections:    newPromptSectionCache(),
+		soulSnapshots:      deps.SoulSnapshots,
+		soulSnapshotsFunc:  deps.SoulSnapshotsFunc,
+		spawnAllowance:     deps.SpawnAllowance,
+		spawnAllowanceFunc: deps.SpawnAllowanceFunc,
+		promptSections:     newPromptSectionCache(),
 	}
 }

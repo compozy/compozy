@@ -14802,7 +14802,7 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		t.Parallel()
 
 		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
-			return nil, fmt.Errorf("%w: provider is required when model is set", session.ErrInvalidRuntimeOverride)
+			return nil, fmt.Errorf("%w when model is set", session.ErrRuntimeOverrideProviderRequired)
 		})
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
@@ -14816,6 +14816,28 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 			!strings.Contains(toolErr.Message, "provider is required when model is set") ||
 			!strings.Contains(toolErr.Operator.Recovery, "Pass provider") {
 			t.Fatalf("Registry.Call(session_spawn) error = %#v, want the runtime override rule and recovery", err)
+		}
+	})
+
+	t.Run("Should name the rejected runtime field instead of asking for a provider", func(t *testing.T) {
+		t.Parallel()
+
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			return nil, fmt.Errorf("%w: model \"gpt-test\" is not offered by claude", session.ErrInvalidRuntimeOverride)
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn,
+			Input: json.RawMessage(
+				`{"agent_name":"general","ttl_seconds":600,"provider":"claude","model":"gpt-test"}`,
+			),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Operator == nil || !strings.Contains(toolErr.Message, "is not offered by claude") ||
+			strings.Contains(toolErr.Operator.Recovery, "Pass provider") {
+			t.Fatalf("Registry.Call(session_spawn) error = %#v, want the model cause without provider advice", err)
 		}
 	})
 

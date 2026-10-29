@@ -384,5 +384,12 @@ func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 		SoulSnapshotsFunc: func() situation.SoulSnapshotStore {
 			return soulSnapshotStoreDependency(state.registry)
 		},
+		SpawnAllowanceFunc: func() situation.SpawnAllowanceResolver {
+			resolver, ok := state.sessions.(situation.SpawnAllowanceResolver)
+			if !ok {
+				return nil
+			}
+			return resolver
+		},
 	})
 }

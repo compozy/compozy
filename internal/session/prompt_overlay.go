@@ -26,7 +26,7 @@ type StartupPromptContext struct {
 	WorktreeID             string
 	SessionType            Type
 	SpawnRole              string
-	SpawnBudget            store.SessionSpawnBudget
+	Lineage                *store.SessionLineage
 	SoulSnapshot           *soul.Snapshot
 	CreatedAt              time.Time
 	UpdatedAt              time.Time

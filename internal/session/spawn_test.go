@@ -1885,36 +1885,96 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 		if !strings.Contains(depth.Recovery(), "compozy__subagent_delegate") {
 			t.Fatalf("Recovery() = %q, want the subagent path", depth.Recovery())
 		}
+
+		childInfo, err := h.manager.Status(testutil.Context(t), child.ID)
+		if err != nil {
+			t.Fatalf("Status(child) error = %v", err)
+		}
+		allowance, err := h.manager.ChildSpawnAllowance(testutil.Context(t), childInfo)
+		if err != nil || allowance.Allowed || allowance.GovernedDepth != 1 ||
+			!strings.Contains(allowance.BlockedReason, "compozy__subagent_delegate") {
+			t.Fatalf("ChildSpawnAllowance(child) = %#v, %v; want blocked at governed depth 1", allowance, err)
+		}
+		parentInfo, err := h.manager.Status(testutil.Context(t), parent.ID)
+		if err != nil {
+			t.Fatalf("Status(parent) error = %v", err)
+		}
+		allowance, err = h.manager.ChildSpawnAllowance(testutil.Context(t), parentInfo)
+		if err != nil || !allowance.Allowed || allowance.GovernedDepth != 0 ||
+			allowance.Budget.MaxChildren != store.DefaultSpawnMaxChildren {
+			t.Fatalf("ChildSpawnAllowance(parent) = %#v, %v; want the default budget at depth 0", allowance, err)
+		}
 	})
 
-	t.Run("Should point refusal recovery at the config key that owns the cap", func(t *testing.T) {
+	t.Run("Should name the roles.coordinator key when a coordinator exhausts a cap", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			err  *SpawnLimitError
-			want string
+			name      string
+			budget    store.SessionSpawnBudget
+			wantLimit string
+			wantKey   string
 		}{
 			{
-				err: &SpawnLimitError{
-					Limit: SpawnLimitMaxChildren, Max: 5, ConfigKey: coordinatorMaxChildrenConfigKey,
-				},
-				want: "roles.coordinator.max_children.",
+				name:      "max_children",
+				budget:    store.SessionSpawnBudget{MaxChildren: 1},
+				wantLimit: SpawnLimitMaxChildren,
+				wantKey:   coordinatorMaxChildrenConfigKey,
 			},
 			{
-				err:  &SpawnLimitError{Limit: SpawnLimitMaxChildren, Max: 5},
-				want: "applies only to coordinator sessions",
-			},
-			{
-				err: &SpawnLimitError{
-					Limit: SpawnLimitMaxActivePerWorkspace, Max: 5, ConfigKey: coordinatorMaxActiveConfigKey,
-				},
-				want: "roles.coordinator.max_active_sessions_per_workspace.",
+				name:      "max_active_per_workspace",
+				budget:    store.SessionSpawnBudget{MaxChildren: 5, MaxActivePerWorkspace: 1},
+				wantLimit: SpawnLimitMaxActivePerWorkspace,
+				wantKey:   coordinatorMaxActiveConfigKey,
 			},
 		}
 		for _, tt := range tests {
-			if got := tt.err.Recovery(); !strings.Contains(got, tt.want) {
-				t.Fatalf("Recovery(%s) = %q, want substring %q", tt.err.Limit, got, tt.want)
-			}
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				ttl := time.Now().UTC().Add(time.Hour)
+				coordinator, err := h.manager.Create(testutil.Context(t), CreateOpts{
+					AgentName: "coder", Name: "coordinator", Workspace: h.workspaceID, Type: SessionTypeCoordinator,
+					Lineage: &store.SessionLineage{
+						SpawnRole: string(SessionTypeCoordinator), TTLExpiresAt: &ttl, SpawnBudget: tt.budget,
+					},
+				})
+				if err != nil {
+					t.Fatalf("Create(coordinator) error = %v", err)
+				}
+				cleanupSessionStop(t, h, coordinator.ID)
+				spawn := func() (*Session, error) {
+					return h.manager.Spawn(testutil.Context(t), SpawnOpts{
+						ParentSessionID: coordinator.ID, AgentName: "coder", TTL: time.Minute,
+					})
+				}
+				first, err := spawn()
+				if err != nil {
+					t.Fatalf("Spawn(first) error = %v", err)
+				}
+				cleanupSessionStop(t, h, first.ID)
+
+				_, err = spawn()
+				limit, ok := errors.AsType[*SpawnLimitError](err)
+				if !ok || limit.Limit != tt.wantLimit || limit.ConfigKey != tt.wantKey {
+					t.Fatalf("Spawn(over cap) error = %T %v, want %s set by %s", err, err, tt.wantLimit, tt.wantKey)
+				}
+				if !strings.Contains(limit.Recovery(), tt.wantKey) {
+					t.Fatalf("Recovery() = %q, want %s", limit.Recovery(), tt.wantKey)
+				}
+			})
+		}
+	})
+
+	t.Run("Should call only an unset cap the default", func(t *testing.T) {
+		t.Parallel()
+
+		explicit := &SpawnLimitError{Limit: SpawnLimitMaxChildren, Max: 1}
+		unset := &SpawnLimitError{Limit: SpawnLimitMaxChildren, Max: 5, DefaultCap: true}
+		if strings.Contains(explicit.Recovery(), "default") || !strings.Contains(unset.Recovery(), "default") {
+			t.Fatalf("Recovery() explicit = %q, unset = %q; want default wording only when unset",
+				explicit.Recovery(), unset.Recovery())
 		}
 	})
 }
