@@ -83,9 +83,8 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		metrics, available := h.agentCatalogSessionMetrics(c, scope, agentMetricsWorkspace(workspace))
 		agents := aggregateWorkspaceAgents(workspace, &resolved, userAgentNames, metrics, available)
 		response.SessionsAvailable = response.SessionsAvailable && available
-		local := query
-		local.Limit = len(agents) + 1
-		page, buildErr := buildAgentCatalogResponse(local, workspace, agents, metrics, available)
+		query.Limit = len(agents) + 1
+		page, buildErr := buildAgentCatalogResponse(query, workspace, agents, metrics, available)
 		if buildErr != nil {
 			h.respondError(c, http.StatusInternalServerError, buildErr)
 			return

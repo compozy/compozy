@@ -108,10 +108,8 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 				Message: diagnostic.Message,
 			})
 		}
-		h.respondAuthoredJSON(c, http.StatusOK, response)
-		return
 	}
-	if h.HeartbeatStatus != nil {
+	if h.HeartbeatStatus != nil && len(response.Diagnostics) == 0 {
 		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, info, true)
 		if statusErr != nil {
 			h.respondError(c, StatusForHeartbeatError(statusErr), statusErr)
@@ -125,10 +123,9 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		}
 	}
 	if includeEvents {
-		target, targetErr := h.resolveAuthoredAgentTargetForSession(c.Request.Context(), info)
-		if targetErr != nil {
-			h.respondError(c, StatusForHeartbeatError(targetErr), targetErr)
-			return
+		// Wake history is durable metadata owned by the authorized session.
+		target := authoredAgentTarget{
+			profileID: info.ProfileID, sessionWorkspaceID: info.WorkspaceID, agentName: info.AgentName,
 		}
 		events, eventsErr := h.heartbeatWakeEvents(c.Request.Context(), target, health.SessionID)
 		if eventsErr != nil {
