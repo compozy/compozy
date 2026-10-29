@@ -133,6 +133,9 @@ export function DesktopMenubar(props: DesktopMenubarProps) {
           listed={projectMenu.listed}
           point={projectMenu.point}
           onClose={projectMenu.close}
+          finalFocus={() =>
+            document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')
+          }
         />
       ) : null}
     </>
