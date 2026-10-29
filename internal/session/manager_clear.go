@@ -74,6 +74,8 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	return m.clearStoppedConversation(ctx, target, owner, &meta, &sanitized, &spec)
 }
 
+// prepareClearedConversationStart prepares readable storage and commits the new epoch.
+// The accepted run is launched only after this returns successfully; earlier errors roll back.
 func (m *Manager) prepareClearedConversationStart(
 	ctx context.Context,
 	spec *sessionStartSpec,

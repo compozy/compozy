@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -130,7 +130,9 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			}
 		})
 		h := newHarness(t, WithSessionCatalog(database))
-		if err := database.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: h.workspaceID, Name: "clear", RootDir: h.workspace}); err != nil {
+		if err := database.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: h.workspaceID, Name: "clear", RootDir: h.workspace,
+		}); err != nil {
 			t.Fatal(err)
 		}
 		active := createSession(t, h)
@@ -187,9 +189,24 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
-		cleared, err := h.manager.ClearConversation(ctx, active.ID)
-		if err != nil {
-			t.Fatal(err)
+		type clearResult struct {
+			session *Session
+			err     error
+		}
+		clearDone := make(chan clearResult, 1)
+		go func() {
+			cleared, clearErr := h.manager.ClearConversation(ctx, active.ID)
+			clearDone <- clearResult{session: cleared, err: clearErr}
+		}()
+		var cleared *Session
+		select {
+		case result := <-clearDone:
+			if result.err != nil {
+				t.Fatal(result.err)
+			}
+			cleared = result.session
+		case <-time.After(5 * time.Second):
+			t.Fatal("clear waited for blocked provider startup")
 		}
 		cancel()
 		select {
@@ -216,7 +233,9 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		if len(outline.Entries) != 0 {
 			t.Fatalf("outline = %#v", outline.Entries)
 		}
-		if _, err := h.manager.Prompt(readCtx, cleared.ID, "too early"); !errors.Is(err, context.DeadlineExceeded) {
+		promptCtx, cancelPrompt := context.WithTimeout(t.Context(), time.Second)
+		defer cancelPrompt()
+		if _, err := h.manager.Prompt(promptCtx, cleared.ID, "too early"); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Prompt(starting) = %v", err)
 		}
 		if _, err := h.manager.SessionPresence(t.Context(), cleared.ID, leaseID, true); err != nil {
@@ -625,8 +644,20 @@ func TestClearConversationFailureRecovery(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, entry := range page.Entries {
-			if strings.Contains(fmt.Sprint(entry), "discarded conversation") {
-				t.Fatal("restored committed history")
+			for _, part := range entry.Message.Parts {
+				if part.Type != "data-compozy-event" {
+					t.Fatalf("restored conversational content after committed clear: %s", part.Type)
+				}
+				var payload transcript.UIAgentEventPayload
+				if err := json.Unmarshal(part.Data, &payload); err != nil {
+					t.Fatal(err)
+				}
+				switch payload.Type {
+				case acp.EventTypeError, EventTypeSessionStopped, "transcript_marker.created":
+					// Startup failure diagnostics belong to the new, cleared conversation.
+				default:
+					t.Fatalf("restored event after committed clear: %s", payload.Type)
+				}
 			}
 		}
 		h.driver.startContextHook = nil
