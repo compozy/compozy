@@ -4629,3 +4629,18 @@ method signature through an interface while complying with staticcheck.
 Web/QA: RT-workspace-overview-command-tab and the existing worktree/subagent journeys.
 Native tools, CLI/HTTP/UDS, hooks/config/extensions, persisted data and workspace
 isolation are unchanged. No generated contract or official skill changes.
+
+## Detached message edit acknowledgment recovery — issue #1017
+
+- **Web:** after navigation detaches a replacement send, a lost acknowledgment transfers
+  ownership to the existing unconfirmed Retry row. The edit hook releases its submitted
+  files and discards only the matching saved draft, preventing a fresh duplicate submission.
+  Definite refusals and a different newer draft retain their existing behavior.
+- **Native tools / public surfaces:** no CLI, HTTP/UDS, native ToolID, DTO, or admission
+  contract changes. Retry uses the existing message identity and idempotency key.
+- **Extensibility/hooks/config:** no extension, hook, SDK, or configuration changes.
+- **Workspace/user data:** recovery remains scoped to the original workspace/session;
+  no persisted schema changes or migrations. Browser verification uses disposable homes.
+- **Official skill / Docs / QA:** no `skills/compozy/` or public site changes needed.
+  `RT-conversation-rewind.md` records the lost-ack navigation journey, owned by the
+  existing stop/edit/resend Playwright test in `session-hardening.spec.ts`.

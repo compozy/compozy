@@ -95,4 +95,29 @@ switches to another session, releases the response, and verifies the original se
 its replacement and response before returning. Both focused runtime/mutation suites passed
 (120 tests), including exact rewind request replay after a post-acceptance refetch failure.
 The submitted text and attachment references survive navigation through the existing prompt
-transport; a retry retains its original idempotency key and daemon-issued transcript fence.
+transport; an uncertain rewind retry retains its original idempotency key and daemon-issued
+transcript fence. A definite refusal permits a refreshed fence on the next submission.
+
+## Lost replacement acknowledgment after navigation (#1017)
+
+Extend the stop/edit/resend journey by holding the accepted rewind response, navigating to
+another session, and then releasing it. Forward the detached replacement prompt to the real
+daemon but drop its acknowledgment. After the replacement response is durable, return to the
+original session: the composer must be empty and the unconfirmed row must offer **Retry**.
+Retry must submit the original request, including its message identity and idempotency key.
+The daemon must report `replayed: true`; the unconfirmed marker disappears and the composer
+stays empty. The accepted replacement must not create another turn. A definitive refusal still
+preserves the draft, and a newer draft must never be discarded by the earlier send's completion.
+
+Owning regression: the existing stop/edit/resend test in
+`web/e2e/__tests__/session-hardening.spec.ts`; it uses Chromium and an isolated daemon serving
+`web/dist`, with the existing ACP fixture provider. Only the acknowledgment is disrupted.
+
+Verification 2026-10-29: the targeted browser journey failed on main
+`44b3e6dce6db9e218f799d211b8fb05229c46c9c` because the composer retained
+`continue after disconnect` alongside Retry. After the hook fix, the same journey passed
+(1 test, 11.3s execution), including the replay receipt and existing clear/reload/delete legs.
+The mounted-guard effect did not need changing for this reproduction. Focused recovery, runtime,
+and action suites passed (131 tests); web typecheck passed and React Doctor scored 100/100.
+Browser artifacts include `session-edit-safe-retry` and `session-stop-edit-resend`. Historical
+CLI/provenance and live-provider journeys were not rerun.
