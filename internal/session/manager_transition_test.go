@@ -2126,3 +2126,35 @@ func assertSameSessionFailure(
 		t.Fatalf("%s failure summary = %q, want %q", label, after.Summary, before.Summary)
 	}
 }
+
+func TestPromptRuntimePiStartupRecovery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should rebuild from authored instructions on every Pi recovery", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		original := active.AgentDefinition()
+		for range 2 {
+			prior := active.AgentDefinition()
+			prior.Prompt = original.Prompt + "\nPreviously assembled native tool instructions."
+			active.setAgentDefinition(prior, acp.OpaqueStartupManifest(prior.Prompt, false))
+			plan, err := h.manager.preparePromptRuntimePlan(
+				t.Context(),
+				active,
+				RuntimeSelection{Provider: "pi", Model: "test-model"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, acp.StartOpts{})
+			prompt, _, err := opts.FinalizeStartup(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if prompt != original.Prompt || !active.NativeToolsUnavailable() {
+				t.Fatalf("recovery retained stale guidance: %q", prompt)
+			}
+		}
+	})
+}

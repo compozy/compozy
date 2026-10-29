@@ -150,7 +150,8 @@ func (d *Driver) startSessionAttempt(ctx context.Context, normalized StartOpts) 
 	if normalized.FinalizeStartup != nil {
 		prompt, manifest, err := normalized.FinalizeStartup(ctx)
 		if err != nil {
-			return process, WrapFailure(store.FailureStartup, "runtime tool readiness failed", err)
+			return process, WrapAcceptedStart(process.SessionID,
+				WrapFailure(store.FailureStartup, "runtime tool readiness failed", err))
 		}
 		process.systemPromptMu.Lock()
 		process.systemPrompt = prompt

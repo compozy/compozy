@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -1300,8 +1301,9 @@ func TestPiNativeToolsLaunch(t *testing.T) {
 		t.Parallel()
 		session := &Session{sessionDir: t.TempDir()}
 		original := acp.StartOpts{
-			Cwd: t.TempDir(),
-			Env: []string{"PI_CODING_AGENT_DIR=/operator/pi", "PI_ACP_PI_COMMAND=/operator/bin/pi"},
+			Command: "pi-acp",
+			Cwd:     t.TempDir(),
+			Env:     []string{"PI_CODING_AGENT_DIR=/operator/pi", "PI_ACP_PI_COMMAND=/operator/bin/pi"},
 			MCPServers: []compozyconfig.MCPServer{
 				{
 					Name:    "hosted",
@@ -1438,4 +1440,64 @@ handlers.session_shutdown();
 			}
 		},
 	)
+}
+
+func TestPiBridgeStartupFailures(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve inline executable selection without allowing it to bypass the bridge", func(t *testing.T) {
+		t.Parallel()
+		original := acp.StartOpts{
+			Command: `KEEP=value PI_ACP_PI_COMMAND='/native/pi custom' pi-acp --flag`,
+			Env:     []string{"PI_ACP_PI_COMMAND=/fallback/pi"},
+		}
+		prepared, path, err := preparePiNativeTools(&Session{sessionDir: t.TempDir()}, original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := compozyconfig.ParseLaunchCommand(prepared.Command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(parsed.Environment) != 1 || parsed.Environment[0] != "KEEP=value" || parsed.Executable != "pi-acp" ||
+			len(parsed.Args) != 1 ||
+			parsed.Args[0] != "--flag" {
+			t.Fatalf("command semantics changed: %#v", parsed)
+		}
+		if envValue(prepared.Env, "COMPOZY_PI_COMMAND") != "/native/pi custom" ||
+			envValue(prepared.Env, "PI_ACP_PI_COMMAND") == "/native/pi custom" ||
+			path == "" {
+			t.Fatal("inline command bypassed bridge")
+		}
+	})
+	t.Run("Should persist a typed startup warning before the first prompt exists", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		if err := h.manager.recordPiBridgeWarning(
+			t.Context(),
+			session,
+			"pi",
+			"pi_native_tools_unsupported",
+		); err != nil {
+			t.Fatal(err)
+		}
+		events, err := session.recorderHandle().
+			Query(t.Context(), store.EventQuery{Type: acp.EventTypeRuntimeWarning, Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(events) != 1 || events[0].TurnID == "" {
+			t.Fatalf("startup diagnostics = %#v", events)
+		}
+		event, err := transcript.UnmarshalAgentEvent(events[0].Content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if event.ProviderError == nil || event.ProviderError.Code != "pi_native_tools_unsupported" ||
+			event.ProviderError.Provider != "pi" {
+			t.Fatalf("typed diagnostic = %#v", event.ProviderError)
+		}
+
+	})
 }

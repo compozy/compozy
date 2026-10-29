@@ -892,6 +892,26 @@ func TestStartNegotiatesRequestedSpeed(t *testing.T) {
 func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 	t.Parallel()
 
+	t.Run("Should retain acceptance when startup finalization fails", func(t *testing.T) {
+		t.Parallel()
+		cause := errors.New("startup assembly failed")
+		driver := New()
+		proc, err := driver.Start(t.Context(), StartOpts{
+			AgentName:       "helper",
+			Command:         helperCommand(t),
+			Cwd:             t.TempDir(),
+			Env:             helperEnv("initialize_contract", ""),
+			FinalizeStartup: func(context.Context) (string, StartupManifest, error) { return "", StartupManifest{}, cause },
+		})
+		if proc != nil {
+			t.Fatal("failed startup retained a process")
+		}
+		id, accepted := AcceptedSessionID(err)
+		if !accepted || id != "sess-new" || !errors.Is(err, cause) {
+			t.Fatalf("finalizer failure lost acceptance or cause: %v (%s)", err, id)
+		}
+	})
+
 	t.Run("Should carry the accepted session id through failed-start cleanup", func(t *testing.T) {
 		t.Parallel()
 

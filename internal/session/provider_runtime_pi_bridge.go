@@ -16,14 +16,19 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/providerenv"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 //go:embed pi_native_tools.js
 var piNativeToolsExtension []byte
 
 const (
-	piBridgeTimeout = 10 * time.Second
-	piBridgeWindows = "windows"
+	piBridgeTimeout      = 10 * time.Second
+	piBridgeWindows      = "windows"
+	piACPCommandEnv      = "PI_ACP_PI_COMMAND"
+	piBridgeCommandEnv   = "COMPOZY_PI_COMMAND"
+	piBridgeExtensionEnv = "COMPOZY_PI_EXTENSION"
+	piBridgeConfigEnv    = "COMPOZY_PI_BRIDGE"
 )
 
 type piBridgeStatus struct {
@@ -47,6 +52,10 @@ type piBridgeConfig struct {
 func preparePiNativeTools(session *Session, opts acp.StartOpts) (_ acp.StartOpts, _ string, err error) {
 	if session == nil || session.sessionDir == "" {
 		return opts, "", errors.New("session: pi bridge requires session storage")
+	}
+	opts, command, err := preparePiBridgeCommand(opts)
+	if err != nil {
+		return opts, "", err
 	}
 	root := filepath.Join(session.sessionDir, "provider-runtime", "pi-bridge")
 	if err := providerenv.EnsurePrivateDirUnder(session.sessionDir, root); err != nil {
@@ -93,7 +102,6 @@ func preparePiNativeTools(session *Session, opts acp.StartOpts) (_ acp.StartOpts
 	if err := fileutil.AtomicWriteFile(extensionPath, piNativeToolsExtension, 0o600); err != nil {
 		return opts, "", err
 	}
-	command, _ := providerLookupEnv(opts.Env)("PI_ACP_PI_COMMAND")
 	if command == "" {
 		command = "pi"
 		if runtime.GOOS == piBridgeWindows {
@@ -110,10 +118,10 @@ func preparePiNativeTools(session *Session, opts acp.StartOpts) (_ acp.StartOpts
 		return opts, "", err
 	}
 	for key, value := range map[string]string{
-		"PI_ACP_PI_COMMAND":    wrapper,
-		"COMPOZY_PI_COMMAND":   command,
-		"COMPOZY_PI_EXTENSION": extensionPath,
-		"COMPOZY_PI_BRIDGE":    configPath,
+		piACPCommandEnv:      wrapper,
+		piBridgeCommandEnv:   command,
+		piBridgeExtensionEnv: extensionPath,
+		piBridgeConfigEnv:    configPath,
 	} {
 		opts.Env = setSessionStartEnvValue(opts.Env, key, value)
 	}
@@ -157,4 +165,33 @@ func readPiBridgeStatus(ctx context.Context, path string) string {
 		case <-ticker.C:
 		}
 	}
+}
+
+// Leading command assignments take precedence over Env when ACP launches a process.
+// Consume the Pi executable override here so it cannot replace the bridge wrapper later.
+func preparePiBridgeCommand(opts acp.StartOpts) (acp.StartOpts, string, error) {
+	parsed, err := compozyconfig.ParseLaunchCommand(opts.Command)
+	if err != nil {
+		return opts, "", err
+	}
+	command, _ := providerLookupEnv(opts.Env)(piACPCommandEnv)
+	kept := make([]string, 0, len(parsed.Environment)+1+len(parsed.Args))
+	for _, assignment := range parsed.Environment {
+		key, value, _ := strings.Cut(assignment, "=")
+		if runtime.GOOS == piBridgeWindows {
+			key = strings.ToUpper(key)
+		}
+		switch key {
+		case piACPCommandEnv:
+			command = value
+		case piBridgeCommandEnv, piBridgeExtensionEnv, piBridgeConfigEnv:
+			// These private launch values are owned by the bridge.
+		default:
+			kept = append(kept, assignment)
+		}
+	}
+	kept = append(kept, parsed.Executable)
+	kept = append(kept, parsed.Args...)
+	opts.Command = shellquote.Join(kept...)
+	return opts, command, nil
 }

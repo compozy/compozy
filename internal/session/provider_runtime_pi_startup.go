@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"encoding/json/v2"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -36,16 +35,7 @@ func (m *Manager) preparePiBridgeStartup(
 		}
 		runtime.nativeToolsUnavailable = code != "" || statusPath == ""
 		if code != "" {
-			payload, err := json.Marshal(struct {
-				Code string `json:"code"`
-			}{Code: code})
-			if err != nil {
-				return "", acp.StartupManifest{}, err
-			}
-			if err := m.recordEvent(ctx, session, acp.AgentEvent{
-				Type: acp.EventTypeRuntimeWarning, SessionID: session.ID, Timestamp: m.now(),
-				Text: "Pi native tools are unavailable; using CLI guidance.", Raw: payload,
-			}); err != nil {
+			if err := m.recordPiBridgeWarning(ctx, session, runtime.agent.Provider, code); err != nil {
 				return "", acp.StartupManifest{}, err
 			}
 		}
@@ -59,4 +49,25 @@ func (m *Manager) preparePiBridgeStartup(
 		return runtime.agent.Prompt, runtime.startupManifest, nil
 	}
 	return opts
+}
+
+func (m *Manager) recordPiBridgeWarning(ctx context.Context, session *Session, provider, code string) error {
+	turnID := session.CurrentTurnID()
+	if turnID == "" {
+		var err error
+		turnID, err = m.newPromptTurnID()
+		if err != nil {
+			return err
+		}
+	}
+	now := m.now()
+	guidance := "Pi native tools are unavailable; using CLI guidance."
+	return m.recordEvent(ctx, session, acp.AgentEvent{
+		Type: acp.EventTypeRuntimeWarning, SessionID: session.ID, TurnID: turnID, Timestamp: now,
+		Text: guidance,
+		ProviderError: &acp.ProviderErrorDiagnostic{
+			Code: code, Provider: provider, NextAction: acp.ProviderFailureActionInspect,
+			Guidance: guidance, OccurrenceCount: 1, FirstSeenAt: now, LastSeenAt: now,
+		},
+	})
 }
