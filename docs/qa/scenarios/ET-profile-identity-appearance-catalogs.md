@@ -70,3 +70,10 @@ is not an off-by-one selection defect. Recording closed with 67 frames.
 QA impact 2026-10-10 (verification pending): Build from a CRLF source checkout and confirm palette and all catalog slugs remain selectable. Owning regression: TestNormalizeIdentitySymbols/Should recognize the entire catalog with either LF or CRLF line endings.
 
 Automated retest 2026-10-10: The native Windows regression step in [CI](https://github.com/compozy/compozy/actions/runs/38112607881/job/114392299915) passed at `3cabffd82`, including complete LF/CRLF catalog equivalence and the `palette` icon. This verifies the source-build parsing defect; it does not promote the historical manual appearance scenario to a new full pass.
+
+Startup persistence replay (issue #999): in an isolated home, customize the permanent `default`
+profile to color `#4cb782` and icon `apple` through `compozy profile update`. Stop and start the
+daemon, confirm readiness, and independently read `/api/profiles` to confirm the same ID, name,
+color and icon. Repeat with an emoji (and null icon). Renaming, archiving, and deleting `default`
+remain forbidden; presentation changes must never require resetting user state.
+Targeted evidence: `docs/qa/reports/2026-10-28-default-profile-startup.md`.
