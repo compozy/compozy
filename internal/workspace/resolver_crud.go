@@ -178,12 +178,7 @@ func (r *Resolver) Get(ctx context.Context, idOrNameOrPath string) (Workspace, e
 		return Workspace{}, err
 	}
 
-	ws.RootMissing, err = workspaceRootMissing(ws)
-	if err != nil {
-		return Workspace{}, err
-	}
-
-	return cloneWorkspace(ws), nil
+	return cloneWorkspace(r.withRootAvailability(ctx, ws)), nil
 }
 
 // ResolveRegistration validates the current workspace root and identity without loading runtime resources.

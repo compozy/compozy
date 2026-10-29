@@ -2180,7 +2180,7 @@
         },
         "listWorkspaces": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.listWorkspaces();",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListWorkspaces(ctx, client.ListWorkspacesParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListWorkspacesWithParams(ctx, client.ListWorkspacesParams{})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "workspaces",
             "app_access": "allowed"

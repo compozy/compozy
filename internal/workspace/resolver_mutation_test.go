@@ -860,8 +860,15 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		store := newMockWorkspaceStore(workspace)
 		resolver := newTestResolver(t, store)
 
-		if _, err := resolver.List(ctx); err == nil {
-			t.Fatal("List() error = nil, want root inspection failure")
+		listed, err := resolver.List(ctx)
+		if err != nil || len(listed) != 1 || listed[0].ID != workspace.ID {
+			t.Fatalf("List() = %#v, %v, want retained registration", listed, err)
+		}
+		if got, err := resolver.Get(ctx, workspace.ID); err != nil || got.ID != workspace.ID {
+			t.Fatalf("Get() = %#v, %v, want recovery access", got, err)
+		}
+		if _, err := resolver.Resolve(ctx, workspace.ID); err == nil {
+			t.Fatal("Resolve() accepted an unreadable runtime root")
 		}
 		if got := len(store.deleteCalls); got != 0 {
 			t.Fatalf("DeleteWorkspace() calls = %d, want 0", got)

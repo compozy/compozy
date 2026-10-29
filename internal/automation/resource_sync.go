@@ -103,6 +103,11 @@ func (m *Manager) syncJobResourcesForSource(
 			Spec:            next,
 		}); err != nil {
 			if m.deferArchivedDefinition(ctx, "job", next.ID, err) {
+				if exists {
+					if err := m.pauseDeferredDefinition(ctx, "job", next.ID); err != nil {
+						return 0, 0, err
+					}
+				}
 				delete(currentByID, next.ID)
 				continue
 			}
@@ -177,6 +182,11 @@ func (m *Manager) syncTriggerResourcesForSource(
 			Spec:            next,
 		}); err != nil {
 			if m.deferArchivedDefinition(ctx, "trigger", next.ID, err) {
+				if exists {
+					if err := m.pauseDeferredDefinition(ctx, "trigger", next.ID); err != nil {
+						return 0, 0, err
+					}
+				}
 				delete(currentByID, next.ID)
 				continue
 			}

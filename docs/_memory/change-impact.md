@@ -4582,3 +4582,21 @@ Authoritative geometry, focus, routing, and peer convergence remain unchanged.
 - **Native tools, extensibility/hooks/config, workspace isolation, official skill:** no
   CLI/HTTP/UDS or native tool contract, schema, persisted layout, authorization, extension,
   hook, config key, SDK, or `skills/compozy/` change. This is client render scheduling only.
+
+## Merge train archive recovery remediation — 2026-10-29
+
+Owner: PR #1010 follow-up on main (reviews 4407700798, 4407700810 and 6485005842).
+Workspace registration reads isolate filesystem inspection failures and retain recovery
+operations; execution resolution still fails closed. Managed automation replacements
+refused for archived targets pause the previous definition through existing enabled
+overlays. Source intent and history remain intact; after restore/sync, explicit enable
+resumes the updated definition. The Go SDK example generator uses the parameterized
+workspace-list method, preserving the legacy no-argument method.
+
+- Native tools, CLI/HTTP/UDS and Web share the repaired registration and automation owners;
+  no new DTOs, routes, native IDs, configuration keys, hooks or extension contracts.
+- Workspace isolation and persisted histories are unchanged; no schema migration.
+- Official skill contracts remain unchanged. QA coverage is recorded in RT-008;
+  the generated site SDK samples co-ship with their generator.
+- Focused SQLite/runtime suites and the existing all-example Go type check verify
+  these changes. Complete current-head CI remains the release gate.
