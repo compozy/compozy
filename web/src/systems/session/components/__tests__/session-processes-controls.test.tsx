@@ -103,6 +103,25 @@ describe("SessionProcessesComposerControl", () => {
     }
   });
 
+  it("Should mark only lineage-linked rows, quietly, and tolerate rows without attribution", async () => {
+    const user = userEvent.setup();
+    const { attribution: _omitted, ...legacy } = sessionProcessFixture({ pid: 90001 });
+    renderControl({
+      count: 4,
+      processes: [...sessionProcessesFixture, legacy as (typeof sessionProcessesFixture)[number]],
+    });
+    await user.click(screen.getByRole("button", { name: "Processes, 4 running" }));
+    const lineage = within(screen.getByTestId("session-process-76112")).getByText(
+      "linked at launch"
+    );
+    expect(lineage).toHaveAttribute("title", expect.stringContaining("hides its environment"));
+    for (const pid of [76050, 77001, 90001]) {
+      expect(screen.getByTestId(`session-process-${pid}`)).not.toHaveTextContent(
+        "linked at launch"
+      );
+    }
+  });
+
   it("Should fold a multi-line command into one row", async () => {
     const user = userEvent.setup();
     renderControl({

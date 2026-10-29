@@ -52,6 +52,20 @@ export function processCommandLabel(process: Pick<SessionProcessPayload, "comman
   return command.replace(/\s*\n\s*/g, " ↵ ");
 }
 
+/**
+ * COPY.md: a process whose environment can't be read (a protected system binary)
+ * is linked to its session by ancestry, from the first scan that saw it under the
+ * live agent. The row says so quietly; the title carries the reason.
+ */
+export const PROCESS_LINEAGE_LABEL = "linked at launch";
+export const PROCESS_LINEAGE_HINT =
+  "This process hides its environment, so CompozyOS linked it to the session when it first saw it running under the agent.";
+
+/** Only an explicit `lineage` reads as linked by ancestry; an absent field is the env marker. */
+export function processLinkedByLineage(process: Pick<SessionProcessPayload, "attribution">) {
+  return process.attribution === "lineage";
+}
+
 export function processPortHref(port: number): string {
   return `http://localhost:${port}`;
 }

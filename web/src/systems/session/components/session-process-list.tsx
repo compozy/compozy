@@ -7,7 +7,10 @@ import { ComposerPopoverRowsSkeleton } from "./composer-popover-rows-skeleton";
 import {
   processCommandLabel,
   processIdentity,
+  PROCESS_LINEAGE_HINT,
+  PROCESS_LINEAGE_LABEL,
   processKindLabel,
+  processLinkedByLineage,
   processPortHref,
 } from "../lib/session-processes";
 
@@ -87,6 +90,14 @@ function ProcessRow({
           <span className="shrink-0">
             started <Time iso={process.started_at} />
           </span>
+          {processLinkedByLineage(process) ? (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="shrink-0 text-faint" title={PROCESS_LINEAGE_HINT}>
+                {PROCESS_LINEAGE_LABEL}
+              </span>
+            </>
+          ) : null}
         </span>
         <ProcessPorts ports={process.ports} />
       </span>
