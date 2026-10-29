@@ -117,11 +117,11 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
 			}
 			var replacementRunID string
-			fixture.service.goalPersistence = &replaceAfterGoalProjection{
+			fixture.service.goalPersistence = &interleaveGoalProjection{
 				loopGoalAPIPersistence: fixture.service.goalPersistence,
 				beforeRead:             control.beforeRead,
 				afterRead:              control.afterRead,
-				replace: func(ctx context.Context) error {
+				mutate: func(ctx context.Context) error {
 					replaced, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
 						caller, session.GoalCommand{Verb: "replace", ExpectedRunID: originalRunID,
 							Objective: "Preserve the replacement Goal"})
@@ -152,43 +152,91 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		})
 	}
 
-	// Invariant: a Clear that wins after Stop commits remains the authoritative result.
+	// Invariant: a Clear that wins after a control commits remains the authoritative result.
 	// Owner: daemon command composition; canonical Goal lifecycle suite.
-	t.Run("Should return cleared when Clear wins after Stop cancels the run", func(t *testing.T) {
+	for _, control := range []struct {
+		verb   string
+		status looppkg.Status
+	}{
+		{"stop", looppkg.StatusCanceled},
+		{"pause", looppkg.StatusFailed},
+		{"resume", looppkg.StatusFailed},
+	} {
+		t.Run("Should return cleared when Clear wins after "+control.verb, func(t *testing.T) {
+			t.Parallel()
+			fixture := newGoalCommandHandlerFixture(t)
+			caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+			started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: "set", Objective: "Preserve the winning clear"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if control.verb == "resume" {
+				paused, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+					caller, session.GoalCommand{Verb: "pause"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
+			}
+			actor, err := taskpkg.DeriveHumanActorContextForWorkspace("operator", fixture.workspaceID,
+				taskpkg.OriginKindHTTP, "http")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture.service.goalPersistence = &interleaveGoalProjection{
+				loopGoalAPIPersistence: fixture.service.goalPersistence,
+				beforeRead:             2,
+				mutate: func(ctx context.Context) error {
+					return fixture.service.aggregate.ClearInlineGoal(ctx, looppkg.WorkspaceID(fixture.workspaceID),
+						fixture.sessionID, actor)
+				},
+			}
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, result, session.GoalOutcomeCleared, "")
+			if result.Result.Snapshot != nil {
+				t.Fatal("concurrent Clear must not restore the hidden snapshot")
+			}
+			if _, err := core.GoalCommandResultPayloadFromSession(result.Result); err != nil {
+				t.Fatalf("committed control produced an invalid public result: %v", err)
+			}
+			if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != control.status {
+				t.Fatalf("cleared run = %#v", run)
+			}
+		})
+	}
+
+	// Invariant: an admitted Stop commits even when its client disconnects at cancellation entry.
+	// Owner: daemon control lifetime; canonical Goal lifecycle suite.
+	t.Run("Should commit Stop after its request is canceled", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixture(t)
 		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
 		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
-			caller, session.GoalCommand{Verb: "set", Objective: "Preserve the winning clear"})
+			caller, session.GoalCommand{Verb: "set", Objective: "Retain accepted Stop"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		actor, err := taskpkg.DeriveHumanActorContextForWorkspace("operator", fixture.workspaceID,
-			taskpkg.OriginKindHTTP, "http")
-		if err != nil {
-			t.Fatal(err)
-		}
-		fixture.service.goalPersistence = clearCanceledGoalProjection{
-			loopGoalAPIPersistence: fixture.service.goalPersistence,
-			clear: func(ctx context.Context) error {
-				return fixture.service.aggregate.ClearInlineGoal(ctx, looppkg.WorkspaceID(fixture.workspaceID),
-					fixture.sessionID, actor)
-			},
-		}
-		stopped, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
-			caller, session.GoalCommand{Verb: "stop"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		assertGoalCommandOutcome(t, stopped, session.GoalOutcomeCleared, "")
-		if stopped.Result.Snapshot != nil {
-			t.Fatal("concurrent Clear must not restore the hidden snapshot")
-		}
-		if _, err := core.GoalCommandResultPayloadFromSession(stopped.Result); err != nil {
-			t.Fatalf("committed stop produced an invalid public result: %v", err)
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		aggregate := &cancelRequestOnGoalStop{Service: fixture.service.aggregate, cancelRequest: cancel}
+		fixture.service.aggregate = aggregate
+		if _, err := fixture.service.Handle(ctx, fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "stop"}); err != nil && !errors.Is(err, context.Canceled) {
+			t.Fatalf("Stop after client disconnect: %v", err)
 		}
 		if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != looppkg.StatusCanceled {
-			t.Fatalf("stopped run = %#v", run)
+			t.Fatalf("request cancellation lost Stop: %#v", run)
+		}
+		if _, bounded := aggregate.stopContext.Deadline(); !bounded {
+			t.Fatal("detached Stop has no deadline")
+		}
+		if !errors.Is(aggregate.stopContext.Err(), context.Canceled) {
+			t.Fatal("detached Stop context was not released")
 		}
 	})
 
@@ -205,20 +253,33 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 		fixture.service.goalPersistence = contextUnavailableGoalProjection{fixture.service.goalPersistence}
 		fixture.service.goalContext = &loopGoalContextRuntime{sessions: failingGoalContextEvents{}}
-		for _, verb := range []string{"status", "pause", "pause", "resume", "resume", "stop", "stop"} {
+		for _, control := range []struct {
+			verb    string
+			outcome session.GoalCommandOutcome
+			status  looppkg.Status
+		}{
+			{"status", session.GoalOutcomeStatus, looppkg.StatusRunning},
+			{"pause", session.GoalOutcomePaused, looppkg.StatusPaused},
+			{"pause", session.GoalOutcomePaused, looppkg.StatusPaused},
+			{"resume", session.GoalOutcomeResumed, looppkg.StatusRunning},
+			{"resume", session.GoalOutcomeResumed, looppkg.StatusRunning},
+			{"stop", session.GoalOutcomeStopped, looppkg.StatusCanceled},
+			{"stop", session.GoalOutcomeStopped, looppkg.StatusCanceled},
+		} {
 			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
-				caller, session.GoalCommand{Verb: verb})
-			if err != nil || result.Result == nil || result.Result.Outcome == session.GoalOutcomeError {
-				t.Fatalf("%s unavailable: %#v %v", verb, result, err)
+				caller, session.GoalCommand{Verb: control.verb})
+			if err != nil {
+				t.Fatalf("%s unavailable: %v", control.verb, err)
+			}
+			assertGoalCommandOutcome(t, result, control.outcome, "")
+			if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != control.status {
+				t.Fatalf("%s during telemetry outage left %s, want %s", control.verb, run.Status, control.status)
 			}
 			if result.Result.Snapshot == nil ||
 				result.Result.Snapshot.Context.Diagnostic != "goal_context_unavailable" ||
 				result.Result.Snapshot.Context.State != "unknown" {
 				t.Fatalf("missing degraded context: %#v", result)
 			}
-		}
-		if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != looppkg.StatusCanceled {
-			t.Fatalf("Stop did not cancel during telemetry outage: %#v", run)
 		}
 	})
 
@@ -1430,43 +1491,39 @@ func (failingGoalContextEvents) Events(context.Context, string, store.EventQuery
 	return nil, errors.New("query events: injected read outage")
 }
 
-type clearCanceledGoalProjection struct {
+type interleaveGoalProjection struct {
 	loopGoalAPIPersistence
-	clear func(context.Context) error
-}
-
-type replaceAfterGoalProjection struct {
-	loopGoalAPIPersistence
-	replace    func(context.Context) error
+	mutate     func(context.Context) error
 	reads      int
 	beforeRead int
 	afterRead  int
 }
 
-func (s *replaceAfterGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+func (s *interleaveGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
 	sessionID string) (goalpkg.SessionProjection, error) {
 	s.reads++
 	read := s.reads
 	if read == s.beforeRead {
-		if err := s.replace(ctx); err != nil {
+		if err := s.mutate(ctx); err != nil {
 			return goalpkg.SessionProjection{}, err
 		}
 	}
 	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
 	if err == nil && read == s.afterRead {
-		err = s.replace(ctx)
+		err = s.mutate(ctx)
 	}
 	return projection, err
 }
 
-func (s clearCanceledGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
-	sessionID string) (goalpkg.SessionProjection, error) {
-	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
-	if err != nil || projection.RunStatus != looppkg.StatusCanceled || projection.Cleared {
-		return projection, err
-	}
-	if err := s.clear(ctx); err != nil {
-		return goalpkg.SessionProjection{}, err
-	}
-	return s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+type cancelRequestOnGoalStop struct {
+	looppkg.Service
+	cancelRequest context.CancelFunc
+	stopContext   context.Context
+}
+
+func (s *cancelRequestOnGoalStop) CancelRun(ctx context.Context, ws looppkg.WorkspaceID,
+	runID looppkg.RunID, reason string, actor taskpkg.ActorContext) error {
+	s.stopContext = ctx
+	s.cancelRequest()
+	return s.Service.CancelRun(ctx, ws, runID, reason, actor)
 }

@@ -43,7 +43,7 @@ func (s *daemonLoopAPIService) pauseSessionGoal(
 		return session.GoalDispatchDecision{}, err
 	}
 	if post == nil {
-		post = snapshot
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
 	}
 	if post.RunID != snapshot.RunID {
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
@@ -95,10 +95,7 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 		return session.GoalDispatchDecision{}, err
 	}
 	if post == nil {
-		return session.GoalDispatchDecision{}, fmt.Errorf(
-			"%w: resumed Goal snapshot is unavailable",
-			looppkg.ErrTransitionConflict,
-		)
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
 	}
 	if post.RunID != string(run.ID) {
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalControlStale), nil), nil
@@ -138,7 +135,9 @@ func (s *daemonLoopAPIService) stopSessionGoal(
 		return goalCommandErrorDecision(session.GoalReasonNotActive, nil), nil
 	}
 	if snapshot.Live {
-		if err := s.aggregate.CancelRun(ctx, looppkg.WorkspaceID(workspaceID), looppkg.RunID(snapshot.RunID),
+		cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
+		defer cancel()
+		if err := s.aggregate.CancelRun(cancelCtx, looppkg.WorkspaceID(workspaceID), looppkg.RunID(snapshot.RunID),
 			"Goal stopped by the operator", actor); err != nil {
 			return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 		}

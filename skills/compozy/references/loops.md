@@ -326,6 +326,9 @@ The Goal and session state machines compose as follows:
 Stop requests are idempotent within the same Goal. A terminal Goal cannot be resumed.
 Resume is available after **Paused**. An API or command request during **Pausing…** returns
 `goal_control_stale` (HTTP 409) and preserves the pause; refresh status and retry once it settles.
+If Clear wins while Pause, Resume, or Stop is finishing, the control returns `cleared` without a stale
+snapshot. Stop's cancellation step runs independently of client disconnect within a bounded deadline;
+after a lost response, read Goal status to confirm the result.
 
 User controls fence further prompt claims before interrupting work. A late provider terminal may
 attach its exact event range to the original token-authenticated receipt after revocation, but cannot

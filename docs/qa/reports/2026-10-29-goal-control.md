@@ -148,6 +148,26 @@ lint for `internal/loop` completed with zero issues. Formatting and diff checks 
 The test-shape heuristic reports an unchanged pre-existing standalone node-pause test; running it
 against the preceding committed file produces the same diagnostic. No unrelated test was rewritten.
 
+CodeRabbit's following review exposed request cancellation aborting an admitted Stop before its
+durable commit, and Clear racing with Pause returning the pre-control snapshot. The same Clear race
+also reproduced for Resume as an unavailable-snapshot error. Stop now uses the existing bounded daemon
+cancellation context; all three controls return Cleared if their final projection is hidden. Existing
+daemon lifecycle tests inject the disconnect at the real aggregate entry and Clear before the final
+projection, verifying the retained terminal Run, valid public result, and released bounded context.
+The telemetry-outage case now asserts each command's exact outcome and durable state immediately,
+so a later Stop cannot hide a no-op Pause or Resume. No replacement test suite was added.
+The new Clear cases initially assumed every retained Run would be canceled. The existing store
+contract explicitly marks a live Clear as failed with `goal_clear`, while preserving an already
+canceled Run. Only the new cases' expectations were corrected to that established contract; the
+original Stop/Clear assertion still requires canceled, and production Clear semantics are unchanged.
+The complete command lifecycle suite passed in 4.4 seconds and all four public held-turn scenarios
+passed in 66 seconds. Formatting, diff checks, and the daemon test-shape checker passed. The daemon
+fast-lint process exceeded four minutes despite its configured two-minute bound and was interrupted;
+it is not a completed lint gate. The preceding head's CI Go lint passed; CI owns final validation.
+CodeRabbit's next review also prompted extending the same early-Resume test to call session Goal Pause
+with a distinct authenticated actor and verify its persisted control identity before the Resume attempt.
+The canonical service-control suite passed again after that extension.
+
 CI exposed Resume reading `COALESCE` timestamp text through an RFC3339-only parser. The owning SQLC
 query now returns the declared timestamp columns, letting the driver decode existing driver-written
 timestamps and canonical text losslessly. The reentry owner suite preserves nanosecond precision,

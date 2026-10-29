@@ -49,4 +49,6 @@ Issue #1015 acceptance (2026-10-29): Exercise typed Stop in addition to the exis
 
 While a session Goal is still pausing, an early Resume must return `goal_control_stale` (HTTP 409), retain the pause actor, and admit no successor. After Paused is effective, an explicit Resume must continue without an extra approval.
 
+A client disconnect after Stop selects its target must not abort the bounded cancellation commit. If Clear wins during Pause, Resume, or Stop, return `cleared` without restoring a snapshot; confirm the retained terminal Run through an independent read.
+
 Targeted verification and limits are recorded in [the issue #1015 report](../reports/2026-10-29-goal-control.md).
