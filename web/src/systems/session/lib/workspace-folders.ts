@@ -1,11 +1,15 @@
-import { workspaceSelectorForScope, type FocusedDataScope } from "@/systems/workspace";
+import {
+  USER_SCOPE_SELECTOR,
+  workspaceSelectorForScope,
+  type FocusedDataScope,
+} from "@/systems/workspace";
 
 import type {
   WorkspaceFolderPayload,
   WorkspaceLayoutResponse,
   WorkspacePlacementPayload,
 } from "../types";
-import type { SessionListGroupSpec } from "./session-list-groups";
+import { projectSessionGroup, type SessionListGroupSpec } from "./session-list-groups";
 
 /** One project folder and the project groups it holds, in its manual order. */
 export interface WorkspaceFolderNode {
@@ -28,6 +32,34 @@ export function projectGroupWorkspaceId(group: Pick<SessionListGroupSpec, "scope
   const { scope } = group;
   if (scope.kind === "all") return null;
   return workspaceSelectorForScope(scope as FocusedDataScope);
+}
+
+const EMPTY_GROUP_FACETS = { all: 0, working: 0, needs_you: 0 };
+
+/**
+ * Adds a group for every placed project the facets left out because it has no
+ * sessions in scope, so a folder still shows (and can move) every project the
+ * operator put in it. Only registered projects and User qualify.
+ */
+export function withPlacedProjectGroups(
+  groups: readonly SessionListGroupSpec[],
+  placements: readonly WorkspacePlacementPayload[],
+  input: {
+    workspaces: ReadonlyArray<{ id: string; name: string }>;
+    lens: SessionListGroupSpec["lens"];
+  }
+): SessionListGroupSpec[] {
+  const shown = new Set(groups.flatMap(group => projectGroupWorkspaceId(group) ?? []));
+  const registered = new Set(input.workspaces.map(workspace => workspace.id));
+  const placed = placements.flatMap(row => {
+    if (shown.has(row.workspace_id)) return [];
+    if (row.workspace_id === USER_SCOPE_SELECTOR)
+      return [projectSessionGroup("", EMPTY_GROUP_FACETS, input)];
+    return registered.has(row.workspace_id)
+      ? [projectSessionGroup(row.workspace_id, EMPTY_GROUP_FACETS, input)]
+      : [];
+  });
+  return [...groups, ...placed];
 }
 
 /** Arranges served project groups (switcher order, User last) by the profile's folders. */

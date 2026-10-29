@@ -33,6 +33,7 @@ import {
   applyWorkspaceMove,
   applyWorkspaceOrder,
   buildProjectGroupTree,
+  withPlacedProjectGroups,
   projectGroupContainerIds,
 } from "../workspace-folders";
 
@@ -407,6 +408,29 @@ describe("project folders", () => {
     );
     expect(tree.root.map(group => group.key)).toEqual(["user", "project:ws-b"]);
     expect(projectGroupContainerIds(tree, null)).toEqual(["@user", "ws-b"]);
+  });
+
+  it("Should keep a placed project with no sessions in scope so its folder can still move it", () => {
+    const served = groups.filter(group => group.key !== "project:ws-c");
+    const kept = withPlacedProjectGroups(served, layout.placements, {
+      workspaces: [
+        { id: "ws-a", name: "A" },
+        { id: "ws-b", name: "B" },
+        { id: "ws-c", name: "C" },
+      ],
+      lens: { profile: "default" },
+    });
+    const tree = buildProjectGroupTree(kept, layout);
+    expect(tree.folders[0]!.groups.map(group => [group.key, group.total])).toEqual([
+      ["project:ws-a", 1],
+      ["project:ws-c", 0],
+    ]);
+    // An unregistered placement stays out.
+    const unknown = withPlacedProjectGroups(served, [{ workspace_id: "ws-gone", position: 0 }], {
+      workspaces: [],
+      lens: { profile: "default" },
+    });
+    expect(unknown).toHaveLength(served.length);
   });
 
   it("Should move, order, and unfile projects optimistically without touching others", () => {

@@ -171,8 +171,9 @@ func (g *SessionRepo) ReorderWorkspaceFolders(ctx context.Context, profileID str
 	})
 }
 
-// MoveWorkspace places a workspace at the end of a folder, or at the end of
-// the placed root when folderID is empty.
+// MoveWorkspace changes a workspace's container: it joins the end of a folder,
+// or the end of the placed root when folderID is empty. A workspace already in
+// that container keeps its position; ReorderWorkspaces owns order within it.
 func (g *SessionRepo) MoveWorkspace(ctx context.Context, profileID string, workspaceID string, folderID string) error {
 	if err := g.checkReady(ctx, "move workspace"); err != nil {
 		return err

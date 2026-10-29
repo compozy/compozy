@@ -23,6 +23,7 @@ import {
   applyWorkspaceOrder,
   buildProjectGroupTree,
   projectGroupTreeGroups,
+  withPlacedProjectGroups,
   type ProjectGroupTree,
 } from "../lib/workspace-folders";
 import type { WorkspaceFolderPayload, WorkspaceLayoutResponse } from "../types";
@@ -164,6 +165,7 @@ export function useProjectFolderGroups(options: {
   groupBy: SessionListGroupBy;
   breadth: { allProjects: boolean; allProfiles: boolean };
   lens: ProfileScopeParams;
+  workspaces: ReadonlyArray<{ id: string; name: string }>;
   enabled: boolean;
 }): {
   groups: SessionListGroupSpec[];
@@ -178,6 +180,10 @@ export function useProjectFolderGroups(options: {
     enabled: options.enabled && applies,
   });
   if (!layout) return { groups: options.groups, loadError };
-  const tree = buildProjectGroupTree(options.groups, layout);
+  const groups = withPlacedProjectGroups(options.groups, layout.placements, {
+    workspaces: options.workspaces,
+    lens,
+  });
+  const tree = buildProjectGroupTree(groups, layout);
   return { groups: projectGroupTreeGroups(tree), projectFolders: { layout, tree }, loadError };
 }

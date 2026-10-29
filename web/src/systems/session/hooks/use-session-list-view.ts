@@ -166,6 +166,7 @@ export function useSessionListView(
     workspaces,
     archived,
     search: remoteSearch,
+    worktreeId: options.worktreeId,
     enabled,
   });
   const arranged = useProjectFolderGroups({
@@ -173,6 +174,7 @@ export function useSessionListView(
     groupBy,
     breadth,
     lens: profile.params,
+    workspaces,
     enabled,
   });
   const groups = arranged.groups;
@@ -231,9 +233,11 @@ export function useSessionListView(
     groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
-    collapsedGroupKeys: new Set(
-      groups.flatMap(group => (collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []))
-    ),
+    collapsedGroupKeys: new Set([
+      ...groups.flatMap(group => (collapsedGroupIds.has(groupId(group.key)) ? [group.key] : [])),
+      // A collapsed project folder hides its projects: navigation skips them too.
+      ...hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.collapsedFolderIds),
+    ]),
     toggleGroup: key => sidebar.toggleGroup(groupId(key)),
     groupFilters,
     aggregate: profile.aggregate,
@@ -243,6 +247,17 @@ export function useSessionListView(
     selectionKey,
     totals,
   };
+}
+
+function hiddenProjectGroupKeys(
+  tree: ProjectGroupTree | undefined,
+  collapsedFolderIds: readonly string[]
+): string[] {
+  if (!tree) return [];
+  const collapsed = new Set(collapsedFolderIds);
+  return tree.folders.flatMap(node =>
+    collapsed.has(node.folder.id) ? node.groups.map(group => group.key) : []
+  );
 }
 
 function sessionListGroupFiltersFor(

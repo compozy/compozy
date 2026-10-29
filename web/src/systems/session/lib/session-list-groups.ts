@@ -78,7 +78,6 @@ export function projectSessionGroups(
   }
 ): SessionListGroupSpec[] {
   if (!facets) return [];
-  const names = new Map(input.workspaces.map(workspace => [workspace.id, workspace.name]));
   const order = new Map(input.workspaces.map((workspace, index) => [workspace.id, index]));
   const rows = facets.by_workspace.flatMap(row =>
     row.facets.all > 0 ? [{ row, scope: ownerDataScope(row.workspace_id) }] : []
@@ -86,15 +85,29 @@ export function projectSessionGroups(
   const rank = (scope: FocusedDataScope) =>
     scope.kind === "user" ? Number.MAX_SAFE_INTEGER : (order.get(scope.workspaceId) ?? order.size);
   rows.sort((left, right) => rank(left.scope) - rank(right.scope));
-  return rows.map(({ row, scope }) => ({
+  return rows.map(({ row }) => projectSessionGroup(row.workspace_id, row.facets, input));
+}
+
+/** One project group: a workspace id (`""` for User) with its served counts. */
+export function projectSessionGroup(
+  workspaceId: string,
+  facets: GroupFacets,
+  input: {
+    workspaces: ReadonlyArray<{ id: string; name: string }>;
+    lens: ProfileScopeParams;
+  }
+): SessionListGroupSpec {
+  const names = new Map(input.workspaces.map(workspace => [workspace.id, workspace.name]));
+  const scope = ownerDataScope(workspaceId);
+  return {
     key: scope.kind === "user" ? "user" : `project:${scope.workspaceId}`,
     kind: "project",
-    badge: workspaceBadgeIdentity(row.workspace_id, names),
-    ...counts(row.facets),
+    badge: workspaceBadgeIdentity(workspaceId, names),
+    ...counts(facets),
     scope,
     lens: input.lens,
     pair: sessionListPair(scope, input.lens),
-  }));
+  };
 }
 
 /**

@@ -142,7 +142,8 @@ func newWorkspaceMoveCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "move <name-or-id>",
 		Short: "Move a workspace into a root folder, or back to the root",
-		Long:  "Move a workspace (or @user for the User scope) to the end of a folder, or to the end of the root.",
+		Long: "Move a workspace (or @user for the User scope) to the end of a folder, or to the end of the root. " +
+			"A workspace already there keeps its position; use reorder to change it.",
 		Example: `  # Move a workspace into a folder
   compozy workspace move checkout-api --folder wfold-1234
 

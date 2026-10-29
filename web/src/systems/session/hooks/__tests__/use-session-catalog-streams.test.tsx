@@ -673,9 +673,11 @@ describe("useSessionCatalogStreams", () => {
     unmount();
   });
 
-  it("Should re-read an open monitor list when the catalog stream reconnects", async () => {
+  it("Should re-read open monitor and project folder reads when the catalog stream reconnects", async () => {
     const queryClient = createQueryClient();
     const read = vi.fn(async () => ({ monitors: [] }));
+    // A workspace_layout event missed while disconnected can fall outside the replay window.
+    const readLayout = vi.fn(async () => ({ folders: [], placements: [] }));
     let source: FakeCatalogEventSource;
     const factory = (url: string) => (source = new FakeCatalogEventSource(url));
     const { unmount } = renderHook(
@@ -687,12 +689,20 @@ describe("useSessionCatalogStreams", () => {
           staleTime: Infinity,
           retry: false,
         });
+        useQuery({
+          queryKey: sessionKeys.workspaceLayout("default"),
+          queryFn: readLayout,
+          staleTime: Infinity,
+          retry: false,
+        });
       },
       { wrapper: wrapper(queryClient) }
     );
     await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readLayout).toHaveBeenCalledTimes(1));
     act(() => source.emit("open"));
     await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readLayout).toHaveBeenCalledTimes(2));
     unmount();
   });
 

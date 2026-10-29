@@ -271,6 +271,8 @@ function openSessionCatalogStream(
     // Monitor changes missed while disconnected can fall outside the replay
     // window, so an open monitor popover re-reads on every (re)connect.
     void queryClient.invalidateQueries({ predicate: isSessionMonitorsQuery });
+    // So can a workspace_layout change: project folders reread on every (re)connect.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
     // A location-change event can fall outside the bounded replay window.
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>

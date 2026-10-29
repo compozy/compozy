@@ -23,6 +23,8 @@ export interface SessionListGroupsInput {
   workspaces: ReadonlyArray<{ id: string; name: string }>;
   archived: boolean;
   search?: string;
+  /** The list's worktree restriction: groups and counts cover only its sessions. */
+  worktreeId?: string;
   enabled: boolean;
   /**
    * The population filters of a surface that reads its own rows differently from
@@ -52,12 +54,15 @@ export function useSessionListGroups({
   workspaces,
   archived,
   search,
+  worktreeId,
   enabled,
   population,
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
-    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, archived, search, population })),
+    ...sessionFacetsOptions(
+      sessionListFacetFilters({ scope, lens, archived, search, worktreeId, population })
+    ),
     enabled: grouped,
   });
   const byProfile = grouped && groupBy === "profile";
@@ -87,14 +92,16 @@ export function sessionListFacetFilters({
   lens,
   archived,
   search,
+  worktreeId,
   population,
 }: Pick<
   SessionListGroupsInput,
-  "scope" | "lens" | "archived" | "search" | "population"
+  "scope" | "lens" | "archived" | "search" | "worktreeId" | "population"
 >): SessionListFilters {
   return {
     ...sessionCatalogBreadthParams(breadthQuery(scope ?? { kind: "all" })),
     ...(population ?? { subagents: sessionListSubagentsParam(search) }),
+    ...(worktreeId ? { worktree: worktreeId } : {}),
     ...(archived ? { archive: "only" as const } : {}),
     ...lens,
   };
@@ -155,10 +162,9 @@ export function useSessionListTotals({
 }): SessionListTotals | undefined {
   const enabled = listEnabled && !archived;
   const facets = useQuery({
-    ...sessionFacetsOptions({
-      ...sessionListFacetFilters({ scope, lens, archived: false, search }),
-      ...(worktreeId ? { worktree: worktreeId } : {}),
-    }),
+    ...sessionFacetsOptions(
+      sessionListFacetFilters({ scope, lens, archived: false, search, worktreeId })
+    ),
     enabled: enabled && scope !== null,
   }).data?.facets;
   if (!enabled || !facets) return undefined;

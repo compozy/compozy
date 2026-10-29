@@ -136,6 +136,20 @@ describe("useSessionListGroups", () => {
     expect(fetchSessions).not.toHaveBeenCalled();
   });
 
+  it("Should count only a worktree's sessions when the list is restricted to it", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse([["ws-alpha", counts(1)]]));
+    const { result } = renderHook(
+      () => useSessionListGroups({ ...groupsInput(), worktreeId: "wt-1" }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.groups).toHaveLength(1));
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({ all_workspaces: true, worktree: "wt-1" }),
+      expect.any(AbortSignal)
+    );
+  });
+
   it("W-27: Should group sessions outside every project into one User group", async () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse([["", counts(3, 0, 1)]]));
     const { result } = renderHook(() => useSessionListGroups(groupsInput()), { wrapper });
@@ -335,6 +349,7 @@ describe("useSessionListView", () => {
     // Flat, the list reads no group membership; its one facets read is the totals footer
     // over the focused project alone (#1044).
     expect(result.current.groups).toEqual([]);
+    await waitFor(() => expect(vi.mocked(fetchSessionFacets).mock.calls.length).toBeGreaterThan(0));
     for (const [filters] of vi.mocked(fetchSessionFacets).mock.calls) {
       expect(filters).toMatchObject({ workspace_id: "ws-alpha" });
       expect(filters).not.toHaveProperty("all_workspaces");

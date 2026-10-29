@@ -54,7 +54,8 @@ type ReorderWorkspaceFoldersRequest struct {
 }
 
 // MoveWorkspaceRequest moves one workspace (id, name, or "@user") to the end of
-// a folder, or to the end of the root when FolderID is empty.
+// a folder, or to the end of the root when FolderID is empty. A workspace
+// already in that container keeps its position.
 type MoveWorkspaceRequest struct {
 	WorkspaceID string `json:"workspace_id"`
 	FolderID    string `json:"folder_id,omitempty"`

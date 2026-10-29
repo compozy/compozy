@@ -86,8 +86,16 @@ export function SessionList({
   header,
 }: SessionListProps) {
   const [filter, setFilter] = useState("");
-  const [projectFolderDialog, setProjectFolderDialog] =
-    useState<SessionFolderDialogState<WorkspaceFolderPayload>>(null);
+  // A project folder dialog belongs to the lens it opened under: a profile or
+  // scope change drops it, so it never submits a folder from the old profile.
+  const [projectFolderDialogState, setProjectFolderDialogState] = useState<{
+    lens: string;
+    dialog: SessionFolderDialogState<WorkspaceFolderPayload>;
+  }>({ lens: view.selectionKey, dialog: null });
+  const projectFolderDialog =
+    projectFolderDialogState.lens === view.selectionKey ? projectFolderDialogState.dialog : null;
+  const setProjectFolderDialog = (dialog: SessionFolderDialogState<WorkspaceFolderPayload>) =>
+    setProjectFolderDialogState({ lens: view.selectionKey, dialog });
   const projectLayout = view.projectFolders?.layout;
   const remoteSearch = view.search !== undefined;
   const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();

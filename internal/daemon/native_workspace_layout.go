@@ -48,7 +48,7 @@ func (n *daemonNativeTools) workspaceLayoutTool(call workspaceLayoutCall) toolsp
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		if input, err = n.resolveWorkspaceLayoutInput(ctx, req.ToolID, input); err != nil {
+		if input, err = n.resolveWorkspaceLayoutInput(ctx, req.ToolID, scope, input); err != nil {
 			return toolspkg.ToolResult{}, err
 		}
 		result, err := call(ctx, manager, readScope.ProfileID, input)
@@ -80,10 +80,12 @@ func (n *daemonNativeTools) requireWorkspaceLayoutAuthority(
 }
 
 // resolveWorkspaceLayoutInput maps workspace references to registry ids;
-// "@user" names the User scope, stored as the empty id.
+// "@user" names the User scope, stored as the empty id. A move without a
+// workspace targets the caller's own workspace.
 func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 	ctx context.Context,
 	id toolspkg.ToolID,
+	scope toolspkg.Scope,
 	input workspaceLayoutInput,
 ) (workspaceLayoutInput, error) {
 	resolve := func(ref string) (string, error) {
@@ -92,7 +94,7 @@ func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 			return "", nil
 		}
 		if ref == "" {
-			return "", nativeInputError(id, fmt.Errorf("%w: workspace is required", store.ErrWorkspaceLayoutInvalid))
+			return "", nativeInputError(id, fmt.Errorf("%w: workspace is required outside a workspace-bound session", store.ErrWorkspaceLayoutInvalid))
 		}
 		if n.deps.Workspaces == nil {
 			return "", nativeUnavailableError(id, "workspace registry is unavailable")
@@ -105,6 +107,9 @@ func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 	}
 	var err error
 	if id == toolspkg.ToolIDWorkspaceMove {
+		if strings.TrimSpace(input.Workspace) == "" {
+			input.Workspace = scope.WorkspaceID
+		}
 		if input.Workspace, err = resolve(input.Workspace); err != nil {
 			return input, err
 		}

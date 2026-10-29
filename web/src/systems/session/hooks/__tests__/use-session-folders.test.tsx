@@ -301,10 +301,13 @@ describe("useWorkspaceLayout", () => {
   it("Should move a project optimistically and restore the layout when the daemon refuses", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const writes: Request[] = [];
+    let refuse: () => void = () => undefined;
     vi.mocked(globalThis.fetch).mockImplementation(async input => {
       const request = input as Request;
       if (request.method === "GET") return json(served);
       writes.push(request);
+      // Hold the write so the optimistic placement is observable before the refusal.
+      await new Promise<void>(resolve => (refuse = resolve));
       return json({ error: "workspace not found" }, 404);
     });
     const { result } = renderHook(() => useWorkspaceLayout({ profile: "work", enabled: true }), {
@@ -322,6 +325,10 @@ describe("useWorkspaceLayout", () => {
     expect(new URL(request.url).pathname).toBe("/api/workspace-order/move");
     expect(new URL(request.url).searchParams.get("profile")).toBe("work");
     expect(await request.clone().json()).toEqual({ workspace_id: "ws-b", folder_id: "wfold-a" });
+    expect(placements()).toContainEqual(
+      expect.objectContaining({ workspace_id: "ws-b", folder_id: "wfold-a" })
+    );
+    act(() => refuse());
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Couldn't move the project.", expect.anything())
     );

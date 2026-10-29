@@ -42,7 +42,7 @@ func workspaceLayoutDescriptors() []toolspkg.Descriptor {
 		workspaceLayoutDescriptor(
 			toolspkg.ToolIDWorkspaceMove, "workspace_move", "Workspace Move",
 			"Move one workspace (ID, name, path, or @user; defaults to the caller's workspace) to the end of "+
-				"a root folder, or to the end of the root when folder_id is omitted.",
+				"a root folder, or to the end of the root when folder_id is omitted. A workspace already there keeps its position.",
 			workspaceMoveInputSchema, toolspkg.RiskMutating, false,
 			[]string{"move project to folder", "remove project from folder"},
 		),
