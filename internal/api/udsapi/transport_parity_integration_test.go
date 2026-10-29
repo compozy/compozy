@@ -3831,6 +3831,7 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 			}
 			settingsPath := "/api/settings/general"
 			terminalsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/terminals"
+			settingsSampleStart := time.Now()
 			settingsBefore := request(false, http.MethodGet, settingsPath, "", nil, http.StatusOK)
 			terminalsBefore := request(false, http.MethodGet, terminalsPath, "", nil, http.StatusOK)
 			for _, test := range []struct{ method, path, body string }{
@@ -3845,17 +3846,19 @@ func TestUDSTransportAppTokenLifecycleMatchesHTTP(t *testing.T) {
 					"app_token_route_forbidden",
 				)
 			}
-			if after := request(
-				false,
-				http.MethodGet,
-				settingsPath,
-				"",
-				nil,
-				http.StatusOK,
-			); !jsonEqual(
-				settingsBefore,
-				after,
-			) {
+			settingsAfter := request(false, http.MethodGet, settingsPath, "", nil, http.StatusOK)
+			var beforeSettings, afterSettings compozycontract.SettingsGeneralResponse
+			if err := json.Unmarshal(settingsBefore, &beforeSettings); err != nil {
+				t.Fatalf("decode settings before denied mutation: %v", err)
+			}
+			if err := json.Unmarshal(settingsAfter, &afterSettings); err != nil {
+				t.Fatalf("decode settings after denied mutation: %v", err)
+			}
+			// A denied mutation preserves settings while the daemon's uptime keeps advancing.
+			assertAndNormalizeSettingsReadParityVolatileFields(
+				t, &beforeSettings, &afterSettings, time.Since(settingsSampleStart),
+			)
+			if !reflect.DeepEqual(beforeSettings, afterSettings) {
 				t.Fatal("denied app mutation changed settings")
 			}
 			if after := request(
