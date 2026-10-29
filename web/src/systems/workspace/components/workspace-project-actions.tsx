@@ -58,7 +58,11 @@ function WorkspaceProjectActionDialog({
       }
       footNote={
         action === "remove" && !archived ? (
-          <Button variant="ghost" disabled={pending} onClick={() => flow.choose("archive")}>
+          <Button
+            variant="ghost"
+            disabled={pending || !flow.listed}
+            onClick={() => flow.choose("archive")}
+          >
             Archive instead
           </Button>
         ) : undefined

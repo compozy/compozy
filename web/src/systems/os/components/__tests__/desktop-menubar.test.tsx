@@ -248,7 +248,7 @@ describe("DesktopMenubar project context menu", () => {
     expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
   });
 
-  it("Should keep a failed archive readable, but not retryable, once its project leaves", async () => {
+  it("Should keep a failed removal readable, but not retryable, once its project leaves", async () => {
     const user = userEvent.setup();
     const project = { ...primaryWorkspaceFixture, archived_at: null };
     const { setWorkspaces } = renderMenubar({
@@ -261,16 +261,18 @@ describe("DesktopMenubar project context menu", () => {
       clientY: 60,
     });
     const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
-    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
-    const dialog = await screen.findByRole("dialog", { name: `Archive ${project.name}?` });
-    // The stubbed daemon refuses the archive.
-    await user.click(within(dialog).getByRole("button", { name: "Archive project" }));
+    await user.click(within(menu).getByRole("menuitem", { name: "Remove project" }));
+    const dialog = await screen.findByRole("dialog", { name: `Remove ${project.name}?` });
+    // The stubbed daemon refuses the removal.
+    await user.click(within(dialog).getByRole("button", { name: "Remove project" }));
     const error = await within(dialog).findByRole("alert");
 
     setWorkspaces([]);
-    expect(screen.getByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+    expect(screen.getByRole("dialog", { name: `Remove ${project.name}?` })).toBeVisible();
     expect(error).toBeVisible();
-    expect(within(dialog).getByRole("button", { name: "Archive project" })).toBeDisabled();
+    // Neither the confirm nor its Archive instead can act on a project the catalog dropped.
+    expect(within(dialog).getByRole("button", { name: "Remove project" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Archive instead" })).toBeDisabled();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });

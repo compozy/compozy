@@ -170,6 +170,22 @@ describe("OsWorkspacesOverview", () => {
     expect(await screen.findByRole("dialog", { name: "Remove compozy?" })).toBeVisible();
   });
 
+  // A confirm belongs to the project it was opened for: when that project leaves and focus
+  // moves to a neighbor, the confirm closes instead of naming (and acting on) the neighbor.
+  it("Should drop the focused project's confirm when focus moves to another project", async () => {
+    const user = userEvent.setup();
+    const { rerenderOverview } = renderOverview();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: "Archive compozy?" })).toBeVisible();
+
+    rerenderOverview({ workspaces: [BRANAS, NOTES], activeWorkspaceId: BRANAS.id });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Archive compozy?" })).toBeNull()
+    );
+    expect(screen.queryByRole("dialog", { name: /^Archive / })).toBeNull();
+  });
+
   it("Should offer lossless archive instead of removal and display refusal blockers", async () => {
     const user = userEvent.setup();
     vi.mocked(setWorkspaceArchived).mockRejectedValue(

@@ -310,7 +310,7 @@ function OsWorkspacesStage({
           </OsWorkspacesStrip>
         )}
         {focusedEntry?.kind === "workspace" ? (
-          <WorkspaceProjectActions workspace={focusedEntry.node.workspace} />
+          <WorkspaceProjectActions key={focusedEntry.key} workspace={focusedEntry.node.workspace} />
         ) : null}
         <OsWorkspacesCaption
           model={empty ? USER_CAPTION : captionFor(focusedEntry, userHomeDir)}
