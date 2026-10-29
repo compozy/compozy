@@ -20,7 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
-import { primaryWorkspaceFixture, type WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload } from "@/systems/workspace";
+import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
 import {
   codexOkTarget,
   statusTargets,

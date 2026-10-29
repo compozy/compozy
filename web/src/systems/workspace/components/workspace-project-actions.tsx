@@ -50,7 +50,10 @@ function WorkspaceProjectActionDialog({
           ? "Stop active work before archiving this project."
           : failure?.message
       }
-      body={<WorkspaceArchiveBlockers blockers={flow.blockers} />}
+      // An empty body still draws the dialog's body band; it renders only with blockers.
+      body={
+        flow.blockers.length > 0 ? <WorkspaceArchiveBlockers blockers={flow.blockers} /> : undefined
+      }
       footNote={
         action === "remove" && !archived ? (
           <Button variant="ghost" disabled={pending} onClick={() => flow.choose("archive")}>
@@ -206,7 +209,6 @@ function WorkspaceActionItems({
 }
 
 function WorkspaceArchiveBlockers({ blockers }: { blockers: WorkspaceApiError["blockers"] }) {
-  if (blockers.length === 0) return null;
   return (
     <div role="alert">
       <p>Stop these sessions and Loops, or disable these automations, then try again.</p>
