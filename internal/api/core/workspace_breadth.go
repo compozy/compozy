@@ -82,9 +82,7 @@ func parseWorkspaceBreadth(
 			fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector),
 		)
 	}
-	implicitAll := enc.OmissionIsAll && selector == "" && c.Query("workspace") == "" &&
-		(c.Query("scope") == "" || c.Query("scope") == queryFilterAllValue)
-	if all || implicitAll {
+	if shouldFilterArchivedWorkspaces(c, all, selector, enc.OmissionIsAll) {
 		normalized, err = defaultActiveWorkspaceIDs(c.Request.Context(), getter, normalized)
 		if err != nil {
 			return WorkspaceBreadth{}, err
@@ -95,6 +93,12 @@ func parseWorkspaceBreadth(
 		WorkspaceID:   selector,
 		WorkspaceIDs:  normalized,
 	}, nil
+}
+
+// shouldFilterArchivedWorkspaces narrows default aggregates, preserving explicit history selectors.
+func shouldFilterArchivedWorkspaces(c *gin.Context, all bool, selector string, omissionIsAll bool) bool {
+	return all || omissionIsAll && selector == "" && c.Query("workspace") == "" &&
+		(c.Query("scope") == "" || c.Query("scope") == queryFilterAllValue)
 }
 
 // parseBreadthWorkspaceIDs normalizes the All projects narrowing: sorted, unique, legacy alias resolved.

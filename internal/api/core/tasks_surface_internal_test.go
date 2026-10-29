@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
@@ -510,7 +511,11 @@ func TestTaskBreadthQuerySemantics(t *testing.T) {
 			t.Parallel()
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
-			list, err := ParseTaskListQuery(c)
+			archivedAt := time.Now()
+			catalog := workspaceArchiveCatalogStub{items: []workspacepkg.Workspace{
+				{ID: "ws-active"}, {ID: "ws-archived", ArchivedAt: &archivedAt},
+			}}
+			list, err := ParseTaskListQuery(c, catalog)
 			if tc.invalid {
 				if StatusForTaskError(err) != 400 {
 					t.Fatalf("list error=%v", err)

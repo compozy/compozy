@@ -29,6 +29,10 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 	if err != nil {
 		return contract.TaskListQuery{}, err
 	}
+	// Implicit archive exclusion belongs to the catalog predicate, not the caller's authority.
+	if !explicitAll {
+		breadth.WorkspaceIDs = nil
+	}
 	scope := taskpkg.CatalogScope(c.Query("scope")).Normalize()
 	if explicitAll && scope != "" && scope != taskpkg.CatalogScopeAll {
 		return contract.TaskListQuery{}, invalidWorkspaceBreadth("all_workspaces conflicts with scope")
@@ -49,7 +53,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 		}
 	}
 	query := contract.TaskListQuery{
-		AllWorkspaces: explicitAll || len(breadth.WorkspaceIDs) > 0,
+		AllWorkspaces: explicitAll,
 		WorkspaceIDs:  breadth.WorkspaceIDs,
 		Scope:         taskpkg.CatalogScope(c.Query("scope")).Normalize(),
 		Workspace:     strings.TrimSpace(c.Query("workspace")),
@@ -92,8 +96,7 @@ func ParseTaskInboxQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contrac
 	if err != nil {
 		return contract.TaskInboxQuery{}, invalidWorkspaceBreadth("all_workspaces must be a boolean")
 	}
-	if (allWorkspaces || c.Query("workspace") == "" && (c.Query("scope") == "" || c.Query("scope") == queryFilterAllValue)) &&
-		len(workspaces) > 0 {
+	if shouldFilterArchivedWorkspaces(c, allWorkspaces, c.Query("workspace"), true) && len(workspaces) > 0 {
 		workspaceIDs, err = defaultActiveWorkspaceIDs(c.Request.Context(), workspaces[0], workspaceIDs)
 		if err != nil {
 			return contract.TaskInboxQuery{}, err

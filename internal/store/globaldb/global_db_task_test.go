@@ -6051,6 +6051,38 @@ func benchmarkTaskCatalogHistoryDB(b *testing.B) *GlobalDB {
 
 func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 	t.Parallel()
+	t.Run("Should exclude archived rows from implicit aggregates and retain explicit history", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		active := registerWorkspaceForGlobalTests(t, db, "active-project", t.TempDir())
+		archived := registerWorkspaceForGlobalTests(t, db, "archived-project", t.TempDir())
+		for i, id := range []string{"", active, archived} {
+			record := taskRecordForTest(fmt.Sprintf("archive-catalog-%d", i))
+			record.Status = taskpkg.TaskStatusReady
+			if id != "" {
+				record.Scope = taskpkg.ScopeWorkspace
+				record.WorkspaceID = id
+			}
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, archived, true); err != nil {
+			t.Fatal(err)
+		}
+		query := taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 1}
+		page, err := db.ListTaskCatalog(ctx, query)
+		if err != nil || page.Total != 2 || len(page.Tasks) != 1 || !page.HasMore {
+			t.Fatalf("default page=%+v err=%v", page, err)
+		}
+		query.Scope, query.WorkspaceID = taskpkg.CatalogScopeWorkspace, archived
+		page, err = db.ListTaskCatalog(ctx, query)
+		if err != nil || page.Total != 1 || len(page.Tasks) != 1 || page.Tasks[0].WorkspaceID != archived {
+			t.Fatalf("explicit history=%+v err=%v", page, err)
+		}
+	})
+
 	t.Run("Should narrow rows totals and cursors before paging", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
