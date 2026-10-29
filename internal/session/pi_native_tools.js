@@ -25,7 +25,13 @@ export default function (pi) {
   }
   const registered = [];
   const disconnect = () => {
-    for (const name of registered) pi.unregisterMcpServer(name);
+    for (const name of registered) {
+      try {
+        pi.unregisterMcpServer(name);
+      } catch {
+        // Keep the primary failure observable even if Pi has invalidated the extension.
+      }
+    }
   };
   try {
     for (const server of config.servers) {

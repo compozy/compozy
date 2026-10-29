@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -1336,6 +1337,13 @@ func TestPiNativeToolsLaunch(t *testing.T) {
 		if len(config.Servers) != 1 || config.Servers[0].Config["command"] != "/bin/compozy" {
 			t.Fatalf("server = %#v", config.Servers)
 		}
+
+		server := config.Servers[0].Config
+		if !reflect.DeepEqual(server["args"], []any{"mcp", "hosted"}) ||
+			!reflect.DeepEqual(server["env"], map[string]any{"SESSION_TOKEN": "private-token"}) ||
+			server["cwd"] != original.Cwd {
+			t.Fatalf("bridged server fields = %#v", server)
+		}
 		assertProviderRuntimeFileMode(t, envValue(first.Env, "COMPOZY_PI_BRIDGE"), 0o600)
 		assertProviderRuntimeFileMode(t, filepath.Dir(statusPath), 0o700)
 		if err := writeProviderJSON(
@@ -1415,6 +1423,9 @@ const removed=[];
 setup({getAllTools(){return [];},registerMcpServer(name){if(name==="second") throw Error("private detail");},
  unregisterMcpServer(name){removed.push(name);}});
 assert.deepEqual(removed,["first"]);
+assert.equal(status().code,"pi_native_tools_registration_failed");
+setup({getAllTools(){return [];},registerMcpServer(name){if(name==="second") throw Error("private detail");},
+ unregisterMcpServer(){throw Error("extension no longer active");}});
 assert.equal(status().code,"pi_native_tools_registration_failed");
 const handlers={};let connected=false;
 const api={registerMcpServer(){},unregisterMcpServer(name){removed.push(name);},

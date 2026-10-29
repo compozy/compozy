@@ -2163,7 +2163,7 @@ func TestPromptRuntimePiStartupRecovery(t *testing.T) {
 		}
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
 		original := active.AgentDefinition()
-		for range 2 {
+		for attempt := range 2 {
 			prior := active.AgentDefinition()
 			prior.Prompt = original.Prompt + "\nPreviously assembled native tool instructions."
 			active.setAgentDefinition(prior, acp.OpaqueStartupManifest(prior.Prompt, false))
@@ -2175,10 +2175,25 @@ func TestPromptRuntimePiStartupRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, acp.StartOpts{})
+			startOpts := acp.StartOpts{Command: "pi-acp", Cwd: t.TempDir()}
+			if attempt == 1 {
+				startOpts.MCPServers = []compozyconfig.MCPServer{{Command: "unused-test-command"}}
+			}
+			opts := h.manager.preparePiBridgeStartup(&plan.spec, active, &plan.runtime, startOpts)
+			if attempt == 1 {
+				config := readProviderJSON[piBridgeConfig](t, envValue(opts.Env, piBridgeConfigEnv))
+				if err := writeProviderJSON(config.Status, piBridgeStatus{
+					Nonce: config.Nonce, Code: "pi_native_tools_connection_failed",
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
 			prompt, _, err := opts.FinalizeStartup(t.Context())
 			if err != nil {
 				t.Fatal(err)
+			}
+			if active.AgentDefinition().Prompt != prompt {
+				t.Fatal("stored session definition differs from finalized guidance")
 			}
 			if !strings.HasPrefix(prompt, original.Prompt) || strings.Count(prompt, overlay) != 1 ||
 				strings.Contains(prompt, "Previously assembled") || !active.NativeToolsUnavailable() {

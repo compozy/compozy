@@ -2190,5 +2190,12 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 			!strings.Contains(text, "confirmed runtime guidance") {
 			t.Fatalf("first prompt = %q", text)
 		}
+		proc.systemPromptMu.Lock()
+		manifest := CloneStartupManifest(proc.startupManifest)
+		proc.systemPromptMu.Unlock()
+		if len(manifest.Spans) != 1 || manifest.Spans[0].Key != "system_prompt" ||
+			manifest.Spans[0].Bytes != int64(len("confirmed runtime guidance")) {
+			t.Fatalf("finalized manifest = %#v", manifest)
+		}
 	})
 }

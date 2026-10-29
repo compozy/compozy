@@ -788,6 +788,7 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 			t.Fatal(err)
 		}
 		if strings.Contains(prompt, "Required Reading Router") || strings.Contains(prompt, "<native-skill-catalog>") ||
+			strings.Contains(prompt, "# Native Tools") || strings.Contains(prompt, "# Tools And Skills") ||
 			!strings.Contains(prompt, "authored work") ||
 			!strings.Contains(prompt, "Custom CLI workflow: compozy session list") ||
 			!strings.Contains(prompt, "CLI, HTTP, or UDS") ||
