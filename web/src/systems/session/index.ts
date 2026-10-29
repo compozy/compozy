@@ -405,6 +405,7 @@ export {
 } from "./components/session-rename-dialog";
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
+export { preloadSessionEntry } from "./lib/session-entry-preload";
 export { SessionSidebarSkeleton } from "./components/session-list/session-list-skeleton";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
@@ -491,7 +492,6 @@ export {
 } from "./hooks/use-session-context-activity";
 
 export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
-
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
 export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter";
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";

@@ -10,7 +10,12 @@ export const Route = createFileRoute("/_app/agents/$name/settings")({
     topbar: { crumb: { label: "Settings" } },
   }),
   validateSearch: validateAgentSettingsSearch,
-  loader: async ({ context, params }) =>
-    (await import("./-agents-preload")).preloadAgentSettingsRoute(context.queryClient, params.name),
+  loaderDeps: ({ search }) => ({ workspace: search.workspace }),
+  loader: async ({ context, params, deps }) =>
+    (await import("./-agents-preload")).preloadAgentSettingsRoute(
+      context.queryClient,
+      params.name,
+      deps.workspace
+    ),
   component: createOsRouteSync("agents"),
 });

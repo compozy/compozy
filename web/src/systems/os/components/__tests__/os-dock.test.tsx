@@ -5,7 +5,7 @@
 // Boundary OUT: coordinator command execution and browser lifecycle journeys.
 import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type * as React from "react";
@@ -19,6 +19,7 @@ import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
+import { OsDockTabBar } from "../os-dock-tab-bar";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
 import { pickLastCreatedSession } from "../../lib/last-created-session";
@@ -228,6 +229,8 @@ function catalogSession(
 }
 
 describe("OsDock", () => {
+  afterEach(() => vi.useRealTimers());
+
   beforeEach(() => {
     vi.clearAllMocks();
     launchCatalog.ready = true;
@@ -237,6 +240,109 @@ describe("OsDock", () => {
       pickLastCreatedSession(launchCatalog.sessions)
     );
     setDockState(desktopState());
+  });
+
+  // Invariant: dock intent may prepare the requested app before activation, while brief,
+  // disabled, and abandoned intent never loads it. The dock owns both pointer and keyboard
+  // event timing; canonical query reuse belongs to the route-preloading integration suite.
+  it.each(["rail", "compact"] as const)(
+    "Should preload %s dock intent before activation without opening a window",
+    async surface => {
+      vi.useFakeTimers();
+      const onPreload = vi.fn();
+      const onSelect = vi.fn();
+      const props = {
+        items: [{ id: "tasks", name: "Tasks", icon: "tasks" as const }],
+        onPreload,
+        onSelect,
+      };
+      renderDock(surface === "rail" ? <OsDock {...props} /> : <OsDockTabBar {...props} />);
+      const tasks = screen.getByRole("button", { name: "Tasks" });
+
+      fireEvent.pointerEnter(tasks);
+      expect(onPreload).not.toHaveBeenCalled();
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      expect(onPreload).toHaveBeenCalledExactlyOnceWith("tasks");
+      expect(onSelect).not.toHaveBeenCalled();
+
+      fireEvent.pointerLeave(tasks);
+      onPreload.mockClear();
+      fireEvent.focus(tasks);
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      expect(onPreload).toHaveBeenCalledExactlyOnceWith("tasks");
+
+      fireEvent.blur(tasks);
+      onPreload.mockClear();
+      await act(async () => fireEvent.touchStart(tasks));
+      expect(onPreload).toHaveBeenCalledExactlyOnceWith("tasks");
+      expect(onSelect).not.toHaveBeenCalled();
+      fireEvent.click(tasks);
+      expect(onSelect).toHaveBeenCalledOnce();
+    }
+  );
+
+  it.each(["rail", "compact"] as const)(
+    "Should cancel brief, disabled, and abandoned %s dock intent",
+    async surface => {
+      vi.useFakeTimers();
+      const onPreload = vi.fn();
+      const dock = (disabled = false) => {
+        const props = {
+          items: [{ id: "tasks", name: "Tasks", icon: "tasks" as const }],
+          onPreload,
+          onSelect: vi.fn(),
+          disabled,
+        };
+        return (
+          <TooltipProvider>
+            {surface === "rail" ? <OsDock {...props} /> : <OsDockTabBar {...props} />}
+          </TooltipProvider>
+        );
+      };
+      const view = render(dock());
+      const tasks = screen.getByRole("button", { name: "Tasks" });
+
+      fireEvent.pointerEnter(tasks);
+      fireEvent.pointerLeave(tasks);
+      fireEvent.focus(tasks);
+      fireEvent.blur(tasks);
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      expect(onPreload).not.toHaveBeenCalled();
+
+      fireEvent.pointerEnter(tasks);
+      view.rerender(dock(true));
+      fireEvent.touchStart(tasks);
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      expect(onPreload).not.toHaveBeenCalled();
+
+      view.rerender(dock());
+      fireEvent.pointerEnter(screen.getByRole("button", { name: "Tasks" }));
+      view.unmount();
+      await act(() => vi.advanceTimersByTimeAsync(150));
+      expect(onPreload).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should prepare the latest session on intent without reloading an open app index", async () => {
+    const older = catalogSession("older", "2026-08-01T00:00:00Z");
+    const latest = catalogSession("latest", "2026-08-02T00:00:00Z");
+    launchCatalog.sessions = [latest, older];
+    setDockState(desktopState({ tasks: windowFixture("tasks", "tasks") }));
+    const onPreload = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn(), onPreload }));
+
+    await act(async () => result.current.handlePreload("tasks"));
+    expect(onPreload).not.toHaveBeenCalled();
+    await act(async () => result.current.handlePreload("session"));
+    expect(onPreload).toHaveBeenCalledExactlyOnceWith("session", latest);
+    expect(launchCatalog.resolveLatest).not.toHaveBeenCalled();
+    expect(jumpToSession).not.toHaveBeenCalled();
+    expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+
+    onPreload.mockClear();
+    setDockState({ ...desktopState(), hydration: "pending" });
+    await act(async () => result.current.handlePreload("agents"));
+    expect(onPreload).not.toHaveBeenCalled();
   });
 
   it("Should expose the real closed, running, focused, and minimized state for each launcher", () => {
@@ -674,6 +780,7 @@ describe("OsDock", () => {
     async presentation => {
       const user = userEvent.setup();
       const onOpenSettings = vi.fn();
+      const onPreload = vi.fn();
       setDockState({ ...desktopState(), presentation, connectionStatus: "reconnecting" });
       const command = resolvedPaletteCommand({ id: "settings.general", title: "Settings" });
       const dock = (commands: readonly ResolvedPaletteCommand[]) => (
@@ -683,6 +790,7 @@ describe("OsDock", () => {
               badges={{}}
               onNewSession={vi.fn()}
               onOpenSettings={onOpenSettings}
+              onPreload={onPreload}
               contextMenusEnabled
             />
           </CmdPaletteRegistryProvider>
@@ -692,6 +800,8 @@ describe("OsDock", () => {
 
       const settings = screen.getByRole("button", { name: "Settings" });
       expect(settings).toBeDisabled();
+      await act(async () => fireEvent.touchStart(settings));
+      expect(onPreload).not.toHaveBeenCalled();
       await user.click(settings);
       expect(onOpenSettings).not.toHaveBeenCalled();
       const theme = screen.getByRole("button", { name: /^Switch to (light|dark) mode$/ });
@@ -706,11 +816,16 @@ describe("OsDock", () => {
 
       view.rerender(dock([command]));
       expect(settings).toBeEnabled();
+      await act(async () => fireEvent.touchStart(settings));
+      expect(onPreload).toHaveBeenCalledExactlyOnceWith("settings", null);
       await user.click(settings);
       expect(onOpenSettings).toHaveBeenCalledOnce();
 
       view.rerender(dock([{ ...command, available: false }]));
+      onPreload.mockClear();
       expect(settings).toBeDisabled();
+      await act(async () => fireEvent.touchStart(settings));
+      expect(onPreload).not.toHaveBeenCalled();
       await user.click(settings);
       expect(onOpenSettings).toHaveBeenCalledOnce();
     }

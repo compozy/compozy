@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { PillCount, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { useIntentPreload } from "@/hooks/use-intent-preload";
 
 import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
 import type { LaunchModifiers } from "../lib/launch-placement";
@@ -27,6 +28,8 @@ export interface OsDockProps extends Omit<React.ComponentProps<"div">, "onSelect
    * Omit to render items as presentation.
    */
   onSelect?: (id: string, modifiers?: LaunchModifiers) => void;
+  /** Reads and code only; sustained intent must not activate a launcher. */
+  onPreload?: (id: string) => void | Promise<unknown>;
   /** Keeps launchers visible while the authoritative command fence hydrates. */
   disabled?: boolean;
   /** Wraps each interactive item with its destination context menu (US-006). */
@@ -82,6 +85,7 @@ function DockItem({
   tabStop,
   onFocusItem,
   onSelect,
+  onPreload,
   disabled,
   renderItemMenu,
 }: {
@@ -89,9 +93,12 @@ function DockItem({
   tabStop: boolean;
   onFocusItem: (id: string) => void;
   onSelect?: OsDockProps["onSelect"];
+  onPreload?: OsDockProps["onPreload"];
   disabled?: boolean;
   renderItemMenu?: OsDockProps["renderItemMenu"];
 }) {
+  const preload = useCallback(() => onPreload?.(item.id), [item.id, onPreload]);
+  const intent = useIntentPreload(preload, !!onPreload && !!onSelect && !disabled);
   const name = dockItemAccessibleName(item);
   const classes = cn(ITEM_BASE, onSelect && ITEM_INTERACTIVE, item.active && ITEM_ACTIVE);
   const tip = (
@@ -125,6 +132,7 @@ function DockItem({
       <TooltipTrigger
         render={
           <button
+            {...intent}
             type="button"
             data-slot="os-dock-item"
             data-app={item.id}
@@ -134,7 +142,10 @@ function DockItem({
             tabIndex={tabStop ? 0 : -1}
             disabled={disabled}
             className={classes}
-            onFocus={() => onFocusItem(item.id)}
+            onFocus={() => {
+              onFocusItem(item.id);
+              intent.onFocus();
+            }}
             onClick={event =>
               onSelect(
                 item.id,
@@ -193,6 +204,7 @@ export function OsRailButton({
 export function OsDock({
   items,
   onSelect,
+  onPreload,
   disabled,
   renderItemMenu,
   foot,
@@ -222,6 +234,7 @@ export function OsDock({
             tabStop={item.id === tabStopId}
             onFocusItem={setFocusedId}
             onSelect={onSelect}
+            onPreload={onPreload}
             disabled={disabled}
             renderItemMenu={renderItemMenu}
           />

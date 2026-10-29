@@ -26,7 +26,7 @@ import { DashboardWindowSkeleton } from "@/systems/dashboard/skeleton";
 
 export interface OsAppDefinition extends OsAppDescriptor {
   /** Warms the app's index caches; loaders and unfocused mounts share it. */
-  preload?: (qc: QueryClient, ctx: { workspaceId: string }) => Promise<void>;
+  preload?: (qc: QueryClient, ctx: { workspaceId: string | null }) => Promise<void>;
   Controller: ComponentType<{ windowId: string }>;
   /**
    * The window body while the app's code loads, shaped like the route it is about to render. It is
@@ -39,42 +39,32 @@ export interface OsAppDefinition extends OsAppDescriptor {
   LoadingFallback?: ComponentType<OsWindowFallbackProps>;
 }
 
-const DashboardWindow = lazy(() =>
-  import("../apps/dashboard/dashboard-window").then(m => ({ default: m.DashboardWindow }))
-);
-const SettingsWindow = lazy(() =>
-  import("../apps/settings/settings-window").then(m => ({ default: m.SettingsWindow }))
-);
-const SessionWindow = lazy(() =>
-  import("../apps/session/session-window").then(m => ({ default: m.SessionWindow }))
-);
-const TerminalWindow = lazy(() =>
-  import("../apps/terminal/terminal-window").then(m => ({ default: m.TerminalWindow }))
-);
-const TasksWindow = lazy(() =>
-  import("../apps/tasks/tasks-window").then(m => ({ default: m.TasksWindow }))
-);
-const AgentsWindow = lazy(() =>
-  import("../apps/agents/agents-window").then(m => ({ default: m.AgentsWindow }))
-);
-const VaultWindow = lazy(() =>
-  import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow }))
-);
-const LoopsWindow = lazy(() =>
-  import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow }))
-);
-const AutomationsWindow = lazy(() =>
-  import("../apps/automations/automations-window").then(m => ({ default: m.AutomationsWindow }))
-);
-const MarketplaceWindow = lazy(() =>
-  import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow }))
-);
-const UsageWindow = lazy(() =>
-  import("../apps/usage/usage-window").then(m => ({ default: m.UsageWindow }))
-);
-const NewTabWindow = lazy(() =>
-  import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow }))
-);
+const APP_LOADERS: Record<OsAppId, () => Promise<{ default: OsAppDefinition["Controller"] }>> = {
+  dashboard: () =>
+    import("../apps/dashboard/dashboard-window").then(m => ({ default: m.DashboardWindow })),
+  settings: () =>
+    import("../apps/settings/settings-window").then(m => ({ default: m.SettingsWindow })),
+  session: () => import("../apps/session/session-window").then(m => ({ default: m.SessionWindow })),
+  terminal: () =>
+    import("../apps/terminal/terminal-window").then(m => ({ default: m.TerminalWindow })),
+  tasks: () => import("../apps/tasks/tasks-window").then(m => ({ default: m.TasksWindow })),
+  agents: () => import("../apps/agents/agents-window").then(m => ({ default: m.AgentsWindow })),
+  vault: () => import("../apps/vault/vault-window").then(m => ({ default: m.VaultWindow })),
+  loops: () => import("../apps/loops/loops-window").then(m => ({ default: m.LoopsWindow })),
+  automations: () =>
+    import("../apps/automations/automations-window").then(m => ({ default: m.AutomationsWindow })),
+  marketplace: () =>
+    import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow })),
+  usage: () => import("../apps/usage/usage-window").then(m => ({ default: m.UsageWindow })),
+  "new-tab": () =>
+    import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow })),
+};
+
+/** Shares the lazy controller import without mounting a window or starting its effects. */
+export function preloadOsAppCode(app: OsAppId): Promise<unknown> {
+  return APP_LOADERS[app]();
+}
+
 async function preloadDashboard(qc: QueryClient): Promise<void> {
   const { preloadHomeWorkspace } = await import("@/routes/_app/-home-preload");
   await preloadHomeWorkspace(qc);
@@ -114,68 +104,68 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
   dashboard: {
     ...OS_APP_DESCRIPTORS.dashboard,
     preload: preloadDashboard,
-    Controller: DashboardWindow,
+    Controller: lazy(APP_LOADERS.dashboard),
     LoadingFallback: DashboardWindowSkeleton,
   },
   session: {
     ...OS_APP_DESCRIPTORS.session,
-    Controller: SessionWindow,
+    Controller: lazy(APP_LOADERS.session),
     LoadingFallback: SessionWindowFallback,
   },
   terminal: {
     ...OS_APP_DESCRIPTORS.terminal,
-    Controller: TerminalWindow,
+    Controller: lazy(APP_LOADERS.terminal),
     LoadingFallback: TerminalWindowFallback,
   },
   "new-tab": {
     ...OS_APP_DESCRIPTORS["new-tab"],
-    Controller: NewTabWindow,
+    Controller: lazy(APP_LOADERS["new-tab"]),
     LoadingFallback: NewTabWindowSkeleton,
   },
   agents: {
     ...OS_APP_DESCRIPTORS.agents,
     preload: preloadAgents,
-    Controller: AgentsWindow,
+    Controller: lazy(APP_LOADERS.agents),
     LoadingFallback: AgentsWindowFallback,
   },
   tasks: {
     ...OS_APP_DESCRIPTORS.tasks,
     preload: preloadTasks,
-    Controller: TasksWindow,
+    Controller: lazy(APP_LOADERS.tasks),
     LoadingFallback: TasksWindowFallback,
   },
   loops: {
     ...OS_APP_DESCRIPTORS.loops,
     preload: preloadLoops,
-    Controller: LoopsWindow,
+    Controller: lazy(APP_LOADERS.loops),
     LoadingFallback: LoopsWindowFallback,
   },
   automations: {
     ...OS_APP_DESCRIPTORS.automations,
     preload: preloadAutomations,
-    Controller: AutomationsWindow,
+    Controller: lazy(APP_LOADERS.automations),
     LoadingFallback: AutomationsWindowFallback,
   },
   marketplace: {
     ...OS_APP_DESCRIPTORS.marketplace,
-    Controller: MarketplaceWindow,
+    Controller: lazy(APP_LOADERS.marketplace),
     LoadingFallback: MarketplaceWindowFallback,
   },
   vault: {
     ...OS_APP_DESCRIPTORS.vault,
     preload: preloadVault,
-    Controller: VaultWindow,
+    Controller: lazy(APP_LOADERS.vault),
     LoadingFallback: VaultWindowFallback,
   },
   usage: {
     ...OS_APP_DESCRIPTORS.usage,
-    Controller: UsageWindow,
+    Controller: lazy(APP_LOADERS.usage),
     LoadingFallback: UsageWindowFallback,
   },
   settings: {
     ...OS_APP_DESCRIPTORS.settings,
     preload: preloadSettings,
-    Controller: SettingsWindow,
+    Controller: lazy(APP_LOADERS.settings),
     LoadingFallback: SettingsWindowFallback,
   },
 };

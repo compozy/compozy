@@ -36,3 +36,11 @@ parity remains owned by the concurrent visual-contract phase.
 QA result 2026-08-22: the final daemon-served Web lane reopened the persisted destination and
 rendered its runtime provenance. Task 05's complete Visual Contract matrix closes the previously
 pending rendered-page parity leg.
+
+QA impact 2026-10-28 (run projection preload): a valid scoped run preloads its
+briefing and the first roster/notable-timeline pages before their consumers mount.
+Denied or missing runs must not start those projections. Existing pages/cursors must
+survive another intent without walking retained history; mounted observers still own
+freshness. The canonical route-preloading suite covers first-page reuse, denial and
+profile/workspace boundaries. See
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`; full Loop execution remains CI QA.
