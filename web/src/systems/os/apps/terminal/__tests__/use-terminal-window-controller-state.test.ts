@@ -567,18 +567,19 @@ describe("terminal window close lifecycle", () => {
   });
 });
 
-// Invariant (W-20): an unbound Terminal window on the All projects desktop lists every project's
-// terminals with project badges, and opening one — or a new one in the project the operator
-// picks — binds this window to that terminal's own scope in place (route `workspace`).
+// Invariant (W-20): an unbound Terminal window on the All projects desktop is the Terminal
+// launcher — running terminals with project badges, never exited ones — and opening one, or a new
+// one in the project the operator picks, binds this window to that terminal's own scope in place
+// (route `workspace`).
 describe("terminal window under All projects", () => {
   const workspaces = [{ id: "ws-atlas", name: "atlas" }];
   const userTerminal = { ...DEV_SERVER_TERMINAL, id: "term-user", title: "home", workspace_id: "" };
+  const exitedTerminal = { ...DEV_SERVER_TERMINAL, id: "term-exited", state: "exited" as const };
 
   function renderAggregate(
     overrides: {
       requestedId?: string | null;
       terminals?: (typeof DEV_SERVER_TERMINAL)[];
-      projectFilterValues?: string[];
     } = {}
   ) {
     const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
@@ -586,17 +587,12 @@ describe("terminal window under All projects", () => {
       createElement(TerminalAggregateLocation, {
         windowId: "w-terminal",
         catalog: {
-          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal],
+          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal, exitedTerminal],
           error: null,
           isPending: false,
           refetch: vi.fn(),
         },
         coordinator,
-        projectFilter: {
-          field: null,
-          values: overrides.projectFilterValues ?? [],
-          setValues: vi.fn(),
-        },
         requestedId: overrides.requestedId ?? null,
         workspaces,
         profile: "work",
@@ -607,25 +603,19 @@ describe("terminal window under All projects", () => {
     return coordinator;
   }
 
-  it("Should name each terminal's project and open it bound to that scope", () => {
+  it("Should name each running terminal's project and open it bound to that scope", () => {
     const coordinator = renderAggregate();
-    const row = screen.getByTestId(`terminal-aggregate-row-${DEV_SERVER_TERMINAL.id}`);
+    const row = screen.getByTestId(`terminal-launcher-running-${DEV_SERVER_TERMINAL.id}`);
     expect(row).toHaveTextContent("atlas");
-    expect(screen.getByTestId("terminal-aggregate-row-term-user")).toHaveTextContent("User");
+    expect(screen.getByTestId("terminal-launcher-running-term-user")).toHaveTextContent("User");
+    expect(screen.queryByTestId("terminal-launcher-running-term-exited")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId("terminal-aggregate-row-term-user"));
+    fireEvent.click(screen.getByTestId("terminal-launcher-running-term-user"));
     expect(coordinator.userRetarget).toHaveBeenCalledWith("w-terminal", {
       app: "terminal",
       instanceKey: "term-user",
       route: { pathname: "/terminal/term-user", search: { workspace: "@user" } },
     });
-  });
-
-  it("Should report a narrowed empty list as no match, not as no terminals", () => {
-    renderAggregate({ terminals: [], projectFilterValues: ["ws-atlas"] });
-    expect(screen.getByTestId("terminal-aggregate-empty")).toHaveTextContent(
-      "No matching terminals"
-    );
   });
 
   it("Should bind a terminal opened by id once the aggregate names its project", async () => {
@@ -644,7 +634,7 @@ describe("terminal window under All projects", () => {
   it("Should open a new terminal in the chosen project and bind to it", async () => {
     vi.mocked(createTerminal).mockResolvedValue({ ...DEV_SERVER_TERMINAL, id: "term-new" });
     const coordinator = renderAggregate();
-    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas"));
 
     await waitFor(() =>
       expect(createTerminal).toHaveBeenCalledWith(

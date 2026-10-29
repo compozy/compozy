@@ -87,7 +87,7 @@ a healthy daemon, start `$COMPOZY_HOME/bin/compozy`, or verify and install the b
 Quitting the shell leaves the daemon running.
 
 On macOS and Linux, a desktop-owned daemon refreshes only `PATH` from the operator's login shell
-before starting runtime services. Failure preserves the inherited environment. Operator-managed
+(the account's recorded shell, falling back to the inherited `SHELL`) before starting runtime services. Failure preserves the inherited environment. Operator-managed
 daemons and Windows keep their launcher environment.
 
 The product UI is developed and release-verified against Chromium, the engine embedded by Electron.

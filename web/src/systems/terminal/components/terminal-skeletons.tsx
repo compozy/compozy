@@ -1,15 +1,4 @@
-import type { ReactNode } from "react";
-
-import {
-  cn,
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemTitle,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
-} from "@compozy/ui";
+import { cn, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 // Terminal-shaped loading placeholders. Static and query-free: they import nothing from the
 // terminal system but `@compozy/ui` primitives, so a window can show them before its code has
@@ -62,61 +51,42 @@ export function TerminalWindowSkeleton({
   );
 }
 
-/** Rows a loading list stands in with, with the width of the title and of the state it trails. */
+/** Rows the loading launcher stands in with, by the width of each label. */
 const AGGREGATE_ROWS = [
-  { id: "a", title: "w-48", state: "w-14" },
-  { id: "b", title: "w-36", state: "w-14" },
-  { id: "c", title: "w-56", state: "w-12" },
-  { id: "d", title: "w-40", state: "w-14" },
+  { id: "a", title: "w-28" },
+  { id: "b", title: "w-36" },
+  { id: "c", title: "w-24" },
 ] as const;
 
-export interface TerminalAggregateSkeletonProps {
-  /** The Project filter. Leave it out for a block where the filter goes. */
-  filter?: ReactNode;
-  /** The "New terminal in" row. Leave it out for a block of text and a button, `null` for none. */
-  footer?: ReactNode;
-}
-
 /**
- * The all-projects terminal list in its loading shape: the list frame, the filter, rows of the
- * real `Item` with the project, title and state as blocks, and the new-terminal row. Pass the live
- * filter and footer where they do not depend on the list, so they keep their state and place.
+ * The All projects Terminal launcher in its loading shape: the centered panel,
+ * its search line, and launcher rows as blocks. The lazy window chunk and a
+ * window still binding a requested terminal both hold this frame.
  */
-export function TerminalAggregateSkeleton({ filter, footer }: TerminalAggregateSkeletonProps) {
+export function TerminalAggregateSkeleton() {
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4"
+      className="flex min-h-0 flex-1 justify-center overflow-y-auto px-6 pt-[12vh] pb-6"
       data-testid="terminal-aggregate-loading"
     >
-      {filter ?? <Skeleton className="h-button-sm w-16 rounded-md" />}
-      <SkeletonRegion className="flex flex-col" label="Loading terminals">
+      <SkeletonRegion
+        className="flex w-full max-w-lg flex-col self-start rounded-lg border border-line p-1.5"
+        label="Loading terminals"
+      >
+        <div aria-hidden="true" className="flex h-10 items-center gap-2.5 px-3.5">
+          <SkeletonText className="w-40 text-body" />
+        </div>
         {AGGREGATE_ROWS.map(row => (
-          <Item
+          <div
             aria-hidden="true"
-            className="animate-skeleton-reveal rounded-md"
+            className="flex min-h-8 animate-skeleton-reveal items-center gap-2 px-3.5 py-1.5"
             key={row.id}
-            size="sm"
           >
-            <ItemContent className="flex-row items-center gap-2">
-              <SkeletonText className="w-20 text-micro" />
-              <ItemTitle className="min-w-0 truncate font-normal">
-                <SkeletonText className={row.title} />
-              </ItemTitle>
-            </ItemContent>
-            <ItemActions className="text-micro text-subtle">
-              <SkeletonText className={row.state} />
-            </ItemActions>
-          </Item>
+            <Skeleton className="size-4 rounded-sm" />
+            <SkeletonText className={cn(row.title, "text-small-body")} />
+          </div>
         ))}
       </SkeletonRegion>
-      {footer === undefined ? (
-        <div aria-hidden="true" className="flex flex-wrap items-center gap-2">
-          <SkeletonText className="w-40 text-small-body" />
-          <Skeleton className="h-button-sm w-14 rounded-md" />
-        </div>
-      ) : (
-        footer
-      )}
     </div>
   );
 }

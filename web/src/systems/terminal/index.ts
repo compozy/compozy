@@ -218,7 +218,6 @@ export {
   TerminalAggregateSkeleton,
   TerminalRecordingSkeleton,
   TerminalWindowSkeleton,
-  type TerminalAggregateSkeletonProps,
   type TerminalWindowSkeletonProps,
 } from "./components/terminal-skeletons";
 

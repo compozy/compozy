@@ -73,9 +73,9 @@ function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
       <TerminalAggregateLocation
         catalog={aggregate.catalog}
         coordinator={coordinator}
-        projectFilter={aggregate.projectFilter}
         profile={profile.destination}
         readOnly={profile.aggregate}
+        rememberedWorkspaceId={workspace.rememberedWorkspace?.id}
         requestedId={matchTerminalInstance(pathname)}
         viewer={viewer}
         windowId={windowId}
