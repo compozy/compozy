@@ -1,5 +1,14 @@
 # Compozy Change Impact
 
+## Merge-train skip-link focus repair — 2026-10-29
+
+Owner: merge train main CI run `40942387025`, web shard 2. Web-only focus styling
+keeps Skip to content out of layout flow, preserving the desktop viewport and window
+geometry. No native tool, CLI/HTTP/UDS, extension, hook, config, persisted-data,
+workspace-isolation, or official `skills/compozy/` contract changes. The deep-link
+isolation QA scenario records the failing journey and focused Chromium verification;
+its existing E2E remains unchanged and full retest belongs to CI.
+
 ## Claude Keychain token refresh (#1023) — 2026-10-29
 
 Owner: `fix/issue-1023-claude-keychain-access`; targeted evidence in

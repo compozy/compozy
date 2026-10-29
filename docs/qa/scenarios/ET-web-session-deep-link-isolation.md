@@ -59,3 +59,11 @@ directly on both route forms.
 ## Console lifecycle regression (#873)
 
 Delete a previously cached active session. Detail polling must stop on 404/410 despite cached active status. Both statuses enter scoped-miss resolution; retire the window only after aggregate absence is confirmed. Foreign-profile reads keep the existing owner resolution without widening the selected profile. Transient server errors remain retryable. Focused query and window regressions pass; browser re-walk remains pending.
+
+qa-impact: 2026-10-29 merge-train CI exposed a layout shift after cancelling a foreign
+session deep link: returning focus to Skip to content changed its position to static,
+shrinking the desktop while the daemon's normalized window geometry stayed unchanged.
+The link must remain fixed when focused. The existing os-shell E2E keeps its exact
+window-position check and tolerance. A focused Chromium probe using the installed
+Tailwind compiler reproduced the shift before the fix, preserved the content rectangle
+afterwards, and verified that Enter still focuses the content. Full journey retest is CI-owned.

@@ -96,7 +96,8 @@ Copy menu:
 - a project swimlane header on the Sessions board grouped by project;
 - a project row in the menubar workspace menu (right-click or Shift+F10): the workspace menu
   closes and the project menu opens at the pointer; Archive project keeps its confirm open
-  after the menu closes.
+  after the menu closes. Dismiss the project menu with Escape before choosing an action:
+  focus must return to the project menubar trigger, even though the source row has unmounted.
 
 qa-impact: 2026-10-28 archive/remove lifecycle slice passed against an isolated daemon and
 production web bundle. See `docs/qa/reports/2026-10-28-archive-projects.md`; older unrelated

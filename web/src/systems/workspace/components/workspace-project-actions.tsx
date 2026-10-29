@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
 import {
   Button,
@@ -157,6 +157,7 @@ export function WorkspaceProjectPointMenu({
   workspace,
   listed,
   point,
+  finalFocus,
   onClose,
 }: {
   workspace: WorkspacePayload;
@@ -164,6 +165,7 @@ export function WorkspaceProjectPointMenu({
   listed: boolean;
   /** The open menu's position; `null` while closed. */
   point: WorkspaceProjectMenuPoint | null;
+  finalFocus?: ComponentProps<typeof DropdownMenuContent>["finalFocus"];
   onClose: () => void;
 }) {
   const flow = useWorkspaceProjectAction(workspace, listed);
@@ -177,6 +179,7 @@ export function WorkspaceProjectPointMenu({
       >
         <DropdownMenuContent
           anchor={point ? pointAnchor(point) : undefined}
+          finalFocus={finalFocus}
           side="bottom"
           align="start"
           sideOffset={0}

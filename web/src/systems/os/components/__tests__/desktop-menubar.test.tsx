@@ -13,7 +13,7 @@
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 // Boundary: daemon reads and refreshes run over a stubbed `fetch`.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -157,7 +157,7 @@ function renderMenubar({
     serveUsage(usage);
     queryClient.setQueryData(["provider-usage", "envelope", "default"], usage);
   }
-  const tree = (listed: WorkspacePayload[]) => (
+  const tree = (listed: WorkspacePayload[], overlay = activeOverlay) => (
     <QueryClientProvider client={queryClient}>
       <UIProvider reducedMotion="never" skipAnimations>
         <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
@@ -171,7 +171,7 @@ function renderMenubar({
             onSelectWorkspace={vi.fn()}
             onAddWorkspace={vi.fn()}
             onRunCommand={vi.fn()}
-            activeOverlay={activeOverlay}
+            activeOverlay={overlay}
             onOverlayOpenChange={onOverlayOpenChange}
             attention={ATTENTION}
             update={{ state: "hidden" }}
@@ -185,6 +185,7 @@ function renderMenubar({
     ...view,
     /** The catalog answers a new project list (archived or removed elsewhere). */
     setWorkspaces: (next: WorkspacePayload[]) => view.rerender(tree(next)),
+    setOverlay: (next: DesktopOverlay | null) => view.rerender(tree(workspaces, next)),
   };
 }
 
@@ -192,6 +193,25 @@ function renderMenubar({
 // the workspace menu and the host opens that project's actions at the point; the confirm
 // outlives the menu that opened it.
 describe("DesktopMenubar project context menu", () => {
+  it("Should restore reachable focus after the source menu closes and the project menu is dismissed", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    const { setOverlay } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+    });
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    act(() => row.focus());
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    setOverlay(null);
+    expect(await screen.findByTestId(`workspace-project-menu-${project.id}`)).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull()
+    );
+    expect(document.querySelector('[data-slot="os-menubar-workspace"]')).toHaveFocus();
+  });
+
   it("Should relay a project row's context click to that project's actions", async () => {
     const user = userEvent.setup();
     const onOverlayOpenChange = vi.fn();
