@@ -157,12 +157,12 @@ function renderMenubar({
     serveUsage(usage);
     queryClient.setQueryData(["provider-usage", "envelope", "default"], usage);
   }
-  return render(
+  const tree = (listed: WorkspacePayload[]) => (
     <QueryClientProvider client={queryClient}>
       <UIProvider reducedMotion="never" skipAnimations>
         <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
           <DesktopMenubar
-            workspaces={workspaces}
+            workspaces={listed}
             activeWorkspace={undefined}
             breadthMode={breadthMode}
             focus={{ kind: "user" }}
@@ -180,6 +180,12 @@ function renderMenubar({
       </UIProvider>
     </QueryClientProvider>
   );
+  const view = render(tree(workspaces));
+  return {
+    ...view,
+    /** The catalog answers a new project list (archived or removed elsewhere). */
+    setWorkspaces: (next: WorkspacePayload[]) => view.rerender(tree(next)),
+  };
 }
 
 // #1029: a menubar menu cannot nest a context menu, so a context click on a project row closes
@@ -205,6 +211,28 @@ describe("DesktopMenubar project context menu", () => {
     const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
     await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
     expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+    expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+  });
+
+  it("Should drop the relayed menu and its idle confirm once the project leaves the catalog", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    const { setWorkspaces } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+    });
+
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 60 });
+    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+
+    // Archived from another window: the idle confirm closes and does not reopen on return.
+    setWorkspaces([]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    setWorkspaces([project]);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
   });
 });

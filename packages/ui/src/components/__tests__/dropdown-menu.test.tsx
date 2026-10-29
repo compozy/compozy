@@ -186,5 +186,8 @@ describe("DropdownMenu", () => {
       </DropdownMenu>
     );
     expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeInTheDocument();
+    // The positioner places the popup from the virtual point, not from a trigger at the origin.
+    const positioner = screen.getByRole("menu").parentElement!;
+    expect(positioner.style.transform).toMatch(/^translate\(120px, /);
   });
 });

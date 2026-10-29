@@ -130,6 +130,7 @@ export function DesktopMenubar(props: DesktopMenubarProps) {
         <WorkspaceProjectPointMenu
           key={projectMenu.workspace.id}
           workspace={projectMenu.workspace}
+          listed={projectMenu.listed}
           point={projectMenu.point}
           onClose={projectMenu.close}
         />

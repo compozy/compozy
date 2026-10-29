@@ -140,19 +140,22 @@ export interface WorkspaceProjectMenuPoint {
  */
 export function WorkspaceProjectPointMenu({
   workspace,
+  listed,
   point,
   onClose,
 }: {
   workspace: WorkspacePayload;
+  /** The catalog still lists the project; an unlisted one closes its menu and confirm. */
+  listed: boolean;
   /** The open menu's position; `null` while closed. */
   point: WorkspaceProjectMenuPoint | null;
   onClose: () => void;
 }) {
-  const flow = useWorkspaceProjectAction(workspace);
+  const flow = useWorkspaceProjectAction(workspace, listed);
   return (
     <>
       <DropdownMenu
-        open={point !== null}
+        open={point !== null && listed}
         onOpenChange={open => {
           if (!open) onClose();
         }}

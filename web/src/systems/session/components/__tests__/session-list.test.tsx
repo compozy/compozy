@@ -626,6 +626,10 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-sidebar-selection-menu-delete-item")).toHaveTextContent(
       "Delete 2 sessions"
     );
+    // The list's ⌘⌫ cannot reach a portaled context menu, so its hint stays on the bar only.
+    expect(screen.getByTestId("session-sidebar-selection-menu-delete-item")).not.toHaveTextContent(
+      "⌘⌫"
+    );
     await user.click(screen.getByTestId("session-sidebar-selection-menu-archive"));
     expect(actions.onArchiveMany).toHaveBeenCalledWith([sessions[0], sessions[1]]);
     expect(actions.onArchive).not.toHaveBeenCalled();
@@ -1272,6 +1276,18 @@ describe("SessionList row copy actions", () => {
     await user.click(await screen.findByTestId("session-sidebar-selection-copy-ids"));
     expect(writeText).toHaveBeenLastCalledWith("running\nother");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session IDs copied"));
+  });
+
+  it("Should copy every selected session ID from a selected row's context menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    renderList();
+    fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
+    fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-running"));
+    const menu = await screen.findByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Copy session IDs" }));
+    expect(writeText).toHaveBeenLastCalledWith("running\nother");
   });
 });
 
@@ -2554,6 +2570,33 @@ describe("SessionList breadth and Group by", () => {
 
     // No project behind the User group: the click falls through and no project menu opens.
     expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
+    expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  // A profile group inside a project stands for a profile, not the project: no project menu.
+  it("Should keep project actions off a profile group header", async () => {
+    const groups = profileSessionGroups(
+      { by_profile: [{ profile_id: "p-work", facets: facet(1) }] },
+      {
+        profiles: [{ id: "p-work", name: "work", archived: false }],
+        scope: { kind: "project", workspaceId: "ws-alpha" },
+      }
+    );
+    renderList({
+      sessions: [],
+      view: grouped({ storedGroupBy: "profile", groupBy: "profile", groups }),
+    });
+
+    const header = await screen.findByTestId("session-sidebar-group-profile:p-work");
+    // Let the project catalog answer, as it does for the project header test above.
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([input]) =>
+          new URL((input as Request).url).pathname.endsWith("/api/workspaces")
+        )
+      ).toBe(true)
+    );
+    expect(fireEvent.contextMenu(header)).toBe(true);
     expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
   });
 

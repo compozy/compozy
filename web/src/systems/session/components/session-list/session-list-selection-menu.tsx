@@ -122,7 +122,8 @@ export function SessionSelectionMenuItems({
       >
         <Trash2 className="size-3" />
         Delete {sessionCountLabel(verbs.count)}
-        <Shortcut>⌘⌫</Shortcut>
+        {/* The bar's menu keeps the list's ⌘⌫ hint; a row's portaled context menu cannot route that key. */}
+        {kind === "dropdown" ? <Shortcut>⌘⌫</Shortcut> : null}
       </Item>
     </>
   );
