@@ -141,6 +141,10 @@ func (s *daemonLoopAPIService) stopSessionGoal(
 	if err != nil {
 		return session.GoalDispatchDecision{}, err
 	}
+	if post == nil {
+		// A concurrent Clear owns visibility after cancellation has committed.
+		return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+	}
 	return goalCommandSuccessDecision(session.GoalOutcomeStopped, post, nil), nil
 }
 

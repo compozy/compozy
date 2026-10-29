@@ -20,6 +20,44 @@ import (
 )
 
 func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
+	// Invariant: pause intent prevents a new queue ticket even before a prompt lease exists.
+	// Owner: durable Goal prompt transaction; canonical turn lifecycle integration suite.
+	t.Run("Should fence preparation after a pause without a prompt lease", func(t *testing.T) {
+		for _, phase := range []string{"idle", "preparing"} {
+			t.Run(phase, func(t *testing.T) {
+				t.Parallel()
+				db, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-pause-before-prepare-"+phase)
+				ctx := t.Context()
+				if _, err := db.db.ExecContext(ctx, `UPDATE loop_goal_checkpoints SET phase = ? WHERE loop_run_id = ?`,
+					phase, key.LoopRunID); err != nil {
+					t.Fatal(err)
+				}
+				leases, err := db.RequestGoalPause(ctx, key.WorkspaceID, key.LoopRunID,
+					operatorActorContextForTest("user:pause-operator"))
+				if err != nil || len(leases) != 0 {
+					t.Fatalf("pause before prepare = %#v, %v", leases, err)
+				}
+				_, err = db.PrepareGoalPrompt(ctx, goal.PreparePromptRequest{
+					Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID,
+					QueueEntryID: "queue:paused", PromptID: "prompt-paused", PromptKind: "work",
+					SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", BindingEpoch: 1,
+					Message: "Must not dispatch after pause", PreparedAt: now,
+				})
+				if err == nil {
+					t.Fatal("pause allowed a new prepared Goal prompt")
+				}
+				requireGoalReasonCode(t, err, looppkg.ReasonCodeGoalControlStale)
+				checkpoint, err := db.LoadCheckpoint(ctx, key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if checkpoint.PromptID != "" || checkpoint.ControlActorID != "user:pause-operator" {
+					t.Fatalf("pause lost its checkpoint intent: %#v", checkpoint)
+				}
+			})
+		}
+	})
+
 	t.Run("Should keep one prepared prompt identity per control epoch", func(t *testing.T) {
 		t.Parallel()
 

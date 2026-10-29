@@ -436,6 +436,15 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			if result.Outcome != contract.GoalCommandOutcome(tt.result.Outcome) {
 				t.Fatalf("body outcome = %q, want %q", result.Outcome, tt.result.Outcome)
 			}
+			if result.Outcome == contract.GoalOutcomeStopped {
+				got, want := result.Snapshot, tt.result.Snapshot
+				if got == nil || got.RunID != want.RunID || got.NodeID != want.NodeID ||
+					got.OriginSessionID != want.OriginSessionID || got.BoundSessionID != want.BoundSessionID ||
+					got.TurnsUsed != want.TurnsUsed || got.TurnLimit != want.TurnLimit ||
+					string(got.RunStatus) != want.RunStatus || got.Live != want.Live {
+					t.Fatalf("stopped snapshot audit = %#v, want %#v", got, want)
+				}
+			}
 			if (result.ReasonCode == nil) != (tt.result.ReasonCode == nil) ||
 				(result.ReasonCode != nil && string(*result.ReasonCode) != string(*tt.result.ReasonCode)) {
 				t.Fatalf("body reason = %v, want %v", result.ReasonCode, tt.result.ReasonCode)

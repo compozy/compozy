@@ -150,7 +150,7 @@ export function useSessionWindowController(input: {
     sidebarOpen: sidebar.open,
     onSidebarToggle: sidebar.toggle,
     transportChip: <SessionTransportChip windowLive={liveDataEnabled} />,
-    hasLiveGoal: goal.snapshot?.live === true,
+    hasLiveGoal: goal.hasLiveGoal,
     onInspectorToggle: inspector.toggle,
     onStop: controls.handleStop,
     onUnarchive: controls.handleUnarchive,

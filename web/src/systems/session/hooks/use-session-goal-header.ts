@@ -135,6 +135,7 @@ export function useSessionGoalHeader(
   return {
     composerAffordance,
     continuationDisabledReason,
+    hasLiveGoal: query.data === undefined ? undefined : snapshot?.live === true,
     error: query.error,
     actionError: mutation.error,
     refreshing: query.isFetching,

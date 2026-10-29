@@ -2959,6 +2959,33 @@ func TestExecutorShouldSettleCompactionControlBoundaries(t *testing.T) {
 func TestExecutorShouldRecoverPreparedErrorsAndTimedOutCompaction(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a pause that wins before prepare settles without queueing another turn.
+	// Owner: Goal executor recovery; canonical prepared-error suite.
+	t.Run("Should settle a pause that fenced prompt preparation", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		segment := directSegmentForTest(t, store)
+		checkpoint := segment.checkpoint
+		checkpoint.Phase = checkpointPhasePreparing
+		checkpoint.ControlActorKind = "human"
+		checkpoint.ControlActorID = "operator"
+		store.installCheckpoint(checkpoint)
+		executor := newTestExecutor(t, store, newFakeManagedBinder(store), &fakeJudge{}, &fakeBudgetGuard{})
+		boundary, err := executor.handlePreparedPromptError(t.Context(), segment,
+			fmt.Errorf("%w: Goal pause fenced preparation", loop.ErrTransitionConflict))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if boundary == nil || boundary.control == nil || boundary.control.Disposition != loop.ActionDispositionPaused {
+			t.Fatalf("pause boundary = %#v", boundary)
+		}
+		checkpoint, _, _ = store.snapshot()
+		if checkpoint.Phase != checkpointPhaseAwaitingControl || checkpoint.Status != goalStatusPaused ||
+			checkpoint.PromptID != "" || checkpoint.ControlActorID != "operator" || checkpoint.TurnsUsed != 0 {
+			t.Fatalf("paused checkpoint = %#v", checkpoint)
+		}
+	})
+
 	t.Run("Should return a prepare error when no durable prompt exists", func(t *testing.T) {
 		t.Parallel()
 

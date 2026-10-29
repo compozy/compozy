@@ -32,7 +32,7 @@ function SessionPublisher({
   transportChip,
   onSendPrompt,
   onRefresh,
-  hasLiveGoal,
+  hasLiveGoal = false,
 }: {
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
@@ -109,6 +109,34 @@ describe("useSessionTopbarSlot", () => {
     expect(onStop).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Stop session" }));
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  // Invariant: an unread Goal never bypasses session-stop confirmation.
+  // Owner: session lifecycle header; canonical suite: use-session-topbar-slot.
+  it("Should explain conditional Goal pause while its presence is unknown", () => {
+    const onStop = vi.fn();
+    const UnknownGoalPublisher = () => {
+      useSessionTopbarSlot({
+        session: primarySessionFixture,
+        isStopping: false,
+        isUnarchiving: false,
+        inspectorOpen: false,
+        sidebarOpen: false,
+        onInspectorToggle: vi.fn(),
+        onSidebarToggle: vi.fn(),
+        onStop,
+        onUnarchive: vi.fn(),
+        hasLiveGoal: undefined,
+      });
+      return null;
+    };
+    renderWithTopbar(<UnknownGoalPublisher />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop this session?" });
+    expect(dialog).toHaveTextContent("Any active goal will be paused");
+    expect(onStop).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep working" }));
+    expect(onStop).not.toHaveBeenCalled();
   });
 
   it("Should publish the complete document head through one slot owner", () => {
@@ -292,6 +320,7 @@ describe("useSessionTopbarSlot", () => {
 
     function IdlePublisher() {
       useSessionTopbarSlot({
+        hasLiveGoal: false,
         session: { ...primarySessionFixture, badge: "idle" },
         isStopping: false,
         isUnarchiving: false,

@@ -64,6 +64,23 @@ active, pausing, paused, stopping, stopped, both confirmation dialogs, errors, r
 context, in light and dark themes. These captures establish rendering and dialog behavior; public
 daemon tests establish backend effects. They are not a claim of a complete live-provider browser walk.
 
+Six additional 1440×900 captures (23–28, `real-app-manifest.json`) exercise the real Web app against
+an isolated daemon and controlled ACP provider. In one session, real button clicks demonstrated
+active → pausing → paused, explicit continuation, session-stop confirmation, a stopped session with
+an editable composer, ordinary-message reopening with the Goal still paused at two turns, and explicit
+Resume starting turn three. HTTP snapshots and retained terminal sequences accompany the browser
+actions. The first exploratory walk exposed typed cancellation events rendered as failures; the final
+walk ran after the Web classification fix. Provider errors remain errors.
+
+The real-app lab manifest is
+`/Users/pedronauck/dev/qa-labs/compozy-goal-control-real-app-1015-20261029-031304-400987-lab/qa-artifacts/qa/bootstrap-manifest.json`.
+Its daemon binary is `d21438aeef78e7dd0e9546d33dc01dae70012383`; the Web includes the subsequent
+unknown-Goal confirmation and cancellation fixes. This establishes scoped runtime behavior, not
+exact-head CI evidence. The browser walk passed. The broader strict scenario audit remains failed
+because its natural-startup rule rejects the fixture objective's literal “release readiness”; historical
+prompts were retained. No natural startup or paid-provider release-readiness claim is made.
+The canonical teardown completed with `clean: true` and no surviving owned processes.
+
 The affected existing owner suites cover command parsing/transport, session admission and stop,
 managed Goal execution, checkpoint persistence, and Web control interactions. Local validation is
 targeted; no `make gate`, full race lane, or full local E2E was run. Current-head CI and the PR review
@@ -89,6 +106,27 @@ terminal Goals in that mode; the two focused Web suites passed all 20 tests.
 The OpenAPI compatibility suite now explicitly admits the optional `pause_requested` and context
 `diagnostic` fields and the `stop`/`stopped` vocabulary additions. All historical required fields,
 types, and properties remain compared. Both canonical OpenAPI suites passed after this update.
+
+CodeRabbit follow-up covers concurrent Stop/Clear (the winning Clear returns a valid hidden result),
+same-turn usage after the provider terminal (tokens still max-flush without changing terminal identity),
+and session Stop when Goal state is unknown (confirmation remains available with conditional copy).
+The stopped response and CLI suites retain the snapshot audit fields. A deterministic store interleaving
+also reproduced Pause winning before any prompt lease exists: preparation must reject the pending
+pause, and executor recovery settles its control boundary without creating a queued successor.
+
+CI exposed Resume reading `COALESCE` timestamp text through an RFC3339-only parser. The owning SQLC
+query now returns the declared timestamp columns, letting the driver decode existing driver-written
+timestamps and canonical text losslessly. The reentry owner suite preserves nanosecond precision,
+prefers the actual pause-request time, and verifies concurrent Resume still creates one successor.
+
+After the follow-up, focused session/daemon/API/CLI suites passed, followed by the store reentry and
+preparation suites, executor recovery suite, and both isolated daemon Goal suites. The final runtime
+batch passed in 159 seconds. Web verification passed 54 owner-suite tests, root Turbo typecheck,
+changed-file lint, and React Doctor (22 changed files, no issues). SQLC was regenerated through its
+owning generator. A transient intermediate build observed source before regeneration finished;
+the completed generated tree was then rebuilt and verified successfully.
+The final package-scoped Go lint attempt exceeded its five-minute bound and was interrupted;
+edit-time checks and changed-file formatting passed. Current-head CI owns the remaining Go lint gate.
 
 ## Limits
 

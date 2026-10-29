@@ -91,6 +91,21 @@ describe("runtime activity predicates", () => {
     ).toBe(true);
   });
 
+  // Invariant: typed cancellation remains a stop; genuine provider diagnostics remain errors.
+  // Owner: runtime event classification; canonical suite: runtime-activity-notice.
+  it("Should distinguish typed cancellation from actual failures", () => {
+    const cancellation: AgentEventPayload = {
+      type: "error",
+      error: "context canceled",
+      failure: { kind: "cancellation", summary: "Request cancelled" },
+    };
+    expect(isSessionErrorEvent(cancellation)).toBe(false);
+    expect(isSessionErrorEvent({ ...cancellation, stop_reason: "user_canceled" })).toBe(false);
+    expect(
+      isSessionErrorEvent({ ...cancellation, provider_error: providerErrorEvent().provider_error })
+    ).toBe(true);
+  });
+
   it("recognizes an actionable provider error even without free-text detail", () => {
     const { error: _error, failure: _failure, ...bare } = providerErrorEvent();
     expect(isSessionErrorEvent(bare)).toBe(true);

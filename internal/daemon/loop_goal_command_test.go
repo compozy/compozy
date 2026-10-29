@@ -87,6 +87,46 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a Clear that wins after Stop commits remains the authoritative result.
+	// Owner: daemon command composition; canonical Goal lifecycle suite.
+	t.Run("Should return cleared when Clear wins after Stop cancels the run", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "set", Objective: "Preserve the winning clear"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveHumanActorContextForWorkspace("operator", fixture.workspaceID,
+			taskpkg.OriginKindHTTP, "http")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.service.goalPersistence = clearCanceledGoalProjection{
+			loopGoalAPIPersistence: fixture.service.goalPersistence,
+			clear: func(ctx context.Context) error {
+				return fixture.service.aggregate.ClearInlineGoal(ctx, looppkg.WorkspaceID(fixture.workspaceID),
+					fixture.sessionID, actor)
+			},
+		}
+		stopped, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "stop"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGoalCommandOutcome(t, stopped, session.GoalOutcomeCleared, "")
+		if stopped.Result.Snapshot != nil {
+			t.Fatal("concurrent Clear must not restore the hidden snapshot")
+		}
+		if _, err := core.GoalCommandResultPayloadFromSession(stopped.Result); err != nil {
+			t.Fatalf("committed stop produced an invalid public result: %v", err)
+		}
+		if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != looppkg.StatusCanceled {
+			t.Fatalf("stopped run = %#v", run)
+		}
+	})
+
 	// Invariant: unavailable usage telemetry never disables durable Goal controls.
 	// Owner: daemon Goal read/control boundary; canonical Goal command suite.
 	t.Run("Should retain status and controls when context event reads fail", func(t *testing.T) {
@@ -1323,4 +1363,21 @@ type failingGoalContextEvents struct{}
 
 func (failingGoalContextEvents) Events(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
 	return nil, errors.New("query events: injected read outage")
+}
+
+type clearCanceledGoalProjection struct {
+	loopGoalAPIPersistence
+	clear func(context.Context) error
+}
+
+func (s clearCanceledGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+	sessionID string) (goalpkg.SessionProjection, error) {
+	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+	if err != nil || projection.RunStatus != looppkg.StatusCanceled || projection.Cleared {
+		return projection, err
+	}
+	if err := s.clear(ctx); err != nil {
+		return goalpkg.SessionProjection{}, err
+	}
+	return s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
 }

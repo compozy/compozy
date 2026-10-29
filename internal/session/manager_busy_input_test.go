@@ -3119,10 +3119,13 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 				TurnID:           promptID,
 				StopReason:       string(acp.PromptStopReasonEndTurn),
 				PromptStopReason: acp.PromptStopReasonEndTurn,
+				Usage:            &acp.TokenUsage{TotalTokens: new(int64(2))},
 			},
 			{Type: eventspkg.TranscriptMarkerCreated, TurnID: promptID, Text: "terminal metadata"},
 			{Type: eventspkg.SessionCompactionFired, TurnID: promptID},
 			{Type: eventspkg.SessionTurnQuiesced, TurnID: promptID},
+			{Type: acp.EventTypeUsage, TurnID: promptID, Usage: &acp.TokenUsage{TotalTokens: new(int64(9))}},
+			{Type: acp.EventTypeUsage, TurnID: "other-turn", Usage: &acp.TokenUsage{TotalTokens: new(int64(999))}},
 		}
 		for _, event := range events {
 			if err := h.manager.recordEvent(ctx, sess, event); err != nil {
@@ -3138,7 +3141,8 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 			t.Fatalf("managedInputTerminal() error = %v", err)
 		}
 		if terminal.EventEndSeq != terminal.EventStartSeq+3 || terminal.Text != "reply" ||
-			terminal.Outcome != managedInputOutcomeCompleted || terminal.StopReason != acp.PromptStopReasonEndTurn {
+			terminal.Outcome != managedInputOutcomeCompleted || terminal.StopReason != acp.PromptStopReasonEndTurn ||
+			!terminal.TokensReported || terminal.TokensUsed != 9 {
 			t.Fatalf("managed terminal = %#v", terminal)
 		}
 	})

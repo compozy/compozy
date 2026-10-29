@@ -182,7 +182,10 @@ func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 				if id != "sess-1" || request.Operation != contract.SessionGoalOperationStop {
 					t.Fatalf("stop mutation = %q %#v", id, request)
 				}
-				return contract.GoalCommandResult{Outcome: contract.GoalOutcomeStopped}, nil
+				return contract.GoalCommandResult{
+					Outcome:  contract.GoalOutcomeStopped,
+					Snapshot: &contract.GoalSnapshot{RunID: "run-stopped"},
+				}, nil
 			},
 		})
 		stdout, _, err := executeRootCommand(t, deps, "session", "goal", "stop", "sess-1", "-o", "json")
@@ -190,7 +193,12 @@ func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 			t.Fatal(err)
 		}
 		var result contract.GoalCommandResult
-		if err := json.Unmarshal([]byte(stdout), &result); err != nil || result.Outcome != contract.GoalOutcomeStopped {
+		if err := json.Unmarshal(
+			[]byte(stdout),
+			&result,
+		); err != nil || result.Outcome != contract.GoalOutcomeStopped ||
+			result.Snapshot == nil ||
+			result.Snapshot.RunID != "run-stopped" {
 			t.Fatalf("stop result = %#v, %v", result, err)
 		}
 	})

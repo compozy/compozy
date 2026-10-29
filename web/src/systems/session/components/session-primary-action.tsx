@@ -58,7 +58,7 @@ export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
               size="icon-sm"
               className="focus-visible:shadow-focus-inset"
               onClick={() => {
-                if (props.showStopAction && props.hasLiveGoal && !props.isStopping)
+                if (props.showStopAction && props.hasLiveGoal !== false && !props.isStopping)
                   setConfirmStop(true);
                 else action.onClick();
               }}
@@ -76,7 +76,11 @@ export function SessionPrimaryAction(props: SessionPrimaryActionProps) {
         open={confirmStop && props.showStopAction}
         onOpenChange={setConfirmStop}
         title="Stop this session?"
-        description="The current work will be interrupted and this session's goal will be paused."
+        description={
+          props.hasLiveGoal === true
+            ? "The current work will be interrupted and this session's goal will be paused."
+            : "The current work will be interrupted. Any active goal will be paused."
+        }
         note="Sending a message reopens the session. The goal stays paused until you choose Resume goal."
         confirmLabel="Stop session"
         cancelLabel="Keep working"

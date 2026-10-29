@@ -122,7 +122,13 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 		return nil
 	}
 	if a.terminalEvent != nil {
-		if agentEvent.Type == acp.EventTypeUsage || agentEvent.Type == acp.EventTypeSystem ||
+		if agentEvent.Type == acp.EventTypeUsage {
+			if err := a.observeUsage(agentEvent.Usage); err != nil {
+				return fmt.Errorf("session: invalid managed input usage at sequence %d: %w", event.Sequence, err)
+			}
+			return nil
+		}
+		if agentEvent.Type == acp.EventTypeSystem ||
 			agentEvent.Type == acp.EventTypeAvailableCommands {
 			return nil
 		}

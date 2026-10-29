@@ -38,6 +38,35 @@ describe("thread status derivation", () => {
     });
   });
 
+  // Invariant: an explicit stop with typed cancellation never earns a failed status.
+  // Owner: settled-turn attribution; canonical suite: session-thread-status.logic.
+  it("Should retain neutral cancellation attribution and preserve a separate real failure", () => {
+    const canceled = event({
+      type: "error",
+      error: "context canceled",
+      failure: { kind: "cancellation", summary: "Request cancelled" },
+    });
+    const stopped = event({ type: "session_stopped", stop_reason: "user_canceled" });
+    expect(lastSettledTurn([assistant([text, canceled, stopped])])).toMatchObject({
+      cause: "stopped",
+      failureCause: null,
+      stop: { kind: "user" },
+    });
+    expect(lastSettledTurn([assistant([text, canceled])])).toMatchObject({
+      cause: "stopped",
+      failureCause: null,
+      stop: { kind: "other" },
+    });
+    const crashed = event({
+      type: "error",
+      failure: { kind: "process_exit", summary: "exit 137" },
+    });
+    expect(lastSettledTurn([assistant([text, crashed, canceled, stopped])])).toMatchObject({
+      cause: "failed",
+      failureCause: "process exit",
+    });
+  });
+
   it("Should attribute owner release without claiming operator cancellation or successful work", () => {
     const pendingCall = {
       type: "tool-call",

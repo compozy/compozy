@@ -8,6 +8,7 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const advanceGoalBudgetVersion = `-- name: AdvanceGoalBudgetVersion :one
@@ -341,6 +342,7 @@ func (q *Queries) GetGoalDatabaseNow(ctx context.Context) (string, error) {
 
 const getGoalReentryState = `-- name: GetGoalReentryState :one
 SELECT c.generation, c.node_id, c.item_index, c.control_epoch, c.goal_status,
+       c.control_requested_at, c.updated_at,
        COALESCE(c.control_cause, '') AS control_cause,
        c.turns_used, c.turn_limit, COALESCE(c.task_run_id, '') AS task_run_id,
        COALESCE(c.queue_entry_id, '') AS queue_entry_id,
@@ -379,6 +381,8 @@ type GetGoalReentryStateRow struct {
 	ItemIndex            int64          `json:"item_index"`
 	ControlEpoch         int64          `json:"control_epoch"`
 	GoalStatus           string         `json:"goal_status"`
+	ControlRequestedAt   sql.NullTime   `json:"control_requested_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
 	ControlCause         string         `json:"control_cause"`
 	TurnsUsed            int64          `json:"turns_used"`
 	TurnLimit            int64          `json:"turn_limit"`
@@ -414,6 +418,8 @@ func (q *Queries) GetGoalReentryState(ctx context.Context, arg GetGoalReentrySta
 		&i.ItemIndex,
 		&i.ControlEpoch,
 		&i.GoalStatus,
+		&i.ControlRequestedAt,
+		&i.UpdatedAt,
 		&i.ControlCause,
 		&i.TurnsUsed,
 		&i.TurnLimit,

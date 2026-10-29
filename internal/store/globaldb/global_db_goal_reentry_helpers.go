@@ -72,18 +72,12 @@ func loadGoalReentryRowWithExecutor(
 		return goalReentryRow{}, fmt.Errorf("store: load Goal reentry checkpoint: %w", err)
 	}
 	row := goalReentryRowFromState(generated, state.WorkspaceID, state.LoopRunID)
-	var parkedAtRaw string
-	if err := exec.QueryRowContext(ctx, `SELECT COALESCE(control_requested_at, updated_at)
-		FROM loop_goal_checkpoints WHERE loop_run_id = ? AND generation = ?
-		AND node_id = ? AND item_index = ?`, state.LoopRunID, state.Generation,
-		state.NodeID, state.ItemIndex).Scan(&parkedAtRaw); err != nil {
-		return goalReentryRow{}, fmt.Errorf("store: load Goal parked clock: %w", err)
+	// Keep the declared timestamp columns so the SQLite driver decodes both
+	// canonical text and its historical time.Time representation losslessly.
+	row.parkedAt = generated.UpdatedAt.UTC()
+	if generated.ControlRequestedAt.Valid {
+		row.parkedAt = generated.ControlRequestedAt.Time.UTC()
 	}
-	parkedAt, err := parseLoopRunTimestamp(parkedAtRaw)
-	if err != nil {
-		return goalReentryRow{}, fmt.Errorf("store: parse Goal parked clock: %w", err)
-	}
-	row.parkedAt = parkedAt.UTC()
 	return row, nil
 }
 

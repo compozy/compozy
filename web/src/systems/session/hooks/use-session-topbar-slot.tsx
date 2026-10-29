@@ -55,7 +55,7 @@ interface UseSessionTopbarSlotInput {
   pullRequestRefresh?: SessionTopbarPullRequestRefresh;
   /** Sends one normal user prompt to this session; it queues while a turn runs. */
   onSendPrompt?: (text: string) => void;
-  /** A session stop also pauses its Goal; the confirmation makes that effect explicit. */
+  /** Undefined until Goal presence is known; stopping still explains that any Goal will pause. */
   hasLiveGoal?: boolean;
   /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
   transportChip?: React.ReactNode;
