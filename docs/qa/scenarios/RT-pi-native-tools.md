@@ -6,11 +6,11 @@ persona: Ada
 journey: J-15
 expected: Pi ACP sessions discover and call session-bound Compozy tools; monitor creation wakes the same session. A failed bridge emits a typed runtime warning and CLI guidance without claiming native tools are available.
 entry_points: compozy session new; compozy session prompt; compozy session history
-qa_status: untested
+qa_status: fail
 bug_ids:
-fix_status: pending
-retest_status: pending
-fix_commits:
+fix_status: fixed
+retest_status: fail
+fix_commits: 910e198ad;6140a54bf;58ff579be
 evidence: internal/session/provider_runtime_test.go;internal/acp/client_start_contract_test.go;internal/daemon/composed_assembler_test.go
 last_report: docs/qa/reports/2026-10-29-issue-1020-pi-native-tools.md
 overlaps: RT-provider-full-access-mode
@@ -30,3 +30,5 @@ Repeat with a pi executable that cannot load the bridge. Confirm a typed
 `pi_native_tools_*` warning and startup CLI guidance without the native-tool router
 or native skill-reader instructions. Existing Claude/Codex launch behavior remains
 covered by the provider runtime and ACP suites.
+
+Targeted real integration passes for both authentication modes and the unavailable-bridge path. The unassisted small-model persona remains failed; see the linked report for the deterministic probe, wake evidence, and scope limits.
