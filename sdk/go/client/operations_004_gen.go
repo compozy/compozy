@@ -182,6 +182,28 @@ func (c *Client) CreateWorkspace(ctx context.Context, body CreateWorkspaceReques
 	return &out, nil
 }
 
+// CreateWorkspaceFolderParams carries the path, query, and header parameters.
+type CreateWorkspaceFolderParams struct {
+	Profile *string `url:"profile"`
+}
+
+// CreateWorkspaceFolder Create a root workspace folder
+func (c *Client) CreateWorkspaceFolder(ctx context.Context, params CreateWorkspaceFolderParams, body CreateWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
+	path := "/api/workspace-folders"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceFolderResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CreateWorktreeParams carries the path, query, and header parameters.
 type CreateWorktreeParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -416,34 +438,4 @@ func (c *Client) DeleteLoopInputDefault(ctx context.Context, params DeleteLoopIn
 type DeleteProfileParams struct {
 	Name         string `url:"name"`
 	PlanRevision string `url:"plan_revision"`
-}
-
-// DeleteProfile Delete a profile
-func (c *Client) DeleteProfile(ctx context.Context, params DeleteProfileParams) (*DeleteProfileResponse, error) {
-	path := "/api/profiles/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("plan_revision", params.PlanRevision)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DeleteProfileResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteResourceParams carries the path, query, and header parameters.
-type DeleteResourceParams struct {
-	Kind string `url:"kind"`
-	ID   string `url:"id"`
-}
-
-// DeleteResource Delete one desired-state resource on the local operator control plane
-func (c *Client) DeleteResource(ctx context.Context, params DeleteResourceParams, body DeleteResourceRequest) error {
-	path := "/api/resources/{kind}/{id}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	return c.doContent(ctx, "DELETE", path, nil, body, nil, "", "")
 }

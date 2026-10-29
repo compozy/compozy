@@ -100,7 +100,7 @@ var workspaceTools = []toolspkg.Descriptor{
 }
 
 func workspaceDescriptors() []toolspkg.Descriptor {
-	return workspaceTools
+	return append(append([]toolspkg.Descriptor(nil), workspaceTools...), workspaceLayoutDescriptors()...)
 }
 
 const workspaceRefInputSchema = `{

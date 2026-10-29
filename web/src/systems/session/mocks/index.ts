@@ -1,6 +1,11 @@
 export { sessionCatalogStreamHandler } from "./catalog-stream-handler";
 export { handlers, resetSessionAttentionMock } from "./handlers";
 export { resetSessionFolderMock, seedSessionFolderMock } from "./folder-handlers";
+export {
+  resetWorkspaceLayoutMock,
+  seedWorkspaceLayoutMock,
+  workspaceFolderFixture,
+} from "./workspace-layout-handlers";
 export { searchSessionFileEntriesFixture, sessionFileEntriesFixture } from "./file-search-handlers";
 export {
   assistantMessageFixture,

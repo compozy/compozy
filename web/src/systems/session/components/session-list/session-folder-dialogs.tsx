@@ -23,7 +23,9 @@ import type { SessionFolderDialogState } from "../../hooks/use-session-list-fold
 const FOLDER_NAME_MAX_CHARACTERS = 120;
 
 export interface SessionFolderDialogsProps {
-  state: SessionFolderDialogState;
+  state: SessionFolderDialogState<{ id: string; name: string }>;
+  /** What the folder holds; names what returns to the list when it is deleted. */
+  holds?: "sessions" | "projects";
   onClose: () => void;
   onCreate: (name: string) => Promise<unknown>;
   onRename: (folderId: string, name: string) => Promise<unknown>;
@@ -40,6 +42,7 @@ export function SessionFolderDialogs({
   onRename,
   onDelete,
   destination,
+  holds = "sessions",
 }: SessionFolderDialogsProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +68,11 @@ export function SessionFolderDialogs({
         tone="danger"
         icon={Trash2}
         title="Delete folder?"
-        description="Sessions in this folder move back to the list. No sessions are deleted."
+        description={
+          holds === "projects"
+            ? "Projects in this folder move back to the list. No projects or sessions are deleted."
+            : "Sessions in this folder move back to the list. No sessions are deleted."
+        }
         confirmLabel="Delete folder"
         cancelLabel="Cancel"
         isPending={pending}
@@ -103,7 +110,9 @@ export function SessionFolderDialogs({
 }
 
 /** Title, description, and confirm button for the create and rename dialogs. */
-function folderNameCopy(state: Exclude<SessionFolderDialogState, null | { kind: "delete" }>) {
+function folderNameCopy(
+  state: Exclude<SessionFolderDialogState<{ id: string; name: string }>, null | { kind: "delete" }>
+) {
   if (state.kind === "rename") {
     return { title: "Rename folder", confirmLabel: "Rename folder", confirmIcon: Pencil };
   }

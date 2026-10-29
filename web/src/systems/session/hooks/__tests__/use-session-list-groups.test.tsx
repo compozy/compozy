@@ -332,7 +332,13 @@ describe("useSessionListView", () => {
     expect(result.current.groupBy).toBe("none");
     expect(result.current.groupByOptions).toEqual(["none"]);
     expect(result.current.catalog).toBeDefined();
-    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    // Flat, the list reads no group membership; its one facets read is the totals footer
+    // over the focused project alone (#1044).
+    expect(result.current.groups).toEqual([]);
+    for (const [filters] of vi.mocked(fetchSessionFacets).mock.calls) {
+      expect(filters).toMatchObject({ workspace_id: "ws-alpha" });
+      expect(filters).not.toHaveProperty("all_workspaces");
+    }
 
     // The same stored value applies as soon as the breadth allows it.
     act(() => enableAllProjects());

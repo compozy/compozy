@@ -2155,10 +2155,27 @@ type WorkspaceDeletionIntent struct {
 	RequestedAt  string         `json:"requested_at"`
 }
 
+type WorkspaceFolder struct {
+	ID        string `json:"id"`
+	ProfileID string `json:"profile_id"`
+	Name      string `json:"name"`
+	Position  int64  `json:"position"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
 type WorkspaceNameAlias struct {
 	OldName     string `json:"old_name"`
 	WorkspaceID string `json:"workspace_id"`
 	CreatedAt   string `json:"created_at"`
+}
+
+type WorkspacePlacement struct {
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID string         `json:"workspace_id"`
+	FolderID    sql.NullString `json:"folder_id"`
+	Position    int64          `json:"position"`
+	UpdatedAt   string         `json:"updated_at"`
 }
 
 type Worktree struct {

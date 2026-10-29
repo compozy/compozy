@@ -3,8 +3,9 @@
 // container's full order to the daemon, and restores the whole envelope when
 // the daemon refuses; a bulk move is one atomic write that settles its promise
 // with the daemon's answer; a delete clears membership optimistically; a failed folder
-// read keeps the list flat and offers a retry that loads the layout.
-// Owning layer: useSessionFolders (query cache + adapter); fetch is the I/O boundary.
+// read keeps the list flat and offers a retry that loads the layout. Project folders
+// (#1044, useWorkspaceLayout) patch the profile's layout the same way and restore it.
+// Owning layer: useSessionFolders / useWorkspaceLayout (query cache + adapter); fetch is the I/O boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -17,6 +18,7 @@ import { primarySessionFixture } from "../../testing";
 import { sessionKeys } from "../../lib/query-keys";
 import type { SessionCatalogPageResponse, SessionPayload } from "../../types";
 import { useSessionFolders } from "../use-session-folders";
+import { useWorkspaceLayout } from "../use-workspace-layout";
 
 const folder = {
   id: "sfold-a",
@@ -271,5 +273,58 @@ describe("useSessionFolders", () => {
     await act(async () => pending);
     expect(writes[0]!.method).toBe("DELETE");
     expect(new URL(writes[0]!.url).pathname).toBe("/api/workspaces/ws/session-folders/sfold-a");
+  });
+});
+
+describe("useWorkspaceLayout", () => {
+  const projectFolder = {
+    id: "wfold-a",
+    name: "Clients",
+    profile_id: "default",
+    position: 0,
+    workspace_count: 1,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+  };
+  const served = {
+    folders: [projectFolder],
+    placements: [{ workspace_id: "ws-a", folder_id: "wfold-a", position: 0 }],
+  };
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+    toastError.mockClear();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Should move a project optimistically and restore the layout when the daemon refuses", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const writes: Request[] = [];
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const request = input as Request;
+      if (request.method === "GET") return json(served);
+      writes.push(request);
+      return json({ error: "workspace not found" }, 404);
+    });
+    const { result } = renderHook(() => useWorkspaceLayout({ profile: "work", enabled: true }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
+    const placements = () =>
+      queryClient.getQueryData<typeof served>(sessionKeys.workspaceLayout("work"))?.placements;
+
+    act(() => result.current.layout?.moveWorkspace("ws-b", "wfold-a"));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    const request = writes[0]!;
+    expect(new URL(request.url).pathname).toBe("/api/workspace-order/move");
+    expect(new URL(request.url).searchParams.get("profile")).toBe("work");
+    expect(await request.clone().json()).toEqual({ workspace_id: "ws-b", folder_id: "wfold-a" });
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Couldn't move the project.", expect.anything())
+    );
+    expect(placements()).toEqual(served.placements);
   });
 });

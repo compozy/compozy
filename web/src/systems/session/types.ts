@@ -429,3 +429,8 @@ export type SessionTranscriptOutlineEntry = SessionTranscriptOutlineResponse["en
 export type SessionFoldersResponse = OperationResponse<"listSessionFolders", 200>;
 export type SessionFolderPayload = SessionFoldersResponse["folders"][number];
 export type ReorderSessionsRequest = OperationRequestBody<"reorderSessions">;
+
+/* Workspace folders (issue #1044): one profile's grouping and order of projects in All projects. */
+export type WorkspaceLayoutResponse = OperationResponse<"getWorkspaceLayout", 200>;
+export type WorkspaceFolderPayload = WorkspaceLayoutResponse["folders"][number];
+export type WorkspacePlacementPayload = WorkspaceLayoutResponse["placements"][number];

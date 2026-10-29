@@ -117,7 +117,8 @@ function SubagentBranchRow({
   const word = display.word;
   const body = (
     <>
-      <span className="flex justify-center">
+      {/* The mark sits on the title line, where the branch elbow lands, not between both lines. */}
+      <span className="flex h-5 items-center justify-center self-start">
         <StateGlyph size="sm" state={display.glyph} />
       </span>
       <span className="flex min-w-0 flex-col">

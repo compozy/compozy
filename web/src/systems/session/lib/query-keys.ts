@@ -31,6 +31,11 @@ export const sessionKeys = {
   /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
   folders: (workspace: string, profile: string) =>
     [...sessionKeys.workspaceLists(workspace), "folders", profile.trim()] as const,
+  /** Every profile's project folders (issue #1044); a layout change rereads them all. */
+  workspaceLayouts: () => [...sessionKeys.all, "workspace-layout"] as const,
+  /** One profile's project folders and project order in All projects. */
+  workspaceLayout: (profile: string) =>
+    [...sessionKeys.workspaceLayouts(), profile.trim()] as const,
   workspaceActivity: (workspace: string) =>
     [...sessionKeys.workspaceLists(workspace), "activity"] as const,
   list: (filters: SessionListFilters = {}) => {

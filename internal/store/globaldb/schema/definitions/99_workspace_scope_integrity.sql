@@ -12,6 +12,20 @@ BEGIN
 	SELECT RAISE(ABORT, 'workspace not found');
 END;
 
+CREATE TRIGGER workspace_placements_workspace_insert_guard
+BEFORE INSERT ON workspace_placements
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN
+	SELECT RAISE(ABORT, 'workspace not found');
+END;
+
+CREATE TRIGGER workspace_placements_workspace_update_guard
+BEFORE UPDATE OF workspace_id ON workspace_placements
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN
+	SELECT RAISE(ABORT, 'workspace not found');
+END;
+
 CREATE TRIGGER sessions_workspace_insert_guard
 BEFORE INSERT ON sessions
 WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
@@ -179,6 +193,7 @@ BEGIN
 	DELETE FROM agent_soul_revisions WHERE workspace_id = OLD.id;
 	DELETE FROM agent_soul_snapshots WHERE workspace_id = OLD.id;
 	DELETE FROM session_folders WHERE workspace_id = OLD.id;
+	DELETE FROM workspace_placements WHERE workspace_id = OLD.id;
 	DELETE FROM session_health WHERE workspace_id = OLD.id;
 	DELETE FROM session_derivations WHERE workspace_id = OLD.id;
 	DELETE FROM sessions WHERE workspace_id = OLD.id;

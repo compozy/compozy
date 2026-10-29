@@ -14552,6 +14552,176 @@ func TestNativeSessionLayoutTools(t *testing.T) {
 	})
 }
 
+type nativeWorkspaceLayoutSessions struct {
+	apitest.StubSessionManager
+	calls   []string
+	profile string
+}
+
+func (s *nativeWorkspaceLayoutSessions) record(call string, profileID string) {
+	s.calls = append(s.calls, call)
+	s.profile = profileID
+}
+
+func (s *nativeWorkspaceLayoutSessions) WorkspaceLayout(
+	_ context.Context,
+	profileID string,
+) (store.WorkspaceLayout, error) {
+	s.record("layout", profileID)
+	return store.WorkspaceLayout{
+		Folders:    []store.WorkspaceFolder{{ID: "wfold-1", Name: "Clients", WorkspaceCount: 1}},
+		Placements: []store.WorkspacePlacement{{WorkspaceID: "", Position: 0}},
+	}, nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) CreateWorkspaceFolder(
+	_ context.Context,
+	profileID string,
+	name string,
+) (store.WorkspaceFolder, error) {
+	s.record("create "+name, profileID)
+	return store.WorkspaceFolder{ID: "wfold-1", Name: name}, nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) RenameWorkspaceFolder(
+	_ context.Context,
+	profileID string,
+	folderID string,
+	name string,
+) (store.WorkspaceFolder, error) {
+	s.record("rename "+folderID+" "+name, profileID)
+	return store.WorkspaceFolder{ID: folderID, Name: name}, nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) DeleteWorkspaceFolder(_ context.Context, profileID string, id string) error {
+	s.record("delete "+id, profileID)
+	return nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) ReorderWorkspaceFolders(
+	_ context.Context,
+	profileID string,
+	ids []string,
+) error {
+	s.record("reorder-folders "+strings.Join(ids, ","), profileID)
+	return nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) MoveWorkspace(
+	_ context.Context,
+	profileID string,
+	workspaceID string,
+	folderID string,
+) error {
+	s.record("move "+workspaceID+"|"+folderID, profileID)
+	return nil
+}
+
+func (s *nativeWorkspaceLayoutSessions) ReorderWorkspaces(
+	_ context.Context,
+	profileID string,
+	folderID string,
+	workspaceIDs []string,
+) error {
+	s.record("reorder "+folderID+" "+strings.Join(workspaceIDs, ","), profileID)
+	return nil
+}
+
+func TestNativeWorkspaceLayoutTools(t *testing.T) {
+	t.Parallel()
+
+	workspace := workspacepkg.Workspace{ID: "ws-1", RootDir: "/workspace/compozy", Name: "compozy"}
+	workspaces := apitest.StubWorkspaceService{
+		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "ws-1" && ref != "compozy" {
+				return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspace, nil
+		},
+		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if ref != "ws-1" && ref != "compozy" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{Workspace: workspace, WorkspaceID: "ws-1"}, nil
+		},
+	}
+	newRegistry := func(t *testing.T, access string) (*nativeWorkspaceLayoutSessions, *toolspkg.RuntimeRegistry) {
+		t.Helper()
+		sessions := &nativeWorkspaceLayoutSessions{}
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID, EffectiveWorkspaceAccess: access,
+			}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+		return sessions, registry
+	}
+
+	t.Run("Should manage the caller profile's workspace layout and resolve workspace references", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+			want  string
+		}{
+			{toolspkg.ToolIDWorkspaceFolderCreate, `{"name":"Clients"}`, `"folder":{`},
+			{toolspkg.ToolIDWorkspaceFolderRename, `{"folder_id":"wfold-1","name":"Partners"}`, `"folder":{`},
+			{toolspkg.ToolIDWorkspaceFolderReorder, `{"folder_ids":["wfold-1"]}`, `"placements":[`},
+			{toolspkg.ToolIDWorkspaceMove, `{"workspace":"compozy","folder_id":"wfold-1"}`, `"workspace_count":1`},
+			{toolspkg.ToolIDWorkspaceReorder, `{"workspace_ids":["@user","compozy"]}`, `"workspace_id":"@user"`},
+			{toolspkg.ToolIDWorkspaceFolderDelete, `{"folder_id":"wfold-1"}`, `"folders":[`},
+			{toolspkg.ToolIDWorkspaceFolderList, `{}`, `"name":"Clients"`},
+		} {
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: tc.id, Input: json.RawMessage(tc.input),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(%s) error = %v", tc.id, err)
+			}
+			requireNativeStructuredContains(t, result, []byte(tc.want))
+		}
+		for _, want := range []string{
+			"create Clients", "rename wfold-1 Partners", "reorder-folders wfold-1", "move ws-1|wfold-1",
+			"reorder  ,ws-1", "delete wfold-1",
+		} {
+			if !slices.Contains(sessions.calls, want) {
+				t.Fatalf("layout calls = %#v, missing %q", sessions.calls, want)
+			}
+		}
+		if sessions.profile != store.DefaultProfileID {
+			t.Fatalf("layout profile = %q, want the default profile", sessions.profile)
+		}
+	})
+
+	t.Run("Should deny an agent session without the unrestricted grant", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, "")
+		_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceFolderCreate, Input: json.RawMessage(`{"name":"X"}`)})
+		requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+		if len(sessions.calls) != 0 {
+			t.Fatalf("layout calls after denial = %#v, want none", sessions.calls)
+		}
+	})
+
+	t.Run("Should allow an agent session with the unrestricted grant", func(t *testing.T) {
+		t.Parallel()
+		sessions, registry := newRegistry(t, workspaceaccess.Unrestricted)
+		_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceFolderList, Input: json.RawMessage(`{}`)})
+		if err != nil {
+			t.Fatalf("workspace_folder_list with the unrestricted grant error = %v", err)
+		}
+		if !slices.Equal(sessions.calls, []string{"layout"}) {
+			t.Fatalf("layout calls = %#v, want one layout read", sessions.calls)
+		}
+	})
+}
+
 func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 	t.Parallel()
 

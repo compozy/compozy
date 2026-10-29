@@ -14,12 +14,17 @@ import { cn } from "@/lib/utils";
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
-import type { SessionFolderPayload } from "../../types";
+import { BRANCH_RAIL } from "./session-list-branch-rail";
 
 export interface SessionListFolderProps {
-  folder: SessionFolderPayload;
-  /** Rows the folder shows on this page, children included. */
+  folder: { id: string; name: string };
+  /** Rows the folder shows on this page, children included; projects for a project folder. */
   count: number;
+  /**
+   * What the folder holds. A project folder (issue #1044) starts no sessions and
+   * hangs its projects on a tree rail; a session folder indents its threads.
+   */
+  holds?: "sessions" | "projects";
   expanded: boolean;
   onToggle: () => void;
   onNewSession?: () => void;
@@ -43,6 +48,7 @@ export interface SessionListFolderProps {
 export function SessionListFolder({
   folder,
   count,
+  holds = "sessions",
   expanded,
   onToggle,
   onNewSession,
@@ -110,65 +116,115 @@ export function SessionListFolder({
           render={header}
           onKeyDown={openContextMenuFromKeyboard}
         />
-        <ContextMenuContent className="min-w-52">
-          <ContextMenuItem
-            data-testid={`${testId}-menu-new-session`}
-            disabled={!onNewSession}
-            onClick={onNewSession}
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            New session in folder
-          </ContextMenuItem>
-          <ContextMenuItem data-testid={`${testId}-menu-rename`} onClick={onRename}>
-            <Pencil aria-hidden="true" className="size-3" />
-            Rename folder…
-          </ContextMenuItem>
-          {onMoveUp !== undefined || onMoveDown !== undefined ? (
-            <>
-              <ContextMenuItem
-                data-testid={`${testId}-menu-up`}
-                disabled={onMoveUp === undefined}
-                onClick={onMoveUp}
-              >
-                <ArrowUp aria-hidden="true" className="size-3" />
-                Move folder up
-              </ContextMenuItem>
-              <ContextMenuItem
-                data-testid={`${testId}-menu-down`}
-                disabled={onMoveDown === undefined}
-                onClick={onMoveDown}
-              >
-                <ArrowDown aria-hidden="true" className="size-3" />
-                Move folder down
-              </ContextMenuItem>
-            </>
-          ) : null}
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            data-testid={`${testId}-menu-delete`}
-            variant="destructive"
-            onClick={onDelete}
-          >
-            <Trash2 aria-hidden="true" className="size-3" />
-            Delete folder…
-          </ContextMenuItem>
-        </ContextMenuContent>
+        <SessionListFolderMenu
+          testId={testId}
+          holds={holds}
+          onNewSession={onNewSession}
+          onRename={onRename}
+          onDelete={onDelete}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+        />
       </ContextMenu>
       {expanded ? (
-        <div className="flex flex-col gap-0.5 pt-0.5 pl-2.5">
+        <SessionListFolderBody testId={testId} holds={holds} onNewSession={onNewSession}>
           {children}
-          <button
-            type="button"
-            data-testid={`${testId}-new-session`}
-            disabled={!onNewSession}
-            onClick={onNewSession}
-            className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-small-body text-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-          >
-            <Icon as={Plus} size="sm" />
-            New session
-          </button>
-        </div>
+        </SessionListFolderBody>
       ) : null}
+    </div>
+  );
+}
+
+type FolderVerbs = Pick<
+  SessionListFolderProps,
+  "holds" | "onNewSession" | "onRename" | "onDelete" | "onMoveUp" | "onMoveDown"
+> & { testId: string };
+
+/** The folder header's context menu: start a session (session folders), rename, move, delete. */
+function SessionListFolderMenu({
+  testId,
+  holds,
+  onNewSession,
+  onRename,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}: FolderVerbs) {
+  return (
+    <ContextMenuContent className="min-w-52">
+      {holds === "sessions" ? (
+        <ContextMenuItem
+          data-testid={`${testId}-menu-new-session`}
+          disabled={!onNewSession}
+          onClick={onNewSession}
+        >
+          <Plus aria-hidden="true" className="size-3" />
+          New session in folder
+        </ContextMenuItem>
+      ) : null}
+      <ContextMenuItem data-testid={`${testId}-menu-rename`} onClick={onRename}>
+        <Pencil aria-hidden="true" className="size-3" />
+        Rename folder…
+      </ContextMenuItem>
+      {onMoveUp !== undefined || onMoveDown !== undefined ? (
+        <>
+          <ContextMenuItem
+            data-testid={`${testId}-menu-up`}
+            disabled={onMoveUp === undefined}
+            onClick={onMoveUp}
+          >
+            <ArrowUp aria-hidden="true" className="size-3" />
+            Move folder up
+          </ContextMenuItem>
+          <ContextMenuItem
+            data-testid={`${testId}-menu-down`}
+            disabled={onMoveDown === undefined}
+            onClick={onMoveDown}
+          >
+            <ArrowDown aria-hidden="true" className="size-3" />
+            Move folder down
+          </ContextMenuItem>
+        </>
+      ) : null}
+      <ContextMenuSeparator />
+      <ContextMenuItem
+        data-testid={`${testId}-menu-delete`}
+        variant="destructive"
+        onClick={onDelete}
+      >
+        <Trash2 aria-hidden="true" className="size-3" />
+        Delete folder…
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+}
+
+/**
+ * An open folder's members: a project folder hangs its projects on the tree
+ * rail; a session folder indents its threads above a New session row.
+ */
+function SessionListFolderBody({
+  testId,
+  holds,
+  onNewSession,
+  children,
+}: Pick<FolderVerbs, "testId" | "holds" | "onNewSession"> & { children: React.ReactNode }) {
+  if (holds === "projects") {
+    return <div className={cn(BRANCH_RAIL, "flex flex-col gap-0.5 pt-0.5")}>{children}</div>;
+  }
+  return (
+    <div className="flex flex-col gap-0.5 pt-0.5 pl-2.5">
+      {children}
+      <button
+        type="button"
+        data-testid={`${testId}-new-session`}
+        disabled={!onNewSession}
+        onClick={onNewSession}
+        className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-small-body text-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+      >
+        <Icon as={Plus} size="sm" />
+        New session
+      </button>
     </div>
   );
 }

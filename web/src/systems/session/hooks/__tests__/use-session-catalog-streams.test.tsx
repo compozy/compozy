@@ -412,6 +412,33 @@ describe("useSessionCatalogStreams", () => {
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: sessionKeys.byIdRoot("") });
   });
 
+  // #1044: a project-folder change names no workspace or session; only the layout rereads.
+  it("Should reread project folders on a workspace layout change without waking the lists", () => {
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    renderHook(() => useSessionCatalogStreams({ eventSourceFactory: factory }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    act(() => {
+      source.emit("session_catalog_changed", {
+        kind: "workspace_layout",
+        profile_id: "default",
+        profile_name: "default",
+        workspace_id: "",
+        session_id: "",
+      });
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: sessionKeys.workspaceLayouts() });
+    expect(invalidate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: sessionKeys.workspaceLists("") }),
+      expect.anything()
+    );
+  });
+
   it("Should bound catalog reads under continuous lifecycle activity and stop pending wakes on unmount", () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();

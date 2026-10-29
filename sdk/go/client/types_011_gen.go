@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// Mergeable is a daemon API value.
+type Mergeable string
+
+// Meta is a daemon API value.
+type Meta struct {
+	Name        string      `json:"name"`
+	Version     int         `json:"version,omitzero"`
+	Description string      `json:"description,omitempty"`
+	Catalog     CatalogMeta `json:"catalog"`
+}
+
 // MetaField is a daemon API value.
 type MetaField struct {
 	Label    string            `json:"label"`
@@ -65,6 +76,12 @@ type ModelCatalogSourceStatusPayload struct {
 // MoveSessionRequest is a daemon API value.
 type MoveSessionRequest struct {
 	FolderID string `json:"folder_id,omitempty"`
+}
+
+// MoveWorkspaceRequest is a daemon API value.
+type MoveWorkspaceRequest struct {
+	WorkspaceID string `json:"workspace_id"`
+	FolderID    string `json:"folder_id,omitempty"`
 }
 
 // NewSessionWorktreeRequest is a daemon API value.
@@ -431,20 +448,3 @@ type OverviewUsageDayPayload struct {
 	Date   string `json:"date"`
 	Tokens int64  `json:"tokens"`
 }
-
-// OverviewUsagePayload is a daemon API value.
-type OverviewUsagePayload struct {
-	WindowDays    int                           `json:"window_days"`
-	RetentionDays int                           `json:"retention_days"`
-	Truncated     bool                          `json:"truncated"`
-	TotalTokens   int64                         `json:"total_tokens"`
-	EstimatedCost *float64                      `json:"estimated_cost,omitzero"`
-	CostCurrency  string                        `json:"cost_currency,omitempty"`
-	CostStatus    string                        `json:"cost_status,omitempty"`
-	Days          []OverviewUsageDayPayload     `json:"days"`
-	AgentShare    []OverviewAgentSharePayload   `json:"agent_share"`
-	Profiles      []OverviewProfileUsagePayload `json:"profiles"`
-}
-
-// OwnerKind is a daemon API value.
-type OwnerKind string

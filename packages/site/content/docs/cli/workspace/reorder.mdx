@@ -1,0 +1,58 @@
+---
+title: "compozy workspace reorder"
+description: "Pin a manual workspace order in a root folder or the root"
+---
+
+## compozy workspace reorder
+
+Pin a manual workspace order in a root folder or the root
+
+### Synopsis
+
+Pin the listed workspaces (or @user), in order, at the top of one folder or the root. Workspaces already there but not listed keep their order after them.
+
+```
+compozy workspace reorder <name-or-id>... [flags]
+```
+
+### Examples
+
+```
+  # Order two workspaces at the top of the root
+  compozy workspace reorder web-app checkout-api
+
+  # Order workspaces inside a folder
+  compozy workspace reorder checkout-api billing --folder wfold-1234
+```
+
+### Options
+
+```
+      --folder string   Folder ID (omit for the root)
+  -h, --help            help for reorder
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy workspace reorder <name-or-id>... -o json
+```

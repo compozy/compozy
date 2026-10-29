@@ -328,6 +328,13 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__workspace_archive":        expectedNativeEntry("Archiving", " ", false, "🗂️", "auto"),
 		"compozy__workspace_unarchive":      expectedNativeEntry("Restoring", " ", false, "🗂️", "auto"),
 		"compozy__workspace_list":           expectedNativeEntry("Reading", " ", false, "🗂️", "auto"),
+		"compozy__workspace_folder_list":    expectedNativeEntry("Reading", " ", false, "🗂️", "auto"),
+		"compozy__workspace_folder_create":  expectedNativeEntry("Creating", " ", false, "🗂️", "auto"),
+		"compozy__workspace_folder_rename":  expectedNativeEntry("Renaming", " ", false, "🗂️", "auto"),
+		"compozy__workspace_folder_delete":  expectedNativeEntry("Deleting", " ", false, "🗂️", "auto"),
+		"compozy__workspace_folder_reorder": expectedNativeEntry("Reordering", " ", false, "🗂️", "auto"),
+		"compozy__workspace_move":           expectedNativeEntry("Moving", " ", false, "🗂️", "auto"),
+		"compozy__workspace_reorder":        expectedNativeEntry("Reordering", " ", false, "🗂️", "auto"),
 	}
 }
 

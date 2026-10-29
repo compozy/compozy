@@ -210,6 +210,9 @@ import type {
   CreateToolApprovalResponses,
   CreateWorkspaceData,
   CreateWorkspaceErrors,
+  CreateWorkspaceFolderData,
+  CreateWorkspaceFolderErrors,
+  CreateWorkspaceFolderResponses,
   CreateWorkspaceResponses,
   CreateWorktreeData,
   CreateWorktreeErrors,
@@ -282,6 +285,9 @@ import type {
   DeleteWindowManagerLayoutProfileResponses,
   DeleteWorkspaceData,
   DeleteWorkspaceErrors,
+  DeleteWorkspaceFolderData,
+  DeleteWorkspaceFolderErrors,
+  DeleteWorkspaceFolderResponses,
   DeleteWorkspaceResponses,
   DeliverGlobalWebhookData,
   DeliverGlobalWebhookErrors,
@@ -692,6 +698,9 @@ import type {
   GetWindowManagerSnapshotResponses,
   GetWorkspaceData,
   GetWorkspaceErrors,
+  GetWorkspaceLayoutData,
+  GetWorkspaceLayoutErrors,
+  GetWorkspaceLayoutResponses,
   GetWorkspaceResponses,
   GetWorktreeExitPlanData,
   GetWorktreeExitPlanErrors,
@@ -969,6 +978,9 @@ import type {
   MoveSessionData,
   MoveSessionErrors,
   MoveSessionResponses,
+  MoveWorkspaceData,
+  MoveWorkspaceErrors,
+  MoveWorkspaceResponses,
   MutateSessionGoalData,
   MutateSessionGoalErrors,
   MutateSessionGoalResponses,
@@ -1161,12 +1173,21 @@ import type {
   RenameSessionFolderErrors,
   RenameSessionFolderResponses,
   RenameSessionResponses,
+  RenameWorkspaceFolderData,
+  RenameWorkspaceFolderErrors,
+  RenameWorkspaceFolderResponses,
   ReorderSessionFoldersData,
   ReorderSessionFoldersErrors,
   ReorderSessionFoldersResponses,
   ReorderSessionsData,
   ReorderSessionsErrors,
   ReorderSessionsResponses,
+  ReorderWorkspaceFoldersData,
+  ReorderWorkspaceFoldersErrors,
+  ReorderWorkspaceFoldersResponses,
+  ReorderWorkspacesData,
+  ReorderWorkspacesErrors,
+  ReorderWorkspacesResponses,
   RepairSessionData,
   RepairSessionErrors,
   RepairSessionResponses,
@@ -10324,6 +10345,172 @@ export class workspaces extends HeyApiClient {
       responseStyle: "data",
       url: "/api/terminals",
       ...options,
+    });
+  }
+
+  /**
+   * Read the profile's workspace folders and manual workspace order
+   */
+  public getWorkspaceLayout<ThrowOnError extends boolean = true>(
+    options?: Options<GetWorkspaceLayoutData, ThrowOnError>
+  ): RequestResult<GetWorkspaceLayoutResponses, GetWorkspaceLayoutErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      GetWorkspaceLayoutResponses,
+      GetWorkspaceLayoutErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-folders",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a root workspace folder
+   */
+  public createWorkspaceFolder<ThrowOnError extends boolean = true>(
+    options: Options<CreateWorkspaceFolderData, ThrowOnError>
+  ): RequestResult<
+    CreateWorkspaceFolderResponses,
+    CreateWorkspaceFolderErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CreateWorkspaceFolderResponses,
+      CreateWorkspaceFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-folders",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete a workspace folder; its workspaces return to the root
+   */
+  public deleteWorkspaceFolder<ThrowOnError extends boolean = true>(
+    options: Options<DeleteWorkspaceFolderData, ThrowOnError>
+  ): RequestResult<
+    DeleteWorkspaceFolderResponses,
+    DeleteWorkspaceFolderErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteWorkspaceFolderResponses,
+      DeleteWorkspaceFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-folders/{folder_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Rename a workspace folder
+   */
+  public renameWorkspaceFolder<ThrowOnError extends boolean = true>(
+    options: Options<RenameWorkspaceFolderData, ThrowOnError>
+  ): RequestResult<
+    RenameWorkspaceFolderResponses,
+    RenameWorkspaceFolderErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      RenameWorkspaceFolderResponses,
+      RenameWorkspaceFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-folders/{folder_id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Set the complete workspace folder order
+   */
+  public reorderWorkspaceFolders<ThrowOnError extends boolean = true>(
+    options: Options<ReorderWorkspaceFoldersData, ThrowOnError>
+  ): RequestResult<
+    ReorderWorkspaceFoldersResponses,
+    ReorderWorkspaceFoldersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      ReorderWorkspaceFoldersResponses,
+      ReorderWorkspaceFoldersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-order/folders",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Move a workspace into a folder or back to the root
+   */
+  public moveWorkspace<ThrowOnError extends boolean = true>(
+    options: Options<MoveWorkspaceData, ThrowOnError>
+  ): RequestResult<MoveWorkspaceResponses, MoveWorkspaceErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      MoveWorkspaceResponses,
+      MoveWorkspaceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-order/move",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Set the manual workspace order in a folder or the root
+   */
+  public reorderWorkspaces<ThrowOnError extends boolean = true>(
+    options: Options<ReorderWorkspacesData, ThrowOnError>
+  ): RequestResult<ReorderWorkspacesResponses, ReorderWorkspacesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      ReorderWorkspacesResponses,
+      ReorderWorkspacesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspace-order/workspaces",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

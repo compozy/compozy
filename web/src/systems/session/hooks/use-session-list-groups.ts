@@ -57,7 +57,7 @@ export function useSessionListGroups({
 }: SessionListGroupsInput): SessionListGroupsModel {
   const grouped = enabled && groupBy !== "none" && scope !== null;
   const facets = useQuery({
-    ...sessionFacetsOptions(groupFacetFilters({ scope, lens, archived, search, population })),
+    ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, archived, search, population })),
     enabled: grouped,
   });
   const byProfile = grouped && groupBy === "profile";
@@ -78,8 +78,11 @@ export function useSessionListGroups({
   };
 }
 
-/** The one facets query membership reads: the list's breadth and lens over its population. */
-function groupFacetFilters({
+/**
+ * The one facets query a list's counts read — group membership and the totals
+ * footer alike: the list's breadth and lens over its population.
+ */
+export function sessionListFacetFilters({
   scope,
   lens,
   archived,
@@ -121,4 +124,43 @@ function groupsFailure(
       if (profiles) void profiles.refetch();
     },
   };
+}
+
+/** Session totals by derived state for the sidebar footer (issue #1044). */
+export interface SessionListTotals {
+  needsYou: number;
+  working: number;
+  idle: number;
+}
+
+/**
+ * The footer's totals over the list's whole scope — exact facet counts, never a
+ * loaded page. Grouped lists read the same facets query as their groups.
+ */
+export function useSessionListTotals({
+  scope,
+  lens,
+  search,
+  worktreeId,
+  archived,
+  enabled: listEnabled,
+}: {
+  scope: DataScope | null;
+  lens: ProfileScopeParams;
+  search: string;
+  worktreeId?: string;
+  /** The archive counts nothing live, so it shows no totals. */
+  archived: boolean;
+  enabled: boolean;
+}): SessionListTotals | undefined {
+  const enabled = listEnabled && !archived;
+  const facets = useQuery({
+    ...sessionFacetsOptions({
+      ...sessionListFacetFilters({ scope, lens, archived: false, search }),
+      ...(worktreeId ? { worktree: worktreeId } : {}),
+    }),
+    enabled: enabled && scope !== null,
+  }).data?.facets;
+  if (!enabled || !facets) return undefined;
+  return { needsYou: facets.needs_you, working: facets.working, idle: facets.idle };
 }

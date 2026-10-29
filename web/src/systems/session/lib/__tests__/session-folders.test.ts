@@ -5,6 +5,8 @@
 // visible row order (the session-cycle shortcut follows the same projection),
 // optimistic layout edits only move what they name, and a selection moves only
 // its thread roots, in on-screen order, writing only what would change.
+// Project folders (#1044) arrange project groups the same way: folders first in
+// their order, then placed root projects, then never-placed ones as served.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -25,6 +27,14 @@ import {
   visibleSessionOrder,
 } from "../session-folders";
 import { buildSessionListThreads } from "../session-list-threads";
+import { projectSessionGroups } from "../session-list-groups";
+import {
+  applyWorkspaceFolderRemoval,
+  applyWorkspaceMove,
+  applyWorkspaceOrder,
+  buildProjectGroupTree,
+  projectGroupContainerIds,
+} from "../workspace-folders";
 
 function session(id: string, folderId?: string, parentId?: string): SessionPayload {
   return {
@@ -338,5 +348,88 @@ describe("sessionBulkMove", () => {
     expect(sessionBulkMoveBlockedReason(profiles)).toBe(
       "Select sessions from one profile to move them."
     );
+  });
+});
+
+describe("project folders", () => {
+  const facet = (all: number) => ({
+    all,
+    working: 0,
+    needs_you: 0,
+    idle: all,
+    finished: 0,
+    terminal_approvals: 0,
+    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+  });
+  const groups = projectSessionGroups(
+    {
+      by_workspace: ["ws-a", "ws-b", "ws-c", ""].map(id => ({
+        workspace_id: id,
+        facets: facet(1),
+      })),
+    },
+    {
+      workspaces: [
+        { id: "ws-a", name: "A" },
+        { id: "ws-b", name: "B" },
+        { id: "ws-c", name: "C" },
+      ],
+      lens: { profile: "default" },
+    }
+  );
+  const folder = (id: string, position: number) => ({
+    id,
+    name: id,
+    position,
+    profile_id: "default",
+    workspace_count: 0,
+    created_at: "2026-10-29T00:00:00Z",
+    updated_at: "2026-10-29T00:00:00Z",
+  });
+  const layout = {
+    folders: [folder("f2", 1), folder("f1", 0)],
+    placements: [
+      { workspace_id: "ws-c", folder_id: "f1", position: 1 },
+      { workspace_id: "ws-a", folder_id: "f1", position: 0 },
+      { workspace_id: "@user", position: 0 },
+      // A placement into a folder the read no longer lists falls back to the root.
+      { workspace_id: "ws-b", folder_id: "gone", position: 0 },
+    ],
+  };
+
+  it("Should put folders first, then placed root projects, then the rest as served", () => {
+    const tree = buildProjectGroupTree(groups, layout);
+    expect(tree.folders.map(node => [node.folder.id, node.groups.map(group => group.key)])).toEqual(
+      [
+        ["f1", ["project:ws-a", "project:ws-c"]],
+        ["f2", []],
+      ]
+    );
+    expect(tree.root.map(group => group.key)).toEqual(["user", "project:ws-b"]);
+    expect(projectGroupContainerIds(tree, null)).toEqual(["@user", "ws-b"]);
+  });
+
+  it("Should move, order, and unfile projects optimistically without touching others", () => {
+    const moved = applyWorkspaceMove(layout, "@user", "f1");
+    expect(moved.placements).toContainEqual({
+      workspace_id: "@user",
+      folder_id: "f1",
+      position: 2,
+    });
+
+    const ordered = applyWorkspaceOrder(layout, "f1", ["ws-c"]);
+    expect(
+      ordered.placements
+        .filter(row => row.folder_id === "f1")
+        .sort((l, r) => l.position - r.position)
+    ).toEqual([
+      { workspace_id: "ws-c", folder_id: "f1", position: 0 },
+      { workspace_id: "ws-a", folder_id: "f1", position: 1 },
+    ]);
+    expect(ordered.placements).toContainEqual({ workspace_id: "@user", position: 0 });
+
+    const removed = applyWorkspaceFolderRemoval(layout, "f1");
+    expect(removed.folders.map(row => row.id)).toEqual(["f2"]);
+    expect(removed.placements.map(row => row.workspace_id)).toEqual(["@user", "ws-b"]);
   });
 });

@@ -4554,3 +4554,59 @@ func TestHTTPSessionLayoutRoundTripWithRealSessionManager(t *testing.T) {
 		}
 	})
 }
+
+func TestHTTPWorkspaceLayoutRoundTripWithRealSessionManager(t *testing.T) {
+	t.Run("Should persist workspace folders, moves, and order through the real layout store", func(t *testing.T) {
+		runtime := newIntegrationRuntime(t)
+		origin := fmt.Sprintf("http://%s:%d", runtime.host, runtime.port)
+		call := func(method string, path string, body string, wantStatus int, target any) {
+			t.Helper()
+			var payload []byte
+			if body != "" {
+				payload = []byte(body)
+			}
+			resp := mustHTTPRequest(t, runtime.client, method, mustURL(runtime.host, runtime.port, path), payload,
+				map[string]string{"Origin": origin})
+			if resp.StatusCode != wantStatus {
+				t.Fatalf("%s %s status = %d, want %d; body=%s", method, path, resp.StatusCode, wantStatus,
+					readAndCloseHTTPBody(t, resp))
+			}
+			if target == nil {
+				closeHTTPBody(t, resp.Body)
+				return
+			}
+			decodeHTTPJSON(t, resp, target)
+		}
+
+		var folder contract.WorkspaceFolderResponse
+		call(http.MethodPost, "/api/workspace-folders", `{"name":"Clients"}`, http.StatusCreated, &folder)
+		if folder.Folder.ID == "" || folder.Folder.Name != "Clients" {
+			t.Fatalf("created folder = %#v", folder.Folder)
+		}
+		var layout contract.WorkspaceLayoutResponse
+		call(http.MethodPost, "/api/workspace-order/move",
+			`{"workspace_id":"`+runtime.workspace+`","folder_id":"`+folder.Folder.ID+`"}`, http.StatusOK, &layout)
+		if len(layout.Placements) != 1 || layout.Placements[0].FolderID != folder.Folder.ID ||
+			layout.Folders[0].WorkspaceCount != 1 {
+			t.Fatalf("layout after move = %#v", layout)
+		}
+		workspaceID := layout.Placements[0].WorkspaceID
+		call(http.MethodPut, "/api/workspace-order/workspaces", `{"workspace_ids":["@user"]}`, http.StatusOK, &layout)
+		want := []contract.WorkspacePlacementPayload{
+			{WorkspaceID: workspaceID, FolderID: folder.Folder.ID, Position: 0},
+			{WorkspaceID: "@user", Position: 0},
+		}
+		if !slices.Equal(layout.Placements, want) {
+			t.Fatalf("placements = %#v, want %#v", layout.Placements, want)
+		}
+		call(http.MethodPost, "/api/workspace-order/move", `{"workspace_id":"missing-project"}`,
+			http.StatusNotFound, nil)
+		call(http.MethodPut, "/api/workspace-order/folders", `{"folder_ids":[]}`, http.StatusConflict, nil)
+		call(http.MethodGet, "/api/workspace-folders?all_profiles=true", "", http.StatusBadRequest, nil)
+
+		call(http.MethodDelete, "/api/workspace-folders/"+folder.Folder.ID, "", http.StatusOK, &layout)
+		if len(layout.Folders) != 0 || len(layout.Placements) != 1 || layout.Placements[0].WorkspaceID != "@user" {
+			t.Fatalf("layout after folder delete = %#v", layout)
+		}
+	})
+}

@@ -18,7 +18,10 @@ import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import { useSessionListSelection } from "../../hooks/use-session-list-selection";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
+import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
+import type { WorkspaceFolderPayload } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { SessionListTotals } from "./session-list-totals";
 import { SessionListGroups } from "./session-list-groups";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
@@ -83,6 +86,9 @@ export function SessionList({
   header,
 }: SessionListProps) {
   const [filter, setFilter] = useState("");
+  const [projectFolderDialog, setProjectFolderDialog] =
+    useState<SessionFolderDialogState<WorkspaceFolderPayload>>(null);
+  const projectLayout = view.projectFolders?.layout;
   const remoteSearch = view.search !== undefined;
   const normalizedFilter = (view.search ?? filter).trim().toLocaleLowerCase();
   const listed = useSubagentContextSessions(
@@ -122,8 +128,10 @@ export function SessionList({
         bulk={bulk}
         view={view}
         onNewSession={() => onNewSession()}
-        onNewFolder={layout ? () => folders.setDialog({ kind: "create" }) : undefined}
-        newFolderUnavailable={layout ? null : view.newFolderUnavailable}
+        {...listNewFolder(view, {
+          session: layout ? () => folders.setDialog({ kind: "create" }) : undefined,
+          project: projectLayout ? () => setProjectFolderDialog({ kind: "create" }) : undefined,
+        })}
         testIdPrefix={testIdPrefix}
       />
       <div className="px-3 pb-1.5">
@@ -153,6 +161,7 @@ export function SessionList({
               onNewSession={onNewSession}
               sessionActions={sessionActions}
               testIdPrefix={testIdPrefix}
+              onProjectFolderDialog={setProjectFolderDialog}
             />
           </SessionListGroupSelectionContext>
         </div>
@@ -197,11 +206,34 @@ export function SessionList({
           onDelete={layout.deleteFolder}
         />
       ) : null}
+      {projectLayout ? (
+        <SessionFolderDialogs
+          holds="projects"
+          state={projectFolderDialog}
+          onClose={() => setProjectFolderDialog(null)}
+          onCreate={projectLayout.createFolder}
+          onRename={projectLayout.renameFolder}
+          onDelete={projectLayout.deleteFolder}
+        />
+      ) : null}
+      <SessionListTotals totals={view.totals} testIdPrefix={testIdPrefix} />
       {bulk.folderMove ? (
         <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
       ) : null}
     </div>
   );
+}
+
+/**
+ * The toolbar's New folder: one pair's session folder, else the profile's project
+ * folder under All projects by project, else disabled with the view's reason.
+ */
+function listNewFolder(
+  view: SessionListViewModel,
+  create: { session?: () => void; project?: () => void }
+): { onNewFolder?: () => void; newFolderUnavailable: string | null } {
+  const onNewFolder = create.session ?? create.project;
+  return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
 }
 
 function SessionListStatus({

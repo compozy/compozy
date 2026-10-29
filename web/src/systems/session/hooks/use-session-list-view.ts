@@ -12,6 +12,7 @@ import {
 
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import { sessionListPair } from "../lib/session-list-groups";
+import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
@@ -24,15 +25,22 @@ import type { SessionListFilters, SessionPayload } from "../types";
 
 import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
-import { useSessionListGroups } from "./use-session-list-groups";
+import {
+  useSessionListGroups,
+  useSessionListTotals,
+  type SessionListTotals,
+} from "./use-session-list-groups";
 import { sessionSidebarStore, useSessionSidebarState } from "./use-session-sidebar-state";
 import { useSessionWindowOrder } from "./use-session-window-order";
+import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-layout";
 
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
 export const SESSION_LIST_MANUAL_SORT_NOTE =
   "Manual order applies inside one project and profile. Group the list to use it.";
 
 const SESSION_LIST_PAGE_SIZE = 100;
+
+export type { SessionListTotals } from "./use-session-list-groups";
 
 export interface SessionListViewModel {
   /** The flat catalog; absent while the list is grouped (each group owns its page). */
@@ -51,7 +59,8 @@ export interface SessionListViewModel {
   sortNote: string | null;
   /**
    * Why the list's New folder is unavailable: a flat aggregate spans pairs, and
-   * a grouped list adds folders from each group's own `+`. `null` where it applies.
+   * a grouped list adds folders from each group's own `+`. `null` where it applies:
+   * one pair's session folders, or the project folders of All projects by project.
    */
   newFolderUnavailable: string | null;
   /** True while the list shows the archive instead of the active catalog. */
@@ -80,12 +89,19 @@ export interface SessionListViewModel {
   badgeOf?: (session: SessionPayload) => WorkspaceBadgeIdentity;
   /** Folders and manual order of the one (workspace, profile) pair the flat list reads. */
   layout?: SessionListLayout;
+  /**
+   * Project folders of the one profile an All projects list grouped by project
+   * reads (issue #1044): the layout verbs and the groups arranged into folders.
+   */
+  projectFolders?: { layout: WorkspaceLayout; tree: ProjectGroupTree };
   /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
   worktreeId?: string;
   /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
   layoutError?: { retry: () => void };
   /** Identity of the list's bulk selection, shared by every group of a grouped list. */
   selectionKey: string;
+  /** Exact live-state totals of the list's whole scope, from facets; absent in the archive. */
+  totals?: SessionListTotals;
 }
 
 /**
@@ -152,10 +168,26 @@ export function useSessionListView(
     search: remoteSearch,
     enabled,
   });
+  const arranged = useProjectFolderGroups({
+    groups: grouping.groups,
+    groupBy,
+    breadth,
+    lens: profile.params,
+    enabled,
+  });
+  const groups = arranged.groups;
   const folders = useSessionFolders({
     workspaceId: pair?.workspaceId ?? null,
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
+  });
+  const totals = useSessionListTotals({
+    scope,
+    lens: profile.params,
+    search: remoteSearch,
+    worktreeId: options.worktreeId,
+    archived,
+    enabled,
   });
   const awaiting = awaitingReads(
     flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
@@ -180,7 +212,8 @@ export function useSessionListView(
 
   return {
     layout: flatLayout ? folders.layout : undefined,
-    layoutError: flatLayout ? folders.loadError : undefined,
+    layoutError: flatLayout ? folders.loadError : arranged.loadError,
+    projectFolders: arranged.projectFolders,
     worktreeId: options.worktreeId,
     catalog: awaiting.catalog,
     search,
@@ -190,18 +223,16 @@ export function useSessionListView(
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
     sortNote: manualSortNote(preferences.sort, manualBlocked),
-    newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth),
+    newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
     archived,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
     setArchived,
-    groups: grouping.groups,
+    groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
     collapsedGroupKeys: new Set(
-      grouping.groups.flatMap(group =>
-        collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []
-      )
+      groups.flatMap(group => (collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []))
     ),
     toggleGroup: key => sidebar.toggleGroup(groupId(key)),
     groupFilters,
@@ -210,6 +241,7 @@ export function useSessionListView(
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
+    totals,
   };
 }
 
@@ -284,8 +316,14 @@ function sessionListGroupCollapseId(lens: string, groupKey: string): string {
 function newFolderUnavailableReason(
   flat: boolean,
   paired: boolean,
-  breadth: { allProjects: boolean; allProfiles: boolean }
+  breadth: { allProjects: boolean; allProfiles: boolean },
+  groupBy: SessionListGroupBy
 ): string | null {
+  if (groupBy === "project" && breadth.allProjects) {
+    return breadth.allProfiles
+      ? "Project folders belong to one profile. Choose a profile to add one."
+      : null;
+  }
   if (!flat) return "Add a folder from a group's +.";
   if (paired) return null;
   const axes = availableSessionListGroupBys(breadth).filter(option => option !== "none");

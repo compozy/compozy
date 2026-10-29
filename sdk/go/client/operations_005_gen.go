@@ -6,9 +6,38 @@ import (
 	"context"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 )
+
+// DeleteProfile Delete a profile
+func (c *Client) DeleteProfile(ctx context.Context, params DeleteProfileParams) (*DeleteProfileResponse, error) {
+	path := "/api/profiles/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("plan_revision", params.PlanRevision)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DeleteProfileResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteResourceParams carries the path, query, and header parameters.
+type DeleteResourceParams struct {
+	Kind string `url:"kind"`
+	ID   string `url:"id"`
+}
+
+// DeleteResource Delete one desired-state resource on the local operator control plane
+func (c *Client) DeleteResource(ctx context.Context, params DeleteResourceParams, body DeleteResourceRequest) error {
+	path := "/api/resources/{kind}/{id}"
+	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	return c.doContent(ctx, "DELETE", path, nil, body, nil, "", "")
+}
 
 // DeleteSessionParams carries the path, query, and header parameters.
 type DeleteSessionParams struct {
@@ -278,6 +307,30 @@ func (c *Client) DeleteWorkspace(ctx context.Context, params DeleteWorkspacePara
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
+// DeleteWorkspaceFolderParams carries the path, query, and header parameters.
+type DeleteWorkspaceFolderParams struct {
+	FolderID string  `url:"folder_id"`
+	Profile  *string `url:"profile"`
+}
+
+// DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
+func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeliverGlobalWebhookParams carries the path, query, and header parameters.
 type DeliverGlobalWebhookParams struct {
 	Endpoint                  string  `url:"endpoint"`
@@ -377,65 +430,4 @@ type DiffLoopRunParams struct {
 	AgainstRun        *string `url:"against_run"`
 	Profile           *string `url:"profile"`
 	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// DiffLoopRun Compare Loop generations or runs
-func (c *Client) DiffLoopRun(ctx context.Context, params DiffLoopRunParams) (*LoopDiffResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Generation != nil {
-		query.Set("generation", strconv.Itoa(*params.Generation))
-	}
-	if params.AgainstGeneration != nil {
-		query.Set("against_generation", strconv.Itoa(*params.AgainstGeneration))
-	}
-	if params.AgainstRun != nil {
-		query.Set("against_run", *params.AgainstRun)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopDiffResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DisableGatewayProviderParams carries the path, query, and header parameters.
-type DisableGatewayProviderParams struct {
-	Name string `url:"name"`
-	Tier string `url:"tier"`
-}
-
-// DisableGatewayProvider Disable one named connectivity provider for a gateway tier
-func (c *Client) DisableGatewayProvider(ctx context.Context, params DisableGatewayProviderParams) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/providers/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("tier", params.Tier)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DisableSkillParams carries the path, query, and header parameters.
-type DisableSkillParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
 }
