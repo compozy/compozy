@@ -2187,7 +2187,6 @@ describe("SessionThread transcript states", () => {
     fireEvent.click(fork);
     expect(forkRequest).toHaveBeenCalledExactlyOnceWith(undefined, {
       messageId: "transcript_user_001",
-      messageText: "Summarize the launch blockers before the 18:30 UTC cutover.",
     });
   });
 

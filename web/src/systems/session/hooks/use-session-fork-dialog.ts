@@ -3,7 +3,6 @@ import { useState } from "react";
 import type { ForkSessionRequest } from "../adapters/session-derive-api";
 import { SessionApiError } from "../adapters/session-api-errors";
 import type { SessionForkPoint } from "../contexts/session-fork-context-value";
-import { sessionForkPointQuote } from "../lib/session-derive-view";
 import type { SessionPayload } from "../types";
 import {
   landDerivedSession,
@@ -18,6 +17,9 @@ import { useSessionDeriveCommittedChild } from "./use-session-derive-committed-c
 export const SESSION_FORK_TURN_UNSETTLED = "That turn hasn't settled yet.";
 export const SESSION_FORK_FENCE_CONFLICT =
   "Transcript changed — reopen to fork from the current state.";
+
+/** A fork always lands in this window; a host without a session window opens it in its own. */
+const FORK_PLACEMENT: SessionDerivePlacement = "this-window";
 
 const CHILD_DELETED_MESSAGE =
   "The session this request already created was deleted. Nothing new was created.";
@@ -53,9 +55,8 @@ export interface UseSessionForkDialogInput {
 }
 
 /**
- * Fork-dialog state: the locked agent, the fork point, the measured preview
- * (with the daemon's cut and native decision), where the child opens, and the
- * submit. The transcript fences the preview was read at go with the request,
+ * Fork-dialog state: the locked agent, the measured preview (with the daemon's
+ * cut and native decision), and the submit, which lands the child in this window. The transcript fences the preview was read at go with the request,
  * so the child is forked from what the dialog showed or refused as changed.
  */
 export function useSessionForkDialog({
@@ -66,7 +67,6 @@ export function useSessionForkDialog({
   onClose,
   placement: handlers,
 }: UseSessionForkDialogInput) {
-  const [placement, setPlacement] = useState<SessionDerivePlacement>("new-window");
   const [refusal, setRefusal] = useState<ForkRefusal | null>(null);
   const idempotencyKey = useSessionDeriveIdempotencyKey();
   const messageId = point?.messageId.trim() ?? "";
@@ -77,7 +77,7 @@ export function useSessionForkDialog({
   const mutation = useSessionFork();
   const committedChild = useSessionDeriveCommittedChild({
     workspaceId,
-    placement,
+    placement: FORK_PLACEMENT,
     handlers,
     onClose,
   });
@@ -92,6 +92,7 @@ export function useSessionForkDialog({
   // false for a cut, the dialog does not second-guess either way.
   const nativeClone = measured && preview.preview?.native_fork_possible === true;
 
+  /** Posts the fork the dialog measured and lands the child in this window. */
   const submit = () => {
     const measuredPreview = preview.preview;
     if (!canSubmit || !measuredPreview) return;
@@ -119,7 +120,7 @@ export function useSessionForkDialog({
             return;
           }
           onClose();
-          landDerivedSession(result, placement, handlers);
+          landDerivedSession(result, FORK_PLACEMENT, handlers);
         },
         onError: error => {
           committedChild.noteFailure(error);
@@ -132,15 +133,11 @@ export function useSessionForkDialog({
   return {
     agentName: source.agent_name.trim(),
     provider: source.runtime.effective?.provider.trim() ?? "",
-    pointQuote: point ? sessionForkPointQuote(point.messageText) : null,
     previewView: preview.view,
     nativeClone,
     previewRefusal: cutUnsettled ? SESSION_FORK_TURN_UNSETTLED : null,
     submitError: refusalText(refusal),
     fenceConflict,
-    placement,
-    onPlacementChange: setPlacement,
-    canChoosePlacement: handlers.openInThisWindow !== undefined,
     isSubmitting,
     canSubmit,
     submit,

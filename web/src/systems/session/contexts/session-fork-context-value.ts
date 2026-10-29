@@ -2,10 +2,9 @@ import { createContext } from "react";
 
 import type { SessionPayload } from "../types";
 
-/** The durable user message a fork cuts through, and its text for the fork-point sentence. */
+/** The durable user message a fork cuts through. */
 export interface SessionForkPoint {
   messageId: string;
-  messageText: string;
 }
 
 /**

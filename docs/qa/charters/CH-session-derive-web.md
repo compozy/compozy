@@ -17,7 +17,7 @@ charter:
   guidance:
     must_try:
       - "Every entry point: row menu in the sessions modal, window sidebar, and agent detail; window overflow; Fork from here on a durable user message; the provider-error marker; the dead-runtime banner. Items absent on archived/spawned rows."
-      - "Both placements: New window opens one extra window; This window retargets the current one; lists outside a window always open a new window."
+      - "Placement: Continue's New window opens one extra window and This window retargets the current one; Fork has no choice and always retargets the current window; lists outside a window always open a new window."
       - "Refusals: preview error, a cut whose turn is still running, a transcript changed after opening (send a CLI prompt with the dialog open). Primary stays disabled and nothing appears in GET /api/sessions."
       - "Child truth after reload: origin pill links to the source, divider sits above the child's first turn (or alone above the empty state), inspector Origin/Seed match `session status -o json`; the child nests under its source in the rail and the modal."
     must_avoid:

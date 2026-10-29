@@ -127,11 +127,7 @@ export function deriveResultFixture(
 }
 
 /** The message "Fork from here" was clicked on (dialogs board §02). */
-export const forkPointFixture = {
-  messageId: "msg_01J9R3ZQ8PVX",
-  messageText:
-    "Refactor the flaky manager tests so they wait on the lifecycle channel instead of sleeping",
-};
+export const forkPointFixture = { messageId: "msg_01J9R3ZQ8PVX" };
 
 /**
  * Preview through `forkPointFixture`: the cut is turn-inclusive and settled —

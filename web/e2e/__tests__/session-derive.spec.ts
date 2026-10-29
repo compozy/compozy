@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace, windowID } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -159,6 +159,7 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     });
     const sourceWin = sessionWindow(appPage, source.id);
     await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
+    const sourceWindowID = await windowID(sourceWin);
 
     const row = sourceWin.locator(`${messageRow}[data-message-id="${secondUser}"]`);
     await row.hover();
@@ -170,10 +171,10 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     const dialog = appPage.getByTestId("session-fork-dialog");
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("session-fork-agent")).toContainText(forkAgent);
-    await expect(dialog.getByTestId("session-fork-point")).toContainText("Through");
-    await expect(dialog.getByTestId("session-fork-point")).toContainText("Second step");
     await expect(dialog.getByTestId("session-derive-preview")).toContainText("Carries over");
-    await expect(dialog.getByTestId("session-derive-placement-new-window")).toBeChecked();
+    // Nothing to choose: no fork-point field and no Open in choice.
+    await expect(dialog.getByText("Fork point")).toHaveCount(0);
+    await expect(dialog.getByRole("radiogroup")).toHaveCount(0);
     await browserArtifacts.captureScreenshot("fork-dialog-from-message", appPage);
 
     await dialog.getByTestId("session-fork-submit").click();
@@ -194,11 +195,13 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
       .toBe(forkAgent);
     expect(child!.lineage?.origin_message_id).toBe(secondUser);
 
+    // The child replaces its source in the same window.
     const childWin = sessionWindow(appPage, child!.id);
     await expect(childWin).toBeVisible();
+    expect(await windowID(childWin)).toBe(sourceWindowID);
+    await expect(sourceWin).toHaveCount(0);
     await expect(childWin.getByTestId("session-origin-pill")).toContainText("Forked from");
-    // The child opens beside its source at half width: the head's meta (agent,
-    // origin pill, time) yields before the window title ever truncates.
+    // The head's meta (agent, origin pill, time) yields before the window title ever truncates.
     const childTitle = childWin.locator('[data-slot="topbar-title"] button');
     await expect(childTitle).toHaveText("New session");
     await expect
@@ -207,7 +210,6 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     await browserArtifacts.captureScreenshot("fork-child-window", appPage);
 
     // The source keeps all three turns and its fences.
-    await expect(sourceWin).toBeVisible();
     const after = await runtime.requestJSON<TranscriptPayload>(
       sessionAPIPath(workspace.id, source.id, "/transcript")
     );
@@ -215,6 +217,9 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
     expect(after.entries.map(entry => entry.message.id)).toEqual(
       before.entries.map(entry => entry.message.id)
     );
+    // The origin pill reopens the source, which still renders every turn.
+    await childWin.getByTestId("session-origin-pill").click();
+    await expect(sessionWindowSelectors(sourceWin, appPage).chatView).toBeVisible();
     for (const entry of before.entries) {
       await expect(
         sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
@@ -278,11 +283,6 @@ test("E2E-002 / E2E-001 / E2E-004: operator forks, continues, and recovers a rat
       sessionAPIPath(workspace.id, source.id, "/transcript")
     );
     expect(after.max_sequence).toBe(before.max_sequence);
-    for (const entry of before.entries) {
-      await expect(
-        sourceWin.locator(`${messageRow}[data-message-id="${entry.message.id}"]`)
-      ).toHaveCount(1);
-    }
   });
 
   // The handoff fixture fails its second prompt with a 429 rate limit error.
