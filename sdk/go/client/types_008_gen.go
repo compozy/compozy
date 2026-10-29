@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// Input is a daemon API value.
+type Input struct {
+	Type        InputType `json:"type"`
+	Required    bool      `json:"required,omitzero"`
+	Description string    `json:"description,omitempty"`
+	Ref         *InputRef `json:"ref,omitzero"`
+	Enum        []string  `json:"enum,omitempty"`
+	Default     any       `json:"default,omitempty"`
+}
+
+// InputRef is a daemon API value.
+type InputRef struct {
+	Kind InputRefKind `json:"kind"`
+}
+
 // InputRefKind is a daemon API value.
 type InputRefKind string
 
@@ -423,20 +438,4 @@ type LoopForkRef struct {
 type LoopGateBlockingIssuePayload struct {
 	ID   string `json:"id"`
 	Note string `json:"note"`
-}
-
-// LoopGateCriterion is a daemon API value.
-type LoopGateCriterion struct {
-	ID       string          `json:"id"`
-	Type     string          `json:"type"`
-	Check    string          `json:"check,omitempty"`
-	Expect   string          `json:"expect,omitempty"`
-	Contains string          `json:"contains,omitempty"`
-	Agent    string          `json:"agent,omitempty"`
-	Runtime  LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
-	Rubric   string          `json:"rubric,omitempty"`
-	Prompt   string          `json:"prompt,omitempty"`
-	Tool     string          `json:"tool,omitempty"`
-	Inputs   map[string]any  `json:"inputs,omitempty"`
-	Metric   *LoopMetricSpec `json:"metric,omitzero"`
 }

@@ -90,44 +90,6 @@ func (e *SpawnPermissionError) allowedSummary() string {
 	)
 }
 
-// Spawn limits name the live-child cap a SpawnLimitError refers to.
-const (
-	SpawnLimitMaxChildren           = "max_children"
-	SpawnLimitMaxActivePerWorkspace = "max_active_per_workspace"
-)
-
-// SpawnLimitError reports a spawn refused by a live-child cap. It matches ErrSpawnLimitExceeded.
-// Only live (starting, active, or stopping) governed children count; stopped children and
-// subagents do not hold a slot.
-type SpawnLimitError struct {
-	// Limit is SpawnLimitMaxChildren or SpawnLimitMaxActivePerWorkspace.
-	Limit string
-	Max   int
-	Live  int
-	// Scope is the parent session ID or the target workspace ID the cap applies to.
-	Scope string
-}
-
-// Error names the cap, its value, and the live count.
-func (e *SpawnLimitError) Error() string {
-	if e == nil {
-		return ErrSpawnLimitExceeded.Error()
-	}
-	return fmt.Sprintf(
-		"%s: %s %d reached for %q with %d live spawned sessions (stopped sessions and subagents do not count)",
-		ErrSpawnLimitExceeded,
-		e.Limit,
-		e.Max,
-		e.Scope,
-		e.Live,
-	)
-}
-
-// Is lets callers branch on ErrSpawnLimitExceeded.
-func (e *SpawnLimitError) Is(target error) bool {
-	return target == ErrSpawnLimitExceeded
-}
-
 func spawnWorkspaceAccessDenied(targetWorkspaceID string, parentWorkspaceID string) error {
 	return fmt.Errorf(
 		"%w: child workspace %q is outside parent workspace %q: %s",

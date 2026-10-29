@@ -1237,7 +1237,7 @@ enqueued, the role must be enabled, and no healthy workspace coordinator may alr
 | Field                               | Type     | Default | Valid values       | Description                                                   |
 | ----------------------------------- | -------- | ------- | ------------------ | ------------------------------------------------------------- |
 | `ttl`                               | duration | `2h`    | `1m` through `24h` | Managed coordinator session lifetime.                         |
-| `max_children`                      | integer  | `5`     | `1` through `5`    | Maximum concurrently held safe-spawn children.                |
+| `max_children`                      | integer  | `5`     | `1` through `5`    | Live safe-spawn children a coordinator session may hold.      |
 | `max_active_sessions_per_workspace` | integer  | `5`     | Positive integer   | Active coordinator and spawned-session cap for one workspace. |
 
 Role changes are classified `live` and affect later invocations without a daemon restart. Inspect the resolved roster and per-field provenance with:
@@ -1286,10 +1286,12 @@ for eligibility, pending-interaction handling, and external-effect limits.
 ## `[session.limits]`
 
 <Callout type="warn">
-  `session.limits.timeout` is deprecated and has no effect: no session is ended or stopped when it
-  elapses. It stays readable and writable through v0.4 so existing files and scripts keep loading,
-  and a non-zero value logs a deprecation warning at load. It is removed in v0.5.0. To free the
-  agent of an idle session, use [`session.supervision.idle_release_after`](#sessionsupervision).
+  `session.limits.timeout` is deprecated and has no effect: no session is ended
+  or stopped when it elapses. It stays readable and writable through v0.4 so
+  existing files and scripts keep loading, and a non-zero value logs a
+  deprecation warning at load. It is removed in v0.5.0. To free the agent of an
+  idle session, use
+  [`session.supervision.idle_release_after`](#sessionsupervision).
 </Callout>
 
 | Field     | Type     | Default | Valid values                  | Description                                                            |

@@ -6,12 +6,35 @@ import (
 	"strings"
 )
 
-// SessionSpawnBudget captures durable spawn limits attached to a session.
+const (
+	// DefaultSpawnMaxChildren is the live governed-child cap a session gets when its
+	// stored budget leaves max_children unset.
+	DefaultSpawnMaxChildren = 5
+	// DefaultSpawnMaxDepth is the governed spawn depth a session gets when its stored
+	// budget leaves max_depth unset.
+	DefaultSpawnMaxDepth = 1
+)
+
+// SessionSpawnBudget captures durable spawn limits attached to a session. A zero
+// MaxChildren or MaxDepth means unset; EffectiveSessionSpawnBudget resolves it.
 type SessionSpawnBudget struct {
 	MaxChildren           int   `json:"max_children"`
 	MaxDepth              int   `json:"max_depth"`
 	TTLSeconds            int64 `json:"ttl_seconds"`
 	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitzero"`
+}
+
+// EffectiveSessionSpawnBudget resolves unset caps to the defaults the spawn engine
+// enforces, so every read surface reports the budget that actually applies.
+func EffectiveSessionSpawnBudget(budget SessionSpawnBudget) SessionSpawnBudget {
+	effective := budget
+	if effective.MaxChildren <= 0 {
+		effective.MaxChildren = DefaultSpawnMaxChildren
+	}
+	if effective.MaxDepth <= 0 {
+		effective.MaxDepth = DefaultSpawnMaxDepth
+	}
+	return effective
 }
 
 func validateSessionSpawnBudget(budget SessionSpawnBudget) error {

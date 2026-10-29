@@ -56,16 +56,6 @@ func (s *Service) taskStoreValue() TaskStore {
 	return s.taskStore
 }
 
-func (s *Service) coordinatorRoleValue() CoordinatorRoleResolver {
-	if s == nil {
-		return nil
-	}
-	if s.coordinatorRoleFunc != nil {
-		return s.coordinatorRoleFunc()
-	}
-	return s.coordinatorRole
-}
-
 func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 	if s == nil {
 		return nil

@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -25,6 +26,7 @@ type StartupPromptContext struct {
 	WorktreeID             string
 	SessionType            Type
 	SpawnRole              string
+	SpawnBudget            store.SessionSpawnBudget
 	SoulSnapshot           *soul.Snapshot
 	CreatedAt              time.Time
 	UpdatedAt              time.Time

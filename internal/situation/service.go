@@ -19,7 +19,6 @@ const (
 	// ProvenanceSource identifies the local daemon context assembler.
 	ProvenanceSource = "daemon.situation"
 
-	defaultMaxSpawnDepth       = 1
 	defaultMaxActiveTaskLeases = 1
 )
 
@@ -56,11 +55,6 @@ type TaskStore interface {
 	ListRunReviews(ctx context.Context, query taskpkg.RunReviewQuery) ([]taskpkg.RunReview, error)
 }
 
-// CoordinatorRoleResolver reads the safe coordinator limits for a workspace.
-type CoordinatorRoleResolver interface {
-	ResolveCoordinatorRole(ctx context.Context, workspaceID string) (compozyconfig.ResolvedCoordinatorRole, error)
-}
-
 // SoulSnapshotStore loads immutable Soul snapshots for compact context projection.
 type SoulSnapshotStore interface {
 	GetSoulSnapshot(ctx context.Context, id string) (soul.Snapshot, error)
@@ -84,10 +78,8 @@ type Deps struct {
 	TaskStore             TaskStore
 	TaskStoreFunc         func() TaskStore
 
-	CoordinatorRole     CoordinatorRoleResolver
-	CoordinatorRoleFunc func() CoordinatorRoleResolver
-	SoulSnapshots       SoulSnapshotStore
-	SoulSnapshotsFunc   func() SoulSnapshotStore
+	SoulSnapshots     SoulSnapshotStore
+	SoulSnapshotsFunc func() SoulSnapshotStore
 }
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
@@ -105,11 +97,9 @@ type Service struct {
 	taskStore             TaskStore
 	taskStoreFunc         func() TaskStore
 
-	coordinatorRole     CoordinatorRoleResolver
-	coordinatorRoleFunc func() CoordinatorRoleResolver
-	soulSnapshots       SoulSnapshotStore
-	soulSnapshotsFunc   func() SoulSnapshotStore
-	promptSections      *promptSectionCache
+	soulSnapshots     SoulSnapshotStore
+	soulSnapshotsFunc func() SoulSnapshotStore
+	promptSections    *promptSectionCache
 }
 
 // NewService constructs a deterministic situation context assembler.
@@ -136,10 +126,8 @@ func NewService(deps Deps) *Service {
 		taskStore:             deps.TaskStore,
 		taskStoreFunc:         deps.TaskStoreFunc,
 
-		coordinatorRole:     deps.CoordinatorRole,
-		coordinatorRoleFunc: deps.CoordinatorRoleFunc,
-		soulSnapshots:       deps.SoulSnapshots,
-		soulSnapshotsFunc:   deps.SoulSnapshotsFunc,
-		promptSections:      newPromptSectionCache(),
+		soulSnapshots:     deps.SoulSnapshots,
+		soulSnapshotsFunc: deps.SoulSnapshotsFunc,
+		promptSections:    newPromptSectionCache(),
 	}
 }

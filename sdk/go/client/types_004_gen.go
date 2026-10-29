@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// ContinueSessionRequest is a daemon API value.
+type ContinueSessionRequest struct {
+	AgentName           string                         `json:"agent_name"`
+	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
+	Route               int                            `json:"route,omitzero"`
+	Name                string                         `json:"name,omitempty"`
+	Message             string                         `json:"message,omitempty"`
+	IdempotencyKey      string                         `json:"idempotency_key"`
+	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
+	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
+	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
+}
+
 // Contract is a daemon API value.
 type Contract struct {
 	Goal             string             `json:"goal"`
@@ -426,24 +439,3 @@ type DrainStatusResponse struct {
 
 // DslTerminalState is a daemon API value.
 type DslTerminalState string
-
-// DuplicateAgentOverrides is a daemon API value.
-type DuplicateAgentOverrides struct {
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider,omitempty"`
-	Command         string                              `json:"command,omitempty"`
-	Model           string                              `json:"model,omitempty"`
-	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                               `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
-	Tools           []string                            `json:"tools,omitempty"`
-	Toolsets        []string                            `json:"toolsets,omitempty"`
-	DenyTools       []string                            `json:"deny_tools,omitempty"`
-	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
-	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath    []string                            `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	Prompt          string                              `json:"prompt,omitempty"`
-}

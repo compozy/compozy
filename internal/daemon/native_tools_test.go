@@ -14798,6 +14798,51 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the runtime override rule when a spawn passes model without provider", func(t *testing.T) {
+		t.Parallel()
+
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			return nil, fmt.Errorf("%w: provider is required when model is set", session.ErrInvalidRuntimeOverride)
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn,
+			Input:  json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"model":"claude-sonnet-5-5"}`),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidRequest || toolErr.Operator == nil ||
+			!strings.Contains(toolErr.Message, "provider is required when model is set") ||
+			!strings.Contains(toolErr.Operator.Recovery, "Pass provider") {
+			t.Fatalf("Registry.Call(session_spawn) error = %#v, want the runtime override rule and recovery", err)
+		}
+	})
+
+	t.Run("Should report a depth refusal with the subagent recovery instead of the child cap", func(t *testing.T) {
+		t.Parallel()
+
+		manager := newManager(func(session.SpawnOpts) (*session.Session, error) {
+			return nil, &session.SpawnDepthError{Parent: callerID, ChildDepth: 2, Max: 1}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionSpawn, Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600}`),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || !slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSpawnBudgetExhausted) ||
+			toolErr.Operator == nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %#v, want spawn_budget_exhausted", err)
+		}
+		if !strings.Contains(toolErr.Operator.Cause, "max_depth 1") ||
+			!strings.Contains(toolErr.Operator.Recovery, "compozy__subagent_delegate") ||
+			strings.Contains(toolErr.Operator.Recovery, "Stop a live child") {
+			t.Fatalf("operator = %#v, want max_depth cause and subagent recovery", toolErr.Operator)
+		}
+	})
+
 	t.Run("Should keep a live child's worktree and report a failed first prompt", func(t *testing.T) {
 		t.Parallel()
 

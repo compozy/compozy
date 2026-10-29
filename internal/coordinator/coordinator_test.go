@@ -131,7 +131,7 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 		if err := store.ValidateSessionLineage("coord-1", &store.SessionLineage{
 			SpawnRole:        "coordinator",
 			TTLExpiresAt:     new(time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)),
-			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: session.DefaultSpawnMaxDepth},
+			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: store.DefaultSpawnMaxDepth},
 			PermissionPolicy: policy,
 		}); err != nil {
 			t.Fatalf("ValidateSessionLineage(coordinator policy) error = %v", err)
@@ -204,7 +204,7 @@ func TestLineageAndHealthySession(t *testing.T) {
 		if lineage.TTLExpiresAt == nil || !lineage.TTLExpiresAt.Equal(now.Add(2*time.Hour)) {
 			t.Fatalf("TTLExpiresAt = %#v, want %s", lineage.TTLExpiresAt, now.Add(2*time.Hour))
 		}
-		if lineage.SpawnBudget.MaxChildren != 3 || lineage.SpawnBudget.MaxDepth != session.DefaultSpawnMaxDepth {
+		if lineage.SpawnBudget.MaxChildren != 3 || lineage.SpawnBudget.MaxDepth != store.DefaultSpawnMaxDepth {
 			t.Fatalf("SpawnBudget = %#v, want max children 3 and default depth", lineage.SpawnBudget)
 		}
 		if !slices.Equal(lineage.PermissionPolicy.Tools, policy.Tools) {

@@ -45,10 +45,7 @@ func (s *Service) ContextForStartup(
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	limits, err := s.limits(ctx, workspaceSection.ID)
-	if err != nil {
-		return contract.AgentContextPayload{}, err
-	}
+	limits := s.limits(startup.SessionType, startup.SpawnBudget)
 
 	payload := contract.AgentContextPayload{
 		Self: contract.AgentIdentityPayload{
@@ -106,10 +103,7 @@ func (s *Service) ContextForSession(
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	limits, err := s.limits(ctx, workspaceSection.ID)
-	if err != nil {
-		return contract.AgentContextPayload{}, err
-	}
+	limits := s.limits(info.Type, session.LineageSpawnBudget(info.Lineage))
 
 	payload := contract.AgentContextPayload{
 		Self: contract.AgentIdentityPayload{

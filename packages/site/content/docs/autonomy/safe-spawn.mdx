@@ -19,8 +19,8 @@ TTL, caps, and permission policy.
 | ----------------------- | --------------------------------------------------------------------------------------------------------- |
 | Valid parent identity   | The caller must be a CompozyOS-managed session resolved from daemon-issued identity.                      |
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                   |
-| Depth cap               | The MVP default max spawn depth is `1`.                                                                   |
-| Child cap               | The MVP default max children per parent is `5`. Only live children count; subagents never do.             |
+| Depth cap               | The max spawn depth is `1`: a spawned child cannot spawn governed children of its own.                    |
+| Child cap               | The default max children per parent is `5`. Only live children count; subagents never do.                 |
 | Workspace target        | Children inherit the parent workspace. `--workspace` may target another workspace when the policy allows. |
 | Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.      |
 | Permission subset       | Child tools, skills, MCP servers, and workspace paths must be a subset of the parent set.                 |
@@ -28,6 +28,42 @@ TTL, caps, and permission policy.
 | Parent stop             | Children auto-stop when the parent stops unless configured otherwise within hard caps.                    |
 
 The daemon rejects invalid spawn requests. It does not silently narrow a child request and continue.
+
+## What a session can spawn
+
+Every managed session sees its own effective budget in the `limits` section of its situation
+context, the same values the daemon enforces:
+
+| Field                      | Meaning                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| `max_children`             | Live governed children this session may hold.                                                |
+| `max_spawn_depth`          | Governed spawn depth cap.                                                                    |
+| `governed_spawn_depth`     | This session's depth counted against `max_spawn_depth`; `0` unless the session was spawned.  |
+| `max_active_per_workspace` | Present only when a workspace cap applies, such as on a coordinator.                         |
+| `can_spawn_children`       | `false` when this session is already at the depth cap, so a governed spawn would be refused. |
+| `spawn_blocked_reason`     | Present with `can_spawn_children: false`; names the cap and the subagent alternative.        |
+
+Only spawned-type ancestors count toward depth. A user session created with `--parent`, a fork, or
+a continuation keeps `lineage.spawn_depth` for display, but it sits at governed depth `0` and can
+spawn children. `lineage.spawn_budget` reports the same effective budget; an unset stored cap is
+shown as its default rather than `0`.
+
+The `max_children` default of `5` is not configurable for ordinary sessions.
+`[roles.coordinator] max_children` and `max_active_sessions_per_workspace` set the budget of
+coordinator sessions only.
+
+A refused spawn fails with reason `spawn_budget_exhausted`, and its cause names the cap that refused
+it:
+
+- `max_children N reached` — stop a live child or wait for one to stop. On a coordinator, the
+  recovery names `roles.coordinator.max_children`.
+- `max_active_per_workspace N reached` — stop a live spawned session in the workspace. On a
+  coordinator, the recovery names `roles.coordinator.max_active_sessions_per_workspace`.
+- `max_depth 1 reached` — the caller is a spawned child. Delegate with a subagent, which has no
+  depth cap, or ask the root session to spawn the child.
+
+A `model` or `reasoning_effort` override without `provider` is refused with
+`provider is required when model is set`; pass `provider` with the model.
 
 [Subagents](/docs/sessions/subagents) reuse the permission-subset rules but not the TTL, depth, or
 child caps: a delegated subagent has no TTL and no depth or count limit, and it inherits the caller's

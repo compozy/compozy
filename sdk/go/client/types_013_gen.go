@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// ProviderUsageEnvelope is a daemon API value.
+type ProviderUsageEnvelope struct {
+	KeychainSupported bool                     `json:"keychain_supported"`
+	ProfileID         string                   `json:"profile_id"`
+	Revision          uint64                   `json:"revision"`
+	GeneratedAt       time.Time                `json:"generated_at"`
+	Enabled           bool                     `json:"enabled"`
+	Tray              *ProviderUsageTraySignal `json:"tray"`
+	Targets           []ProviderUsageTarget    `json:"targets"`
+}
+
 // ProviderUsageError is a daemon API value.
 type ProviderUsageError struct {
 	Code       string     `json:"code"`

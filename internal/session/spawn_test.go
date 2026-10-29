@@ -1010,7 +1010,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		h := newHarness(t)
 		root := createSession(t, h)
 		cleanupSessionStop(t, h, root.ID)
-		for range DefaultSpawnMaxChildren {
+		for range store.DefaultSpawnMaxChildren {
 			goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
 				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 				ProvenanceParentSessionID: root.ID,
@@ -1069,7 +1069,7 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		err = h.manager.validateSpawnCaps(
 			testutil.Context(t), secondGoal.Info(), governance,
 			store.SessionSpawnBudget{
-				MaxChildren: DefaultSpawnMaxChildren, MaxDepth: DefaultSpawnMaxDepth,
+				MaxChildren: store.DefaultSpawnMaxChildren, MaxDepth: store.DefaultSpawnMaxDepth,
 				MaxActivePerWorkspace: 1,
 			},
 			h.workspaceID,
@@ -1853,5 +1853,68 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 			t.Fatalf("Spawn(after stop) error = %v, want the stopped child's slot released", err)
 		}
 		cleanupSessionStop(t, h, second.ID)
+	})
+
+	t.Run("Should name max_depth, not the child cap, when a spawned child spawns", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{})
+		cleanupSessionStop(t, h, parent.ID)
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn(child of unset budget) error = %v, want the default budget to admit it", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+
+		_, err = h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: child.ID, AgentName: "coder", TTL: time.Minute,
+		})
+		depth, ok := errors.AsType[*SpawnDepthError](err)
+		if !ok || !errors.Is(err, ErrSpawnLimitExceeded) {
+			t.Fatalf("Spawn(grandchild) error = %T %v, want *SpawnDepthError", err, err)
+		}
+		if *depth != (SpawnDepthError{Parent: child.ID, ChildDepth: 2, Max: store.DefaultSpawnMaxDepth}) {
+			t.Fatalf("depth = %#v, want child depth 2 over max_depth 1", *depth)
+		}
+		if !strings.Contains(err.Error(), "max_depth 1") || strings.Contains(err.Error(), SpawnLimitMaxChildren) {
+			t.Fatalf("Spawn(grandchild) error text = %q, want max_depth without max_children", err.Error())
+		}
+		if !strings.Contains(depth.Recovery(), "compozy__subagent_delegate") {
+			t.Fatalf("Recovery() = %q, want the subagent path", depth.Recovery())
+		}
+	})
+
+	t.Run("Should point refusal recovery at the config key that owns the cap", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			err  *SpawnLimitError
+			want string
+		}{
+			{
+				err: &SpawnLimitError{
+					Limit: SpawnLimitMaxChildren, Max: 5, ConfigKey: coordinatorMaxChildrenConfigKey,
+				},
+				want: "roles.coordinator.max_children.",
+			},
+			{
+				err:  &SpawnLimitError{Limit: SpawnLimitMaxChildren, Max: 5},
+				want: "applies only to coordinator sessions",
+			},
+			{
+				err: &SpawnLimitError{
+					Limit: SpawnLimitMaxActivePerWorkspace, Max: 5, ConfigKey: coordinatorMaxActiveConfigKey,
+				},
+				want: "roles.coordinator.max_active_sessions_per_workspace.",
+			},
+		}
+		for _, tt := range tests {
+			if got := tt.err.Recovery(); !strings.Contains(got, tt.want) {
+				t.Fatalf("Recovery(%s) = %q, want substring %q", tt.err.Limit, got, tt.want)
+			}
+		}
 	})
 }

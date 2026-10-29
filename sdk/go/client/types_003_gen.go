@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// BlockedReason is a daemon API value.
+type BlockedReason struct {
+	Source           BlockedSource `json:"source"`
+	Kind             BlockKind     `json:"kind,omitempty"`
+	Reason           string        `json:"reason,omitempty"`
+	BlockID          string        `json:"block_id,omitempty"`
+	DependsOnTaskIDs []string      `json:"depends_on_task_ids,omitempty"`
+}
+
+// BlockedSource is a daemon API value.
+type BlockedSource string
+
 // Blocker is a daemon API value.
 type Blocker struct {
 	Kind         string     `json:"kind"`
@@ -424,16 +436,3 @@ type ContextBundle struct {
 
 // ContextKey is a daemon API value.
 type ContextKey string
-
-// ContinueSessionRequest is a daemon API value.
-type ContinueSessionRequest struct {
-	AgentName           string                         `json:"agent_name"`
-	Runtime             *PromptRuntimeSelectionPayload `json:"runtime,omitzero"`
-	Route               int                            `json:"route,omitzero"`
-	Name                string                         `json:"name,omitempty"`
-	Message             string                         `json:"message,omitempty"`
-	IdempotencyKey      string                         `json:"idempotency_key"`
-	ExpectedEpoch       *int64                         `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64                         `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64                         `json:"expected_max_sequence,omitzero"`
-}

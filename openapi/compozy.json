@@ -604,7 +604,16 @@
       },
       "AgentLimitsPayload": {
         "properties": {
+          "can_spawn_children": {
+            "type": "boolean"
+          },
           "context_section_limit": {
+            "type": "integer"
+          },
+          "governed_spawn_depth": {
+            "type": "integer"
+          },
+          "max_active_per_workspace": {
             "type": "integer"
           },
           "max_active_task_leases": {
@@ -615,10 +624,15 @@
           },
           "max_spawn_depth": {
             "type": "integer"
+          },
+          "spawn_blocked_reason": {
+            "type": "string"
           }
         },
         "required": [
+          "can_spawn_children",
           "context_section_limit",
+          "governed_spawn_depth",
           "max_active_task_leases",
           "max_children",
           "max_spawn_depth"

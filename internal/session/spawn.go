@@ -18,10 +18,6 @@ import (
 )
 
 const (
-	// DefaultSpawnMaxChildren is the MVP per-parent active child cap.
-	DefaultSpawnMaxChildren = 5
-	// DefaultSpawnMaxDepth is the MVP maximum child depth under a root session.
-	DefaultSpawnMaxDepth = 1
 	// DefaultSpawnRole is used when an agent omits the advisory child role.
 	DefaultSpawnRole = "worker"
 	// SpawnRoleAutoTitle marks daemon-owned title generator children.
@@ -375,19 +371,14 @@ func (m *Manager) spawnLineage(
 			AutoStopOnParent: true, NotifyCreator: false, PermissionPolicy: opts.PermissionPolicy,
 		}), nil
 	}
-	budget := effectiveSpawnBudget(parentLineage.SpawnBudget)
+	budget := store.EffectiveSessionSpawnBudget(parentLineage.SpawnBudget)
 	governance, err := m.spawnGovernanceForParent(ctx, parent)
 	if err != nil {
 		return nil, err
 	}
 	governedChildDepth := governance.depth + 1
 	if governedChildDepth > budget.MaxDepth {
-		return nil, fmt.Errorf(
-			"%w: child depth %d exceeds max_depth %d",
-			ErrSpawnLimitExceeded,
-			governedChildDepth,
-			budget.MaxDepth,
-		)
+		return nil, &SpawnDepthError{Parent: parent.ID, ChildDepth: governedChildDepth, Max: budget.MaxDepth}
 	}
 	targetWorkspaceID := strings.TrimSpace(opts.Workspace)
 	switch targetWorkspaceID {
@@ -478,16 +469,25 @@ func (m *Manager) validateSpawnCaps(
 			}
 		}
 	}
+	coordinatorBudget := spawnBudgetFromCoordinator(parent)
 	if activeChildren >= budget.MaxChildren {
-		return &SpawnLimitError{
+		limitErr := &SpawnLimitError{
 			Limit: SpawnLimitMaxChildren, Max: budget.MaxChildren, Live: activeChildren, Scope: parent.ID,
 		}
+		if coordinatorBudget {
+			limitErr.ConfigKey = coordinatorMaxChildrenConfigKey
+		}
+		return limitErr
 	}
 	if budget.MaxActivePerWorkspace > 0 && activeInWorkspace >= budget.MaxActivePerWorkspace {
-		return &SpawnLimitError{
+		limitErr := &SpawnLimitError{
 			Limit: SpawnLimitMaxActivePerWorkspace, Max: budget.MaxActivePerWorkspace,
 			Live: activeInWorkspace, Scope: targetWorkspaceID,
 		}
+		if coordinatorBudget {
+			limitErr.ConfigKey = coordinatorMaxActiveConfigKey
+		}
+		return limitErr
 	}
 	return nil
 }

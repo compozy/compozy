@@ -50,7 +50,9 @@ type SessionLineagePayload struct {
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }
 
-// SpawnBudgetPayload is the transport read model for bounded spawn limits.
+// SpawnBudgetPayload is the transport read model for bounded spawn limits. It reports
+// the effective budget the daemon enforces for this session's own governed children;
+// unset caps resolve to the daemon defaults.
 type SpawnBudgetPayload struct {
 	MaxChildren           int   `json:"max_children"`
 	MaxDepth              int   `json:"max_depth"`
@@ -88,12 +90,18 @@ type AgentCapabilityPayload struct {
 	Source  string `json:"source,omitempty"`
 }
 
-// AgentLimitsPayload reports safe runtime limits relevant to agent decisions.
+// AgentLimitsPayload reports safe runtime limits relevant to agent decisions. The spawn
+// fields describe the calling session's own effective budget for governed children;
+// GovernedSpawnDepth is the depth compared to MaxSpawnDepth, not lineage spawn_depth.
 type AgentLimitsPayload struct {
-	MaxChildren         int `json:"max_children"`
-	MaxSpawnDepth       int `json:"max_spawn_depth"`
-	MaxActiveTaskLeases int `json:"max_active_task_leases"`
-	ContextSectionLimit int `json:"context_section_limit"`
+	MaxChildren           int    `json:"max_children"`
+	MaxSpawnDepth         int    `json:"max_spawn_depth"`
+	MaxActivePerWorkspace int    `json:"max_active_per_workspace,omitempty"`
+	GovernedSpawnDepth    int    `json:"governed_spawn_depth"`
+	CanSpawnChildren      bool   `json:"can_spawn_children"`
+	SpawnBlockedReason    string `json:"spawn_blocked_reason,omitempty"`
+	MaxActiveTaskLeases   int    `json:"max_active_task_leases"`
+	ContextSectionLimit   int    `json:"context_section_limit"`
 }
 
 // CoordinatorConfigPayload is the safe coordinator config read model.

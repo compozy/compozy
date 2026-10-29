@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// LoopResolvedLifecycleConfig is a daemon API value.
+type LoopResolvedLifecycleConfig struct {
+	RetryMaxAttempts       int               `json:"retry_max_attempts"`
+	RetryBackoffBase       string            `json:"retry_backoff_base"`
+	RetryBackoffMax        string            `json:"retry_backoff_max"`
+	RetryNonRetryable      []string          `json:"retry_non_retryable"`
+	LivenessSilenceWindow  string            `json:"liveness_silence_window"`
+	ResumeDeathStreakLimit int               `json:"resume_death_streak_limit"`
+	PredicateCostLimit     uint64            `json:"predicate_cost_limit"`
+	WaitAdmissionAttempts  int               `json:"wait_admission_attempts"`
+	WaitAdmissionInterval  string            `json:"wait_admission_interval"`
+	AdmissionHorizon       string            `json:"admission_horizon"`
+	Sources                map[string]string `json:"sources"`
+}
+
 // LoopResolvedRuntime is a daemon API value.
 type LoopResolvedRuntime struct {
 	Provider        string                    `json:"provider,omitempty"`
@@ -430,15 +445,4 @@ type MarketplaceSourceSummary struct {
 // MarketplaceSourcesResponse is a daemon API value.
 type MarketplaceSourcesResponse struct {
 	Sources []MarketplaceSourcePayload `json:"sources"`
-}
-
-// Mergeable is a daemon API value.
-type Mergeable string
-
-// Meta is a daemon API value.
-type Meta struct {
-	Name        string      `json:"name"`
-	Version     int         `json:"version,omitzero"`
-	Description string      `json:"description,omitempty"`
-	Catalog     CatalogMeta `json:"catalog"`
 }
