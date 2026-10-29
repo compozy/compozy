@@ -7,6 +7,96 @@ import (
 	"time"
 )
 
+// Weights is a daemon API value.
+type Weights struct {
+	Version                    int      `json:"version"`
+	FrecencyHalfLifeDays       int      `json:"frecency_half_life_days"`
+	QueryHalfLifeDays          int      `json:"query_half_life_days"`
+	Deadband                   float64  `json:"deadband"`
+	FallbackWeakMatchThreshold float64  `json:"fallback_weak_match_threshold"`
+	MatchAliasExact            float64  `json:"match_alias_exact"`
+	MatchExact                 float64  `json:"match_exact"`
+	MatchPrefix                float64  `json:"match_prefix"`
+	MatchTokenPrefix           float64  `json:"match_token_prefix"`
+	MatchCompactPrefix         float64  `json:"match_compact_prefix"`
+	MatchWordBoundaryMin       float64  `json:"match_word_boundary_min"`
+	MatchWordBoundaryMax       float64  `json:"match_word_boundary_max"`
+	MatchContains              float64  `json:"match_contains"`
+	MatchSubsequenceMin        float64  `json:"match_subsequence_min"`
+	MatchSubsequenceMax        float64  `json:"match_subsequence_max"`
+	SecondaryFieldMultiplier   float64  `json:"secondary_field_multiplier"`
+	SecondaryFieldCap          float64  `json:"secondary_field_cap"`
+	FrecencyScale              float64  `json:"frecency_scale"`
+	FrecencyCap                float64  `json:"frecency_cap"`
+	QueryLearningCap           float64  `json:"query_learning_cap"`
+	ContextBoost               float64  `json:"context_boost"`
+	PromotionCommandFloor      float64  `json:"promotion_command_floor"`
+	PromotionPathFloor         float64  `json:"promotion_path_floor"`
+	PromotionDefaultFloor      float64  `json:"promotion_default_floor"`
+	PromotionTabFloor          float64  `json:"promotion_tab_floor"`
+	GhostMinScore              float64  `json:"ghost_min_score"`
+	MinEntityQueryLength       int      `json:"min_entity_query_length"`
+	MaxQueryLength             int      `json:"max_query_length"`
+	PruneAfterDays             int      `json:"prune_after_days"`
+	PruneThreshold             float64  `json:"prune_threshold"`
+	EntitySectionVisibleCap    int      `json:"entity_section_visible_cap"`
+	DomainViewMountCap         int      `json:"domain_view_mount_cap"`
+	GroupOrder                 []string `json:"group_order"`
+}
+
+// WindowID is a daemon API value.
+type WindowID string
+
+// WindowManagerActor is a daemon API value.
+type WindowManagerActor struct {
+	Kind string `json:"kind,omitempty"`
+	ID   string `json:"id,omitempty"`
+}
+
+// WindowManagerClientContextInput is a daemon API value.
+type WindowManagerClientContextInput struct {
+	ScopeGlobal         bool                         `json:"scope_global"`
+	FocusedSessionState string                       `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool                         `json:"workspace_trusted"`
+	DestinationIntent   *RouteIntent                 `json:"destination_intent,omitzero"`
+	GlobalShortcuts     []GlobalShortcutRegistration `json:"global_shortcuts"`
+}
+
+// WindowManagerClientRegistration is a daemon API value.
+type WindowManagerClientRegistration struct {
+	WorkspaceID     WindowmanagerWorkspaceID        `json:"workspace_id"`
+	ClientID        WindowmanagerClientID           `json:"client_id,omitempty"`
+	Kind            ClientKind                      `json:"kind,omitempty"`
+	ActiveDesktopID DesktopID                       `json:"active_desktop_id,omitempty"`
+	Context         WindowManagerClientContextInput `json:"context"`
+}
+
+// WindowManagerClientView is a daemon API value.
+type WindowManagerClientView struct {
+	WorkspaceID          WindowmanagerWorkspaceID     `json:"workspace_id"`
+	ClientID             WindowmanagerClientID        `json:"client_id"`
+	Kind                 ClientKind                   `json:"kind"`
+	PresentationRevision WindowManagerRevision        `json:"presentation_revision"`
+	ContextRevision      WindowManagerRevision        `json:"context_revision"`
+	ActiveDesktopID      DesktopID                    `json:"active_desktop_id"`
+	FocusedWindowID      *WindowID                    `json:"focused_window_id,omitzero"`
+	FocusOrder           []WindowID                   `json:"focus_order"`
+	StackActive          map[string]string            `json:"stack_active"`
+	PaletteContext       WindowManagerPaletteContext  `json:"palette_context"`
+	GlobalShortcuts      []GlobalShortcutRegistration `json:"global_shortcuts"`
+	ConnectedAt          time.Time                    `json:"connected_at"`
+	AttachmentToken      string                       `json:"attachment_token,omitempty"`
+}
+
+// WindowManagerClientsResponse is a daemon API value.
+type WindowManagerClientsResponse struct {
+	WorkspaceID WindowmanagerWorkspaceID  `json:"workspace_id"`
+	Clients     []WindowManagerClientView `json:"clients"`
+}
+
+// WindowManagerCommandID is a daemon API value.
+type WindowManagerCommandID string
+
 // WindowManagerCommandRequest is a daemon API value.
 type WindowManagerCommandRequest struct {
 	WorkspaceID      WindowmanagerWorkspaceID  `json:"workspace_id"`
@@ -357,77 +447,3 @@ type WorktreeExitCleanupEvidence struct {
 	Blocker    string `json:"blocker,omitempty"`
 	Downgraded bool   `json:"downgraded,omitzero"`
 }
-
-// WorktreeExitCommitScope is a daemon API value.
-type WorktreeExitCommitScope struct {
-	IncludePaths       []string `json:"include_paths,omitempty"`
-	Fingerprint        string   `json:"fingerprint,omitempty"`
-	Complete           bool     `json:"complete,omitzero"`
-	ChangedFiles       int      `json:"changed_files"`
-	Insertions         int      `json:"insertions"`
-	Deletions          int      `json:"deletions"`
-	UntrackedFiles     []string `json:"untracked_files"`
-	UntrackedTotal     int      `json:"untracked_total"`
-	UntrackedTruncated bool     `json:"untracked_truncated,omitzero"`
-}
-
-// WorktreeExitForgeCapabilities is a daemon API value.
-type WorktreeExitForgeCapabilities struct {
-	Provider           string   `json:"provider"`
-	RequestNoun        string   `json:"request_noun"`
-	OpenActionLabel    string   `json:"open_action_label"`
-	ViewActionLabel    string   `json:"view_action_label"`
-	SupportsDraft      bool     `json:"supports_draft"`
-	CompareURLTemplate string   `json:"compare_url_template,omitempty"`
-	CredentialSource   string   `json:"credential_source,omitempty"`
-	DefaultBranch      string   `json:"default_branch,omitempty"`
-	TemplatePaths      []string `json:"template_paths,omitempty"`
-}
-
-// WorktreeExitOperationResponse is a daemon API value.
-type WorktreeExitOperationResponse struct {
-	OperationID string `json:"op_id"`
-}
-
-// WorktreeExitPRPrefill is a daemon API value.
-type WorktreeExitPRPrefill struct {
-	Title string `json:"title,omitempty"`
-	Body  string `json:"body,omitempty"`
-}
-
-// WorktreeExitPlanResponse is a daemon API value.
-type WorktreeExitPlanResponse struct {
-	WorktreeID       string                         `json:"worktree_id"`
-	Primary          WorktreeExitAction             `json:"primary,omitempty"`
-	Actions          []WorktreeExitActionPlan       `json:"actions"`
-	GlobalPauseCause string                         `json:"global_pause_cause,omitempty"`
-	CommitScope      WorktreeExitCommitScope        `json:"commit_scope"`
-	BrowserURL       string                         `json:"browser_url,omitempty"`
-	Forge            *WorktreeExitForgeCapabilities `json:"forge,omitzero"`
-	ForgeStatus      *WorktreeForgeStatusPayload    `json:"forge_status,omitzero"`
-	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
-	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
-	Base             string                         `json:"base,omitempty"`
-}
-
-// WorktreeForgeStatusPayload is a daemon API value.
-type WorktreeForgeStatusPayload struct {
-	Provider  string     `json:"provider"`
-	PRNumber  *int       `json:"pr_number"`
-	PRState   *string    `json:"pr_state"`
-	PRURL     string     `json:"pr_url,omitempty"`
-	Merged    *bool      `json:"merged"`
-	FetchedAt *time.Time `json:"fetched_at"`
-}
-
-// WorktreeInspectionResponse is a daemon API value.
-type WorktreeInspectionResponse struct {
-	Worktree WorktreePayload             `json:"worktree"`
-	Status   *WorktreeStatusPayload      `json:"status"`
-	Forge    *WorktreeForgeStatusPayload `json:"forge"`
-	Repo     WorktreeRepoPayload         `json:"repo"`
-	Bindings WorktreeBindingsPayload     `json:"bindings"`
-}
-
-// WorktreeMode is a daemon API value.
-type WorktreeMode string

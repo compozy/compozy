@@ -192,6 +192,7 @@ func deleteSessionOperationSpec() OperationSpec {
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileSelector(
+			sessionProcessPolicyParameter(),
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		),

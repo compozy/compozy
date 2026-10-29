@@ -4852,6 +4852,12 @@ export type Predicate = {
   value: unknown;
 };
 
+export type ProcessesResponse = {
+  groups: Array<SessionProcessGroupPayload>;
+  scanned_at: string;
+  supported: boolean;
+};
+
 export type Profile = {
   archived_at?: string | null;
   color: string;
@@ -6754,6 +6760,7 @@ export type SessionPayload = {
   name?: string;
   parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
+  process_summary?: SessionProcessSummaryPayload | null;
   profile_archived?: boolean;
   profile_color?: string;
   profile_emoji?: string;
@@ -6801,6 +6808,57 @@ export type SessionPresenceRequest = {
 
 export type SessionPresenceResponse = {
   lease_id: string;
+};
+
+export type SessionProcessGroupPayload = {
+  items: Array<SessionProcessPayload>;
+  orphaned: boolean;
+  profile: string;
+  session_id: string;
+  session_name: string;
+  workspace_id: string;
+};
+
+export type SessionProcessPayload = {
+  age_seconds: number;
+  argv0: string;
+  command: string;
+  cpu_percent?: number | null;
+  cwd: string;
+  kind: "background" | "tool" | "terminal";
+  parent_alive: boolean;
+  pgid: number;
+  pid: number;
+  ports: Array<number>;
+  rss_kb?: number | null;
+  started_at: string;
+  terminal_id?: string;
+};
+
+export type SessionProcessResult = {
+  error?: string;
+  outcome: "terminated" | "already_exited" | "identity_mismatch" | "failed" | "unproven";
+  pid: number;
+  started_at: string;
+};
+
+export type SessionProcessSummaryPayload = {
+  background: number;
+  ports: Array<number>;
+  supported: boolean;
+  terminals: number;
+  total: number;
+};
+
+export type SessionProcessTarget = {
+  pid: number;
+  started_at: string;
+};
+
+export type SessionProcessesResponse = {
+  items: Array<SessionProcessPayload>;
+  scanned_at: string;
+  supported: boolean;
 };
 
 export type SessionProfileFacetsPayload = {
@@ -8964,6 +9022,7 @@ export type StepProgress = {
 };
 
 export type StopSessionRequest = {
+  processes?: "keep" | "terminate";
   wait?: boolean | null;
 };
 
@@ -10366,6 +10425,20 @@ export type TerminalWaitResponse = {
   reason: string;
   screen: string;
   untrusted: boolean;
+};
+
+export type TerminateProcessesRequest = {
+  targets: Array<SessionProcessTarget>;
+};
+
+export type TerminateSessionProcessesRequest = {
+  all?: boolean;
+  targets?: Array<SessionProcessTarget>;
+};
+
+export type TerminateSessionProcessesResponse = {
+  results: Array<SessionProcessResult>;
+  supported: boolean;
 };
 
 export type TimelineEntry = {
@@ -19520,6 +19593,114 @@ export type GetOpenAPIDocumentResponses = {
    */
   200: unknown;
 };
+
+export type ListProcessesData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Include all projects and User sessions
+     */
+    all_workspaces?: boolean;
+    /**
+     * Only processes of stopped, archived, deleted or unknown sessions
+     */
+    orphaned?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/processes";
+};
+
+export type ListProcessesErrors = {
+  /**
+   * Invalid process request
+   */
+  400: ErrorPayload;
+  /**
+   * Process scope denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Process scanner unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListProcessesError = ListProcessesErrors[keyof ListProcessesErrors];
+
+export type ListProcessesResponses = {
+  /**
+   * Success
+   */
+  200: ProcessesResponse;
+};
+
+export type ListProcessesResponse = ListProcessesResponses[keyof ListProcessesResponses];
+
+export type TerminateProcessesData = {
+  /**
+   * JSON request body
+   */
+  body: TerminateProcessesRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/processes/terminate";
+};
+
+export type TerminateProcessesErrors = {
+  /**
+   * Invalid process request
+   */
+  400: ErrorPayload;
+  /**
+   * Process scope denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Process scanner unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type TerminateProcessesError = TerminateProcessesErrors[keyof TerminateProcessesErrors];
+
+export type TerminateProcessesResponses = {
+  /**
+   * Success
+   */
+  200: TerminateSessionProcessesResponse;
+};
+
+export type TerminateProcessesResponse =
+  TerminateProcessesResponses[keyof TerminateProcessesResponses];
 
 export type ListProfilesData = {
   body?: never;
@@ -32291,6 +32472,10 @@ export type DeleteSessionData = {
   };
   query?: {
     /**
+     * Keep (default) or terminate attributed session processes
+     */
+    processes?: "keep" | "terminate";
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -32483,6 +32668,10 @@ export type ArchiveSessionData = {
     session_id: string;
   };
   query?: {
+    /**
+     * Keep (default) or terminate attributed session processes
+     */
+    processes?: "keep" | "terminate";
     /**
      * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
      */
@@ -33970,6 +34159,127 @@ export type UpdateSessionPresenceResponses = {
 
 export type UpdateSessionPresenceResponse =
   UpdateSessionPresenceResponses[keyof UpdateSessionPresenceResponses];
+
+export type ListSessionProcessesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/processes";
+};
+
+export type ListSessionProcessesErrors = {
+  /**
+   * Invalid process request
+   */
+  400: ErrorPayload;
+  /**
+   * Process scope denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Process scanner unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionProcessesError =
+  ListSessionProcessesErrors[keyof ListSessionProcessesErrors];
+
+export type ListSessionProcessesResponses = {
+  /**
+   * Success
+   */
+  200: SessionProcessesResponse;
+};
+
+export type ListSessionProcessesResponse =
+  ListSessionProcessesResponses[keyof ListSessionProcessesResponses];
+
+export type TerminateSessionProcessesData = {
+  /**
+   * JSON request body
+   */
+  body: TerminateSessionProcessesRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate";
+};
+
+export type TerminateSessionProcessesErrors = {
+  /**
+   * Invalid process request
+   */
+  400: ErrorPayload;
+  /**
+   * Process scope denied
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Process scanner unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type TerminateSessionProcessesError =
+  TerminateSessionProcessesErrors[keyof TerminateSessionProcessesErrors];
+
+export type TerminateSessionProcessesResponses = {
+  /**
+   * Success
+   */
+  200: TerminateSessionProcessesResponse;
+};
+
+export type TerminateSessionProcessesResponse2 =
+  TerminateSessionProcessesResponses[keyof TerminateSessionProcessesResponses];
 
 export type CancelSessionPromptData = {
   body?: never;

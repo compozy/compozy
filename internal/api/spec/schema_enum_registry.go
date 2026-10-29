@@ -30,6 +30,11 @@ const (
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[contract.SessionProcessPolicy](): {"keep", "terminate"},
+		reflect.TypeFor[contract.SessionProcessKind]():   {"background", "tool", "terminal"},
+		reflect.TypeFor[contract.SessionProcessOutcome](): {
+			"terminated", "already_exited", "identity_mismatch", "failed", "unproven",
+		},
 		reflect.TypeFor[session.Badge](): {
 			"running",
 			"idle",

@@ -1951,6 +1951,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/processes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List processes grouped by session, including left-running processes */
+    get: operations["listProcesses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/processes/terminate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Terminate identity-verified processes with missing or retained session owners */
+    post: operations["terminateProcesses"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/profiles": {
     parameters: {
       query?: never;
@@ -5772,6 +5806,40 @@ export interface paths {
     put?: never;
     /** Update operator session presence */
     post: operations["updateSessionPresence"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/processes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List attributed session processes */
+    get: operations["listSessionProcesses"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Terminate identity-verified session processes */
+    post: operations["terminateSessionProcesses"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11903,6 +11971,12 @@ export interface components {
       reason?: string;
       value: unknown;
     };
+    ProcessesResponse: {
+      groups: components["schemas"]["SessionProcessGroupPayload"][];
+      /** Format: date-time */
+      scanned_at: string;
+      supported: boolean;
+    };
     Profile: {
       /** Format: date-time */
       archived_at?: string | null;
@@ -13890,6 +13964,7 @@ export interface components {
       name?: string;
       parent_title?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
+      process_summary?: components["schemas"]["SessionProcessSummaryPayload"] | null;
       profile_archived?: boolean;
       profile_color?: string;
       profile_emoji?: string;
@@ -13941,6 +14016,60 @@ export interface components {
     };
     SessionPresenceResponse: {
       lease_id: string;
+    };
+    SessionProcessGroupPayload: {
+      items: components["schemas"]["SessionProcessPayload"][];
+      orphaned: boolean;
+      profile: string;
+      session_id: string;
+      session_name: string;
+      workspace_id: string;
+    };
+    SessionProcessPayload: {
+      /** Format: double */
+      age_seconds: number;
+      argv0: string;
+      command: string;
+      /** Format: double */
+      cpu_percent?: number | null;
+      cwd: string;
+      /** @enum {string} */
+      kind: "background" | "tool" | "terminal";
+      parent_alive: boolean;
+      pgid: number;
+      pid: number;
+      ports: number[];
+      /** Format: int64 */
+      rss_kb?: number | null;
+      /** Format: date-time */
+      started_at: string;
+      terminal_id?: string;
+    };
+    SessionProcessResult: {
+      error?: string;
+      /** @enum {string} */
+      outcome: "terminated" | "already_exited" | "identity_mismatch" | "failed" | "unproven";
+      pid: number;
+      /** Format: date-time */
+      started_at: string;
+    };
+    SessionProcessSummaryPayload: {
+      background: number;
+      ports: number[];
+      supported: boolean;
+      terminals: number;
+      total: number;
+    };
+    SessionProcessTarget: {
+      pid: number;
+      /** Format: date-time */
+      started_at: string;
+    };
+    SessionProcessesResponse: {
+      items: components["schemas"]["SessionProcessPayload"][];
+      /** Format: date-time */
+      scanned_at: string;
+      supported: boolean;
     };
     SessionProfileFacetsPayload: {
       facets: components["schemas"]["SessionCatalogFacetsPayload"];
@@ -16107,6 +16236,8 @@ export interface components {
       steps_total: number;
     };
     StopSessionRequest: {
+      /** @enum {string} */
+      processes?: "keep" | "terminate";
       wait?: boolean | null;
     };
     StopWhenSpec:
@@ -17594,6 +17725,17 @@ export interface components {
       reason: string;
       screen: string;
       untrusted: boolean;
+    };
+    TerminateProcessesRequest: {
+      targets: components["schemas"]["SessionProcessTarget"][];
+    };
+    TerminateSessionProcessesRequest: {
+      all?: boolean;
+      targets?: components["schemas"]["SessionProcessTarget"][];
+    };
+    TerminateSessionProcessesResponse: {
+      results: components["schemas"]["SessionProcessResult"][];
+      supported: boolean;
     };
     TimelineEntry: {
       /** Format: date-time */
@@ -29336,6 +29478,153 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listProcesses: {
+    parameters: {
+      query?: {
+        /** @description Include all projects and User sessions */
+        all_workspaces?: boolean;
+        /** @description Only processes of stopped, archived, deleted or unknown sessions */
+        orphaned?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProcessesResponse"];
+        };
+      };
+      /** @description Invalid process request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scope denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scanner unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  terminateProcesses: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TerminateProcessesRequest"];
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminateSessionProcessesResponse"];
+        };
+      };
+      /** @description Invalid process request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scope denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scanner unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -46219,6 +46508,8 @@ export interface operations {
   deleteSession: {
     parameters: {
       query?: {
+        /** @description Keep (default) or terminate attributed session processes */
+        processes?: "keep" | "terminate";
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -46389,6 +46680,8 @@ export interface operations {
   archiveSession: {
     parameters: {
       query?: {
+        /** @description Keep (default) or terminate attributed session processes */
+        processes?: "keep" | "terminate";
         /** @description Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived */
         stop?: boolean;
         /** @description Act as this profile by name */
@@ -48276,6 +48569,159 @@ export interface operations {
         };
       };
       /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionProcesses: {
+    parameters: {
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionProcessesResponse"];
+        };
+      };
+      /** @description Invalid process request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scope denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scanner unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  terminateSessionProcesses: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TerminateSessionProcessesRequest"];
+      };
+    };
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminateSessionProcessesResponse"];
+        };
+      };
+      /** @description Invalid process request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scope denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Process scanner unavailable */
       503: {
         headers: {
           [name: string]: unknown;

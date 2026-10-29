@@ -85,6 +85,13 @@ type PredicateOperator string
 // Priority is a daemon API value.
 type Priority string
 
+// ProcessesResponse is a daemon API value.
+type ProcessesResponse struct {
+	Supported bool                         `json:"supported"`
+	ScannedAt time.Time                    `json:"scanned_at"`
+	Groups    []SessionProcessGroupPayload `json:"groups"`
+}
+
 // Profile is a daemon API value.
 type Profile struct {
 	ID                     string                         `json:"id"`

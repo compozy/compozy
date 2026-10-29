@@ -379,6 +379,40 @@ func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsPa
 	return &out, nil
 }
 
+// ListProcessesParams carries the path, query, and header parameters.
+type ListProcessesParams struct {
+	AllWorkspaces *bool   `url:"all_workspaces"`
+	Orphaned      *bool   `url:"orphaned"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// ListProcesses List processes grouped by session, including left-running processes
+func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
+	path := "/api/processes"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.Orphaned != nil {
+		query.Set("orphaned", strconv.FormatBool(*params.Orphaned))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProcessesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListProfileOperations List profile lifecycle operations
 func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
 	path := "/api/profiles/ops"
@@ -402,44 +436,6 @@ func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
 // ListProviderModelsParams carries the path, query, and header parameters.
 type ListProviderModelsParams struct {
 	ProviderID   *string `url:"provider_id"`
-	View         *string `url:"view"`
-	SourceID     *string `url:"source_id"`
-	Refresh      *bool   `url:"refresh"`
-	IncludeStale *bool   `url:"include_stale"`
-}
-
-// ListProviderModels List provider model catalog entries across providers
-func (c *Client) ListProviderModels(ctx context.Context, params ListProviderModelsParams) (*ProviderModelListResponse, error) {
-	path := "/api/model-catalog/models"
-	query := url.Values{}
-	if params.ProviderID != nil {
-		query.Set("provider_id", *params.ProviderID)
-	}
-	if params.View != nil {
-		query.Set("view", *params.View)
-	}
-	if params.SourceID != nil {
-		query.Set("source_id", *params.SourceID)
-	}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if params.IncludeStale != nil {
-		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProviderModelListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviderModelsByProviderParams carries the path, query, and header parameters.
-type ListProviderModelsByProviderParams struct {
-	ProviderID   string  `url:"provider_id"`
 	View         *string `url:"view"`
 	SourceID     *string `url:"source_id"`
 	Refresh      *bool   `url:"refresh"`

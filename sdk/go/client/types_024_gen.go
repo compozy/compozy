@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// TaskRunSummaryPayload is a daemon API value.
+type TaskRunSummaryPayload struct {
+	ID                   string                 `json:"id"`
+	TaskID               string                 `json:"task_id"`
+	Status               TaskRunStatus          `json:"status"`
+	Attempt              int                    `json:"attempt"`
+	RecoveryCount        int                    `json:"recovery_count"`
+	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
+	FailureKind          string                 `json:"failure_kind,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts"`
+	SessionID            string                 `json:"session_id,omitempty"`
+	WorktreeID           string                 `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode   `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time             `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time             `json:"heartbeat_at,omitempty"`
+	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
+	Designation          *RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt             time.Time              `json:"queued_at"`
+	ClaimedAt            *time.Time             `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time             `json:"started_at,omitempty"`
+	EndedAt              *time.Time             `json:"ended_at,omitempty"`
+	Error                string                 `json:"error,omitempty"`
+}
+
+// TaskRunTotalPayload is a daemon API value.
+type TaskRunTotalPayload struct {
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	Count      int    `json:"count"`
+}
+
+// TaskRunsResponse is a daemon API value.
+type TaskRunsResponse struct {
+	Runs []TaskRunPayload `json:"runs"`
+}
+
+// TaskScope is a daemon API value.
+type TaskScope string
+
+// TaskStatus is a daemon API value.
+type TaskStatus string
+
 // TaskStatusTotalPayload is a daemon API value.
 type TaskStatusTotalPayload struct {
 	Scope  string `json:"scope"`
@@ -402,43 +447,4 @@ type TerminalResolvedInputRequest struct {
 	Length      int                            `json:"length"`
 	RequestedAt time.Time                      `json:"requested_at"`
 	ResolvedAt  time.Time                      `json:"resolved_at"`
-}
-
-// TerminalResponse is a daemon API value.
-type TerminalResponse struct {
-	Terminal TerminalInfoPayload `json:"terminal"`
-}
-
-// TerminalRunPayload is a daemon API value.
-type TerminalRunPayload struct {
-	SessionID  string `json:"session_id"`
-	RunID      string `json:"run_id"`
-	Generation int64  `json:"generation"`
-}
-
-// TerminalSequence is a daemon API value.
-type TerminalSequence string
-
-// TerminalSignal is a daemon API value.
-type TerminalSignal string
-
-// TerminalSignalRequest is a daemon API value.
-type TerminalSignalRequest struct {
-	Signal TerminalSignal `json:"signal"`
-}
-
-// TerminalSpillPayload is a daemon API value.
-type TerminalSpillPayload struct {
-	ArtifactID string `json:"artifact_id"`
-	Bytes      int64  `json:"bytes"`
-}
-
-// TerminalState is a daemon API value.
-type TerminalState string
-
-// TerminalWaitRequest is a daemon API value.
-type TerminalWaitRequest struct {
-	Until     string `json:"until"`
-	Pattern   string `json:"pattern,omitempty"`
-	TimeoutMs int    `json:"timeout_ms,omitzero"`
 }

@@ -370,6 +370,7 @@ func (c *Client) ArchiveProfile(ctx context.Context, params ArchiveProfileParams
 
 // ArchiveSessionParams carries the path, query, and header parameters.
 type ArchiveSessionParams struct {
+	Processes   *string `url:"processes"`
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Stop        *bool   `url:"stop"`
@@ -379,9 +380,12 @@ type ArchiveSessionParams struct {
 // ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
 func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
+	query := url.Values{}
+	if params.Processes != nil {
+		query.Set("processes", *params.Processes)
+	}
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
 	if params.Stop != nil {
 		query.Set("stop", strconv.FormatBool(*params.Stop))
 	}

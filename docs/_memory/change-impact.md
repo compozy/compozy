@@ -4700,3 +4700,29 @@ isolation are unchanged. No generated contract or official skill changes.
 - **Official skill / Docs:** no public operational contract or `skills/compozy/`
   change. Affected QA scenarios and the dated overlay focus report track evidence
   and limits; no public site change is needed.
+
+## 2026-10-29 — Session processes
+
+Owner: accepted session-processes plan; branch `feat/session-processes`.
+The additive public contract exposes attributed OS processes and a session summary,
+identity-fenced termination, and explicit keep/terminate lifecycle choices. Omitted
+policy keeps processes. The operator aggregate includes retained and missing owners;
+its separate termination route does not bypass session-scoped authorization.
+
+- Native tools: session process list and approval-gated terminate; stop/archive gain
+  the same optional policy. CLI and shared HTTP/UDS handlers own matching operations.
+- Web: process popover, lifecycle choices and the `processes.left_running` palette
+  command; the frontend executor owns consumers and browser evidence.
+- Hooks/events: `session.processes.terminated` audits explicit cleanup. No automatic
+  orphan cleanup, turn-cancel cleanup or shutdown policy change.
+- Workspace data/isolation: stateless environment-marker attribution; no SQLite
+  shape change. Runtime scans and kills must preserve profile/workspace ownership
+  and refuse uncertain or reused process identities. QA uses a separate daemon home.
+- Official skill/site/QA: process inspection and cleanup guidance and a real-process
+  lifecycle scenario co-ship with the implementation. No new configuration is needed;
+  scan demand and shared snapshots bound background work.
+
+Contract checkpoint: DTOs, OpenAPI and generated SDKs land first to unblock the
+parallel frontend. Endpoint implementation and runtime evidence remain pending at
+this checkpoint. Frozen dependency installation also reconciles generated linter
+and emoji data with the pinned toolchain; no dependency versions change.

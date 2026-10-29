@@ -10,6 +10,76 @@ import (
 	"strings"
 )
 
+// ListWindowManagerClients List connected window-manager clients
+func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerLayoutProfilesParams carries the path, query, and header parameters.
+type ListWindowManagerLayoutProfilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListWindowManagerLayoutProfiles List layout profiles visible to one workspace
+func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params ListWindowManagerLayoutProfilesParams) (*ResourcesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorkspaceSessionsParams carries the path, query, and header parameters.
+type ListWorkspaceSessionsParams struct {
+	WorkspaceID   string    `url:"workspace_id"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	IncludeHealth *bool     `url:"include_health"`
+	SkipTotal     *bool     `url:"skip_total"`
+	State         *string   `url:"state"`
+	Type          *string   `url:"type"`
+	Agent         *string   `url:"agent"`
+	Subagents     *string   `url:"subagents"`
+	Children      *string   `url:"children"`
+	Parent        *string   `url:"parent"`
+	Root          *string   `url:"root"`
+	Worktree      *string   `url:"worktree"`
+	Q             *string   `url:"q"`
+	SearchFields  *string   `url:"search_fields"`
+	Resumable     *bool     `url:"resumable"`
+	Attention     *bool     `url:"attention"`
+	BoardColumn   *[]string `url:"board_column"`
+	Badge         *string   `url:"badge"`
+	Archive       *string   `url:"archive"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListWorkspaceSessions List sessions
 func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions"
@@ -358,85 +428,4 @@ type OpenCmdPaletteViewSessionParams struct {
 	ID                  string  `url:"id"`
 	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
 	Profile             *string `url:"profile"`
-}
-
-// OpenCmdPaletteViewSession Open one programmable command palette view
-func (c *Client) OpenCmdPaletteViewSession(ctx context.Context, params OpenCmdPaletteViewSessionParams, body CmdPaletteViewSessionOpenRequest) (*CmdPaletteViewSessionOpenResponse, error) {
-	path := "/api/cmd-palette/views/{id}/open"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteViewSessionOpenResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PatchLoopParams carries the path, query, and header parameters.
-type PatchLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-}
-
-// PatchLoop Publish one Loop definition with optimistic concurrency
-func (c *Client) PatchLoop(ctx context.Context, params PatchLoopParams, body PatchLoopRequest) (*LoopResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseLoopNodeParams carries the path, query, and header parameters.
-type PauseLoopNodeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	NodeID      string  `url:"node_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PauseLoopNode Pause one Loop node
-func (c *Client) PauseLoopNode(ctx context.Context, params PauseLoopNodeParams, body LoopNodePauseRequest) (*LoopMutationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopMutationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PauseLoopRunParams carries the path, query, and header parameters.
-type PauseLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
 }

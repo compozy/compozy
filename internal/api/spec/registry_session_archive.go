@@ -10,6 +10,7 @@ func archiveSessionOperationSpec() OperationSpec {
 	)
 	// A query opt-in keeps the generated SDK archive signatures unchanged.
 	spec.Parameters = withProfileSelector(
+		sessionProcessPolicyParameter(),
 		pathParam("workspace_id", "Workspace id"),
 		pathParam("session_id", "Session id"),
 		boolQueryParam(
