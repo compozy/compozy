@@ -40,6 +40,7 @@ func TestGoalCommandParserShouldRecognizeOnlyAuthenticatedIngressGrammar(t *test
 			wantExpected:  "run-1",
 			wantObjective: "ship safer",
 		},
+		{name: "Should parse stop", message: "/goal stop", wantMatched: true, wantVerb: "stop"},
 		{name: "Should parse status", message: "/goal status", wantMatched: true, wantVerb: "status"},
 		{
 			name:          "Should parse draft",

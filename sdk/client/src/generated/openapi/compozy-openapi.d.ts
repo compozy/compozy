@@ -9218,7 +9218,15 @@ export interface components {
     };
     GoalCommandResult: {
       /** @enum {string} */
-      outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+      outcome:
+        | "started"
+        | "replaced"
+        | "status"
+        | "paused"
+        | "resumed"
+        | "cleared"
+        | "stopped"
+        | "error";
       /** @enum {string|null} */
       reason_code:
         | "goal_not_active"
@@ -9260,6 +9268,7 @@ export interface components {
       snapshot: components["schemas"]["GoalSnapshot"] | null;
     };
     GoalContextSnapshot: {
+      diagnostic?: string;
       /** Format: double */
       nudge_ratio: number;
       /** Format: double */
@@ -9359,6 +9368,7 @@ export interface components {
       node_id: string;
       objective: string;
       origin_session_id: string;
+      pause_requested?: boolean;
       run_id: string;
       /** @enum {string} */
       run_status:
@@ -13680,7 +13690,7 @@ export interface components {
       expected_run_id?: string;
       objective?: string;
       /** @enum {string} */
-      operation: "set" | "replace" | "status" | "pause" | "resume" | "clear";
+      operation: "set" | "replace" | "status" | "pause" | "resume" | "stop" | "clear";
       runtime?: components["schemas"]["PromptRuntimeSelectionPayload"] | null;
     };
     SessionGoalResponse: {

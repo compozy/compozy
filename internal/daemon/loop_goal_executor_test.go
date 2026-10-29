@@ -494,6 +494,39 @@ func TestReadManagedGoalPromptOutputShouldIgnoreOnlyCorrelatedAuxiliaryEvents(t 
 		},
 	)
 
+	t.Run("Should preserve a terminal followed by provider telemetry", func(t *testing.T) {
+		t.Parallel()
+		promptID := "goal-prompt-telemetry"
+		events := []store.SessionEvent{
+			managedGoalRecoveryEvent(t, 41, promptID, acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "reply"}),
+			managedGoalRecoveryEvent(
+				t,
+				42,
+				promptID,
+				acp.AgentEvent{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn},
+			),
+			managedGoalRecoveryEvent(
+				t,
+				43,
+				promptID,
+				acp.AgentEvent{Type: acp.EventTypeUsage, Usage: &acp.TokenUsage{InputTokens: new(int64(20))}},
+			),
+			managedGoalRecoveryEvent(
+				t,
+				44,
+				promptID,
+				acp.AgentEvent{Type: acp.EventTypeSystem, Title: "available_commands_update"},
+			),
+			managedGoalRecoveryEvent(t, 45, promptID, acp.AgentEvent{Type: eventspkg.SessionTurnQuiesced}),
+		}
+		text, _, err := readManagedGoalPromptOutput(t.Context(), staticLoopSessionEventReader{events: events},
+			&store.SessionInputQueueEntry{SessionID: "session-recovery", PromptID: promptID},
+			looppkg.ActionPromptResult{PromptID: promptID, EventStartSeq: 41, EventEndSeq: 42})
+		if err != nil || text != "reply" {
+			t.Fatalf("terminal with telemetry = %q, %v", text, err)
+		}
+	})
+
 	t.Run("Should reject a result-bearing event after the terminal frame", func(t *testing.T) {
 		t.Parallel()
 

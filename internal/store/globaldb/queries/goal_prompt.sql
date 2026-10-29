@@ -240,3 +240,15 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND control_epoch = sqlc.arg(control_epoch) AND binding_epoch = sqlc.arg(binding_epoch)
   AND queue_entry_id = sqlc.arg(queue_entry_id) AND prompt_id = sqlc.arg(prompt_id)
   AND phase IN ('prompting','compacting');
+
+-- name: RetainRevokedGoalTerminal :execrows
+UPDATE session_input_queue
+SET terminal_event_start_seq = sqlc.arg(event_start_seq),
+    terminal_event_end_seq = sqlc.arg(event_end_seq),
+    terminal_stop_reason = sqlc.narg(stop_reason),
+    terminal_tokens_reported = sqlc.arg(tokens_reported),
+    terminal_tokens_used = sqlc.narg(tokens_used),
+    updated_at = CAST(sqlc.arg(updated_at) AS TEXT)
+WHERE id = sqlc.arg(id) AND dispatch_token_hash = sqlc.arg(dispatch_token_hash)
+  AND terminal_reason_code = 'goal_control_revoked_in_flight'
+  AND terminal_event_start_seq IS NULL AND terminal_event_end_seq IS NULL;

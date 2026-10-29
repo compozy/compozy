@@ -13,8 +13,17 @@ import (
 
 var _ session.GoalSessionStopHandler = (*daemonLoopAPIService)(nil)
 
-// StopSessionGoals cancels session-origin Goals within the session's immutable profile and workspace.
+// StopSessionGoals pauses session-origin Goals before their runtime is stopped.
 func (s *daemonLoopAPIService) StopSessionGoals(ctx context.Context, info *session.Info) error {
+	return s.controlStoppedSessionGoals(ctx, info, false)
+}
+
+// RemoveSessionGoals cancels retained Goals before their origin session is deleted.
+func (s *daemonLoopAPIService) RemoveSessionGoals(ctx context.Context, info *session.Info) error {
+	return s.controlStoppedSessionGoals(ctx, info, true)
+}
+
+func (s *daemonLoopAPIService) controlStoppedSessionGoals(ctx context.Context, info *session.Info, remove bool) error {
 	reader, ok := s.persistence.(sessionLoopWorkReader)
 	if !ok {
 		return errors.New("daemon: session Goal lifecycle reader is unavailable")
@@ -38,14 +47,15 @@ func (s *daemonLoopAPIService) StopSessionGoals(ctx context.Context, info *sessi
 		if !row.OwnsGoal {
 			continue
 		}
-		if err := s.aggregate.CancelRun(
-			ctx,
-			looppkg.WorkspaceID(info.WorkspaceID),
-			row.RunID,
-			"Goal session stopped by the operator",
-			actor,
-		); err != nil {
-			errs = append(errs, fmt.Errorf("cancel session Goal: %w", err))
+		var controlErr error
+		if remove {
+			controlErr = s.aggregate.CancelRun(ctx, looppkg.WorkspaceID(info.WorkspaceID), row.RunID,
+				"Goal session removed by the operator", actor)
+		} else {
+			controlErr = s.aggregate.Pause(ctx, looppkg.WorkspaceID(info.WorkspaceID), row.RunID, actor)
+		}
+		if controlErr != nil {
+			errs = append(errs, fmt.Errorf("settle stopped session Goal: %w", controlErr))
 		}
 	}
 	return errors.Join(errs...)

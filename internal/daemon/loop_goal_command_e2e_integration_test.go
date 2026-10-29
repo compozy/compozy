@@ -31,6 +31,135 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// Controls fence the next turn and interrupt held work; the public daemon Goal suite owns this contract.
+func TestDaemonGoalControlHeldTurn(t *testing.T) {
+	acpmock.RequireDriver(t)
+	homePaths := e2etest.NewHomePaths(t)
+	options := goalCommandRuntimeOptions(t, homePaths, t.TempDir())
+	harness := e2etest.StartRuntimeHarness(t, &options)
+	for _, operation := range []string{"pause", "stop", "clear", "session-stop"} {
+		t.Run("Should settle a held turn on "+operation, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			defer cancel()
+			target := createFixtureBackedSession(t, ctx, harness, "goal-controls", "goal-control-"+operation)
+			status, started := callGoalCommandUDS(ctx, t, harness, target.ID, "/goal Hold until controlled")
+			if status != http.StatusAccepted || started.Snapshot == nil {
+				t.Fatalf("start = %d %#v", status, started)
+			}
+			held := waitForGoalTurns(
+				ctx,
+				t,
+				harness,
+				started.Snapshot.RunID,
+				func(page compozycontract.GoalTurnPage) bool {
+					return len(page.Turns) == 1 && page.Turns[0].ResultStatus == nil
+				},
+			)
+			waitForGoalProviderEvent(ctx, t, harness, target.ID, held.Turns[0].PromptID, acp.EventTypeAgentMessage)
+			if operation == "session-stop" {
+				if err := harness.StopSession(ctx, target.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				status, result := callGoalCommandUDS(ctx, t, harness, target.ID, "/goal "+operation)
+				if status != http.StatusOK || result.Outcome == compozycontract.GoalOutcomeError {
+					t.Fatalf("%s = %d %#v", operation, status, result)
+				}
+			}
+			if operation == "pause" || operation == "session-stop" {
+				waitForGoalSnapshot(ctx, t, harness, target.ID, func(snapshot *compozycontract.GoalSnapshot) bool {
+					return snapshot != nil && snapshot.RunStatus == compozycontract.LoopRunStatusPaused && snapshot.Live
+				})
+			}
+			page := waitForGoalTurns(
+				ctx,
+				t,
+				harness,
+				started.Snapshot.RunID,
+				func(page compozycontract.GoalTurnPage) bool {
+					return len(page.Turns) == 1 && page.Turns[0].ResultStatus != nil
+				},
+			)
+			if page.Turns[0].EndedAt == nil {
+				t.Fatal("controlled turn lost its terminal")
+			}
+			waitForGoalProviderEvent(ctx, t, harness, target.ID, held.Turns[0].PromptID, "terminal")
+			if operation == "session-stop" {
+				status, rejected := callGoalCommandUDS(ctx, t, harness, target.ID, "/goal resume")
+				if status < 400 || rejected.Outcome != compozycontract.GoalOutcomeError {
+					t.Fatalf("stopped session resumed Goal: %d %#v", status, rejected)
+				}
+				if _, err := harness.PromptSession(
+					ctx,
+					target.ID,
+					"Reopen the conversation; keep the Goal paused.",
+				); err != nil {
+					t.Fatal(err)
+				}
+				_, attached := callGoalCommandUDS(ctx, t, harness, target.ID, "/goal status")
+				if attached.Snapshot == nil || attached.Snapshot.RunStatus != compozycontract.LoopRunStatusPaused {
+					t.Fatalf("session attach resumed its Goal: %#v", attached)
+				}
+			}
+			if operation == "pause" || operation == "session-stop" {
+				status, resumed := callGoalCommandUDS(ctx, t, harness, target.ID, "/goal resume")
+				if status != http.StatusOK || resumed.Outcome != compozycontract.GoalOutcomeResumed {
+					t.Fatalf("resume = %d %#v", status, resumed)
+				}
+				completed := waitForGoalSnapshot(
+					ctx,
+					t,
+					harness,
+					target.ID,
+					func(snapshot *compozycontract.GoalSnapshot) bool {
+						return snapshot != nil && snapshot.RunStatus == compozycontract.LoopRunStatusDone
+					},
+				)
+				turns := waitForGoalTurns(
+					ctx,
+					t,
+					harness,
+					completed.RunID,
+					func(page compozycontract.GoalTurnPage) bool {
+						return len(page.Turns) == 2 && page.Turns[1].EndedAt != nil
+					},
+				)
+				assertMonotonicGoalTurns(t, turns)
+			}
+			if operation == "stop" {
+				waitForGoalSnapshot(ctx, t, harness, target.ID, func(snapshot *compozycontract.GoalSnapshot) bool {
+					return snapshot != nil && !snapshot.Live &&
+						snapshot.RunStatus == compozycontract.LoopRunStatusCanceled
+				})
+			}
+		})
+	}
+}
+
+func waitForGoalProviderEvent(ctx context.Context, t *testing.T, harness *e2etest.RuntimeHarness,
+	sessionID, promptID, eventType string) {
+	t.Helper()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		response, err := harness.SessionEvents(ctx, sessionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, event := range response.Events {
+			if event.TurnID == promptID && (event.Type == eventType ||
+				(eventType == "terminal" && (event.Type == acp.EventTypeDone || event.Type == acp.EventTypeError))) {
+				return
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("provider event %s missing for %s: %v", eventType, promptID, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
 func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testing.T) {
 	acpmock.RequireDriver(t)
 
@@ -116,7 +245,6 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 				t.Fatalf("system session in default catalog: %#v", item)
 			}
 		}
-
 	})
 
 	t.Run("Should pause and resume at a durable boundary", func(t *testing.T) {
@@ -215,13 +343,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-approval", 1)
 	})
 
-	// Invariant: explicit stop/removal cancels a session Goal and run cancellation remains usable without the session.
+	// Invariant: session Stop pauses a Goal; removal cancels it and retains the independent run audit.
 	// Owner: daemon lifecycle integration; canonical public Goal commands E2E suite.
-	t.Run("Should cancel a stopped or removed session Goal through independent public reads", func(t *testing.T) {
+	t.Run("Should pause on stop and cancel on removal through independent public reads", func(t *testing.T) {
 		for _, tc := range []struct {
 			name   string
 			remove bool
-		}{{"Should cancel on stop before manual cancellation", false}, {"Should cancel on removal before manual cancellation", true}} {
+		}{{"Should pause on stop before removal", false}, {"Should cancel on removal before manual cancellation", true}} {
 			t.Run(tc.name, func(t *testing.T) {
 				target := createFixtureBackedSession(t, ctx, harness, "goal-clear", "goal-lifecycle")
 				status, started := callGoalCommandUDS(
@@ -253,7 +381,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 						harness,
 						target.ID,
 						func(goal *compozycontract.GoalSnapshot) bool {
-							return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusCanceled && !goal.Live
+							return goal != nil && goal.RunStatus == compozycontract.LoopRunStatusPaused && goal.Live
 						},
 					)
 					if snapshot.Status == "active" {
@@ -472,6 +600,7 @@ func goalCommandRuntimeOptions(
 		{fixture: "goal_pause", name: "goal-pause"},
 		{fixture: "goal_approval", name: "goal-approval"},
 		{fixture: "goal_clear", name: "goal-clear"},
+		{fixture: "goal_controls", name: "goal-controls"},
 	}
 	mockAgents := make([]e2etest.MockAgentSpec, 0, len(agents))
 	for _, agent := range agents {

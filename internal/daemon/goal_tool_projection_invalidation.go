@@ -30,7 +30,7 @@ func goalCommandChangesToolState(verb string) bool {
 		session.GoalCommandVerbReplace,
 		session.GoalCommandVerbPause,
 		session.GoalCommandVerbResume,
-		session.GoalCommandVerbClear:
+		session.GoalCommandVerbStop, session.GoalCommandVerbClear:
 		return true
 	default:
 		return false

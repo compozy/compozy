@@ -2303,7 +2303,15 @@ export type GoalBlockingIssue = {
 };
 
 export type GoalCommandResult = {
-  outcome: "started" | "replaced" | "status" | "paused" | "resumed" | "cleared" | "error";
+  outcome:
+    | "started"
+    | "replaced"
+    | "status"
+    | "paused"
+    | "resumed"
+    | "cleared"
+    | "stopped"
+    | "error";
   reason_code:
     | "goal_not_active"
     | "goal_replace_required"
@@ -2344,6 +2352,7 @@ export type GoalCommandResult = {
 };
 
 export type GoalContextSnapshot = {
+  diagnostic?: string;
   nudge_ratio: number;
   ratio: number | null;
   reported_at: string | null;
@@ -2435,6 +2444,7 @@ export type GoalSnapshot = {
   node_id: string;
   objective: string;
   origin_session_id: string;
+  pause_requested?: boolean;
   run_id: string;
   run_status:
     | "queued"
@@ -6550,7 +6560,7 @@ export type SessionFoldersResponse = {
 export type SessionGoalCommandRequest = {
   expected_run_id?: string;
   objective?: string;
-  operation: "set" | "replace" | "status" | "pause" | "resume" | "clear";
+  operation: "set" | "replace" | "status" | "pause" | "resume" | "stop" | "clear";
   runtime?: PromptRuntimeSelectionPayload | null;
 };
 

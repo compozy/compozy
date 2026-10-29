@@ -54,6 +54,9 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 	sessionID string,
 	actor taskpkg.ActorContext,
 ) (session.GoalDispatchDecision, error) {
+	if _, reason, err := s.sessionGoalOrigin(ctx, workspaceID, sessionID); err != nil || reason != "" {
+		return goalCommandErrorDecision(reason, nil), err
+	}
 	_, run, decision, err := s.activeSessionGoal(ctx, workspaceID, sessionID)
 	if err != nil || decision.Result != nil {
 		return decision, err
@@ -62,9 +65,6 @@ func (s *daemonLoopAPIService) resumeSessionGoal(
 	case looppkg.StatusPaused:
 		err = s.aggregate.Resume(ctx, run.WorkspaceID, run.ID, actor)
 	case looppkg.StatusRunning:
-		if !run.PauseRequested {
-			return goalCommandErrorDecision(session.GoalReasonNotActive, nil), nil
-		}
 		err = s.aggregate.Resume(ctx, run.WorkspaceID, run.ID, actor)
 	case looppkg.StatusNeedsApproval:
 		if strings.TrimSpace(string(run.ActiveGateID)) == "" {
@@ -116,6 +116,32 @@ func (s *daemonLoopAPIService) clearSessionGoal(
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
 	return goalCommandSuccessDecision(session.GoalOutcomeCleared, nil, nil), nil
+}
+
+func (s *daemonLoopAPIService) stopSessionGoal(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	actor taskpkg.ActorContext,
+) (session.GoalDispatchDecision, error) {
+	snapshot, err := s.GetSessionGoal(ctx, workspaceID, sessionID)
+	if err != nil {
+		return session.GoalDispatchDecision{}, err
+	}
+	if snapshot == nil {
+		return goalCommandErrorDecision(session.GoalReasonNotActive, nil), nil
+	}
+	if snapshot.Live {
+		if err := s.aggregate.CancelRun(ctx, looppkg.WorkspaceID(workspaceID), looppkg.RunID(snapshot.RunID),
+			"Goal stopped by the operator", actor); err != nil {
+			return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
+		}
+	}
+	post, err := s.GetSessionGoal(ctx, workspaceID, sessionID)
+	if err != nil {
+		return session.GoalDispatchDecision{}, err
+	}
+	return goalCommandSuccessDecision(session.GoalOutcomeStopped, post, nil), nil
 }
 
 func (s *daemonLoopAPIService) activeSessionGoal(

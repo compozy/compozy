@@ -1,53 +1,80 @@
 import { TriangleAlert } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
+import { Alert, AlertAction, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 import { SessionGoalStrip } from "./session-goal-strip";
+import type { SessionGoalControlsProps } from "./session-goal-controls";
 
-interface SessionGoalHeaderProps {
+interface SessionGoalHeaderProps extends SessionGoalControlsProps {
   composerAffordance?: GoalComposerAffordance;
   error?: Error | null;
+  actionError?: Error | null;
+  refreshing?: boolean;
+  onRefresh?: () => void;
   onPrefillComposer?: (text: string) => void;
   snapshot: SessionGoalSnapshot | null;
 }
 
-/**
- * Pinned goal zone above the transcript scroller. Renders the one-line goal
- * strip, or — when the goal read fails — a session-level banner (28% danger
- * hairline on a 4% wash), never a full-bleed tinted bar. Lifecycle actions
- * live on the window head, not here.
- */
+/** Keeps Goal state, controls, and their feedback together above the transcript. */
 export function SessionGoalHeader({
   composerAffordance,
   error,
+  actionError,
+  refreshing,
+  onRefresh,
   onPrefillComposer,
   snapshot,
+  ...controls
 }: SessionGoalHeaderProps) {
-  if (error) {
-    return (
-      <Alert
-        aria-live="assertive"
-        className="mx-1 mt-2 mb-1"
-        data-testid="session-goal-header-error"
-        role="alert"
-        variant="danger"
-      >
-        <TriangleAlert aria-hidden="true" className="size-3.5" />
-        <AlertTitle>Couldn't load the goal</AlertTitle>
-        <AlertDescription>{error.message}</AlertDescription>
-      </Alert>
-    );
-  }
-  if (!snapshot) return null;
-
+  if (!snapshot && !error && !actionError) return null;
   return (
     <div className="pt-2" data-testid="session-goal-header">
-      <SessionGoalStrip
-        snapshot={snapshot}
-        composerAffordance={composerAffordance}
-        onPrefillComposer={onPrefillComposer}
-      />
+      {snapshot ? (
+        <SessionGoalStrip
+          snapshot={snapshot}
+          composerAffordance={composerAffordance}
+          onPrefillComposer={onPrefillComposer}
+          {...controls}
+        />
+      ) : null}
+      {error ? (
+        <Alert
+          aria-live="assertive"
+          className="mx-1 mt-2 mb-1"
+          data-testid="session-goal-header-error"
+          role="alert"
+          variant="danger"
+        >
+          <TriangleAlert aria-hidden="true" className="size-3.5" />
+          <AlertTitle>
+            {snapshot ? "Couldn't refresh the goal" : "Couldn't load the goal"}
+          </AlertTitle>
+          <AlertDescription>
+            {snapshot ? "Showing the last confirmed state. " : ""}
+            {error.message}
+          </AlertDescription>
+          {onRefresh ? (
+            <AlertAction>
+              <Button variant="ghost" size="sm" onClick={onRefresh} disabled={refreshing}>
+                {refreshing ? "Refreshing…" : "Retry"}
+              </Button>
+            </AlertAction>
+          ) : null}
+        </Alert>
+      ) : null}
+      {actionError ? (
+        <Alert
+          variant="danger"
+          role="alert"
+          className="mt-2"
+          data-testid="session-goal-control-error"
+        >
+          <TriangleAlert aria-hidden="true" className="size-3.5" />
+          <AlertTitle>Goal control failed</AlertTitle>
+          <AlertDescription>{actionError.message}</AlertDescription>
+        </Alert>
+      ) : null}
     </div>
   );
 }

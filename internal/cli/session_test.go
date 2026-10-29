@@ -174,6 +174,27 @@ func TestSessionPromptPreservesProfileScope(t *testing.T) {
 func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should stop the Goal through its typed mutation", func(t *testing.T) {
+		t.Parallel()
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			mutateSessionGoalFn: func(_ context.Context, id string,
+				request contract.SessionGoalCommandRequest) (contract.GoalCommandResult, error) {
+				if id != "sess-1" || request.Operation != contract.SessionGoalOperationStop {
+					t.Fatalf("stop mutation = %q %#v", id, request)
+				}
+				return contract.GoalCommandResult{Outcome: contract.GoalOutcomeStopped}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(t, deps, "session", "goal", "stop", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var result contract.GoalCommandResult
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil || result.Outcome != contract.GoalOutcomeStopped {
+			t.Fatalf("stop result = %#v, %v", result, err)
+		}
+	})
+
 	t.Run("Should forward a typed Goal replacement mutation", func(t *testing.T) {
 		t.Parallel()
 

@@ -45,17 +45,7 @@ func (g *LoopRepo) SetLoopRunPauseRequested(
 		if err != nil || !changed {
 			return err
 		}
-		if err := sqlcgen.New(exec).ProjectLoopPauseToGoalCheckpoints(
-			ctx,
-			sqlcgen.ProjectLoopPauseToGoalCheckpointsParams{
-				Requested: boolToInt(requested), ActorKind: nullString(string(actor.Actor.Kind.Normalize())),
-				ActorID: nullString(strings.TrimSpace(actor.Actor.Ref)), RequestedAt: nullableLoopTime(now),
-				UpdatedAt: now, LoopRunID: trimmedRunID,
-			},
-		); err != nil {
-			return fmt.Errorf("store: project loop pause intent to Goal checkpoints: %w", err)
-		}
-		return nil
+		return projectLoopPauseToGoals(ctx, exec, trimmedRunID, requested, actor, now)
 	})
 }
 
@@ -120,4 +110,19 @@ func equivalentLoopPauseState(
 		return false, nil
 	}
 	return false, fmt.Errorf("%w: loop run %q pause writer changed", looppkg.ErrTransitionConflict, runID)
+}
+
+func projectLoopPauseToGoals(ctx context.Context, exec taskSQLExecutor, runID string,
+	requested bool, actor taskpkg.ActorContext, now time.Time) error {
+	if err := sqlcgen.New(exec).ProjectLoopPauseToGoalCheckpoints(
+		ctx,
+		sqlcgen.ProjectLoopPauseToGoalCheckpointsParams{
+			Requested: boolToInt(requested), ActorKind: nullString(string(actor.Actor.Kind.Normalize())),
+			ActorID: nullString(strings.TrimSpace(actor.Actor.Ref)), RequestedAt: nullableLoopTime(now),
+			UpdatedAt: now, LoopRunID: runID,
+		},
+	); err != nil {
+		return fmt.Errorf("store: project loop pause intent to Goal checkpoints: %w", err)
+	}
+	return nil
 }

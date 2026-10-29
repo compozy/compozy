@@ -55,7 +55,7 @@ func (s *daemonLoopAPIService) goalContextSnapshot(
 		result.State = loopManagedContextStateUnknown
 		return result, nil
 	}
-	if usage.Size <= 0 || usage.Used < 0 {
+	if usage.Size <= 0 || usage.Used < 0 || usage.Used > usage.Size {
 		return session.GoalContextSnapshot{}, fmt.Errorf(
 			"%w: known Goal context usage is unavailable",
 			looppkg.ErrValidation,
@@ -109,7 +109,7 @@ func composeSessionGoalSnapshot(
 		Status: status, RunStatus: string(projection.RunStatus), Cause: cause,
 		TurnsUsed: turnsUsed, TurnLimit: turnLimit, Live: projection.RunStatus.Live(),
 		ContractSummary: contractSummary, LastVerdict: goalVerdictSummary(projection.LastVerdict),
-		Context: contextSnapshot,
+		Context: contextSnapshot, PauseRequested: projection.PauseRequested,
 	}
 }
 

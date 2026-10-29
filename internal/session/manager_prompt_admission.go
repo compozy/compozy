@@ -416,19 +416,15 @@ func (m *Manager) submitAdmittedGoalPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if session == nil {
-		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
-		if err != nil {
+	if session != nil {
+		if err := m.preflightAdmittedPromptAttachments(
+			ctx,
+			session,
+			preparation.request.runtime,
+			preparation.request.attachments,
+		); err != nil {
 			return SendPromptResult{}, err
 		}
-	}
-	if err := m.preflightAdmittedPromptAttachments(
-		ctx,
-		session,
-		preparation.request.runtime,
-		preparation.request.attachments,
-	); err != nil {
-		return SendPromptResult{}, err
 	}
 	if err := m.commitPromptAdmissionDispatch(ctx, admission); err != nil {
 		return SendPromptResult{}, err
@@ -442,6 +438,18 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		goalResult.MessageID = admission.MessageID
 		goalResult.IdempotencyKey = admission.IdempotencyKey
 		return m.completePromptAdmission(ctx, admission, *goalResult)
+	}
+	// Control-only Goal commands must not implicitly resume a stopped session.
+	// Only a command that dispatches a prompt (Draft) needs a live runtime.
+	if session == nil {
+		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
+		if err != nil {
+			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
+		}
+		if err := m.preflightAdmittedPromptAttachments(ctx, session,
+			preparation.request.runtime, preparation.request.attachments); err != nil {
+			return SendPromptResult{}, m.promptDispatchIndeterminate(ctx, admission, err)
+		}
 	}
 	preparation.rejectIfBusy = rejectIfBusy
 	result, err := m.submitPreparedPrompt(ctx, session, preparation)

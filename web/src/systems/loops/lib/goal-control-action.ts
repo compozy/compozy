@@ -1,1 +1,1 @@
-export type GoalControlAction = "pause" | "resume" | "approve" | "clear";
+export type GoalControlAction = "pause" | "resume" | "approve" | "stop" | "clear";

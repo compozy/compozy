@@ -23,6 +23,7 @@ const (
 	GoalCommandVerbReplace = "replace"
 	GoalCommandVerbStatus  = "status"
 	GoalCommandVerbPause   = "pause"
+	GoalCommandVerbStop    = "stop"
 	GoalCommandVerbResume  = "resume"
 	GoalCommandVerbClear   = "clear"
 	GoalCommandVerbDraft   = "draft"
@@ -36,6 +37,7 @@ const (
 	GoalOutcomeReplaced GoalCommandOutcome = "replaced"
 	GoalOutcomeStatus   GoalCommandOutcome = "status"
 	GoalOutcomePaused   GoalCommandOutcome = "paused"
+	GoalOutcomeStopped  GoalCommandOutcome = "stopped"
 	GoalOutcomeResumed  GoalCommandOutcome = "resumed"
 	GoalOutcomeCleared  GoalCommandOutcome = "cleared"
 	GoalOutcomeError    GoalCommandOutcome = "error"
@@ -180,7 +182,7 @@ func ParseGoalCommand(message string) (GoalCommand, bool, error) {
 	}
 	verb, remainder := splitGoalCommandToken(payload)
 	switch verb {
-	case GoalCommandVerbStatus, GoalCommandVerbPause, GoalCommandVerbResume, GoalCommandVerbClear:
+	case GoalCommandVerbStatus, GoalCommandVerbPause, GoalCommandVerbResume, GoalCommandVerbStop, GoalCommandVerbClear:
 		if remainder != "" {
 			return GoalCommand{}, true, goalCommandError(
 				GoalReasonCommandInvalid,

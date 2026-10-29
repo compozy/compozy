@@ -328,6 +328,11 @@ func TestPromptResponseFromSessionShouldEnforceClosedGoalOutcomeMatrix(t *testin
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:       "Should map stop to OK with retained audit",
+			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeStopped, Snapshot: snapshot},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "Should map clear to OK",
 			result:     &session.GoalCommandResult{Outcome: session.GoalOutcomeCleared},
 			wantStatus: http.StatusOK,

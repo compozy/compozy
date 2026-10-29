@@ -55,6 +55,16 @@ func (g *LoopRepo) ReactivateLoopCoordinator(
 		}
 		current.Status = looppkg.StatusRunning
 		current.PauseRequested = false
+		if current.Origin != nil && current.Origin.Kind == looppkg.RunOriginSession &&
+			req.Cause == looppkg.TransitionCauseOperatorResume {
+			coordinator, err := g.reserveOrReuseOpenLoopCoordinatorRunWithExecutor(ctx, exec, current,
+				req.Actor.Origin, req.ReactivatedAt, "")
+			if err != nil {
+				return err
+			}
+			result = looppkg.CoordinatorReactivationResult{Run: coordinator}
+			return nil
+		}
 		const reactivationRunID = ""
 		const reactivationIdempotencyKey = ""
 		coordinator, added, err := g.reserveLoopCoordinatorRunWithExecutor(

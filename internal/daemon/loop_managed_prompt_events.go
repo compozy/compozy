@@ -48,7 +48,11 @@ func readManagedGoalPromptOutput(
 			continue
 		}
 		if terminalCount > 0 {
-			return "", nil, fmt.Errorf("%w: managed Goal terminal event is not final", looppkg.ErrTransitionConflict)
+			if isManagedGoalTrailingMetadata(agentEvent.Type) {
+				continue
+			}
+			return "", nil, fmt.Errorf("%w: managed Goal terminal event is not final: %s at sequence %d",
+				looppkg.ErrTransitionConflict, agentEvent.Type, event.Sequence)
 		}
 		if firstSequence == 0 {
 			firstSequence = event.Sequence
@@ -78,8 +82,14 @@ func isManagedGoalTerminalEvent(eventType string) bool {
 	return eventType == acp.EventTypeDone || eventType == acp.EventTypeError
 }
 
+func isManagedGoalTrailingMetadata(eventType string) bool {
+	return eventType == acp.EventTypeUsage || eventType == acp.EventTypeSystem ||
+		eventType == acp.EventTypeAvailableCommands
+}
+
 func isManagedGoalProofAuxiliaryEvent(eventType string) bool {
 	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted ||
+		eventType == eventspkg.SessionTurnQuiesced ||
 		eventType == eventspkg.SessionCompactionFired ||
 		eventType == "session.compaction.requested"
 }

@@ -25,6 +25,9 @@ func (s *service) Pause(
 	if err := rejectHistoricalRunMutation(run); err != nil {
 		return err
 	}
+	if run.Origin != nil && run.Origin.Kind == RunOriginSession {
+		return s.pauseSessionGoal(ctx, run, actor)
+	}
 	if run.Status != StatusRunning {
 		return reasonError(
 			ReasonCodeInvalidStatusTransition,

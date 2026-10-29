@@ -124,6 +124,10 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 		return nil
 	}
 	if a.terminalEvent != nil {
+		if agentEvent.Type == acp.EventTypeUsage || agentEvent.Type == acp.EventTypeSystem ||
+			agentEvent.Type == acp.EventTypeAvailableCommands {
+			return nil
+		}
 		return errors.New("session: managed input requires one final terminal event")
 	}
 	if a.terminal.EventStartSeq == 0 {
@@ -146,6 +150,7 @@ func (a *managedInputTerminalAccumulator) addEvent(event store.SessionEvent) err
 
 func isManagedInputProofAuxiliaryEvent(eventType string) bool {
 	return eventType == eventspkg.TranscriptMarkerCreated || eventType == eventspkg.TranscriptMarkerRedacted ||
+		eventType == eventspkg.SessionTurnQuiesced ||
 		eventType == sessionCompactionRequestedEvent || eventType == eventspkg.SessionCompactionFired
 }
 

@@ -186,7 +186,7 @@ func (l *loopGoalManagedInputLifecycle) RecordTerminal(
 	ctx context.Context,
 	terminal session.ManagedInputTerminal,
 ) error {
-	operation, err := l.loadOperation(ctx, terminal.Owner)
+	operation, err := l.loadOwnedOperation(ctx, terminal.Owner, true)
 	if err != nil {
 		return err
 	}
@@ -224,6 +224,14 @@ func (l *loopGoalManagedInputLifecycle) RecordTerminal(
 func (l *loopGoalManagedInputLifecycle) loadOperation(
 	ctx context.Context,
 	owner session.ManagedInputOwner,
+) (managedGoalOperation, error) {
+	return l.loadOwnedOperation(ctx, owner, false)
+}
+
+func (l *loopGoalManagedInputLifecycle) loadOwnedOperation(
+	ctx context.Context,
+	owner session.ManagedInputOwner,
+	terminal bool,
 ) (managedGoalOperation, error) {
 	if l == nil || l.store == nil {
 		return managedGoalOperation{}, errors.New("daemon: managed Goal lifecycle store is unavailable")
@@ -264,7 +272,8 @@ func (l *loopGoalManagedInputLifecycle) loadOperation(
 	if err != nil {
 		return managedGoalOperation{}, err
 	}
-	if !managedGoalCheckpointMatchesOwner(checkpoint, owner) {
+	if !managedGoalCheckpointMatchesOwner(checkpoint, owner) &&
+		!(terminal && entry.TerminalReasonCode == string(looppkg.ReasonCodeGoalControlRevokedInFlight)) {
 		return managedGoalOperation{}, fmt.Errorf(
 			"%w: managed Goal checkpoint owner changed",
 			looppkg.ErrTransitionConflict,

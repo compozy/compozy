@@ -123,6 +123,10 @@ func finalizeGoalPromptWithExecutor(
 	if err != nil {
 		return err
 	}
+	// Revocation fences runtime progress, not the immutable receipt of the revoked turn.
+	if row.terminalReason.String == string(looppkg.ReasonCodeGoalControlRevokedInFlight) {
+		return retainRevokedGoalTerminal(ctx, exec, req, &row)
+	}
 	if err := validateGoalLivePromptOwner(
 		ctx,
 		exec,

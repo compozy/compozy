@@ -61,7 +61,6 @@ vi.mock("../use-session-window-sidebar", () => ({
 vi.mock("@/systems/session", () => ({
   getSessionPromptRuntimeSnapshot: () => ({ model: "gpt-5.6-terra", provider: "codex" }),
   isSessionTransportDisconnected: () => false,
-  SessionGoalHeadAction: () => null,
   SessionTransportChip: () => null,
   useSessionTransportState: () => ({ phase: "live", retry: vi.fn() }),
   useSessionCommands: (...args: unknown[]) => {

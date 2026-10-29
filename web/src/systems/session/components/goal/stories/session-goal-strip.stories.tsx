@@ -1,5 +1,5 @@
 import { HttpResponse } from "msw";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { storybookMswParameters } from "@/storybook/msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { primarySessionFixture } from "../../../mocks/fixtures";
@@ -10,6 +10,8 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import type { SessionGoalSnapshot } from "@/systems/session/types";
 
 import { SessionGoalStrip } from "../session-goal-strip";
+import { SessionGoalHeader } from "../session-goal-header";
+import { SessionPrimaryAction } from "../../session-primary-action";
 
 function snapshot(overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnapshot {
   return {
@@ -51,10 +53,11 @@ const meta: Meta<typeof SessionGoalStrip> = {
     docs: {
       description: {
         component:
-          "The goal as one quiet line above the transcript: state dot + GOAL kicker + objective + mono facts + chevron, expanding to key/value rows. Lifecycle actions live on the window head; the body Actions row only stages /goal commands into the composer.",
+          "Goal state and controls share one surface above the transcript. Pause interrupts goal work, Resume is explicit, and Stop ends the goal while keeping its history. Expanded details retain the objective, run and context audit.",
       },
     },
   },
+  args: { onPause: fn(), onResume: fn(), onApprove: fn(), onStop: fn(), onClear: fn() },
   decorators: [
     Story => (
       <CenteredSurface>
@@ -75,6 +78,105 @@ export const Active: Story = {
 
 export const Paused: Story = {
   args: { snapshot: snapshot({ status: "paused", run_status: "paused" }) },
+};
+
+export const SessionStopped: Story = {
+  args: {
+    snapshot: snapshot({ status: "paused", run_status: "paused" }),
+    continuationDisabledReason: "Send a message to reopen this session, then resume the goal.",
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.hover(within(canvasElement).getByRole("button", { name: "Resume goal" }));
+    await expect(within(document.body).findByRole("tooltip")).resolves.toHaveTextContent(
+      "Send a message to reopen this session, then resume the goal."
+    );
+  },
+};
+
+export const Pausing: Story = {
+  args: { snapshot: snapshot({ pause_requested: true }) },
+};
+
+export const Stopping: Story = {
+  args: { snapshot: snapshot(), pendingAction: "stop" },
+};
+
+export const Stopped: Story = {
+  args: { snapshot: snapshot({ live: false, status: "paused", run_status: "canceled" }) },
+};
+
+export const ContextUnavailable: Story = {
+  args: {
+    snapshot: snapshot({
+      context: {
+        state: "unknown",
+        used: null,
+        size: null,
+        ratio: null,
+        nudge_ratio: 0.7,
+        reported_at: null,
+        diagnostic: "goal_context_unavailable",
+      },
+    }),
+  },
+};
+
+export const StopConfirmation: Story = {
+  args: { snapshot: snapshot() },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Stop goal" }));
+    await expect(
+      within(document.body).findByRole("dialog", { name: "Stop this goal?" })
+    ).resolves.toBeVisible();
+  },
+};
+
+export const SessionStopConfirmation: Story = {
+  args: { snapshot: snapshot() },
+  render: args => (
+    <>
+      <div className="flex justify-end border-b border-line pb-2">
+        <SessionPrimaryAction
+          showStopAction
+          hasLiveGoal
+          showUnarchiveAction={false}
+          controlsBusy={false}
+          isStopping={false}
+          isUnarchiving={false}
+          onStop={fn()}
+          onUnarchive={fn()}
+        />
+      </div>
+      <SessionGoalStrip {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Stop session" }));
+    await expect(
+      within(document.body).findByRole("dialog", { name: "Stop this session?" })
+    ).resolves.toBeVisible();
+  },
+};
+
+export const ControlFailed: Story = {
+  args: { snapshot: snapshot() },
+  render: args => (
+    <SessionGoalHeader
+      {...args}
+      actionError={new Error("Couldn't reach the session. Try again.")}
+    />
+  ),
+};
+
+export const RefreshFailed: Story = {
+  args: { snapshot: snapshot() },
+  render: args => (
+    <SessionGoalHeader
+      {...args}
+      error={new Error("The connection was interrupted.")}
+      onRefresh={fn()}
+    />
+  ),
 };
 
 export const Blocked: Story = {

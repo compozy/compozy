@@ -11,12 +11,12 @@ const (
 	goalBusyPolicyRejectIfBusy = "reject-if-busy"
 )
 
-// GoalSessionStopHandler cancels session-origin Goals when the operator stops their session.
+// GoalSessionStopHandler pauses session-origin Goals when the operator stops their session.
 type GoalSessionStopHandler interface {
 	StopSessionGoals(context.Context, *Info) error
 }
 
-// stopSessionGoals invokes Goal cancellation only for explicit operator stop or removal.
+// stopSessionGoals invokes Goal pause only for explicit operator stop or removal.
 func (m *Manager) stopSessionGoals(ctx context.Context, info *Info) error {
 	if info == nil || info.StopCause != CauseUserRequested {
 		return nil
@@ -26,6 +26,19 @@ func (m *Manager) stopSessionGoals(ctx context.Context, info *Info) error {
 		return nil
 	}
 	return handler.StopSessionGoals(ctx, info)
+}
+
+// GoalSessionRemoveHandler cancels Goals before removal of their owning session.
+type GoalSessionRemoveHandler interface {
+	RemoveSessionGoals(context.Context, *Info) error
+}
+
+func (m *Manager) removeSessionGoals(ctx context.Context, info *Info) error {
+	handler, ok := m.currentGoalCommandHandler().(GoalSessionRemoveHandler)
+	if !ok {
+		return nil
+	}
+	return handler.RemoveSessionGoals(ctx, info)
 }
 
 // SetGoalCommandHandler installs the late-bound daemon dispatcher before API servers start.

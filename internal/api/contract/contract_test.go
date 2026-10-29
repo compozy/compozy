@@ -2025,6 +2025,10 @@ func TestSessionGoalCommandRequestValidationShouldKeepOperationsClosed(t *testin
 			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationStatus},
 		},
 		{
+			name:    "Should accept stop without mutation fields",
+			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationStop},
+		},
+		{
 			name:    "Should reject set without objective",
 			request: contract.SessionGoalCommandRequest{Operation: contract.SessionGoalOperationSet},
 			wantErr: true,

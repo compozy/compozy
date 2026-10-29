@@ -1494,6 +1494,48 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 				t.Fatal("FinalizeGoalPrompt(after operator Stop) error = nil")
 			}
 
+			// Invariant: the original dispatch token can retain a late terminal witness,
+			// but cannot revive a canceled run or rewrite its control outcome.
+			late := goal.FinalizePromptRequest{
+				Key: key, ExpectedControlEpoch: 1, ExpectedBindingEpoch: 1,
+				TaskRunID: taskRunID, QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
+				SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", DispatchToken: claimed.DispatchToken,
+				Result: looppkg.ActionPromptResult{PromptID: promptID, Outcome: looppkg.ActionPromptOutcomeCompleted,
+					StopReason: looppkg.ActionStopCancelled, EventStartSeq: 12, EventEndSeq: 13,
+					TokensReported: true, TokensUsed: 17}, TerminalAt: canceledAt.Add(time.Second),
+			}
+			for range 2 {
+				if err := globalDB.FinalizeGoalPrompt(ctx, late); err != nil {
+					t.Fatalf("retain late terminal: %v", err)
+				}
+			}
+			wrongToken := late
+			wrongToken.DispatchToken = "another-dispatch"
+			if err := globalDB.FinalizeGoalPrompt(ctx, wrongToken); err == nil {
+				t.Fatal("foreign dispatch rewrote terminal")
+			}
+			conflicting := late
+			conflicting.Result.EventEndSeq++
+			if err := globalDB.FinalizeGoalPrompt(ctx, conflicting); err == nil {
+				t.Fatal("conflicting terminal was accepted")
+			}
+			receipt, err := globalDB.GetSessionInputQueueEntryByID(ctx, ticket.QueueEntryID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if receipt.TerminalEventStartSeq == nil || *receipt.TerminalEventStartSeq != 12 ||
+				receipt.TerminalEventEndSeq == nil || *receipt.TerminalEventEndSeq != 13 ||
+				receipt.TerminalTokensUsed == nil || *receipt.TerminalTokensUsed != 17 ||
+				receipt.TerminalReasonCode != string(looppkg.ReasonCodeGoalControlRevokedInFlight) {
+				t.Fatalf("lost revoked terminal witness: %#v", receipt)
+			}
+			assertGoalRuntimeTurn(t, globalDB, key, promptID, "ambiguous", "")
+			assertGoalRuntimeEventCount(t, globalDB, key.LoopRunID, loopRunEventGoalTurnCompleted, 1)
+			after, err := globalDB.GetLoopRun(ctx, key.WorkspaceID, key.LoopRunID)
+			if err != nil || after.Status != looppkg.StatusCanceled {
+				t.Fatalf("late terminal resumed run: %#v %v", after, err)
+			}
+
 			var eventsBefore, turnsBefore int
 			if err := globalDB.db.QueryRowContext(
 				ctx,

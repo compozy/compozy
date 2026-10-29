@@ -87,6 +87,36 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: unavailable usage telemetry never disables durable Goal controls.
+	// Owner: daemon Goal read/control boundary; canonical Goal command suite.
+	t.Run("Should retain status and controls when context event reads fail", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+			caller, session.GoalCommand{Verb: "set", Objective: "Keep controls available"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.service.goalPersistence = contextUnavailableGoalProjection{fixture.service.goalPersistence}
+		fixture.service.goalContext = &loopGoalContextRuntime{sessions: failingGoalContextEvents{}}
+		for _, verb := range []string{"status", "pause", "pause", "resume", "resume", "stop", "stop"} {
+			result, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID,
+				caller, session.GoalCommand{Verb: verb})
+			if err != nil || result.Result == nil || result.Result.Outcome == session.GoalOutcomeError {
+				t.Fatalf("%s unavailable: %#v %v", verb, result, err)
+			}
+			if result.Result.Snapshot == nil ||
+				result.Result.Snapshot.Context.Diagnostic != "goal_context_unavailable" ||
+				result.Result.Snapshot.Context.State != "unknown" {
+				t.Fatalf("missing degraded context: %#v", result)
+			}
+		}
+		if run := fixture.mustRun(t, started.Result.Snapshot.RunID); run.Status != looppkg.StatusCanceled {
+			t.Fatalf("Stop did not cancel during telemetry outage: %#v", run)
+		}
+	})
+
 	t.Run("Should start and project a Goal in User scope", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixtureWithRuntime(
@@ -145,9 +175,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 	})
 
-	// Invariant: stopping a Goal origin cancels its run without crossing profile/workspace boundaries.
+	// Invariant: session Stop fences its Goal; removal cancels it without crossing scope boundaries.
 	// Owner: daemon Goal lifecycle dispatcher; canonical session Goal command suite.
-	t.Run("Should cancel a stopped session quarantined Goal and preserve its terminal history", func(t *testing.T) {
+	t.Run("Should fence a stopped session quarantined Goal and cancel on removal", func(t *testing.T) {
 		t.Parallel()
 		fixture := newGoalCommandHandlerFixture(t)
 		ctx := testutil.Context(t)
@@ -192,6 +222,13 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 		}
 		run := fixture.mustRun(t, started.Result.Snapshot.RunID)
+		if run.Status != looppkg.StatusPaused || run.PauseRequested {
+			t.Fatalf("session Stop did not preserve a paused Goal intent: %#v", run)
+		}
+		if err := fixture.service.RemoveSessionGoals(ctx, &info); err != nil {
+			t.Fatal(err)
+		}
+		run = fixture.mustRun(t, started.Result.Snapshot.RunID)
 		if run.Status != looppkg.StatusCanceled {
 			t.Fatalf("run after stop = %#v", run)
 		}
@@ -294,8 +331,12 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			t.Fatalf("Handle(pause) error = %v", err)
 		}
 		assertGoalCommandOutcome(t, paused, session.GoalOutcomePaused, "")
-		if run := fixture.mustRun(t, replaced.Result.Snapshot.RunID); !run.PauseRequested {
-			t.Fatal("paused Goal pause_requested = false")
+		if run := fixture.mustRun(
+			t,
+			replaced.Result.Snapshot.RunID,
+		); run.Status != looppkg.StatusPaused ||
+			run.PauseRequested {
+			t.Fatalf("Goal before its first checkpoint must be effectively paused: %#v", run)
 		}
 
 		resumed, err := fixture.service.Handle(
@@ -1263,4 +1304,23 @@ func (s *goalCommandSessionStatus) Status(_ context.Context, id string) (*sessio
 	}
 	cloned := *s.info
 	return &cloned, nil
+}
+
+// These fakes replace read-only I/O boundaries; control transitions use the real store.
+type contextUnavailableGoalProjection struct{ loopGoalAPIPersistence }
+
+func (s contextUnavailableGoalProjection) GetSessionGoalProjection(ctx context.Context, ws looppkg.WorkspaceID,
+	sessionID string) (goalpkg.SessionProjection, error) {
+	projection, err := s.loopGoalAPIPersistence.GetSessionGoalProjection(ctx, ws, sessionID)
+	if err == nil && projection.Found {
+		projection.Checkpoint = &goalpkg.Checkpoint{ContextState: "known", UsageSequence: new(int64(100)),
+			SessionID: sessionID, ContextNudgeRatio: 0.8, Status: "active"}
+	}
+	return projection, err
+}
+
+type failingGoalContextEvents struct{}
+
+func (failingGoalContextEvents) Events(context.Context, string, store.EventQuery) ([]store.SessionEvent, error) {
+	return nil, errors.New("query events: injected read outage")
 }

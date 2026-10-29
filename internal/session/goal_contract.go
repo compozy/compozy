@@ -40,6 +40,7 @@ type GoalCriterionResult struct {
 // GoalContextSnapshot is the checkpoint-pinned context telemetry projection.
 type GoalContextSnapshot struct {
 	State      string
+	Diagnostic string
 	Used       *int64
 	Size       *int64
 	Ratio      *float64
@@ -68,6 +69,7 @@ type GoalSnapshot struct {
 	TurnsUsed       int
 	TurnLimit       int
 	Live            bool
+	PauseRequested  bool
 	ContractSummary string
 	LastVerdict     *GoalVerdictSummary
 	Context         GoalContextSnapshot

@@ -3122,6 +3122,7 @@ func TestManagerBusyInputManagedLifecycle(t *testing.T) {
 			},
 			{Type: eventspkg.TranscriptMarkerCreated, TurnID: promptID, Text: "terminal metadata"},
 			{Type: eventspkg.SessionCompactionFired, TurnID: promptID},
+			{Type: eventspkg.SessionTurnQuiesced, TurnID: promptID},
 		}
 		for _, event := range events {
 			if err := h.manager.recordEvent(ctx, sess, event); err != nil {

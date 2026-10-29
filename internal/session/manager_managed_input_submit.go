@@ -418,7 +418,9 @@ func (m *Manager) recordManagedInputAmbiguous(
 	if reason == "" || reason == managedInputReasonBudgetFenced || reason == managedInputReasonControlFenced {
 		reason = managedInputReasonRecoveryAmbiguous
 	}
-	if err := lifecycle.RecordAmbiguous(ctx, ManagedInputReceipt{
+	cleanupCtx, cancel := m.lifecycleCleanupContext()
+	defer cancel()
+	if err := lifecycle.RecordAmbiguous(cleanupCtx, ManagedInputReceipt{
 		Owner:         submission.Owner,
 		DispatchToken: submission.DispatchToken,
 		DriverTurnID:  submission.Owner.PromptID,

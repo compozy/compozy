@@ -1,6 +1,12 @@
 package loop
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/compozy/compozy/internal/task"
+)
 
 func (s *service) revokeGoalPromptLeases(
 	ctx context.Context,
@@ -29,4 +35,38 @@ func (s *service) revokeGoalPromptLeases(
 			)
 		}
 	}
+}
+
+func (s *service) pauseSessionGoal(ctx context.Context, run Run, actor task.ActorContext) error {
+	if run.Status == StatusPaused || run.Status == StatusNeedsApproval {
+		return nil
+	}
+	if run.Status != StatusRunning {
+		return reasonError(ReasonCodeInvalidStatusTransition, ErrInvalidTransition,
+			map[string]string{reasonMetaFrom: string(run.Status), reasonMetaTo: string(StatusPaused)})
+	}
+	controls, ok := s.store.(GoalPauseStore)
+	if !ok {
+		return fmt.Errorf("%w: Goal pause store is unavailable", ErrActionDependencyMissing)
+	}
+	leases, err := controls.RequestGoalPause(ctx, run.WorkspaceID, run.ID, actor)
+	if err != nil {
+		return err
+	}
+	if len(leases) == 0 {
+		return nil
+	}
+	if s.goalLeaseRevoker == nil {
+		return fmt.Errorf("%w: Goal prompt interrupter is unavailable", ErrActionDependencyMissing)
+	}
+	interruptCtx, cancel := loopPostCommitContext(ctx)
+	defer cancel()
+	var errs []error
+	for _, lease := range leases {
+		errs = append(
+			errs,
+			s.goalLeaseRevoker.RevokeGoalPromptLease(interruptCtx, lease, string(TransitionCausePauseBoundary)),
+		)
+	}
+	return errors.Join(errs...)
 }

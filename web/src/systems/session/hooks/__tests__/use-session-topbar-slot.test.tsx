@@ -32,9 +32,11 @@ function SessionPublisher({
   transportChip,
   onSendPrompt,
   onRefresh,
+  hasLiveGoal,
 }: {
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
+  hasLiveGoal?: boolean;
   onStop: () => void;
   session?: SessionPayload;
   inspectorOpen?: boolean;
@@ -46,6 +48,7 @@ function SessionPublisher({
   useSessionTopbarSlot({
     session,
     transportChip,
+    hasLiveGoal,
     isStopping: false,
     isUnarchiving: false,
     inspectorOpen,
@@ -93,6 +96,21 @@ const withPullRequest = (patch: Partial<SessionPayload> = {}): SessionPayload =>
 });
 
 describe("useSessionTopbarSlot", () => {
+  // Invariant: stopping a Goal session explains its pause and requires confirmation before mutation.
+  // Owner: session lifecycle header; canonical suite: use-session-topbar-slot.
+  it("Should confirm session stop and explain that its Goal needs an explicit resume", () => {
+    const onStop = vi.fn();
+    renderWithTopbar(<SessionPublisher onStop={onStop} hasLiveGoal />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop this session?" });
+    expect(dialog).toHaveTextContent("goal will be paused");
+    expect(dialog).toHaveTextContent("Sending a message reopens the session");
+    expect(dialog).toHaveTextContent("The goal stays paused until you choose Resume goal");
+    expect(onStop).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Stop session" }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
   it("Should publish the complete document head through one slot owner", () => {
     const onStop = vi.fn();
     renderWithTopbar(<SessionPublisher onStop={onStop} />);

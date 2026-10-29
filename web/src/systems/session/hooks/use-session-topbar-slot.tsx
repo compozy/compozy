@@ -55,8 +55,8 @@ interface UseSessionTopbarSlotInput {
   pullRequestRefresh?: SessionTopbarPullRequestRefresh;
   /** Sends one normal user prompt to this session; it queues while a turn runs. */
   onSendPrompt?: (text: string) => void;
-  /** The one state-gated goal action (Pause/Resume/Approve/Clear) riding the head. */
-  goalAction?: React.ReactNode;
+  /** A session stop also pauses its Goal; the confirmation makes that effect explicit. */
+  hasLiveGoal?: boolean;
   /** The connection chip (S4): mounts in the status slot's reserved trailing position, before the actions. */
   transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
@@ -143,8 +143,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
-        {input.goalAction}
-        <SessionPrimaryAction {...input} {...actions} />
+        <SessionPrimaryAction key={session.id} {...input} {...actions} />
         <SessionPanelToggle
           panel="sidebar"
           open={input.sidebarOpen}

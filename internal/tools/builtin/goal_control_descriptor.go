@@ -17,7 +17,7 @@ var goalControlDescriptor = func() toolspkg.Descriptor {
 		false,
 		false,
 		[]string{goalKey, descriptorKeywordUpdate, descriptorKeywordSession},
-		[]string{"set goal", "replace goal", "pause goal", "resume goal", "clear goal"},
+		[]string{"set goal", "replace goal", "pause goal", "resume goal", "stop goal", "clear goal"},
 	)
 	descriptor.OutputSchema = json.RawMessage(goalControlOutputSchema)
 	return descriptor
@@ -30,7 +30,7 @@ const goalControlInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string","minLength":1},
-		"operation":{"type":"string","enum":["set","replace","status","pause","resume","clear"]},
+		"operation":{"type":"string","enum":["set","replace","status","pause","resume","stop","clear"]},
 		"objective":{"type":"string"},
 		"expected_run_id":{"type":"string"},
 		"runtime":{
@@ -52,7 +52,7 @@ const goalControlOutputSchema = `{
 	"required":["outcome","reason_code","snapshot","replaced_run_id"],
 	"additionalProperties":false,
 	"properties":{
-		"outcome":{"type":"string","enum":["started","replaced","status","paused","resumed","cleared","error"]},
+		"outcome":{"type":"string","enum":["started","replaced","status","paused","resumed","stopped","cleared","error"]},
 		"reason_code":{"type":["string","null"]},
 		"snapshot":` + goalControlSnapshotSchema + `,
 		"replaced_run_id":{"type":["string","null"]}
@@ -79,6 +79,7 @@ const goalControlSnapshotSchema = `{
 		"turns_used":{"type":"integer","minimum":0},
 		"turn_limit":{"type":"integer","minimum":0},
 		"live":{"type":"boolean"},
+		"pause_requested":{"type":"boolean"},
 		"contract_summary":{"type":"string"},
 		"last_verdict":{
 			"type":["object","null"],
@@ -99,6 +100,7 @@ const goalControlSnapshotSchema = `{
 			"additionalProperties":false,
 			"properties":{
 				"state":{"type":"string","enum":["known","unknown","pending"]},
+				"diagnostic":{"type":"string"},
 				"used":{"type":["integer","null"]},
 				"size":{"type":["integer","null"]},
 				"ratio":{"type":["number","null"]},

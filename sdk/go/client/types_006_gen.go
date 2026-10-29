@@ -353,6 +353,7 @@ type GoalCommandResult struct {
 // GoalContextSnapshot is a daemon API value.
 type GoalContextSnapshot struct {
 	State      GoalContextState `json:"state"`
+	Diagnostic string           `json:"diagnostic,omitempty"`
 	Used       *int64           `json:"used"`
 	Size       *int64           `json:"size"`
 	Ratio      *float64         `json:"ratio"`
@@ -417,6 +418,7 @@ type GoalSnapshot struct {
 	TurnsUsed       int                 `json:"turns_used"`
 	TurnLimit       int                 `json:"turn_limit"`
 	Live            bool                `json:"live"`
+	PauseRequested  bool                `json:"pause_requested,omitzero"`
 	ContractSummary string              `json:"contract_summary"`
 	LastVerdict     *GoalVerdictSummary `json:"last_verdict"`
 	Context         GoalContextSnapshot `json:"context"`

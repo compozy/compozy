@@ -46,7 +46,13 @@ function ContextRow({ context }: { context: SessionGoalSnapshot["context"] }) {
     return <StripRow label="Context">Waiting for a newer usage report.</StripRow>;
   }
   if (context.state === "unknown") {
-    return <StripRow label="Context">This agent has not reported context usage.</StripRow>;
+    return (
+      <StripRow label="Context">
+        {context.diagnostic
+          ? "Context usage could not be read."
+          : "This agent has not reported context usage."}
+      </StripRow>
+    );
   }
   const threshold =
     context.nudge_ratio === 0 ? "nudge disabled" : `nudge at ${formatPercent(context.nudge_ratio)}`;
@@ -125,6 +131,7 @@ function PrefillActionRow({
 }
 
 export interface SessionGoalStripBodyProps {
+  id?: string;
   snapshot: SessionGoalSnapshot;
   moved: boolean;
   composerAffordance?: GoalComposerAffordance;
@@ -133,6 +140,7 @@ export interface SessionGoalStripBodyProps {
 
 /** The expanded strip: the goal's fields as key/value rows plus the staging action. */
 export function SessionGoalStripBody({
+  id,
   snapshot,
   moved,
   composerAffordance,
@@ -141,7 +149,7 @@ export function SessionGoalStripBody({
   // The Goal run lives with its session: a bound session window opens it bound the same way.
   const bindingSearch = useWindowBindingSearch();
   return (
-    <div data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
+    <div id={id} data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
       {/* The line truncates the objective; the body is where it reads in full. */}
       <StripRow label="Objective">{snapshot.objective}</StripRow>
       {snapshot.contract_summary ? (

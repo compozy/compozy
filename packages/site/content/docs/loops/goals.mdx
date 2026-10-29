@@ -38,7 +38,7 @@ Read the current Goal through any of these public surfaces:
 
 An authenticated agent can manage a child Goal with the typed control surface instead of sending
 slash-command text. Use `compozy__goal_control` with `session_id` and one operation (`set`,
-`replace`, `status`, `pause`, `resume`, or `clear`), or use the equivalent
+`replace`, `status`, `pause`, `resume`, `stop`, or `clear`), or use the equivalent
 `compozy session goal ...` CLI and `POST /api/workspaces/{workspace_id}/sessions/{session_id}/goal`
 HTTP/UDS route. The caller may target its own session or a descendant in the same workspace; an
 unrelated session is rejected with `goal_caller_unauthorized`. `set` and `replace` may include a
@@ -93,8 +93,9 @@ during that turn.
 | `/goal <objective>`                           | Starts one session-origin Goal. Returns `goal_replace_required` when a visible Goal already exists.                          |
 | `/goal replace <expected-run-id> <objective>` | Replaces exactly the Run the operator reviewed. A stale ID returns `goal_replace_stale` and preserves the current Goal.      |
 | `/goal status`                                | Returns the newest visible snapshot.                                                                                         |
-| `/goal pause`                                 | Records an actor-aware pause request and parks at the next safe prompt boundary.                                             |
+| `/goal pause`                                 | Persists pause intent, interrupts the current turn, and parks after retaining its terminal.                                  |
 | `/goal resume`                                | Resumes a paused Goal or approves the active synthetic Goal gate. A terminal blocked Run is not resumable.                   |
+| `/goal stop`                                  | Cancels the Goal Run and interrupts its work; keeps the terminal snapshot until Clear.                                       |
 | `/goal clear`                                 | Revokes live Goal work when needed, then hides the newest live or terminal projection without deleting its audit.            |
 | `/goal draft <rough text>`                    | Runs one ordinary streamed agent turn that expands the draft; it does not activate a Goal. The composer prefills the result. |
 
@@ -184,8 +185,37 @@ change the objective with expected-Run replacement or clear the projection inste
 
 ## Stop, remove, or recover a Goal
 
-Stopping the origin or current bound session explicitly cancels its session Goal. Removal first stops execution; if deleting history later fails, the retained session stays stopped and the Goal stays canceled. If cancellation fails, stop settlement remains pending and retains its recovery receipt. Retry the stop, or restart the daemon to replay the pending cancellation. Removing that
-session cancels its Goal before removing session history. The Run, turns, and task audit stay
+The Goal and session state machines compose as follows:
+
+| Action         | In-flight work                                             | Goal after settlement                  | Session after settlement                |
+| -------------- | ---------------------------------------------------------- | -------------------------------------- | --------------------------------------- |
+| Pause Goal     | Interrupt the exact managed turn; retain its terminal      | Paused, resumable                      | Active and available for ordinary input |
+| Resume Goal    | Admit one successor after explicit control                 | Active                                 | Must be active                          |
+| Stop Goal      | Cancel the Run and interrupt its exact prompt/judge leases | Terminal canceled; visible until Clear | Preserved                               |
+| Stop session   | Persist Goal pause before session termination              | Paused; requires explicit Goal Resume  | Stopped                                 |
+| Resume session | Restore the session runtime only                           | Remains paused                         | Active                                  |
+| Clear Goal     | Cancel live work, then hide its projection                 | Audit retained                         | Preserved                               |
+| Remove session | Cancel Goal before history deletion                        | Terminal canceled; Run audit retained  | Removed                                 |
+
+`pause_requested: true` means the pause is committed but work is still settling. The Web strip shows
+**Pausing…** until the effective state arrives and keeps Stop available. Repeated Pause, Resume, or
+Stop requests are idempotent within the same Goal. A terminal Goal cannot be resumed.
+
+User controls fence further prompt claims before interrupting work. A late provider terminal may
+attach its exact event range to the original token-authenticated receipt after revocation, but cannot
+advance its checkpoint, resurrect the Run, or create a second turn terminal. The control outcome
+remains authoritative. Trailing usage/command telemetry does not invalidate a completed turn;
+a second terminal or result-bearing output after the terminal still fails validation.
+
+Context usage is supplementary: an event-read failure yields `context.state: unknown` and
+`context.diagnostic: goal_context_unavailable`, while durable state and controls remain available.
+The Web preserves the last snapshot during a failed refresh, surfaces the error, and offers Retry.
+
+Stopping the origin or current bound session pauses its session Goal before stopping the runtime.
+The Goal remains resumable, and resuming the session alone never resumes the Goal. Resume the session,
+then explicitly resume the Goal. Removing the session cancels its Goal before deleting history.
+If lifecycle settlement fails, the durable stop receipt remains pending; retrying Stop or restarting
+the daemon retries the settlement. Deletion cannot bypass a pending settlement. The Run, turns, and task audit stay
 inspectable. Closing only a window, disconnecting a stream, or restarting the daemon does not cancel
 a committed Goal. Informational origins of catalog Loops retain their separate lifecycle.
 
@@ -264,3 +294,5 @@ New conversational and authored Goals consume the resolved `[goals]` defaults wh
 start path applies them. Active Runs keep their pinned values. See the
 [`[goals]` config reference](/docs/configuration/config-toml#goals) for precedence, mutable
 paths, bounds, and restart lifecycle.
+
+A stopped session reopens when you send an ordinary message. Control-only `/goal` commands do not reopen it. The Goal stays paused until an explicit Resume after the session is active.
