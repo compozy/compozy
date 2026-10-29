@@ -1,14 +1,12 @@
-import { Info, RotateCcw, Trash2 } from "lucide-react";
+import { Info } from "lucide-react";
 
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Spinner,
   StateGlyph,
 } from "@compozy/ui";
 
@@ -24,6 +22,7 @@ import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { sessionBadgeSignal } from "../lib/session-badge";
 import { sessionBadgeWordClass } from "../lib/session-badge-classes";
 import { SessionBadgeMark } from "./session-badge-mark";
+import { SessionDeleteActions } from "./session-delete-actions";
 import { sessionWaitingOn } from "../lib/session-pull-request";
 
 export interface SessionDeleteDialogSetProps {
@@ -57,7 +56,7 @@ export function SessionDeleteDialogSet({
   const resultsById = new Map(results.map(result => [result.id, result]));
   const processCount = sessionsRunningProcesses(sessions);
   const processChoice =
-    processCount > 0 && !partial ? sessionProcessChoiceCopy("delete", count, processCount) : null;
+    processCount > 0 ? sessionProcessChoiceCopy("delete", count, processCount) : null;
   return (
     <Dialog
       open={open}
@@ -122,47 +121,17 @@ export function SessionDeleteDialogSet({
               {note}
             </span>
           ) : null}
-          <Button
-            variant="ghost"
-            disabled={isDeleting}
-            onClick={() => onOpenChange(false)}
-            data-testid="delete-dialog-cancel"
-          >
-            {partial ? "Close" : "Cancel"}
-          </Button>
-          {processChoice ? (
-            <Button
-              variant="outline"
-              disabled={isDeleting}
-              onClick={() => onConfirm("keep")}
-              data-testid="delete-dialog-keep-processes"
-            >
-              {processChoice.keepLabel}
-            </Button>
-          ) : null}
-          <Button
-            variant="destructive"
-            disabled={isDeleting}
-            onClick={partial ? onRetry : () => onConfirm(processChoice ? "terminate" : undefined)}
-            data-testid={partial ? "delete-dialog-retry" : "delete-dialog-confirm"}
-          >
-            {isDeleting ? (
-              <>
-                <Spinner className="size-3 motion-reduce:animate-none" />
-                Deleting {Math.max(1, progressIndex + 1)} of {count}
-              </>
-            ) : partial ? (
-              <>
-                <RotateCcw className="size-3" />
-                Retry {failed}
-              </>
-            ) : (
-              <>
-                <Trash2 className="size-3" />
-                {processChoice ? processChoice.confirmLabel : `Delete ${count} sessions`}
-              </>
-            )}
-          </Button>
+          <SessionDeleteActions
+            isDeleting={isDeleting}
+            retrying={partial}
+            processChoice={processChoice}
+            deleteLabel={`Delete ${count} sessions`}
+            deletingLabel={`Deleting ${Math.max(1, progressIndex + 1)} of ${count}`}
+            retryLabel={`Retry ${failed}`}
+            onClose={() => onOpenChange(false)}
+            onConfirm={onConfirm}
+            onRetry={onRetry}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,8 +1,9 @@
 import { Square } from "lucide-react";
 
-import { Button, Skeleton, SkeletonRegion, SkeletonText, StateGlyph, Time, cn } from "@compozy/ui";
+import { Button, StateGlyph, Time } from "@compozy/ui";
 
 import type { SessionProcessPayload } from "../adapters/session-processes-api";
+import { ComposerPopoverRowsSkeleton } from "./composer-popover-rows-skeleton";
 import {
   processCommandLabel,
   processIdentity,
@@ -32,45 +33,8 @@ export interface SessionProcessListProps {
 const PROCESS_ROW_FRAME = "flex items-start gap-2 rounded-md px-0.5 py-1";
 const PROCESS_ROW_TEXT_FRAME = "flex min-w-0 flex-1 flex-col gap-0.5";
 
-const PLACEHOLDER_ROW_POSITIONS = [0, 1, 2, 3] as const;
 const COMMAND_WIDTHS = ["w-52", "w-40", "w-60"] as const;
 const META_WIDTHS = ["w-32", "w-24", "w-36"] as const;
-
-function ProcessRowsSkeleton({ count }: { count: number }) {
-  const rows = PLACEHOLDER_ROW_POSITIONS.slice(0, Math.max(1, count));
-  return (
-    <SkeletonRegion
-      label="Loading processes"
-      data-testid="session-processes-loading"
-      className="flex flex-col gap-1"
-    >
-      <ul aria-hidden="true" className="flex flex-col gap-0.5">
-        {rows.map(position => (
-          <li key={position} className={PROCESS_ROW_FRAME}>
-            <Skeleton className="mt-0.75 size-3 shrink-0 rounded-full" />
-            <span className={PROCESS_ROW_TEXT_FRAME}>
-              <SkeletonText
-                className={cn(
-                  "text-transcript-meta",
-                  COMMAND_WIDTHS[position % COMMAND_WIDTHS.length]
-                )}
-              />
-              <SkeletonText
-                className={cn(
-                  "text-transcript-caption",
-                  META_WIDTHS[position % META_WIDTHS.length]
-                )}
-              />
-            </span>
-            <span className="flex size-button-icon-xs shrink-0 items-center justify-center">
-              <Skeleton className="size-3 rounded-sm" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </SkeletonRegion>
-  );
-}
 
 function ProcessPorts({ ports }: { ports: readonly number[] }) {
   if (ports.length === 0) return null;
@@ -209,7 +173,15 @@ export function SessionProcessList({
   if (failed) return <ProcessListNote message="Couldn't load processes." onRetry={onRetry} />;
   if (loading) {
     return (
-      <ProcessRowsSkeleton count={Math.min(placeholderCount, PLACEHOLDER_ROW_POSITIONS.length)} />
+      <ComposerPopoverRowsSkeleton
+        label="Loading processes"
+        data-testid="session-processes-loading"
+        count={placeholderCount}
+        rowClassName={PROCESS_ROW_FRAME}
+        textClassName={PROCESS_ROW_TEXT_FRAME}
+        titleWidths={COMMAND_WIDTHS}
+        metaWidths={META_WIDTHS}
+      />
     );
   }
   return <p className="px-0.5 text-transcript-caption text-muted">{emptyLabel}</p>;

@@ -1,16 +1,13 @@
-import { RotateCcw, Trash2 } from "lucide-react";
-
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Spinner,
 } from "@compozy/ui";
 
+import { SessionDeleteActions } from "./session-delete-actions";
 import { SessionDeleteDialogSet } from "./session-delete-dialog-set";
 import type { SessionBatchResult } from "../lib/session-batch";
 
@@ -85,50 +82,17 @@ export function SessionDeleteDialog({
           </p>
         ) : null}
         <DialogFooter className="flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={isDeleting}
-            data-testid="delete-dialog-cancel"
-          >
-            {retrying ? "Close" : "Cancel"}
-          </Button>
-          {processChoice && !retrying ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onConfirm("keep")}
-              disabled={isDeleting}
-              data-testid="delete-dialog-keep-processes"
-            >
-              {processChoice.keepLabel}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={retrying ? onRetry : () => onConfirm(processChoice ? "terminate" : undefined)}
-            disabled={isDeleting}
-            data-testid={retrying ? "delete-dialog-retry" : "delete-dialog-confirm"}
-          >
-            {isDeleting ? (
-              <>
-                <Spinner className="size-3" />
-                Deleting
-              </>
-            ) : retrying ? (
-              <>
-                <RotateCcw className="size-3" />
-                Retry 1
-              </>
-            ) : (
-              <>
-                <Trash2 className="size-3" />
-                {processChoice ? processChoice.confirmLabel : "Delete session"}
-              </>
-            )}
-          </Button>
+          <SessionDeleteActions
+            isDeleting={isDeleting}
+            retrying={retrying}
+            processChoice={processChoice}
+            deleteLabel="Delete session"
+            deletingLabel="Deleting"
+            retryLabel="Retry 1"
+            onClose={() => onOpenChange(false)}
+            onConfirm={onConfirm}
+            onRetry={onRetry}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
