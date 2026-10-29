@@ -400,6 +400,10 @@ export {
   type SessionDeleteDialogProps,
 } from "./components/session-delete-dialog";
 export {
+  SessionProcessChoiceDialog,
+  type SessionProcessChoiceDialogProps,
+} from "./components/session-process-choice-dialog";
+export {
   SessionRenameDialog,
   type SessionRenameDialogProps,
 } from "./components/session-rename-dialog";
@@ -483,6 +487,13 @@ export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-con
 export { SessionContextControl } from "./components/session-context-control";
 export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
+export { SessionComposerProcesses } from "./components/session-composer-processes";
+export { ProcessesLeftRunningHost } from "./components/processes-left-running-host";
+export type {
+  SessionProcessGroupPayload,
+  SessionProcessPayload,
+  SessionProcessPolicy,
+} from "./adapters/session-processes-api";
 export type { SessionContextView } from "./lib/session-context";
 export type { SessionActivityView } from "./components/session-activity-section";
 

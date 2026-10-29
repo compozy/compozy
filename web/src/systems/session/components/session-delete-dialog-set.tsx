@@ -15,6 +15,9 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { SessionPayload } from "../types";
+import type { SessionProcessPolicy } from "../adapters/session-processes-api";
+import { sessionProcessChoiceCopy } from "../lib/session-process-choice";
+import { sessionsRunningProcesses } from "../lib/session-processes";
 import type { SessionBatchResult } from "../lib/session-batch";
 import { sessionSelectionCounts } from "../hooks/use-session-selection";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
@@ -29,7 +32,8 @@ export interface SessionDeleteDialogSetProps {
   sessions: readonly SessionPayload[];
   results?: readonly SessionBatchResult[];
   isDeleting: boolean;
-  onConfirm: () => void;
+  /** `processes` answers what happens to running processes; absent when none run. */
+  onConfirm: (processes?: SessionProcessPolicy) => void;
   onRetry?: () => void;
 }
 
@@ -51,6 +55,9 @@ export function SessionDeleteDialogSet({
   const progressIndex = results.findIndex(result => result.status === "running");
   const note = sessionDeleteNote(isDeleting, partial, active);
   const resultsById = new Map(results.map(result => [result.id, result]));
+  const processCount = sessionsRunningProcesses(sessions);
+  const processChoice =
+    processCount > 0 && !partial ? sessionProcessChoiceCopy("delete", count, processCount) : null;
   return (
     <Dialog
       open={open}
@@ -80,6 +87,7 @@ export function SessionDeleteDialogSet({
               <>
                 This permanently removes <strong>{count} sessions</strong>, including their
                 transcripts and history, and removes them from the session list.
+                {processChoice ? ` ${processChoice.description}` : null}
               </>
             )}
           </DialogDescription>
@@ -104,7 +112,7 @@ export function SessionDeleteDialogSet({
           </ul>
           <SessionDeleteOverflowErrors sessions={sessions.slice(5)} resultsById={resultsById} />
         </div>
-        <DialogFooter className="shrink-0 gap-2">
+        <DialogFooter className="shrink-0 flex-wrap gap-2">
           {note ? (
             <span
               className="mr-auto flex items-center gap-1.5 text-micro text-muted"
@@ -122,10 +130,20 @@ export function SessionDeleteDialogSet({
           >
             {partial ? "Close" : "Cancel"}
           </Button>
+          {processChoice ? (
+            <Button
+              variant="outline"
+              disabled={isDeleting}
+              onClick={() => onConfirm("keep")}
+              data-testid="delete-dialog-keep-processes"
+            >
+              {processChoice.keepLabel}
+            </Button>
+          ) : null}
           <Button
             variant="destructive"
             disabled={isDeleting}
-            onClick={partial ? onRetry : onConfirm}
+            onClick={partial ? onRetry : () => onConfirm(processChoice ? "terminate" : undefined)}
             data-testid={partial ? "delete-dialog-retry" : "delete-dialog-confirm"}
           >
             {isDeleting ? (
@@ -141,7 +159,7 @@ export function SessionDeleteDialogSet({
             ) : (
               <>
                 <Trash2 className="size-3" />
-                Delete {count} sessions
+                {processChoice ? processChoice.confirmLabel : `Delete ${count} sessions`}
               </>
             )}
           </Button>

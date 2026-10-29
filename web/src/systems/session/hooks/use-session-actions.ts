@@ -48,6 +48,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 import { sessionStartedToast } from "../lib/session-create-target";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAbortableMutationRequest } from "./use-abortable-mutation-request";
+import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 
 /**
  * The session's own workspace path segment. An empty `workspace_id` is a User
@@ -141,14 +142,19 @@ export interface StopSessionParams extends Pick<
 > {
   /** Wait for the settled outcome instead of the 202 acceptance. */
   wait?: boolean;
+  /** Stop or keep the processes the session left running; omitted keeps them. */
+  processes?: SessionProcessPolicy;
 }
 
 export function useStopSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, wait }: StopSessionParams) =>
-      stopSession(requireWorkspace(workspace_id), id, profile_name, { wait }),
+    mutationFn: ({ id, workspace_id, profile_name, wait, processes }: StopSessionParams) =>
+      stopSession(requireWorkspace(workspace_id), id, profile_name, {
+        wait,
+        ...(processes ? { processes } : {}),
+      }),
     onSettled: (_data, _error, { id, workspace_id }) => {
       if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },
@@ -198,6 +204,14 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
 }
 
 /** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
+export interface DeleteSessionParams extends Pick<
+  SessionPayload,
+  "id" | "workspace_id" | "profile_name"
+> {
+  /** Stop or keep the processes the session left running; omitted keeps them. */
+  processes?: SessionProcessPolicy;
+}
+
 export function useDeleteSession(
   options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {}
 ) {
@@ -206,8 +220,13 @@ export function useDeleteSession(
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
     mutationKey: sessionKeys.deletions(),
-    mutationFn: (session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">) =>
-      deleteSession(requireWorkspace(session.workspace_id), session.id, session.profile_name),
+    mutationFn: ({ processes, ...session }: DeleteSessionParams) => {
+      const workspaceId = requireWorkspace(session.workspace_id);
+      // Omitted keeps the processes, the daemon default, so only an answer is sent.
+      return processes
+        ? deleteSession(workspaceId, session.id, session.profile_name, undefined, processes)
+        : deleteSession(workspaceId, session.id, session.profile_name);
+    },
     onMutate: async ({ id, workspace_id }) => {
       const deleteWorkspaceId = requireWorkspace(workspace_id);
       sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
@@ -240,6 +259,8 @@ export function useDeleteSession(
 export interface ArchiveSessionParams extends SessionActionTarget {
   /** Stop a live session through the daemon's normal stop path before archiving it. */
   stop?: boolean;
+  /** Stop or keep the processes the session left running; omitted keeps them. */
+  processes?: SessionProcessPolicy;
 }
 
 /** Archives the supplied row without depending on the currently selected workspace. */
@@ -248,9 +269,18 @@ export function useArchiveSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, stop }: ArchiveSessionParams) =>
+    mutationFn: ({ id, workspace_id, profile_name, stop, processes }: ArchiveSessionParams) =>
       request(signal =>
-        archiveSession(requireWorkspace(workspace_id), id, profile_name, signal, stop ?? false)
+        processes
+          ? archiveSession(
+              requireWorkspace(workspace_id),
+              id,
+              profile_name,
+              signal,
+              stop ?? false,
+              processes
+            )
+          : archiveSession(requireWorkspace(workspace_id), id, profile_name, signal, stop ?? false)
       ),
     onSettled: (_data, _error, { id, workspace_id }) => {
       if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);

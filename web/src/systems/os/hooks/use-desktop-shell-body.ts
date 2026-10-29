@@ -230,6 +230,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       openPaletteView(viewId);
     },
     openCheatsheet: () => overlays.setOverlayOpen("shortcuts", true),
+    openLeftRunning: () => overlays.setOverlayOpen("left-running", true),
     openDesktops: () => overlays.toggleOverlay("desktops"),
     openWorkspaces: () => overlays.toggleOverlay("workspaces"),
     openNewSession: options.onNewSession,

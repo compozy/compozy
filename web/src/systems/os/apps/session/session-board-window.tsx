@@ -16,6 +16,11 @@ import { useDataScope } from "@/systems/workspace";
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
 import { useSessionBoardWindow } from "./hooks/use-session-board-window";
 
+const SessionProcessChoiceDialog = lazy(() =>
+  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+    default: module.SessionProcessChoiceDialog,
+  }))
+);
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
     default: module.SessionDeleteDialog,
@@ -91,7 +96,7 @@ export function SessionBoardWindow({
     ),
   });
 
-  const { deleteDialog, renameDialog } = lifecycle;
+  const { deleteDialog, processDialog, renameDialog } = lifecycle;
   return (
     <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
       {() => (
@@ -114,6 +119,11 @@ export function SessionBoardWindow({
                 session={deleteDialog.session}
                 sessions={deleteDialog.sessions}
               />
+            </Suspense>
+          ) : null}
+          {processDialog.open ? (
+            <Suspense fallback={null}>
+              <SessionProcessChoiceDialog {...processDialog} />
             </Suspense>
           ) : null}
           {renameDialog.open && renameDialog.session ? (

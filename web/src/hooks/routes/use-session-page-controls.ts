@@ -19,6 +19,7 @@ import {
   sessionStopAttention,
   useUnarchiveSession,
   type SessionPayload,
+  type SessionProcessPolicy,
   type SessionPromptRuntimeSnapshot,
 } from "@/systems/session";
 import {
@@ -125,7 +126,7 @@ export function useSessionPageControls(
   // unverified stop is the same session stop, waited on (`wait: true`) so the
   // request resolves with the daemon's settled answer; that answer only says
   // this request settled — the session read model still owns the truth.
-  const handleStop = () => {
+  const handleStop = (processes?: SessionProcessPolicy) => {
     if (controlsBusy || !userControllable) {
       return;
     }
@@ -138,6 +139,7 @@ export function useSessionPageControls(
           workspace_id: session.workspace_id,
           profile_name: session.profile_name,
           wait: retry,
+          ...(processes ? { processes } : {}),
         }),
       failureMessage: null,
       retry,

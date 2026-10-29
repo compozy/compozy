@@ -9,7 +9,10 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
-import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
+import {
+  invalidateSessionMonitorsQueries,
+  invalidateSessionProcessesQueries,
+} from "../lib/session-query-invalidation";
 import { createSessionReadReconciler } from "./session-catalog-reconciliation";
 import type {
   OperatorNotificationEventPayload,
@@ -229,6 +232,15 @@ function isSessionMonitorsQuery(query: { queryKey: QueryKey }): boolean {
   return key[0] === sessionKeys.all[0] && key.at(-1) === "monitors" && key.includes("detail");
 }
 
+function isSessionProcessesQuery(query: { queryKey: QueryKey }): boolean {
+  const key = query.queryKey;
+  return (
+    key[0] === sessionKeys.all[0] &&
+    ((key.at(-1) === "processes" && key.includes("detail")) ||
+      key[1] === sessionKeys.processesLeftRunning()[1])
+  );
+}
+
 function openSessionCatalogStream(
   queryClient: QueryClient,
   eventSourceFactory: SessionCatalogEventSourceFactory,
@@ -261,6 +273,8 @@ function openSessionCatalogStream(
     // Monitor changes missed while disconnected can fall outside the replay
     // window, so an open monitor popover re-reads on every (re)connect.
     void queryClient.invalidateQueries({ predicate: isSessionMonitorsQuery });
+    // A process list is a scan, so every (re)connect rereads an open processes view too.
+    void queryClient.invalidateQueries({ predicate: isSessionProcessesQuery });
     // A location-change event can fall outside the bounded replay window.
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>
@@ -299,6 +313,8 @@ function openSessionCatalogStream(
     // Only an open monitor popover observes this small read; elsewhere it is just
     // marked stale. An in-flight read may predate the change, so it is replaced.
     void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
+    // `process_summary` rides the same upsert; an open processes view rereads its list.
+    void invalidateSessionProcessesQueries(queryClient, payload.workspace_id, payload.session_id);
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

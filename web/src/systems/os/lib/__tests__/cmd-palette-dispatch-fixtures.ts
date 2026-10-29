@@ -45,6 +45,7 @@ export function shellFixture(): PaletteShellHandlers {
     openPalette: vi.fn(),
     openPaletteView: vi.fn(),
     openCheatsheet: vi.fn(),
+    openLeftRunning: vi.fn(),
     openDesktops: vi.fn(),
     openWorkspaces: vi.fn(),
     openNewSession: vi.fn(),

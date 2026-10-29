@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
+import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionDeleteDialog } from "../session-delete-dialog";
 
 describe("SessionDeleteDialog", () => {
@@ -36,6 +37,40 @@ describe("SessionDeleteDialog", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // Invariant: a delete of a session with processes running answers keep or terminate;
+  // without processes it confirms as before, with no answer.
+  it("Should ask whether a delete also stops the session's running processes", () => {
+    const onConfirm = vi.fn();
+    const { rerender } = render(
+      <SessionDeleteDialog
+        open
+        onOpenChange={vi.fn()}
+        session={withSessionProcessSummary(primarySessionFixture)}
+        isDeleting={false}
+        onConfirm={onConfirm}
+      />
+    );
+    const dialog = screen.getByTestId("delete-dialog");
+    expect(dialog).toHaveTextContent("This session started 3 processes that are still running.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep processes running" }));
+    expect(onConfirm).toHaveBeenLastCalledWith("keep");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete and stop 3 processes" }));
+    expect(onConfirm).toHaveBeenLastCalledWith("terminate");
+
+    rerender(
+      <SessionDeleteDialog
+        open
+        onOpenChange={vi.fn()}
+        session={primarySessionFixture}
+        isDeleting={false}
+        onConfirm={onConfirm}
+      />
+    );
+    expect(screen.queryByTestId("delete-dialog-keep-processes")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete session" }));
+    expect(onConfirm).toHaveBeenLastCalledWith(undefined);
   });
 });
 

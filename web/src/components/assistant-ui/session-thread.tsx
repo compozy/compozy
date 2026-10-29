@@ -137,6 +137,7 @@ export function SessionThread({
   contextControl,
   subagentControl,
   monitorControl,
+  processControl,
   commandCatalog,
   commandCatalogStatus,
   onCommandCatalogOpen,
@@ -265,6 +266,7 @@ export function SessionThread({
                       contextControl={contextControl}
                       subagentControl={subagentControl}
                       monitorControl={monitorControl}
+                      processControl={processControl}
                       commandCatalog={commandCatalog}
                       commandCatalogStatus={commandCatalogStatus}
                       onCommandCatalogOpen={onCommandCatalogOpen}

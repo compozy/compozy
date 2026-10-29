@@ -8,8 +8,9 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
 import type { SessionMonitorPayload } from "@/systems/session/adapters/session-monitor-api";
 import { MonitorComposerControl } from "@/systems/session/components/monitor-composer-control";
+import { SessionProcessesComposerControl } from "@/systems/session/components/session-processes-composer-control";
 import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
-import { primarySessionFixture } from "@/systems/session/mocks";
+import { primarySessionFixture, sessionProcessesFixture } from "@/systems/session/mocks";
 
 import { baseArgs, composerToolbarArgs } from "./session-thread-story-runtime";
 import { mixedStreamingTranscript, transcriptPayload } from "./session-thread-story-transcripts";
@@ -163,5 +164,44 @@ export const MonitorsLoading: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(await within(canvasElement).findByTestId("composer-monitors-button"));
     await expect(await screen.findByText("Loading monitors")).toBeInTheDocument();
+  },
+};
+
+/**
+ * The processes popover beside Monitoring: what the session left running, each row's kind, age
+ * and `localhost` ports, a Stop per row, and Stop all. Shown only while the count is positive.
+ */
+export const Processes: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    monitorControl: <MonitorComposerControl active={1} monitors={STORY_MONITORS.slice(0, 1)} />,
+    processControl: (
+      <SessionProcessesComposerControl
+        count={sessionProcessesFixture.length}
+        processes={sessionProcessesFixture}
+        onStop={() => undefined}
+        onStopAll={() => undefined}
+      />
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-processes-button"));
+    await expect(await screen.findByTestId("session-process-76050")).toBeInTheDocument();
+  },
+};
+
+/** The processes popover while its list loads: one placeholder row per counted process. */
+export const ProcessesLoading: Story = {
+  tags: ["play-fn"],
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    processControl: <SessionProcessesComposerControl count={3} processes={[]} loading />,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement).findByTestId("composer-processes-button"));
+    await expect(await screen.findByText("Loading processes")).toBeInTheDocument();
   },
 };

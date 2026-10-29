@@ -1,6 +1,7 @@
 import { SessionSubagentDrawer } from "./session-subagent-drawer";
 import {
   SessionComposerMonitors,
+  SessionComposerProcesses,
   SessionComposerSubagents,
   SessionContextControl,
   subagentNavigationTarget,
@@ -40,6 +41,11 @@ import {
 
 const SessionClearDialog = lazy(() =>
   import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
+);
+const SessionProcessChoiceDialog = lazy(() =>
+  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+    default: module.SessionProcessChoiceDialog,
+  }))
 );
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
@@ -133,7 +139,7 @@ function SessionWindowNoticeContent({
     return (
       <SessionStopAttentionNotice
         isRetrying={controls.isStopRetrying}
-        onRetry={controls.canRetryStop ? controls.handleStop : undefined}
+        onRetry={controls.canRetryStop ? () => controls.handleStop() : undefined}
       />
     );
   }
@@ -314,6 +320,7 @@ export function SessionWindowContent({
                       <SessionComposerSubagents session={session} onOpen={openSubagent} />
                     }
                     monitorControl={<SessionComposerMonitors session={session} />}
+                    processControl={<SessionComposerProcesses session={session} />}
                     runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
                     environmentControl={
                       <SessionEnvironmentControl
@@ -398,6 +405,11 @@ export function SessionWindowContent({
                     isDeleting={sidebar.rowDeleteDialog.isDeleting}
                     onConfirm={sidebar.rowDeleteDialog.onConfirm}
                   />
+                </Suspense>
+              ) : null}
+              {sidebar.rowProcessDialog.open ? (
+                <Suspense fallback={null}>
+                  <SessionProcessChoiceDialog {...sidebar.rowProcessDialog} />
                 </Suspense>
               ) : null}
               {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (

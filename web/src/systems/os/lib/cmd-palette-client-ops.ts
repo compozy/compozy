@@ -29,6 +29,7 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
   ["palette.open", context => context.shell.openPalette()],
   ["palette.view.sessions", context => context.shell.openPaletteView("sessions")],
   ["shortcuts.cheatsheet", context => context.shell.openCheatsheet()],
+  ["processes.left_running", context => context.shell.openLeftRunning()],
   ["sidebar.toggle", context => context.shell.toggleSidebar()],
   ["shell.sessions.toggle", context => context.shell.toggleSessions()],
   ["session.new", context => context.shell.openNewSession()],

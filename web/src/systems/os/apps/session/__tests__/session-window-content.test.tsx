@@ -80,6 +80,7 @@ vi.mock("../use-session-window-controller", () => ({
       onThreadBranchChange: vi.fn(),
       open: false,
       rowDeleteDialog: { open: false },
+      rowProcessDialog: { open: false },
       rowRenameDialog: { open: false },
       sessionActions: {},
       sessions: [],

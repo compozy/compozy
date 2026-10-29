@@ -9,6 +9,9 @@ import {
 } from "@compozy/ui";
 import { RotateCcw, Square } from "lucide-react";
 
+import type { SessionProcessPolicy } from "../adapters/session-processes-api";
+import { processPortsSentence, sessionProcessChoiceCopy } from "../lib/session-process-choice";
+
 interface SessionPrimaryActionProps {
   showUnarchiveAction: boolean;
   showStopAction: boolean;
@@ -16,8 +19,12 @@ interface SessionPrimaryActionProps {
   isUnarchiving: boolean;
   isStopping: boolean;
   onUnarchive: () => void;
-  onStop: () => void;
+  /** `processes` answers what happens to running processes; absent when none run. */
+  onStop: (processes?: SessionProcessPolicy) => void;
   hasLiveGoal?: boolean;
+  /** Processes the session left running; above zero the stop asks about them. */
+  runningProcesses?: number;
+  processPorts?: readonly number[];
 }
 
 function primaryAction(props: SessionPrimaryActionProps) {
@@ -32,7 +39,7 @@ function primaryAction(props: SessionPrimaryActionProps) {
     };
   if (props.showStopAction)
     return {
-      onClick: props.onStop,
+      onClick: () => props.onStop(),
       disabled: props.controlsBusy && !props.isStopping,
       busy: props.isStopping,
       testId: "stop-button",
@@ -55,6 +62,13 @@ function SessionPrimaryActionControl({
 }: SessionPrimaryActionProps & { action: NonNullable<ReturnType<typeof primaryAction>> }) {
   const [confirmStop, setConfirmStop] = useState(false);
   const Glyph = action.busy ? Spinner : action.Glyph;
+  const runningProcesses = props.runningProcesses ?? 0;
+  const processChoice =
+    runningProcesses > 0 ? sessionProcessChoiceCopy("stop", 1, runningProcesses) : null;
+  const stop = (processes?: SessionProcessPolicy) => {
+    setConfirmStop(false);
+    props.onStop(processes);
+  };
   return (
     <>
       <Tooltip>
@@ -66,7 +80,11 @@ function SessionPrimaryActionControl({
               size="icon-sm"
               className="focus-visible:shadow-focus-inset"
               onClick={() => {
-                if (props.showStopAction && props.hasLiveGoal !== false && !props.isStopping)
+                if (
+                  props.showStopAction &&
+                  !props.isStopping &&
+                  (props.hasLiveGoal !== false || processChoice !== null)
+                )
                   setConfirmStop(true);
                 else action.onClick();
               }}
@@ -84,24 +102,39 @@ function SessionPrimaryActionControl({
         open={confirmStop && props.showStopAction}
         onOpenChange={setConfirmStop}
         title="Stop this session?"
-        description={
+        description={[
           props.hasLiveGoal === true
             ? "The current work will be interrupted and this session's goal will be paused."
-            : "The current work will be interrupted. Any active goal will be paused."
-        }
+            : props.hasLiveGoal === false
+              ? "The current work will be interrupted."
+              : "The current work will be interrupted. Any active goal will be paused.",
+          processChoice?.description,
+          processPortsSentence(props.processPorts ?? []),
+        ]
+          .filter(Boolean)
+          .join(" ")}
         note={
           props.hasLiveGoal === true
             ? "Sending a message reopens the session. The goal stays paused until you choose Resume goal."
             : "Sending a message reopens the session."
         }
-        confirmLabel="Stop session"
-        cancelLabel="Keep working"
+        confirmLabel={processChoice?.confirmLabel ?? "Stop session"}
+        cancelLabel={processChoice ? "Cancel" : "Keep working"}
         tone="warning"
         icon={Square}
-        onConfirm={() => {
-          setConfirmStop(false);
-          props.onStop();
-        }}
+        className={processChoice ? "sm:max-w-lg" : undefined}
+        contentProps={{ "data-testid": "stop-session-dialog" }}
+        confirmButtonProps={{ "data-testid": "stop-session-confirm" }}
+        alternateAction={
+          processChoice
+            ? {
+                label: processChoice.keepLabel,
+                onSelect: () => stop("keep"),
+                buttonProps: { "data-testid": "stop-session-keep-processes" },
+              }
+            : undefined
+        }
+        onConfirm={() => stop(processChoice ? "terminate" : undefined)}
       />
     </>
   );

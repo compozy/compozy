@@ -99,6 +99,7 @@ import {
 import { SessionApiError, SessionGoalCommandError } from "../../adapters/session-api-errors";
 import { toast } from "sonner";
 import { notifyUser } from "@/lib/user-feedback";
+import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
 const WORKSPACE_ID = "ws_alpha";
 
@@ -934,6 +935,55 @@ describe("session actions", () => {
         true
       )
     );
+  });
+
+  // Invariant: archive asks what happens to running processes only while some run, and sends
+  // the answer; a single choice covers every session of a bulk archive.
+  it("asks before archiving sessions that left processes running and sends the answer", async () => {
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    }));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const running = withSessionProcessSummary(createdSession);
+
+    act(() => result.current.actions.onArchive(running));
+    expect(archiveSession).not.toHaveBeenCalled();
+    expect(result.current.processDialog).toMatchObject({
+      open: true,
+      action: "archive",
+      sessionCount: 1,
+      processCount: 3,
+      ports: [5173, 8080, 9090],
+    });
+
+    act(() => result.current.processDialog.onChoose("terminate"));
+    expect(result.current.processDialog.open).toBe(false);
+    await waitFor(() =>
+      expect(archiveSession).toHaveBeenCalledWith(
+        createdSession.workspace_id,
+        createdSession.id,
+        createdSession.profile_name,
+        expect.any(AbortSignal),
+        true,
+        "terminate"
+      )
+    );
+
+    vi.mocked(archiveSession).mockClear();
+    const second = { ...running, id: "sess-second" };
+    act(() => result.current.actions.onArchiveMany?.([running, second]));
+    expect(result.current.processDialog).toMatchObject({ sessionCount: 2, processCount: 6 });
+    act(() => result.current.processDialog.onChoose("keep"));
+    await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(2));
+    for (const call of vi.mocked(archiveSession).mock.calls) expect(call[5]).toBe("keep");
   });
 
   it("reports a lifecycle action failure without showing a success notification", async () => {

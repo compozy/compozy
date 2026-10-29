@@ -27,6 +27,8 @@ export const sessionKeys = {
   lists: () => [...sessionKeys.all, "list"] as const,
   /** Exact cross-workspace attention counts — operator scope, no workspace segment. */
   attentionSummary: () => [...sessionKeys.all, "attention-summary"] as const,
+  /** Processes left running by stopped, archived, or unknown sessions — operator scope. */
+  processesLeftRunning: () => [...sessionKeys.all, "processes-left-running"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
   /** One profile's session folders in a workspace; under the list family so catalog wakes reread it. */
   folders: (workspace: string, profile: string) =>
@@ -109,6 +111,9 @@ export const sessionKeys = {
   /** The session's daemon-owned monitors (composer monitor popover). */
   monitors: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "monitors"] as const,
+  /** Processes the session started that are still running (composer processes popover). */
+  processes: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "processes"] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>
