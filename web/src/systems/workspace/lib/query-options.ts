@@ -1,7 +1,11 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { fetchWorkspace, fetchWorkspaces } from "../adapters/workspace-api";
-import { fetchWorktrees, fetchWorktreesAggregate } from "../adapters/worktree-api";
+import {
+  fetchWorktrees,
+  fetchWorktreesAggregate,
+  WorktreeApiError,
+} from "../adapters/worktree-api";
 import {
   fetchWorktreeExitPlan,
   fetchWorktreeStatus,
@@ -36,14 +40,31 @@ export function workspaceDetailOptions(workspaceID: string) {
  * workspaces. No polling interval: the `worktree_catalog_changed` stream owns
  * freshness, and the list is refetched on invalidation only.
  */
-export function worktreesListOptions(workspaceID: string, enabled = true) {
+export function worktreesListOptions(
+  workspaceID: string,
+  enabled = true,
+  availability?: { rootMissing: boolean; observedAt: number }
+) {
   return queryOptions({
     queryKey: workspaceKeys.worktrees(workspaceID),
     queryFn: ({ signal }) => fetchWorktrees(workspaceID, {}, signal),
     // User-scope work has no worktrees (USW BR-4); the daemon rejects the read.
-    enabled: enabled && workspaceID !== "" && workspaceID !== USER_SCOPE_SELECTOR,
+    enabled: query =>
+      enabled &&
+      workspaceID !== "" &&
+      workspaceID !== USER_SCOPE_SELECTOR &&
+      !availability?.rootMissing &&
+      (!isWorktreeListTerminalError(query.state.error) ||
+        (query.state.error.status === 410 &&
+          availability !== undefined &&
+          availability.observedAt > query.state.errorUpdatedAt)),
+    retry: (count, error) => !isWorktreeListTerminalError(error) && count < 1,
     staleTime: 60_000,
   });
+}
+
+function isWorktreeListTerminalError(error: unknown): error is WorktreeApiError {
+  return error instanceof WorktreeApiError && [400, 401, 403, 404, 410].includes(error.status);
 }
 
 /**

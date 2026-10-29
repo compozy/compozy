@@ -2,6 +2,8 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as terminalAPI from "../../adapters/terminal-api";
+
 import { destroyTerminalInstances } from "@compozy/ui";
 
 import {
@@ -71,6 +73,7 @@ afterEach(() => {
   restoreFetch?.();
   restoreFetch = null;
   destroyTerminalInstances(() => true);
+  vi.restoreAllMocks();
 });
 
 function renderWindow(overrides: Partial<TerminalWindowAppProps> = {}) {
@@ -394,7 +397,26 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 
   it("Should keep an exited terminal readable with its outcome", async () => {
-    renderWindow({ terminals: [SSH_STAGING_TERMINAL] });
+    const read = vi.spyOn(terminalAPI, "readTerminal").mockResolvedValue({
+      content: "retained output\n",
+      seq: 12n,
+      busy: false,
+      truncated: false,
+      untrusted: true,
+    });
+    const write = vi.fn();
+    const engine = await stubEngineLoader();
+    const createTerminal = engine.createTerminal;
+    engine.createTerminal = options => {
+      const renderer = createTerminal(options);
+      const originalWrite = renderer.write.bind(renderer);
+      renderer.write = (...args) => {
+        write(args[0]);
+        return originalWrite(...args);
+      };
+      return renderer;
+    };
+    renderWindow({ terminals: [SSH_STAGING_TERMINAL], engineLoader: async () => engine });
 
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${SSH_STAGING_TERMINAL.id}`)).toBeInTheDocument()
@@ -402,6 +424,60 @@ describe("TerminalWindowApp — S1 states", () => {
     const bar = screen.getByTestId("terminal-exit-bar");
     expect(bar).toHaveTextContent("Succeeded");
     expect(bar).toHaveTextContent("exit 0");
+    await waitFor(() => expect(write).toHaveBeenCalledWith("retained output\r\n"));
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("attach-ticket"))).toBe(
+      false
+    );
+  });
+
+  it("Should preserve streamed scrollback when the catalog reports exit", async () => {
+    const read = vi.spyOn(terminalAPI, "readTerminal");
+    const socket = recordingSocketFactory();
+    const write = vi.fn();
+    const reset = vi.fn();
+    const engine = await stubEngineLoader();
+    const createTerminal = engine.createTerminal;
+    engine.createTerminal = options => {
+      const renderer = createTerminal(options);
+      const originalWrite = renderer.write.bind(renderer);
+      renderer.write = (...args) => {
+        write(args[0]);
+        return originalWrite(...args);
+      };
+      renderer.reset = reset;
+      return renderer;
+    };
+    const engineLoader = async () => engine;
+    const view = renderWindow({
+      terminals: [DEV_SERVER_TERMINAL],
+      socketFactory: socket.factory,
+      engineLoader,
+    });
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
+    await socket.ready();
+    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
+    await socket.deliverOutput(1n, "live output");
+    await waitFor(() => expect(write).toHaveBeenCalled());
+    const resets = reset.mock.calls.length;
+    view.rerender(
+      <TerminalWindowApp
+        actions={view.actions}
+        engineLoader={engineLoader}
+        inputRequests={[]}
+        journal={<div />}
+        limit={TERMINAL_LIMIT}
+        profile={TERMINAL_FIXTURE_PROFILE}
+        socketFactory={socket.factory}
+        viewerId={TERMINAL_FIXTURE_VIEWER}
+        workspaceId="ws-atlas"
+        terminals={[{ ...DEV_SERVER_TERMINAL, state: "exited", exit: SSH_STAGING_TERMINAL.exit }]}
+      />
+    );
+    await screen.findByTestId("terminal-exit-bar");
+    expect(read).not.toHaveBeenCalled();
+    expect(reset).toHaveBeenCalledTimes(resets);
+    expect(socket.connectionCount()).toBe(1);
   });
 
   it("Should pause commands while the journal cannot record, without stopping output", async () => {

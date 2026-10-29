@@ -15,6 +15,7 @@ import {
 import type { SessionListFilters, SessionState } from "../types";
 import { useProfileReadScope } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useSessionDeletionPending, useSessionDeletedByOperator } from "./use-session-actions";
 
 interface UseSessionsOptions {
   enabled?: boolean;
@@ -49,12 +50,20 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
 
 export function useSession(id: string) {
   const { params } = useProfileReadScope();
-  return useQuery(sessionScopedDetailOptions(id, params, { enabled: id.trim() !== "" }));
+  const pending = useSessionDeletionPending(id);
+  const deleted = useSessionDeletedByOperator(id);
+  return useQuery(sessionScopedDetailOptions(id, params, { enabled: !pending && !deleted }));
 }
 
 export function useSessionById(id: string, workspace: string) {
   const { params } = useProfileReadScope();
-  return useQuery(sessionScopedDetailOptions(id, params, { enabled: workspace.trim() !== "" }));
+  const pending = useSessionDeletionPending(id);
+  const deleted = useSessionDeletedByOperator(id);
+  return useQuery(
+    sessionScopedDetailOptions(id, params, {
+      enabled: workspace.trim() !== "" && !pending && !deleted,
+    })
+  );
 }
 
 export function useSessionGoal(workspaceId: string, sessionId: string, enabled = true) {

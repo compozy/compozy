@@ -8,7 +8,7 @@ import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-atta
 import { useTerminalWindowBodyController } from "../hooks/use-terminal-window-body-controller";
 import { exitNoticeFromTerminal } from "../lib/terminal-exit";
 import {
-  terminalPipeOutputQuery,
+  terminalRetainedOutputQuery,
   terminalScope,
   type TerminalProfileQueryScope,
 } from "../lib/query-options";
@@ -233,7 +233,7 @@ function TerminalPipeFetchedOutput({
   scope: TerminalProfileQueryScope;
   terminal: TerminalInfo;
 }) {
-  const output = useQuery(terminalPipeOutputQuery(scope, terminal.id));
+  const output = useQuery(terminalRetainedOutputQuery(scope, terminal.id));
 
   // Waiting and failing must never read as an empty log — an empty log is a
   // real state that means the command printed nothing.

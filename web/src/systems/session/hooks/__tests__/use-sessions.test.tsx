@@ -1,3 +1,4 @@
+import { primarySessionFixture } from "../../mocks/fixtures";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
@@ -297,6 +298,41 @@ function createWrapperWithClient(queryClient: QueryClient) {
 }
 
 describe("useSession", () => {
+  it("Should suspend shared detail readers until a pending deletion rolls back", async () => {
+    vi.mocked(fetchSessionById).mockResolvedValue({ ...primarySessionFixture, id: "sess-001" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useSession("sess-001"), {
+      wrapper: createWrapperWithClient(client),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    let rejectDelete!: (error: Error) => void;
+    const deletion = client.getMutationCache().build(client, {
+      mutationKey: sessionKeys.deletions(),
+      mutationFn: (_target: { id: string }) =>
+        new Promise<void>((_resolve, reject) => {
+          rejectDelete = reject;
+        }),
+    });
+    let completion!: Promise<unknown>;
+    await act(async () => {
+      completion = deletion.execute({ id: "sess-001" }).catch(() => undefined);
+    });
+    await waitFor(() => expect(result.current.isEnabled).toBe(false));
+    const count = vi.mocked(fetchSessionById).mock.calls.length;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: sessionKeys.byIdRoot("sess-001") });
+    });
+    expect(fetchSessionById).toHaveBeenCalledTimes(count);
+    await act(async () => {
+      rejectDelete(new Error("Deletion refused"));
+      await completion;
+    });
+    await waitFor(() => expect(result.current.isEnabled).toBe(true));
+    await waitFor(() =>
+      expect(vi.mocked(fetchSessionById).mock.calls.length).toBeGreaterThan(count)
+    );
+  });
+
   it("loads a single session detail", async () => {
     vi.mocked(fetchSessionById).mockResolvedValue({
       board_column: "done",

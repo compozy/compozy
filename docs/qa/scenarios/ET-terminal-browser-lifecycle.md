@@ -65,3 +65,15 @@ Post-merge creation-scope verification is recorded in
 does not independently prove the newly added pending-response step.
 
 All-projects AW4 (2026-10-21): reset to untested. Walk with terminals in two projects and User under All projects: list with badges; open one in place (chrome badge, no project switch); New terminal in another project; close a terminal and see the list update live; switch profile and see the list re-read. PR screenshots: aggregate terminal list; New terminal project picker.
+
+
+Issue #1034 bound-window walk (2026-10-29): run an isolated PTY that prints a
+recognizable line and exits. Reopen its bound window while retention is active.
+The retained output and exit outcome must remain readable, with zero attach-ticket
+requests. A terminal that exits after a running catalog observation still uses
+the protocol's existing 409 race handling. Verify a running terminal still
+attaches normally. This does not change the launcher or aggregate catalog.
+See the [gone-resource report](../reports/2026-10-29-gone-resource-requests.md).
+
+Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
+The broader historical scenario is not re-certified by this bounded walk.

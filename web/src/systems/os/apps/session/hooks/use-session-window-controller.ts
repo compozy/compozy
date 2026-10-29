@@ -26,16 +26,17 @@ export function useSessionWindowController(windowId: string) {
   const resolution = useSessionWindowResolution({
     sessionId,
     focusedScope,
-    liveTailEnabled: liveTailEnabled && !deletedByOperator,
+    enabled: sessionId !== null && !deletedByOperator && !deletionPending,
+    liveTailEnabled: liveTailEnabled && !deletedByOperator && !deletionPending,
   });
   const remotelyGone = sessionRemotelyGone(sessionId, resolution, aggregate);
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
-    liveTailEnabled && !deletedLocally && !resolution.crossesWorkspace;
+    liveTailEnabled && !deletionPending && !deletedLocally && !resolution.crossesWorkspace;
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
-    presenceEnabled && sessionPresenceAllowed(resolution, deletedLocally)
+    presenceEnabled && !deletionPending && sessionPresenceAllowed(resolution, deletedLocally)
   );
   // A document's project lens cannot remove a valid shared window. Only a
   // confirmed missing session, or one this client deleted, retires it; scope mismatches

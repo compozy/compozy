@@ -43,10 +43,8 @@ export function useDesktopShellModel(
     isError: workspacesError,
   }: ReturnType<typeof useActiveWorkspace>,
   {
-    backgroundStreamsEnabled = true,
     continuityStreamsEnabled = true,
   }: {
-    backgroundStreamsEnabled?: boolean;
     continuityStreamsEnabled?: boolean;
   } = {}
 ) {
@@ -69,8 +67,10 @@ export function useDesktopShellModel(
 
   // One catalog subscription per shell; the query stays the snapshot authority
   // and this only reconciles workspace-qualified invalidations into it.
+  // WebSockets do not consume the HTTP connection budget. Window visibility
+  // and authority handshakes must not tear down this catalog subscription.
   const worktreeCatalogStreamStatus = useWorktreeCatalogStream(workspaces, {
-    enabled: hasWorkspaces && backgroundStreamsEnabled,
+    enabled: hasWorkspaces,
   });
   const activeWorktrees = useWorktrees(activeWorkspaceId, { enabled: activeWorkspaceId !== null });
   const userHomeDir = useUserHomeDir();

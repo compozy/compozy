@@ -328,6 +328,25 @@ describe("SessionWindow", () => {
     expect(sessionWindowEmptySpy).not.toHaveBeenCalled();
   });
 
+  it("Should suspend window reads during deletion and restore them after rollback", () => {
+    deletionPending = true;
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ enabled: false, liveTail: false })
+    );
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", false);
+    deletionPending = false;
+    rerender(<SessionWindow windowId="session:sess-1" />);
+    expect(scopedDetailSpy).toHaveBeenLastCalledWith(
+      "sess-1",
+      { profile: "marketing" },
+      expect.objectContaining({ enabled: true, liveTail: true })
+    );
+    expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", true);
+  });
+
   it("Should defer remote retirement while an operator deletion owns the window", async () => {
     profileScope.aggregate = true;
     deletionPending = true;

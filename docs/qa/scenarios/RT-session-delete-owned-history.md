@@ -75,3 +75,17 @@ above to a new full-scenario pass.
 QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session with attachment files and nested directories after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.
 
 Automated retest 2026-10-10: The startup/rooted-write/deletion step in [native Windows CI](https://github.com/compozy/compozy/actions/runs/38112607881/job/114392299915) passed at `3cabffd82`. It covers stopped-session deletion, reader quiescence, catalog-failure rollback, interrupted recovery for all catalog states, and bound removal of files plus nested directories without leftover private directories. Cleanup retains mandatory directory flushes and checks the identity of its writable handle. This is owning-suite native evidence, not a full manual provider-session walk.
+
+
+Issue #1034 Web boundary walk (2026-10-29): open the session being deleted and
+hold delivery of the real DELETE response. During the pending mutation, inspect
+network traffic: outline/search, scoped detail, and presence must remain stopped.
+Abort the DELETE before it reaches the daemon and verify rollback resumes reads
+and presence. Then complete the real deletion and verify no request restarts for
+the removed session. A presence lease 404 still reacquires a lease for a surviving
+session; it must not retire the session window. This targeted walk does not
+replace the descendant/provider lifecycle scenarios above. See the
+[gone-resource report](../reports/2026-10-29-gone-resource-requests.md).
+
+Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
+The broader historical scenario is not re-certified by this bounded walk.

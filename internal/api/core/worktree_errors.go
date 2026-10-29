@@ -48,7 +48,7 @@ func StatusForWorktreeError(err error) int {
 		if WorktreeErrorCode(err) != "" {
 			return http.StatusConflict
 		}
-		return http.StatusInternalServerError
+		return statusForWorkspaceError(err)
 	}
 }
 
