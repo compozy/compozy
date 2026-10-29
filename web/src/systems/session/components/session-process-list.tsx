@@ -1,4 +1,4 @@
-import { Square } from "lucide-react";
+import { CircleStop } from "lucide-react";
 
 import { Button, StateGlyph, Time } from "@compozy/ui";
 
@@ -39,7 +39,7 @@ const META_WIDTHS = ["w-32", "w-24", "w-36"] as const;
 function ProcessPorts({ ports }: { ports: readonly number[] }) {
   if (ports.length === 0) return null;
   return (
-    <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+    <span className="flex min-w-0 flex-wrap items-center gap-x-2">
       {ports.map(port => (
         <a
           key={port}
@@ -87,9 +87,8 @@ function ProcessRow({
           <span className="shrink-0">
             started <Time iso={process.started_at} />
           </span>
-          {process.ports.length > 0 ? <span aria-hidden="true">·</span> : null}
-          <ProcessPorts ports={process.ports} />
         </span>
+        <ProcessPorts ports={process.ports} />
       </span>
       {onStop ? (
         <Button
@@ -104,7 +103,7 @@ function ProcessRow({
           {stopping ? (
             <StateGlyph size="sm" state="running" />
           ) : (
-            <Square aria-hidden="true" className="size-3" />
+            <CircleStop aria-hidden="true" className="size-3.5" />
           )}
         </Button>
       ) : null}
