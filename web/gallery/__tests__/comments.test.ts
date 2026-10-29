@@ -251,6 +251,11 @@ describe("comment attachments", () => {
     expect(() => inspectImage(png(640, 480).subarray(0, 33))).toThrow("unsupported_media_type");
     // A tiny file whose pixels inflate past the decoded budget (a decompression bomb).
     expect(() => inspectImage(png(8192, 4096))).toThrow("unsupported_media_type");
+    // CRC-valid, but the pixel data is shorter than the IHDR declares.
+    const short = png(64, 64);
+    expect(() =>
+      inspectImage(Buffer.concat([short.subarray(0, 33), png(2, 2).subarray(33)]))
+    ).toThrow("unsupported_media_type");
     // A flipped byte inside IDAT fails its CRC.
     const corrupt = png(4, 4);
     corrupt[42] ^= 0xff;

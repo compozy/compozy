@@ -60,12 +60,52 @@ function webpSize(bytes: Uint8Array, data: DataView, chunk: string) {
 /** Decoded pixel data a PNG upload may inflate to (a 4K RGBA screenshot is ~33 MB). */
 const maxDecodedBytes = 96 * 1024 * 1024;
 
+/** Channels per pixel by PNG color type: gray, RGB, palette, gray + alpha, RGBA. */
+const pngChannels: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+
+/** Adam7 passes as [x start, y start, x step, y step]. */
+const adam7 = [
+  [0, 0, 8, 8],
+  [4, 0, 8, 8],
+  [0, 4, 4, 8],
+  [2, 0, 4, 4],
+  [0, 2, 2, 4],
+  [1, 0, 2, 2],
+  [0, 1, 1, 2],
+] as const;
+
+/**
+ * Bytes the IHDR says the inflated IDAT stream holds: every scanline's filter byte plus its
+ * pixels, per Adam7 pass when interlaced. `null` for a header no decoder accepts.
+ */
+function pngDataSize(data: DataView) {
+  const width = data.getUint32(16);
+  const height = data.getUint32(20);
+  const depth = data.getUint8(24);
+  const channels = pngChannels[data.getUint8(25)];
+  const interlace = data.getUint8(28);
+  if (!channels || ![1, 2, 4, 8, 16].includes(depth) || interlace > 1) return null;
+  const rowBytes = (pixels: number) => 1 + Math.ceil((pixels * channels * depth) / 8);
+  if (interlace === 0) return height * rowBytes(width);
+  let size = 0;
+  for (const [x0, y0, dx, dy] of adam7) {
+    const columns = Math.ceil(Math.max(0, width - x0) / dx);
+    const rows = Math.ceil(Math.max(0, height - y0) / dy);
+    if (columns > 0 && rows > 0) size += rows * rowBytes(columns);
+  }
+  return size;
+}
+
 /**
  * A PNG whose chunks fit the buffer from IHDR through IEND, each with a matching CRC, and whose
- * IDAT data inflates to image data; a truncated, padded or corrupt upload is rejected rather than
- * stored as a broken image.
+ * IDAT data inflates to exactly the size the IHDR declares; a truncated, padded or corrupt upload
+ * is rejected rather than stored as a broken image.
  */
 function pngComplete(bytes: Uint8Array, data: DataView) {
+  // The declared size is checked against the budget before inflating, so neither a crafted IHDR
+  // nor a highly compressible IDAT can make the server allocate gigabytes.
+  const expected = pngDataSize(data);
+  if (expected === null || expected === 0 || expected > maxDecodedBytes) return false;
   let offset = 8;
   const imageData: Uint8Array[] = [];
   while (offset + 12 <= bytes.length) {
@@ -79,11 +119,9 @@ function pngComplete(bytes: Uint8Array, data: DataView) {
     if (type === "IEND") {
       if (end !== bytes.length || imageData.length === 0) return false;
       try {
-        // A highly compressible PNG under the 5 MB upload cap can still inflate to gigabytes:
-        // decoding past the budget throws and rejects the image.
-        return (
-          inflateSync(Buffer.concat(imageData), { maxOutputLength: maxDecodedBytes }).length > 0
-        );
+        // One byte of headroom tells "too long" from "exactly right".
+        const pixels = inflateSync(Buffer.concat(imageData), { maxOutputLength: expected + 1 });
+        return pixels.length === expected;
       } catch {
         return false;
       }
