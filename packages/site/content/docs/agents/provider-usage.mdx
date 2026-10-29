@@ -360,15 +360,15 @@ and response schemas: [Providers API](/docs/api/providers).
 
 ## Troubleshooting
 
-| Symptom                                                         | Fix                                                                                                             |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile. |
-| Claude row says `Signed out` right after **Allow**              | Claude Code has no login in the Keychain. Run `claude`, sign in, then refresh.                                  |
-| Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                      |
-| macOS prompt appears after each Claude token refresh             | Refresh once on the host Mac. CompozyOS reads through `security`, whose access survives the normal Claude Code rewrite. |
-| Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                      |
-| Numbers differ between two profiles                             | Expected. Each profile has its own logins and keys.                                                             |
-| `error: provider usage is turned off (provider_usage_disabled)` | Run `compozy config set provider_usage.enabled true`.                                                           |
+| Symptom                                                         | Fix                                                                                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile.         |
+| Claude row says `Signed out` right after **Allow**              | Claude Code has no login in the Keychain. Run `claude`, sign in, then refresh.                                          |
+| Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                              |
+| macOS prompt appears after each Claude token refresh            | Refresh once on the host Mac. CompozyOS reads through `security`, whose access survives the normal Claude Code rewrite. |
+| Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                              |
+| Numbers differ between two profiles                             | Expected. Each profile has its own logins and keys.                                                                     |
+| `error: provider usage is turned off (provider_usage_disabled)` | Run `compozy config set provider_usage.enabled true`.                                                                   |
 
 ## Related pages
 

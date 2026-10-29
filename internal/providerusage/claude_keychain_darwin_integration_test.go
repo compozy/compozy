@@ -18,23 +18,37 @@ func TestClaudeKeychainIntegration(t *testing.T) {
 	if os.Getenv("COMPOZY_KEYCHAIN_TEST") != "1" {
 		t.Skip("set COMPOZY_KEYCHAIN_TEST=1 to authorize disposable Keychain items")
 	}
-	t.Run("Should read rotated credentials with security without renewing a foreign partition grant", func(t *testing.T) {
-		t.Parallel()
-		service := claudeTestKeychainItem(t, true)
-		reader := defaultClaudeKeychain()
-		for _, value := range []string{"synthetic-initial", "synthetic-rotated"} {
-			cmd := exec.CommandContext(t.Context(), "/usr/bin/security", "add-generic-password", "-U", "-s", service, "-a", "compozy-qa", "-X", hex.EncodeToString([]byte(value)))
-			requireNoError(t, cmd.Run())
-			data, err := reader.Read(t.Context(), service, "compozy-qa", false)
+	t.Run(
+		"Should read rotated credentials with security without renewing a foreign partition grant",
+		func(t *testing.T) {
+			t.Parallel()
+			service := claudeTestKeychainItem(t, true)
+			reader := defaultClaudeKeychain()
+			for _, value := range []string{"synthetic-initial", "synthetic-rotated"} {
+				cmd := exec.CommandContext(
+					t.Context(),
+					"/usr/bin/security",
+					"add-generic-password",
+					"-U",
+					"-s",
+					service,
+					"-a",
+					"compozy-qa",
+					"-X",
+					hex.EncodeToString([]byte(value)),
+				)
+				requireNoError(t, cmd.Run())
+				data, err := reader.Read(t.Context(), service, "compozy-qa", false)
+				requireNoError(t, err)
+				requireEqual(t, value, string(data))
+				clear(data)
+			}
+			data, err := reader.Read(t.Context(), service, "compozy-qa", true)
 			requireNoError(t, err)
-			requireEqual(t, value, string(data))
+			requireEqual(t, "synthetic-rotated", string(data))
 			clear(data)
-		}
-		data, err := reader.Read(t.Context(), service, "compozy-qa", true)
-		requireNoError(t, err)
-		requireEqual(t, "synthetic-rotated", string(data))
-		clear(data)
-	})
+		},
+	)
 	t.Run("Should refuse an untrusted item before launching security", func(t *testing.T) {
 		t.Parallel()
 		service := claudeTestKeychainItem(t, false)

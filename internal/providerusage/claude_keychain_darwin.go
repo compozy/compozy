@@ -62,7 +62,7 @@ func (c claudeExecKeychain) Read(ctx context.Context, service, account string, i
 }
 
 func (c claudeExecKeychain) preflight(ctx context.Context, service, account string) error {
-	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	checkCtx, cancel := context.WithTimeout(ctx, claudeBackgroundReadTimeout)
 	defer cancel()
 	command := exec.CommandContext(checkCtx, "/usr/bin/osascript", "-l", "JavaScript", "-e",
 		claudeKeychainPreflightScript, "--", service, account)

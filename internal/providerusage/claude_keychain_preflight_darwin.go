@@ -9,9 +9,13 @@ const claudeKeychainPreflightScript = `ObjC.import('Foundation');
 ObjC.import('Security');
 ObjC.bindFunction('SecTrustedApplicationValidateWithPath', ['int', ['id', 'char *']]);
 function run(argv) {
+  var previousInteraction;
   try {
     var c = ObjC.castRefToObject;
     function done(status, safe) { return JSON.stringify({status:status, safe:safe}); }
+    var allowed = Ref();
+    if ($.SecKeychainGetUserInteractionAllowed(allowed) !== 0) return done(-25293, false);
+    previousInteraction = allowed[0];
     if ($.SecKeychainSetUserInteractionAllowed(false) !== 0) return done(-25293, false);
     var query = $.NSMutableDictionary.alloc.init;
     query.setObjectForKey(c($.kSecClassGenericPassword), c($.kSecClass));
@@ -71,5 +75,8 @@ function run(argv) {
     }
     return done(0, trusted && partition && decryptCount === 1 && partitionCount === 1);
   } catch(e) { return JSON.stringify({status:-25293, safe:false}); }
+  finally {
+    if (previousInteraction !== undefined) $.SecKeychainSetUserInteractionAllowed(previousInteraction);
+  }
 }
 `

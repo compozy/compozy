@@ -87,7 +87,10 @@ func (e *UsageError) Status() Status {
 	switch e.Code {
 	case ErrorCodeAuthMissing, ErrorCodeAuthExpired, ErrorCodeAuthScope:
 		return StatusSignedOut
-	case ErrorCodeKeychainConsentRequired, ErrorCodeKeychainDenied, ErrorCodeKeychainTokenExpired, ErrorCodeKeychainReadTimeout:
+	case ErrorCodeKeychainConsentRequired,
+		ErrorCodeKeychainDenied,
+		ErrorCodeKeychainTokenExpired,
+		ErrorCodeKeychainReadTimeout:
 		return StatusNeedsConsent
 	case ErrorCodeProviderRateLimited:
 		return StatusRateLimited
