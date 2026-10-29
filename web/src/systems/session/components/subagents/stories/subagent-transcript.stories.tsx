@@ -73,7 +73,7 @@ function CardStates() {
       <Cell label="title at 72 characters" wide>
         <SubagentCard subagent={cardStates.longTitle} onOpen={onOpen} />
       </Cell>
-      <Cell label="provider-native · no child session · no chevron" wide>
+      <Cell label="provider-native · inspect activity without a child session" wide>
         <SubagentCard subagent={nativeRunning} onOpen={onOpen} />
       </Cell>
     </div>

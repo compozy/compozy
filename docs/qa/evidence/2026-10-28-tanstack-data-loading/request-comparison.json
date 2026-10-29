@@ -1,0 +1,101 @@
+{
+  "baseline": "7ccc00670d1e278515049d6ff7ba8b3c00b7ee25",
+  "environment": "Production Web bundles; isolated local daemon; identical seeded data; Chromium headless shell; fresh browser profiles",
+  "samples_per_version": 1,
+  "measurement": "Request start relative to user click, not end-to-end latency percentiles",
+  "browser": {
+    "baseline": {
+      "startup_status_reads": 6,
+      "tasks": [
+        {
+          "path": "/api/tasks?all_workspaces=true&include_drafts=true&sort=recent&limit=50&profile=default",
+          "relative_to_click_ms": 84.31
+        }
+      ],
+      "tasks_window_code": [
+        {
+          "path": "/assets/tasks-window-6SyPxGC-.js",
+          "relative_to_click_ms": 62.17
+        }
+      ],
+      "session_transcript": [
+        {
+          "path": "/api/workspaces/01M626CX080SBZ7TMTEAG1DHB5/sessions/sess_northstar_support_handoff/transcript",
+          "relative_to_click_ms": 88.76
+        }
+      ],
+      "preclick_mutations": 0,
+      "page_errors": [],
+      "matching_support_transcript": true
+    },
+    "after": {
+      "startup_status_reads": 2,
+      "tasks": [
+        {
+          "path": "/api/tasks?all_workspaces=true&include_drafts=true&sort=recent&limit=50&profile=default",
+          "relative_to_click_ms": -527.34
+        }
+      ],
+      "tasks_window_code": [
+        {
+          "path": "/assets/tasks-window-DphICHWV.js",
+          "relative_to_click_ms": -532.42
+        }
+      ],
+      "session_transcript": [
+        {
+          "path": "/api/workspaces/01M626CX080SBZ7TMTEAG1DHB5/sessions/sess_northstar_support_handoff/transcript",
+          "relative_to_click_ms": -502.5
+        }
+      ],
+      "preclick_mutations": 0,
+      "page_errors": [],
+      "matching_support_transcript": true
+    }
+  },
+  "supplementary_browser": {
+    "brief_session_intent_reads": 0,
+    "keyboard_intent": [
+      {
+        "stage": "keyboard-intent",
+        "url": "/api/sessions/sess_northstar_docs_refresh?profile=default&include_health=true",
+        "method": "GET"
+      },
+      {
+        "stage": "keyboard-intent",
+        "url": "/api/workspaces/01M626CX0P5PCJQD156P8G14GE/sessions/sess_northstar_docs_refresh/transcript",
+        "method": "GET"
+      }
+    ],
+    "board_intent": [
+      {
+        "stage": "board-intent",
+        "url": "/api/sessions/sess_northstar_partner_replay?profile=default&include_health=true",
+        "method": "GET"
+      },
+      {
+        "stage": "board-intent",
+        "url": "/api/workspaces/01M626CX0P5PCJQD156P8G14GE/sessions/sess_northstar_partner_replay/transcript",
+        "method": "GET"
+      }
+    ],
+    "stale_live_focus_transcript_reads": 0,
+    "agent_session_reads": [
+      {
+        "stage": "agent-detail",
+        "url": "/api/sessions?workspace_id=01M626CX080SBZ7TMTEAG1DHB5&agent=product-lead&sort=last_activity&profile=default",
+        "method": "GET"
+      },
+      {
+        "stage": "agent-detail",
+        "url": "/api/sessions?workspace_id=01M626CX080SBZ7TMTEAG1DHB5&agent=product-lead&archive=only&sort=last_activity&profile=default",
+        "method": "GET"
+      }
+    ],
+    "settings_intent_gets_only": true,
+    "workspace_switch_reload": "PASS",
+    "page_errors": [],
+    "qa_audit": "PASS",
+    "teardown_clean": true
+  }
+}

@@ -80,6 +80,15 @@ Cancel only while it is pending:
 compozy worktree cancel feature-auth --workspace . -o json
 ```
 
+## Use the checkout in an existing session
+
+In an idle session's environment control, choose **Use worktree…** or **Change worktree…**.
+Select a ready checkout, or choose **New worktree…** and wait for materialization to finish, then
+confirm **Use worktree**. Creation alone does not change the session. Binding keeps its ID,
+transcript, and window; the next turn runs in the checkout. Files are not moved between checkouts.
+See [session environment changes](/docs/worktrees/navigation#change-an-existing-sessions-environment)
+for refusal conditions, CLI commands, and concurrency checks.
+
 ## Adopt an existing linked checkout
 
 ### 1. Confirm Git owns it

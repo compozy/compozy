@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { SubagentDrawerContext } from "../contexts/subagent-drawer-context";
+import { use, useState } from "react";
 
 import { useSessionSubagents } from "../hooks/use-session-subagents";
 import { sessionSubagentCounts } from "../lib/session-subagent-summary";
@@ -24,6 +25,7 @@ export interface SessionComposerSubagentsProps {
 export function SessionComposerSubagents({ session, onOpen }: SessionComposerSubagentsProps) {
   const [open, setOpen] = useState(false);
   const summary = sessionSubagentCounts(session);
+  const drawer = use(SubagentDrawerContext);
   const roster = useSessionSubagents(session.workspace_id ?? "", session.id, {
     coldRead: open || summary !== null,
   });
@@ -38,7 +40,11 @@ export function SessionComposerSubagents({ session, onOpen }: SessionComposerSub
       loading={!roster.complete && !roster.failed}
       failed={roster.failed}
       onRetry={roster.retry}
-      onOpen={onOpen}
+      onOpen={
+        drawer
+          ? (subagent, options) => drawer.open(subagent, options, session.workspace_id ?? "")
+          : onOpen
+      }
       onStop={roster.stop}
       onOpenChange={setOpen}
     />

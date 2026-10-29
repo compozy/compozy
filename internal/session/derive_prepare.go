@@ -300,6 +300,9 @@ func deriveSourceCWD(meta *store.SessionMeta) string {
 	if meta == nil {
 		return ""
 	}
+	if cwd := strings.TrimSpace(meta.CWDValue()); cwd != "" {
+		return cwd
+	}
 	if meta.CreationProfile != nil && strings.TrimSpace(meta.CreationProfile.CWD) != "" {
 		return strings.TrimSpace(meta.CreationProfile.CWD)
 	}

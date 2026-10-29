@@ -134,6 +134,7 @@
             "properties": {
                 "schema_version": { "const": 2 },
                 "pid": { "type": "integer", "minimum": 1 },
+                "process_token": { "type": "string", "minLength": 1 },
                 "started_at": { "type": "string", "format": "date-time" },
                 "app_version": { "type": "string" },
                 "channel": { "type": "string" },

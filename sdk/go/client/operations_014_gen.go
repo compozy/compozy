@@ -11,6 +11,27 @@ import (
 	"strings"
 )
 
+// HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
+func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/heartbeat"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectRunParams carries the path, query, and header parameters.
+type InspectRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // InspectRun Inspect one task run with diagnostics
 func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
 	path := "/api/runs/{id}/inspect"
@@ -426,21 +447,4 @@ func (c *Client) ListAgentsAggregate(ctx context.Context, params ListAgentsAggre
 // ListAppTokensParams carries the path, query, and header parameters.
 type ListAppTokensParams struct {
 	State *string `url:"state"`
-}
-
-// ListAppTokens List app tokens without their bearer secrets Experimental: pin the exact SDK version.
-func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) (*AppTokensResponse, error) {
-	path := "/api/app-tokens"
-	query := url.Values{}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AppTokensResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

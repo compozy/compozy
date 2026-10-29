@@ -431,6 +431,7 @@ func (m *Manager) prepareReservedPromptInput(
 	replayBlock := ""
 	if req.delivery == PromptDeliveryNormal {
 		replayBlock = m.pendingResumeReplay(session.ID)
+		input.message = session.worktreeBindingNotice(input.message)
 	}
 	return promptWithResumeReplay(replayBlock, input.message), replayBlock, nil
 }
@@ -440,5 +441,6 @@ func (m *Manager) consumeReservedPromptContext(session *Session, req promptReque
 		return
 	}
 	m.consumeResumeReplay(session.ID, replayBlock)
+	m.consumeWorktreeBindingNotice(session)
 	m.recordImportedContextConsumption(session, req, replayBlock)
 }

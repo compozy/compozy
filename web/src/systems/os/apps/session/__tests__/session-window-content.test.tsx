@@ -4,11 +4,29 @@
 // runtime and stop truth with the one action that exists for each — a quiet
 // supervision episode is never a window notice.
 // Owning layer: the session-window recovery and stop-attention actions.
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { createContext, type ReactNode, Suspense } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { UIProvider } from "@compozy/ui";
+import { act, fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
+import { createContext, type ReactNode, Suspense, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
+
+// The real drawer consumes the application query/UI providers even when closed.
+// Keep the recovery/stop invariants in this canonical suite with its normal host boundaries.
+function TestProviders({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  );
+  return (
+    <QueryClientProvider client={queryClient}>
+      <UIProvider>{children}</UIProvider>
+    </QueryClientProvider>
+  );
+}
+function render(ui: ReactNode) {
+  return renderUI(ui, { wrapper: TestProviders });
+}
 
 const mocks = vi.hoisted(() => ({
   cancelPrompt: vi.fn(),
@@ -80,7 +98,8 @@ vi.mock("../use-session-window-derive", () => ({
   }),
 }));
 
-vi.mock("@/systems/session", async () => ({
+vi.mock("@/systems/session", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/session")>()),
   // The stop-attention notice is under test here: the real composite, not a stand-in.
   ...(await import("@/systems/session/components/session-stop-attention-notice")),
   hasUnrecoverableRuntime: (session: SessionPayload) =>

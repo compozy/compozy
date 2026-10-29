@@ -130,7 +130,7 @@ func reportTestMainError(format string, args ...any) {
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
-	t.Run("Should verify the exact permanent default profile without repairing it", func(t *testing.T) {
+	t.Run("Should verify the permanent default profile without repairing invalid identity", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openFreshTestGlobalDB(t)
@@ -151,7 +151,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		}
 		if _, err := globalDB.db.ExecContext(
 			ctx,
-			`UPDATE profiles SET color = '#000000' WHERE id = ?`,
+			`UPDATE profiles SET name = 'renamed-default' WHERE id = ?`,
 			store.DefaultProfileID,
 		); err != nil {
 			t.Fatalf("corrupt default profile fixture error = %v", err)
@@ -162,18 +162,89 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		) {
 			t.Fatalf("VerifyDefaultProfile(corrupt) error = %v, want permanent identity mismatch", err)
 		}
-		var color string
+		var name string
 		if err := globalDB.db.QueryRowContext(
 			ctx,
-			`SELECT color FROM profiles WHERE id = ?`,
+			`SELECT name FROM profiles WHERE id = ?`,
 			store.DefaultProfileID,
-		).Scan(&color); err != nil {
+		).Scan(&name); err != nil {
 			t.Fatalf("read corrupt default profile error = %v", err)
 		}
-		if color != "#000000" {
-			t.Fatalf("VerifyDefaultProfile() repaired color = %q, want verify-only state", color)
+		if name != "renamed-default" {
+			t.Fatalf("VerifyDefaultProfile() repaired name = %q, want verify-only state", name)
 		}
 	})
+
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  string
+	}{
+		{name: "Should reject a missing permanent default profile", query: `DELETE FROM profiles WHERE id = ?`, want: "default profile seed is missing"},
+		{name: "Should reject an archived permanent default profile", query: `UPDATE profiles SET state = 'archived', archived_at = '2026-10-28T12:00:00Z' WHERE id = ?`, want: "does not match the permanent identity"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			globalDB := openFreshTestGlobalDB(t)
+			if _, err := globalDB.db.ExecContext(ctx, tc.query, store.DefaultProfileID); err != nil {
+				t.Fatalf("prepare invalid default profile: %v", err)
+			}
+			if err := globalDB.VerifyDefaultProfile(ctx); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("VerifyDefaultProfile() = %v, want %q", err, tc.want)
+			}
+		})
+	}
+
+	for _, tc := range []struct {
+		name  string
+		color string
+		icon  sql.NullString
+		emoji sql.NullString
+	}{
+		{name: "Should preserve customized default profile color", color: "#4cb782", icon: sql.NullString{String: "circle", Valid: true}},
+		{name: "Should preserve customized default profile icon", color: "#8E8EB5", icon: sql.NullString{String: "apple", Valid: true}},
+		{name: "Should preserve customized default profile color and icon", color: "#4cb782", icon: sql.NullString{String: "apple", Valid: true}},
+		{name: "Should preserve customized default profile emoji", color: "#4cb782", emoji: sql.NullString{String: "🍎", Valid: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			globalDB := openGlobalDBForTest(t, path)
+			if _, err := globalDB.db.ExecContext(ctx,
+				`UPDATE profiles SET color = ?, icon = ?, emoji = ? WHERE id = ?`,
+				tc.color, tc.icon, tc.emoji, store.DefaultProfileID,
+			); err != nil {
+				t.Fatalf("customize default profile: %v", err)
+			}
+			if err := globalDB.Close(ctx); err != nil {
+				t.Fatalf("close customized database: %v", err)
+			}
+			reopened := openGlobalDBForTest(t, path)
+			if err := reopened.VerifyDefaultProfile(ctx); err != nil {
+				t.Fatalf("verify customized default profile after reopen: %v", err)
+			}
+			var color string
+			var icon, emoji sql.NullString
+			if err := reopened.db.QueryRowContext(ctx,
+				`SELECT color, icon, emoji FROM profiles WHERE id = ?`, store.DefaultProfileID,
+			).Scan(&color, &icon, &emoji); err != nil {
+				t.Fatalf("read customized default profile: %v", err)
+			}
+			if color != tc.color || icon != tc.icon || emoji != tc.emoji {
+				t.Fatalf(
+					"presentation = (%q, %+v, %+v), want (%q, %+v, %+v)",
+					color,
+					icon,
+					emoji,
+					tc.color,
+					tc.icon,
+					tc.emoji,
+				)
+			}
+		})
+	}
 
 	t.Run("Should apply the complete global migration stream before repository use", func(t *testing.T) {
 		t.Parallel()

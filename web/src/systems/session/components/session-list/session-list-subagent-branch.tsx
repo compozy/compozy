@@ -1,3 +1,7 @@
+import { use, type MouseEvent } from "react";
+import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
+import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
+import { SubagentRuntimeMeta } from "../subagents/subagent-runtime-meta";
 import { Button, StateGlyph, cn } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
@@ -36,8 +40,13 @@ export function SessionListSubagentBranch({
   onSelectSession,
   testIdPrefix,
 }: SessionListSubagentBranchProps) {
+  const drawer = use(SubagentDrawerContext);
   const branch = useSessionSubagentBranch(workspaceId, sessionId, total);
-  const open = (subagent: SubagentView) => {
+  const open = (subagent: SubagentView, event: MouseEvent<HTMLButtonElement>) => {
+    if (drawer) {
+      drawer.open(subagent, { newWindow: event.metaKey || event.ctrlKey }, workspaceId);
+      return;
+    }
     const target = subagentNavigationTarget(subagent, workspaceId);
     if (!target) return;
     onSelectSession({
@@ -61,7 +70,11 @@ export function SessionListSubagentBranch({
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }
-            onOpen={() => open(subagent)}
+            onOpen={
+              drawer || subagentNavigationTarget(subagent, workspaceId)
+                ? event => open(subagent, event)
+                : undefined
+            }
           />
         ))
       )}
@@ -97,8 +110,9 @@ function SubagentBranchRow({
 }: {
   subagent: SubagentView;
   current: boolean;
-  onOpen: () => void;
+  onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
+  const selected = useSubagentDrawerSelected(subagent.id);
   const display = subagentDisplay(subagent);
   const word = display.word;
   const body = (
@@ -106,13 +120,14 @@ function SubagentBranchRow({
       <span className="flex justify-center">
         <StateGlyph size="sm" state={display.glyph} />
       </span>
-      <span className={cn("min-w-0 truncate", display.settled && "text-muted")}>
-        {subagent.title}
+      <span className="flex min-w-0 flex-col">
+        <span className={cn("truncate", display.settled && "text-muted")}>{subagent.title}</span>
+        <SubagentRuntimeMeta subagent={subagent} />
       </span>
       <SubagentRowTrail subagent={subagent} />
     </>
   );
-  const rowClass = cn(SUBAGENT_ROW_FRAME, current && "bg-selected");
+  const rowClass = cn(SUBAGENT_ROW_FRAME, (current || selected) && "bg-selected");
 
   return (
     <div
@@ -121,7 +136,7 @@ function SubagentBranchRow({
       data-status={subagent.status}
       data-state={display.glyph}
     >
-      {subagent.child_session_id !== null || subagent.origin === "provider_native" ? (
+      {onOpen ? (
         <button
           type="button"
           className={cn(
@@ -130,16 +145,13 @@ function SubagentBranchRow({
           )}
           aria-label={`Open ${subagent.title}`}
           aria-description={word}
-          aria-current={current ? "true" : undefined}
+          aria-current={current || selected ? "true" : undefined}
           onClick={onOpen}
         >
           {body}
         </button>
       ) : (
-        // A delegated child can still be awaiting session admission.
-        <div role="group" aria-label={`${subagent.title}, ${word}`} className={rowClass}>
-          {body}
-        </div>
+        <div className={rowClass}>{body}</div>
       )}
     </div>
   );

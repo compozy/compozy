@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// WindowManagerCommandRequest is a daemon API value.
+type WindowManagerCommandRequest struct {
+	WorkspaceID      WindowmanagerWorkspaceID  `json:"workspace_id"`
+	CommandID        WindowManagerCommandID    `json:"command_id"`
+	ExpectedRevision *WindowManagerRevision    `json:"expected_revision"`
+	ClientID         *WindowmanagerClientID    `json:"client_id,omitzero"`
+	Actor            WindowManagerActor        `json:"actor"`
+	Origin           string                    `json:"origin"`
+	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitzero"`
+	Payload          json.RawMessage           `json:"payload"`
+}
+
 // WindowManagerDesktop is a daemon API value.
 type WindowManagerDesktop struct {
 	ID             DesktopID                    `json:"id"`
@@ -289,6 +301,12 @@ type WorkspacesResponse struct {
 	Workspaces []WorkspacePayload `json:"workspaces"`
 }
 
+// WorktreeBindingAvailability is a daemon API value.
+type WorktreeBindingAvailability struct {
+	Available         bool   `json:"available"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
+}
+
 // WorktreeBindingsPayload is a daemon API value.
 type WorktreeBindingsPayload struct {
 	AgentActivity string `json:"agent_activity"`
@@ -413,34 +431,3 @@ type WorktreeInspectionResponse struct {
 
 // WorktreeMode is a daemon API value.
 type WorktreeMode string
-
-// WorktreePayload is a daemon API value.
-type WorktreePayload struct {
-	ID              string    `json:"id"`
-	ProfileID       string    `json:"profile_id"`
-	ProfileName     string    `json:"profile_name"`
-	ProfileColor    string    `json:"profile_color,omitempty"`
-	ProfileIcon     string    `json:"profile_icon,omitempty"`
-	ProfileEmoji    string    `json:"profile_emoji,omitempty"`
-	ProfileArchived bool      `json:"profile_archived"`
-	WorkspaceID     string    `json:"workspace_id"`
-	Name            string    `json:"name"`
-	Branch          string    `json:"branch"`
-	Path            string    `json:"path"`
-	State           string    `json:"state"`
-	PendingPhase    string    `json:"pending_phase,omitempty"`
-	Origin          string    `json:"origin"`
-	SetupState      string    `json:"setup_state"`
-	SetupError      string    `json:"setup_error,omitempty"`
-	BaseRef         string    `json:"base_ref,omitempty"`
-	CreatedBranch   bool      `json:"created_branch"`
-	RunNamespace    string    `json:"run_namespace,omitempty"`
-	CreatedHead     string    `json:"created_head,omitempty"`
-	RunID           string    `json:"run_id,omitempty"`
-	Dirty           *bool     `json:"dirty"`
-	Ahead           *int      `json:"ahead"`
-	Behind          *int      `json:"behind"`
-	AgentActivity   string    `json:"agent_activity"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}

@@ -76,3 +76,9 @@ aggregates (`all_workspaces=true` on tasks, task dashboard, and overview; `scope
 backlog); User focus keeps `scope=global` for tasks and `@user` for Home. Re-walk the User half with a
 projectless task and confirm it never appears in a project's listing and shows the "User" badge under
 All projects.
+
+2026-10-28 terminal regression (#1008): in All projects, choose User in Terminal's creation
+picker, attach and run a command, then create a second tab and cancel/confirm group close. Repeat
+from the User desktop. Verify both terminals belong to `@user` and close a missing-terminal window
+without a project-selection error. The acting profile supplies the launch environment. This focused
+terminal walk does not replace the remaining multi-surface charter above.

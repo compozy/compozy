@@ -2135,6 +2135,7 @@ describe("useOsWinLayer", () => {
     window.dispatchEvent(new Event("orientationchange"));
 
     expect(shell.controller.setDesktopBounds).toHaveBeenCalledWith({
+      viewportWidth: window.innerWidth,
       width: 1280,
       height: 700,
       origin: { x: 24, y: 52 },

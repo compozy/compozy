@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -944,6 +945,20 @@ func TestSettingsUpdateControllerGetUpdate(t *testing.T) {
 }
 
 func TestSettingsUpdateControllerMutations(t *testing.T) {
+	t.Run("Should preserve timestamp identity when kernel identity is unavailable at creation", func(t *testing.T) {
+		t.Parallel()
+		startedAt := time.Now().UTC()
+		daemon := &Daemon{
+			pid:              func() int { return 42 },
+			processStartedAt: func(int) (time.Time, error) { return startedAt, nil },
+			processToken:     func(int) (string, error) { return "", os.ErrPermission },
+			now:              func() time.Time { return startedAt },
+		}
+		holder, err := newDaemonUpdateHolder(daemon, compozyupdate.ActorDaemon)
+		if err != nil || holder.ProcessToken != "" || holder.PID != 42 || !holder.PIDStartTime.Equal(startedAt) {
+			t.Fatalf("holder = %#v, %v", holder, err)
+		}
+	})
 	t.Run("Should derive holder identity from daemon composition seams", func(t *testing.T) {
 		t.Parallel()
 
@@ -951,7 +966,8 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 		startedAt := time.Date(2026, time.August, 16, 10, 0, 0, 0, time.UTC)
 		now := startedAt.Add(time.Hour)
 		daemon := &Daemon{
-			pid: func() int { return pid },
+			pid:          func() int { return pid },
+			processToken: func(int) (string, error) { return "boot:123", nil },
 			processStartedAt: func(gotPID int) (time.Time, error) {
 				if gotPID != pid {
 					t.Fatalf("processStartedAt PID = %d, want %d", gotPID, pid)
@@ -1198,6 +1214,40 @@ func TestSettingsUpdateControllerMutations(t *testing.T) {
 }
 
 func TestBackgroundUpdateRuntimeHonorsDaemonOwnedAppConfig(t *testing.T) {
+	t.Run("Should leave a live Linux holder with a drifted wall timestamp untouched", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "linux" {
+			t.Skip("Linux kernel identity")
+		}
+		store := newDaemonSettingsOperationStore(t)
+		holder := daemonSettingsHolder(t)
+		token, err := procutil.ProcessToken(holder.PID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		holder.ProcessToken = token
+		holder.PIDStartTime = holder.PIDStartTime.Add(-time.Hour)
+		operation, err := store.Acquire(
+			t.Context(),
+			daemonSettingsOperationRequest(holder, []compozyupdate.Target{compozyupdate.TargetRuntime}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := recoverDaemonUpdateOperation(
+			t.Context(),
+			&Daemon{},
+			stubSettingsUpdateManager{store: store},
+		); err != nil {
+			t.Fatal(err)
+		}
+		observed, err := store.Read(t.Context())
+		if err != nil || observed == nil || observed.Revision != operation.Revision ||
+			observed.Holder.ExecutorGeneration != holder.ExecutorGeneration {
+			t.Fatalf("boot recovery changed live holder: %#v, %v", observed, err)
+		}
+	})
+
 	t.Run("Should discover new releases on the default cadence without restarting", func(t *testing.T) {
 		t.Parallel()
 		checks := make(chan struct{}, 4)
@@ -1328,6 +1378,7 @@ func TestBackgroundUpdateRuntimeHonorsDaemonOwnedAppConfig(t *testing.T) {
 			now:              func() time.Time { return time.Now().UTC() },
 			pid:              func() int { return executor.PID },
 			processStartedAt: func(int) (time.Time, error) { return executor.PIDStartTime, nil },
+			processToken:     procutil.ProcessToken,
 			executable:       func() (string, error) { return "/bin/false", nil },
 			startDetached: func(context.Context, detachedStartRequest) (restartProcess, error) {
 				t.Fatal("expired pre-swap operation launched a coordinator")
@@ -1368,6 +1419,7 @@ func TestBackgroundUpdateRuntimeHonorsDaemonOwnedAppConfig(t *testing.T) {
 			now:              func() time.Time { return time.Now().UTC() },
 			pid:              func() int { return executor.PID },
 			processStartedAt: func(int) (time.Time, error) { return executor.PIDStartTime, nil },
+			processToken:     procutil.ProcessToken,
 			executable:       func() (string, error) { return "/bin/compozy", nil },
 			startDetached: func(_ context.Context, request detachedStartRequest) (restartProcess, error) {
 				launched <- request

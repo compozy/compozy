@@ -137,8 +137,8 @@ func (s *OperationStore) emitTransitionEvents(
 	updated *Operation,
 	transition Transition,
 ) error {
-	if transition.Kind == TransitionRecover && previous.Holder != nil &&
-		!s.holderLive(previous.Holder, updated.UpdatedAt) {
+	// Recovery already proved the previous holder stale before persisting the transition.
+	if transition.Kind == TransitionRecover && previous.Holder != nil {
 		s.events.EmitUpdateEvent(ctx, eventFromOperation(
 			EventLeaseExpired,
 			previous,
@@ -185,8 +185,14 @@ func (s *OperationStore) Fence(
 		if operation.Revision != expectedRevision {
 			return ErrOperationConflict
 		}
-		if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
-			!s.holderLive(operation.Holder, s.now()) {
+		if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) {
+			return ErrExecutorFenced
+		}
+		live, err := s.HolderLive(operation.Holder)
+		if err != nil {
+			return err
+		}
+		if !live {
 			return ErrExecutorFenced
 		}
 		return nil
@@ -198,10 +204,20 @@ func validateExecutorFence(
 	executorGeneration string,
 	transition Transition,
 	now time.Time,
-	holderLive func(*Holder, time.Time) bool,
+	holderLive func(*Holder, time.Time) (bool, error),
 ) error {
+	checksGeneration := transition.Kind != TransitionAcquireLease && transition.Kind != TransitionRecover &&
+		transition.Kind != TransitionCancel
+	if checksGeneration &&
+		(operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration)) {
+		return ErrExecutorFenced
+	}
+	live, err := holderLive(operation.Holder, now)
+	if err != nil {
+		return err
+	}
 	if transition.Kind == TransitionAcquireLease || transition.Kind == TransitionRecover {
-		if operation.Holder == nil || !holderLive(operation.Holder, now) {
+		if operation.Holder == nil || !live {
 			return nil
 		}
 		return ErrExecutorFenced
@@ -210,13 +226,12 @@ func validateExecutorFence(
 		if !cancelAllowedForPhase(operation) {
 			return ErrOperationNotCancelable
 		}
-		if operation.Holder == nil || !holderLive(operation.Holder, now) {
+		if operation.Holder == nil || !live {
 			return nil
 		}
 		return ErrOperationNotCancelable
 	}
-	if operation.Holder == nil || operation.Holder.ExecutorGeneration != strings.TrimSpace(executorGeneration) ||
-		!holderLive(operation.Holder, now) {
+	if !live {
 		return ErrExecutorFenced
 	}
 	return nil
@@ -428,47 +443,6 @@ func setPhaseForTarget(operation *Operation, target Target, phase OperationPhase
 	if target == TargetApp && operation.App != nil {
 		operation.App.Phase = phase
 	}
-}
-
-func canResumeOperation(
-	operation *Operation,
-	targets []Target,
-	now time.Time,
-	holderLive func(*Holder, time.Time) bool,
-) bool {
-	if !slices.Equal(operation.Targets, targets) {
-		return false
-	}
-	return operation.Waiting == WaitingForApp && operation.Holder == nil ||
-		operation.Holder != nil && !holderLive(operation.Holder, now)
-}
-
-func (s *OperationStore) resumeUnlocked(
-	ctx context.Context,
-	operation *Operation,
-	request OperationRequest,
-	result **Operation,
-) error {
-	resumed := cloneOperation(operation)
-	resumed.Revision++
-	resumed.RequestedBy = request.RequestedBy
-	resumed.Holder = cloneHolder(&request.Holder)
-	resumed.Waiting = WaitingNone
-	resumed.UpdatedAt = s.now()
-	if resumed.ActiveTarget == "" {
-		resumed.ActiveTarget = nextIncompleteTarget(resumed)
-	}
-	if err := s.replaceUnlocked(resumed); err != nil {
-		return err
-	}
-	s.events.EmitUpdateEvent(
-		ctx,
-		eventFromOperation(
-			EventOperationResumed, resumed, resumed.ActiveTarget, request.RequestedBy, "resumed", resumed.UpdatedAt,
-		),
-	)
-	*result = cloneOperation(resumed)
-	return nil
 }
 
 func nextIncompleteTarget(operation *Operation) Target {

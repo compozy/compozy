@@ -1569,7 +1569,7 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 		canceled := make(chan struct{})
 		events := make(chan session.CatalogEvent, 1)
 		events <- session.CatalogEvent{
-			Sequence: 18, Kind: session.CatalogEventUpserted,
+			Sequence: 18, Kind: session.CatalogEventUpserted, ExecutionLocationChanged: true,
 			ProfileID: store.DefaultProfileID, WorkspaceID: "ws_beta", SessionID: "sess_beta",
 		}
 		manager := testutil.StubSessionManager{SubscribeCatalogFn: func(
@@ -1615,7 +1615,8 @@ func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
 				t.Fatalf("frame = %d %q, error = %v; want %q", kind, payload, err, want)
 			}
 			if strings.Contains(want, "event:") && (!strings.Contains(string(payload), "id: 18\n") ||
-				!strings.Contains(string(payload), `"workspace_id":"ws_beta"`)) {
+				!strings.Contains(string(payload), `"workspace_id":"ws_beta"`) ||
+				!strings.Contains(string(payload), `"execution_location_changed":true`)) {
 				t.Fatalf("catalog identity or cursor missing: %s", payload)
 			}
 		}

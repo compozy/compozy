@@ -170,6 +170,7 @@ function normalizedRectToPixels(rect: NormalizedRect, area: PixelRect): OsRect {
 }
 
 export interface OsDesktopRuntimeViewInput {
+  viewportWidth?: number;
   snapshot: WindowManagerSnapshot | null;
   globalConfig: WindowManagerConfig | null;
   client: WindowManagerClientView | null;
@@ -221,8 +222,9 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
       : input.loadError
         ? "degraded"
         : "pending";
-  const viewportRejected =
-    workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "reject";
+  // Dock placement changes the work area; it must not change its own breakpoint.
+  const compactViewport = (input.viewportWidth ?? workArea.w) < OS_COMPACT_BREAKPOINT;
+  const viewportRejected = compactViewport && config?.smallViewportPolicy === "reject";
   return {
     snapshot,
     windowManagerConfig: config,
@@ -237,9 +239,7 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     wallpaper: input.wallpaper,
     reduceMotion: input.reduceMotion,
     presentation:
-      workArea.w < OS_COMPACT_BREAKPOINT && config?.smallViewportPolicy === "stack"
-        ? "compact"
-        : "floating",
+      compactViewport && config?.smallViewportPolicy === "stack" ? "compact" : "floating",
     viewportState: viewportRejected ? "rejected" : "ready",
     hydration,
     loadError: input.loadError,

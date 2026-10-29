@@ -128,6 +128,8 @@ export function subagentViewFromPayload(payload: SubagentPayload): SubagentView 
     child_activity: toChildActivity(payload.child_activity),
     progress: payload.progress,
     result_preview: payload.result_preview,
+    result: payload.result,
+    result_truncated: payload.result_truncated,
     error: payload.error,
     runtime: payload.runtime,
     depth: payload.depth,

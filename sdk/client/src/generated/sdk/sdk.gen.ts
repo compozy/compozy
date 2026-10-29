@@ -73,6 +73,9 @@ import type {
   BindGatewayIngressData,
   BindGatewayIngressErrors,
   BindGatewayIngressResponses,
+  BindSessionWorktreeData,
+  BindSessionWorktreeErrors,
+  BindSessionWorktreeResponses,
   BlockTaskData,
   BlockTaskErrors,
   BlockTaskResponses,
@@ -1320,6 +1323,9 @@ import type {
   UnbindGatewayIngressData,
   UnbindGatewayIngressErrors,
   UnbindGatewayIngressResponses,
+  UnbindSessionWorktreeData,
+  UnbindSessionWorktreeErrors,
+  UnbindSessionWorktreeResponses,
   UndrainDaemonData,
   UndrainDaemonErrors,
   UndrainDaemonResponses,
@@ -9957,6 +9963,51 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Return an idle session to the workspace root in place
+   */
+  public unbindSessionWorktree<ThrowOnError extends boolean = true>(
+    options: Options<UnbindSessionWorktreeData, ThrowOnError>
+  ): RequestResult<
+    UnbindSessionWorktreeResponses,
+    UnbindSessionWorktreeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      UnbindSessionWorktreeResponses,
+      UnbindSessionWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
+      ...options,
+    });
+  }
+
+  /**
+   * Bind an idle existing session to a ready worktree in place
+   */
+  public bindSessionWorktree<ThrowOnError extends boolean = true>(
+    options: Options<BindSessionWorktreeData, ThrowOnError>
+  ): RequestResult<BindSessionWorktreeResponses, BindSessionWorktreeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      BindSessionWorktreeResponses,
+      BindSessionWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
       ...options,
       headers: {
         "Content-Type": "application/json",

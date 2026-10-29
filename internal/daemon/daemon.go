@@ -218,6 +218,7 @@ type Daemon struct {
 	now                    func() time.Time
 	pid                    func() int
 	processStartedAt       func(int) (time.Time, error)
+	processToken           func(int) (string, error)
 	acquireLock            func(path string, pid int) (*Lock, error)
 	openRegistry           registryOpener
 	newSessionManager      sessionManagerFactory

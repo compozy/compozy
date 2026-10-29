@@ -42,6 +42,10 @@ Walk:
 7. Exercise the keyboard/window menu and close-other/right gestures. Pinned tabs remain protected by their existing scope rules.
 8. Lose the connection while closing; verify visible failure feedback, a retained window, and a successful fresh retry after reconnect.
 9. Confirm the route, title, dock badge, and another attached viewer remain truthful throughout.
+   Under All projects, create and attach in a project and in User, run a command, then open a
+   second tab from each bound window. Cancel and confirm group close without switching desktops;
+   verify the target processes through the public terminal API. A bound window referencing a
+   missing terminal closes without an error or confirmation. Repeat the User desktop canary.
 10. Hold a terminal creation response, switch workspace or profile, and release it. The original
     owner's catalog retains the terminal; the destination desktop is not retargeted. Returning to
     the original scope must not revive the obsolete navigation. Its initiating tab offers

@@ -74,10 +74,16 @@ const (
 	// ErrorCodeAgentNameReserved reports an authored agent identity reserved for daemon roles.
 	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
 	// ErrorCodeSessionBusy reports exclusive prompt admission contention.
-	ErrorCodeSessionBusy          ErrorCode = "session_busy"
-	ErrorCodeWorkspaceBusy        ErrorCode = "workspace_busy"
-	ErrorCodeWorkspaceArchived    ErrorCode = "workspace_archived"
-	ErrorCodeWorkspaceRootMissing ErrorCode = "workspace_root_missing"
+	ErrorCodeSessionBusy                 ErrorCode = "session_busy"
+	ErrorCodeWorkspaceBusy               ErrorCode = "workspace_busy"
+	ErrorCodeWorkspaceArchived           ErrorCode = "workspace_archived"
+	ErrorCodeWorkspaceRootMissing        ErrorCode = "workspace_root_missing"
+	ErrorCodeSessionWorktreeConflict     ErrorCode = "session_worktree_conflict"
+	ErrorCodeWorktreeNotFound            ErrorCode = "worktree_not_found"
+	ErrorCodeWorktreeNotReady            ErrorCode = "worktree_not_ready"
+	ErrorCodeWorktreeMissing             ErrorCode = "worktree_missing"
+	ErrorCodeWorktreeOperationInProgress ErrorCode = "worktree_operation_in_progress"
+	ErrorCodeWorktreeSessionActive       ErrorCode = "worktree_session_active"
 	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
 	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
 	// ErrorCodeSessionArchiveStopFailed reports a stop-first archive whose stop

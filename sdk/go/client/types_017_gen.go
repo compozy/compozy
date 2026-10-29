@@ -4,8 +4,16 @@ package client
 
 import "time"
 
+// SessionOwner is a daemon API value.
+type SessionOwner struct {
+	SessionID     string `json:"session_id"`
+	WorkspaceID   string `json:"workspace_id"`
+	WorkspaceName string `json:"workspace_name"`
+}
+
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
+	WorktreeBinding          *WorktreeBindingAvailability     `json:"worktree_binding,omitempty"`
 	Branch                   string                           `json:"branch,omitempty"`
 	PullRequest              *SessionPullRequestPayload       `json:"pull_request"`
 	PullRequestLookup        *SessionPullRequestLookupPayload `json:"pull_request_lookup"`
@@ -422,28 +430,3 @@ type SettingsApplyLifecycle string
 
 // SettingsApplyNextAction is a daemon API value.
 type SettingsApplyNextAction string
-
-// SettingsApplyResponse is a daemon API value.
-type SettingsApplyResponse struct {
-	Section          SettingsApplyTargetName       `json:"section,omitempty"`
-	Scope            SettingsScopeKind             `json:"scope,omitempty"`
-	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
-	WorkspaceID      string                        `json:"workspace_id,omitempty"`
-	Profile          string                        `json:"profile,omitempty"`
-	AgentName        string                        `json:"agent_name,omitempty"`
-	Applied          bool                          `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
-	ApplyRecordID    string                        `json:"apply_record_id"`
-	ActiveGeneration int64                         `json:"active_generation"`
-	ActiveConfigHash string                        `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction       `json:"next_action"`
-	RestartRequired  bool                          `json:"restart_required,omitzero"`
-	RestartScope     string                        `json:"restart_scope,omitempty"`
-	Warnings         []string                      `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
-	Skipped          bool                          `json:"skipped,omitzero"`
-	SkippedReason    string                        `json:"skipped_reason,omitempty"`
-}
-
-// SettingsApplyTargetName is a daemon API value.
-type SettingsApplyTargetName string

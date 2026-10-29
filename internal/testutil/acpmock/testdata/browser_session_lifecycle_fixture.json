@@ -44,6 +44,33 @@
             ],
             "turns": [
                 {
+                    "name": "binding-fact",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Remember the binding fact: amber otter"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Binding fact remembered."
+                        }
+                    ]
+                },
+                {
+                    "name": "binding-continued",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Check binding continuity",
+                        "raw_user_text_contains": "<compozy-environment-change>"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Binding conversation continued."
+                        }
+                    ]
+                },
+                {
                     "name": "browser-session-fix-pr-checks",
                     "match": {
                         "turn_source": "user",
@@ -110,6 +137,78 @@
                         {
                             "kind": "assistant",
                             "text": "Browser Lifecycle Flow"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "browser-binding-replay",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "load_missing": true,
+            "prompt": "You are the binding replay test agent.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "qa-browser-model",
+                    "values": [
+                        {
+                            "value": "qa-browser-model",
+                            "label": "QA Browser Model"
+                        },
+                        {
+                            "value": "qa-browser-model-alt",
+                            "label": "QA Browser Model Alt"
+                        }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        {
+                            "value": "low",
+                            "label": "Low"
+                        },
+                        {
+                            "value": "medium",
+                            "label": "Medium"
+                        },
+                        {
+                            "value": "high",
+                            "label": "High"
+                        }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "binding-fact",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Remember the binding fact: amber otter"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Binding fact remembered."
+                        }
+                    ]
+                },
+                {
+                    "name": "binding-replayed",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Check binding continuity",
+                        "raw_user_text_contains": "amber otter"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "Binding conversation continued."
                         }
                     ]
                 }

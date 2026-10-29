@@ -19,8 +19,7 @@ export function useDesktopChromeController() {
   const activeWorkspace = useActiveWorkspace();
   const chrome = useDesktopChrome(
     activeWorkspace.desktopWorkspaceId,
-    // Terminal windows belong to the desktop's scope: the User desktop's to
-    // `@user`, a project desktop's to that project — under All projects too.
+    // Fallback for unbound terminal windows; explicit window bindings take precedence.
     activeWorkspace.desktopWorkspaceId === USER_DESKTOP_WORKSPACE_ID
       ? USER_SCOPE_SELECTOR
       : (activeWorkspace.desktopWorkspace?.id ?? null)

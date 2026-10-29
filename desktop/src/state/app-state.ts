@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 import { writeFileAtomic } from "../files/atomic-write";
 import type { UpdateOperation } from "../update/operation-contract";
@@ -124,6 +125,7 @@ export function projectAppUpdateState(operation: UpdateOperation | null): AppUpd
 
 export class AppStatePublisher {
   readonly #path: string;
+  readonly #readProcessToken: () => Promise<string | undefined>;
   readonly #appVersion: string;
   readonly #channel: string;
   readonly #startedAt: string;
@@ -136,6 +138,7 @@ export class AppStatePublisher {
   #runtimeVersion: string | null = null;
   #runtimeOwned: boolean | null = null;
   #publication = Promise.resolve();
+  #processToken: string | undefined;
   #closed = false;
 
   constructor(options: {
@@ -146,9 +149,11 @@ export class AppStatePublisher {
     bootId?: string;
     startupMarker?: string;
     previousCrash?: StartupMarker | null;
+    readProcessToken?: () => Promise<string | undefined>;
     onPublished?: (snapshot: ShellSnapshot) => void;
   }) {
     this.#path = options.path;
+    this.#readProcessToken = options.readProcessToken ?? readProcessToken;
     this.#appVersion = options.appVersion;
     this.#channel = options.channel;
     this.#startedAt = options.startedAt.toISOString();
@@ -228,8 +233,12 @@ export class AppStatePublisher {
       ...snapshot,
       update: projectAppUpdateState(this.#operation),
     };
-    const data = `${JSON.stringify(record, null, 2)}\n`;
     const write = this.#publication.then(async () => {
+      // Token acquisition is optional at creation; retain timestamp identity if procfs is restricted.
+      const processToken = (this.#processToken ??= await this.#readProcessToken().catch(
+        () => undefined
+      ));
+      const data = `${JSON.stringify({ ...record, ...(processToken ? { process_token: processToken } : {}) }, null, 2)}\n`;
       await this.#persistMarker();
       await writeFileAtomic(this.#path, data, 0o600);
       this.#onPublished(snapshot);
@@ -250,4 +259,21 @@ export class AppStatePublisher {
       started_at: this.#startedAt,
     });
   }
+}
+
+async function readProcessToken(): Promise<string | undefined> {
+  if (process.platform !== "linux") return undefined;
+  const [boot, stat] = await Promise.all([
+    readFile("/proc/sys/kernel/random/boot_id", "utf8"),
+    readFile(`/proc/${process.pid}/stat`, "utf8"),
+  ]);
+  const fields = stat
+    .slice(stat.lastIndexOf(")") + 1)
+    .trim()
+    .split(/\s+/);
+  const ticks = fields[19];
+  if (!boot.trim() || !ticks || !/^\d+$/.test(ticks)) {
+    throw new Error("Invalid Linux process identity");
+  }
+  return `${boot.trim()}:${ticks}`;
 }

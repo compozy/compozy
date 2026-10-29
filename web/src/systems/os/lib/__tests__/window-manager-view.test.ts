@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildDesktopFrames } from "../group-projection";
 import {
+  buildOsDesktopRuntimeView,
   buildWindowManagerMinimums,
   buildWindowManagerProjections,
   buildWindowManagerWindows,
@@ -106,6 +107,28 @@ const CONFIG: WindowManagerConfig = {
 };
 
 describe("window-manager view", () => {
+  // Invariant: changing dock tracks cannot flip the viewport's presentation policy.
+  // Owner: the runtime projection bridge; this is its canonical suite.
+  it.each([939, 1000])("Should remain floating at a 1000px viewport with work area %s", width => {
+    const input = {
+      snapshot: SNAPSHOT,
+      globalConfig: CONFIG,
+      client: null,
+      viewportWidth: 1000,
+      workArea: { x: 0, y: 0, w: width, h: 700 },
+      workAreaOrigin: { x: 1000 - width, y: 52 },
+      seamPreview: null,
+      routeIntents: {},
+      connectionStatus: "connected" as const,
+      loadError: null,
+      wallpaper: "flat" as const,
+      reduceMotion: false,
+    };
+    expect(buildOsDesktopRuntimeView(input).presentation).toBe("floating");
+    expect(buildOsDesktopRuntimeView({ ...input, viewportWidth: 900 }).presentation).toBe(
+      "compact"
+    );
+  });
   it("Should derive each window minimum from the same frame contract", () => {
     expect(buildWindowManagerMinimums(SNAPSHOT)).toEqual({
       "window:dashboard": { width: 220, height: 220 },

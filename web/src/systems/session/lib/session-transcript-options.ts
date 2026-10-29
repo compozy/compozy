@@ -2,6 +2,7 @@ import { infiniteQueryOptions } from "@tanstack/react-query";
 
 import { fetchSessionTranscript } from "../adapters/session-api";
 import { sessionKeys } from "./query-keys";
+import { isSessionStreamLive } from "./session-stream-liveness";
 import {
   SESSION_TRANSCRIPT_STALE_TIME_MS,
   SESSION_WARM_CACHE_POLICY,
@@ -25,6 +26,10 @@ import {
  */
 export function sessionTranscriptOptions(workspace: string, id: string) {
   const queryKey = sessionKeys.transcript(workspace, id);
+  // A caught-up stream owns this page set. Refocusing an idle live session must
+  // not walk its retained history again; explicit invalidations still reread it.
+  const shouldRefetch = (query: { state: { isInvalidated: boolean } }) =>
+    query.state.isInvalidated || !isSessionStreamLive(id);
   return infiniteQueryOptions({
     queryKey,
     queryFn: async ({ client, pageParam, signal }) => {
@@ -48,6 +53,8 @@ export function sessionTranscriptOptions(workspace: string, id: string) {
     initialPageParam: undefined as SessionTranscriptPageParam,
     getNextPageParam: nextTranscriptPageParam,
     staleTime: SESSION_TRANSCRIPT_STALE_TIME_MS,
+    refetchOnMount: shouldRefetch,
+    refetchOnWindowFocus: shouldRefetch,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!id,
   });

@@ -10,7 +10,12 @@ import { createOsRouteSync } from "@/systems/os";
  */
 export const Route = createFileRoute("/_app/agents/$name/")({
   validateSearch: validateAgentDetailSearch,
-  loader: async ({ context, params }) =>
-    (await import("./-agents-preload")).preloadAgentDetailRoute(context.queryClient, params.name),
+  loaderDeps: ({ search }) => ({ workspace: search.workspace }),
+  loader: async ({ context, params, deps }) =>
+    (await import("./-agents-preload")).preloadAgentDetailRoute(
+      context.queryClient,
+      params.name,
+      deps.workspace
+    ),
   component: createOsRouteSync("agents"),
 });

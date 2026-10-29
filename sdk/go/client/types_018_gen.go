@@ -4,6 +4,31 @@ package client
 
 import "time"
 
+// SettingsApplyResponse is a daemon API value.
+type SettingsApplyResponse struct {
+	Section          SettingsApplyTargetName       `json:"section,omitempty"`
+	Scope            SettingsScopeKind             `json:"scope,omitempty"`
+	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
+	WorkspaceID      string                        `json:"workspace_id,omitempty"`
+	Profile          string                        `json:"profile,omitempty"`
+	AgentName        string                        `json:"agent_name,omitempty"`
+	Applied          bool                          `json:"applied"`
+	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
+	ApplyRecordID    string                        `json:"apply_record_id"`
+	ActiveGeneration int64                         `json:"active_generation"`
+	ActiveConfigHash string                        `json:"active_config_hash"`
+	NextAction       SettingsApplyNextAction       `json:"next_action"`
+	RestartRequired  bool                          `json:"restart_required,omitzero"`
+	RestartScope     string                        `json:"restart_scope,omitempty"`
+	Warnings         []string                      `json:"warnings,omitempty"`
+	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
+	Skipped          bool                          `json:"skipped,omitzero"`
+	SkippedReason    string                        `json:"skipped_reason,omitempty"`
+}
+
+// SettingsApplyTargetName is a daemon API value.
+type SettingsApplyTargetName string
+
 // SettingsAttentionPayload is a daemon API value.
 type SettingsAttentionPayload struct {
 	Toasts          bool     `json:"toasts"`
@@ -418,27 +443,4 @@ type SettingsMCPSecretPreservationPayload struct {
 type SettingsMCPSecretValuesPayload struct {
 	SecretEnv         map[string]string `json:"secret_env,omitempty"`
 	OAuthClientSecret *string           `json:"oauth_client_secret,omitzero"`
-}
-
-// SettingsMCPServerItemPayload is a daemon API value.
-type SettingsMCPServerItemPayload struct {
-	Owner          string                                 `json:"owner,omitempty"`
-	RuntimeName    string                                 `json:"runtime_name,omitempty"`
-	Override       *SettingsMCPExtensionOverridePayload   `json:"override,omitzero"`
-	Name           string                                 `json:"name"`
-	Transport      string                                 `json:"transport"`
-	Command        string                                 `json:"command,omitempty"`
-	Args           []string                               `json:"args,omitempty"`
-	EnvKeys        []string                               `json:"env_keys,omitempty"`
-	SecretEnvKeys  []string                               `json:"secret_env_keys,omitempty"`
-	URL            string                                 `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigViewPayload      `json:"auth,omitzero"`
-	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitzero"`
-	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitzero"`
-	Scope          SettingsScopeKind                      `json:"scope"`
-	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
-	Profile        string                                 `json:"profile,omitempty"`
-	CatalogEntry   string                                 `json:"catalog_entry,omitempty"`
-	CatalogVersion string                                 `json:"catalog_version,omitempty"`
-	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
 }

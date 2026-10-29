@@ -298,6 +298,36 @@ func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayI
 	return &out, nil
 }
 
+// UnbindSessionWorktreeParams carries the path, query, and header parameters.
+type UnbindSessionWorktreeParams struct {
+	WorkspaceID        string  `url:"workspace_id"`
+	SessionID          string  `url:"session_id"`
+	Profile            *string `url:"profile"`
+	ExpectedWorktreeID *string `url:"expected_worktree_id"`
+}
+
+// UnbindSessionWorktree Return an idle session to the workspace root in place
+func (c *Client) UnbindSessionWorktree(ctx context.Context, params UnbindSessionWorktreeParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ExpectedWorktreeID != nil {
+		query.Set("expected_worktree_id", *params.ExpectedWorktreeID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UndrainDaemon Resume admission of new work
 func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
 	path := "/api/undrain"
@@ -411,39 +441,4 @@ func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body
 // UpdateAppTokenParams carries the path, query, and header parameters.
 type UpdateAppTokenParams struct {
 	AppTokenID string `url:"app_token_id"`
-}
-
-// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
-func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationJobParams carries the path, query, and header parameters.
-type UpdateAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationJob Update one automation job
-func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

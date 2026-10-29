@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	changeSessionWorktreeFn       func(context.Context, string, string, string) (SessionRecord, error)
 	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
 	getSessionUsageTurnsFn        func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
 	searchSessionTranscriptFn     func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
@@ -3711,4 +3712,11 @@ func (s *stubClient) ListArchivedWorkspaces(ctx context.Context) ([]WorkspaceRec
 }
 func (s *stubClient) SetWorkspaceArchived(context.Context, string, bool) (WorkspaceRecord, error) {
 	return WorkspaceRecord{}, errors.New("archive stub not configured")
+}
+
+func (s *stubClient) ChangeSessionWorktree(ctx context.Context, id, ref, expected string) (SessionRecord, error) {
+	if s.changeSessionWorktreeFn == nil {
+		return SessionRecord{}, errors.New("unexpected ChangeSessionWorktree call")
+	}
+	return s.changeSessionWorktreeFn(ctx, id, ref, expected)
 }

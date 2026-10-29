@@ -24,6 +24,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 	identity := cloneCreationIdentity(s.creationIdentity)
 	meta := store.SessionMeta{
 		ID:                     s.ID,
+		WorktreeTransition:     store.CloneSessionWorktreeTransition(s.worktreeTransition),
 		ProfileID:              s.ProfileID,
 		Name:                   s.Name,
 		AgentName:              s.AgentName,

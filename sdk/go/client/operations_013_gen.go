@@ -4,11 +4,30 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetTaskInboxParams carries the path, query, and header parameters.
+type GetTaskInboxParams struct {
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Worktree      *string   `url:"worktree"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	Lane          *string   `url:"lane"`
+	Status        *string   `url:"status"`
+	Priority      *string   `url:"priority"`
+	Unread        *bool     `url:"unread"`
+	Query         *string   `url:"query"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
 
 // GetTaskInbox Get the observer-backed task inbox
 func (c *Client) GetTaskInbox(ctx context.Context, params GetTaskInboxParams) (*TaskInboxResponse, error) {
@@ -423,25 +442,4 @@ type HeartbeatAgentTaskRunParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
 	RunID             string `url:"run_id"`
-}
-
-// HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
-func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/heartbeat"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectRunParams carries the path, query, and header parameters.
-type InspectRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

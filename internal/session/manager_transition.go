@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -114,6 +115,17 @@ func (m *Manager) persistSessionCatalogSnapshot(
 	}
 	if meta == nil || info == nil {
 		return nil
+	}
+	if meta.WorktreeTransition != nil && meta.WorktreeTransition.Pending {
+		bindingStore, ok := m.sessionCatalog.(store.SessionWorktreeBindingStore)
+		if !ok {
+			return errors.New("session: worktree binding recovery store is unavailable")
+		}
+		path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, meta.ID))
+		if err := store.RecoverSessionWorktreeTransition(ctx, bindingStore, path, meta); err != nil {
+			return fmt.Errorf("session: recover worktree binding: %w", err)
+		}
+		info.WorktreeID = meta.WorktreeIDValue()
 	}
 	if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
 		return m.registerSessionCreation(ctx, info, meta, *identity)

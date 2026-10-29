@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+// LoopGateCriterionDetailPayload is a daemon API value.
+type LoopGateCriterionDetailPayload struct {
+	ID             string                         `json:"id"`
+	Type           string                         `json:"type"`
+	Prompt         string                         `json:"prompt,omitempty"`
+	Outcome        LoopGateVerdictOutcome         `json:"outcome"`
+	Passed         bool                           `json:"passed"`
+	Broken         bool                           `json:"broken,omitzero"`
+	ExitCode       *int                           `json:"exit_code,omitzero"`
+	Stdout         string                         `json:"stdout,omitempty"`
+	Stderr         string                         `json:"stderr,omitempty"`
+	Score          *float64                       `json:"score,omitzero"`
+	Evidence       json.RawMessage                `json:"evidence,omitempty"`
+	BlockingIssues []LoopGateBlockingIssuePayload `json:"blocking_issues,omitempty"`
+	Warnings       []LoopGateDiagnosticWarning    `json:"warnings,omitempty"`
+	Payload        json.RawMessage                `json:"payload,omitempty"`
+}
+
+// LoopGateCriterionEventPayload is a daemon API value.
+type LoopGateCriterionEventPayload struct {
+	ID     string   `json:"id"`
+	Type   string   `json:"type"`
+	Status string   `json:"status"`
+	Note   string   `json:"note"`
+	Score  *float64 `json:"score,omitzero"`
+}
+
+// LoopGateDecision is a daemon API value.
+type LoopGateDecision string
+
 // LoopGateDiagnosticWarning is a daemon API value.
 type LoopGateDiagnosticWarning struct {
 	Code    string `json:"code"`
@@ -407,38 +437,4 @@ type LoopResolvedLifecycleConfig struct {
 	WaitAdmissionInterval  string            `json:"wait_admission_interval"`
 	AdmissionHorizon       string            `json:"admission_horizon"`
 	Sources                map[string]string `json:"sources"`
-}
-
-// LoopResolvedRuntime is a daemon API value.
-type LoopResolvedRuntime struct {
-	Provider        string                    `json:"provider,omitempty"`
-	Model           string                    `json:"model,omitempty"`
-	Reasoning       string                    `json:"reasoning,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	SpeedResolution *Resolution               `json:"speed_resolution,omitzero"`
-	Source          LoopRuntimeProvenance     `json:"source"`
-}
-
-// LoopResponse is a daemon API value.
-type LoopResponse struct {
-	Loop LoopDefinitionPayload `json:"loop"`
-}
-
-// LoopRouteCausePayload is a daemon API value.
-type LoopRouteCausePayload struct {
-	NodeID      string    `json:"node_id"`
-	ItemIndex   int       `json:"item_index"`
-	Route       string    `json:"route"`
-	Cause       string    `json:"cause"`
-	MatchedWhen string    `json:"matched_when,omitempty"`
-	Default     bool      `json:"default,omitzero"`
-	At          time.Time `json:"at"`
-}
-
-// LoopRunAttention is a daemon API value.
-type LoopRunAttention struct {
-	Kind  string    `json:"kind"`
-	Count int       `json:"count"`
-	Since time.Time `json:"since"`
 }

@@ -7,9 +7,12 @@ import {
   loopConfigOptions,
   loopDefinitionProfile,
   loopDetailOptions,
+  loopRunBriefingOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
   loopRunDiffQuery,
+  loopRunRosterOptions,
+  loopRunTimelineOptions,
   type LoopRunDiffRouteSearch,
   type LoopRunsFilter,
   loopRunsListOptions,
@@ -183,14 +186,28 @@ export async function preloadLoopRunDetailRoute(
   const run = queryClient.ensureQueryData(
     loopRunDetailOptions(workspaceId, runId, true, profileScope)
   );
-  // A run that does not pin its executed definition reads the Loop's current one. That read
-  // needs the run, so it chains off it; neither delays the route, which shows its own skeleton.
-  const definition = run.then(({ executed_definition: executedDefinition, run: record }) =>
-    !executedDefinition && record.loop_name
-      ? queryClient.ensureQueryData(loopDetailOptions(workspaceId, record.loop_name))
-      : undefined
+  // Confirm the run in this scope before warming its initial projections. Existing
+  // pages stay intact on intent; mounted observers still own freshness and paging.
+  const reads = run.then(({ executed_definition: executedDefinition, run: record }) =>
+    Promise.allSettled([
+      !executedDefinition && record.loop_name
+        ? queryClient.ensureQueryData(loopDetailOptions(workspaceId, record.loop_name))
+        : undefined,
+      queryClient.query({
+        ...loopRunBriefingOptions(workspaceId, runId, true, profileScope),
+        staleTime: "static",
+      }),
+      queryClient.infiniteQuery({
+        ...loopRunRosterOptions(workspaceId, runId, {}, true, profileScope),
+        staleTime: "static",
+      }),
+      queryClient.infiniteQuery({
+        ...loopRunTimelineOptions(workspaceId, runId, { view: "notable" }, true, profileScope),
+        staleTime: "static",
+      }),
+    ])
   );
-  await settleRouteQueries([run, definition]);
+  await settleRouteQueries([run, reads]);
 }
 
 export async function preloadLoopRunDiffRoute(

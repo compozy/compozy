@@ -91,3 +91,14 @@ not restart grace. Closing/replacing the stream cancels its timer and fences lat
 The timer performs no reads; existing catalog reconciliation/backoff remains the only read owner.
 Targeted hook tests exercise these boundaries; rendered before/after capture uses the local Vite
 frontend against the existing daemon with browser-only offline fault injection. Full E2E remains CI-owned.
+
+QA impact 2026-10-28 (session intent): sustain pointer or keyboard intent on a
+session row before selecting it. Only that row's authorized detail and cold transcript
+head may load; no window command, profile switch or workspace switch may happen before
+activation. Brief hover, blur and unmount cancel pending intent. Repeat a warm selection,
+an intent-time profile/workspace change, and a failed read followed by another intent.
+The mounted observer must reuse the canonical cache; populated history must not be
+walked by hover. Existing SessionList and intent-hook suites own these boundaries.
+Real-daemon sidebar selection and matching transcript evidence are recorded in
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`; the full modal derive/delete
+journey remains separate from this loading slice.

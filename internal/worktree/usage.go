@@ -50,6 +50,18 @@ func (l *worktreeUsageLocks) tryAcquireExclusive(key string) (func(), bool) {
 	}), true
 }
 
+func (l *worktreeUsageLocks) tryAcquire(key string) (func(), bool) {
+	entry := l.reserve(key)
+	if !entry.semaphore.TryAcquire(1) {
+		l.releaseRef(key, entry)
+		return nil, false
+	}
+	return sync.OnceFunc(func() {
+		entry.semaphore.Release(1)
+		l.releaseRef(key, entry)
+	}), true
+}
+
 func (l *worktreeUsageLocks) reserve(key string) *worktreeUsageLock {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -103,6 +115,29 @@ func (s *Service) AcquireUsage(
 	if current.State != StateReady || strings.TrimSpace(current.Path) == "" {
 		release()
 		return nil, nil, ErrNotReady
+	}
+	return current, release, nil
+}
+
+// AcquireBindingUsage excludes checkout mutation during a session binding change.
+// Unlike runtime usage, this also permits leaving a missing checkout.
+func (s *Service) AcquireBindingUsage(ctx context.Context, workspaceID, ref string) (*Worktree, func(), error) {
+	item, err := s.Get(ctx, workspaceID, ref)
+	if err != nil {
+		return nil, nil, err
+	}
+	release, acquired := s.usage.tryAcquire(worktreeUsageKey(item.WorkspaceID, item.ID))
+	if !acquired {
+		return nil, nil, ErrOperationInProgress
+	}
+	current, err := s.Get(ctx, item.WorkspaceID, item.ID)
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	if current.State == StatePending || current.State == StateRemoving {
+		release()
+		return nil, nil, ErrOperationInProgress
 	}
 	return current, release, nil
 }

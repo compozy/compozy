@@ -83,6 +83,13 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
   return {
     wake(sessionId: string, payload?: SessionCatalogEventPayload) {
       if (closed) return;
+      // Location reads are independent of detail/transcript reconciliation.
+      if (payload?.execution_location_changed === true) {
+        const queryKey = sessionKeys.fileSearchRoot(payload.workspace_id, sessionId);
+        void queryClient.cancelQueries({ queryKey }).then(() => {
+          if (!closed) return queryClient.invalidateQueries({ queryKey });
+        });
+      }
       // Upserts carry a transcript obligation that later layout/attention wakes cannot erase.
       const queued = pending.get(sessionId);
       if (queued?.kind !== "upserted" && (payload || !pending.has(sessionId))) {

@@ -1,3 +1,5 @@
+import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
+import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
 import { useState, type MouseEvent } from "react";
 import { ChevronRight, Square } from "lucide-react";
 
@@ -81,14 +83,11 @@ function RosterRowLabel({ subagent, branch, settled }: RosterRowLabelProps) {
         surface="rail"
         className={branch ? "mt-px" : undefined}
       />
-      {branch ? (
-        <span className="flex min-w-0 flex-col gap-px">
-          {title}
-          <SubagentBranch branch={branch} className="min-w-0 text-micro" />
-        </span>
-      ) : (
-        title
-      )}
+      <span className="flex min-w-0 flex-col gap-px">
+        {title}
+        <SubagentRuntimeMeta subagent={subagent} providerMark={false} />
+        {branch ? <SubagentBranch branch={branch} className="min-w-0 text-micro" /> : null}
+      </span>
     </>
   );
 }
@@ -114,15 +113,14 @@ function RosterRowStop({ pending, onStop }: { pending: boolean; onStop: () => vo
 }
 
 function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProps) {
+  const selected = useSubagentDrawerSelected(subagent.id);
   const stoppable = isSubagentStoppable(subagent) && onStop !== undefined;
   const { pending, stop } = useSubagentStop(
     stoppable ? () => onStop(subagent) : undefined,
     SUBAGENT_ROW_STOP_FAILED,
     [subagent]
   );
-  const drillable =
-    (subagent.child_session_id !== null || subagent.origin === "provider_native") &&
-    onOpen !== undefined;
+  const drillable = onOpen !== undefined;
   const display = subagentDisplay(subagent, { stale });
   const word = display.word;
   // Isolated rows grow a branch line (S5); the PR link stays a sibling of the open control.
@@ -143,7 +141,10 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
       data-status={subagent.status}
       data-state={display.glyph}
       data-stopping={pending ? "true" : undefined}
-      className={SUBAGENT_ROSTER_ROW_FRAME}
+      className={cn(
+        SUBAGENT_ROSTER_ROW_FRAME,
+        selected && "bg-selected ring-1 ring-inset ring-line-strong"
+      )}
     >
       {/* Remount when the trigger switches between button and group row, so the
           hover listeners bind to the live element. */}
@@ -155,6 +156,7 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
                 type="button"
                 aria-label={`Open ${subagent.title}`}
                 aria-description={word}
+                aria-current={selected ? "true" : undefined}
                 className={mainClass}
                 onClick={handleOpen}
               />

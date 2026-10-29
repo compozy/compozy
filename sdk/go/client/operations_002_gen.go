@@ -89,6 +89,32 @@ func (c *Client) BindGatewayIngress(ctx context.Context, body GatewayIngressBind
 	return &out, nil
 }
 
+// BindSessionWorktreeParams carries the path, query, and header parameters.
+type BindSessionWorktreeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// BindSessionWorktree Bind an idle existing session to a ready worktree in place
+func (c *Client) BindSessionWorktree(ctx context.Context, params BindSessionWorktreeParams, body BindSessionWorktreeRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // BlockTaskParams carries the path, query, and header parameters.
 type BlockTaskParams struct {
 	ID      string  `url:"id"`
@@ -419,26 +445,4 @@ func (c *Client) CancelTaskRun(ctx context.Context, params CancelTaskRunParams, 
 type CancelWorktreeCreateParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	WorktreeID  string `url:"worktree_id"`
-}
-
-// CancelWorktreeCreate Cancel a pending worktree creation
-func (c *Client) CancelWorktreeCreate(ctx context.Context, params CancelWorktreeCreateParams) error {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
-}
-
-// CancelWorktreeExitActionParams carries the path, query, and header parameters.
-type CancelWorktreeExitActionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
-}
-
-// CancelWorktreeExitAction Cancel a worktree exit action
-func (c *Client) CancelWorktreeExitAction(ctx context.Context, params CancelWorktreeExitActionParams, body CancelWorktreeExitActionRequest) error {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
 }

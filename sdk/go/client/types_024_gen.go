@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// TaskStatusTotalPayload is a daemon API value.
+type TaskStatusTotalPayload struct {
+	Scope  string `json:"scope"`
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+}
+
+// TaskStreamEventPayload is a daemon API value.
+type TaskStreamEventPayload struct {
+	Sequence int64                   `json:"sequence"`
+	Type     string                  `json:"type"`
+	Timeline TaskTimelineItemPayload `json:"timeline"`
+}
+
 // TaskSummaryPayload is a daemon API value.
 type TaskSummaryPayload struct {
 	ID                   string                           `json:"id"`
@@ -428,14 +442,3 @@ type TerminalWaitRequest struct {
 	Pattern   string `json:"pattern,omitempty"`
 	TimeoutMs int    `json:"timeout_ms,omitzero"`
 }
-
-// TerminalWaitResponse is a daemon API value.
-type TerminalWaitResponse struct {
-	Reason    string `json:"reason"`
-	ExitCode  *int   `json:"exit_code,omitzero"`
-	Screen    string `json:"screen"`
-	Untrusted bool   `json:"untrusted"`
-}
-
-// ThresholdKind is a daemon API value.
-type ThresholdKind string

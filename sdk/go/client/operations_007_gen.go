@@ -10,6 +10,36 @@ import (
 	"strings"
 )
 
+// FailTaskRunParams carries the path, query, and header parameters.
+type FailTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// FailTaskRun Fail one task run
+func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body FailTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/fail"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FanOutTaskRunsParams carries the path, query, and header parameters.
+type FanOutTaskRunsParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // FanOutTaskRuns Enqueue designated sibling runs for one task
 func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams, body FanOutTaskRunsRequest) (*FanOutTaskRunsResponse, error) {
 	path := "/api/tasks/{id}/runs/fan-out"
@@ -405,34 +435,6 @@ func (c *Client) GetAutomationRun(ctx context.Context, params GetAutomationRunPa
 // GetAutomationTriggerParams carries the path, query, and header parameters.
 type GetAutomationTriggerParams struct {
 	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationTrigger Get one automation trigger
-func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationTriggerParams) (*TriggerResponse, error) {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type GetCmdPalettePersonalizationParams struct {
-	Workspace   string  `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

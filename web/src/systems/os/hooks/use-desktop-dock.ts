@@ -1,4 +1,5 @@
 import { shallowEqual } from "@xstate/store";
+import { useCallback } from "react";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
@@ -12,7 +13,9 @@ import {
 import { dockBadgeFor, dockIconForApp, type OsDockItemData } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
+import { pickLastCreatedSession } from "../lib/last-created-session";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
+import type { SessionPayload } from "@/systems/session";
 import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
@@ -26,10 +29,14 @@ export interface DesktopDockModel {
   handleSelect: (id: string, modifiers?: LaunchModifiers) => void;
   /** An explicit destination from the launcher menu or a modifier click. */
   handleLaunch: (id: string, placement: LaunchPlacement) => void;
+  handlePreload: (id: string) => void | Promise<unknown>;
 }
+
+export type DockPreload = (app: OsAppId, session: SessionPayload | null) => void | Promise<unknown>;
 
 export interface UseDesktopDockOptions {
   onNewSession: () => void;
+  onPreload?: DockPreload;
   /**
    * Catalog truth for the Terminal launcher. When omitted, Terminal follows
    * the same open-window rule as every other app (isolated dock tests).
@@ -45,7 +52,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { onNewSession, terminalLive }: UseDesktopDockOptions
+  { onNewSession, onPreload, terminalLive }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
@@ -65,6 +72,26 @@ export function useDesktopDock(
 
   const sessionApp = OS_APP_DESCRIPTORS.session;
   const sessionState = windowStates[sessionApp.id];
+  // Intent timers retain this callback: only a changed destination or scope should cancel them.
+  const handlePreload = useCallback(
+    (id: string) => {
+      if (!commandsAvailable || !onPreload || !(id in OS_APP_DESCRIPTORS)) return;
+      const appId = id as OsAppId;
+      const state = manager.getState();
+      if (!windowManagerCommandsAvailable(state)) return;
+      // Existing windows may be drilled into a detail, so do not warm an unrelated index.
+      if (appId !== "session" && appRunState(state.windows, state.focusedId, appId) !== "closed") {
+        return;
+      }
+      return onPreload(
+        appId,
+        appId === "session" && launchCatalog.ready
+          ? pickLastCreatedSession(launchCatalog.sessions)
+          : null
+      );
+    },
+    [commandsAvailable, launchCatalog.ready, launchCatalog.sessions, manager, onPreload]
+  );
   // The rail keeps catalog order without group seams (shell-rail v2).
   const entries: OsDockItemData[] = [
     {
@@ -157,5 +184,5 @@ export function useDesktopDock(
     void coordinator.userActivateWindow(target.id);
   };
 
-  return { entries, presentation, commandsAvailable, handleSelect, handleLaunch };
+  return { entries, presentation, commandsAvailable, handleSelect, handleLaunch, handlePreload };
 }

@@ -138,6 +138,9 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 }
 
 func enrichWorktreeError(payload *contract.ErrorPayload, err error) {
+	if errors.Is(err, store.ErrSessionWorktreeConflict) {
+		payload.Code = "session_worktree_conflict"
+	}
 	if refusal, ok := errors.AsType[*worktree.RefusalError](err); ok && refusal.Detail != "" {
 		detail := diagnosticspkg.Redact(taskpkg.RedactClaimTokens(refusal.Detail))
 		payload.Details = map[string]string{"detail": detail}

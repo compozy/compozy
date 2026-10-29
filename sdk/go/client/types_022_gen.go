@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// SubprocessHealthSessionPayload is a daemon API value.
+type SubprocessHealthSessionPayload struct {
+	SessionID           string     `json:"session_id"`
+	WorkspaceID         string     `json:"workspace_id"`
+	AgentName           string     `json:"agent_name"`
+	ConsecutiveFailures int        `json:"consecutive_failures"`
+	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
+	Reason              string     `json:"reason,omitempty"`
+}
+
+// SuggestionSource is a daemon API value.
+type SuggestionSource string
+
+// SuggestionStatus is a daemon API value.
+type SuggestionStatus string
+
+// SupervisionState is a daemon API value.
+type SupervisionState struct {
+	WorkSignals  []WorkSignal        `json:"work_signals"`
+	Sources      []SignalSourceState `json:"sources"`
+	QuietWarning *QuietWarning       `json:"quiet_warning"`
+}
+
+// SupportBundleManifestArtifactPayload is a daemon API value.
+type SupportBundleManifestArtifactPayload struct {
+	Path             string `json:"path"`
+	Included         bool   `json:"included"`
+	OmittedReason    string `json:"omitted_reason,omitempty"`
+	Bytes            int64  `json:"bytes"`
+	Truncated        bool   `json:"truncated"`
+	RedactionVersion string `json:"redaction_version,omitempty"`
+}
+
+// SupportBundleManifestPayload is a daemon API value.
+type SupportBundleManifestPayload struct {
+	SchemaVersion        string                                 `json:"schema_version"`
+	OperationID          string                                 `json:"operation_id"`
+	CreatedAt            time.Time                              `json:"created_at"`
+	BundleMaxBytes       int64                                  `json:"bundle_max_bytes"`
+	ArtifactMaxBytes     int64                                  `json:"artifact_max_bytes"`
+	LogTailMaxBytes      int64                                  `json:"log_tail_max_bytes"`
+	EventSummaryMaxBytes int64                                  `json:"event_summary_max_bytes"`
+	RedactionVersion     string                                 `json:"redaction_version"`
+	Artifacts            []SupportBundleManifestArtifactPayload `json:"artifacts"`
+}
+
 // SupportBundleOperationPayload is a daemon API value.
 type SupportBundleOperationPayload struct {
 	OperationID   string                        `json:"operation_id"`
@@ -393,53 +439,4 @@ type TaskHealthPayload struct {
 type TaskInboxFacetsPayload struct {
 	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
 	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
-}
-
-// TaskInboxItemPayload is a daemon API value.
-type TaskInboxItemPayload struct {
-	Task             TaskInboxTaskPayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-// TaskInboxLane is a daemon API value.
-type TaskInboxLane string
-
-// TaskInboxLaneGroupPayload is a daemon API value.
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
-}
-
-// TaskInboxPayload is a daemon API value.
-type TaskInboxPayload struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
-}
-
-// TaskInboxPriorityFacetPayload is a daemon API value.
-type TaskInboxPriorityFacetPayload struct {
-	Priority Priority `json:"priority"`
-	Count    int      `json:"count"`
-}
-
-// TaskInboxResponse is a daemon API value.
-type TaskInboxResponse struct {
-	Inbox TaskInboxPayload `json:"inbox"`
-}
-
-// TaskInboxStatusFacetPayload is a daemon API value.
-type TaskInboxStatusFacetPayload struct {
-	Status TaskStatus `json:"status"`
-	Count  int        `json:"count"`
 }

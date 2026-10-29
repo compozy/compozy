@@ -6,6 +6,13 @@ func terminalClientIdentityHeaderParam() ParameterSpec {
 	return optionalHeaderParam("X-Compozy-Client-Token", "Registered browser client attachment token")
 }
 
+func terminalClientWorkspaceHeaderParam() ParameterSpec {
+	return optionalHeaderParam(
+		"X-Compozy-Client-Workspace",
+		"Browser client registration partition (project id, global, or user); defaults to the terminal workspace",
+	)
+}
+
 func terminalOperations() []OperationSpec {
 	transports := []Transport{TransportHTTP, TransportUDS}
 	workspace := pathParam("workspace_id", "Workspace id")

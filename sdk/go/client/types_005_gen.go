@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// DuplicateAgentRequest is a daemon API value.
+type DuplicateAgentRequest struct {
+	Name      string                   `json:"name"`
+	Scope     AgentCreateScope         `json:"scope,omitempty"`
+	Workspace string                   `json:"workspace,omitempty"`
+	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
+}
+
+// Edge is a daemon API value.
+type Edge struct {
+	From NodeID `json:"from"`
+	To   NodeID `json:"to"`
+}
+
+// Effect is a daemon API value.
+type Effect struct {
+	ID        string           `json:"id"`
+	Toast     *ToastEffect     `json:"toast,omitempty"`
+	Copy      *CopyEffect      `json:"copy,omitempty"`
+	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
+	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
+	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
+}
+
 // EffectResult is a daemon API value.
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
@@ -423,28 +447,4 @@ type FanoutRollup struct {
 	Done       int    `json:"done"`
 	Total      int    `json:"total"`
 	Failed     int    `json:"failed"`
-}
-
-// FileParseKind is a daemon API value.
-type FileParseKind string
-
-// FireLimitConfig is a daemon API value.
-type FireLimitConfig struct {
-	Max    int    `json:"max"`
-	Window string `json:"window"`
-}
-
-// FocusPolicy is a daemon API value.
-type FocusPolicy string
-
-// ForceFailTaskRunRequest is a daemon API value.
-type ForceFailTaskRunRequest struct {
-	Reason   string          `json:"reason"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForceReleaseTaskRunRequest is a daemon API value.
-type ForceReleaseTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

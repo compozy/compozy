@@ -285,6 +285,75 @@ describe("terminal window close lifecycle", () => {
     return { controller, guard };
   }
 
+  it.each([null, "ws-desktop"])(
+    "Should close a mixed bound group from desktop %s",
+    async desktop => {
+      const project = { ...DEV_SERVER_TERMINAL, workspace_id: "ws-bound" };
+      const user = { ...DEV_SERVER_TERMINAL, id: "user-terminal", workspace_id: "" };
+      vi.mocked(fetchTerminals).mockImplementation(async workspace =>
+        workspace === "ws-bound" ? [project] : [user]
+      );
+      const controller = new TerminalWindowClose();
+      const client = new QueryClient();
+      const affectedKeys = [
+        terminalKeys.catalog({ workspaceId: "ws-bound", profileKey: "default" }),
+        terminalKeys.catalog({ workspaceId: "@user", profileKey: "default" }),
+        terminalKeys.aggregate("", "default"),
+        terminalKeys.aggregate("@user,ws-bound", "default"),
+      ];
+      const unrelated = terminalKeys.catalog({ workspaceId: "ws-other", profileKey: "default" });
+      for (const key of [...affectedKeys, unrelated]) client.setQueryData(key, []);
+      const guard = controller.guard(desktop, client);
+      const bound = (id: string, workspace: string) => ({
+        ...terminalWindow,
+        instanceKey: id,
+        route: { ...terminalWindow.route, search: { workspace } },
+      });
+      const result = guard([bound(project.id, "ws-bound"), bound(user.id, "@user")], () => true);
+      await waitFor(() =>
+        expect(controller.confirmation.get()?.terminals).toEqual([project, user])
+      );
+      controller.confirmation.get()?.answer(true);
+      await expect(result).resolves.toBe(true);
+      for (const key of affectedKeys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+      expect(closeTerminal).toHaveBeenCalledWith(
+        "ws-bound",
+        project.id,
+        { profile: project.profile_name },
+        "HUP",
+        expect.any(AbortSignal)
+      );
+      expect(closeTerminal).toHaveBeenCalledWith(
+        "@user",
+        user.id,
+        { profile: user.profile_name },
+        "HUP",
+        expect.any(AbortSignal)
+      );
+    }
+  );
+
+  it("Should close a missing bound terminal from All projects without confirmation", async () => {
+    vi.mocked(fetchTerminals).mockResolvedValue([]);
+    const controller = new TerminalWindowClose();
+    const guard = controller.guard(null, new QueryClient());
+    await expect(
+      guard(
+        [
+          {
+            ...terminalWindow,
+            route: { ...terminalWindow.route, search: { workspace: "ws-bound" } },
+          },
+        ],
+        () => true
+      )
+    ).resolves.toBe(true);
+    expect(controller.confirmation.get()).toBeNull();
+    expect(closeTerminal).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("Should leave process and window intact when confirmation is canceled", async () => {
     const { controller, guard } = setup();
     const result = guard([terminalWindow], () => true);

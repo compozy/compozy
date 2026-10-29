@@ -155,6 +155,9 @@ func (d *Daemon) applyCoreDefaults() {
 	if d.pid == nil {
 		d.pid = os.Getpid
 	}
+	if d.processToken == nil {
+		d.processToken = procutil.ProcessToken
+	}
 	if d.processStartedAt == nil {
 		d.processStartedAt = procutil.StartedAt
 	}

@@ -13,6 +13,25 @@ import (
 
 // TestCoordinatorRuntimeLifecycle verifies update completion and data-safe recovery at each failure boundary.
 func TestCoordinatorRuntimeLifecycle(t *testing.T) {
+	t.Run("Should stop without fencing when holder identity is unavailable", func(t *testing.T) {
+		t.Parallel()
+		store, _, _ := newOperationTestStore(t)
+		operation, err := store.Acquire(t.Context(), operationTestRequest(testOperationNow))
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.holderLive = func(*Holder, time.Time) (bool, error) { return false, os.ErrPermission }
+		coordinator := newCoordinatorForTest(t, store, &coordinatorManagerStub{}, &coordinatorRuntimeStub{})
+		if err := coordinator.Run(
+			t.Context(),
+			operation.ID,
+			"generation-1",
+		); !errors.Is(err, os.ErrPermission) ||
+			errors.Is(err, ErrExecutorFenced) {
+			t.Fatalf("Run = %v", err)
+		}
+	})
+
 	t.Run("Should run runtime first then leave the app staged and dormant", func(t *testing.T) {
 		t.Parallel()
 

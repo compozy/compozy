@@ -29,7 +29,11 @@ import {
 const WORKSPACE_ID = "ws/atlas";
 const TERMINAL_ID = "term/one";
 const PROFILE = { profile: "work profile" } as const;
-const VIEWER = { id: "client:web", attachmentToken: "attachment-token" } as const;
+const VIEWER = {
+  id: "client:web",
+  attachmentToken: "attachment-token",
+  workspaceId: "global",
+} as const;
 
 function respond(body: unknown, status = 200, contentType = "application/json") {
   vi.mocked(fetch).mockResolvedValueOnce(
@@ -86,7 +90,11 @@ describe("terminal REST requests", () => {
       init: expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ title: "release", cwd: "/repo", client_id: "client:web" }),
-        headers: expect.objectContaining({ "X-Compozy-Client-Token": "attachment-token" }),
+        headers: expect.objectContaining({
+          "X-Compozy-Client-Token": "attachment-token",
+          "X-Compozy-Client-Workspace": "global",
+          "X-Compozy-Client-ID": expect.stringMatching(/^web-/),
+        }),
       }),
     });
 
@@ -127,7 +135,11 @@ describe("terminal REST requests", () => {
       init: expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ mode: "write", client_id: "client:web" }),
-        headers: expect.objectContaining({ "X-Compozy-Client-Token": "attachment-token" }),
+        headers: expect.objectContaining({
+          "X-Compozy-Client-Token": "attachment-token",
+          "X-Compozy-Client-Workspace": "global",
+          "X-Compozy-Client-ID": expect.stringMatching(/^web-/),
+        }),
       }),
     });
 

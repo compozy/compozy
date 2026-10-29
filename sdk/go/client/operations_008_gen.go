@@ -9,6 +9,34 @@ import (
 	"strings"
 )
 
+// GetAutomationTrigger Get one automation trigger
+func (c *Client) GetAutomationTrigger(ctx context.Context, params GetAutomationTriggerParams) (*TriggerResponse, error) {
+	path := "/api/automation/triggers/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TriggerResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetCmdPalettePersonalizationParams carries the path, query, and header parameters.
+type GetCmdPalettePersonalizationParams struct {
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetCmdPalettePersonalization Get command palette personalization summary
 func (c *Client) GetCmdPalettePersonalization(ctx context.Context, params GetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResponse, error) {
 	path := "/api/cmd-palette/personalization"
@@ -417,33 +445,4 @@ type GetHookCatalogParams struct {
 	Event     *string `url:"event"`
 	Source    *string `url:"source"`
 	Mode      *string `url:"mode"`
-}
-
-// GetHookCatalog List the resolved hook catalog
-func (c *Client) GetHookCatalog(ctx context.Context, params GetHookCatalogParams) (*HookCatalogResponse, error) {
-	path := "/api/hooks/catalog"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Event != nil {
-		query.Set("event", *params.Event)
-	}
-	if params.Source != nil {
-		query.Set("source", *params.Source)
-	}
-	if params.Mode != nil {
-		query.Set("mode", *params.Mode)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HookCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

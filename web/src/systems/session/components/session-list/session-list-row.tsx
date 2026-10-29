@@ -33,6 +33,7 @@ import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
 import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
+import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
@@ -123,6 +124,7 @@ function SessionListRowBody({
   const runtime = useSessionRowRuntimeLabel(session);
   const signal = sessionBadgeSignal(session.badge, sessionWaitingOn(session));
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
+  const preloadHandlers = useSessionEntryPreload(session, !current && !selection?.mode);
   const actionsVisible = showActions && !selection?.mode;
   const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
@@ -141,6 +143,7 @@ function SessionListRowBody({
         testId={`${testIdPrefix}-session-${session.id}`}
         onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
         focusHandlers={focusHandlers}
+        preloadHandlers={preloadHandlers}
       />
       {selection ? (
         <SessionRowCheckbox
@@ -184,6 +187,7 @@ function SessionRowTarget({
   testId,
   onClick,
   focusHandlers,
+  preloadHandlers,
 }: {
   session: SessionPayload;
   title: string;
@@ -195,6 +199,7 @@ function SessionRowTarget({
   testId: string;
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
+  preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
 }) {
   return (
     <button
@@ -218,7 +223,15 @@ function SessionRowTarget({
       aria-pressed={selection?.mode ? selected : undefined}
       data-selected={selected || undefined}
       onClick={onClick}
-      {...focusHandlers}
+      {...preloadHandlers}
+      onFocus={event => {
+        focusHandlers.onFocus(event);
+        preloadHandlers.onFocus();
+      }}
+      onBlur={() => {
+        focusHandlers.onBlur();
+        preloadHandlers.onBlur();
+      }}
     >
       <SessionBadgeMark
         badge={session.badge}

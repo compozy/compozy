@@ -5297,3 +5297,50 @@ func (c *pullRequestCLIStub) RefreshSessionPullRequest(
 		PullRequest: &contract.SessionPullRequestPayload{Number: 43},
 	}, nil
 }
+
+// Invariant: session worktree commands preserve identity and forward an explicit
+// or observed binding fence. Owner: CLI boundary; canonical session command suite.
+func TestSessionWorktreeCommands(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name             string
+		args             []string
+		target, expected string
+		reads            int
+	}{
+		{name: "bind with observed fence", args: []string{"bind", "sess-1", "wt-next"}, target: "wt-next", expected: "wt-current", reads: 1},
+		{name: "unbind with observed fence", args: []string{"unbind", "sess-1"}, expected: "wt-current", reads: 1},
+		{name: "bind with explicit root fence", args: []string{"bind", "sess-1", "wt-next", "--expected-worktree="}, target: "wt-next"},
+	} {
+		t.Run("Should "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			reads, calls := 0, 0
+			deps := newWorkspaceTestDeps(t, &stubClient{
+				getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+					reads++
+					return SessionRecord{ID: id, WorktreeID: "wt-current"}, nil
+				},
+				changeSessionWorktreeFn: func(_ context.Context, id, ref, expected string) (SessionRecord, error) {
+					calls++
+					if id != "sess-1" || ref != tc.target || expected != tc.expected {
+						t.Fatalf("mutation=%q,%q,%q", id, ref, expected)
+					}
+					return SessionRecord{ID: id, WorktreeID: ref}, nil
+				},
+			})
+			args := append([]string{"session", "worktree"}, tc.args...)
+			args = append(args, "-o", "json")
+			output, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result SessionRecord
+			if err := json.Unmarshal([]byte(output), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.ID != "sess-1" || result.WorktreeID != tc.target || reads != tc.reads || calls != 1 {
+				t.Fatalf("result=%#v reads=%d calls=%d", result, reads, calls)
+			}
+		})
+	}
+}

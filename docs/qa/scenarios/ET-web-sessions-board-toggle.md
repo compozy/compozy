@@ -30,3 +30,11 @@ its branches must not enter the selected scope's refresh batch. Facet-only reads
 schedule discovery. Backend coverage: `TestManagerBoardCatalog` with real SQLite.
 
 PR #973 restore regression: save one window in Kanban and another in List, then cold-reload with the lazy Session app chunk delayed. The Kanban window must show the board skeleton immediately, without a sidebar/transcript flash; the List window retains its saved rail layout.
+
+QA impact 2026-10-28 (session intent): board cards share the session-row intent
+policy. Hover/focus a cold card, verify one authorized transcript head before activation,
+then select it and confirm the matching session without a duplicate head read. Brief
+intent must cancel; profile/workspace changes must prevent the old target from warming
+in the new scope. List/board switching retains its existing behavior. Focused suites and
+the targeted real-daemon walk are recorded in
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`.

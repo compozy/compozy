@@ -195,10 +195,11 @@ func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
 
 func sessionCatalogEventPayload(event session.CatalogEvent) contract.SessionCatalogEventPayload {
 	return contract.SessionCatalogEventPayload{
-		Kind:        string(event.Kind),
-		ProfileID:   event.ProfileID,
-		ProfileName: event.ProfileName,
-		WorkspaceID: event.WorkspaceID,
-		SessionID:   event.SessionID,
+		ExecutionLocationChanged: event.ExecutionLocationChanged,
+		Kind:                     string(event.Kind),
+		ProfileID:                event.ProfileID,
+		ProfileName:              event.ProfileName,
+		WorkspaceID:              event.WorkspaceID,
+		SessionID:                event.SessionID,
 	}
 }

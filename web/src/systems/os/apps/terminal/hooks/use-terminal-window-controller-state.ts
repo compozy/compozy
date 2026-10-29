@@ -92,9 +92,12 @@ export function useTerminalWindowControllerState(windowId: string) {
   );
   const windowedKeys = useDesktop(state => windowedTerminalKeys(state, windowId));
   const viewerId = useDesktop(state => state.client?.clientId ?? null);
+  const viewerWorkspaceId = useDesktop(state => state.client?.workspaceId ?? null);
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const viewer: TerminalViewerIdentity | null =
-    viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
+    viewerId && viewerToken && viewerWorkspaceId
+      ? { id: viewerId, attachmentToken: viewerToken, workspaceId: viewerWorkspaceId }
+      : null;
   // The window's scope: its binding (a project or `@user`), else its desktop. An
   // unbound window on the All projects desktop lists every project's terminals.
   const windowScope = useWindowDataWorkspace();
@@ -273,6 +276,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     wait,
     viewerId,
     viewerToken,
+    viewerWorkspaceId,
     viewer,
     workspace,
     workspaceId,

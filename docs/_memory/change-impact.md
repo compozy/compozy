@@ -1,5 +1,26 @@
 # Compozy Change Impact
 
+## TanStack data loading — 2026-10-28
+
+Owner: branch `perf/tanstack-data-loading`; evidence and verification in
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+- **Web:** settled pointer/keyboard intent warms dock app code and canonical data,
+  session rows/cards warm only the selected transcript head, and caught-up session
+  streams suppress redundant stale mount/focus rereads. Agents and Loop run loaders
+  match their mounted consumers. Concurrent stream listener discovery shares one read.
+- **Native tools / CLI / HTTP / UDS:** existing endpoints, DTOs and `compozy__*` IDs
+  remain unchanged. Remote stream tickets remain individual; only listener discovery
+  is shared. No public migration or compatibility shim is required.
+- **Extensibility / hooks / config / workspace data:** no changes to hooks, extensions,
+  config keys or persisted state. Profile/workspace authorization and query keys remain
+  authoritative; speculative reads recheck scope after detail resolution. Cursor pages,
+  stream fences, explicit invalidations and disconnected freshness remain intact.
+- **Docs / official skill:** affected Web QA scenarios and the dated report co-ship.
+  `skills/compozy/` needs no change because commands and operating contracts are unchanged.
+  Local checks are affected suites, typecheck, lint and isolated real-daemon browser
+  journeys. Global gates run in CI, as explicitly requested by the user.
+
 ## Subagent status review follow-ups (#993) — 2026-10-28
 
 Owner: PR #993 review threads. Recovery settles a foreground native row from its committed tool
