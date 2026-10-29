@@ -13,7 +13,7 @@
 - Isolate missing workspace state from healthy operations (#1016)
 - Register SQLite Unicode search before opening connections
 - Make Goal controls interrupt work and clarify session lifecycle (#1019)
-- Expose Compozy native tools in Pi sessions (#1021)
+- Expose CompozyOS native tools in Pi sessions (#1021)
 
 ### Features
 
