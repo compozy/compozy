@@ -1,9 +1,10 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import { sessionWindow, setGlobalScope, switchWorkspace } from "../fixtures/os-navigation";
+import { sessionWindow, switchWorkspace } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
@@ -30,15 +31,83 @@ const nativeAgent = "subagent-native";
 
 test.use({
   runtimeOptions: {
+    modelsDevEnabled: false,
     seed: {
       mockAgents: [
         { fixturePath, fixtureAgent: parentAgent },
-        { fixturePath, fixtureAgent: workerAgent },
-        { fixturePath, fixtureAgent: nativeAgent },
+        { fixturePath, fixtureAgent: workerAgent, runtimeProvider: "claude" },
+        {
+          fixturePath,
+          fixtureAgent: nativeAgent,
+          runtimeProvider: "claude",
+          // Exercise Claude's native-task notifications through its actual command boundary.
+          runtimeCommandName: "claude-agent-acp",
+        },
       ],
     },
   },
 });
+
+// The branded provider is still the isolated ACP driver, never a live provider process.
+async function configureWorkerProvider(runtime: BrowserRuntime) {
+  if (!runtime.paths) throw new Error("Subagent metadata walk requires an isolated runtime");
+  const definition = await readFile(
+    path.join(runtime.paths.homeDir, "agents", workerAgent, "AGENT.md"),
+    "utf8"
+  );
+  const command = definition.match(/^command:\s+(.+)$/m)?.[1];
+  if (!command) throw new Error("Seeded agent command is missing");
+  await runtime.requestJSON("/api/settings/providers/claude", {
+    method: "PUT",
+    body: JSON.stringify({
+      settings: {
+        command,
+        display_name: "Claude",
+        harness: "acp",
+        // The brand is Claude; the downstream protocol runtime is the isolated mock.
+        runtime_provider: "acpmock",
+        auth_mode: "none",
+        models: {
+          default: "claude-sonnet-5",
+          reasoning: { apply: "acp_option" },
+          curated: [
+            {
+              id: "claude-sonnet-5",
+              display_name: "Sonnet 5",
+              supports_reasoning: true,
+              reasoning_efforts: ["medium"],
+              default_reasoning_effort: "medium",
+            },
+          ],
+        },
+      },
+    }),
+  });
+  // Provider overlays require a restart of this isolated fixture daemon.
+  const restart = await runtime.requestJSON<{ operation_id: string }>(
+    "/api/settings/actions/restart",
+    {
+      method: "POST",
+      body: JSON.stringify({}),
+    }
+  );
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (
+            await runtime.requestJSON<{ status: string }>(
+              `/api/settings/actions/restart/${restart.operation_id}`
+            )
+          ).status;
+        } catch {
+          return "unavailable";
+        }
+      },
+      { timeout: 120_000 }
+    )
+    .toBe("ready");
+}
 
 interface Scene {
   page: Page;
@@ -58,6 +127,7 @@ async function openSession(
   if (!workspaceDir) throw new Error("subagent E2E requires an isolated runtime");
   const workspace = await runtime.resolveWorkspace(workspaceDir);
   await completeOnboardingIfPrompted(appPage);
+  await configureWorkerProvider(runtime);
   // A session outside the active project asks before switching; make its project active first.
   if (workspaceDir !== runtime.paths?.workspaceDir) {
     await switchWorkspace(appPage, workspace.id, workspace.name);
@@ -115,13 +185,19 @@ test("E2E-001: capabilities and a delegation render as a tool phrase and a live 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
+  // The parent may settle and fold before the first assertion; inspect the settled work.
+  await expect(
+    scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
+  ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
 
   await expect(review).toHaveAttribute("data-status", "running");
   await expect(review).toContainText("Working");
   // The async delegation ends the parent turn: its tool work folds, the live card stays out.
   await openFolds(scene);
-  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   // The card replaces the delegate call: no tool row for it.
   await expect(scene.window.getByText(/Delegat(ed|ing) a subagent/)).toHaveCount(0);
   // Elapsed ticks from the daemon's started_at while the child works.
@@ -176,42 +252,139 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
-  const review = card(scene, reviewTitle);
-  // Hover once the parent's turn ended and its message reconciled, while the child still works.
+  // The parent may settle and fold before the first assertion; inspect the settled work.
   await expect(
     scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
   ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
+  const review = card(scene, reviewTitle);
+  // Hover while the child still works, after the parent turn has reconciled.
   await expect(review).toHaveAttribute("data-status", "running");
   const hover = appPage.locator('[data-slot="subagent-hover"]');
 
   await review.hover();
   await expect(hover).toBeVisible();
   await expect(hover).toContainText(reviewTitle);
-  // The target named no model: the hover card says so instead of guessing.
-  await expect(hover.locator('[data-slot="subagent-hover-runtime"]')).toContainText("Not reported");
+  // The recorded worker runtime is shown without borrowing the parent runtime.
+  await expect(hover.locator('[data-slot="subagent-hover-runtime"]')).toContainText(
+    "claude-sonnet-5"
+  );
   await expect(hover.locator('[data-slot="subagent-hover-status"]')).toContainText("Working");
   await appPage.mouse.move(0, 0);
   await expect(hover).toHaveCount(0);
 
   // The card is a container; its open control is what keyboard focus lands on.
-  await review.locator('[data-slot="subagent-card-open"]').focus();
+  const openControl = review.locator('[data-slot="subagent-card-open"]');
+  await openControl.focus();
+  await appPage.keyboard.press("Shift+Tab");
+  await appPage.keyboard.press("Tab");
+  await expect(openControl).toBeFocused();
   await expect(hover).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(hover).toHaveCount(0);
 });
 
-test("E2E-004: a card opens its child here with the Subagent of divider, Open parent returns, ⌘-click opens a new window", async ({
+test("E2E-004: a card opens a read-only drawer, Open as session navigates, and modifier-click splits", async ({
   appPage,
   runtime,
+  browserArtifacts,
 }) => {
+  await appPage.setViewportSize({ width: 1600, height: 1000 });
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
+  // The parent may settle and fold before the first assertion; inspect the settled work.
+  await expect(
+    scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
+  ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
   await expect(review).toBeVisible();
   const childId = await childSessionId(scene, reviewTitle);
 
-  // The API can know the child before the rendered roster does. Wait for the
-  // card's drill-in control; its queued placeholder is visible but not interactive.
+  await sessionWindowSelectors(scene.window, appPage).composerTextarea.fill(
+    "Keep this unsent draft"
+  );
+
+  // Invariant: inspection preserves the parent; explicit navigation retains the child session.
+  // Owner/canonical suite: this browser/daemon journey.
   await review.getByRole("button", { name: `Open ${reviewTitle}`, exact: true }).click();
+  const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+  await expect(
+    review.getByRole("button", { name: `Open ${reviewTitle}`, exact: true, includeHidden: true })
+  ).toHaveAttribute("aria-current", "true");
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await expect(scene.window).toBeVisible();
+  await expect(drawer.getByRole("textbox")).toHaveCount(0);
+  await browserArtifacts.captureScreenshot("subagent-card-drawer-dark", appPage);
+  const resize = scene.window.getByRole("separator", { name: "Resize drawer" });
+  const beforeResize = await drawer.boundingBox();
+  const handle = await resize.boundingBox();
+  await appPage.mouse.move(handle!.x + handle!.width / 2, handle!.y + 120);
+  await appPage.mouse.down();
+  await appPage.mouse.move(handle!.x - 100, handle!.y + 120, { steps: 8 });
+  await appPage.mouse.up();
+  await expect
+    .poll(async () => (await drawer.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(beforeResize!.width);
+  const resizedWidth = (await drawer.boundingBox())!.width;
+  await browserArtifacts.captureScreenshot("subagent-drawer-resized", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(sessionWindowSelectors(scene.window, appPage).composerTextarea).toHaveText(
+    "Keep this unsent draft"
+  );
+  await scene.window.getByTestId("composer-subagents-button").click();
+  await browserArtifacts.captureScreenshot("subagent-composer-roster-dark", appPage);
+  await appPage
+    .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
+    .last()
+    .click();
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  expect((await drawer.boundingBox())!.width).toBeCloseTo(resizedWidth, 0);
+  await browserArtifacts.captureScreenshot("subagent-composer-drawer-dark", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await appPage.getByRole("button", { name: "Switch to light mode" }).click();
+  await openFolds(scene);
+  await card(scene, reviewTitle)
+    .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
+    .click();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await browserArtifacts.captureScreenshot("subagent-card-drawer-light", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await scene.window.getByTestId("composer-subagents-button").click();
+  await browserArtifacts.captureScreenshot("subagent-composer-roster-light", appPage);
+  await appPage
+    .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
+    .last()
+    .click();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await browserArtifacts.captureScreenshot("subagent-composer-drawer-light", appPage);
+  await appPage.setViewportSize({ width: 1000, height: 800 });
+  await expect(drawer).toHaveAttribute("data-mode", "overlay");
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await browserArtifacts.captureScreenshot("subagent-drawer-narrow-light", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await appPage.getByRole("button", { name: "Switch to dark mode" }).click();
+  await openFolds(scene);
+  await card(scene, reviewTitle)
+    .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
+    .click();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await browserArtifacts.captureScreenshot("subagent-drawer-narrow-dark", appPage);
+  await drawer.getByRole("button", { name: "Open as session" }).click();
   const child = sessionWindow(appPage, childId);
   await expect(child).toBeVisible();
   const divider = child.locator('[data-testid="session-origin-divider"][data-kind="subagent"]');
@@ -253,64 +426,72 @@ test("E2E-005: an idle parent waits on two subagents, shows the delegated glyph,
   await expect(banner).toHaveCount(0, { timeout: 30_000 });
 });
 
-test("E2E-006: native subagent list clicks reveal its nested work in the parent", async ({
+test("E2E-006: native sidebar and transcript cards open live activity without a child session", async ({
   appPage,
   runtime,
   browserArtifacts,
 }) => {
+  await appPage.setViewportSize({ width: 1600, height: 1000 });
   const scene = await openSession(appPage, runtime, nativeAgent, "review the diff with a subagent");
   const native = scene.window.locator('[data-slot="subagent-card"][data-origin="provider_native"]');
   await expect(native).toContainText("Review the diff (high effort)");
-  // While the Agent call runs the status line counts it once.
-  await expect(scene.window.getByText("1 agent running")).toBeVisible();
-  // No child session: a disclosure for its inner work, never a drill-in.
-  await expect(
-    scene.window.getByRole("button", { name: "Open Review the diff (high effort)" })
-  ).toHaveCount(0);
-  // Invariant: a native row reveals its work in the parent, without inventing a child.
-  // Owner/canonical suite: the daemon-served native subagent browser journey.
+  // Invariant: native inspection shows only its attributed work, without a child session.
+  // Owner/canonical suite: this real daemon journey with pinned Claude adapter frames.
   const sidebar = scene.window.getByTestId("session-sidebar");
   await sidebar.getByRole("button", { name: /1 (?:of 1 )?subagent(?:s running)?$/ }).click();
   const branch = sidebar.getByTestId(`session-sidebar-subagents-${scene.sessionId}`);
   await branch.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
-  const nested = scene.window.locator('[data-slot="subagent-card-nested"]');
-  await expect(nested).toBeVisible();
-  await expect(nested).toContainText("Inspecting the diff.");
-  await browserArtifacts.captureScreenshot("native-subagent-sidebar-reveal", appPage);
-  await native.locator("[data-slot=subagent-card-open]").click();
-  await expect(nested).not.toBeVisible();
-  await branch.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
-  await expect(nested).toBeVisible();
-  // The parent's own flow never shows the subagent's inner text.
-  await expect(scene.window.getByText("Inspecting the diff.")).toHaveCount(1);
-
-  await expect(scene.window.getByText("The reviewer found no issues.")).toBeVisible();
-  // Final text can precede turn settlement; wait for the settled fold before opening it.
-  const fold = scene.window.getByTestId("turn-fold-row");
-  // Release the navigation hold so the next navigation must open the settled fold again.
-  if ((await fold.getAttribute("aria-expanded")) === "true") await fold.click();
-  await expect(fold).toHaveAttribute("aria-expanded", "false");
-  await setGlobalScope(appPage, true);
-  await appPage.getByRole("menuitem", { name: "Session", exact: true }).click();
-  await appPage.getByTestId("os-menubar-command-shell.sessions.toggle").click();
-  const modal = appPage.getByTestId("os-sessions-modal");
-  await expect(modal).toBeVisible();
-  const nativeBranchToggle = modal.getByTestId(
-    `os-sessions-modal-thread-toggle-${scene.sessionId}`
+  const drawer = appPage.locator('[data-slot="resizable-drawer"]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await expect(drawer.getByTestId("native-subagent-activity")).toContainText(
+    "Inspecting the diff."
   );
-  if ((await nativeBranchToggle.getAttribute("aria-expanded")) !== "true") {
-    await nativeBranchToggle.click();
-  }
-  await modal
-    .getByTestId(`os-sessions-modal-subagents-${scene.sessionId}`)
-    .getByRole("button", { name: "Open Review the diff (high effort)" })
-    .click();
-  await expect(modal).not.toBeVisible();
-  await expect(nested).toBeVisible();
-  await expect(fold).toHaveAttribute("aria-expanded", "true");
-  await browserArtifacts.captureScreenshot("native-subagent-all-projects-reveal", appPage);
-  await expect(native).toHaveAttribute("data-status", "completed");
+  await expect(drawer.getByRole("button", { name: "Open as session" })).toHaveCount(0);
+  await openNativeResult(drawer);
+  await browserArtifacts.captureScreenshot("native-subagent-sidebar-drawer", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await openFolds(scene);
+  await native.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toBeInViewport({ ratio: 1 });
+  await expect(drawer).toHaveCSS("opacity", "1");
+  await expect(drawer.getByTestId("native-subagent-activity")).toContainText(
+    "Inspecting the diff."
+  );
+  await openNativeResult(drawer);
+  await browserArtifacts.captureScreenshot("native-subagent-card-drawer", appPage);
+  await expect(scene.window.getByText("The reviewer found no issues.")).toBeVisible();
+  await expect(drawer).toContainText("Done");
+  await expect(drawer.getByRole("textbox")).toHaveCount(0);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await appPage.getByRole("button", { name: "Switch to light mode" }).click();
+  await branch.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
+  await expect(drawer).toContainText("Inspecting the diff.");
+  await openNativeResult(drawer);
+  await browserArtifacts.captureScreenshot("native-subagent-sidebar-drawer-light", appPage);
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await openFolds(scene);
+  await native.getByRole("button", { name: "Open Review the diff (high effort)" }).click();
+  await expect(drawer).toContainText("Inspecting the diff.");
+  await openNativeResult(drawer);
+  await browserArtifacts.captureScreenshot("native-subagent-card-drawer-light", appPage);
 });
+
+async function openNativeResult(drawer: Locator) {
+  await expect(drawer).toContainText("Nested inspection confirmed the project notes.");
+  await drawer.getByRole("button", { name: /^Ran agent/ }).click();
+  await expect(
+    drawer.getByTestId("detail-payload").getByText("No issues found.", { exact: true })
+  ).toBeVisible();
+  await expect(
+    drawer.getByText("Background reviewer confirmed no issues.", { exact: true })
+  ).toBeVisible();
+}
 
 interface IsolatedWorktree {
   branch: string;

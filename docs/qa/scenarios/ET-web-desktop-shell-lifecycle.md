@@ -169,3 +169,14 @@ by the shell's agent dialog. Keep that dialog closed during the peer envelope, t
 open it and verify the current provider list, model selection, create and duplicate
 flows. The repeated envelope remains the performance acceptance owner; isolated
 passes and compiler diagnostics do not establish that budget.
+
+QA impact 2026-10-28 (TanStack data loading): boot with no open windows, sustain
+pointer or keyboard intent on a closed dock app, and verify that its code and canonical
+first reads start before activation without changing window topology. Brief intent must
+cancel; dormant/modal/disconnected controls must not preload. Repeat Settings in the
+rail footer and compact layout. Concurrent listener discovery must share one status read,
+retain independent remote tickets, and recover after cancellation/failure. The targeted
+real-daemon walk observed startup status reads 6→2 and Tasks data/code before the click;
+focused dock/auth suites cover compact and failure boundaries. This slice does not
+re-certify the complete lifecycle/peer envelope. See
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`.

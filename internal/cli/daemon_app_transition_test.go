@@ -13,6 +13,25 @@ import (
 )
 
 func TestExecuteDaemonAppTransition(t *testing.T) {
+	t.Run("Should preserve identity lookup errors during shell recovery", func(t *testing.T) {
+		t.Parallel()
+		operation := &compozyupdate.Operation{
+			ID:           "operation-1",
+			Revision:     7,
+			ActiveTarget: compozyupdate.TargetApp,
+			App:          &compozyupdate.AppOperationState{Phase: compozyupdate.PhaseStaged},
+		}
+		recoverable, err := appOperationRecoverableByShell(
+			func(*compozyupdate.Holder) (bool, error) { return false, os.ErrPermission },
+			operation,
+			operation.ID,
+			operation.Revision,
+		)
+		if recoverable || !errors.Is(err, os.ErrPermission) || errors.Is(err, compozyupdate.ErrExecutorFenced) {
+			t.Fatalf("recoverable = %v, error = %v", recoverable, err)
+		}
+	})
+
 	t.Run("Should recover every interrupted shell-owned app phase", func(t *testing.T) {
 		t.Parallel()
 
@@ -26,7 +45,13 @@ func TestExecuteDaemonAppTransition(t *testing.T) {
 				ID: "operation-1", Revision: 7, ActiveTarget: compozyupdate.TargetApp,
 				App: &compozyupdate.AppOperationState{Phase: phase},
 			}
-			if !appOperationRecoverableByShell(store, operation, operation.ID, operation.Revision) {
+			if recoverable, err := appOperationRecoverableByShell(
+				store.HolderLive,
+				operation,
+				operation.ID,
+				operation.Revision,
+			); err != nil ||
+				!recoverable {
 				t.Fatalf("appOperationRecoverableByShell(%s) = false, want recovery", phase)
 			}
 		}

@@ -45,9 +45,7 @@ func WithMentionReferenceRenderer(renderer MentionReferenceRenderer) Option {
 	}
 }
 
-// WorkingDir returns the directory the session's agent runs in, using the launch
-// precedence (CreationProfile.CWD, else persisted cwd, else execution root)
-// normalized by ResolveSessionCWD.
+// WorkingDir resolves the current execution directory, falling back to creation metadata for older sessions.
 func (m *Manager) WorkingDir(ctx context.Context, sessionID string) (string, error) {
 	meta, err := m.readSessionMetaReadOnly(ctx, sessionID)
 	if err != nil {

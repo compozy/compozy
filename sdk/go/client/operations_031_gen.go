@@ -4,9 +4,47 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strings"
 )
+
+// ValidateAgentHeartbeat Validate a proposed HEARTBEAT.md body
+func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgentHeartbeatParams, body HeartbeatValidateByPathRequest) (*HeartbeatPolicyPayload, error) {
+	path := "/api/agents/{name}/heartbeat/validate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatPolicyPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ValidateAgentSoulParams carries the path, query, and header parameters.
+type ValidateAgentSoulParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
+func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
+	path := "/api/agent/soul/validate"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentSoulPayload
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // ValidateLoopParams carries the path, query, and header parameters.
 type ValidateLoopParams struct {

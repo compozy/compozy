@@ -7,6 +7,42 @@ import (
 	"time"
 )
 
+// Ownership is a daemon API value.
+type Ownership struct {
+	Kind OwnerKind `json:"kind"`
+	Ref  string    `json:"ref"`
+}
+
+// Pagination is a daemon API value.
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
+}
+
+// ParentClosePolicy is a daemon API value.
+type ParentClosePolicy string
+
+// ParticipantPolicy is a daemon API value.
+type ParticipantPolicy struct {
+	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
+}
+
+// PatchLoopRequest is a daemon API value.
+type PatchLoopRequest struct {
+	ExpectedVersion *int                   `json:"expected_version,omitzero"`
+	Definition      LoopDefinitionDocument `json:"definition"`
+}
+
+// PatchOp is a daemon API value.
+type PatchOp struct {
+	Op    string          `json:"op"`
+	Path  string          `json:"path"`
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
 // PauseTaskRequest is a daemon API value.
 type PauseTaskRequest struct {
 	Reason   string          `json:"reason"`
@@ -404,44 +440,4 @@ type ProviderUsageEnvelope struct {
 	Enabled           bool                     `json:"enabled"`
 	Tray              *ProviderUsageTraySignal `json:"tray"`
 	Targets           []ProviderUsageTarget    `json:"targets"`
-}
-
-// ProviderUsageError is a daemon API value.
-type ProviderUsageError struct {
-	Code       string     `json:"code"`
-	Message    string     `json:"message"`
-	Action     string     `json:"action"`
-	RetryAfter *time.Time `json:"retry_after"`
-}
-
-// ProviderUsageRefreshRequest is a daemon API value.
-type ProviderUsageRefreshRequest struct {
-	Profile       string   `json:"profile,omitempty"`
-	ProviderIDs   []string `json:"provider_ids,omitempty"`
-	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
-	WaitMS        *int64   `json:"wait_ms,omitempty"`
-	Intent        string   `json:"intent,omitempty"`
-}
-
-// ProviderUsageSource is a daemon API value.
-type ProviderUsageSource struct {
-	Kind  string `json:"kind"`
-	Label string `json:"label"`
-}
-
-// ProviderUsageSpendCap is a daemon API value.
-type ProviderUsageSpendCap struct {
-	ID          string               `json:"id"`
-	Label       string               `json:"label"`
-	Used        ProviderUsageAmount  `json:"used"`
-	Limit       *ProviderUsageAmount `json:"limit"`
-	UsedPercent *float64             `json:"used_percent"`
-	ResetsAt    *time.Time           `json:"resets_at"`
-	Enabled     *bool                `json:"enabled"`
-}
-
-// ProviderUsageStreamEvent is a daemon API value.
-type ProviderUsageStreamEvent struct {
-	Revision uint64 `json:"revision"`
-	BootID   string `json:"boot_id"`
 }

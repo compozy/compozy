@@ -60,3 +60,12 @@ only the prompt in Settings, save, and reread the definition: both environment m
 Compare the metadata with `agent show -o json` in the same workspace/profile. Live replay and
 rendered evidence remain pending; focused projection and edit-preservation tests are not a pass
 for this scenario.
+
+QA impact 2026-10-28 (canonical loader reuse): open agent detail/settings in
+All projects, User, a project, and explicit project/User-bound windows. Loader and
+mounted hooks must share definition, exact metrics, active/archived session keys and
+provider/override keys. The default detail path uses two session lists, without extra
+user-only or count probes. A per-window worktree filter remains outside route intent.
+The existing route-preloading and agent-session deep-link suites own scope/cache parity;
+targeted real-daemon rendering is recorded in
+`docs/qa/reports/2026-10-28-tanstack-data-loading.md`.

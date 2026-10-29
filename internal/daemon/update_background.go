@@ -169,7 +169,11 @@ func recoverDaemonUpdateOperation(
 	if operation.Waiting == compozyupdate.WaitingForApp || !daemonCanRecoverUpdate(operation) {
 		return nil
 	}
-	if manager.OperationStore().HolderLive(operation.Holder) {
+	live, err := manager.OperationStore().HolderLive(operation.Holder)
+	if err != nil {
+		return err
+	}
+	if live {
 		return nil
 	}
 	expired := !operation.Deadline.IsZero() && !operation.Deadline.After(time.Now().UTC())

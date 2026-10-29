@@ -255,6 +255,37 @@ func TestAcquireLockReclaimsStalePID(t *testing.T) {
 
 func TestUpdateLock(t *testing.T) {
 	t.Parallel()
+	t.Run("Should recognize a Linux prior owner despite wall clock drift", func(t *testing.T) {
+		t.Parallel()
+		token, err := procutil.ProcessToken(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if token == "" {
+			t.Skip("Linux kernel identity")
+		}
+		path := filepath.Join(t.TempDir(), "update.lock")
+		owner := UpdateLockOwner{
+			PID:          os.Getpid(),
+			StartedAt:    time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+			ProcessToken: token,
+		}
+		if err := writeUpdateLockOwner(updateLockOwnerPath(path), owner); err != nil {
+			t.Fatal(err)
+		}
+		lock, err := AcquireUpdateLock(path, owner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		})
+		if lock.StaleOwner() != nil {
+			t.Fatal("live kernel identity reported as stale")
+		}
+	})
 
 	t.Run("Should reject a concurrent runtime mutation", func(t *testing.T) {
 		t.Parallel()

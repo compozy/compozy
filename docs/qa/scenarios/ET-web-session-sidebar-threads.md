@@ -140,3 +140,12 @@ titles dim; rows order by urgency within the loaded page. Owning suite: `Session
 `SessionSidebar/Branches` carry a mixed working/waiting/done/failed/idle/queued set. Walk: open a
 parent with running and finished subagents and confirm a running row and a done row never share a
 glyph or word, and that a waiting or failed row sits above the working ones. Live walk pending.
+
+QA impact 2026-10-28 (#1003): plain clicks on a window sidebar subagent row open its live
+read-only drawer and retain the parent's selection and draft. Delegated rows retain explicit
+`Open as session` and modifier-click split navigation. Native rows show their attributed activity
+in the drawer without a fabricated child session. Rows in the sidebar, transcript, composer roster,
+and inspector display recorded provider, agent, model/effort, status and elapsed. Walk selection
+replacement, resize and reopen, inspector coexistence, narrow overlay, Escape and focus return.
+
+Drawer inspection steps were verified in the targeted [2026-10-28 run](../reports/2026-10-28-subagent-drawer.md). That run records its bounded coverage and does not re-certify unrelated lifecycle branches.

@@ -64,6 +64,104 @@ describe("gateway stream auth", () => {
     expect(fetchMock.mock.calls.map(([input]) => requestPath(input))).toEqual(["/api/status"]);
   });
 
+  it("Should share listener discovery across simultaneous connections", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(listenerResponse("local")));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await Promise.all(Array.from({ length: 6 }, () => acquireStreamTicket()))).toEqual(
+      Array.from({ length: 6 }, () => null)
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should mint distinct tickets after shared remote discovery", async () => {
+    let issued = 0;
+    const fetchMock = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (requestPath(input) === "/api/status") return Promise.resolve(listenerResponse("private"));
+      return Promise.resolve(ticketResponse(`tkt_${++issued}`));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tickets = await Promise.all(Array.from({ length: 6 }, () => acquireStreamTicket()));
+    expect(new Set(tickets).size).toBe(6);
+    expect(issued).toBe(6);
+    expect(
+      fetchMock.mock.calls.filter(([input]) => requestPath(input) === "/api/status")
+    ).toHaveLength(1);
+  });
+
+  it("Should abort one discovery waiter without canceling the other connection", async () => {
+    let complete!: (response: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>(resolve => {
+          complete = resolve;
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const canceled = acquireStreamTicket(controller.signal);
+    const surviving = acquireStreamTicket();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
+
+    controller.abort();
+    await rejected;
+    expect(request.signal.aborted).toBe(false);
+    complete(listenerResponse("local"));
+    await expect(surviving).resolves.toBeNull();
+  });
+
+  it("Should cancel abandoned discovery and ignore its late result before retrying", async () => {
+    let complete!: (response: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>(resolve => {
+            complete = resolve;
+          })
+      )
+      .mockImplementation(() => Promise.resolve(listenerResponse("local")));
+    vi.stubGlobal("fetch", fetchMock);
+    const controller = new AbortController();
+    const canceled = acquireStreamTicket(controller.signal);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    const rejected = expect(canceled).rejects.toMatchObject({ name: "AbortError" });
+
+    controller.abort();
+    await rejected;
+    expect(request.signal.aborted).toBe(true);
+    await expect(acquireStreamTicket()).resolves.toBeNull();
+    complete(listenerResponse("private"));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(gatewayStreamAuthMode()).toBe("local");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["http", "network"])(
+    "Should retry listener discovery after a shared %s failure",
+    async failure => {
+      const fetchMock = vi
+        .fn()
+        .mockImplementationOnce(() =>
+          failure === "http"
+            ? Promise.resolve(errorResponse(503))
+            : Promise.reject(new TypeError("Failed to fetch"))
+        )
+        .mockImplementation(() => Promise.resolve(listenerResponse("local")));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const outcomes = await Promise.allSettled([acquireStreamTicket(), acquireStreamTicket()]);
+      expect(outcomes.map(outcome => outcome.status)).toEqual(["rejected", "rejected"]);
+      expect(gatewayStreamAuthMode()).toBeUndefined();
+      await expect(acquireStreamTicket()).resolves.toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    }
+  );
+
   it("Should leave a local stream URL untouched", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listenerResponse("local")));
 

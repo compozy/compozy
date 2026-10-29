@@ -11,6 +11,36 @@ import (
 	"strings"
 )
 
+// GetMarketplaceCatalogEntry Get a catalog entry or an explicitly selected installed extension
+func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarketplaceCatalogEntryParams) (*MarketplaceEntryResponse, error) {
+	path := "/api/marketplace/entries/{entry_id}"
+	query := url.Values{}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	path = strings.ReplaceAll(path, "{entry_id}", url.PathEscape(params.EntryID))
+	if params.InstalledName != nil {
+		query.Set("installed_name", *params.InstalledName)
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceEntryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetObserveOverviewParams carries the path, query, and header parameters.
 type GetObserveOverviewParams struct {
 	AllWorkspaces  *bool   `url:"all_workspaces"`
@@ -406,34 +436,4 @@ type GetSessionByIDParams struct {
 	IncludeHealth *bool   `url:"include_health"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSessionByID Get one session snapshot by id
-func (c *Client) GetSessionByID(ctx context.Context, params GetSessionByIDParams) (*SessionResponse, error) {
-	path := "/api/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionCommandsParams carries the path, query, and header parameters.
-type GetSessionCommandsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

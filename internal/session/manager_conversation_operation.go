@@ -20,6 +20,18 @@ func (m *Manager) lockConversationOperation(
 	ctx context.Context,
 	sessionID string,
 ) (context.Context, func(), error) {
+	return m.acquireConversationOperation(ctx, sessionID, false)
+}
+
+func (m *Manager) tryLockConversationOperation(ctx context.Context, sessionID string) (context.Context, func(), error) {
+	return m.acquireConversationOperation(ctx, sessionID, true)
+}
+
+func (m *Manager) acquireConversationOperation(
+	ctx context.Context,
+	sessionID string,
+	immediate bool,
+) (context.Context, func(), error) {
 	target := strings.TrimSpace(sessionID)
 	if owners, ok := ctx.Value(conversationOperationOwnersContextKey{}).(conversationOperationOwners); ok {
 		if _, owned := owners[target]; owned {
@@ -39,11 +51,20 @@ func (m *Manager) lockConversationOperation(
 	lock.refs++
 	m.conversationOperationMu.Unlock()
 
-	select {
-	case <-lock.token:
-	case <-ctx.Done():
-		m.releaseConversationOperationRef(target, lock)
-		return nil, nil, fmt.Errorf("session: wait for conversation operation %q: %w", target, ctx.Err())
+	if immediate {
+		select {
+		case <-lock.token:
+		default:
+			m.releaseConversationOperationRef(target, lock)
+			return nil, nil, ErrPromptInProgress
+		}
+	} else {
+		select {
+		case <-lock.token:
+		case <-ctx.Done():
+			m.releaseConversationOperationRef(target, lock)
+			return nil, nil, fmt.Errorf("session: wait for conversation operation %q: %w", target, ctx.Err())
+		}
 	}
 	owners := addConversationOperationOwner(ctx, target)
 	operationCtx := context.WithValue(ctx, conversationOperationOwnersContextKey{}, owners)

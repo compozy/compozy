@@ -10,6 +10,28 @@ import (
 	"strings"
 )
 
+// DeleteSession Delete one session and remove it from persisted history
+func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) error {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteSessionAttachmentParams carries the path, query, and header parameters.
+type DeleteSessionAttachmentParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SessionID    string `url:"session_id"`
+	AttachmentID string `url:"attachment_id"`
+}
+
 // DeleteSessionAttachment Delete a session attachment
 func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessionAttachmentParams) error {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}"
@@ -409,34 +431,4 @@ type DisableSkillParams struct {
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
 	ForAgent  *string `url:"for_agent"`
-}
-
-// DisableSkill Disable one skill
-func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*SkillActionResponse, error) {
-	path := "/api/skills/{name}/disable"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DismissAutomationSuggestionParams carries the path, query, and header parameters.
-type DismissAutomationSuggestionParams struct {
-	WorkspaceID  string `url:"workspace_id"`
-	SuggestionID string `url:"suggestion_id"`
 }

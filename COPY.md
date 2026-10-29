@@ -226,6 +226,13 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 - `hook`: typed lifecycle dispatch. Do not call hooks a generic event bus.
 - `extension`: package that can provide resources, capabilities, and Host API actions.
 
+### Session Environment Terms
+
+- “Use worktree…” selects a ready checkout for the existing idle session. “Change worktree…” changes an existing binding; “Use workspace root” removes it. All preserve the conversation and window.
+- “New worktree…” creates a checkout before confirmation; it does not imply a new conversation.
+- State the effect as “Continue this conversation in the selected worktree from the next turn. Files stay where they are.”
+- Reserve “Fork into a worktree…” for the separate flow that creates a new session. Do not describe the session environment as immutable or locked.
+
 ### Session Continue & Fork Terms
 
 - **Continue with another agent…**: the menu and marker action that starts a new session for another agent (or runtime, or declared route) with this session's conversation carried over. The source stays unchanged. The child reads "Continued from {agent}" (status pill) and "Continued from {source title}" (transcript divider).

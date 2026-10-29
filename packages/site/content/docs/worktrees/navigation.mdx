@@ -1,6 +1,6 @@
 ---
 title: Navigation and Selection
-description: Select a Worktree in Web or bind a new session to one without changing the parent workspace.
+description: Select a Worktree or change an idle session’s environment without changing its conversation.
 ---
 
 Worktrees appear beneath their parent workspace. Selecting one scopes Worktree-aware views in that
@@ -55,11 +55,41 @@ can still bind to it.
 `--worktree`, `--new-worktree`, and `--cwd` are mutually exclusive. An empty Worktree selector means
 the workspace root only where the owning session API explicitly defines that choice.
 
-## Move work without moving a live session
+## Change an existing session's environment
 
-A session's environment is immutable. To continue an idle session's work in another Worktree, use
-the Web fork action. It creates one fresh session bound to the target and leaves the original
-session, transcript, and environment unchanged. A session mid-turn cannot be forked.
+Open the environment control in the session composer and choose **Use worktree…**. For a bound
+session, choose **Change worktree…** or **Use workspace root**. The session must be idle, and the
+target must be a ready Worktree in the same workspace and profile. **New worktree…** creates a
+checkout first; confirm **Use worktree** after it is ready.
 
-This rule closes a common race: Git checkout selection is decided before the first prompt, not while
-an agent process is already reading files.
+The session ID, transcript, window, and session-list row stay the same. Branch, pull-request,
+worktree status, and delivery controls reflect the selected environment. Files and uncommitted
+changes stay in their original checkouts. The daemon verifies that the previous provider process
+has exited before accepting the new execution directory. The next turn resumes the conversation
+in that root, using native provider resume when supported or bounded transcript replay otherwise,
+and includes a one-time notice that the working directory changed.
+
+```bash
+compozy session worktree bind <session> feature-auth
+compozy session worktree bind <session> feature-api --expected-worktree <current-worktree-id>
+compozy session worktree unbind <session>
+```
+
+`--expected-worktree` detects concurrent changes; an explicit empty value expects the workspace
+root. A busy session returns `session_busy` immediately, including an agent attempting to bind
+itself during its own turn. There is no deferred binding. Archived sessions, system roles,
+task/Loop/review/subagent-owned execution, and User-scope sessions cannot change environments.
+
+The HTTP and UDS surfaces return the same session through
+`PUT /api/workspaces/{ws}/sessions/{id}/worktree` with `{ "worktree": "feature-auth",
+"expected_worktree_id": "" }`, or `DELETE` on that path with an optional
+`expected_worktree_id` query parameter. App tokens cannot call these operations.
+
+An interrupted durable binding transition is recovered on restart. A missing checkout never
+silently falls back to the workspace root; explicitly choose **Use workspace root** to leave it.
+
+## Fork into another Worktree
+
+**Fork into a worktree…**, `/worktree`, and `/worktree-fork` retain their existing behavior: they
+create a fresh session and leave the original session, transcript, and environment unchanged.
+Use them when you want a separate conversation instead of moving the current session's execution.

@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
+import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import {
   sessionBoardCardMeta,
   sessionBoardCardRollup,
@@ -105,6 +106,7 @@ function SessionBoardCardButton({
   archived = false,
   onOpen,
 }: Omit<SessionBoardCardProps, "actions">) {
+  const preloadHandlers = useSessionEntryPreload(session, !current);
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
@@ -137,6 +139,7 @@ function SessionBoardCardButton({
       data-board-column={session.board_column}
       data-testid={`session-board-card-${session.id}`}
       onClick={() => onOpen(session)}
+      {...preloadHandlers}
       type="button"
     >
       <SessionBoardCardMetaRow meta={meta} sessionId={session.id} status={status} />

@@ -61,3 +61,27 @@ boot identity. It reproduced a missing `previous_crash` before the guard and pas
 2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
 `untested`; native fixture and owning-suite results do not replace published-release or
 cross-platform acceptance. Prior dated reports retain their historical evidence.
+
+### Linux holder identity and fenced CLI recovery
+
+On Linux, keep an update holder alive while its recorded wall-clock start timestamp differs
+from the process table by more than two seconds. Its persisted boot ID and kernel start ticks
+must keep the lease live, block daemon recovery takeover, and preserve the executor generation.
+A changed boot ID, changed start ticks, or exited process must still reject that identity.
+Repeat the applying-installer deadline check and the update-lock prior-owner check.
+
+When another executor has legitimately taken over, the original CLI must observe the same
+operation ID in the journal/history and print that executor's terminal result. A successful
+recovery reports no manual restart needed; a failed recovery without a completed daemon restart
+prints `compozy daemon stop && compozy daemon start` with the persisted failure reason. A recovery
+still pending at its deadline must remain explicitly unresolved rather than claiming success.
+
+The owning procutil/update/daemon/CLI suites exercise injected identity readers and isolated
+journals. Linux container runs exercise the actual `/proc` reader; they do not reproduce WSL2
+host sleep or replace a WSL2 end-to-end update rehearsal.
+
+During detached coordinator handoff, replace the parent identity with the child process token.
+If identity becomes unreadable after acquisition, report the lookup error without changing
+revision/generation or allowing takeover. With procfs restricted at initial creation, daemon
+and desktop startup retain timestamp-based identity. Close the app while a fenced CLI waits;
+the next local presence read must return the staged handoff with version and attempt details.

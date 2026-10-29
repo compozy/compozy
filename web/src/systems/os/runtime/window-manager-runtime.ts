@@ -106,6 +106,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
         client: this.client,
         workArea: this.workArea(),
         workAreaOrigin: workArea?.origin ?? { x: 0, y: 0 },
+        viewportWidth: workArea?.viewportWidth,
         seamPreview,
         routeIntents,
         connectionStatus,
@@ -305,6 +306,7 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     if (bounds.width <= 0 || bounds.height <= 0) return;
     windowManagerStore.trigger.workAreaMeasured({
       workArea: {
+        viewportWidth: bounds.viewportWidth,
         rect: { x: 0, y: 0, w: bounds.width, h: bounds.height },
         origin: { x: bounds.origin.x, y: bounds.origin.y },
       },

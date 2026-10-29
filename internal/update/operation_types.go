@@ -67,6 +67,7 @@ const (
 
 // Holder is the fenced lease for the sole active executor.
 type Holder struct {
+	ProcessToken       string    `json:"process_token,omitempty"`
 	PID                int       `json:"pid"`
 	PIDStartTime       time.Time `json:"pid_start_time"`
 	Surface            Actor     `json:"surface"`

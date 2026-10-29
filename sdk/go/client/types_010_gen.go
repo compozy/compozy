@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// LoopResolvedRuntime is a daemon API value.
+type LoopResolvedRuntime struct {
+	Provider        string                    `json:"provider,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	Reasoning       string                    `json:"reasoning,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitzero"`
+	Source          LoopRuntimeProvenance     `json:"source"`
+}
+
+// LoopResponse is a daemon API value.
+type LoopResponse struct {
+	Loop LoopDefinitionPayload `json:"loop"`
+}
+
+// LoopRouteCausePayload is a daemon API value.
+type LoopRouteCausePayload struct {
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int       `json:"item_index"`
+	Route       string    `json:"route"`
+	Cause       string    `json:"cause"`
+	MatchedWhen string    `json:"matched_when,omitempty"`
+	Default     bool      `json:"default,omitzero"`
+	At          time.Time `json:"at"`
+}
+
+// LoopRunAttention is a daemon API value.
+type LoopRunAttention struct {
+	Kind  string    `json:"kind"`
+	Count int       `json:"count"`
+	Since time.Time `json:"since"`
+}
+
 // LoopRunEventPayload is a daemon API value.
 type LoopRunEventPayload struct {
 	ID          string          `json:"id"`
@@ -407,43 +441,4 @@ type Meta struct {
 	Version     int         `json:"version,omitzero"`
 	Description string      `json:"description,omitempty"`
 	Catalog     CatalogMeta `json:"catalog"`
-}
-
-// MetaField is a daemon API value.
-type MetaField struct {
-	Label    string            `json:"label"`
-	Value    string            `json:"value"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// MetricDirection is a daemon API value.
-type MetricDirection string
-
-// MetricSpec is a daemon API value.
-type MetricSpec struct {
-	Direction MetricDirection `json:"direction"`
-	MinDelta  *float64        `json:"min_delta,omitzero"`
-}
-
-// MissingPolicy is a daemon API value.
-type MissingPolicy string
-
-// ModelCatalogCostPayload is a daemon API value.
-type ModelCatalogCostPayload struct {
-	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
-	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
-	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
-	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-// ModelCatalogSourceRefPayload is a daemon API value.
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
 }

@@ -51,12 +51,13 @@ func newUpdateHolder(surface compozyupdate.Actor, now time.Time) (compozyupdate.
 	if err != nil {
 		return compozyupdate.Holder{}, fmt.Errorf("cli: resolve update executor identity: %w", err)
 	}
+	token := procutil.CreationProcessToken(os.Getpid())
 	generation, err := compozyupdate.NewExecutorGeneration()
 	if err != nil {
 		return compozyupdate.Holder{}, err
 	}
 	return compozyupdate.Holder{
-		PID: os.Getpid(), PIDStartTime: startedAt, Surface: surface,
+		PID: os.Getpid(), PIDStartTime: startedAt, ProcessToken: token, Surface: surface,
 		ExecutorGeneration: generation, LeaseExpiresAt: now.UTC().Add(compozyupdate.DefaultLeaseDuration),
 	}, nil
 }

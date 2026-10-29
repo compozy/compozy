@@ -10,6 +10,36 @@ import (
 	"strings"
 )
 
+// DisableSkill Disable one skill
+func (c *Client) DisableSkill(ctx context.Context, params DisableSkillParams) (*SkillActionResponse, error) {
+	path := "/api/skills/{name}/disable"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DismissAutomationSuggestionParams carries the path, query, and header parameters.
+type DismissAutomationSuggestionParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SuggestionID string `url:"suggestion_id"`
+}
+
 // DismissAutomationSuggestion Durably dismiss one automation suggestion
 func (c *Client) DismissAutomationSuggestion(ctx context.Context, params DismissAutomationSuggestionParams) (*AutomationSuggestionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/automation/suggestions/{suggestion_id}/dismiss"
@@ -417,34 +447,4 @@ func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// FailTaskRunParams carries the path, query, and header parameters.
-type FailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// FailTaskRun Fail one task run
-func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body FailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// FanOutTaskRunsParams carries the path, query, and header parameters.
-type FanOutTaskRunsParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

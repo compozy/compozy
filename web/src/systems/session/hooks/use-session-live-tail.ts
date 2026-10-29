@@ -90,7 +90,7 @@ export function useSessionLiveTail({
     snapshot => transportSnapshot(snapshot.context),
     shallowEqual
   );
-  const streamLive = transport.phase === "live";
+  const streamLive = transport.phase === "live" && !transport.catchingUp;
   // A live stream invalidates this session's control reads as they change, so they
   // drop to the safety cadence while this tail holds the live edge.
   useEffect(() => {

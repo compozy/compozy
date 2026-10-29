@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// SkillDiagnosticPayload is a daemon API value.
+type SkillDiagnosticPayload struct {
+	Name               string                            `json:"name"`
+	State              SkillDiagnosticState              `json:"state"`
+	Source             string                            `json:"source,omitempty"`
+	Path               string                            `json:"path,omitempty"`
+	WinningSource      string                            `json:"winning_source,omitempty"`
+	WinningPath        string                            `json:"winning_path,omitempty"`
+	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
+	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitzero"`
+	ActivationReasons  []SkillActivationReasonPayload    `json:"activation_reasons,omitempty"`
+}
+
+// SkillDiagnosticState is a daemon API value.
+type SkillDiagnosticState string
+
+// SkillExposeResponse is a daemon API value.
+type SkillExposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  bool                               `json:"rolled_back"`
+}
+
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -399,50 +438,4 @@ type SubprocessHealthAggregatePayload struct {
 	Healthy   int                              `json:"healthy"`
 	Unhealthy int                              `json:"unhealthy"`
 	Sessions  []SubprocessHealthSessionPayload `json:"sessions,omitempty"`
-}
-
-// SubprocessHealthSessionPayload is a daemon API value.
-type SubprocessHealthSessionPayload struct {
-	SessionID           string     `json:"session_id"`
-	WorkspaceID         string     `json:"workspace_id"`
-	AgentName           string     `json:"agent_name"`
-	ConsecutiveFailures int        `json:"consecutive_failures"`
-	LastCheckedAt       *time.Time `json:"last_checked_at,omitempty"`
-	Reason              string     `json:"reason,omitempty"`
-}
-
-// SuggestionSource is a daemon API value.
-type SuggestionSource string
-
-// SuggestionStatus is a daemon API value.
-type SuggestionStatus string
-
-// SupervisionState is a daemon API value.
-type SupervisionState struct {
-	WorkSignals  []WorkSignal        `json:"work_signals"`
-	Sources      []SignalSourceState `json:"sources"`
-	QuietWarning *QuietWarning       `json:"quiet_warning"`
-}
-
-// SupportBundleManifestArtifactPayload is a daemon API value.
-type SupportBundleManifestArtifactPayload struct {
-	Path             string `json:"path"`
-	Included         bool   `json:"included"`
-	OmittedReason    string `json:"omitted_reason,omitempty"`
-	Bytes            int64  `json:"bytes"`
-	Truncated        bool   `json:"truncated"`
-	RedactionVersion string `json:"redaction_version,omitempty"`
-}
-
-// SupportBundleManifestPayload is a daemon API value.
-type SupportBundleManifestPayload struct {
-	SchemaVersion        string                                 `json:"schema_version"`
-	OperationID          string                                 `json:"operation_id"`
-	CreatedAt            time.Time                              `json:"created_at"`
-	BundleMaxBytes       int64                                  `json:"bundle_max_bytes"`
-	ArtifactMaxBytes     int64                                  `json:"artifact_max_bytes"`
-	LogTailMaxBytes      int64                                  `json:"log_tail_max_bytes"`
-	EventSummaryMaxBytes int64                                  `json:"event_summary_max_bytes"`
-	RedactionVersion     string                                 `json:"redaction_version"`
-	Artifacts            []SupportBundleManifestArtifactPayload `json:"artifacts"`
 }

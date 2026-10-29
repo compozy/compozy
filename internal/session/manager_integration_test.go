@@ -30,6 +30,405 @@ import (
 )
 
 func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
+
+	// Invariant: after admission, request cancellation cannot strand the durable
+	// location journal. Owner: session lifecycle; this integration suite.
+	for _, stopped := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should finish an admitted binding after caller cancellation stopped=%t", stopped),
+			func(t *testing.T) {
+				fixture := newSessionWorktreeRaceFixture(t, nil)
+				h := fixture.h
+				h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+				created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+				if stopped {
+					if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				h.manager.sessionCatalog = cancelBindingCatalog{GlobalDB: fixture.database, cancel: cancel}
+				catalogEvents, closeCatalog, err := h.manager.SubscribeSessionCatalogEvents(t.Context(), CatalogScope{
+					ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer closeCatalog()
+				changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+				if err != nil {
+					t.Fatal(err)
+				}
+				// The explicit wake must survive independent detail reads in clients.
+				for found := false; !found; {
+					select {
+					case event := <-catalogEvents:
+						found = event.ExecutionLocationChanged && event.SessionID == created.ID
+					default:
+						t.Fatal("accepted binding did not publish its location transition")
+					}
+				}
+				meta, err := store.ReadSessionMeta(created.MetaPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if changed.WorktreeID != fixture.item.ID || meta.WorktreeTransition == nil ||
+					meta.WorktreeTransition.Pending {
+					t.Fatalf("binding did not converge after cancellation: %#v", meta.WorktreeTransition)
+				}
+				events, err := h.manager.Prompt(t.Context(), created.ID, "Continue after the location change")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+			},
+		)
+	}
+
+	// Invariant: governed and archived conversations cannot change execution
+	// ownership. Owner: session lifecycle; canonical binding integration suite.
+	for _, kind := range []Type{SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned} {
+		t.Run("Should refuse a governed "+string(kind)+" session", func(t *testing.T) {
+			fixture := newSessionWorktreeRaceFixture(t, nil)
+			h := fixture.h
+			h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+			opts := CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Type: kind}
+			if kind == SessionTypeCoordinator || kind == SessionTypeSpawned {
+				opts.Lineage = &store.SessionLineage{TTLExpiresAt: new(time.Now().Add(time.Hour))}
+			}
+			if kind == SessionTypeSpawned {
+				parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { stopActiveIntegrationSession(t, h, parent.ID) })
+				opts.Lineage.ParentSessionID = parent.ID
+				opts.Lineage.RootSessionID = parent.ID
+				opts.Lineage.SpawnDepth = 1
+			}
+			created, err := h.manager.Create(t.Context(), opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+			before := created.Meta()
+			for _, stopped := range []bool{false, true} {
+				if stopped {
+					if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := h.manager.ChangeWorktreeBinding(
+					t.Context(),
+					created.ID,
+					fixture.item.ID,
+					new(""),
+				); !errors.Is(
+					err,
+					ErrValidation,
+				) {
+					t.Fatalf("governed binding error = %v (stopped=%t)", err, stopped)
+				}
+				meta, err := store.ReadSessionMeta(created.MetaPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if meta.WorktreeIDValue() != before.WorktreeIDValue() || meta.CWDValue() != before.CWDValue() ||
+					meta.WorktreeTransition != nil {
+					t.Fatal("governed refusal changed the durable execution location")
+				}
+			}
+		})
+	}
+	t.Run("Should preserve an archived session location", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		created, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		before := created.Meta()
+		if _, err := h.manager.ArchiveWithStop(t.Context(), h.workspaceID, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.manager.ChangeWorktreeBinding(
+			t.Context(),
+			created.ID,
+			fixture.item.ID,
+			new(""),
+		); !errors.Is(
+			err,
+			ErrSessionArchived,
+		) {
+			t.Fatalf("archived binding error = %v", err)
+		}
+		meta, err := store.ReadSessionMeta(created.MetaPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if meta.WorktreeIDValue() != before.WorktreeIDValue() || meta.CWDValue() != before.CWDValue() ||
+			meta.WorktreeTransition != nil {
+			t.Fatal("archived refusal changed the durable execution location")
+		}
+	})
+	t.Run("Should preserve metadata when the catalog refuses a binding", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		ctx := t.Context()
+		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+		before := created.Meta()
+		if err := fixture.database.UpdateSessionWorktreeBinding(ctx, store.SessionWorktreeBindingUpdate{
+			SessionID: created.ID, WorkspaceID: h.workspaceID, ProfileID: before.ProfileID,
+			WorktreeID: fixture.item.ID, UpdatedAt: before.UpdatedAt,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+		if !errors.Is(err, store.ErrSessionWorktreeConflict) {
+			t.Fatalf("binding error = %v", err)
+		}
+		durable, err := store.ReadSessionMeta(created.MetaPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, actual := range []store.SessionMeta{created.Meta(), durable} {
+			if actual.WorktreeIDValue() != before.WorktreeIDValue() || actual.CWDValue() != before.CWDValue() ||
+				actual.WorktreeTransition != nil {
+				t.Fatalf("refused binding changed location: %#v", actual.SessionExecutionLocationState)
+			}
+		}
+	})
+	// Invariant: changing environments preserves conversation identity and restarts
+	// execution in the selected root. Owner: session lifecycle, canonical suite.
+	t.Run("Should change an idle session environment in place", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		ctx := testutil.Context(t)
+		subdirectory := filepath.Join(h.workspace, "nested")
+		if err := os.Mkdir(subdirectory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		created, err := h.manager.Create(
+			ctx,
+			CreateOpts{AgentName: "coder", Workspace: h.workspaceID, CWD: subdirectory},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { stopActiveIntegrationSession(t, h, created.ID) })
+		// Admission must refuse an occupied prompt slot without mutating identity.
+		if _, err := created.beginExclusivePromptSetup(); err != nil {
+			t.Fatal(err)
+		}
+		_, bindErr := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+		created.finishPromptSetup()
+		if !errors.Is(bindErr, ErrPromptInProgress) || created.Info().WorktreeID != "" {
+			t.Fatalf("busy bind=%v", bindErr)
+		}
+		_, bindErr = h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new("wt-stale"))
+		if !errors.Is(bindErr, store.ErrSessionWorktreeConflict) {
+			t.Fatalf("stale bind=%v", bindErr)
+		}
+		first, err := h.manager.Prompt(ctx, created.ID, "Remember the unique fact: blue kiwi")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, first)
+		originalACP := created.Info().ACPSessionID
+		// Published state must already be eligible for the next operator action.
+		h.manager.AddWorktreeBindingNotifier(func(ctx context.Context, info *Info, _ string) {
+			if available := h.manager.WorktreeBindingAvailability(ctx, info.ID); !available.Available {
+				t.Errorf("published binding remains reserved: %s", available.UnavailableReason)
+			}
+		})
+		for _, destination := range []string{"", fixture.item.ID, ""} {
+			expected := created.Info().WorktreeID
+			changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, destination, &expected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed.ID != created.ID || changed.WorktreeID != destination || changed.ACPSessionID != originalACP {
+				t.Fatalf("changed identity = %#v", changed)
+			}
+			if destination != "" {
+				releaseDelivery, err := h.manager.AcquireWorktreeDeliveryFence(
+					ctx,
+					h.workspaceID,
+					destination,
+					created.ID,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, bindErr := h.manager.ChangeWorktreeBinding(ctx, created.ID, "", &destination)
+				releaseDelivery()
+				if !errors.Is(bindErr, worktreepkg.ErrOperationInProgress) {
+					t.Fatalf("delivery unbind=%v", bindErr)
+				}
+			}
+			root := h.workspace
+			if destination != "" {
+				root = fixture.item.Path
+			}
+			root = resolveIntegrationWorkspaceRoot(t, root)
+			if got, err := h.manager.WorkingDir(ctx, created.ID); err != nil || got != root {
+				t.Fatalf("WorkingDir = %q, %v; want %q", got, err, root)
+			}
+			if created.runtimeBindingSnapshot().process != nil {
+				t.Fatal("old process remains bound")
+			}
+			next, err := h.manager.Prompt(ctx, created.ID, "Recall the unique fact")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, next)
+			h.driver.mu.Lock()
+			start := h.driver.startCalls[len(h.driver.startCalls)-1]
+			stops := h.driver.stopCalls
+			h.driver.mu.Unlock()
+			if start.Cwd != root || stops == 0 {
+				t.Fatalf("runtime start=%#v stops=%d", start, stops)
+			}
+			meta, err := store.ReadSessionMeta(created.MetaPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta.WorktreeTransition == nil || meta.WorktreeTransition.Pending ||
+				meta.WorktreeTransition.NoticePending {
+				t.Fatalf("unfinished transition after prompt: %#v", meta.WorktreeTransition)
+			}
+		}
+		rows, err := fixture.database.ListSessions(ctx, store.SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil || len(rows) != 1 || rows[0].ID != created.ID {
+			t.Fatalf("catalog=%#v error=%v", rows, err)
+		}
+	})
+	// Invariant: an accepted binding publishes its location wake even if the
+	// post-commit status projection is unavailable. Owner: session lifecycle.
+	t.Run("Should publish accepted binding after a failed status read", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		ctx := testutil.Context(t)
+		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		path := created.MetaPath()
+		h.manager.AddWorktreeBindingNotifier(func(ctx context.Context, _ *Info, _ string) {
+			if err := os.Rename(path, path+".unavailable"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.Status(ctx, created.ID); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("status failure = %v", err)
+			}
+		})
+		events, unsubscribe, err := h.manager.SubscribeSessionCatalogEvents(ctx, CatalogScope{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unsubscribe()
+		changed, bindErr := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+		if err := os.Rename(path+".unavailable", path); err != nil {
+			t.Fatal(err)
+		}
+		if bindErr != nil {
+			t.Fatal(bindErr)
+		}
+		for {
+			select {
+			case event := <-events:
+				if event.SessionID == changed.ID && event.ExecutionLocationChanged {
+					return
+				}
+			default:
+				t.Fatal("accepted binding did not publish its location change")
+			}
+		}
+	})
+	// Invariant: stopped sessions can leave unavailable checkouts without starting
+	// a provider. Owner: session lifecycle; same canonical integration suite.
+	t.Run("Should bind stopped sessions and leave a removed checkout", func(t *testing.T) {
+		fixture := newSessionWorktreeRaceFixture(t, nil)
+		h := fixture.h
+		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
+		ctx := testutil.Context(t)
+		created, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		// Invariant: publication follows reservation release for stopped sessions too.
+		h.manager.AddWorktreeBindingNotifier(func(_ context.Context, info *Info, _ string) {
+			if _, err := h.manager.ChangeWorktreeBinding(
+				t.Context(),
+				info.ID,
+				info.WorktreeID,
+				&info.WorktreeID,
+			); err != nil {
+				t.Errorf("published stopped binding remains reserved: %v", err)
+			}
+		})
+		changed, err := h.manager.ChangeWorktreeBinding(ctx, created.ID, fixture.item.ID, new(""))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed.State != StateStopped || changed.ID != created.ID {
+			t.Fatalf("changed=%#v", changed)
+		}
+		h.driver.mu.Lock()
+		starts := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if starts != 1 {
+			t.Fatalf("binding started a provider: %d starts", starts)
+		}
+		events, err := h.manager.Prompt(ctx, created.ID, "Continue in the worktree")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, events)
+		h.driver.mu.Lock()
+		cwd := h.driver.startCalls[len(h.driver.startCalls)-1].Cwd
+		h.driver.mu.Unlock()
+		if cwd != resolveIntegrationWorkspaceRoot(t, fixture.item.Path) {
+			t.Fatalf("resume cwd=%q", cwd)
+		}
+		if err := h.manager.Stop(ctx, created.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := fixture.service.Remove(ctx, h.workspaceID, fixture.item.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		changed, err = h.manager.ChangeWorktreeBinding(ctx, created.ID, "", &fixture.item.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed.State != StateStopped || changed.WorktreeID != "" {
+			t.Fatalf("unbound=%#v", changed)
+		}
+	})
+
 	// Invariant: an exact bound caller can hand off delivery while competing
 	// starts/resumes remain fenced. Owner: session lifecycle; canonical suite.
 	t.Run("Should fence only the bound managed delivery checkout", func(t *testing.T) {
@@ -1199,4 +1598,62 @@ func (r userLifecycleResolver) ResolveUser(
 	resolved.ProfileID = profileID
 	resolved.ProfileName = "default"
 	return resolved, nil
+}
+
+// sessionBindingIntegrationResolver uses real worktree usage leases and SQLite.
+type sessionBindingIntegrationResolver struct{ service *worktreepkg.Service }
+
+func (r sessionBindingIntegrationResolver) ResolveSessionWorktree(
+	ctx context.Context,
+	ws, ref string,
+) (string, string, error) {
+	item, err := r.service.Get(ctx, ws, ref)
+	if err != nil {
+		return "", "", err
+	}
+	return item.ID, item.Path, nil
+}
+
+func (r sessionBindingIntegrationResolver) AcquireSessionWorktreeBinding(
+	ctx context.Context,
+	ws, profile, ref string,
+) (string, string, func(), error) {
+	item, release, err := r.service.AcquireBindingUsage(ctx, ws, ref)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if item.ProfileID != profile || item.State != worktreepkg.StateReady {
+		release()
+		return "", "", nil, worktreepkg.ErrNotReady
+	}
+	return item.ID, item.Path, release, nil
+}
+
+func (r sessionBindingIntegrationResolver) AcquireSessionWorktreeUnbinding(
+	ctx context.Context,
+	ws, profile, ref string,
+) (func(), error) {
+	item, release, err := r.service.AcquireBindingUsage(ctx, ws, ref)
+	if err != nil {
+		return nil, err
+	}
+	if item.ProfileID != profile {
+		release()
+		return nil, worktreepkg.ErrNotFound
+	}
+	return release, nil
+}
+
+// Injects request cancellation at the catalog I/O boundary while using real SQLite.
+type cancelBindingCatalog struct {
+	*globaldb.GlobalDB
+	cancel context.CancelFunc
+}
+
+func (c cancelBindingCatalog) UpdateSessionWorktreeBinding(
+	ctx context.Context,
+	update store.SessionWorktreeBindingUpdate,
+) error {
+	c.cancel()
+	return c.GlobalDB.UpdateSessionWorktreeBinding(ctx, update)
 }

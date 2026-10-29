@@ -147,6 +147,8 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		}
 	}
 
+	session.worktreeBindingAdmissionMu.RLock()
+	defer session.worktreeBindingAdmissionMu.RUnlock()
 	if preparation.request.expectedTurnID != "" {
 		if _, err := requireExpectedActiveTurn(session, preparation.request.expectedTurnID); err != nil {
 			return SendPromptResult{}, err

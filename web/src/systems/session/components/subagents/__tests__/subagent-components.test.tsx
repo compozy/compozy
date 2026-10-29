@@ -84,6 +84,17 @@ afterEach(() => {
 });
 
 describe("SubagentCard", () => {
+  // Invariant: pending admission is navigable without inventing a child session.
+  // Owner: subagent presentational components; canonical suite: this file.
+  it("Should open a pending subagent and show its recorded runtime", () => {
+    const pending = subagent({ child_session_id: null, status: "queued" });
+    const onOpen = vi.fn();
+    renderUI(<SubagentCard subagent={pending} onOpen={onOpen} />);
+    const control = screen.getByRole("button", { name: `Open ${pending.title}` });
+    fireEvent.click(control);
+    expect(onOpen).toHaveBeenCalledWith(pending, { newWindow: false });
+    expect(within(control).getByText("opus-5.5 · high")).toBeVisible();
+  });
   it("Should be a labeled button that opens the child, in a new window with ⌘ (UT-W05)", () => {
     const onOpen = vi.fn();
     renderUI(

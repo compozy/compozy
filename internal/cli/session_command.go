@@ -45,6 +45,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionSearchCommand(deps))
 	cmd.AddCommand(newSessionOutlineCommand(deps))
 	cmd.AddCommand(newSessionRuntimeCommand(deps))
+	cmd.AddCommand(newSessionWorktreeCommand(deps))
 	cmd.AddCommand(newSessionGoalCommand(deps))
 	configureSessionProfileCommands(cmd, deps)
 	// Continue and fork are not profile-scoped reads (the new session inherits the

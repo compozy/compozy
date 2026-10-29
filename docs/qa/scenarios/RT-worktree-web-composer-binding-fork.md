@@ -1,12 +1,12 @@
 ---
 id: RT-worktree-web-composer-binding-fork
 area: RT
-title: Read a session's environment and fork it into a worktree
+title: Change a session environment in place or fork into a worktree
 persona: Ada
 journey: J-worktree-management
-expected: The composer states the session's actual binding: the workspace root, or the bound worktree with a lock. The binding is never editable in place. The fork affordance appears only when the daemon reports /worktree available, and its refusal reason is shown verbatim when it is not. Confirming the fork states three facts, creates exactly one new clean session in the target worktree, and leaves the original session and its uncommitted changes untouched.
+expected: The composer shows the actual environment and daemon-reported availability. Use worktree, Change worktree, and Use workspace root change an idle ordinary session in place with the same ID, transcript, window, and list row. Only ready targets are offered. Branch, PR, board, dirty/ahead, and exit controls follow the binding. Busy or owned sessions are refused without a deferred change. The separate qualified fork action and /worktree keep creating a new session and leave the original untouched.
 entry_points: S8 Session composer environment chip and /worktree command; S9 fork confirmation; S16 session header binding chip
-qa_status: pass
+qa_status: pending
 bug_ids:
 fix_status:
 retest_status:
@@ -26,3 +26,8 @@ including the verbatim unavailable reason and the unchanged `/worktree` command 
 the target and fork action in its accessible name and hover tooltip, and opened/cancelled the existing
 fork dialog without changing the binding. The unavailable-reason wording remains covered by the
 canonical component suite; the `/worktree` action path is covered by the existing web suite.
+
+2026-10-27 (#992): re-walk root → A → B → root, keeping a unique conversation fact and the same
+window/list row. Verify keyboard selection, daemon refusal, stale expected binding, creation then
+binding, and the unchanged fork flow. Historical evidence above covers the previous UI only;
+current implementation evidence is pending the focused browser and live-provider runs.

@@ -56,7 +56,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 	switch code {
 	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		return http.StatusBadRequest
-	case toolspkg.ErrorCodeNotFound:
+	case toolspkg.ErrorCodeNotFound, toolspkg.ErrorCodeWorktreeNotFound:
 		return http.StatusNotFound
 	case toolspkg.ErrorCodeDenied:
 		return http.StatusForbidden
@@ -67,7 +67,12 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		}
 		return http.StatusAccepted
 	case toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeWorktreeNotReady,
+		toolspkg.ErrorCodeWorktreeMissing,
+		toolspkg.ErrorCodeWorktreeOperationInProgress,
+		toolspkg.ErrorCodeWorktreeSessionActive,
 		toolspkg.ErrorCodeSessionBusy,
+		toolspkg.ErrorCodeSessionWorktreeConflict,
 		toolspkg.ErrorCodeCompactionUnsupported,
 		toolspkg.ErrorCodeSessionArchiveStopFailed,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
@@ -271,6 +276,18 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 	switch code {
 	case toolspkg.ErrorCodeSessionBusy:
 		return "session is busy"
+	case toolspkg.ErrorCodeWorktreeNotFound:
+		return "worktree not found"
+	case toolspkg.ErrorCodeWorktreeNotReady:
+		return "worktree is not ready"
+	case toolspkg.ErrorCodeWorktreeMissing:
+		return "worktree checkout is missing"
+	case toolspkg.ErrorCodeWorktreeOperationInProgress:
+		return "worktree operation is in progress"
+	case toolspkg.ErrorCodeWorktreeSessionActive:
+		return "worktree has an active session"
+	case toolspkg.ErrorCodeSessionWorktreeConflict:
+		return "session worktree binding changed; refresh the session and retry"
 	case toolspkg.ErrorCodeSessionMessageHopLimit:
 		return "Message chain limit reached (8 hops). Ask the operator to continue."
 	case toolspkg.ErrorCodeSessionMessageRateLimited:

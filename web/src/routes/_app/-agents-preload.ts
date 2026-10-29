@@ -2,11 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { sessionsListOptions } from "@/systems/session";
 
-import {
-  resolveActiveWorkspaceId,
-  resolveActiveWorkspaceSelection,
-  settleRouteQueries,
-} from "./-route-preload";
+import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
 import {
   agentAggregateOptions,
   agentCatalogOptions,
@@ -14,8 +10,18 @@ import {
   agentDetailOptions,
 } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
-import { focusedWorkspaceSelector, workspaceDetailOptions } from "@/systems/workspace";
+import {
+  dataScopeFromSelector,
+  focusedWorkspaceSelector,
+  workspaceDetailOptions,
+  workspaceSelectorOrAll,
+} from "@/systems/workspace";
 import { readActingProfile, readProfileScopeParams } from "@/systems/profiles";
+
+async function resolveRouteScope(queryClient: QueryClient, routeWorkspaceId?: string) {
+  const bound = routeWorkspaceId ? dataScopeFromSelector(routeWorkspaceId) : null;
+  return bound ?? (await resolveActiveWorkspaceSelection(queryClient)).dataScope;
+}
 
 export async function preloadAgentsRoute(
   queryClient: QueryClient,
@@ -37,56 +43,65 @@ export async function preloadAgentsRoute(
 
 export async function preloadAgentSettingsRoute(
   queryClient: QueryClient,
-  name: string
+  name: string,
+  routeWorkspaceId?: string
 ): Promise<void> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
+  const dataScope = await resolveRouteScope(queryClient, routeWorkspaceId);
+  if (!dataScope) return;
+  const workspaceId = workspaceSelectorOrAll(dataScope);
   const profile = readActingProfile(queryClient);
   await settleRouteQueries([
-    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
-    ...(workspaceId ? [queryClient.ensureQueryData(workspaceDetailOptions(workspaceId))] : []),
-    queryClient.ensureQueryData(settingsProvidersListOptions()),
+    queryClient.query({ ...agentDetailOptions(name, workspaceId, profile), staleTime: "static" }),
+    ...(dataScope.kind === "project"
+      ? [
+          queryClient.query({
+            ...workspaceDetailOptions(dataScope.workspaceId),
+            staleTime: "static",
+          }),
+        ]
+      : []),
+    queryClient.query({ ...settingsProvidersListOptions(), staleTime: "static" }),
   ]);
 }
 
 export async function preloadAgentDetailRoute(
   queryClient: QueryClient,
-  name: string
+  name: string,
+  routeWorkspaceId?: string
 ): Promise<void> {
+  const dataScope = await resolveRouteScope(queryClient, routeWorkspaceId);
+  if (!dataScope) return;
+  const workspaceId = workspaceSelectorOrAll(dataScope);
   const profileScope = readProfileScopeParams(queryClient);
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
   const workspaceScope = workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true };
 
   const profile = readActingProfile(queryClient);
+  // These are the detail page's real consumers: exact catalog metrics and both
+  // session shelves. Count probes and user-only lists are different cache entries.
   await settleRouteQueries([
-    queryClient.ensureQueryData(agentDetailOptions(name, workspaceId, profile)),
-    queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({
+    queryClient.query({ ...agentDetailOptions(name, workspaceId, profile), staleTime: "static" }),
+    queryClient.infiniteQuery({
+      ...agentCatalogOptions(workspaceId ?? "", { name, limit: 1, profile }),
+      staleTime: "static",
+    }),
+    queryClient.infiniteQuery({
+      ...sessionsListOptions({
         ...workspaceScope,
         agent: name,
-        type: "user",
         sort: "last_activity",
         ...profileScope,
-      })
-    ),
-    queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({
+      }),
+      staleTime: "static",
+    }),
+    queryClient.infiniteQuery({
+      ...sessionsListOptions({
         ...workspaceScope,
         agent: name,
-        state: "active",
-        type: "user",
-        limit: 1,
+        sort: "last_activity",
+        archive: "only",
         ...profileScope,
-      })
-    ),
-    queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({
-        ...workspaceScope,
-        agent: name,
-        type: "user",
-        resumable: true,
-        limit: 1,
-        ...profileScope,
-      })
-    ),
+      }),
+      staleTime: "static",
+    }),
   ]);
 }

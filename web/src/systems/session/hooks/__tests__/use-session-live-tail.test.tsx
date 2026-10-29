@@ -7,7 +7,13 @@
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
 // Boundary OUT: real HTTP transport and final thread visuals.
-import { QueryClient, QueryClientProvider, QueryObserver, useQuery } from "@tanstack/react-query";
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+  useQuery,
+} from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -261,6 +267,7 @@ describe("useSessionLiveTail", () => {
   });
 
   afterEach(() => {
+    focusManager.setFocused(undefined);
     vi.useRealTimers();
     vi.restoreAllMocks();
     resetSessionDebugTelemetry();
@@ -601,6 +608,74 @@ describe("useSessionLiveTail", () => {
 
     expect(fetchSessionTranscript).not.toHaveBeenCalled();
     expect(result.current.messages).toHaveLength(2);
+  });
+
+  // Invariant: the live edge owns transcript freshness, while explicit invalidation and a
+  // disconnected observer still reread every retained page. Owner: transcript query policy;
+  // canonical suite: useSessionLiveTail (real Query observers, adapter-boundary I/O mocks).
+  it("Should reuse live transcript pages on focus and mount but reread after disconnect", async () => {
+    const queryClient = createQueryClient();
+    seedActiveSession(queryClient);
+    const key = sessionKeys.transcript(WORKSPACE_ID, SESSION_ID);
+    const head = transcriptPage([sessionTranscriptFixture[1]!], {
+      firstSequence: 20,
+      hasOlder: true,
+      nextBeforeSequence: 20,
+    });
+    const older = transcriptPage([sessionTranscriptFixture[0]!]);
+    queryClient.setQueryData(key, seededTranscriptData(head, older));
+    vi.mocked(fetchSessionTranscript).mockImplementation(async (_workspace, _id, params) =>
+      params?.before_sequence === 20 ? older : head
+    );
+    const { result, sources } = renderLiveTail({ queryClient });
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+    act(() =>
+      sources[0]?.emit("transcript_delta", {
+        cursor: 20,
+        entries: [],
+        epoch: 1,
+        generation: 1,
+        has_more: false,
+        max_sequence: 20,
+        session_id: SESSION_ID,
+      })
+    );
+    await waitFor(() => expect(isSessionStreamLive(SESSION_ID)).toBe(true));
+    const expireTranscript = () => {
+      queryClient.setQueryData(key, queryClient.getQueryData(key), {
+        updatedAt: Date.now() - 20_000,
+      });
+    };
+    await act(async () => {
+      expireTranscript();
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+
+    const background = renderLiveTail({ queryClient, enabled: false });
+    await waitFor(() => expect(background.result.current.messages).toHaveLength(2));
+    expect(fetchSessionTranscript).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: key, exact: true });
+    });
+    expect(fetchSessionTranscript).toHaveBeenCalledTimes(2);
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      sessionTranscriptFixture[0]?.id,
+      sessionTranscriptFixture[1]?.id,
+    ]);
+
+    act(() => sources[0]?.onerror?.(new Event("error")));
+    await waitFor(() => expect(isSessionStreamLive(SESSION_ID)).toBe(false));
+    await act(async () => {
+      expireTranscript();
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await waitFor(() => expect(fetchSessionTranscript).toHaveBeenCalledTimes(4));
+    expect(result.current.messages).toHaveLength(2);
+    background.unmount();
   });
 
   it("Should replace every loaded page only for an explicit reset snapshot", async () => {
@@ -1662,6 +1737,7 @@ describe("useSessionLiveTail", () => {
     );
     expect(result.current.transport.catchingUp).toBe(true);
     expect(result.current.transport.phase).toBe("live");
+    expect(isSessionStreamLive(SESSION_ID)).toBe(false);
 
     // A frame short of the watermark drains the queue but does not end the catch-up.
     const frame = (id: string, sequence: number) => ({
@@ -1677,6 +1753,7 @@ describe("useSessionLiveTail", () => {
       );
     });
     expect(result.current.transport.catchingUp).toBe(true);
+    expect(isSessionStreamLive(SESSION_ID)).toBe(false);
 
     // An empty delta carrying the watermark cursor ends it.
     act(() =>
@@ -1689,6 +1766,7 @@ describe("useSessionLiveTail", () => {
     await act(async () => {
       await vi.waitFor(() => expect(result.current.transport.catchingUp).toBe(false));
     });
+    expect(isSessionStreamLive(SESSION_ID)).toBe(true);
     // The marker never advanced the resume cursor on its own: the reconnect resumes after 6, the last applied frame.
     act(() => sources[0]?.onerror?.(new Event("error")));
     await act(async () => vi.advanceTimersByTimeAsync(250));

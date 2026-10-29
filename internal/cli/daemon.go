@@ -106,11 +106,16 @@ func runDaemonUpdateCoordinator(
 	holder := *operation.Holder
 	holder.PID = os.Getpid()
 	holder.PIDStartTime = startedAt
+	holder.ProcessToken = procutil.CreationProcessToken(holder.PID)
 	holder.Surface = compozyupdate.ActorDaemon
 	holder.LeaseExpiresAt = deps.now().UTC().Add(compozyupdate.DefaultLeaseDuration)
 	transitionKind := compozyupdate.TransitionRenewLease
 	fenceGeneration := executorGeneration
-	if !manager.OperationStore().HolderLive(operation.Holder) {
+	live, err := manager.OperationStore().HolderLive(operation.Holder)
+	if err != nil {
+		return err
+	}
+	if !live {
 		transitionKind = compozyupdate.TransitionAcquireLease
 		fenceGeneration = ""
 	}

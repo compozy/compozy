@@ -747,6 +747,94 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		},
 	)
 
+	// Invariant: explicit binding CAS preserves owner and rejects stale or unavailable destinations.
+	// Owner: global SQLite session/worktree storage; canonical worktree store suite.
+	t.Run("Should change existing session bindings only through guarded updates", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "binding", t.TempDir())
+		now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+		item := worktreepkg.Worktree{ID: "wt-binding", ProfileID: store.DefaultProfileID,
+			WorkspaceID: workspaceID, Name: "binding", Path: t.TempDir(), State: worktreepkg.StateReady,
+			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now}
+		if err := db.Worktrees.Insert(ctx, item); err != nil {
+			t.Fatal(err)
+		}
+		original := store.SessionInfo{ID: "session-binding", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID: workspaceID, State: "active", CreatedAt: now, UpdatedAt: now}
+		if err := db.RegisterSession(ctx, original); err != nil {
+			t.Fatal(err)
+		}
+		update := store.SessionWorktreeBindingUpdate{SessionID: original.ID, WorkspaceID: workspaceID,
+			ProfileID: store.DefaultProfileID, WorktreeID: item.ID, UpdatedAt: now.Add(time.Second)}
+		if err := db.UpdateSessionWorktreeBinding(ctx, update); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.RegisterSession(ctx, original); err == nil {
+			t.Fatal("ordinary registration silently unbound session")
+		}
+		if err := db.UpdateSessionWorktreeBinding(ctx, update); !errors.Is(err, store.ErrSessionWorktreeConflict) {
+			t.Fatalf("stale binding error = %v", err)
+		}
+		if err := db.RecoverSessionWorktreeBinding(ctx, update); err != nil {
+			t.Fatal(err)
+		}
+		update.ExpectedWorktreeID, update.WorktreeID = item.ID, ""
+		if err := db.UpdateSessionWorktreeBinding(ctx, update); err != nil {
+			t.Fatal(err)
+		}
+		// Simulate a crash after durable acceptance and before the catalog write.
+		meta := store.SessionMeta{ID: original.ID, ProfileID: original.ProfileID,
+			WorkspaceID: workspaceID, AgentName: original.AgentName, Provider: original.Provider,
+			State: "active", RuntimeStatus: store.SessionRuntimeUnbound, CreatedAt: now, UpdatedAt: now,
+			WorktreeTransition: &store.SessionWorktreeTransition{
+				Previous: store.SessionExecutionLocationState{CWD: "/workspace"},
+				Current:  store.SessionExecutionLocationState{WorktreeID: item.ID, CWD: item.Path},
+				Pending:  true, NoticePending: true,
+			},
+		}
+		meta.SetWorktreeID(item.ID)
+		meta.SetCWD(item.Path)
+		metaPath := store.SessionMetaFile(t.TempDir())
+		if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Worktrees.SetState(ctx, workspaceID, item.ID, worktreepkg.StateMissing, now); err != nil {
+			t.Fatal(err)
+		}
+		update.ExpectedWorktreeID, update.WorktreeID = "", item.ID
+		if err := db.UpdateSessionWorktreeBinding(ctx, update); !errors.Is(err, store.ErrSessionWorktreeConflict) {
+			t.Fatalf("unavailable binding error = %v", err)
+		}
+		reloaded, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.RecoverSessionWorktreeTransition(ctx, db, metaPath, &reloaded); err != nil {
+			t.Fatal(err)
+		}
+		reloaded, err = store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reloaded.WorktreeTransition.Pending || !reloaded.WorktreeTransition.NoticePending ||
+			reloaded.CWDValue() != item.Path || reloaded.WorktreeIDValue() != item.ID {
+			t.Fatalf("recovered metadata = %#v", reloaded)
+		}
+		rows, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, ID: original.ID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].WorktreeID != item.ID || rows[0].ID != original.ID {
+			t.Fatalf("recovered rows = %#v", rows)
+		}
+	})
+
 	t.Run("Should dismiss a tombstone without cascading session or task-run history", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

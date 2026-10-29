@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { PillCount } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { useIntentPreload } from "@/hooks/use-intent-preload";
 
 import { dockTabStopId, moveDockRovingFocus } from "../lib/dock-roving-focus";
 import { dockItemAccessibleName, type OsDockItemData } from "../lib/os-dock-model";
@@ -14,17 +15,22 @@ function TabBarItem({
   tabStop,
   onFocusItem,
   onSelect,
+  onPreload,
   disabled,
 }: {
   item: OsDockItemData;
   tabStop: boolean;
   onFocusItem: (id: string) => void;
   onSelect: (id: string) => void;
+  onPreload?: (id: string) => void | Promise<unknown>;
   disabled?: boolean;
 }) {
+  const preload = useCallback(() => onPreload?.(item.id), [item.id, onPreload]);
+  const intent = useIntentPreload(preload, !!onPreload && !disabled);
   const state = item.minimized ? "minimized" : item.running ? "running" : "closed";
   return (
     <button
+      {...intent}
       type="button"
       data-slot="os-dock-item"
       data-app={item.id}
@@ -39,7 +45,10 @@ function TabBarItem({
         "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none",
         item.active && "bg-rail-selected text-fg hover:bg-rail-selected"
       )}
-      onFocus={() => onFocusItem(item.id)}
+      onFocus={() => {
+        onFocusItem(item.id);
+        intent.onFocus();
+      }}
       onClick={() => onSelect(item.id)}
     >
       <DockIcon name={item.icon} className={cn("size-4.5", item.minimized && "opacity-50")} />
@@ -68,6 +77,7 @@ function TabBarItem({
 export interface OsDockTabBarProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
   items: OsDockItemData[];
   onSelect: (id: string) => void;
+  onPreload?: (id: string) => void | Promise<unknown>;
   disabled?: boolean;
   /** Shell controls after the launchers (the rail foot, which compact hides). */
   trailing?: React.ReactNode;
@@ -82,6 +92,7 @@ export interface OsDockTabBarProps extends Omit<React.ComponentProps<"div">, "on
 export function OsDockTabBar({
   items,
   onSelect,
+  onPreload,
   disabled,
   trailing,
   className,
@@ -111,6 +122,7 @@ export function OsDockTabBar({
             tabStop={item.id === tabStopId}
             onFocusItem={setFocusedId}
             onSelect={onSelect}
+            onPreload={onPreload}
             disabled={disabled}
           />
         ))}

@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// TerminalWaitResponse is a daemon API value.
+type TerminalWaitResponse struct {
+	Reason    string `json:"reason"`
+	ExitCode  *int   `json:"exit_code,omitzero"`
+	Screen    string `json:"screen"`
+	Untrusted bool   `json:"untrusted"`
+}
+
+// ThresholdKind is a daemon API value.
+type ThresholdKind string
+
 // TimelineEntry is a daemon API value.
 type TimelineEntry struct {
 	Seq        int64        `json:"seq"`
@@ -435,16 +446,4 @@ type TriggerPayload struct {
 // TriggerResponse is a daemon API value.
 type TriggerResponse struct {
 	Trigger TriggerPayload `json:"trigger"`
-}
-
-// TriggersResponse is a daemon API value.
-type TriggersResponse struct {
-	Triggers []TriggerPayload         `json:"triggers"`
-	Page     CountedCursorPagePayload `json:"page"`
-}
-
-// TurnHistoryPayload is a daemon API value.
-type TurnHistoryPayload struct {
-	TurnID string                `json:"turn_id"`
-	Events []SessionEventPayload `json:"events"`
 }

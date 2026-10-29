@@ -227,28 +227,31 @@ type Session struct {
 	agentDef           compozyconfig.AgentDef
 	startupManifest    acp.StartupManifest
 
-	sessionDir              string
-	metaPath                string
-	dbPath                  string
-	recorder                EventRecorder
-	process                 *AgentProcess
-	worktreeForkReserved    bool
-	promptSetupCount        int
-	promptSetupDone         chan struct{}
-	currentTurnID           string
-	currentTurnSource       TurnSource
-	currentPromptMessage    string
-	currentPromptDelivery   PromptDelivery
-	currentPromptMeta       acp.PromptMeta
-	currentTurnHopFloor     int
-	currentSkillInvocations []commandpkg.Invocation
-	currentPromptCancel     context.CancelFunc
-	currentPromptCancelTurn string
-	promptCancelRequested   bool
-	turnStop                *turnStopRun
-	turnStopPending         bool
-	currentPromptDone       chan struct{}
-	providerRedactions      []func()
+	sessionDir                 string
+	metaPath                   string
+	dbPath                     string
+	recorder                   EventRecorder
+	process                    *AgentProcess
+	worktreeForkReserved       bool
+	worktreeBindingReserved    bool
+	worktreeBindingAdmissionMu sync.RWMutex
+	worktreeTransition         *store.SessionWorktreeTransition
+	promptSetupCount           int
+	promptSetupDone            chan struct{}
+	currentTurnID              string
+	currentTurnSource          TurnSource
+	currentPromptMessage       string
+	currentPromptDelivery      PromptDelivery
+	currentPromptMeta          acp.PromptMeta
+	currentTurnHopFloor        int
+	currentSkillInvocations    []commandpkg.Invocation
+	currentPromptCancel        context.CancelFunc
+	currentPromptCancelTurn    string
+	promptCancelRequested      bool
+	turnStop                   *turnStopRun
+	turnStopPending            bool
+	currentPromptDone          chan struct{}
+	providerRedactions         []func()
 	// inputPromotionActive keeps at most one long-turn queue promotion pass running per session.
 	inputPromotionActive atomic.Bool
 	// promotedSteers holds long-turn promotions whose injection is still pending, so an asynchronous

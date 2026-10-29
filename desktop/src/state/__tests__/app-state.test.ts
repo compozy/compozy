@@ -13,6 +13,57 @@ import type {
 // Invariant: every published app.json is a complete schema-v2 snapshot of shell and update truth.
 // Owner: desktop app-state writer. Canonical suite: app-state.test.ts.
 describe("app state publisher", () => {
+  it("Should preserve acquired kernel identity across later publications", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    let readable = true;
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+        readProcessToken: async () => {
+          if (!readable) throw new Error("procfs denied after startup");
+          return "boot-id:12345";
+        },
+      });
+      await publisher.publish({ state: "resolving" });
+      readable = false;
+      await publisher.publish({ state: "product" });
+      const record = JSON.parse(await readFile(path, "utf8"));
+      expect(record).toMatchObject({ state: "product", process_token: "boot-id:12345" });
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("Should publish timestamp identity when the optional kernel token is unavailable", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-app-state-"));
+    const path = join(home, "app.json");
+    try {
+      const publisher = new AppStatePublisher({
+        path,
+        appVersion: "0.3.0",
+        channel: "development",
+        startedAt: new Date("2026-08-16T00:00:00Z"),
+        readProcessToken: async () => {
+          throw new Error("procfs denied");
+        },
+      });
+      await publisher.publish({ state: "resolving" });
+      const record = JSON.parse(await readFile(path, "utf8"));
+      expect(record).toMatchObject({
+        state: "resolving",
+        pid: process.pid,
+        started_at: "2026-08-16T00:00:00.000Z",
+      });
+      expect(record.process_token).toBeUndefined();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ["pending", "accepted", undefined],
     ["applying", "applying", "download"],
@@ -146,6 +197,9 @@ describe("app state publisher", () => {
       const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
       expect(record).toEqual({
         schema_version: 2,
+        ...(process.platform === "linux"
+          ? { process_token: expect.stringMatching(/^[a-f0-9-]+:[0-9]+$/) }
+          : {}),
         pid: process.pid,
         started_at: "2026-08-16T00:00:00.000Z",
         app_version: "0.3.0",

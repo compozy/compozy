@@ -141,6 +141,13 @@
             "resource": "gateway",
             "app_access": "denied"
         },
+        "bindSessionWorktree": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.bindSessionWorktree({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.BindSessionWorktree(ctx, client.BindSessionWorktreeParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.BindSessionWorktreeRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "blockTask": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.blockTask({ path: { \"id\": \"id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.BlockTask(ctx, client.BlockTaskParams{ID: \"id\"}, client.CreateTaskBlockRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -3170,6 +3177,13 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UnbindGatewayIngress(ctx, client.UnbindGatewayIngressParams{SubjectKind: \"subject_kind\", SubjectID: \"subject_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "gateway",
+            "app_access": "denied"
+        },
+        "unbindSessionWorktree": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.unbindSessionWorktree({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UnbindSessionWorktree(ctx, client.UnbindSessionWorktreeParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
             "app_access": "denied"
         },
         "undrainDaemon": {

@@ -412,6 +412,12 @@ type BackoffSpec struct {
 // Badge is a daemon API value.
 type Badge string
 
+// BindSessionWorktreeRequest is a daemon API value.
+type BindSessionWorktreeRequest struct {
+	Worktree           string  `json:"worktree"`
+	ExpectedWorktreeID *string `json:"expected_worktree_id,omitempty"`
+}
+
 // BindingsConfig is a daemon API value.
 type BindingsConfig struct {
 	TopCenter    string `json:"top_center"`
@@ -432,18 +438,3 @@ type BlockedReason struct {
 
 // BlockedSource is a daemon API value.
 type BlockedSource string
-
-// Blocker is a daemon API value.
-type Blocker struct {
-	Kind         string     `json:"kind"`
-	NodeID       NodeID     `json:"node_id,omitempty"`
-	GateID       NodeID     `json:"gate_id,omitempty"`
-	ItemIndex    int        `json:"item_index,omitzero"`
-	WaitingSince time.Time  `json:"waiting_since"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	Expired      bool       `json:"expired,omitzero"`
-	Unblocker    string     `json:"unblocker"`
-}
-
-// BoardColumn is a daemon API value.
-type BoardColumn string

@@ -25,6 +25,7 @@ func sessionStartSpecFromMeta(
 	acpOptions := ACPOptionSelectionsFromStore(meta.ACPOptionsValue())
 	spec := sessionStartSpec{
 		sessionID:                meta.ID,
+		worktreeTransition:       store.CloneSessionWorktreeTransition(meta.WorktreeTransition),
 		profileID:                strings.TrimSpace(meta.ProfileID),
 		sessionName:              meta.Name,
 		agentName:                meta.AgentName,

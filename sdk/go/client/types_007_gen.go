@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// GoalTurn is a daemon API value.
+type GoalTurn struct {
+	Seq            int64                   `json:"seq"`
+	Generation     int64                   `json:"generation"`
+	NodeID         string                  `json:"node_id"`
+	ItemIndex      int                     `json:"item_index"`
+	Turn           int                     `json:"turn"`
+	PromptAttempt  int                     `json:"prompt_attempt"`
+	SessionID      string                  `json:"session_id"`
+	BindingHandle  string                  `json:"binding_handle"`
+	BindingEpoch   int64                   `json:"binding_epoch"`
+	PromptID       string                  `json:"prompt_id"`
+	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
+	ReasonCode     *GoalReasonCode         `json:"reason_code"`
+	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
+	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
+	Criteria       []GoalCriterionResult   `json:"criteria"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings"`
+	EvidenceRef    *string                 `json:"evidence_ref"`
+	PromptRef      *string                 `json:"prompt_ref"`
+	TokensUsed     *int64                  `json:"tokens_used"`
+	ActorKind      string                  `json:"actor_kind"`
+	ActorID        string                  `json:"actor_id"`
+	StartedAt      time.Time               `json:"started_at"`
+	EndedAt        *time.Time              `json:"ended_at"`
+}
+
+// GoalTurnPage is a daemon API value.
+type GoalTurnPage struct {
+	Turns        []GoalTurn `json:"turns"`
+	NextAfterSeq *int64     `json:"next_after_seq"`
+}
+
 // GoalTurnResultStatus is a daemon API value.
 type GoalTurnResultStatus string
 
@@ -412,30 +446,3 @@ type Input struct {
 type InputRef struct {
 	Kind InputRefKind `json:"kind"`
 }
-
-// InputRefKind is a daemon API value.
-type InputRefKind string
-
-// InputType is a daemon API value.
-type InputType string
-
-// InstallExtensionRequest is a daemon API value.
-type InstallExtensionRequest struct {
-	Scope                string                 `json:"scope,omitempty"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Profile              string                 `json:"profile,omitempty"`
-	Inputs               map[string]Value       `json:"inputs,omitempty"`
-	ExpectedDigest       string                 `json:"expected_digest,omitempty"`
-	Source               InstallExtensionSource `json:"source"`
-	Ref                  string                 `json:"ref"`
-	Version              string                 `json:"version,omitempty"`
-	Asset                string                 `json:"asset,omitempty"`
-	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
-}
-
-// InstallExtensionSource is a daemon API value.
-type InstallExtensionSource string
-
-// InvokeStatus is a daemon API value.
-type InvokeStatus string

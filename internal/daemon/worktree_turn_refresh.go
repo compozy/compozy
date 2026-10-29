@@ -27,6 +27,20 @@ func registerWorktreeTurnRefresh(
 		return
 	}
 	registrar.AddTurnEndNotifier(worktreeTurnRefreshNotifier(sessions, refresher, logger))
+	if bindings, ok := sessions.(interface {
+		AddWorktreeBindingNotifier(session.WorktreeBindingNotifier)
+	}); ok {
+		bindings.AddWorktreeBindingNotifier(func(ctx context.Context, info *session.Info, previous string) {
+			for _, id := range []string{previous, info.WorktreeID} {
+				if id == "" {
+					continue
+				}
+				if _, err := refresher.Status(ctx, info.WorkspaceID, id, true); err != nil && logger != nil {
+					logger.WarnContext(ctx, "refresh worktree after session binding", "worktree_id", id, "error", err)
+				}
+			}
+		})
+	}
 }
 
 func worktreeTurnRefreshNotifier(
