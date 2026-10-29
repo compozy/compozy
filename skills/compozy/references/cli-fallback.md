@@ -1,4 +1,4 @@
-# Compozy CLI fallback
+# CompozyOS CLI fallback
 
 Native tool transport is unavailable in this runtime. Use the following public
 CLI entry points only within the authorization already granted to this session.
