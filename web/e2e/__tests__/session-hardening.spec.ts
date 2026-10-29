@@ -409,6 +409,23 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     await heldRewind;
     await route.fulfill({ response });
   });
+  // Invariant (#1017): a detached edit with a lost acknowledgment belongs only to
+  // Retry; replaying its identity must not create another turn. Owner: this browser suite.
+  const promptRoute = `**${sessionAPIPath(workspace.id, session.id, "/prompt")}*`;
+  let detachedBody: Record<string, unknown> = {};
+  await appPage.route(promptRoute, async route => {
+    const request = route.request();
+    detachedBody = request.postDataJSON();
+    // Read acceptance headers, not the indefinitely open SSE body that route.fetch buffers.
+    const response = await fetch(request.url(), {
+      method: "POST",
+      headers: request.headers(),
+      body: request.postData(),
+    });
+    expect(response.ok).toBe(true);
+    await response.body?.cancel();
+    await route.abort("failed");
+  });
   await ui.composerTextarea.press("Enter");
   await acceptedRewind;
   await sessionWin
@@ -427,6 +444,26 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     .locator(`[data-slot="session-row-target"][data-testid$="-session-${session.id}"]`)
     .click();
   await expect(ui.chatView).toContainText("recovered after disconnect");
+  await expect(sessionWin.getByTestId("composer-queued-retry")).toBeVisible();
+  await expect(ui.composerTextarea).toBeEmpty();
+  await browserArtifacts.captureScreenshot("session-edit-safe-retry", appPage);
+  await appPage.unroute(promptRoute);
+  const retryResponse = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === sessionAPIPath(workspace.id, session.id, "/prompt")
+  );
+  await sessionWin.getByTestId("composer-queued-retry").click();
+  const replay = await retryResponse;
+  expect(replay.ok()).toBe(true);
+  // ExtractPromptInput accepts the optional top-level text alias; Retry uses
+  // the same canonical messages without the goal transport's redundant alias.
+  const { message: detachedText, ...detachedRequest } = detachedBody;
+  expect(detachedText).toBe("continue after disconnect");
+  expect(replay.request().postDataJSON()).toEqual(detachedRequest);
+  expect(await replay.json()).toMatchObject({ prompt: { replayed: true } });
+  await expect(sessionWin.getByTestId("composer-queued-retry")).toHaveCount(0);
+  await expect(ui.composerTextarea).toBeEmpty();
   const afterEdit = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterEdit.transcript)).not.toContain("block until canceled");
   expect(JSON.stringify(afterEdit.transcript)).toContain("continue after disconnect");
