@@ -443,6 +443,12 @@ describe("session read invalidation", () => {
       affected: ["catalog", "folders", "aggregate"],
     },
     {
+      // A session outside any project lists only in the aggregate.
+      name: "projectless catalog",
+      invalidate: (client: QueryClient) => invalidateWorkspaceSessionCatalog(client, ""),
+      affected: ["aggregate"],
+    },
+    {
       name: "mutation",
       invalidate: invalidateSessionMutationQueries,
       affected: [

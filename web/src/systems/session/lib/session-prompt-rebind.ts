@@ -7,7 +7,9 @@ function trimmed(value: unknown): string {
 /**
  * Whether a prompt body names a provider or model other than the binding the
  * session ran when it was sent. The daemon applies that runtime before it
- * answers, so an accepted answer means the session's catalog rows changed.
+ * answers, so an accepted answer means the session's catalog rows changed. An
+ * omitted model resolves to the agent default, which may differ from a bound
+ * model, so it counts as a change unless the session had no model either.
  */
 export function promptRebindsRuntime(
   body: BodyInit | null | undefined,
@@ -24,7 +26,5 @@ export function promptRebindsRuntime(
   const provider = trimmed((runtime as { provider?: unknown }).provider);
   const model = trimmed((runtime as { model?: unknown }).model);
   if (provider === "") return false;
-  return (
-    provider !== trimmed(before?.provider) || (model !== "" && model !== trimmed(before?.model))
-  );
+  return provider !== trimmed(before?.provider) || model !== trimmed(before?.model);
 }

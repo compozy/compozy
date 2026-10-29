@@ -2480,15 +2480,39 @@ describe("SessionChatRuntimeProvider", () => {
   // Owning layer: session chat transport integration. Canonical suite: this provider suite.
   for (const testCase of [
     { name: "rebinds", runtime: { provider: "claude", model: "claude-opus-5-5" }, rereads: 1 },
+    {
+      name: "changes the model of",
+      runtime: { provider: "codex", model: "gpt-6-astra" },
+      rereads: 1,
+    },
+    {
+      // An omitted model resolves to the agent default, not the bound model.
+      name: "defaults the model of",
+      runtime: { provider: "codex" },
+      boundModel: "gpt-6-astra",
+      rereads: 1,
+    },
     { name: "keeps", runtime: { provider: "codex" }, rereads: 0 },
-  ]) {
+  ] as {
+    name: string;
+    runtime: SessionPromptRuntimeSnapshot;
+    boundModel?: string;
+    rereads: number;
+  }[]) {
     it(`Should reread catalog rows only when an accepted prompt ${testCase.name} the runtime`, async () => {
       const queryClient = createQueryClient();
       // The session runs Codex before the prompt, as its detail read reports.
-      queryClient.setQueryData(sessionKeys.detail(fixtureWorkspaceId(), primarySessionFixture.id), {
+      const bound = runtimeFixture("codex");
+      sessionDetailResponse = {
         ...primarySessionFixture,
-        runtime: runtimeFixture("codex"),
-      });
+        runtime: testCase.boundModel
+          ? { ...bound, effective: { provider: "codex", model: testCase.boundModel } }
+          : bound,
+      };
+      queryClient.setQueryData(
+        sessionKeys.detail(fixtureWorkspaceId(), primarySessionFixture.id),
+        sessionDetailResponse
+      );
       const catalogs = [
         sessionKeys.list(),
         sessionKeys.list({ workspace_id: fixtureWorkspaceId() }),
