@@ -15228,13 +15228,14 @@ func (s nativeProfileReaderStub) ListIdentities(ctx context.Context) ([]profilep
 func TestNativeArchiveRefusals(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name  string
-		cause error
-		code  string
+		name    string
+		cause   error
+		code    string
+		message string
 	}{
-		{"Should retain the child archive refusal", session.ErrSubagentArchiveFollows, "subagent_archive_follows_parent"},
-		{"Should retain a persisted child archive refusal", fmt.Errorf("archive transaction: %w", store.ErrSubagentArchiveFollowsParent), "subagent_archive_follows_parent"},
-		{"Should explain that a detached session must be stopped", session.ErrSessionArchiveRequiresStopped, "session_archive_requires_stopped"},
+		{"Should retain the child archive refusal", session.ErrSubagentArchiveFollows, "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session."},
+		{"Should retain a persisted child archive refusal", fmt.Errorf("archive transaction: %w", store.ErrSubagentArchiveFollowsParent), "subagent_archive_follows_parent", "Subagent sessions are archived with their parent session."},
+		{"Should explain that a detached session must be stopped", session.ErrSessionArchiveRequiresStopped, "session_archive_requires_stopped", "session: session must be stopped before archiving"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -15254,7 +15255,7 @@ func TestNativeArchiveRefusals(t *testing.T) {
 			status := core.StatusForToolError(err)
 			payload := core.ToolErrorResponseForError(err, status, false).Error
 			if status != http.StatusConflict || string(payload.Code) != tc.code ||
-				payload.Message != core.ErrorPayloadForError(tc.cause).Error {
+				payload.Message != tc.message {
 				t.Fatalf("archive refusal=%#v status=%d, want %s", payload, status, tc.code)
 			}
 		})
