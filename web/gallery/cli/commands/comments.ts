@@ -16,6 +16,7 @@
 import { execFileSync } from "node:child_process";
 
 import { prototypeParams } from "../../contract.ts";
+import { flowOfKey } from "../../flow.ts";
 import { localCommentStore } from "../../node/local-comments.ts";
 import { galleryOrigin } from "../../node/paths.ts";
 import {
@@ -51,9 +52,20 @@ function headCommit() {
   }
 }
 
-/** The gallery view that reopens a comment (state, theme, width and the comment selected). */
+/**
+ * The gallery view that reopens a comment: a flow comment opens its flow on the commented node;
+ * a prototype comment its state, theme and width. Either selects the comment.
+ */
 function galleryUrl(comment: ReviewComment) {
   const url = new URL("/", galleryOrigin);
+  const flow = flowOfKey(comment.slug);
+  if (flow !== null) {
+    url.searchParams.set("flow", flow);
+    if (comment.context.state) url.searchParams.set("node", comment.context.state);
+    url.searchParams.set("comments", "1");
+    url.searchParams.set("comment", comment.id);
+    return url.href;
+  }
   url.searchParams.set("p", comment.slug);
   url.searchParams.set(prototypeParams.state, comment.context.state);
   if (comment.context.theme) url.searchParams.set(prototypeParams.theme, comment.context.theme);

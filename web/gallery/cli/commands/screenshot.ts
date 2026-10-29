@@ -32,25 +32,32 @@ export async function screenshot(args: ParsedArgs) {
       resolve(repoRoot, ".tmp/proto", `${slug}--${resolvedState}--${resolvedTheme}--${width}.png`)
   );
   const gallery = await ensureGallery();
-  const browser = await chromium.launch();
+  // The owned server stops even when the browser never starts.
   try {
-    const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: 2 });
-    await page.goto(
-      prototypeUrl(slug, { state: resolvedState, theme: resolvedTheme }, gallery.origin).href,
-      // A cold server optimizes dependencies on the first visit.
-      { timeout: 120_000 }
-    );
-    await page.waitForFunction(() => document.documentElement.dataset.prototypeStatus, null, {
-      timeout: 60_000,
-    });
-    const status = await page.evaluate(() => document.documentElement.dataset.prototypeStatus);
-    if (status !== "ready") throw new Error(`${slug} failed to render (see proto dev)`);
-    await page.evaluate(() => document.fonts.ready.then(() => undefined));
-    mkdirSync(dirname(out), { recursive: true });
-    await page.screenshot({ path: out, fullPage: true, animations: "disabled" });
-    console.log(relative(process.cwd(), out) || out);
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage({
+        viewport: { width, height: 900 },
+        deviceScaleFactor: 2,
+      });
+      await page.goto(
+        prototypeUrl(slug, { state: resolvedState, theme: resolvedTheme }, gallery.origin).href,
+        // A cold server optimizes dependencies on the first visit.
+        { timeout: 120_000 }
+      );
+      await page.waitForFunction(() => document.documentElement.dataset.prototypeStatus, null, {
+        timeout: 60_000,
+      });
+      const status = await page.evaluate(() => document.documentElement.dataset.prototypeStatus);
+      if (status !== "ready") throw new Error(`${slug} failed to render (see proto dev)`);
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      mkdirSync(dirname(out), { recursive: true });
+      await page.screenshot({ path: out, fullPage: true, animations: "disabled" });
+      console.log(relative(process.cwd(), out) || out);
+    } finally {
+      await browser.close();
+    }
   } finally {
-    await browser.close();
     await gallery.stop();
   }
 }

@@ -13,6 +13,8 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
   const ref = useRef<HTMLIFrameElement>(null);
   const [initialSrc] = useState(src);
   const [loadCount, setLoadCount] = useState(0);
+  // Set while a new document loads: the old one is still in the frame and must not be reported.
+  const navigating = useRef(false);
 
   useEffect(() => {
     const view = ref.current?.contentWindow;
@@ -20,6 +22,7 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
     const target = new URL(src, window.location.href);
     try {
       if (view.location.pathname !== target.pathname) {
+        navigating.current = true;
         view.location.replace(target.href);
       } else if (view.location.search !== target.search) {
         view.history.replaceState(null, "", target.href);
@@ -27,6 +30,7 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
       }
     } catch {
       // Still on the initial about:blank document: load the target instead.
+      navigating.current = true;
       view.location.replace(target.href);
     }
   }, [src]);
@@ -35,7 +39,7 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
 
   useEffect(() => {
     const doc = ref.current?.contentDocument;
-    if (!doc || loadCount === 0) return;
+    if (!doc || loadCount === 0 || navigating.current) return;
     report({
       doc,
       slug: doc.location.pathname.replace(/^\/+|\/+$/g, ""),
@@ -43,5 +47,9 @@ export function useFrame(src: string, onInfo?: (info: FrameInfo | null) => void)
     });
   }, [loadCount, src]);
 
-  return { ref, initialSrc, onLoad: () => setLoadCount(count => count + 1) };
+  const onLoad = () => {
+    navigating.current = false;
+    setLoadCount(count => count + 1);
+  };
+  return { ref, initialSrc, onLoad };
 }

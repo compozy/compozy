@@ -47,6 +47,9 @@ export function useCommentReview(options: ReviewOptions): ReviewSlots {
   // The frame reports the document it loaded; only review the one on screen.
   const doc = frame && frame.slug === entry.slug ? frame.doc : null;
   const canPick = !view.compare && doc !== null;
+  const theme = view.theme ?? (options.dark ? "dark" : "light");
+  // A draft belongs to the view it was picked on; changing state, theme or width discards it.
+  const draftView = `${state}|${theme}|${view.width}`;
 
   const create = async (
     target: ElementTarget,
@@ -61,7 +64,7 @@ export function useCommentReview(options: ReviewOptions): ReviewSlots {
       context: {
         commit: galleryCommit,
         state,
-        theme: view.theme ?? (options.dark ? "dark" : "light"),
+        theme,
         viewport: { width: Math.round(viewport.width), height: Math.round(viewport.height) },
       },
     });
@@ -83,6 +86,7 @@ export function useCommentReview(options: ReviewOptions): ReviewSlots {
     overlay: view.compare ? null : (
       <CommentOverlay
         comments={comments}
+        key={draftView}
         doc={doc}
         onCreate={create}
         onExit={() => onPicking(false)}

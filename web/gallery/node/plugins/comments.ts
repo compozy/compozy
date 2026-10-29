@@ -22,10 +22,13 @@ import {
 import { AttachmentError } from "../attachments-store.ts";
 import { CommentError, requireMessageBody, type CommentStore } from "../comments-store.ts";
 import { localCommentStore } from "../local-comments.ts";
+import { isTrustedWrite } from "../trusted-write.ts";
 
 const base = "/__comments";
 
 type Result = { status: number; payload: unknown; bytes?: Uint8Array; type?: string };
+
+const readMethods = new Set(["GET", "HEAD"]);
 
 async function readBytes(request: IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -44,6 +47,9 @@ async function readBytes(request: IncomingMessage) {
 async function readBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const text = (await readBytes(request)).toString("utf8");
   if (!text) return {};
+  if (!request.headers["content-type"]?.startsWith("application/json")) {
+    throw new CommentError("Expected an application/json body", 400);
+  }
   try {
     const value = JSON.parse(text) as unknown;
     return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
@@ -181,6 +187,10 @@ export function commentsApi(): Plugin {
       server.middlewares.use(base, (request, response) => {
         const path = new URL(request.url ?? "/", "http://localhost").pathname;
         const segments = path.split("/").filter(Boolean).map(decodeURIComponent);
+        if (!readMethods.has(request.method ?? "GET") && !isTrustedWrite(request.headers)) {
+          send(response, { status: 403, payload: { error: "Cross-origin writes are refused" } });
+          return;
+        }
         route(store, request, segments).then(
           result => send(response, result),
           (error: unknown) => {

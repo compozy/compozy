@@ -105,3 +105,5 @@ graphify-out/
 
 # Prototype gallery: unclaimed comment uploads (claimed images live beside comments.json)
 web/gallery/comments/*/attachments/pending/
+web/gallery/comments/*/.comments.lock/
+web/gallery/comments/*/comments.json.*.tmp

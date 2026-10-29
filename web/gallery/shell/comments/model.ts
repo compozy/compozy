@@ -84,7 +84,13 @@ export type ReviewComment = {
   thread: CommentMessage[];
 };
 
-export type CommentFile = { version: 2; slug: string; comments: ReviewComment[] };
+/** `sequence` is the highest comment number ever issued for the key, so deleted ids stay retired. */
+export type CommentFile = {
+  version: 2;
+  slug: string;
+  sequence?: number;
+  comments: ReviewComment[];
+};
 
 export type CommentCounts = Record<string, { open: number; resolved: number }>;
 
@@ -114,8 +120,13 @@ export function sequence(comment: Pick<ReviewComment, "id" | "slug">) {
 
 export const commentNumber = (comment: ReviewComment) => String(sequence(comment));
 
-export function nextCommentId(slug: string, comments: readonly ReviewComment[]) {
-  return `${slug}-${Math.max(0, ...comments.map(sequence)) + 1}`;
+/** Highest number issued: the saved counter or a surviving comment, whichever is larger. */
+export function issuedSequence(comments: readonly ReviewComment[], issued = 0) {
+  return Math.max(issued, ...comments.map(sequence));
+}
+
+export function nextCommentId(slug: string, comments: readonly ReviewComment[], issued = 0) {
+  return `${slug}-${issuedSequence(comments, issued) + 1}`;
 }
 
 function round(value: Rect): Rect {
@@ -176,9 +187,18 @@ export function canonicalComment(comment: ReviewComment): ReviewComment {
   };
 }
 
-export function canonicalFile(slug: string, comments: readonly ReviewComment[]): CommentFile {
+export function canonicalFile(
+  slug: string,
+  comments: readonly ReviewComment[],
+  issued = 0
+): CommentFile {
   const ordered = [...comments].sort((a, b) => sequence(a) - sequence(b));
-  return { version: 2, slug, comments: ordered.map(canonicalComment) };
+  return {
+    version: 2,
+    slug,
+    sequence: issuedSequence(comments, issued),
+    comments: ordered.map(canonicalComment),
+  };
 }
 
 function message(author: CommentAuthor, body: string, at: string): CommentMessage {
@@ -196,10 +216,11 @@ export function createComment(
   slug: string,
   existing: readonly ReviewComment[],
   input: NewComment,
-  at: string
+  at: string,
+  issued = 0
 ): ReviewComment {
   return canonicalComment({
-    id: nextCommentId(slug, existing),
+    id: nextCommentId(slug, existing, issued),
     slug,
     status: "open",
     createdAt: at,

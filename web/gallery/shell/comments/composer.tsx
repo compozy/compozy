@@ -9,8 +9,9 @@ import { AttachmentInput } from "#gallery/shell/comments/attachments";
 import { useAttachments } from "#gallery/shell/comments/use-attachments";
 
 const panelWidth = 304;
-/** Room kept below the form's top edge, so it never runs off the canvas. */
+/** Room kept below the form's top edge; taller content (images, errors) scrolls inside the form. */
 const panelHeight = 260;
+const edge = 8;
 
 type ComposerProps = {
   slug: string;
@@ -39,9 +40,10 @@ export function CommentComposer({
       ? right
       : Math.max(8, target.rect.x * scale - panelWidth - 12);
   const top = Math.min(
-    Math.max(8, target.rect.y * scale),
-    Math.max(8, bounds.height - panelHeight)
+    Math.max(edge, target.rect.y * scale),
+    Math.max(edge, bounds.height - panelHeight)
   );
+  const maxHeight = Math.max(panelHeight - edge, bounds.height - top - edge);
   const canSubmit = body.trim() !== "" && !pending && uploads.ready;
 
   const submit = async () => {
@@ -59,14 +61,16 @@ export function CommentComposer({
 
   return (
     <form
-      className="pointer-events-auto absolute flex cursor-auto flex-col gap-2.5 rounded-lg bg-popover p-3 text-fg shadow-pop"
+      className="pointer-events-auto absolute flex cursor-auto flex-col gap-2.5 overflow-y-auto overscroll-contain rounded-lg bg-popover p-3 text-fg shadow-pop"
       data-testid="comment-composer"
       onPointerDown={event => event.stopPropagation()}
+      // The form scrolls itself; the overlay's wheel handler would scroll the prototype instead.
+      onWheel={event => event.stopPropagation()}
       onSubmit={event => {
         event.preventDefault();
         void submit();
       }}
-      style={{ left, top, width: panelWidth }}
+      style={{ left, top, width: panelWidth, maxHeight }}
     >
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="text-small-body font-medium">

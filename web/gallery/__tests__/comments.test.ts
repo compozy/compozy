@@ -1,4 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { AttachmentStore, pendingLifetime } from "../node/attachments-store";
 import { CommentError, CommentStore, keyOfId } from "../node/comments-store";
 import { inspectImage } from "../node/image";
+import { isTrustedWrite } from "../node/trusted-write";
 import { describeTarget, locateTarget, selectorFor, sourceChain } from "../shell/comments/dom";
 import {
   parseNewComment,
@@ -112,7 +121,7 @@ describe("comment store", () => {
     expect(comments.counts()).toEqual({ "session-board-card": { open: 1, resolved: 0 } });
     comments.remove(created.id);
     expect(comments.read("session-board-card")).toEqual([]);
-    expect(existsSync(comments.path("session-board-card"))).toBe(false);
+    expect(comments.counts()).toEqual({});
   });
 
   it("writes a canonical version 2 file with rounded rects and no served URLs", () => {
@@ -143,9 +152,41 @@ describe("comment store", () => {
     expect(ids).toEqual(["session-board-card-1", "session-board-card-2", "session-board-card-3"]);
     comments.remove("session-board-card-2");
     expect(comments.add("session-board-card", input()).id).toBe("session-board-card-4");
+    // Deleted ids stay retired: neither the highest nor a full wipe hands a number out again.
+    comments.remove("session-board-card-4");
+    expect(comments.add("session-board-card", input()).id).toBe("session-board-card-5");
+    for (const id of ["1", "3", "5"]) comments.remove(`session-board-card-${id}`);
+    expect(comments.add("session-board-card", input()).id).toBe("session-board-card-6");
     expect(comments.add("session-list-row", input()).id).toBe("session-list-row-1");
     expect(keyOfId("session-list-row-12")).toBe("session-list-row");
     expect(() => keyOfId("session-list-row")).toThrow(CommentError);
+  });
+
+  it("serializes changes through a per-key lock and reclaims a dead writer's lock", () => {
+    const comments = store();
+    const lock = join(comments.directory, "session-board-card", ".comments.lock");
+    mkdirSync(lock, { recursive: true });
+    const stale = new Date(Date.now() - 60_000);
+    utimesSync(lock, stale, stale);
+    const created = comments.add("session-board-card", input());
+    expect(created.id).toBe("session-board-card-1");
+    expect(existsSync(lock)).toBe(false);
+    comments.reply(created.id, "agent", "On it");
+    const folder = readdirSync(join(comments.directory, "session-board-card"));
+    expect(folder.filter(name => name !== "comments.json" && name !== "attachments")).toEqual([]);
+  });
+
+  it("accepts writes only from the gallery's own origin or non-browser callers", () => {
+    const host = "localhost:5180";
+    expect(isTrustedWrite({ host })).toBe(true);
+    expect(isTrustedWrite({ host, origin: "http://localhost:5180" })).toBe(true);
+    expect(
+      isTrustedWrite({ host, origin: "http://localhost:5180", "sec-fetch-site": "same-origin" })
+    ).toBe(true);
+    expect(isTrustedWrite({ host, origin: "https://evil.example" })).toBe(false);
+    expect(isTrustedWrite({ host, origin: "null" })).toBe(false);
+    expect(isTrustedWrite({ host, "sec-fetch-site": "cross-site" })).toBe(false);
+    expect(isTrustedWrite({ host, "sec-fetch-site": "same-site" })).toBe(false);
   });
 
   it("rejects unknown keys, missing comments and empty bodies", () => {

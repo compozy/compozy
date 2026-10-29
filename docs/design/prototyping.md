@@ -201,9 +201,10 @@ write; pins follow the element through source tags (`data-proto-src`), selectors
 React fiber fallback. Flow comments are written in the flow's side panel about the selected step,
 or the whole flow. Each key has `web/gallery/comments/<key>/comments.json` (version 2: thread,
 `context{commit,state,theme,viewport}`, element/region/node target) plus its images (PNG, JPEG,
-WebP or GIF, at most 5 MB each and six per message). Flow keys are `flow-<id>`. Comments are local
-only and served by the dev server's `/__comments` middleware; edits from the CLI or by hand reach
-the open gallery through HMR. The sidebar shows open counts per prototype, spec and flow.
+WebP or GIF, at most 5 MB each and six per message). Flow keys are `flow-<id>`. The file's
+`sequence` keeps deleted ids retired, and writers (dev server or CLI) take a per-key lock. Comments
+are local only and served by the dev server's `/__comments` middleware, which refuses writes from
+other origins; edits from the CLI or by hand reach the open gallery through HMR. The sidebar shows open counts per prototype, spec and flow.
 
 ```sh
 bun run proto comments list [--slug <key>] [--status open|resolved|all] [--json]
