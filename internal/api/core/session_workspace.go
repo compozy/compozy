@@ -113,6 +113,12 @@ func trimStringSliceInternal(values []string) []string {
 
 // StatusForWorkspaceError maps workspace-domain errors to transport statuses.
 func statusForWorkspaceError(err error) int {
+	if _, ok := errors.AsType[*workspacepkg.BusyError](err); ok {
+		return http.StatusConflict
+	}
+	if errors.Is(err, store.ErrWorkspaceArchived) {
+		return http.StatusConflict
+	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
@@ -146,6 +152,9 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
+		return http.StatusConflict
+	}
 	if WorktreeErrorCode(err) != "" {
 		return StatusForWorktreeError(err)
 	}

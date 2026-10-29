@@ -58,6 +58,11 @@ func (h *BaseHandlers) CreateWorkspace(c *gin.Context) {
 
 // ListWorkspaces returns all registered workspaces.
 func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
+	archived, err := ParseOptionalBool(c.Query("archived"))
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	workspaces, err := h.Workspaces.List(c.Request.Context())
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
@@ -66,6 +71,9 @@ func (h *BaseHandlers) ListWorkspaces(c *gin.Context) {
 
 	payload := make([]contract.WorkspacePayload, 0, len(workspaces))
 	for _, workspace := range workspaces {
+		if (workspace.ArchivedAt != nil) != archived {
+			continue
+		}
 		payload = append(payload, WorkspacePayloadFromWorkspace(workspace))
 	}
 

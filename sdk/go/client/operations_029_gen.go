@@ -10,6 +10,41 @@ import (
 	"strings"
 )
 
+// StreamSessionCatalog Stream session catalog changes across workspaces
+func (c *Client) StreamSessionCatalog(ctx context.Context, params StreamSessionCatalogParams) (*Stream[StreamSessionCatalogFrame], error) {
+	path := "/api/sessions/catalog-stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamSessionCatalogFrame](ctx, c, "GET", path, headers, nil, "streamSessionCatalog")
+}
+
+// StreamSettingsObservabilityLogTail Stream daemon log output for the observability settings screen
+func (c *Client) StreamSettingsObservabilityLogTail(ctx context.Context) (*Stream[SettingsLogTailEventPayload], error) {
+	path := "/api/settings/observability/log-tail"
+	return newStream[SettingsLogTailEventPayload](ctx, c, "GET", path, nil, nil, "streamSettingsObservabilityLogTail")
+}
+
 // StreamTaskParams carries the path, query, and header parameters.
 type StreamTaskParams struct {
 	ID            string  `url:"id"`
@@ -229,6 +264,22 @@ func (c *Client) UnarchiveSession(ctx context.Context, params UnarchiveSessionPa
 	return &out, nil
 }
 
+// UnarchiveWorkspaceParams carries the path, query, and header parameters.
+type UnarchiveWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// UnarchiveWorkspace unarchive a workspace without removing its data
+func (c *Client) UnarchiveWorkspace(ctx context.Context, params UnarchiveWorkspaceParams) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}/unarchive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UnbindGatewayIngressParams carries the path, query, and header parameters.
 type UnbindGatewayIngressParams struct {
 	SubjectKind string `url:"subject_kind"`
@@ -390,45 +441,4 @@ func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body
 // UpdateAppTokenParams carries the path, query, and header parameters.
 type UpdateAppTokenParams struct {
 	AppTokenID string `url:"app_token_id"`
-}
-
-// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
-func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationJobParams carries the path, query, and header parameters.
-type UpdateAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationJob Update one automation job
-func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationTriggerParams carries the path, query, and header parameters.
-type UpdateAutomationTriggerParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

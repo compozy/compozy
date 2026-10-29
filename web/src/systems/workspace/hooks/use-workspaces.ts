@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   createWorkspace,
+  setWorkspaceArchived,
   deleteWorkspace,
   resolveWorkspace,
   type CreateWorkspaceParams,
   type ResolveWorkspaceParams,
 } from "@/systems/workspace/adapters/workspace-api";
+import { sessionKeys } from "@/systems/session";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import {
   workspaceDetailOptions,
@@ -69,7 +71,30 @@ export function useDeleteWorkspace() {
         current?.filter(workspace => workspace.id !== workspaceID)
       );
       queryClient.removeQueries({ queryKey: workspaceKeys.detail(workspaceID) });
-      return queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
+      ]);
+    },
+  });
+}
+
+export function useArchivedWorkspaces() {
+  return useQuery(workspacesListOptions(true, true));
+}
+
+export function useSetWorkspaceArchived() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      setWorkspaceArchived(id, archived),
+    onSuccess: async workspace => {
+      queryClient.setQueryData<WorkspacePayload[]>(workspaceKeys.list(), current =>
+        workspace.archived_at
+          ? current?.filter(item => item.id !== workspace.id)
+          : reconcileWorkspaceList(current, workspace)
+      );
+      await queryClient.invalidateQueries();
     },
   });
 }

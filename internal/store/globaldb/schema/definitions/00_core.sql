@@ -10,6 +10,7 @@ CREATE TABLE workspaces (
 		add_dirs      TEXT NOT NULL DEFAULT '[]',
 		name          TEXT NOT NULL UNIQUE,
 		default_agent TEXT DEFAULT '',
+		archived_at   TEXT,
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL
 	);

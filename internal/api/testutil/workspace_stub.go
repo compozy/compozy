@@ -11,6 +11,7 @@ import (
 var ErrStubWorkspaceServiceNotImplemented = errors.New("stub workspace service method not implemented")
 
 type StubWorkspaceService struct {
+	SetArchivedFn       func(context.Context, string, bool) (workspacepkg.Workspace, error)
 	RegisterFn          func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
 	UnregisterFn        func(context.Context, string) error
 	UpdateFn            func(context.Context, string, workspacepkg.UpdateOptions) error
@@ -94,3 +95,14 @@ func (s StubWorkspaceService) ResolveOrRegister(
 
 var _ core.WorkspaceService = (*StubWorkspaceService)(nil)
 var _ workspacepkg.ProfileRuntimeResolver = (*StubWorkspaceService)(nil)
+
+func (s StubWorkspaceService) SetArchived(
+	ctx context.Context,
+	ref string,
+	archived bool,
+) (workspacepkg.Workspace, error) {
+	if s.SetArchivedFn != nil {
+		return s.SetArchivedFn(ctx, ref, archived)
+	}
+	return workspacepkg.Workspace{}, ErrStubWorkspaceServiceNotImplemented
+}

@@ -348,6 +348,8 @@ func newHandlerFixtureWithRuntime(
 	engine.GET("/workspaces/:workspace_id", handlers.GetWorkspace)
 	engine.PATCH("/workspaces/:workspace_id", handlers.UpdateWorkspace)
 	engine.DELETE("/workspaces/:workspace_id", handlers.DeleteWorkspace)
+	engine.POST("/workspaces/:workspace_id/archive", handlers.ArchiveWorkspace)
+	engine.POST("/workspaces/:workspace_id/unarchive", handlers.UnarchiveWorkspace)
 	engine.POST("/workspaces/resolve", handlers.ResolveWorkspace)
 
 	return handlerFixture{

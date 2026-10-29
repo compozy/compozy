@@ -1,4 +1,4 @@
 {
     "title": "Workspace",
-    "pages": ["index", "add", "edit", "info", "list", "remove"]
+    "pages": ["index", "add", "archive", "edit", "info", "list", "remove", "unarchive"]
 }

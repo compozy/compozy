@@ -178,6 +178,11 @@ func (r *Resolver) Get(ctx context.Context, idOrNameOrPath string) (Workspace, e
 		return Workspace{}, err
 	}
 
+	ws.RootMissing, err = workspaceRootMissing(ws)
+	if err != nil {
+		return Workspace{}, err
+	}
+
 	return cloneWorkspace(ws), nil
 }
 

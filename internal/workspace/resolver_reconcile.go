@@ -17,21 +17,10 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 		if err != nil {
 			return nil, err
 		}
-		if !missing {
-			reconciled = append(reconciled, ws)
-			continue
-		}
+		ws.RootMissing = missing
+		// An unavailable folder is not consent to delete its registration or history.
+		reconciled = append(reconciled, ws)
 
-		if err := r.Unregister(ctx, ws.ID); err != nil {
-			if errors.Is(err, ErrWorkspaceNotFound) {
-				continue
-			}
-			return nil, fmt.Errorf("workspace: prune missing workspace %q: %w", ws.ID, err)
-		}
-		r.logger.Info("workspace.prune",
-			"workspace_id", ws.ID,
-			"root_dir", ws.RootDir,
-		)
 	}
 
 	return reconciled, nil

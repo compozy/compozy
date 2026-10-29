@@ -11,6 +11,7 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -158,6 +159,11 @@ func insertLoopRun(
 	inputsJSON []byte,
 	startMetadataJSON []byte,
 ) error {
+	if !run.Status.Terminal() {
+		if err := store.RequireWorkspaceActive(ctx, exec, string(run.WorkspaceID)); err != nil {
+			return err
+		}
+	}
 	params := loopRunInsertParams(run, inputsJSON, startMetadataJSON)
 	err := sqlcgen.New(exec).InsertLoopRun(ctx, params)
 	if err != nil {

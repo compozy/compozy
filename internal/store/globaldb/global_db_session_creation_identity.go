@@ -74,7 +74,7 @@ func (g *SessionRepo) registerSessionCreationTx(
 			if storedIdentity != identity {
 				return false, sessionCreationIdentityMismatch(normalized.ID)
 			}
-			if err := g.registerSession(ctx, exec, normalized); err != nil {
+			if err := g.admitSessionRegistration(ctx, exec, normalized); err != nil {
 				return false, fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
 			}
 			return false, nil
@@ -84,7 +84,7 @@ func (g *SessionRepo) registerSessionCreationTx(
 		}
 	}
 
-	if err := g.registerSession(ctx, exec, normalized); err != nil {
+	if err := g.admitSessionRegistration(ctx, exec, normalized); err != nil {
 		return false, fmt.Errorf("store: register or bind identity-bound session %q: %w", normalized.ID, err)
 	}
 	affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(

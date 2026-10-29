@@ -21,6 +21,7 @@ import {
 } from "../lib/workspaces-overview-model";
 import { OsWorkspacesWorktreeMenu } from "./os-workspaces-worktree-menu";
 import {
+  WorkspaceProjectActions,
   contractHomePath,
   DESTINATION_COPY,
   groupWorkspaceTree,
@@ -146,6 +147,7 @@ function captionFor(
   return {
     key: entry.key,
     title: entry.node.workspace.name,
+    meta: entry.node.workspace.root_missing ? "Folder not found" : undefined,
     path: rootDir ? contractHomePath(rootDir, userHomeDir) : rootDir,
   };
 }
@@ -306,6 +308,9 @@ function OsWorkspacesStage({
             />
           </OsWorkspacesStrip>
         )}
+        {focusedEntry?.kind === "workspace" ? (
+          <WorkspaceProjectActions workspace={focusedEntry.node.workspace} />
+        ) : null}
         <OsWorkspacesCaption
           model={empty ? USER_CAPTION : captionFor(focusedEntry, userHomeDir)}
           reducedMotion={reducedMotion}
@@ -388,26 +393,28 @@ function WorkspaceTiles({
         }
         const name = entry.node.workspace.name;
         return (
-          <OsWorkspaceTile
-            key={entry.key}
-            data-testid={`os-workspace-tile-${entry.key}`}
-            name={name}
-            monogram={workspaceMonogram(name)}
-            workingSessions={workingSessionsByWorkspace?.[entry.key] ?? 0}
-            // The plate stays on the focused tile while the menu owns
-            // key focus — it anchors which workspace the menu belongs to.
-            focused={anchorsMenu}
-            tabIndex={focused ? 0 : -1}
-            current={
-              activeWorkspaceId !== null && entry.key === activeWorkspaceId
-                ? readySelectedWorktreeKey
-                  ? "wt"
-                  : "root"
-                : null
-            }
-            ref={switcher.registerTile(entry.key)}
-            {...switcher.tileHandlers(index)}
-          />
+          <WorkspaceProjectActions key={entry.key} workspace={entry.node.workspace}>
+            <OsWorkspaceTile
+              data-testid={`os-workspace-tile-${entry.key}`}
+              name={name}
+              rootMissing={entry.node.workspace.root_missing}
+              monogram={workspaceMonogram(name)}
+              workingSessions={workingSessionsByWorkspace?.[entry.key] ?? 0}
+              // The plate stays on the focused tile while the menu owns
+              // key focus — it anchors which workspace the menu belongs to.
+              focused={anchorsMenu}
+              tabIndex={focused ? 0 : -1}
+              current={
+                activeWorkspaceId !== null && entry.key === activeWorkspaceId
+                  ? readySelectedWorktreeKey
+                    ? "wt"
+                    : "root"
+                  : null
+              }
+              ref={switcher.registerTile(entry.key)}
+              {...switcher.tileHandlers(index)}
+            />
+          </WorkspaceProjectActions>
         );
       })}
     </>

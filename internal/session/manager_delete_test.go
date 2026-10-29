@@ -1155,7 +1155,7 @@ func TestManagerDelete(t *testing.T) {
 			},
 		},
 		{
-			name: "Should prune a missing workspace through the staged session owner",
+			name: "Should retain a missing workspace until explicit staged removal",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t)
 				db, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
@@ -1247,8 +1247,17 @@ func TestManagerDelete(t *testing.T) {
 				if err != nil {
 					t.Fatalf("List() error = %v", err)
 				}
-				if len(workspaces) != 0 {
-					t.Fatalf("List() = %#v, want missing workspace pruned", workspaces)
+				if len(workspaces) != 1 || !workspaces[0].RootMissing {
+					t.Fatalf("List() = %#v, want flagged missing workspace", workspaces)
+				}
+				if _, err := db.GetWorkspace(ctx, h.workspaceID); err != nil {
+					t.Fatalf("missing workspace registration lost: %v", err)
+				}
+				if _, err := os.Stat(session.SessionDir()); err != nil {
+					t.Fatalf("missing workspace session history lost: %v", err)
+				}
+				if err := resolver.Unregister(ctx, h.workspaceID); err != nil {
+					t.Fatalf("explicit Unregister() error = %v", err)
 				}
 				if _, err := db.GetWorkspace(ctx, h.workspaceID); !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
 					t.Fatalf("GetWorkspace() error = %v, want %v", err, workspacepkg.ErrWorkspaceNotFound)

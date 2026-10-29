@@ -66,6 +66,7 @@ func (o *Observer) TaskAttentionItems(ctx context.Context, query OverviewQuery) 
 	seen := make(map[string]struct{})
 	for _, inboxQuery := range queries {
 		inboxQuery.ReadScope, inboxQuery.Scope, inboxQuery.WorkspaceID = query.ReadScope, query.TaskScope, query.WorkspaceID
+		inboxQuery.WorkspaceIDs = query.WorkspaceIDs
 		inboxQuery.Limit = 200
 		inboxQuery.SkipFacets = true
 		for {

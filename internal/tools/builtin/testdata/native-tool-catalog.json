@@ -3253,6 +3253,19 @@
     ]
   },
   {
+    "tool_id": "compozy__workspace_archive",
+    "native_name": "workspace_archive",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d6b8a91f8a57c4e1456ae4a18021ff5aca099dc1e087818357eab6c9e7fa9df8",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__workspace_describe",
     "native_name": "workspace_describe",
     "toolsets": [
@@ -3262,7 +3275,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "58c4fc27cc26681826892f7b84b7de2dd1fa157c718a77fe650c85924b878c38",
+    "input_schema_digest": "d8a3a8bd855140187d56aea06ce6f0cf40ef54bbb92955c90f332d0813da7203",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -3275,7 +3288,7 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "58c4fc27cc26681826892f7b84b7de2dd1fa157c718a77fe650c85924b878c38",
+    "input_schema_digest": "d8a3a8bd855140187d56aea06ce6f0cf40ef54bbb92955c90f332d0813da7203",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -3288,7 +3301,20 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "input_schema_digest": "d39394a40610ab97dc4955dca15950294b51053726defbdaea5a8b636b37c0bf",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__workspace_unarchive",
+    "native_name": "workspace_unarchive",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d6b8a91f8a57c4e1456ae4a18021ff5aca099dc1e087818357eab6c9e7fa9df8",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -8,8 +8,9 @@
 // strip's scroll physics (no layout in jsdom).
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { useState, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   WorkspacePayload,
@@ -31,6 +32,17 @@ import {
 } from "@/systems/workspace/mocks";
 
 import { OsWorkspacesOverview, type OsWorkspacesOverviewProps } from "../os-workspaces-overview";
+
+import {
+  setWorkspaceArchived,
+  deleteWorkspace,
+  WorkspaceApiError,
+} from "@/systems/workspace/adapters/workspace-api";
+vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace/adapters/workspace-api")>()),
+  setWorkspaceArchived: vi.fn(),
+  deleteWorkspace: vi.fn(),
+}));
 
 const toastMocks = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toastMocks }));
@@ -100,7 +112,12 @@ function renderOverview(overrides: Partial<OsWorkspacesOverviewProps> = {}) {
     ...overrides,
   };
   let currentProps = props;
-  const view = render(<OsWorkspacesOverview {...props} />);
+  const queryClient = new QueryClient();
+  const view = render(<OsWorkspacesOverview {...props} />, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
   return {
     ...callbacks,
     rerenderOverview: (next: Partial<OsWorkspacesOverviewProps>) => {
@@ -119,6 +136,57 @@ function caption() {
 }
 
 describe("OsWorkspacesOverview", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("Should keep missing folders visible with history selection and lifecycle actions", async () => {
+    const user = userEvent.setup();
+    const { onSelectWorkspace } = renderOverview({
+      workspaces: [{ ...COMPOZY, root_missing: true }],
+    });
+    expect(tile(COMPOZY.id)).toHaveAccessibleName(/Folder not found/);
+    expect(caption()).toHaveTextContent("Folder not found");
+    expect(screen.queryByRole("menuitem", { name: "New worktree" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Remove project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await user.dblClick(tile(COMPOZY.id));
+    expect(onSelectWorkspace).toHaveBeenCalledWith(COMPOZY.id);
+  });
+
+  it("Should offer lossless archive instead of removal and display refusal blockers", async () => {
+    const user = userEvent.setup();
+    vi.mocked(setWorkspaceArchived).mockRejectedValue(
+      new WorkspaceApiError("Project is busy", 409, "workspace_busy", [
+        { kind: "session", id: "sess-busy", name: "Review changes" },
+      ])
+    );
+    renderOverview();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+    expect(screen.getByText(/Stopped session history is deleted/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Archive instead" }));
+    await user.click(screen.getByRole("button", { name: "Archive project" }));
+    expect(await screen.findByText("session: Review changes")).toBeVisible();
+    expect(setWorkspaceArchived).toHaveBeenCalledWith(COMPOZY.id, true);
+    expect(deleteWorkspace).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Archive compozy?" })).toBeVisible();
+  });
+
+  it("Should remove a project only after confirming the dialog", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteWorkspace).mockResolvedValue();
+    renderOverview();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+    expect(deleteWorkspace).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Remove project" }));
+    await waitFor(() => expect(deleteWorkspace).toHaveBeenCalledWith(COMPOZY.id));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Remove compozy?" })).not.toBeInTheDocument()
+    );
+  });
+
   it("Should select ready, missing and discovered rows with bounded select all and clear on Escape", async () => {
     const user = userEvent.setup();
     const onRemoveWorktrees = vi.fn();
@@ -193,7 +261,11 @@ describe("OsWorkspacesOverview", () => {
         </>
       );
     }
-    render(<FocusHarness />);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <FocusHarness />
+      </QueryClientProvider>
+    );
 
     await user.keyboard("{Escape}");
 

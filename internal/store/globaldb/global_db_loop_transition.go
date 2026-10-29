@@ -38,6 +38,11 @@ func compareAndSwapLoopRunStatusWithEffects(
 	if err != nil {
 		return err
 	}
+	if !to.Terminal() {
+		if err := store.RequireWorkspaceActive(ctx, exec, string(current.WorkspaceID)); err != nil {
+			return err
+		}
+	}
 	clearControlState := loopStatusClearsControlState(to)
 	affected, err := sqlcgen.New(exec).CompareAndSwapLoopRunStatus(ctx, sqlcgen.CompareAndSwapLoopRunStatusParams{
 		Status: string(to), ClearControlState: int64(boolToInt(clearControlState)),

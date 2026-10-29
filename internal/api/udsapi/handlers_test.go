@@ -485,6 +485,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/tools/:id/invoke",
 			"POST /api/tools/search",
 			"POST /api/workspaces",
+			"POST /api/workspaces/:workspace_id/archive",
+			"POST /api/workspaces/:workspace_id/unarchive",
 			"POST /api/workspaces/resolve",
 			"POST /api/workspaces/:workspace_id/terminals",
 			"POST /api/workspaces/:workspace_id/terminals/:id/attach-ticket",

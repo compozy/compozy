@@ -329,3 +329,31 @@ func (c *daemonClient) WakeAgentHeartbeat(
 	}
 	return response.Decision, nil
 }
+
+func (c *daemonClient) ListArchivedWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
+	var response contract.WorkspacesResponse
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/workspaces",
+		url.Values{"archived": {toolBoolTrue}},
+		nil,
+		&response,
+	); err != nil {
+		return nil, err
+	}
+	return response.Workspaces, nil
+}
+
+func (c *daemonClient) SetWorkspaceArchived(ctx context.Context, ref string, archived bool) (WorkspaceRecord, error) {
+	action := workspaceUnarchiveAction
+	if archived {
+		action = workspaceArchiveAction
+	}
+	var response contract.WorkspaceResponse
+	path := "/api/workspaces/" + url.PathEscape(strings.TrimSpace(ref)) + "/" + action
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+		return WorkspaceRecord{}, err
+	}
+	return response.Workspace, nil
+}

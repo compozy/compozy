@@ -277,6 +277,7 @@ type TaskService interface {
 
 // WorkspaceService exposes workspace registration and resolution to the API layer.
 type WorkspaceService interface {
+	SetArchived(ctx context.Context, ref string, archived bool) (workspacepkg.Workspace, error)
 	Register(ctx context.Context, opts workspacepkg.RegisterOptions) (workspacepkg.Workspace, error)
 	Unregister(ctx context.Context, id string) error
 	Update(ctx context.Context, id string, opts workspacepkg.UpdateOptions) error

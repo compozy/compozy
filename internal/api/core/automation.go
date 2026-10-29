@@ -350,7 +350,7 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 		return
 	}
 
-	query, err := ParseAutomationRunQuery(c)
+	query, err := ParseAutomationRunQuery(c, h.Workspaces)
 	if err != nil {
 		if _, ok := err.(*workspaceBreadthError); ok {
 			h.respondAggregateBreadthError(c, err)

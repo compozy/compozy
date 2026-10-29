@@ -76,6 +76,17 @@ type needsInputTaskScope struct {
 // needsInputTaskScopes maps a catalog population onto stored task scopes: the all
 // population is every task, or global plus the selected workspace, as the inbox reads it.
 func needsInputTaskScopes(query OverviewQuery) []needsInputTaskScope {
+	if len(query.WorkspaceIDs) > 0 {
+		scopes := make([]needsInputTaskScope, 0, len(query.WorkspaceIDs))
+		for _, id := range query.WorkspaceIDs {
+			if id == "@user" {
+				scopes = append(scopes, needsInputTaskScope{scope: taskpkg.ScopeGlobal})
+			} else {
+				scopes = append(scopes, needsInputTaskScope{scope: taskpkg.ScopeWorkspace, workspaceID: id})
+			}
+		}
+		return scopes
+	}
 	if query.TaskScope.Normalize() != taskpkg.CatalogScopeAll {
 		return []needsInputTaskScope{{scope: taskpkg.Scope(query.TaskScope), workspaceID: query.WorkspaceID}}
 	}

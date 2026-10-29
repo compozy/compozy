@@ -11,6 +11,20 @@ const (
 )
 
 var workspaceTools = []toolspkg.Descriptor{
+	workspaceArchiveDescriptor(
+		toolspkg.ToolIDWorkspaceArchive,
+		"workspace_archive",
+		"Archive Workspace",
+		"Archive a project without removing its data. Refuses active sessions, live Loops and enabled automations.",
+		"archive project",
+	),
+	workspaceArchiveDescriptor(
+		toolspkg.ToolIDWorkspaceUnarchive,
+		"workspace_unarchive",
+		"Unarchive Workspace",
+		"Restore an archived project to the active catalog with its data and workspace ID unchanged.",
+		"unarchive project",
+	),
 	nativeDescriptor(
 		toolspkg.ToolIDAgentList,
 		"agent_list",
@@ -32,7 +46,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		"List registered workspaces. A session-bound caller sees its own workspace plus every other "+
 			"workspace its permission mode already lets it address (approve-all, or a recorded allow under "+
 			"approve-reads); pass any listed ID, name, or path to tools that accept workspace.",
-		emptyInputSchema,
+		workspaceListInputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
@@ -91,6 +105,7 @@ func workspaceDescriptors() []toolspkg.Descriptor {
 
 const workspaceRefInputSchema = `{
 	"type":"object",
+	"required":["workspace"],
 	"properties":{
 		"workspace":{"type":"string"}
 	},
@@ -164,3 +179,24 @@ var agentFallbackRouteInputSchema = `{
 	},
 	"additionalProperties":false
 }`
+
+const workspaceListInputSchema = `{"type":"object","properties":{"archived":{"type":"boolean"}},"additionalProperties":false}`
+
+func workspaceArchiveDescriptor(id toolspkg.ToolID, name, title, description, phrase string) toolspkg.Descriptor {
+	return nativeDescriptor(
+		id,
+		name,
+		title,
+		description,
+		workspaceRefInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{
+			toolspkg.ToolsetIDWorkspace,
+		},
+		[]string{"workspace", name},
+		[]string{phrase},
+	)
+}

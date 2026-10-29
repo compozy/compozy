@@ -7,6 +7,8 @@ const workspaceConfigInvalidDescription = "Unknown workspace config keys (worksp
 func registryWorkspaceOperations() []OperationSpec {
 	return []OperationSpec{
 		listWorkspacesOperationSpec(),
+		workspaceArchiveOperationSpec("archive", "archiveWorkspace"),
+		workspaceArchiveOperationSpec("unarchive", "unarchiveWorkspace"),
 		createWorkspaceOperationSpec(),
 		getWorkspaceOperationSpec(),
 		updateWorkspaceOperationSpec(),
@@ -20,7 +22,8 @@ func listWorkspacesOperationSpec() OperationSpec {
 		Path:        "/api/workspaces",
 		AppAccess:   AppAccessAllowed,
 		OperationID: "listWorkspaces",
-		Summary:     "List registered workspaces",
+		Summary:     "List active or archived workspaces",
+		Parameters:  []ParameterSpec{boolQueryParam("archived", "List archived projects instead of active projects")},
 		Tags:        []string{specWorkspacesKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
@@ -135,6 +138,26 @@ func resolveWorkspaceOperationSpec() OperationSpec {
 			},
 			{Status: 400, Description: "Invalid workspace path", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func workspaceArchiveOperationSpec(action, operationID string) OperationSpec {
+	return OperationSpec{
+		Method: httpMethodPost, Path: specAPIWorkspacesIDPath + "/" + action,
+		AppAccess: AppAccessDenied, OperationID: operationID,
+		Summary: action + " a workspace without removing its data",
+		Tags:    []string{specWorkspacesKey}, Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{pathParam("id", "Workspace name or id")},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.WorkspaceResponse{}},
+			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Workspace has active sessions, live Loops or enabled automations",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

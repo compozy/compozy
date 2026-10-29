@@ -807,7 +807,7 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should durably prune missing roots and preserve healthy workspaces", func(t *testing.T) {
+	t.Run("Should flag missing roots without deleting their registrations", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -827,28 +827,28 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
-			t.Fatalf("List() = %#v, want only healthy workspace", listed)
+		if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+			t.Fatalf("List() = %#v, want healthy and flagged missing workspaces", listed)
 		}
-		if _, err := store.GetWorkspace(ctx, "ws_missing"); !errors.Is(err, ErrWorkspaceNotFound) {
-			t.Fatalf("GetWorkspace(pruned) error = %v, want %v", err, ErrWorkspaceNotFound)
+		if _, err := store.GetWorkspace(ctx, "ws_missing"); err != nil {
+			t.Fatalf("GetWorkspace(retained) error = %v", err)
 		}
 		if got := store.mustWorkspace("ws_healthy"); got.RootDir != healthyRoot {
 			t.Fatalf("healthy workspace root = %q, want %q", got.RootDir, healthyRoot)
 		}
-		if hookCalls != 1 {
-			t.Fatalf("change hook calls = %d, want 1", hookCalls)
+		if hookCalls != 0 {
+			t.Fatalf("change hook calls = %d, want 0", hookCalls)
 		}
 
 		listed, err = resolver.List(ctx)
 		if err != nil {
 			t.Fatalf("List(second read) error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
-			t.Fatalf("List(second read) = %#v, want only healthy workspace", listed)
+		if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+			t.Fatalf("List(second read) = %#v, want healthy and flagged missing workspaces", listed)
 		}
-		if got := len(store.deleteCalls); got != 1 {
-			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		if got := len(store.deleteCalls); got != 0 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 0", got)
 		}
 	})
 
@@ -871,7 +871,7 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve a missing registration when durable deletion fails", func(t *testing.T) {
+	t.Run("Should require explicit removal and preserve state when that removal fails", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -887,8 +887,11 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 			},
 		)
 
-		if _, err := resolver.List(ctx); !errors.Is(err, deleteErr) {
-			t.Fatalf("List() error = %v, want %v", err, deleteErr)
+		if _, err := resolver.List(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := resolver.Unregister(ctx, workspace.ID); !errors.Is(err, deleteErr) {
+			t.Fatalf("Unregister() error = %v, want %v", err, deleteErr)
 		}
 		if preparation.commits != 0 || preparation.rollbacks != 1 {
 			t.Fatalf(
@@ -945,8 +948,8 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 					results <- err
 					return
 				}
-				if len(listed) != 1 || listed[0].ID != "ws_concurrent_healthy" {
-					results <- fmt.Errorf("List() = %#v, want only healthy workspace", listed)
+				if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+					results <- fmt.Errorf("List() = %#v, want healthy and flagged missing workspaces", listed)
 					return
 				}
 				results <- nil
@@ -961,8 +964,8 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 				t.Fatalf("concurrent List() error = %v", err)
 			}
 		}
-		if got := len(store.deleteCalls); got != 1 {
-			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		if got := len(store.deleteCalls); got != 0 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 0", got)
 		}
 	})
 
@@ -976,6 +979,10 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 			Name:    "concurrent-unregister",
 		})}
 		resolver := newTestResolver(t, store)
+
+		if err := resolver.Unregister(ctx, "ws_concurrent_unregister"); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("concurrent removal error=%v, want ErrWorkspaceNotFound", err)
+		}
 
 		listed, err := resolver.List(ctx)
 		if err != nil {

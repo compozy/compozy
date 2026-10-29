@@ -11,6 +11,36 @@ import (
 	"strings"
 )
 
+// SetTaskExecutionProfileParams carries the path, query, and header parameters.
+type SetTaskExecutionProfileParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// SetTaskExecutionProfile Replace one task execution profile
+func (c *Client) SetTaskExecutionProfile(ctx context.Context, params SetTaskExecutionProfileParams, body ExecutionProfile) (*TaskExecutionProfileResponse, error) {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionProfileResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SetTaskWorktreePolicyParams carries the path, query, and header parameters.
+type SetTaskWorktreePolicyParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // SetTaskWorktreePolicy Set one task worktree policy
 func (c *Client) SetTaskWorktreePolicy(ctx context.Context, params SetTaskWorktreePolicyParams, body WorktreePolicy) (*TaskExecutionProfileResponse, error) {
 	path := "/api/tasks/{id}/execution-profile/worktree"
@@ -403,40 +433,4 @@ func (f StreamGlobalSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
 		return nil, err
 	}
 	return &out, nil
-}
-
-// StreamGlobalSession Stream raw session events or fenced transcript changes for a Global session
-func (c *Client) StreamGlobalSession(ctx context.Context, params StreamGlobalSessionParams) (*Stream[StreamGlobalSessionFrame], error) {
-	path := "/api/sessions/{session_id}/stream"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
-	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
-	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamGlobalSessionFrame](ctx, c, "GET", path, headers, nil, "streamGlobalSession")
 }

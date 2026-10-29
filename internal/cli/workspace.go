@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	workspaceModelKey = "model"
+	workspaceModelKey        = "model"
+	workspaceArchiveAction   = "archive"
+	workspaceUnarchiveAction = "unarchive"
 )
 
 const (
@@ -41,6 +43,8 @@ func newWorkspaceCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWorkspaceInfoCommand(deps))
 	cmd.AddCommand(newWorkspaceEditCommand(deps))
 	cmd.AddCommand(newWorkspaceRemoveCommand(deps))
+	cmd.AddCommand(newWorkspaceArchiveCommand(deps, true))
+	cmd.AddCommand(newWorkspaceArchiveCommand(deps, false))
 	return cmd
 }
 
@@ -97,7 +101,8 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 }
 
 func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var archived bool
+	cmd := &cobra.Command{
 		Use:   workspaceListKey,
 		Short: "List registered workspaces",
 		Example: `  # Show every registered workspace
@@ -111,13 +116,19 @@ func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			workspaces, err := client.ListWorkspaces(cmd.Context())
+			list := client.ListWorkspaces
+			if archived {
+				list = client.ListArchivedWorkspaces
+			}
+			workspaces, err := list(cmd.Context())
 			if err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, workspaceListBundle(workspaces))
 		},
 	}
+	cmd.Flags().BoolVar(&archived, "archived", false, "List archived projects instead of active projects")
+	return cmd
 }
 
 func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
@@ -294,6 +305,29 @@ func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 			}
 
 			return writeCommandOutput(cmd, workspaceRecordBundle(detail.Workspace))
+		},
+	}
+}
+
+func newWorkspaceArchiveCommand(deps commandDeps, archived bool) *cobra.Command {
+	action, title := workspaceUnarchiveAction, "Unarchive"
+	if archived {
+		action, title = workspaceArchiveAction, "Archive"
+	}
+	return &cobra.Command{
+		Use:   action + " <name-or-id>",
+		Short: title + " a workspace without removing its data",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			ws, err := client.SetWorkspaceArchived(cmd.Context(), strings.TrimSpace(args[0]), archived)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, workspaceRecordBundle(ws))
 		},
 	}
 }

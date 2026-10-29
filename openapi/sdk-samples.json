@@ -113,6 +113,13 @@
             "resource": "tasks",
             "app_access": "allowed"
         },
+        "archiveWorkspace": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.archiveWorkspace({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ArchiveWorkspace(ctx, client.ArchiveWorkspaceParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "attachSession": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.attachSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.AttachSession(ctx, client.AttachSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.AttachSessionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2173,7 +2180,7 @@
         },
         "listWorkspaces": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.listWorkspaces();",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListWorkspaces(ctx)\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListWorkspaces(ctx, client.ListWorkspacesParams{})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "workspaces",
             "app_access": "allowed"
@@ -3171,6 +3178,13 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "unarchiveWorkspace": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.unarchiveWorkspace({ path: { \"id\": \"id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UnarchiveWorkspace(ctx, client.UnarchiveWorkspaceParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
         },
         "unbindGatewayIngress": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.gateway.unbindGatewayIngress({ path: { \"subject_kind\": \"subject_kind\", \"subject_id\": \"subject_id\" } });",

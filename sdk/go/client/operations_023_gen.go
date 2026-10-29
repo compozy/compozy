@@ -9,6 +9,28 @@ import (
 	"strings"
 )
 
+// PutLoopInputDefaults Replace one scoped Loop input-default table
+func (c *Client) PutLoopInputDefaults(ctx context.Context, params PutLoopInputDefaultsParams, body PutLoopInputDefaultsRequest) (*LoopInputDefaultsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loops/{name}/input-defaults"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out LoopInputDefaultsResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutProfileSelection Remember a profile selection
+func (c *Client) PutProfileSelection(ctx context.Context, body ProfileSelection) (*ProfileSelection, error) {
+	path := "/api/profiles/selection"
+	var out ProfileSelection
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // PutResourceParams carries the path, query, and header parameters.
 type PutResourceParams struct {
 	Kind string `url:"kind"`
@@ -414,32 +436,6 @@ func (c *Client) RedeemGatewayPairing(ctx context.Context, body GatewayPairingRe
 	path := "/api/gateway/pairings/redeem"
 	var out GatewayIssuedCredentialPayload
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshMarketplaceCatalog Refresh the extension catalog
-func (c *Client) RefreshMarketplaceCatalog(ctx context.Context) (*MarketplaceRefreshResponse, error) {
-	path := "/api/marketplace/refresh"
-	var out MarketplaceRefreshResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RefreshMarketplaceSourceParams carries the path, query, and header parameters.
-type RefreshMarketplaceSourceParams struct {
-	Name string `url:"name"`
-}
-
-// RefreshMarketplaceSource Refresh one enabled marketplace source Experimental: pin the exact SDK version.
-func (c *Client) RefreshMarketplaceSource(ctx context.Context, params RefreshMarketplaceSourceParams) (*MarketplaceSourceResponse, error) {
-	path := "/api/marketplace/sources/{name}/refresh"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out MarketplaceSourceResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

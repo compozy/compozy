@@ -118,7 +118,9 @@ const (
 	// ToolIDAgentHeartbeatWake requests one managed advisory Heartbeat wake decision.
 	ToolIDAgentHeartbeatWake ToolID = "compozy__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.
-	ToolIDWorkspaceList ToolID = "compozy__workspace_list"
+	ToolIDWorkspaceList      ToolID = "compozy__workspace_list"
+	ToolIDWorkspaceArchive   ToolID = "compozy__workspace_archive"
+	ToolIDWorkspaceUnarchive ToolID = "compozy__workspace_unarchive"
 	// ToolIDProfileList lists the daemon profile catalog for the bound session.
 	ToolIDProfileList ToolID = "compozy__profile_list"
 	// ToolIDProfileCurrent reads the immutable profile bound to the caller session.

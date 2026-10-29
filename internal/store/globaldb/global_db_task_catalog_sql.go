@@ -328,6 +328,11 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 		store.StringClause("owner_ref", query.OwnerRef),
 		store.StringClause("parent_task_id", query.ParentTaskID),
 	)
+	if len(query.WorkspaceIDs) == 0 {
+		activeWhere, activeArgs := store.BuildClauses(store.ActiveWorkspaceClause("workspace_id", query.WorkspaceID))
+		where = append(where, activeWhere...)
+		args = append(args, activeArgs...)
+	}
 	where, args = appendTaskWorkspaceIDs(where, args, query.WorkspaceIDs)
 	switch query.Scope {
 	case taskpkg.CatalogScopeGlobal:

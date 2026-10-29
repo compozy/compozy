@@ -29,6 +29,8 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
+	loopdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -3695,4 +3697,92 @@ func TestBootRecoveryPreservesUnsupportedLifecycleArtifactsIntegration(t *testin
 			}
 		}
 	})
+}
+
+// Invariant: archived workspace history survives the real boot reconciliation pipeline.
+func TestBootArchivedWorkspaceIntegration(t *testing.T) {
+	homePaths := integrationHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	workspace := seedDaemonWorkspace(t, homePaths, filepath.Join(t.TempDir(), "archived-project"))
+	ctx := t.Context()
+	now := time.Date(2026, time.October, 28, 12, 0, 0, 0, time.UTC)
+	dir := filepath.Join(homePaths.SessionsDir, "archived-history")
+	meta := &store.SessionMeta{
+		ID: "archived-history", ProfileID: store.DefaultProfileID, AgentName: "coder", Provider: "claude",
+		WorkspaceID: workspace.ID, SessionType: string(session.SessionTypeUser),
+		State: string(session.StateStopped), RuntimeStatus: store.SessionRuntimeUnbound,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := store.WriteSessionMeta(store.SessionMetaFile(dir), meta); err != nil {
+		t.Fatal(err)
+	}
+	history, err := sessiondb.OpenSessionDB(
+		ctx,
+		store.SessionDBOwner{SessionID: meta.ID, WorkspaceID: workspace.ID},
+		store.SessionDBFile(dir),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := history.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := openDaemonTestGlobalDBAtPath(ctx, homePaths.DatabaseFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := looppkg.Run{
+		ID: "looprun-archived-history", WorkspaceID: looppkg.WorkspaceID(workspace.ID),
+		LoopName: "archived-history", Status: looppkg.StatusRunning,
+		ReattemptStrategy: looppkg.ReattemptFailedOnly, IterationCap: 1,
+		BudgetOnExceeded: loopdsl.BudgetExceededHalt, CreatedAt: now, LastProgressAt: now,
+	}
+	applyLoopRunPinningForTest(t, &run, now)
+	if _, err := registry.CreateLoopRunForStart(ctx, run, loopdsl.ConcurrencyAllow); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.CompareAndSwapLoopRunStatus(
+		ctx,
+		run.ID,
+		looppkg.StatusRunning,
+		looppkg.StatusFailed,
+		looppkg.TransitionCauseCoordinatorFailure,
+		now,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := registry.SetWorkspaceArchived(ctx, workspace.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	d := newTestDaemon(t, homePaths, &cfg)
+	if err := d.boot(ctx); err != nil {
+		t.Fatalf("boot archived workspace: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := d.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	if _, err := d.observer.Reconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	retained, err := d.registry.GetWorkspace(ctx, workspace.ID)
+	if err != nil || retained.ArchivedAt == nil {
+		t.Fatalf("archived registration = %#v, %v", retained, err)
+	}
+	sessions, err := d.registry.ListSessions(
+		ctx,
+		store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspace.ID},
+	)
+	if err != nil || len(sessions) != 1 || sessions[0].ID != meta.ID ||
+		sessions[0].State != string(session.StateStopped) {
+		t.Fatalf("recovered archived history = %#v, %v", sessions, err)
+	}
+	retainedRun, err := d.registry.(*globaldb.GlobalDB).GetLoopRun(ctx, run.WorkspaceID, run.ID)
+	if err != nil || retainedRun.Status != looppkg.StatusFailed {
+		t.Fatalf("recovered archived Loop = %#v, %v", retainedRun, err)
+	}
 }

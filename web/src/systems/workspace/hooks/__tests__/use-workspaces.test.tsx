@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
+import { sessionKeys } from "@/systems/session";
 import { statusKeys } from "@/systems/status";
 import { ACTIVE_WORKSPACE_PERSIST_KEY } from "@/systems/workspace";
 import { statusFixture } from "@/systems/status/mocks";
@@ -228,6 +229,19 @@ describe("workspace hooks", () => {
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([createdWorkspace]);
   });
 
+  it("keeps a resolved archived project out of the active registry", async () => {
+    const archived = makeWorkspace({ archived_at: "2026-10-28T12:00:00Z" });
+    vi.mocked(resolveWorkspace).mockResolvedValue(archived);
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    queryClient.setQueryData(workspaceKeys.list(), [archived]);
+    const { result } = renderHook(() => useResolveWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+    result.current.mutate({ path: archived.root_dir });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([]);
+  });
+
   it("removes deleted workspaces from cached registry data", async () => {
     vi.mocked(deleteWorkspace).mockResolvedValue();
 
@@ -257,6 +271,7 @@ describe("workspace hooks", () => {
     expect(deleteWorkspace).toHaveBeenCalledWith("ws_removed");
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([keptWorkspace]);
     expect(queryClient.getQueryData(workspaceKeys.detail("ws_removed"))).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
   });
 });

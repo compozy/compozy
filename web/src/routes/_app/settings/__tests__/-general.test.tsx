@@ -1,7 +1,8 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
-import { createElement, type ReactNode, type SetStateAction } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithTopbar } from "@/test/render-with-topbar";
+import { createElement, type ReactElement, type ReactNode, type SetStateAction } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -19,6 +20,15 @@ import {
   settingsUpdateStagedFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
+
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrap = (child: ReactNode) => (
+    <QueryClientProvider client={queryClient}>{child}</QueryClientProvider>
+  );
+  const result = renderWithTopbar(wrap(ui));
+  return { ...result, rerender: (next: ReactNode) => result.rerender(wrap(next)) };
+}
 
 type Envelope = typeof envelope;
 type Mutation = {

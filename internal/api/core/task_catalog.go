@@ -20,7 +20,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 	breadth, err := parseWorkspaceBreadth(
 		c,
 		c.Param("workspace_id"),
-		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true},
+		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true, CatalogFiltersArchived: true},
 		workspaces...)
 	if err != nil {
 		return contract.TaskListQuery{}, err
@@ -75,7 +75,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 }
 
 // ParseTaskInboxQuery parses the bounded actor-scoped inbox query parameters.
-func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
+func ParseTaskInboxQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract.TaskInboxQuery, error) {
 	unread, err := parseOptionalBoolPointer(c.Query("unread"))
 	if err != nil {
 		return contract.TaskInboxQuery{}, NewTaskValidationError(err)

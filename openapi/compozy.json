@@ -6357,6 +6357,12 @@
       },
       "ErrorPayload": {
         "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceArchiveBlocker"
+            },
+            "type": "array"
+          },
           "code": {
             "type": "string"
           },
@@ -23342,6 +23348,12 @@
       },
       "SessionDeriveErrorPayload": {
         "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceArchiveBlocker"
+            },
+            "type": "array"
+          },
           "child_session_id": {
             "type": "string"
           },
@@ -25063,6 +25075,12 @@
       },
       "SessionPullRequestErrorPayload": {
         "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceArchiveBlocker"
+            },
+            "type": "array"
+          },
           "cause": {
             "type": "string"
           },
@@ -35026,6 +35044,12 @@
       },
       "TaskQueryErrorPayload": {
         "properties": {
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceArchiveBlocker"
+            },
+            "type": "array"
+          },
           "code": {
             "type": "string"
           },
@@ -38223,6 +38247,9 @@
               "tool_result_too_large",
               "tool_timed_out",
               "tool_unavailable",
+              "workspace_archived",
+              "workspace_busy",
+              "workspace_root_missing",
               "worktree_missing",
               "worktree_not_found",
               "worktree_not_ready",
@@ -38579,6 +38606,9 @@
               "tool_result_too_large",
               "tool_timed_out",
               "tool_unavailable",
+              "workspace_archived",
+              "workspace_busy",
+              "workspace_root_missing",
               "worktree_missing",
               "worktree_not_found",
               "worktree_not_ready",
@@ -43816,6 +43846,25 @@
         ],
         "type": "object"
       },
+      "WorkspaceArchiveBlocker": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "type": "object"
+      },
       "WorkspaceAttentionSummaryPayload": {
         "properties": {
           "finished": {
@@ -43996,6 +44045,11 @@
             },
             "type": "array"
           },
+          "archived_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -44011,6 +44065,9 @@
           },
           "root_dir": {
             "type": "string"
+          },
+          "root_missing": {
+            "type": "boolean"
           },
           "updated_at": {
             "format": "date-time",
@@ -77211,6 +77268,16 @@
     "/api/workspaces": {
       "get": {
         "operationId": "listWorkspaces",
+        "parameters": [
+          {
+            "description": "List archived projects instead of active projects",
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -77233,7 +77300,7 @@
             "description": "Internal server error"
           }
         },
-        "summary": "List registered workspaces",
+        "summary": "List active or archived workspaces",
         "tags": [
           "workspaces"
         ],
@@ -77577,6 +77644,140 @@
           }
         },
         "summary": "Update a registered workspace",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{id}/archive": {
+      "post": {
+        "operationId": "archiveWorkspace",
+        "parameters": [
+          {
+            "description": "Workspace name or id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace has active sessions, live Loops or enabled automations"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "archive a workspace without removing its data",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{id}/unarchive": {
+      "post": {
+        "operationId": "unarchiveWorkspace",
+        "parameters": [
+          {
+            "description": "Workspace name or id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace has active sessions, live Loops or enabled automations"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "unarchive a workspace without removing its data",
         "tags": [
           "workspaces"
         ],
