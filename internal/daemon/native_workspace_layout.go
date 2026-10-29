@@ -117,7 +117,7 @@ func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 	var err error
 	if id == toolspkg.ToolIDWorkspaceMove {
 		if strings.TrimSpace(input.Workspace) == "" {
-			input.Workspace = scope.WorkspaceID
+			input.Workspace = callerWorkspaceRef(scope)
 		}
 		if input.Workspace, err = resolve(input.Workspace); err != nil {
 			return input, err
@@ -135,6 +135,18 @@ func (n *daemonNativeTools) resolveWorkspaceLayoutInput(
 		input.WorkspaceIDs = resolved
 	}
 	return input, nil
+}
+
+// callerWorkspaceRef names the caller's own workspace: its bound workspace, or
+// the User scope for a session that runs outside every project.
+func callerWorkspaceRef(scope toolspkg.Scope) string {
+	if workspaceID := strings.TrimSpace(scope.WorkspaceID); workspaceID != "" {
+		return workspaceID
+	}
+	if strings.TrimSpace(scope.SessionID) != "" {
+		return workspaceaccess.UserSelector
+	}
+	return ""
 }
 
 func workspaceFolderList(

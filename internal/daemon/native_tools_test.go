@@ -14649,8 +14649,12 @@ func TestNativeWorkspaceLayoutTools(t *testing.T) {
 		t.Helper()
 		sessions := &nativeWorkspaceLayoutSessions{}
 		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			workspaceID := "ws-1"
+			if id == "sess-user" {
+				workspaceID = ""
+			}
 			return &session.Info{
-				ID: id, WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID, EffectiveWorkspaceAccess: access,
+				ID: id, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID, EffectiveWorkspaceAccess: access,
 			}, nil
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -14717,6 +14721,15 @@ func TestNativeWorkspaceLayoutTools(t *testing.T) {
 		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true},
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceMove, Input: json.RawMessage(`{}`)})
 		requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+		// A User-scope session has no bound workspace: its own move targets User.
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true, SessionID: "sess-user"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceMove, Input: json.RawMessage(`{}`)})
+		if err != nil {
+			t.Fatalf("workspace_move from a User-scope session error = %v", err)
+		}
+		if !slices.Contains(sessions.calls, "move |") {
+			t.Fatalf("layout calls = %#v, want User moved to the root", sessions.calls)
+		}
 	})
 
 	t.Run("Should deny an agent session without the unrestricted grant", func(t *testing.T) {
