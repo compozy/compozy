@@ -4644,3 +4644,17 @@ isolation are unchanged. No generated contract or official skill changes.
 - **Official skill / Docs / QA:** no `skills/compozy/` or public site changes needed.
   `RT-conversation-rewind.md` records the lost-ack navigation journey, owned by the
   existing stop/edit/resend Playwright test in `session-hardening.spec.ts`.
+
+## 2026-10-29 — SQLite Unicode function registration ordering
+
+- **Owner:** `internal/store/sqlite_unicode.go` registers the existing Unicode
+  function during package initialization, before probes, migration readers, or
+  normal runtime connections open. Lazy first-open registration could mutate
+  the driver's function map while another connection iterated it. Registration
+  failures retain the existing error path from `openSQLiteHandle`.
+- **Verification owner:** the existing SQLite connection/recovery suite checks
+  Unicode SQL on a direct connection; the existing parallel migration suite
+  exercises concurrent connection openings under the race detector.
+- **Public surfaces, native tools, hooks/config, extensibility, Web/Docs and
+  official skill:** unchanged. This is internal driver initialization ordering.
+  Workspace isolation and persisted data/schema are unchanged; no migration.
