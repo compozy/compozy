@@ -101,6 +101,7 @@ function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
   return <TerminalWindowLoaded windowId={windowId} />;
 }
 
+/** Wires a resolved window to process controls while preserving its data binding on retarget and new tabs. */
 function TerminalWindowLoaded({ windowId }: { windowId: string }) {
   const activeSessionWindowId = useDesktop(state => mostRecentSession(state, windowId)?.id ?? null);
   const activeSessionId = useDesktop(

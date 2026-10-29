@@ -111,6 +111,7 @@ function withQuery(url: string, query: URLSearchParams): string {
   return serialized === "" ? url : `${url}?${serialized}`;
 }
 
+/** Serializes viewer proof using its registration partition, independently of the terminal destination. */
 function terminalViewerHeaders(viewer: TerminalViewerIdentity): Record<string, string> {
   return {
     "X-Compozy-Client-Token": viewer.attachmentToken,
@@ -118,6 +119,7 @@ function terminalViewerHeaders(viewer: TerminalViewerIdentity): Record<string, s
   };
 }
 
+/** Attributes terminal requests to this browser, maps domain failures, and validates successful payloads. */
 async function parseTerminalResponse<Result>(
   url: string,
   schema: ZodType<Result>,
@@ -209,6 +211,7 @@ export async function fetchTerminal(
   return payload.terminal;
 }
 
+/** Creates a terminal in the requested data scope using proof from the viewer's registered desktop. */
 export async function createTerminal(
   workspaceId: string,
   input: CreateTerminalInput,

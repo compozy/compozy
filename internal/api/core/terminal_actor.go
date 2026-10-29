@@ -68,6 +68,8 @@ func (h *BaseHandlers) terminalActor(
 	}, true
 }
 
+// bindTerminalHumanClient validates supplied browser proof in its registration partition and profile.
+// Requests without browser identity and agent actors retain their existing identity.
 func (h *BaseHandlers) bindTerminalHumanClient(
 	c *gin.Context,
 	workspaceID, profileID, clientID string,

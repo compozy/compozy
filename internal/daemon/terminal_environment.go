@@ -65,6 +65,8 @@ func terminalEnvironmentProvider(state *bootState) terminal.EnvironmentProvider 
 	}
 }
 
+// terminalEnvironmentDeclarations loads active-run declarations for agents or the acting
+// profile's project/User declarations for human terminals.
 func terminalEnvironmentDeclarations(
 	ctx context.Context, state *bootState, workspaceID, profileName string, actor terminal.Actor,
 ) (config.SessionEnv, error) {
