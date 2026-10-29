@@ -70,11 +70,14 @@ describe("TerminalAggregateLocation", () => {
     expect(screen.queryByTestId("terminal-launcher")).not.toBeInTheDocument();
   });
 
-  it("Should leave out new-terminal destinations for an all-profiles read", () => {
+  it("Should leave out new-terminal destinations and name each owner for an all-profiles read", () => {
     renderLocation({ readOnly: true }, { data: [...TERMINAL_FIXTURES], isPending: false });
 
     expect(screen.queryByText("New terminal")).not.toBeInTheDocument();
-    expect(screen.getByText("Running")).toBeInTheDocument();
+    const running = TERMINAL_FIXTURES.find(terminal => terminal.state === "running");
+    expect(screen.getByTestId(`terminal-launcher-running-${running?.id}`)).toHaveTextContent(
+      running?.profile_name ?? ""
+    );
   });
 
   it("Should list only the running terminals once the catalog arrives", () => {

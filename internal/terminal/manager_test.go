@@ -1280,18 +1280,36 @@ func TestSessionTailReadContract(t *testing.T) {
 func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep draining output while a device query reply waits on input", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		release := make(chan struct{})
+		proc.mu.Lock()
+		proc.writeRelease = release
+		proc.mu.Unlock()
+		if err := proc.emit([]byte("\x1b[c drawing continues")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		waitForTailContent(t, handle, "drawing continues")
+		close(release)
+		waitForInput(t, proc, primaryDeviceAttributesReply)
+	})
+
 	t.Run("Should answer a startup device query only while no viewer can answer it", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		proc := starter.latest()
-		// The query split across two reads, as a shell's buffered write may arrive.
-		for _, chunk := range []string{"fish \x1b[", "c"} {
+		// One query split over three reads, then two in a row whose second spans the next read.
+		for _, chunk := range []string{"fish \x1b", "[", "c", "\x1b[c\x1b[", "0c"} {
 			if err := proc.emit([]byte(chunk)); err != nil {
 				t.Fatalf("emit() error = %v", err)
 			}
 		}
-		waitForInput(t, proc, primaryDeviceAttributesReply)
+		threeReplies := strings.Repeat(primaryDeviceAttributesReply, 3)
+		waitForInput(t, proc, threeReplies)
 
 		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		viewer, err := handle.Attach(t.Context(), AttachOptions{Mode: "write", Actor: actor, Cols: 80, Rows: 24})
@@ -1303,8 +1321,8 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 			t.Fatalf("emit() error = %v", err)
 		}
 		waitForTailContent(t, handle, "ready")
-		if got := proc.inputString(); got != primaryDeviceAttributesReply {
-			t.Fatalf("input = %q, want one daemon reply before the writer attached", got)
+		if got := proc.inputString(); got != threeReplies {
+			t.Fatalf("input = %q, want only the replies sent before the writer attached", got)
 		}
 	})
 

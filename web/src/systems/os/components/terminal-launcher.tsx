@@ -99,13 +99,23 @@ export function TerminalLauncher({
                 <CommandItem
                   data-testid={`terminal-launcher-running-${terminal.id}`}
                   key={terminal.id}
-                  keywords={[terminalDisplayTitle(terminal), project.name]}
+                  keywords={[
+                    terminalDisplayTitle(terminal),
+                    project.name,
+                    ...(readOnly ? [terminal.profile_name] : []),
+                  ]}
                   onSelect={() => onAttach(terminal)}
                   value={`${ATTACH_PREFIX}${terminal.id}`}
                 >
                   <TerminalSquare aria-hidden="true" className="text-subtle" />
                   <span className="min-w-0 truncate">{terminalDisplayTitle(terminal)}</span>
-                  <WorkspaceBadge className="ms-auto ps-3" identity={project} />
+                  <span className="ms-auto flex min-w-0 items-center gap-2 ps-3">
+                    {/* All profiles: the owner tells same-titled terminals apart. */}
+                    {readOnly ? (
+                      <span className="text-micro text-subtle">{terminal.profile_name}</span>
+                    ) : null}
+                    <WorkspaceBadge identity={project} />
+                  </span>
                 </CommandItem>
               );
             })}
