@@ -64,6 +64,8 @@ async function configureWorkerProvider(runtime: BrowserRuntime) {
         command,
         display_name: "Claude",
         harness: "acp",
+        // The brand is Claude; the downstream protocol runtime is the isolated mock.
+        runtime_provider: "acpmock",
         auth_mode: "none",
         models: {
           default: "claude-sonnet-5",
@@ -183,7 +185,12 @@ test("E2E-001: capabilities and a delegation render as a tool phrase and a live 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
-  // Capabilities probes precede delegation; observe that boundary before timing the worker.
+  // The parent may settle and fold before the first assertion; inspect the settled work.
+  await expect(
+    scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
+  ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
   await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
 
@@ -245,13 +252,15 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   runtime,
 }) => {
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
-  // Capabilities probes precede delegation; observe that boundary before timing the worker.
-  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
-  const review = card(scene, reviewTitle);
-  // Hover once the parent's turn ended and its message reconciled, while the child still works.
+  // The parent may settle and fold before the first assertion; inspect the settled work.
   await expect(
     scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
   ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
+  await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
+  const review = card(scene, reviewTitle);
+  // Hover while the child still works, after the parent turn has reconciled.
   await expect(review).toHaveAttribute("data-status", "running");
   const hover = appPage.locator('[data-slot="subagent-hover"]');
 
@@ -267,7 +276,11 @@ test("E2E-003: hover and keyboard focus open the hover card; Escape closes it", 
   await expect(hover).toHaveCount(0);
 
   // The card is a container; its open control is what keyboard focus lands on.
-  await review.locator('[data-slot="subagent-card-open"]').focus();
+  const openControl = review.locator('[data-slot="subagent-card-open"]');
+  await openControl.focus();
+  await appPage.keyboard.press("Shift+Tab");
+  await appPage.keyboard.press("Tab");
+  await expect(openControl).toBeFocused();
   await expect(hover).toBeVisible();
   await appPage.keyboard.press("Escape");
   await expect(hover).toHaveCount(0);
@@ -280,7 +293,12 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
 }) => {
   await appPage.setViewportSize({ width: 1600, height: 1000 });
   const scene = await openSession(appPage, runtime, parentAgent, "get a second opinion");
-  // Capabilities probes precede delegation; observe that boundary before timing the worker.
+  // The parent may settle and fold before the first assertion; inspect the settled work.
+  await expect(
+    scene.window.getByText("A subagent is reviewing it; I'll pick up its answer when it finishes.")
+  ).toBeVisible();
+  await expect(scene.window.getByTestId("turn-fold-row")).toBeVisible();
+  await openFolds(scene);
   await expect(scene.window.getByText("Checked subagent capabilities")).toBeVisible();
   const review = card(scene, reviewTitle);
   await expect(review).toBeVisible();

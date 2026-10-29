@@ -65,6 +65,8 @@ async function configureWorkerProvider(runtime: BrowserRuntime) {
         command,
         display_name: "Claude",
         harness: "acp",
+        // The brand is Claude; the downstream protocol runtime is the isolated mock.
+        runtime_provider: "acpmock",
         auth_mode: "none",
         models: {
           default: "claude-sonnet-5",

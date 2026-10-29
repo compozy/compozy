@@ -71,3 +71,15 @@ the keyboard/pointer resize separator are covered by the affected journeys and c
 
 Pinned Claude adapter frames exercise native attribution and rendering; they do not claim a live
 Claude model invocation or re-certify every background lifecycle branch of the broader scenario.
+
+## CI fixture follow-up
+
+The Linux shard stalled before native activity or delegated cards appeared while the branded
+mock entered Claude-specific model binding. The isolated provider now explicitly declares its
+actual downstream runtime (`acpmock`) while retaining Claude provider/model/effort metadata and
+Claude-native adapter frames. Production model validation is unchanged. The fast mock also
+exposed a race in the capabilities assertion: the parent can finish and fold its tool rows before
+that assertion runs. The journey now observes the completed parent turn and opens its work fold
+before checking the same capabilities text and live child state. The keyboard preview check
+uses actual Tab navigation after pointer interaction, matching the canonical HoverCard suite.
+No deadlines were increased.
