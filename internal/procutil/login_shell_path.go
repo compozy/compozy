@@ -22,6 +22,8 @@ var errLoginShellPathOutputTooLarge = errors.New("procutil: login shell PATH out
 type LoginShellPathOptions struct {
 	Timeout        time.Duration
 	MaxOutputBytes int
+	// AccountShell resolves the account's recorded login shell. Nil uses AccountLoginShell.
+	AccountShell func(context.Context) (string, error)
 }
 
 // ResolveLoginShellPath returns the PATH produced by the operator's login shell.
@@ -47,13 +49,10 @@ func ResolveLoginShellPath(
 	if home == "" || !filepath.IsAbs(home) {
 		return "", errors.New("procutil: operator home must be an absolute path")
 	}
-	shell := strings.TrimSpace(environmentValue(environment, "SHELL"))
-	if !filepath.IsAbs(shell) {
-		shell = defaultLoginShell()
-	}
-
+	// The timeout bounds the whole resolution, account-shell lookup included.
 	commandCtx, cancel := context.WithTimeout(ctx, options.Timeout)
 	defer cancel()
+	shell := resolveLoginShell(commandCtx, environment, options.AccountShell)
 
 	output := &boundedCommandOutput{limit: options.MaxOutputBytes}
 	command := exec.CommandContext(commandCtx, shell, "-ilc", `printf '\000%s\000' "$PATH"`)
@@ -135,6 +134,28 @@ func validateLoginShellPath(path string) (string, error) {
 		return "", errors.New("procutil: login shell PATH contains an invalid delimiter")
 	}
 	return path, nil
+}
+
+// resolveLoginShell keeps the inherited SHELL, which a launchd-started desktop
+// app receives from the login session, when it names an executable; otherwise
+// it falls back to the account's recorded shell before a platform default.
+func resolveLoginShell(
+	ctx context.Context,
+	environment []string,
+	accountShell func(context.Context) (string, error),
+) string {
+	if shell := strings.TrimSpace(environmentValue(environment, "SHELL")); filepath.IsAbs(shell) {
+		if _, err := exec.LookPath(shell); err == nil {
+			return shell
+		}
+	}
+	if accountShell == nil {
+		accountShell = AccountLoginShell
+	}
+	if shell, err := accountShell(ctx); err == nil && filepath.IsAbs(shell) {
+		return shell
+	}
+	return defaultLoginShell()
 }
 
 func defaultLoginShell() string {

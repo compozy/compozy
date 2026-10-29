@@ -883,6 +883,24 @@ describe("OsDock", () => {
     });
   });
 
+  it("Should open the Terminal launcher instead of a window only while no Terminal window exists", () => {
+    const onOpenTerminalLauncher = vi.fn();
+    setDockState(desktopState());
+    const { result } = renderHook(() =>
+      useDesktopDock({}, { onNewSession: vi.fn(), onOpenTerminalLauncher })
+    );
+
+    act(() => result.current.handleSelect("terminal"));
+    expect(onOpenTerminalLauncher).toHaveBeenCalledTimes(1);
+    expect(dockShell.coordinator.userOpen).not.toHaveBeenCalled();
+
+    const open = windowFixture("window:terminal", "terminal");
+    setDockState(desktopState({ [open.id]: open }, null, [open.id]));
+    act(() => result.current.handleSelect("terminal"));
+    expect(onOpenTerminalLauncher).toHaveBeenCalledTimes(1);
+    expect(dockShell.coordinator.userActivateWindow).toHaveBeenCalledWith(open.id);
+  });
+
   it("Should report each explicit launch destination from an open app menu (UT-083)", async () => {
     const user = userEvent.setup();
     const onLaunch = vi.fn();

@@ -37,6 +37,9 @@ type session struct {
 	closedEmitted       bool
 	vtCarry             []byte
 	subscribers         map[uint64]*subscription
+	deviceQueries       deviceQueryScanner
+	deviceReplyOnce     sync.Once
+	deviceReplies       chan struct{}
 	nextSubID           uint64
 	cols                uint16
 	rows                uint16

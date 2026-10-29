@@ -1096,6 +1096,24 @@ func TestManagerCwdAndShell(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a project whose folder is gone with an actionable invalid cwd", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithWorkspaceResolver(missingRootResolver{}))
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh",
+			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Capabilities: Capabilities{Interactive: true},
+		})
+		terminalErr, ok := errors.AsType[*Error](err)
+		if !ok || terminalErr.Code != ErrorCodeInvalidCwd || !errors.Is(err, ErrInvalidCwd) ||
+			!errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) || !strings.Contains(err.Error(), "folder") {
+			t.Fatalf("Open(missing root) error = %#v", err)
+		}
+		if starter.starts.Load() != 0 {
+			t.Fatalf("missing root started %d processes", starter.starts.Load())
+		}
+	})
+
 	t.Run(
 		"Should fall back from an unavailable requested shell and report the actual shell [UT-005]",
 		func(t *testing.T) {
@@ -1116,6 +1134,76 @@ func TestManagerCwdAndShell(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should default to the account login shell only when nothing names a shell", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows accounts record no login shell")
+		}
+		accountShell := filepath.Join(t.TempDir(), "fish")
+		if err := os.WriteFile(accountShell, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		var lookups atomic.Int32
+		resolver := WithAccountShellResolver(func(context.Context) (string, error) {
+			lookups.Add(1)
+			return accountShell, nil
+		})
+		cases := []struct {
+			name, requested, configured string
+			wantBase                    string
+			wantLookups                 int32
+		}{
+			{name: "default", wantBase: "fish", wantLookups: 1},
+			{name: "configured", configured: "sh", wantBase: "sh"},
+			{name: "requested", requested: "sh", configured: "/definitely/not/a/shell", wantBase: "sh"},
+		}
+		for _, tc := range cases {
+			lookups.Store(0)
+			settings := DefaultSettings()
+			settings.DefaultShell = tc.configured
+			manager, _, _ := newTestManager(t, settings, resolver)
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: tc.requested,
+				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+				Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("%s: Open() error = %v", tc.name, err)
+			}
+			if shell := handle.Info().Shell; filepath.Base(shell) != tc.wantBase {
+				t.Fatalf("%s: Info.Shell = %q, want %s", tc.name, shell, tc.wantBase)
+			}
+			if got := lookups.Load(); got != tc.wantLookups {
+				t.Fatalf("%s: account shell lookups = %d, want %d", tc.name, got, tc.wantLookups)
+			}
+		}
+	})
+
+	t.Run("Should fall back past a missing or failing account login shell", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows accounts record no login shell")
+		}
+		for name, resolver := range map[string]AccountShellResolver{
+			"missing": func(context.Context) (string, error) { return "/definitely/not/fish", nil },
+			"failing": func(context.Context) (string, error) { return "", errors.New("directory services down") },
+		} {
+			manager, _, _ := newTestManager(t, DefaultSettings(), WithAccountShellResolver(resolver))
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS:           "workspace-a",
+				Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+				Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("%s: Open() error = %v", name, err)
+			}
+			shell := handle.Info().Shell
+			if shell == "/definitely/not/fish" || !filepath.IsAbs(shell) {
+				t.Fatalf("%s: Info.Shell = %q, want an installed fallback shell", name, shell)
+			}
+		}
+	})
 }
 
 func TestSessionTailReadContract(t *testing.T) {
@@ -1191,6 +1279,52 @@ func TestSessionTailReadContract(t *testing.T) {
 
 func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should keep draining output while a device query reply waits on input", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		release := make(chan struct{})
+		proc.mu.Lock()
+		proc.writeRelease = release
+		proc.mu.Unlock()
+		if err := proc.emit([]byte("\x1b[c drawing continues")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		waitForTailContent(t, handle, "drawing continues")
+		close(release)
+		waitForInput(t, proc, primaryDeviceAttributesReply)
+	})
+
+	t.Run("Should answer a startup device query only while no viewer can answer it", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		// One query split over three reads, then two in a row whose second spans the next read.
+		for _, chunk := range []string{"fish \x1b", "[", "c", "\x1b[c\x1b[", "0c"} {
+			if err := proc.emit([]byte(chunk)); err != nil {
+				t.Fatalf("emit() error = %v", err)
+			}
+		}
+		threeReplies := strings.Repeat(primaryDeviceAttributesReply, 3)
+		waitForInput(t, proc, threeReplies)
+
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		viewer, err := handle.Attach(t.Context(), AttachOptions{Mode: "write", Actor: actor, Cols: 80, Rows: 24})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+		t.Cleanup(func() { _ = viewer.Close() })
+		if err := proc.emit([]byte("\x1b[0c ready")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		waitForTailContent(t, handle, "ready")
+		if got := proc.inputString(); got != threeReplies {
+			t.Fatalf("input = %q, want only the replies sent before the writer attached", got)
+		}
+	})
 
 	for _, mode := range []string{"read", "write"} {
 		t.Run("Should drain process output while an attached "+mode+" viewer stops consuming", func(t *testing.T) {
@@ -4579,5 +4713,22 @@ func receiveTerminalEvent(t *testing.T, events <-chan Event) Event {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for terminal event")
 		return Event{}
+	}
+}
+
+type missingRootResolver struct{}
+
+func (missingRootResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+}
+
+func waitForInput(t *testing.T, proc *fakeProc, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for proc.inputString() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("input = %q, want %q", proc.inputString(), want)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }

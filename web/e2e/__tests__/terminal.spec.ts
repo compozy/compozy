@@ -665,14 +665,17 @@ for (const destination of ["global-project", "global-user", "user"] as const) {
         new URL(response.url()).pathname ===
           `/api/workspaces/${encodeURIComponent(target)}/terminals`
     );
-    await openAppWindow(appPage, "Terminal", "terminal");
     if (partition === "global") {
-      await appPage.getByTestId("terminal-aggregate-project").click();
-      await appPage.getByTestId(`terminal-aggregate-project-item-${target}`).click();
+      // All projects: the dock's Terminal item opens the launcher dialog, not a window.
       await appPage
-        .getByTestId("terminal-aggregate-new")
-        .getByRole("button", { name: "Open", exact: true })
+        .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
+        .getByRole("button", { name: "Terminal" })
         .click();
+      const launcher = appPage.getByRole("dialog").getByTestId("terminal-launcher");
+      await expect(launcher).toBeVisible();
+      await launcher.getByTestId(`terminal-launcher-new-${target}`).click();
+    } else {
+      await openAppWindow(appPage, "Terminal", "terminal");
     }
     const response = await created;
     expect(response.status()).toBe(201);

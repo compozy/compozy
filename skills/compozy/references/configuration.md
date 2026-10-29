@@ -522,7 +522,7 @@ Every `[terminal]` path applies live. The ten keys are:
 
 | Key                        | Default   | Validation                                                                                                               |
 | -------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `default_shell`            | `""`      | Empty, a bare executable name, or an absolute path.                                                                      |
+| `default_shell`            | `""`      | Empty, a bare executable name, or an absolute path. Empty: account login shell, then `$SHELL`, then zsh/bash/sh.         |
 | `shell_integration`        | `true`    | Boolean.                                                                                                                 |
 | `scrollback_bytes`         | `1048576` | Positive integer.                                                                                                        |
 | `detached_ttl`             | `"24h"`   | Positive duration.                                                                                                       |

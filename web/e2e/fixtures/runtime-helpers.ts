@@ -25,6 +25,22 @@ export interface RuntimeConfigInput {
   port: number;
   socketPath: string;
   toolsExternalDefault?: "disabled" | "ask" | "enabled";
+  /** `[terminal].default_shell`; pins specs to a POSIX shell whatever the host account uses. */
+  terminalDefaultShell?: string;
+}
+
+/**
+ * The shell browser specs type POSIX commands into. An unset `default_shell`
+ * follows the host account's login shell (fish on some machines), so specs pin
+ * the runner's own `SHELL`, or `/bin/sh`. Windows keeps its native default.
+ */
+export function hermeticTerminalShell(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform
+): string | undefined {
+  if (platform === "win32") return undefined;
+  const shell = env.SHELL?.trim() ?? "";
+  return shell.startsWith("/") ? shell : "/bin/sh";
 }
 
 export function resolveRuntimeMode(env: NodeJS.ProcessEnv = process.env): RuntimeMode {
@@ -103,6 +119,9 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.newWindowPolicy === undefined
       ? []
       : ["[window_manager]", `new_window_policy = ${tomlString(input.newWindowPolicy)}`, ""]),
+    ...(input.terminalDefaultShell === undefined
+      ? []
+      : ["[terminal]", `default_shell = ${tomlString(input.terminalDefaultShell)}`, ""]),
     ...(input.toolsExternalDefault === undefined
       ? []
       : ["[tools.policy]", `external_default = ${tomlString(input.toolsExternalDefault)}`, ""]),
