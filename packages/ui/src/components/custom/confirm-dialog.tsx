@@ -29,6 +29,14 @@ type DataAttributes = {
   [key: `data-${string}`]: string | number | boolean | undefined;
 };
 
+/** A second way to proceed, between cancel and confirm: "Keep processes running" beside "Stop all". */
+interface ConfirmDialogAlternateAction {
+  label: React.ReactNode;
+  onSelect: () => void | Promise<void>;
+  icon?: ConfirmDialogIcon;
+  buttonProps?: React.ComponentProps<typeof Button> & DataAttributes;
+}
+
 interface ConfirmDialogProps {
   open?: boolean;
   defaultOpen?: boolean;
@@ -69,6 +77,11 @@ interface ConfirmDialogProps {
    */
   body?: React.ReactNode;
   bodyProps?: React.ComponentProps<"div"> & DataAttributes;
+  /**
+   * A third choice rendered as an outline button between cancel and confirm. It
+   * shares the confirm's pending lock; the dialog still opens on cancel.
+   */
+  alternateAction?: ConfirmDialogAlternateAction;
   children?: React.ReactNode;
 }
 
@@ -221,6 +234,8 @@ function ConfirmDialogFooter({
   confirmVariant,
   confirmButtonProps,
   onConfirm,
+  alternateAction,
+  isPending,
 }: Pick<
   ConfirmDialogProps,
   | "footNote"
@@ -230,10 +245,12 @@ function ConfirmDialogFooter({
   | "confirmIcon"
   | "confirmButtonProps"
   | "onConfirm"
+  | "alternateAction"
 > & {
   cancelRef: React.Ref<HTMLButtonElement>;
   confirmBlocked: boolean;
   confirmVariant: React.ComponentProps<typeof Button>["variant"];
+  isPending: boolean;
 }) {
   return (
     <DialogFooter
@@ -251,7 +268,7 @@ function ConfirmDialogFooter({
         </div>
       ) : null}
       <div
-        className="flex shrink-0 items-center justify-end gap-2"
+        className="flex shrink-0 flex-wrap items-center justify-end gap-2"
         data-slot="confirm-dialog-actions"
       >
         <DialogClose
@@ -260,6 +277,9 @@ function ConfirmDialogFooter({
         >
           {cancelLabel}
         </DialogClose>
+        {alternateAction ? (
+          <ConfirmDialogAlternateButton action={alternateAction} disabled={isPending} />
+        ) : null}
         <Button
           disabled={confirmBlocked}
           type="button"
@@ -276,6 +296,32 @@ function ConfirmDialogFooter({
         </Button>
       </div>
     </DialogFooter>
+  );
+}
+
+function ConfirmDialogAlternateButton({
+  action,
+  disabled,
+}: {
+  action: ConfirmDialogAlternateAction;
+  disabled: boolean;
+}) {
+  const { icon: AlternateIcon, buttonProps } = action;
+  return (
+    <Button
+      disabled={disabled}
+      type="button"
+      variant="outline"
+      {...buttonProps}
+      onClick={event => {
+        buttonProps?.onClick?.(event);
+        if (event.defaultPrevented) return;
+        void action.onSelect();
+      }}
+    >
+      {AlternateIcon ? <AlternateIcon /> : null}
+      {action.label}
+    </Button>
   );
 }
 
@@ -310,6 +356,7 @@ function ConfirmDialog({
   errorProps,
   body,
   bodyProps,
+  alternateAction,
   children,
 }: ConfirmDialogProps) {
   const [typedValue, setTypedValue] = React.useState("");
@@ -402,6 +449,8 @@ function ConfirmDialog({
           confirmVariant={tone === "danger" || tone === "warning" ? "destructive" : "default"}
           footNote={footNote}
           onConfirm={onConfirm}
+          alternateAction={alternateAction}
+          isPending={isPending}
         />
       </DialogContent>
     </Dialog>
@@ -409,4 +458,10 @@ function ConfirmDialog({
 }
 
 export { ConfirmDialog };
-export type { ConfirmDialogIconTone, ConfirmDialogNoteTone, ConfirmDialogProps, ConfirmDialogTone };
+export type {
+  ConfirmDialogAlternateAction,
+  ConfirmDialogIconTone,
+  ConfirmDialogNoteTone,
+  ConfirmDialogProps,
+  ConfirmDialogTone,
+};
