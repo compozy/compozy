@@ -48,3 +48,5 @@ The strict bootstrap auditor was run and failed against the lab's default broad 
 Windows execution and remote/paid providers are not covered by this local lab. CI and reviewer status are reported on the PR.
 
 The lab teardown completed with `TEARDOWN_CLEAN=true` and `TEARDOWN_ALL_CLEAN=true`; `qa/teardown.json` records the verified daemon, local Ollama, and extension processes stopped. No lab processes remain.
+
+The next CodeRabbit pass added a dedicated bundled CLI-only fallback reference and stronger identity/payload assertions for the preserved warning. CLI help was checked against the real built binary, HTTP paths against the API registry, and the existing prompt-composition/repair suites re-run. This guidance-only follow-up does not change the validated MCP transport or wake pipeline.

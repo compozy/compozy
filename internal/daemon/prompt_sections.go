@@ -136,6 +136,18 @@ func defaultStartupPromptSectionDescriptors(
 func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 	return []PromptSectionDescriptor{
 		{
+			Name:      string(HarnessPromptSectionTools),
+			Position:  PromptSectionPositionAppend,
+			Order:     startupToolsSectionOrder,
+			Predicate: policyIncludesSection(HarnessPromptSectionTools),
+			StartupPredicate: func(startup session.StartupPromptContext) bool {
+				return startup.NativeToolsUnavailable
+			},
+			Provider: promptSectionProviderFunc(func(context.Context, *workspacepkg.ResolvedWorkspace) (string, error) {
+				return skillbundled.LoadResource(bundledCompozySkillName, "references/cli-fallback.md")
+			}),
+		},
+		{
 			Name:             string(HarnessPromptSectionTools),
 			StartupPredicate: startupHasNativeTools,
 			Position:         PromptSectionPositionAppend,

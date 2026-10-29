@@ -772,7 +772,7 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 	t.Parallel()
 	t.Run("Should omit native tool and skill instructions while preserving the authored prompt", func(t *testing.T) {
 		t.Parallel()
-		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("native skill reader"), nil)
+		descriptors := defaultStartupPromptSectionDescriptors(staticPromptProvider("<native-skill-catalog>"), nil)
 		descriptors = append(descriptors, PromptSectionDescriptor{
 			Name: "tools", Position: PromptSectionPositionAppend,
 			Provider: staticPromptProvider("Custom CLI workflow: compozy session list"),
@@ -787,10 +787,11 @@ func TestComposedAssemblerUnavailableNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(prompt, "Required Reading Router") || strings.Contains(prompt, "native skill reader") ||
+		if strings.Contains(prompt, "Required Reading Router") || strings.Contains(prompt, "<native-skill-catalog>") ||
 			!strings.Contains(prompt, "authored work") ||
 			!strings.Contains(prompt, "Custom CLI workflow: compozy session list") ||
-			!strings.Contains(prompt, "CLI, HTTP, or UDS") {
+			!strings.Contains(prompt, "CLI, HTTP, or UDS") ||
+			!strings.Contains(prompt, "compozy session status <session-id>") {
 			t.Fatalf("fallback prompt = %q", prompt)
 		}
 	})

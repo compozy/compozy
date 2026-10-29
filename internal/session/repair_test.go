@@ -35,8 +35,16 @@ func TestManagerRepairSession(t *testing.T) {
 		if len(result.Actions) != 0 {
 			t.Fatalf("startup warning produced repair actions: %#v", result.Actions)
 		}
-		if events := readRepairEvents(t, h, meta.ID); len(events) != 1 {
+		events := readRepairEvents(t, h, meta.ID)
+		if len(events) != 1 || events[0].Type != acp.EventTypeRuntimeWarning || events[0].TurnID != warning.TurnID {
 			t.Fatalf("startup warning history changed: %#v", events)
+		}
+		preserved, err := transcript.UnmarshalAgentEvent(events[0].Content)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if preserved.ProviderError == nil || preserved.ProviderError.Code != warning.ProviderError.Code {
+			t.Fatalf("startup diagnostic changed: %#v", preserved.ProviderError)
 		}
 	})
 
