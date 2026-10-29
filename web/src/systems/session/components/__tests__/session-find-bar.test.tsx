@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { sessionKeys } from "../../lib/query-keys";
 import { useSessionFind } from "../../hooks/use-session-navigation";
 import type { SessionFindJumpHandlers } from "../../lib/session-navigation-find-store";
 import { primarySessionFixture } from "../../mocks/fixtures";
@@ -117,6 +118,34 @@ describe("SessionFindBar", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should stop committed searches while session deletion is pending", async () => {
+    const { queryClient } = renderFindBar({ initialQuery: "lifecycle" });
+    await waitFor(() => expect(searchCalls.length).toBeGreaterThan(0));
+    const deletion = queryClient.getMutationCache().build(queryClient, {
+      mutationKey: sessionKeys.deletions(),
+      mutationFn: (_target: { id: string }) => new Promise<void>(() => undefined),
+    });
+    await act(async () => {
+      void deletion.execute({ id: SESSION_ID });
+    });
+    await waitFor(() =>
+      expect(
+        queryClient
+          .getQueryCache()
+          .find({
+            queryKey: sessionKeys.transcriptSearchRoot(WORKSPACE_ID, SESSION_ID),
+            exact: false,
+          })
+          ?.isDisabled()
+      ).toBe(true)
+    );
+    const count = searchCalls.length;
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    expect(searchCalls).toHaveLength(count);
   });
 
   it("Should open empty with the key hints, focus the field, and search the daemon for the committed query", async () => {

@@ -127,5 +127,17 @@
       "final output"
     ],
     "exit_code": 0
+  },
+  "coderabbit_remediation_rewalk": {
+    "delete_refusal_pending_requests": 0,
+    "delete_success_pending_requests": 0,
+    "independent_deleted_session_status": 404,
+    "terminal_final_frame_delay_ms": 2500,
+    "catalog_exit_before_release_ms": 2336,
+    "client_close_after_release_ms": 17,
+    "visible_output": [
+      "live output",
+      "final output"
+    ]
   }
 }

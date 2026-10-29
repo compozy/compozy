@@ -1,4 +1,6 @@
-import { useEffect, useEffectEvent } from "react";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { sessionKeys } from "../lib/query-keys";
 import { useSessionDeletionPending, useSessionDeletedByOperator } from "./use-session-actions";
 import { isSessionUnavailable } from "../adapters/session-api-errors";
 
@@ -94,9 +96,25 @@ export function useSessionPresence(
   const deletionPending = useSessionDeletionPending(sessionId);
   const deleted = useSessionDeletedByOperator(sessionId);
   const available = !deletionPending && !deleted;
-  const shouldRelease = useEffectEvent(() => available);
+  const queryClient = useQueryClient();
   useEffect(() => {
     if (!watching || !available || !workspaceId || !sessionId) return undefined;
+    // Read the captured session's live mutation state, including late acquire cleanup.
+    const shouldRelease = () =>
+      !queryClient.getMutationCache().find({
+        mutationKey: sessionKeys.deletions(),
+        predicate: mutation => {
+          const variables = mutation.state.variables;
+          return (
+            (mutation.state.status === "pending" || mutation.state.status === "success") &&
+            typeof variables === "object" &&
+            variables !== null &&
+            "id" in variables &&
+            variables.id === sessionId
+          );
+        },
+      });
+    if (!shouldRelease()) return undefined;
     return startPresenceLoop(workspaceId, sessionId, shouldRelease);
-  }, [workspaceId, sessionId, watching, available]);
+  }, [workspaceId, sessionId, watching, available, queryClient]);
 }

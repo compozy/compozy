@@ -77,3 +77,8 @@ See the [gone-resource report](../reports/2026-10-29-gone-resource-requests.md).
 
 Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
 The broader historical scenario is not re-certified by this bounded walk.
+
+Issue #1034 review regression: catalog exit may arrive before final stream frames.
+Keep the existing attachment until its own exit; final bytes must remain visible.
+Reconnect on a streamed exited pane must not fetch an unused retained snapshot.
+The delayed-real-frame browser canary and canonical window suite cover this path.

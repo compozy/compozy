@@ -426,6 +426,8 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(bar).toHaveTextContent("exit 0");
     await waitFor(() => expect(write).toHaveBeenCalledWith("retained output\r\n"));
     expect(read).toHaveBeenCalledTimes(1);
+    expect(read.mock.calls[0]?.[1]).toBe(SSH_STAGING_TERMINAL.id);
+    expect(read.mock.calls[0]?.[2]).toMatchObject({ view: "tail" });
     expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes("attach-ticket"))).toBe(
       false
     );
@@ -488,6 +490,11 @@ describe("TerminalWindowApp — S1 states", () => {
             .join("")
         ).toBe(`${earlierOutput ? "live output" : ""}final output`)
       );
+      await socket.deliver(TERMINAL_SERVER_OP.error, {
+        error: { code: "slow_consumer", message: "viewer was slow" },
+      });
+      await userEvent.setup().click(screen.getByRole("button", { name: "Reconnect" }));
+      expect(read).not.toHaveBeenCalled();
       await socket.deliver(TERMINAL_SERVER_OP.exit, {
         cause: "exited",
         exit_code: 0,

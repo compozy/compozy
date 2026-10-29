@@ -112,8 +112,9 @@ export function useTerminalWindowConnection({
     attachment,
     handleRef,
     reconnect: () => {
-      if (terminal.state === "exited") void output.refetch();
-      else setRestartKey(key => key + 1);
+      if (terminal.state === "exited") {
+        if (needsRetainedOutput) void output.refetch();
+      } else setRestartKey(key => key + 1);
     },
   };
 }

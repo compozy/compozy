@@ -333,6 +333,42 @@ describe("useSession", () => {
     );
   });
 
+  it("Should keep detail readers suspended after a successful deletion", async () => {
+    vi.mocked(fetchSessionById).mockResolvedValue({ ...primarySessionFixture, id: "sess-001" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useSession("sess-001"), {
+      wrapper: createWrapperWithClient(client),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    let resolveDelete!: () => void;
+    const deletion = client.getMutationCache().build(client, {
+      mutationKey: sessionKeys.deletions(),
+      mutationFn: (_target: { id: string }) =>
+        new Promise<void>(resolve => {
+          resolveDelete = resolve;
+        }),
+    });
+    let completion!: Promise<unknown>;
+    await act(async () => {
+      completion = deletion.execute({ id: "sess-001" }).catch(() => undefined);
+    });
+    await waitFor(() => expect(result.current.isEnabled).toBe(false));
+    const count = vi.mocked(fetchSessionById).mock.calls.length;
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: sessionKeys.byIdRoot("sess-001") });
+    });
+    expect(fetchSessionById).toHaveBeenCalledTimes(count);
+    await act(async () => {
+      resolveDelete();
+      await completion;
+    });
+    expect(result.current.isEnabled).toBe(false);
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: sessionKeys.byIdRoot("sess-001") });
+    });
+    expect(fetchSessionById).toHaveBeenCalledTimes(count);
+  });
+
   it("loads a single session detail", async () => {
     vi.mocked(fetchSessionById).mockResolvedValue({
       board_column: "done",

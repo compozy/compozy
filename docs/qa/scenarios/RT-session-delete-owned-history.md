@@ -89,3 +89,8 @@ replace the descendant/provider lifecycle scenarios above. See the
 
 Targeted re-walk 2026-10-29: PASS for the #1034 request-lifecycle steps above.
 The broader historical scenario is not re-certified by this bounded walk.
+
+Issue #1034 presence ownership regression: switching a watcher from A to a
+deleting B releases A's lease and does not acquire B's. The canonical presence
+hook suite owns this exact interleaving; the real deletion/rollback re-walk
+confirms the unchanged public lease lifecycle.

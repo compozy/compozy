@@ -89,8 +89,8 @@ the changed test is a named subtest in `TestWorktreeErrorCodes`.
 
 PASS for the four targeted journeys and the running-terminal canary. The canary
 minted one attach ticket (201), displayed live and final output, and kept that
-buffer on exit without a retained-output reread. Focused Web checks total 212
-passing tests across ten existing suites; typecheck/lint passed and React Doctor
+buffer on exit without a retained-output reread. Focused Web checks total 222
+passing tests across eleven existing suites; typecheck/lint passed and React Doctor
 reported 100/100 with no issues. No full local E2E or heavy gate was run. The targeted evidence audit passed. Manifest-based teardown confirmed all lab
 processes were stopped.
 
@@ -119,3 +119,28 @@ does not fabricate output, exit events, or API responses.
 
 The remediation lab passed its strict evidence audit and was torn down using
 its process-identity manifest.
+
+## CodeRabbit review remediation
+
+Presence cleanup now reads deletion state for its captured session rather than
+the hook's latest binding. The same live check prevents acquiring a lease during
+a binding change before the mutation observer catches up. The original-session
+release regression failed before this fix. The exact binding-switch interleaving
+is unit-tested; the real browser re-walk exercises deletion and rollback.
+
+Reconnect on an exited streamed pane no longer starts an unused retained read.
+Canonical suites also cover pending transcript search, successful detail deletion,
+both real worktree hooks deriving recovery from catalog data, and retained reads
+using the correct terminal and tail view. The review's request to close the socket
+on catalog exit is rejected: doing so reproduces the confirmed final-byte loss.
+
+The five affected suites pass 97 tests. Typecheck/lint passed; React Doctor found
+no issues (remote score unavailable). A fresh isolated production-bundle walk
+again had zero new session requests during both pending-delete intervals and an
+independent 404 after deletion. The terminal drain canary showed catalog exit
+2,336 ms before final frame release, client closure 17 ms after release, and both
+lines visible. Initial lab setup attempts without the local agent fixture are
+not passing journey evidence.
+
+The review-remediation lab passed its strict evidence audit; manifest teardown
+confirmed no surviving lab processes.

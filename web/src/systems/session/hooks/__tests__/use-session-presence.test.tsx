@@ -88,6 +88,31 @@ describe("useSessionPresence", () => {
     expect(acquireSessionPresence).toHaveBeenCalledTimes(2);
   });
 
+  it("Should release the original session lease when switching to a deleting session", async () => {
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => {
+        useSessionPresence("ws-alpha", sessionId, true);
+        return useMutation({
+          mutationKey: sessionKeys.deletions(),
+          mutationFn: (_target: { id: string }) => new Promise<void>(() => undefined),
+        });
+      },
+      { wrapper, initialProps: { sessionId: "sess-alpha" } }
+    );
+    await act(async () => Promise.resolve());
+    await act(async () => {
+      result.current.mutate({ id: "sess-beta" });
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    rerender({ sessionId: "sess-beta" });
+    expect(releaseSessionPresence).toHaveBeenCalledExactlyOnceWith(
+      "ws-alpha",
+      "sess-alpha",
+      "lease-alpha"
+    );
+    expect(acquireSessionPresence).toHaveBeenCalledTimes(1);
+  });
+
   it("Should not overlap lease acquisition while the first request is pending", async () => {
     vi.mocked(acquireSessionPresence).mockReturnValue(new Promise(() => undefined));
 

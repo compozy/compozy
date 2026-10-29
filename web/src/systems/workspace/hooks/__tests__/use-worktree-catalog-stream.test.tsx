@@ -3,13 +3,13 @@
 // alone), invalidation keys are workspace-qualified and dropped for unauthorized workspaces, and
 // both the listeners and the source are released on unmount/disconnect (B-015, L-017/L-018 class).
 // Owning layer: workspace stream hook. Canonical suite: this hook test.
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { workspaceKeys } from "../../lib/query-keys";
-import { worktreesListOptions } from "../../lib/query-options";
+import { useWorktrees, useWorktreeListings } from "../use-worktrees";
 import * as worktreeApi from "../../adapters/worktree-api";
 import {
   useWorktreeCatalogStream,
@@ -69,54 +69,70 @@ function setup(workspaces: Array<{ id: string }>) {
 }
 
 describe("useWorktreeCatalogStream", () => {
-  it("Should stop gone-workspace reads across stream wakes until the catalog observes recovery", async () => {
-    const fetch = vi
-      .spyOn(worktreeApi, "fetchWorktrees")
-      .mockRejectedValue(
-        new worktreeApi.WorktreeApiError("Missing root", 410, { code: "workspace_root_missing" })
+  it.each([useWorktrees, () => useWorktreeListings([{ id: "a" }])])(
+    "Should recover gone-workspace reads through catalog observations (%s)",
+    async useListing => {
+      const fetch = vi
+        .spyOn(worktreeApi, "fetchWorktrees")
+        .mockRejectedValue(
+          new worktreeApi.WorktreeApiError("Missing root", 410, { code: "workspace_root_missing" })
+        );
+      const source = new FakeCatalogEventSource();
+      const factory = () => source;
+      const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
       );
-    const source = new FakeCatalogEventSource();
-    const factory = () => source;
-    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-    const view = renderHook(
-      ({ rootMissing, observedAt }) => {
-        useWorktreeCatalogStream([{ id: "a" }], { eventSourceFactory: factory });
-        return useQuery(worktreesListOptions("a", true, { rootMissing, observedAt }));
-      },
-      { wrapper, initialProps: { rootMissing: false, observedAt: 0 } }
-    );
-    try {
-      await waitFor(() => expect(view.result.current.isError).toBe(true));
-      await act(async () => {
-        source.emit("open");
-        source.emit("worktree_catalog_changed", {
-          kind: "updated",
-          workspace_id: "a",
-          worktree_id: "wt",
+      client.setQueryData(workspaceKeys.list(), [{ id: "a", root_missing: false }]);
+      const view = renderHook(
+        () => {
+          useWorktreeCatalogStream([{ id: "a" }], { eventSourceFactory: factory });
+          return useListing("a");
+        },
+        { wrapper }
+      );
+      try {
+        await waitFor(() =>
+          expect(client.getQueryState(workspaceKeys.worktrees("a"))?.status).toBe("error")
+        );
+        await act(async () => {
+          source.emit("open");
+          source.emit("worktree_catalog_changed", {
+            kind: "updated",
+            workspace_id: "a",
+            worktree_id: "wt",
+          });
+          await client.invalidateQueries({ queryKey: workspaceKeys.worktrees("a") });
         });
-        await client.invalidateQueries({ queryKey: workspaceKeys.worktrees("a") });
-      });
-      expect(fetch).toHaveBeenCalledTimes(1);
-      const observedAt = view.result.current.errorUpdatedAt + 1;
-      view.rerender({ rootMissing: true, observedAt });
-      expect(fetch).toHaveBeenCalledTimes(1);
-      fetch.mockResolvedValue({
-        worktrees: [],
-        discovered: [],
-        repo: { git_available: true, git_backed: true },
-      });
-      view.rerender({ rootMissing: false, observedAt: observedAt + 1 });
-      await waitFor(() => expect(view.result.current.isSuccess).toBe(true));
-      expect(fetch).toHaveBeenCalledTimes(2);
-    } finally {
-      view.unmount();
-      client.clear();
-      fetch.mockRestore();
+        expect(fetch).toHaveBeenCalledTimes(1);
+        const observedAt = client.getQueryState(workspaceKeys.worktrees("a"))!.errorUpdatedAt + 1;
+        await act(async () => {
+          client.setQueryData(workspaceKeys.list(), [{ id: "a", root_missing: true }], {
+            updatedAt: observedAt,
+          });
+        });
+        expect(fetch).toHaveBeenCalledTimes(1);
+        fetch.mockResolvedValue({
+          worktrees: [],
+          discovered: [],
+          repo: { git_available: true, git_backed: true },
+        });
+        await act(async () => {
+          client.setQueryData(workspaceKeys.list(), [{ id: "a", root_missing: false }], {
+            updatedAt: observedAt + 1,
+          });
+        });
+        await waitFor(() =>
+          expect(client.getQueryState(workspaceKeys.worktrees("a"))?.status).toBe("success")
+        );
+        expect(fetch).toHaveBeenCalledTimes(2);
+      } finally {
+        view.unmount();
+        client.clear();
+        fetch.mockRestore();
+      }
     }
-  });
+  );
 
   it("Should keep the connection when the same workspace population is reordered", () => {
     const source = new FakeCatalogEventSource();
