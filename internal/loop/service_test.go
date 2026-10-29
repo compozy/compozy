@@ -1239,6 +1239,31 @@ func TestServiceControlMethodsShouldPreserveStatusContracts(t *testing.T) {
 		}
 	})
 
+	// A session Goal's interrupted turn must retain its pause actor until the boundary settles.
+	t.Run("Should reject Resume while a session Goal pause is still settling", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		run := seedFakeRun(store, loop.StatusRunning)
+		run.Origin = new(inlineGoalOrigin("session-pausing"))
+		run.PauseRequested = true
+		run.ControlActor = humanActor(t).Actor
+		run.ControlRequestedAt = time.Date(2026, 10, 29, 5, 0, 0, 0, time.UTC)
+		store.seed(run)
+		svc := newTestService(t, store, validDefinition())
+
+		err := svc.Resume(t.Context(), run.WorkspaceID, run.ID, humanActor(t))
+		reason, ok := errors.AsType[*loop.ReasonError](err)
+		if !errors.Is(err, loop.ErrTransitionConflict) || !ok || reason.Code != loop.ReasonCodeGoalControlStale {
+			t.Fatalf("Resume(pausing session Goal) error = %v, want stale control conflict", err)
+		}
+		stored := store.mustRun(t, run.ID)
+		if stored.Status != loop.StatusRunning || !stored.PauseRequested ||
+			stored.ControlActor != run.ControlActor || !stored.ControlRequestedAt.Equal(run.ControlRequestedAt) {
+			t.Fatalf("early Resume changed pending pause ownership: %#v", stored)
+		}
+	})
+
 	t.Run("Should resume by clearing intent or transitioning paused to running", func(t *testing.T) {
 		t.Parallel()
 

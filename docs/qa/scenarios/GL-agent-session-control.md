@@ -47,4 +47,6 @@ report's session matrix in a future QA cycle.
 
 Issue #1015 acceptance (2026-10-29): Exercise typed Stop in addition to the existing operations. Stop preserves a visible canceled snapshot until Clear; repeated controls remain safe. Session Stop pauses only its own Goal; removal cancels it. Goal command admission must not implicitly reopen a stopped session. Preserve independent catalog Runs, immutable origins, and caller/workspace boundaries.
 
+While a session Goal is still pausing, an early Resume must return `goal_control_stale` (HTTP 409), retain the pause actor, and admit no successor. After Paused is effective, an explicit Resume must continue without an extra approval.
+
 Targeted verification and limits are recorded in [the issue #1015 report](../reports/2026-10-29-goal-control.md).

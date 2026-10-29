@@ -62,6 +62,11 @@ func (s *service) Resume(
 		if !run.PauseRequested {
 			return nil
 		}
+		if run.Origin != nil && run.Origin.Kind == RunOriginSession {
+			// The interrupted turn must settle with its pause actor before explicit reentry.
+			return reasonError(ReasonCodeGoalControlStale, ErrTransitionConflict,
+				map[string]string{reasonMetaRunID: string(run.ID)})
+		}
 		return s.store.SetLoopRunPauseRequested(ctx, ws, runID, false, actor)
 	case StatusPaused:
 		if handled, err := s.reactivateGoalControl(ctx, run, GateDecisionApprove, actor); handled || err != nil {

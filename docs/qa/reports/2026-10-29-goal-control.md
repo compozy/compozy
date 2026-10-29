@@ -135,6 +135,19 @@ tests; root Turborepo typecheck, changed-file lint, and React Doctor (22 files) 
 an environment cache I/O warning without failing either task. The known-live Goal states in the six
 real-app captures are unchanged.
 
+The next Greptile review found that Resume during Pausing could clear the pause actor after the turn
+was already interrupted. Its eventual canceled terminal then requested approval despite the earlier
+successful Resume response. The owning Loop service now rejects that early session-Goal control with
+`goal_control_stale` (HTTP 409), preserving pause ownership until settlement. Resume after Paused uses
+the existing successor path; catalog Loop pause withdrawal is unchanged. The canonical service-control
+suite reproduced the prior nil-error response and passed after the guard. The official Goal docs and
+agent-control scenario specify refresh/retry after settlement. This is a deterministic service-state
+regression; the public held-turn walk separately verifies normal Pause settlement and explicit Resume.
+After this guard, all four public held-turn scenarios passed in 64 seconds and package-scoped fast
+lint for `internal/loop` completed with zero issues. Formatting and diff checks passed.
+The test-shape heuristic reports an unchanged pre-existing standalone node-pause test; running it
+against the preceding committed file produces the same diagnostic. No unrelated test was rewritten.
+
 CI exposed Resume reading `COALESCE` timestamp text through an RFC3339-only parser. The owning SQLC
 query now returns the declared timestamp columns, letting the driver decode existing driver-written
 timestamps and canonical text losslessly. The reentry owner suite preserves nanosecond precision,

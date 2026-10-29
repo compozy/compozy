@@ -324,6 +324,8 @@ The Goal and session state machines compose as follows:
 `pause_requested: true` means the pause is committed but work is still settling. The Web strip shows
 **Pausing…** until the effective state arrives and keeps Stop available. Repeated Pause, Resume, or
 Stop requests are idempotent within the same Goal. A terminal Goal cannot be resumed.
+Resume is available after **Paused**. An API or command request during **Pausing…** returns
+`goal_control_stale` (HTTP 409) and preserves the pause; refresh status and retry once it settles.
 
 User controls fence further prompt claims before interrupting work. A late provider terminal may
 attach its exact event range to the original token-authenticated receipt after revocation, but cannot
