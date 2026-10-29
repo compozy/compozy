@@ -3920,6 +3920,35 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 }
 
 func TestGlobalDBWorkspaceArchive(t *testing.T) {
+	t.Run("Should reconcile observed non-stopped metadata without starting archived work", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		id := registerWorkspaceForGlobalTests(t, db, "recovery-project", t.TempDir())
+		healthyID := registerWorkspaceForGlobalTests(t, db, "healthy-project", t.TempDir())
+		if _, err := db.SetWorkspaceArchived(t.Context(), id, true); err != nil {
+			t.Fatal(err)
+		}
+		rows := []SessionInfo{}
+		for i, workspaceID := range []string{id, healthyID} {
+			rows = append(rows, SessionInfo{
+				ID: fmt.Sprintf("recovered-%d", i), WorkspaceID: workspaceID,
+				AgentName: "coder", Provider: "codex", State: "idle",
+				RuntimeStatus: store.SessionRuntimeUnbound, ProfileID: store.DefaultProfileID,
+				CreatedAt: time.Now(), UpdatedAt: time.Now(),
+			})
+		}
+		if _, err := db.ReconcileSessions(t.Context(), rows); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.ListSessions(t.Context(), SessionListQuery{WorkspaceID: id, ReadScope: store.ReadScope{AllProfiles: true}})
+		if err != nil || len(got) != 1 || got[0].State != "idle" || got[0].WorkspaceID != id {
+			t.Fatalf("recovered row = %#v, %v", got, err)
+		}
+		if err := db.RegisterSession(t.Context(), rows[0]); !errors.Is(err, store.ErrWorkspaceArchived) {
+			t.Fatalf("new admission = %v", err)
+		}
+	})
+
 	t.Run("Should prevent new work and reactivation through automation overlays", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

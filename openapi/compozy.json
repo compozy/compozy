@@ -38216,7 +38216,8 @@
               "tool_timed_out",
               "tool_unavailable",
               "workspace_archived",
-              "workspace_busy"
+              "workspace_busy",
+              "workspace_root_missing"
             ],
             "type": "string"
           },
@@ -38568,7 +38569,8 @@
               "tool_timed_out",
               "tool_unavailable",
               "workspace_archived",
-              "workspace_busy"
+              "workspace_busy",
+              "workspace_root_missing"
             ],
             "type": "string"
           },
@@ -44020,6 +44022,9 @@
           },
           "root_dir": {
             "type": "string"
+          },
+          "root_missing": {
+            "type": "boolean"
           },
           "updated_at": {
             "format": "date-time",

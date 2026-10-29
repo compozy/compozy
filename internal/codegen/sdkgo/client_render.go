@@ -126,14 +126,12 @@ func renderClientParams(op ClientOperation) *jen.Statement {
 func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, error) {
 	name := exportIdentifier(op.ID)
 	args := []jen.Code{jen.Id("ctx").Qual("context", "Context")}
-	// ListWorkspaces predates query parameters; retain its public no-options call.
-	optionalWorkspaceParams := op.ID == "listWorkspaces"
+	legacyWorkspaceList := op.ID == "listWorkspaces"
 	if len(op.Params) > 0 {
-		if optionalWorkspaceParams {
-			args = append(args, jen.Id("options").Op("...").Id(name+"Params"))
-		} else {
-			args = append(args, jen.Id("params").Id(name+"Params"))
-		}
+		args = append(args, jen.Id("params").Id(name+"Params"))
+	}
+	if legacyWorkspaceList {
+		name += "WithParams"
 	}
 	body := jen.Nil()
 	if op.RequestContentType == "multipart/form-data" {
@@ -148,13 +146,6 @@ func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, e
 		body = jen.Id("body")
 	}
 	statements, headers := renderClientRequest(op)
-	if optionalWorkspaceParams {
-		statements = append([]jen.Code{
-			jen.Var().Id("params").Id(name + "Params"),
-			jen.If(jen.Len(jen.Id("options")).Op(">").Lit(0)).
-				Block(jen.Id("params").Op("=").Id("options").Index(jen.Lit(0))),
-		}, statements...)
-	}
 	responseType, err := clientResponseType(g, op)
 	if err != nil {
 		return nil, err
@@ -195,8 +186,16 @@ func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, e
 	if op.Stability == "experimental" {
 		comment += " Experimental: pin the exact SDK version."
 	}
-	return jen.Comment(comment).Line().Func().Params(jen.Id("c").Op("*").Id("Client")).
-		Id(name).Params(args...).Params(result...).Block(statements...), nil
+	method := jen.Comment(comment).Line().Func().Params(jen.Id("c").Op("*").Id("Client")).
+		Id(name).Params(args...).Params(result...).Block(statements...)
+	if legacyWorkspaceList {
+		wrapper := jen.Comment("ListWorkspaces lists active workspaces.").Line().Func().
+			Params(jen.Id("c").Op("*").Id("Client")).Id("ListWorkspaces").
+			Params(jen.Id("ctx").Qual("context", "Context")).Params(result...).
+			Block(jen.Return(jen.Id("c").Dot(name).Call(jen.Id("ctx"), jen.Id("ListWorkspacesParams").Values())))
+		return wrapper.Line().Line().Add(method), nil
+	}
+	return method, nil
 }
 
 func clientJSONResponse(op ClientOperation) bool {

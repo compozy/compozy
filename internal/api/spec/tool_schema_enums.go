@@ -75,6 +75,7 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeSessionBusy),
 		string(tools.ErrorCodeWorkspaceBusy),
 		string(tools.ErrorCodeWorkspaceArchived),
+		string(tools.ErrorCodeWorkspaceRootMissing),
 		string(tools.ErrorCodeSessionMessageHopLimit),
 		string(tools.ErrorCodeSessionMessageRateLimited),
 		string(tools.ErrorCodeCompactionUnsupported),

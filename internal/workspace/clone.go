@@ -48,6 +48,7 @@ func cloneWorkspace(src Workspace) Workspace {
 		CreatedAt:      src.CreatedAt,
 		UpdatedAt:      src.UpdatedAt,
 		ArchivedAt:     archivedAt,
+		RootMissing:    src.RootMissing,
 	}
 }
 

@@ -105,6 +105,7 @@ func workspaceDescriptors() []toolspkg.Descriptor {
 
 const workspaceRefInputSchema = `{
 	"type":"object",
+	"required":["workspace"],
 	"properties":{
 		"workspace":{"type":"string"}
 	},

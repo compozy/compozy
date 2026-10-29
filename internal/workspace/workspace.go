@@ -51,6 +51,7 @@ type Workspace struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	ArchivedAt     *time.Time
+	RootMissing    bool // Derived from the filesystem; never persisted.
 }
 
 // DeletionIntent preserves the registration snapshot required to finish external cleanup.

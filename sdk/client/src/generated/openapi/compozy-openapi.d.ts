@@ -17895,7 +17895,8 @@ export interface components {
         | "tool_timed_out"
         | "tool_unavailable"
         | "workspace_archived"
-        | "workspace_busy";
+        | "workspace_busy"
+        | "workspace_root_missing";
       input_digest?: string;
       /** @enum {string} */
       kind:
@@ -18090,7 +18091,8 @@ export interface components {
         | "tool_timed_out"
         | "tool_unavailable"
         | "workspace_archived"
-        | "workspace_busy";
+        | "workspace_busy"
+        | "workspace_root_missing";
       details?: {
         [key: string]: unknown;
       };
@@ -19611,6 +19613,7 @@ export interface components {
       id: string;
       name: string;
       root_dir: string;
+      root_missing?: boolean;
       /** Format: date-time */
       updated_at: string;
     };

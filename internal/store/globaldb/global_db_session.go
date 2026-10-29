@@ -42,7 +42,7 @@ func (g *SessionRepo) RegisterSession(ctx context.Context, session store.Session
 	}
 
 	if err := g.withImmediateTransaction(ctx, "register session", func(exec globalSQLExecutor) error {
-		return g.registerSession(ctx, exec, normalized)
+		return g.admitSessionRegistration(ctx, exec, normalized)
 	}); err != nil {
 		return fmt.Errorf("store: register session %q: %w", normalized.ID, err)
 	}
@@ -76,7 +76,7 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 		func(ctx context.Context, tx *store.WriteTx) error {
 			if update.State != "" && update.State != globalDBSessionStateStopped {
 				workspaceID, err := sqlcgen.New(tx).GetSessionWorkspaceID(ctx, update.ID)
-				if err != nil {
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return err
 				}
 				if err := store.RequireWorkspaceActive(ctx, tx, workspaceID); err != nil {
@@ -342,12 +342,19 @@ func (g *SessionRepo) ReconcileSessions(
 	return result, nil
 }
 
-func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecutor, session store.SessionInfo) error {
+func (g *SessionRepo) admitSessionRegistration(
+	ctx context.Context, exec globalSQLExecutor, session store.SessionInfo,
+) error {
 	if session.State != globalDBSessionStateStopped {
 		if err := store.RequireWorkspaceActive(ctx, exec, session.WorkspaceID); err != nil {
 			return err
 		}
 	}
+	return g.registerSession(ctx, exec, session)
+}
+
+// registerSession mirrors catalog metadata during recovery without admitting runtime work.
+func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecutor, session store.SessionInfo) error {
 	record, err := newSessionCatalogRecord(session)
 	if err != nil {
 		return err

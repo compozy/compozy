@@ -105,6 +105,8 @@ func TestWorkspaceBreadthArchivedProjects(t *testing.T) {
 	}{
 		{"Should exclude archived projects from explicit all scope", "all_workspaces=true", []string{"@user", "ws-active"}},
 		{"Should exclude archived projects from implicit all scope", "", []string{"@user", "ws-active"}},
+		{"Should normalize whitespace workspace selectors", "workspace=%20%20", []string{"@user", "ws-active"}},
+		{"Should normalize whitespace scope selectors", "scope=%20%20", []string{"@user", "ws-active"}},
 		{"Should retain explicitly selected archived history", "all_workspaces=true&workspace_ids=ws-archived", []string{"ws-archived"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,9 +127,10 @@ func TestWorkspaceBreadthArchivedProjects(t *testing.T) {
 
 type workspaceArchiveCatalogStub struct {
 	workspaceGetterStub
-	items []workspacepkg.Workspace
+	items   []workspacepkg.Workspace
+	listErr error
 }
 
 func (s workspaceArchiveCatalogStub) List(context.Context) ([]workspacepkg.Workspace, error) {
-	return s.items, nil
+	return s.items, s.listErr
 }

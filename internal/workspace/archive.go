@@ -27,6 +27,7 @@ func (r *Resolver) SetArchived(ctx context.Context, ref string, archived bool) (
 	if err != nil {
 		return Workspace{}, err
 	}
+	updated.RootMissing = ws.RootMissing
 	r.Invalidate(ws.ID)
 	return updated, nil
 }

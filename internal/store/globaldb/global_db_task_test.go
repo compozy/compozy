@@ -6076,6 +6076,18 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 		if err != nil || page.Total != 2 || len(page.Tasks) != 1 || !page.HasMore {
 			t.Fatalf("default page=%+v err=%v", page, err)
 		}
+		firstID := page.Tasks[0].ID
+		query.Cursor = page.NextCursor
+		page, err = db.ListTaskCatalog(ctx, query)
+		if err != nil || len(page.Tasks) != 1 || page.HasMore {
+			t.Fatalf("second default page=%+v err=%v", page, err)
+		}
+		ids := []string{firstID, page.Tasks[0].ID}
+		slices.Sort(ids)
+		if !slices.Equal(ids, []string{"archive-catalog-0", "archive-catalog-1"}) {
+			t.Fatalf("default task identities = %v", ids)
+		}
+		query.Cursor = ""
 		query.Scope, query.WorkspaceID = taskpkg.CatalogScopeWorkspace, archived
 		page, err = db.ListTaskCatalog(ctx, query)
 		if err != nil || page.Total != 1 || len(page.Tasks) != 1 || page.Tasks[0].WorkspaceID != archived {

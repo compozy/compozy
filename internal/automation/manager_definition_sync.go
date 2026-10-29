@@ -97,12 +97,18 @@ func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desir
 		switch {
 		case !exists:
 			if _, err := m.store.CreateJob(ctx, job); err != nil {
+				if m.deferArchivedDefinition(ctx, "job", job.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		case current.Source != source:
 			return 0, 0, fmt.Errorf("automation: managed job %q conflicts with non-%s source", job.ID, source)
 		case !sameJobDefinition(current, job):
 			if _, err := m.store.UpdateJob(ctx, job); err != nil {
+				if m.deferArchivedDefinition(ctx, "job", job.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		}
@@ -149,12 +155,18 @@ func (m *Manager) syncTriggersForSource(
 		switch {
 		case !exists:
 			if _, err := m.store.CreateTrigger(ctx, trigger); err != nil {
+				if m.deferArchivedDefinition(ctx, "trigger", trigger.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		case current.Source != source:
 			return 0, 0, fmt.Errorf("automation: managed trigger %q conflicts with non-%s source", trigger.ID, source)
 		case !sameTriggerDefinition(current, trigger):
 			if _, err := m.store.UpdateTrigger(ctx, trigger); err != nil {
+				if m.deferArchivedDefinition(ctx, "trigger", trigger.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		}
@@ -325,4 +337,13 @@ func (m *Manager) persistTriggerOverlay(ctx context.Context, definition Trigger,
 		EnabledOverride: enabled,
 	})
 	return err
+}
+
+// deferArchivedDefinition leaves source intent intact for the next sync after unarchive.
+func (m *Manager) deferArchivedDefinition(ctx context.Context, kind, id string, err error) bool {
+	if !errors.Is(err, storepkg.ErrWorkspaceArchived) {
+		return false
+	}
+	m.logger.WarnContext(ctx, "automation.managed.definition_deferred", "kind", kind, "id", id, "error", err)
+	return true
 }

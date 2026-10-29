@@ -2172,3 +2172,38 @@ func TestResourceWorkspaceArchiveAdmission(t *testing.T) {
 		}
 	}
 }
+
+// Invariant: managed source reload defers archived targets without aborting unrelated definitions.
+func TestManagedDefinitionSyncDefersArchivedWorkspace(t *testing.T) {
+	t.Parallel()
+	for _, resourceBacked := range []bool{false, true} {
+		for _, source := range []JobSource{JobSourceConfig, JobSourcePackage} {
+			t.Run(fmt.Sprintf("resources=%t/source=%s", resourceBacked, source), func(t *testing.T) {
+				h := newManagerResourceHarness(t)
+				manager := h.newManager(t, defaultAutomationTestConfig())
+				if resourceBacked {
+					manager = h.newResourceManager(t)
+				}
+				job := testJob(AutomationScopeWorkspace, "deferred-job", h.workspace.ID)
+				trigger := testTrigger(AutomationScopeWorkspace, "deferred-trigger", h.workspace.ID)
+				trigger.Event = "session.stopped"
+				trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "", "", ""
+				healthy := testJob(AutomationScopeGlobal, "healthy-job", "")
+				if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, true); err != nil {
+					t.Fatal(err)
+				}
+				stats, err := manager.SyncManagedDefinitions(h.ctx, source, []Job{job, healthy}, []Trigger{trigger})
+				if err != nil || stats.JobsSynced != 1 || stats.TriggersSynced != 0 {
+					t.Fatalf("archived sync = %#v, %v", stats, err)
+				}
+				if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, false); err != nil {
+					t.Fatal(err)
+				}
+				stats, err = manager.SyncManagedDefinitions(h.ctx, source, []Job{job, healthy}, []Trigger{trigger})
+				if err != nil || stats.JobsSynced != 2 || stats.TriggersSynced != 1 {
+					t.Fatalf("restored sync = %#v, %v", stats, err)
+				}
+			})
+		}
+	}
+}

@@ -11,6 +11,9 @@ function ProjectRows({ projects }: { projects: WorkspacePayload[] }) {
       <ListingRow.Main>
         <ListingRow.Name>{project.name}</ListingRow.Name>
         <ListingRow.Description>{project.root_dir}</ListingRow.Description>
+        {project.root_missing ? (
+          <ListingRow.Description>Folder not found</ListingRow.Description>
+        ) : null}
       </ListingRow.Main>
       <ListingRow.Trail>
         <WorkspaceProjectActions workspace={project} />

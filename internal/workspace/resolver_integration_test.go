@@ -207,12 +207,12 @@ func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T)
 
 func TestResolverIntegrationListPreservesMissingWorkspaceAcrossReopen(t *testing.T) {
 	t.Run(
-		"Should persist pruning across reopen without deleting healthy workspace data",
-		resolverIntegrationListPrunesMissingWorkspaceAcrossReopen,
+		"Should retain missing registration and history across reopen and restore folder availability",
+		resolverIntegrationListPreservesMissingWorkspaceAcrossReopen,
 	)
 }
 
-func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
+func resolverIntegrationListPreservesMissingWorkspaceAcrossReopen(t *testing.T) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -287,8 +287,8 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
-		t.Fatalf("List() = %#v, want only healthy workspace", listed)
+	if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+		t.Fatalf("List() = %#v, want healthy and flagged missing workspaces", listed)
 	}
 
 	if err := db.Close(ctx); err != nil {
@@ -310,8 +310,8 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List(after reopen) error = %v", err)
 	}
-	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
-		t.Fatalf("List(after reopen) = %#v, want only healthy workspace", listed)
+	if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+		t.Fatalf("List(after reopen) = %#v, want healthy and flagged missing workspaces", listed)
 	}
 	if _, err := reopened.GetWorkspace(ctx, "ws_reopen_missing"); err != nil {
 		t.Fatalf("GetWorkspace(retained after unarchive and reopen): %v", err)
@@ -343,6 +343,14 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if len(missingSessions) != 1 || missingSessions[0].ID != "sess_reopen_missing" {
 		t.Fatalf("ListSessions(missing after reopen) = %#v, want retained history", missingSessions)
 	}
+	if err := os.Mkdir(missingRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := restartedResolver.Get(ctx, "ws_reopen_missing")
+	if err != nil || restored.RootMissing || restored.ID != "ws_reopen_missing" {
+		t.Fatalf("restored workspace=%+v err=%v", restored, err)
+	}
+
 }
 
 func newIntegrationResolver(

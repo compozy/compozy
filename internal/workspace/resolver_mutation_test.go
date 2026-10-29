@@ -807,7 +807,7 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 func TestListReconcilesWorkspaceRoots(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should hide missing roots without deleting their registrations", func(t *testing.T) {
+	t.Run("Should flag missing roots without deleting their registrations", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := t.Context()
@@ -827,8 +827,8 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
-			t.Fatalf("List() = %#v, want only healthy workspace", listed)
+		if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+			t.Fatalf("List() = %#v, want healthy and flagged missing workspaces", listed)
 		}
 		if _, err := store.GetWorkspace(ctx, "ws_missing"); err != nil {
 			t.Fatalf("GetWorkspace(retained) error = %v", err)
@@ -844,8 +844,8 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 		if err != nil {
 			t.Fatalf("List(second read) error = %v", err)
 		}
-		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
-			t.Fatalf("List(second read) = %#v, want only healthy workspace", listed)
+		if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+			t.Fatalf("List(second read) = %#v, want healthy and flagged missing workspaces", listed)
 		}
 		if got := len(store.deleteCalls); got != 0 {
 			t.Fatalf("DeleteWorkspace() calls = %d, want 0", got)
@@ -948,8 +948,8 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 					results <- err
 					return
 				}
-				if len(listed) != 1 || listed[0].ID != "ws_concurrent_healthy" {
-					results <- fmt.Errorf("List() = %#v, want only healthy workspace", listed)
+				if len(listed) != 2 || listed[0].RootMissing || !listed[1].RootMissing {
+					results <- fmt.Errorf("List() = %#v, want healthy and flagged missing workspaces", listed)
 					return
 				}
 				results <- nil
@@ -979,6 +979,10 @@ func TestListReconcilesWorkspaceRoots(t *testing.T) {
 			Name:    "concurrent-unregister",
 		})}
 		resolver := newTestResolver(t, store)
+
+		if err := resolver.Unregister(ctx, "ws_concurrent_unregister"); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("concurrent removal error=%v, want ErrWorkspaceNotFound", err)
+		}
 
 		listed, err := resolver.List(ctx)
 		if err != nil {

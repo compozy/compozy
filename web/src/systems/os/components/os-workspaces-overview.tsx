@@ -147,6 +147,7 @@ function captionFor(
   return {
     key: entry.key,
     title: entry.node.workspace.name,
+    meta: entry.node.workspace.root_missing ? "Folder not found" : undefined,
     path: rootDir ? contractHomePath(rootDir, userHomeDir) : rootDir,
   };
 }
@@ -396,6 +397,7 @@ function WorkspaceTiles({
             <OsWorkspaceTile
               data-testid={`os-workspace-tile-${entry.key}`}
               name={name}
+              rootMissing={entry.node.workspace.root_missing}
               monogram={workspaceMonogram(name)}
               workingSessions={workingSessionsByWorkspace?.[entry.key] ?? 0}
               // The plate stays on the focused tile while the menu owns

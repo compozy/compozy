@@ -102,6 +102,10 @@ func (m *Manager) syncJobResourcesForSource(
 			ExpectedVersion: expectedVersion,
 			Spec:            next,
 		}); err != nil {
+			if m.deferArchivedDefinition(ctx, "job", next.ID, err) {
+				delete(currentByID, next.ID)
+				continue
+			}
 			return 0, 0, err
 		}
 		delete(currentByID, next.ID)
@@ -172,6 +176,10 @@ func (m *Manager) syncTriggerResourcesForSource(
 			ExpectedVersion: expectedVersion,
 			Spec:            next,
 		}); err != nil {
+			if m.deferArchivedDefinition(ctx, "trigger", next.ID, err) {
+				delete(currentByID, next.ID)
+				continue
+			}
 			return 0, 0, err
 		}
 		delete(currentByID, next.ID)

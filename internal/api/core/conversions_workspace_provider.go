@@ -23,6 +23,7 @@ func WorkspacePayloadFromWorkspace(workspace workspacepkg.Workspace) contract.Wo
 
 	return contract.WorkspacePayload{
 		ArchivedAt:   workspace.ArchivedAt,
+		RootMissing:  workspace.RootMissing,
 		ID:           workspace.ID,
 		RootDir:      workspace.RootDir,
 		AddDirs:      addDirs,

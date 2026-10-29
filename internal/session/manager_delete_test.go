@@ -1247,8 +1247,8 @@ func TestManagerDelete(t *testing.T) {
 				if err != nil {
 					t.Fatalf("List() error = %v", err)
 				}
-				if len(workspaces) != 0 {
-					t.Fatalf("List() = %#v, want missing workspace pruned", workspaces)
+				if len(workspaces) != 1 || !workspaces[0].RootMissing {
+					t.Fatalf("List() = %#v, want flagged missing workspace", workspaces)
 				}
 				if _, err := db.GetWorkspace(ctx, h.workspaceID); err != nil {
 					t.Fatalf("missing workspace registration lost: %v", err)

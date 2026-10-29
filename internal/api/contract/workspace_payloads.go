@@ -24,6 +24,7 @@ type ResolveWorkspaceRequest struct {
 
 // WorkspacePayload is the shared workspace response payload.
 type WorkspacePayload struct {
+	RootMissing  bool       `json:"root_missing,omitzero"`
 	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
 	ID           string     `json:"id"`
 	RootDir      string     `json:"root_dir"`

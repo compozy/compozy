@@ -10669,7 +10669,8 @@ export type ToolCallEventPayload = {
     | "tool_timed_out"
     | "tool_unavailable"
     | "workspace_archived"
-    | "workspace_busy";
+    | "workspace_busy"
+    | "workspace_root_missing";
   input_digest?: string;
   kind:
     | "tool.call_started"
@@ -10859,7 +10860,8 @@ export type ToolErrorPayload = {
     | "tool_timed_out"
     | "tool_unavailable"
     | "workspace_archived"
-    | "workspace_busy";
+    | "workspace_busy"
+    | "workspace_root_missing";
   details?: {
     [key: string]: unknown;
   };
@@ -11783,6 +11785,7 @@ export type WorkspacePayload = {
   id: string;
   name: string;
   root_dir: string;
+  root_missing?: boolean;
   updated_at: string;
 };
 

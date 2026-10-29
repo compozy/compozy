@@ -13,22 +13,14 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 			return nil, err
 		}
 
-		if ws.ArchivedAt != nil {
-			reconciled = append(reconciled, ws)
-			continue
-		}
-
 		missing, err := workspaceRootMissing(ws)
 		if err != nil {
 			return nil, err
 		}
-		if !missing {
-			reconciled = append(reconciled, ws)
-			continue
-		}
-
+		ws.RootMissing = missing
 		// An unavailable folder is not consent to delete its registration or history.
-		// Explicit removal is the only destructive lifecycle operation.
+		reconciled = append(reconciled, ws)
+
 	}
 
 	return reconciled, nil

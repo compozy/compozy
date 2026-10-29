@@ -138,6 +138,22 @@ function caption() {
 describe("OsWorkspacesOverview", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("Should keep missing folders visible with history selection and lifecycle actions", async () => {
+    const user = userEvent.setup();
+    const { onSelectWorkspace } = renderOverview({
+      workspaces: [{ ...COMPOZY, root_missing: true }],
+    });
+    expect(tile(COMPOZY.id)).toHaveAccessibleName(/Folder not found/);
+    expect(caption()).toHaveTextContent("Folder not found");
+    expect(screen.queryByRole("menuitem", { name: "New worktree" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Remove project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await user.dblClick(tile(COMPOZY.id));
+    expect(onSelectWorkspace).toHaveBeenCalledWith(COMPOZY.id);
+  });
+
   it("Should offer lossless archive instead of removal and display refusal blockers", async () => {
     const user = userEvent.setup();
     vi.mocked(setWorkspaceArchived).mockRejectedValue(

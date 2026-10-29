@@ -3471,7 +3471,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addWorkspaceArchiveSchemas(baseline) == 0 {
 		t.Fatal("no historical workspace/error schemas found")
 	}
-	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived} {
+	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived, tools.ErrorCodeWorkspaceRootMissing} {
 		if addToolErrorCode(baseline, string(code)) == 0 {
 			t.Fatal("no historical tool error codes found")
 		}
@@ -4462,6 +4462,7 @@ func addWorkspaceArchiveSchemas(value any) int {
 		}
 		if properties["id"] != nil && properties["root_dir"] != nil && properties["created_at"] != nil {
 			properties["archived_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			properties["root_missing"] = map[string]any{"type": "boolean"}
 			count++
 		}
 		if properties["error"] != nil && properties["current_turn_id"] != nil && properties["diagnostic"] != nil {

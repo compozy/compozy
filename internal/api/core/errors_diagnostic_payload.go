@@ -28,6 +28,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			})
 		}
 	}
+	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
+		payload.Code = "workspace_root_missing"
+	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		payload.Code = "workspace_archived"
 	}

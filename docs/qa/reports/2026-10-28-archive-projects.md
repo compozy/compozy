@@ -48,8 +48,8 @@ Targeted runtime and Web journeys passed. PR delivery remains in progress until 
 - Consolidated the unpublished schema change into one generated migration, 00155; no archive triggers remain.
 - Archive and work admission use the same SQLite write transaction boundary. Session/Loop and legacy/resource-backed automation writes check the archived state before committing. Runtime overrides participate in effective-enabled checks.
 - Added real boot recovery coverage for retained stopped sessions and terminal Loops, automation manager restart/definition reload, disabled-overlay removal, unarchive/re-enable and resource-backed automation refusal.
-- Missing folders are hidden from active navigation without deleting registrations or session history; unarchive remains unconditional. The existing reopen suite proves preservation.
-- Preserved the original Go SDK `ListWorkspaces(ctx)` call with optional generated parameters; real HTTP client coverage verifies both call forms.
+- Missing folders stay visible with Folder not found in Settings and the picker, preserving registration and history. New sessions return workspace_root_missing; read-only history remains available. Renaming the fixture folder away and back proved flag restoration and identical history. Archive/Unarchive also passed while the folder was absent.
+- Preserved the exact Go SDK `ListWorkspaces(ctx)` method type and added `ListWorkspacesWithParams(ctx, params)`; real HTTP and method-value coverage verify compatibility.
 - React Doctor's CI complexity finding was repaired by splitting the project menu and blocker rendering. The pinned CI version (0.9.17) reports 100/100 on the full branch diff.
 
 ## Final-schema QA pass
@@ -59,3 +59,9 @@ A fresh isolated lab repeated CLI/UDS, HTTP and native archive/unarchive on migr
 The two additional Web suites identified by CI passed (59 tests): Settings now runs with its real QueryClient provider, and the adapter preserves the unfiltered request URL. The native metadata inventory and historical alias upgrade suites passed. The single CI-failing worktree overview removal scenario passed locally (7.6 seconds); no test changes or deadline increases were made.
 
 The strict QA evidence auditor has one remaining C14 finding: it requires a successful full local gate record. The operator explicitly prohibits that run on this shared machine, so it was not fabricated or bypassed. The runtime/browser observations above passed; current-head CI remains the delivery gate.
+
+## Missing-folder and recovery follow-up
+
+The live rename/restore journey passed with the same workspace ID and identical history, including Archive/Unarchive while absent and a typed new-session refusal. Six refreshed screenshots cover Settings, picker, refusal, removal, and both missing-folder views. The updated production bundle completed the archive/remove journeys with no page errors. A stale embedded bundle during a lab restart was corrected by restoring the lab-only web-dist override before recording the successful run.
+
+Focused suites also prove that archived non-stopped disk metadata can be reconciled without admitting new work, and that new config/package automations for archived targets are deferred with a warning while unrelated definitions sync. Unarchive permits those definitions on the next sync. Default task queries now filter persisted archive state without reading project folders, and pagination verifies the exact returned identities.

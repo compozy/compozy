@@ -84,6 +84,13 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		}, true
 	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
+	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && c.Request.Method == http.MethodGet {
+		var registration workspacepkg.Workspace
+		registration, err = h.Workspaces.Get(c.Request.Context(), workspaceRef)
+		resolved = workspacepkg.ResolvedWorkspace{
+			Workspace: registration, WorkspaceID: registration.ID, Scope: workspacepkg.ScopeWorkspace,
+		}
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return workspaceScope{}, false

@@ -1212,6 +1212,23 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	// Invariant: missing project files cannot prevent reads of daemon-owned session history.
+	t.Run("Should read retained history while the project folder is missing", func(t *testing.T) {
+		missing := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			},
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-workspace", RootMissing: true}, nil
+			},
+		})
+		response := performRequest(t, missing.Engine, http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/history", nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "history") {
+			t.Fatalf("missing-root history = %d: %s", response.Code, response.Body)
+		}
+	})
+
 	t.Run("Should return session history", func(t *testing.T) {
 		historyResp := performRequest(
 			t,

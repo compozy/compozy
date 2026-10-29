@@ -446,6 +446,10 @@ in an archived project fail with `workspace_archived`; history remains readable.
 projects. CLI parity: `compozy workspace archive|unarchive <name-or-id>` and
 `compozy workspace list --archived`. HTTP/UDS parity: `POST /api/workspaces/{id}/archive|unarchive`
 and `GET /api/workspaces?archived=true`. Default All projects aggregates omit archived projects.
+A registered project whose folder is unavailable stays listed with `root_missing: true`; listing
+never deletes its history. Restore the folder to clear the flag. History reads, Archive and Remove
+remain available; new sessions fail with `workspace_root_missing`. Only explicit Remove deletes
+the registration and stopped history.
 
 A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog. A bound session's `compozy__workspace_list` adds every workspace its permission mode already lets it address (never prompting); pass one to a tool's `workspace` input.
 
