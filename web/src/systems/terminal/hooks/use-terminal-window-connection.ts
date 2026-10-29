@@ -59,9 +59,13 @@ export function useTerminalWindowConnection({
   // The client reconnects on its own with backoff; this is how a person asks
   // for it now rather than waiting the delay out.
   const [restartKey, setRestartKey] = useState(0);
+  // This body is keyed by terminal identity. Once started, the live stream owns
+  // its end: the catalog can announce exit before the socket's final bytes arrive.
+  const [startedLive] = useState(() => terminal.state === "running");
   // Match transcript previews: a pane that streamed retains its live scrollback.
   const [streamed, setStreamed] = useState(false);
-  const needsRetainedOutput = terminal.state === "exited" && !streamed;
+  const needsRetainedOutput =
+    terminal.state === "exited" && !streamed && (!startedLive || pane?.status === "closed");
   const output = useQuery({
     ...terminalRetainedOutputQuery(terminalScope(workspaceId, profile), terminal.id),
     enabled: needsRetainedOutput,
@@ -83,7 +87,7 @@ export function useTerminalWindowConnection({
     handleRef,
     socketFactory,
     restartKey,
-    enabled: terminal.state === "running",
+    enabled: startedLive,
     onOutputPainted: () => setStreamed(true),
   });
 

@@ -89,10 +89,33 @@ the changed test is a named subtest in `TestWorktreeErrorCodes`.
 
 PASS for the four targeted journeys and the running-terminal canary. The canary
 minted one attach ticket (201), displayed live and final output, and kept that
-buffer on exit without a retained-output reread. Focused Web checks total 211
+buffer on exit without a retained-output reread. Focused Web checks total 212
 passing tests across ten existing suites; typecheck/lint passed and React Doctor
 reported 100/100 with no issues. No full local E2E or heavy gate was run. The targeted evidence audit passed. Manifest-based teardown confirmed all lab
 processes were stopped.
 
 PR delivery remains in progress until current-head CI and both requested
 reviewers complete.
+
+## Review regression: catalog exit before final stream bytes
+
+Greptile identified an independent-channel race: a catalog exit could disable
+an already-live attachment before its final output arrived. The attachment now
+keeps its initial live eligibility until its own stream closes. An initially
+exited window still reads retained output without attaching. Retained reads do
+not compete with a live attachment draining its first output.
+
+The canonical terminal window suite reproduces the race with and without earlier
+output: both variants failed before the fix and pass afterward (86 tests across
+the terminal window and protocol suites). Final typecheck/lint passed; React
+Doctor found no issues (its remote score API was unavailable).
+
+A second isolated production-bundle lab delayed actual final WebSocket frames
+by 2,500 ms, leaving real catalog events untouched. Catalog exit became visible
+2,100 ms before frame release; the client closed 27 ms after release. Both output
+lines remained visible, with exit code 0. The independent retained-output read
+returned those same lines. The interception forwards real daemon frames; it
+does not fabricate output, exit events, or API responses.
+
+The remediation lab passed its strict evidence audit and was torn down using
+its process-identity manifest.

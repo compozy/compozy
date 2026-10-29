@@ -113,5 +113,19 @@
       "final output"
     ],
     "exit_code": 0
+  },
+  "terminal_drain_review_regression": {
+    "transport": "real daemon WebSocket with delayed final frames",
+    "delay_ms": 2500,
+    "catalog_exit_before_release_ms": 2100,
+    "client_close_after_release_ms": 27,
+    "attach_ticket_status": 201,
+    "browser_retained_reads": 0,
+    "independent_read_status": 200,
+    "visible_output": [
+      "live output",
+      "final output"
+    ],
+    "exit_code": 0
   }
 }
