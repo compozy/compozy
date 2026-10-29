@@ -122,8 +122,10 @@ func nativeDomainErrorStatus(err error) int {
 	return http.StatusInternalServerError
 }
 
+// Unquoted paths may contain spaces. Conservatively redact through the next
+// error-chain separator rather than exposing the remaining path components.
 var nativeToolHostPath = regexp.MustCompile(
-	`"(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^"]*"|'(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^']*'|(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^\s"'<>]*`,
+	`"(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^"]*"|'(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^']*'|(?:[A-Za-z]:[\\/]|\\\\|~/|/)[^:\r\n"'<>]*`,
 )
 
 func sanitizeNativeToolMessage(message string) string {

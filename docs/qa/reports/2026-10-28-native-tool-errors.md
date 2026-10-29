@@ -40,3 +40,9 @@ Restarting the lab daemon stopped the original sessions, so the first post-resta
 Local artifacts live under the bootstrap-generated `qa-artifacts/qa/` directory: manifest, process identity, journey log, command stdout/stderr, provider-created parent/child receipts, and final audit/teardown receipts. Private absolute paths are omitted here. The strict audit passed with no blockers; teardown reported `TEARDOWN_CLEAN=true` and `TEARDOWN_ALL_CLEAN=true`.
 
 The live prune cause contained no credentials or host path. Sensitive-cause redaction is verified by the owning automated suite, not by seeding real credentials into the daemon. This targeted run does not promote the broader scenario catalogs to a full release PASS. CI and CodeRabbit/Greptile review outcomes are recorded on the PR. No merge is authorized.
+
+## Review remediation
+
+Greptile identified unquoted paths containing spaces; CodeRabbit requested case-specific message assertions. The API suite now checks quoted Unix, unquoted Unix, and unquoted Windows paths, including absence of every private fragment. Both unquoted cases failed before the production fix and pass afterward. The native adapter suite requires the colliding name, bound session ID, or permission-denied cause for its respective case.
+
+A rebuilt lab daemon was exercised against an existing directory with spaces through CLI and native worktree creation. CLI returned its operator path; the native result was exactly `worktree_path_exists: [path]`. The refreshed targeted suites passed; the laboratory was torn down again with a clean receipt. Review changes retain the original wire shape and domain behavior.

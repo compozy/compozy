@@ -190,16 +190,17 @@ func TestNativeWorktreeTools(t *testing.T) {
 		cause  error
 		code   string
 		status int
+		detail string
 	}{
 		{"Should identify the existing worktree name", toolspkg.ToolIDWorktreeCreate,
 			`{"workspace":"ws-a","name":"existing"}`, fmt.Errorf("%w: existing", worktree.ErrNameTaken),
-			"worktree_name_taken", http.StatusConflict},
+			"worktree_name_taken", http.StatusConflict, "existing"},
 		{"Should explain the bound session refusal", toolspkg.ToolIDWorktreeRemove,
 			`{"workspace":"ws-a","ref":"wt-existing"}`, fmt.Errorf("%w: sess-bound", worktree.ErrSessionActive),
-			"worktree_session_active", http.StatusConflict},
+			"worktree_session_active", http.StatusConflict, "sess-bound"},
 		{"Should retain a sanitized prune failure", toolspkg.ToolIDWorktreeCreate,
 			`{"workspace":"ws-a","name":"new"}`, errors.New("workspace: prune missing workspace /private/operator/repo: permission denied"),
-			"tool_backend_failed", http.StatusBadGateway},
+			"tool_backend_failed", http.StatusBadGateway, "permission denied"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -223,7 +224,7 @@ func TestNativeWorktreeTools(t *testing.T) {
 			status := core.StatusForToolError(err)
 			payload := core.ToolErrorResponseForError(err, status, false).Error
 			if string(payload.Code) != tc.code || status != tc.status ||
-				payload.Message == "tool conflict" || payload.Message == "tool backend failed" ||
+				!strings.Contains(payload.Message, tc.detail) ||
 				strings.Contains(payload.Message, "/private") {
 				t.Fatalf("native response = %#v status=%d, want %s status=%d", payload, status, tc.code, tc.status)
 			}
