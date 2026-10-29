@@ -205,7 +205,7 @@ func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T)
 	}
 }
 
-func TestResolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
+func TestResolverIntegrationListPreservesMissingWorkspaceAcrossReopen(t *testing.T) {
 	t.Run(
 		"Should persist pruning across reopen without deleting healthy workspace data",
 		resolverIntegrationListPrunesMissingWorkspaceAcrossReopen,
@@ -277,6 +277,12 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	}
 
 	resolver := newIntegrationResolver(t, db, homePaths)
+	if _, err := resolver.SetArchived(ctx, "ws_reopen_missing", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolver.SetArchived(ctx, "ws_reopen_missing", false); err != nil {
+		t.Fatal(err)
+	}
 	listed, err := resolver.List(ctx)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
@@ -307,15 +313,10 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
 		t.Fatalf("List(after reopen) = %#v, want only healthy workspace", listed)
 	}
-	if _, err := reopened.GetWorkspace(
-		ctx,
-		"ws_reopen_missing",
-	); !errors.Is(
-		err,
-		compozyworkspace.ErrWorkspaceNotFound,
-	) {
-		t.Fatalf("GetWorkspace(pruned after reopen) error = %v, want %v", err, compozyworkspace.ErrWorkspaceNotFound)
+	if _, err := reopened.GetWorkspace(ctx, "ws_reopen_missing"); err != nil {
+		t.Fatalf("GetWorkspace(retained after unarchive and reopen): %v", err)
 	}
+
 	healthySessions, err := reopened.ListSessions(
 		ctx,
 		storepkg.SessionListQuery{
@@ -339,8 +340,8 @@ func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSessions(missing after reopen) error = %v", err)
 	}
-	if len(missingSessions) != 0 {
-		t.Fatalf("ListSessions(missing after reopen) = %#v, want no sessions", missingSessions)
+	if len(missingSessions) != 1 || missingSessions[0].ID != "sess_reopen_missing" {
+		t.Fatalf("ListSessions(missing after reopen) = %#v, want retained history", missingSessions)
 	}
 }
 

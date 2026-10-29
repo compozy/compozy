@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
 
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -13,7 +13,7 @@ import (
 
 func nativeAutomationToolError(id toolspkg.ToolID, err error) error {
 	switch {
-	case errors.Is(err, workspace.ErrWorkspaceArchived):
+	case errors.Is(err, store.ErrWorkspaceArchived):
 		return nativeHTTPStatusToolError(id, err, http.StatusConflict)
 	case err == nil:
 		return nil

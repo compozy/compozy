@@ -234,15 +234,23 @@ func (g *AutomationRepo) SetJobEnabledOverlay(
 	if err != nil {
 		return automation.JobEnabledOverlay{}, err
 	}
-	if err := g.queries.UpsertAutomationJobOverlay(ctx, sqlcgen.UpsertAutomationJobOverlayParams{
-		JobID: normalized.JobID, EnabledOverride: normalized.EnabledOverride,
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-	}); err != nil {
-		return automation.JobEnabledOverlay{}, fmt.Errorf(
-			"store: set automation job overlay %q: %w",
+	err = g.withImmediateTransaction(ctx, "set automation job overlay", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationOverlayActive(
+			ctx,
+			tx,
+			"automation.job",
 			normalized.JobID,
-			mapWorkspaceArchivedConstraint(err),
-		)
+			&normalized.EnabledOverride,
+		); err != nil {
+			return err
+		}
+		return sqlcgen.New(tx).UpsertAutomationJobOverlay(ctx, sqlcgen.UpsertAutomationJobOverlayParams{
+			JobID: normalized.JobID, EnabledOverride: normalized.EnabledOverride,
+			UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
+		})
+	})
+	if err != nil {
+		return automation.JobEnabledOverlay{}, err
 	}
 
 	return normalized, nil
@@ -304,11 +312,12 @@ func (g *AutomationRepo) DeleteJobEnabledOverlay(ctx context.Context, jobID stri
 		return err
 	}
 
-	if err := g.queries.DeleteAutomationJobOverlay(ctx, trimmedID); err != nil {
-		return fmt.Errorf("store: delete automation job overlay %q: %w", trimmedID, mapWorkspaceArchivedConstraint(err))
-	}
-
-	return nil
+	return g.withImmediateTransaction(ctx, "delete automation job overlay", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationOverlayActive(ctx, tx, "automation.job", trimmedID, nil); err != nil {
+			return err
+		}
+		return sqlcgen.New(tx).DeleteAutomationJobOverlay(ctx, trimmedID)
+	})
 }
 
 // SetTriggerEnabledOverlay upserts the runtime enabled override for a config-backed trigger.
@@ -324,15 +333,23 @@ func (g *AutomationRepo) SetTriggerEnabledOverlay(
 	if err != nil {
 		return automation.TriggerEnabledOverlay{}, err
 	}
-	if err := g.queries.UpsertAutomationTriggerOverlay(ctx, sqlcgen.UpsertAutomationTriggerOverlayParams{
-		TriggerID: normalized.TriggerID, EnabledOverride: normalized.EnabledOverride,
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-	}); err != nil {
-		return automation.TriggerEnabledOverlay{}, fmt.Errorf(
-			"store: set automation trigger overlay %q: %w",
+	err = g.withImmediateTransaction(ctx, "set automation trigger overlay", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationOverlayActive(
+			ctx,
+			tx,
+			"automation.trigger",
 			normalized.TriggerID,
-			mapWorkspaceArchivedConstraint(err),
-		)
+			&normalized.EnabledOverride,
+		); err != nil {
+			return err
+		}
+		return sqlcgen.New(tx).UpsertAutomationTriggerOverlay(ctx, sqlcgen.UpsertAutomationTriggerOverlayParams{
+			TriggerID: normalized.TriggerID, EnabledOverride: normalized.EnabledOverride,
+			UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
+		})
+	})
+	if err != nil {
+		return automation.TriggerEnabledOverlay{}, err
 	}
 
 	return normalized, nil
@@ -397,20 +414,22 @@ func (g *AutomationRepo) DeleteTriggerEnabledOverlay(ctx context.Context, trigge
 		return err
 	}
 
-	if err := g.queries.DeleteAutomationTriggerOverlay(ctx, trimmedID); err != nil {
-		return fmt.Errorf(
-			"store: delete automation trigger overlay %q: %w",
-			trimmedID,
-			mapWorkspaceArchivedConstraint(err),
-		)
-	}
-
-	return nil
+	return g.withImmediateTransaction(ctx, "delete automation trigger overlay", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationOverlayActive(ctx, tx, "automation.trigger", trimmedID, nil); err != nil {
+			return err
+		}
+		return sqlcgen.New(tx).DeleteAutomationTriggerOverlay(ctx, trimmedID)
+	})
 }
 
 func (g *AutomationRepo) insertJob(ctx context.Context, exec globalSQLExecutor, job automation.Job) error {
 	params, err := automationJobParams(job)
 	if err != nil {
+		return err
+	}
+	if err := store.RequireAutomationWorkspaceActive(ctx, exec, "automation.job", job.ID,
+		job.WorkspaceID, params.LoopWorkspaceID.String, job.Enabled,
+		job.Source == automation.JobSourceConfig || job.Source == automation.JobSourcePackage); err != nil {
 		return err
 	}
 	if err := sqlcgen.New(exec).InsertAutomationJob(ctx, params); err != nil {
@@ -426,6 +445,11 @@ func (g *AutomationRepo) insertTrigger(ctx context.Context, exec globalSQLExecut
 		return err
 	}
 
+	if err := store.RequireAutomationWorkspaceActive(ctx, exec, "automation.trigger", trigger.ID,
+		trigger.WorkspaceID, params.LoopWorkspaceID.String, trigger.Enabled,
+		trigger.Source == automation.JobSourceConfig || trigger.Source == automation.JobSourcePackage); err != nil {
+		return err
+	}
 	if err := sqlcgen.New(exec).InsertAutomationTrigger(ctx, params); err != nil {
 		return mapAutomationTriggerConstraintError(ctx, exec, trigger, err)
 	}

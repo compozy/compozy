@@ -8,6 +8,7 @@ import {
   type CreateWorkspaceParams,
   type ResolveWorkspaceParams,
 } from "@/systems/workspace/adapters/workspace-api";
+import { sessionKeys } from "@/systems/session";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import {
   workspaceDetailOptions,
@@ -70,7 +71,10 @@ export function useDeleteWorkspace() {
         current?.filter(workspace => workspace.id !== workspaceID)
       );
       queryClient.removeQueries({ queryKey: workspaceKeys.detail(workspaceID) });
-      return queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
+      ]);
     },
   });
 }

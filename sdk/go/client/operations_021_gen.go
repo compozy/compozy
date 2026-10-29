@@ -104,7 +104,11 @@ type ListWorkspacesParams struct {
 }
 
 // ListWorkspaces List active or archived workspaces
-func (c *Client) ListWorkspaces(ctx context.Context, params ListWorkspacesParams) (*WorkspacesResponse, error) {
+func (c *Client) ListWorkspaces(ctx context.Context, options ...ListWorkspacesParams) (*WorkspacesResponse, error) {
+	var params ListWorkspacesParams
+	if len(options) > 0 {
+		params = options[0]
+	}
 	path := "/api/workspaces"
 	query := url.Values{}
 	if params.Archived != nil {

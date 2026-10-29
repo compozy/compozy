@@ -44,7 +44,7 @@ Archiving returns `workspace_busy` with a `blockers` list while there are non-st
 nonterminal Loops (including paused or waiting Loops), or enabled automations owned by or targeting
 that project. Stop the listed sessions and Loops and disable the automations before retrying.
 New sessions, resumed sessions, live Loop runs and enabled automations in an archived project are
-refused; unarchive it first. Unarchive has no preconditions.
+refused; unarchive it first. Unarchive has no preconditions. If the folder is unavailable, active navigation hides it until it returns; its registration and history remain intact. Only explicit removal deletes retained data.
 
 HTTP and UDS expose `POST /api/workspaces/{id}/archive`, `POST /api/workspaces/{id}/unarchive`, and
 `GET /api/workspaces?archived=true` (archived projects only). Native tools are

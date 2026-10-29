@@ -11,8 +11,20 @@ const (
 )
 
 var workspaceTools = []toolspkg.Descriptor{
-	workspaceArchiveDescriptor(toolspkg.ToolIDWorkspaceArchive, "workspace_archive", "Archive Workspace"),
-	workspaceArchiveDescriptor(toolspkg.ToolIDWorkspaceUnarchive, "workspace_unarchive", "Unarchive Workspace"),
+	workspaceArchiveDescriptor(
+		toolspkg.ToolIDWorkspaceArchive,
+		"workspace_archive",
+		"Archive Workspace",
+		"Archive a project without removing its data. Refuses active sessions, live Loops and enabled automations.",
+		"archive project",
+	),
+	workspaceArchiveDescriptor(
+		toolspkg.ToolIDWorkspaceUnarchive,
+		"workspace_unarchive",
+		"Unarchive Workspace",
+		"Restore an archived project to the active catalog with its data and workspace ID unchanged.",
+		"unarchive project",
+	),
 	nativeDescriptor(
 		toolspkg.ToolIDAgentList,
 		"agent_list",
@@ -169,13 +181,12 @@ var agentFallbackRouteInputSchema = `{
 
 const workspaceListInputSchema = `{"type":"object","properties":{"archived":{"type":"boolean"}},"additionalProperties":false}`
 
-func workspaceArchiveDescriptor(id toolspkg.ToolID, name, title string) toolspkg.Descriptor {
+func workspaceArchiveDescriptor(id toolspkg.ToolID, name, title, description, phrase string) toolspkg.Descriptor {
 	return nativeDescriptor(
 		id,
 		name,
 		title,
-		"Archive or unarchive a project without removing its data. "+
-			"Archive refuses active sessions, live Loops and enabled automations.",
+		description,
 		workspaceRefInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -184,7 +195,7 @@ func workspaceArchiveDescriptor(id toolspkg.ToolID, name, title string) toolspkg
 		[]toolspkg.ToolsetID{
 			toolspkg.ToolsetIDWorkspace,
 		},
-		[]string{"workspace", "archive"},
-		[]string{"archive project", "unarchive project"},
+		[]string{"workspace", name},
+		[]string{phrase},
 	)
 }

@@ -49,7 +49,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 		}
 	}
 	query := contract.TaskListQuery{
-		AllWorkspaces: explicitAll,
+		AllWorkspaces: explicitAll || len(breadth.WorkspaceIDs) > 0,
 		WorkspaceIDs:  breadth.WorkspaceIDs,
 		Scope:         taskpkg.CatalogScope(c.Query("scope")).Normalize(),
 		Workspace:     strings.TrimSpace(c.Query("workspace")),
@@ -88,8 +88,12 @@ func ParseTaskInboxQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contrac
 	if err != nil {
 		return contract.TaskInboxQuery{}, err
 	}
-	allWorkspaces, _ := ParseOptionalBool(c.Query("all_workspaces")) // Validated above.
-	if allWorkspaces && len(workspaces) > 0 {
+	allWorkspaces, err := ParseOptionalBool(c.Query("all_workspaces"))
+	if err != nil {
+		return contract.TaskInboxQuery{}, invalidWorkspaceBreadth("all_workspaces must be a boolean")
+	}
+	if (allWorkspaces || c.Query("workspace") == "" && (c.Query("scope") == "" || c.Query("scope") == "all")) &&
+		len(workspaces) > 0 {
 		workspaceIDs, err = defaultActiveWorkspaceIDs(c.Request.Context(), workspaces[0], workspaceIDs)
 		if err != nil {
 			return contract.TaskInboxQuery{}, err

@@ -2,10 +2,7 @@ package workspace
 
 import (
 	"context"
-	"errors"
 )
-
-var ErrWorkspaceArchived = errors.New("workspace is archived; unarchive it before starting work")
 
 type ArchiveBlocker struct {
 	Kind string `json:"kind"`

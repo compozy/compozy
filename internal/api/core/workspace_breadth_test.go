@@ -99,16 +99,23 @@ func TestWorkspaceBreadthArchivedProjects(t *testing.T) {
 		{ID: "ws-active"}, {ID: "ws-archived", ArchivedAt: &now},
 	}}
 	for _, tc := range []struct {
+		name  string
 		query string
 		want  []string
 	}{
-		{"all_workspaces=true", []string{"@user", "ws-active"}},
-		{"all_workspaces=true&workspace_ids=ws-archived", []string{"ws-archived"}},
+		{"Should exclude archived projects from explicit all scope", "all_workspaces=true", []string{"@user", "ws-active"}},
+		{"Should exclude archived projects from implicit all scope", "", []string{"@user", "ws-active"}},
+		{"Should retain explicitly selected archived history", "all_workspaces=true&workspace_ids=ws-archived", []string{"ws-archived"}},
 	} {
-		t.Run(tc.query, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
-			got, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace"}, catalog)
+			got, err := parseWorkspaceBreadth(
+				c,
+				"",
+				breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+				catalog,
+			)
 			if err != nil || !reflect.DeepEqual(got.WorkspaceIDs, tc.want) {
 				t.Fatalf("breadth=%#v err=%v", got, err)
 			}

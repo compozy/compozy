@@ -44,7 +44,7 @@ func resolveStoredSessionWorkspace(
 		)
 	}
 	if resolved.ArchivedAt != nil {
-		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+		return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 	}
 	return resolved, nil
 }
@@ -85,7 +85,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("session: resolve workspace %q: %w", workspaceRef, err)
 		}
 		if resolved.ArchivedAt != nil {
-			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+			return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 		}
 		return resolved, nil
 	}
@@ -114,7 +114,7 @@ func (m *Manager) resolveCreateWorkspacePath(
 		}
 		applyDefaultProfileIdentity(&resolved)
 		if resolved.ArchivedAt != nil {
-			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+			return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 		}
 		return resolved, nil
 	}
@@ -130,7 +130,7 @@ func (m *Manager) resolveCreateWorkspacePath(
 	}
 	resolved.ProfileID = profileID
 	if resolved.ArchivedAt != nil {
-		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+		return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 	}
 	return resolved, nil
 }
@@ -175,7 +175,7 @@ func resolveWorkspaceForProfile(
 		}
 		applyDefaultProfileIdentity(&resolved)
 		if resolved.ArchivedAt != nil {
-			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+			return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 		}
 		return resolved, nil
 	}
@@ -195,7 +195,7 @@ func resolveWorkspaceForProfile(
 	}
 	resolved.ProfileID = profileID
 	if resolved.ArchivedAt != nil {
-		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceArchived
+		return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
 	}
 	return resolved, nil
 }

@@ -2078,3 +2078,97 @@ func (s *cancelAfterWebhookSecretStore) DeleteSecret(ctx context.Context, ref st
 	}
 	return err
 }
+
+// Invariant: archive and resource-backed automation admission serialize on the persisted effective state.
+func TestResourceWorkspaceArchiveAdmission(t *testing.T) {
+	for _, kind := range []string{"job", "trigger"} {
+		for _, source := range []JobSource{JobSourceDynamic, JobSourceConfig} {
+			t.Run(kind+"/"+string(source), func(t *testing.T) {
+				t.Parallel()
+				h := newManagerResourceHarness(t)
+				scope := ResourceScopeForAutomation(AutomationScopeWorkspace, h.workspace.ID)
+				put := func(id string, version int64, enabled bool) (int64, error) {
+					if kind == "job" {
+						spec := testJob(AutomationScopeWorkspace, id, h.workspace.ID)
+						spec.Enabled, spec.Source = enabled, source
+						record, err := h.jobStore.Put(
+							h.ctx,
+							h.actor,
+							resources.Draft[Job]{ID: id, Scope: scope, ExpectedVersion: version, Spec: spec},
+						)
+						return record.Version, err
+					}
+					spec := Trigger{Scope: AutomationScopeWorkspace, WorkspaceID: h.workspace.ID, Name: id,
+						AgentName: "reviewer", Prompt: "Review", Event: "session.stopped", Enabled: enabled,
+						Retry: DefaultRetryConfig(), FireLimit: DefaultFireLimitConfig(), Source: source}
+					record, err := h.triggerStore.Put(
+						h.ctx,
+						h.actor,
+						resources.Draft[Trigger]{ID: id, Scope: scope, ExpectedVersion: version, Spec: spec},
+					)
+					return record.Version, err
+				}
+				setOverride := func(enabled bool) error {
+					if kind == "job" {
+						_, err := h.db.SetJobEnabledOverlay(
+							h.ctx,
+							JobEnabledOverlay{JobID: "archive-resource", EnabledOverride: enabled},
+						)
+						return err
+					}
+					_, err := h.db.SetTriggerEnabledOverlay(
+						h.ctx,
+						TriggerEnabledOverlay{TriggerID: "archive-resource", EnabledOverride: enabled},
+					)
+					return err
+				}
+				version, err := put("archive-resource", 0, true)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, true); err == nil {
+					t.Fatal("enabled resource did not block archive")
+				}
+				if source == JobSourceConfig {
+					if err := setOverride(false); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					version, err = put("archive-resource", version, false)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, true); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := put("new-archived-resource", 0, true); !errors.Is(err, store.ErrWorkspaceArchived) {
+					t.Fatalf("new resource error = %v", err)
+				}
+				if source == JobSourceConfig {
+					version, err = put("archive-resource", version, true)
+					if err != nil {
+						t.Fatalf("disabled config reload: %v", err)
+					}
+					if err := setOverride(true); !errors.Is(err, store.ErrWorkspaceArchived) {
+						t.Fatalf("enable override = %v", err)
+					}
+				} else if _, err := put("archive-resource", version, true); !errors.Is(err, store.ErrWorkspaceArchived) {
+					t.Fatalf("enable resource = %v", err)
+				}
+				if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, false); err != nil {
+					t.Fatal(err)
+				}
+				if source == JobSourceConfig {
+					if err := setOverride(true); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if _, err := put("archive-resource", version, true); err != nil {
+						t.Fatal(err)
+					}
+				}
+			})
+		}
+	}
+}

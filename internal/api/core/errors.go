@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
+
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -227,7 +229,7 @@ func NewAutomationValidationError(err error) error {
 
 // StatusForAutomationError maps automation-domain failures to transport statuses.
 func StatusForAutomationError(err error) int {
-	if errors.Is(err, workspacepkg.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return http.StatusConflict
 	}
 	if err == nil {

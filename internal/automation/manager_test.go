@@ -2721,3 +2721,77 @@ func TestAutomationGrantCeiling(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: disabled config definitions in an archived workspace survive manager restart/reload.
+func TestManagerStartPreservesArchivedWorkspaceDefinitions(t *testing.T) {
+	t.Parallel()
+	h := newManagerHarness(t)
+	cfg := compozyconfig.AutomationConfig{
+		Enabled:           true,
+		Timezone:          DefaultTimezone,
+		MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  DefaultFireLimitConfig(),
+		Jobs: []compozyconfig.AutomationJob{managerConfigJob(AutomationScopeWorkspace, "archive-job", h.workspaceRoot,
+			ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1h"})},
+		Triggers: []compozyconfig.AutomationTrigger{
+			managerConfigTrigger(AutomationScopeWorkspace, "archive-trigger", h.workspaceRoot, "session.stopped"),
+		},
+	}
+	manager := h.newManager(t, cfg)
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	job, err := manager.resolveConfigJob(h.ctx, cfg.Jobs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	trigger, err := manager.resolveConfigTrigger(h.ctx, cfg.Triggers[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.SetJobEnabledOverlay(
+		h.ctx,
+		JobEnabledOverlay{JobID: job.ID, EnabledOverride: false},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.SetTriggerEnabledOverlay(
+		h.ctx,
+		TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Shutdown(h.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.SetWorkspaceArchived(h.ctx, h.workspace.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Jobs[0].Prompt = "Reloaded prompt"
+	cfg.Triggers[0].Prompt = "Reloaded trigger prompt"
+	restarted := h.newManager(t, cfg)
+	if err := restarted.Start(h.ctx); err != nil {
+		t.Fatalf("restart archived definitions: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := restarted.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	jobs, err := restarted.Jobs(h.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotJob := findJobByID(jobs, job.ID)
+	if gotJob == nil || gotJob.Enabled || gotJob.Prompt != cfg.Jobs[0].Prompt {
+		t.Fatalf("reloaded job = %#v", gotJob)
+	}
+	triggers, err := restarted.Triggers(h.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotTrigger := findTriggerByID(triggers, trigger.ID)
+	if gotTrigger == nil || gotTrigger.Enabled || gotTrigger.Prompt != cfg.Triggers[0].Prompt {
+		t.Fatalf("reloaded trigger = %#v", gotTrigger)
+	}
+}

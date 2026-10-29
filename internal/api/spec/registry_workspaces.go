@@ -153,7 +153,11 @@ func workspaceArchiveOperationSpec(action, operationID string) OperationSpec {
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspaceResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Workspace has active sessions, live Loops or enabled automations", Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Workspace has active sessions, live Loops or enabled automations",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

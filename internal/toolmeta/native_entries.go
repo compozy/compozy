@@ -246,6 +246,8 @@ var nativeEntries = map[string]Entry{
 	"compozy__worktree_remove":          nativeEntry("Removing", " ", false, "🗂️", "auto"),
 	"compozy__workspace_describe":       nativeEntry("Reading", " ", false, "🗂️", "auto"),
 	"compozy__workspace_info":           nativeEntry("Reading", " ", false, "🗂️", "auto"),
+	"compozy__workspace_archive":        nativeEntry("Archiving", " ", false, "🗂️", "auto"),
+	"compozy__workspace_unarchive":      nativeEntry("Restoring", " ", false, "🗂️", "auto"),
 	"compozy__workspace_list":           nativeEntry("Reading", " ", false, "🗂️", "auto"),
 }
 

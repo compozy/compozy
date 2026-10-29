@@ -28,7 +28,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			})
 		}
 	}
-	if errors.Is(err, workspace.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
 		payload.Code = "workspace_archived"
 	}
 	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {

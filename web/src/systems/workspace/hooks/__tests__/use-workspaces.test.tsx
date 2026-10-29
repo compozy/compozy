@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
+import { sessionKeys } from "@/systems/session";
 import { statusKeys } from "@/systems/status";
 import { ACTIVE_WORKSPACE_PERSIST_KEY } from "@/systems/workspace";
 import { statusFixture } from "@/systems/status/mocks";
@@ -270,6 +271,7 @@ describe("workspace hooks", () => {
     expect(deleteWorkspace).toHaveBeenCalledWith("ws_removed");
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([keptWorkspace]);
     expect(queryClient.getQueryData(workspaceKeys.detail("ws_removed"))).toBeUndefined();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
   });
 });

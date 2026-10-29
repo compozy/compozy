@@ -31,7 +31,7 @@ export async function fetchWorkspaces(
 ): Promise<WorkspacePayload[]> {
   const { data, error, response } = await apiClient.GET("/api/workspaces", {
     signal,
-    params: { query: { archived } },
+    ...(archived ? { params: { query: { archived: true } } } : {}),
   });
   if (apiRequestFailed(response, error)) {
     throw new WorkspaceApiError(
@@ -118,10 +118,12 @@ export async function resolveWorkspace(
 
 export async function setWorkspaceArchived(
   workspaceID: string,
-  archived: boolean
+  archived: boolean,
+  signal?: AbortSignal
 ): Promise<WorkspacePayload> {
   const path = archived ? "/api/workspaces/{id}/archive" : "/api/workspaces/{id}/unarchive";
   const { data, error, response } = await apiClient.POST(path, {
+    signal,
     params: { path: { id: workspaceID } },
   });
   if (apiRequestFailed(response, error)) {

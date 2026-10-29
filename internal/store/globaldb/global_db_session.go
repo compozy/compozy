@@ -41,7 +41,9 @@ func (g *SessionRepo) RegisterSession(ctx context.Context, session store.Session
 		normalized.UpdatedAt = normalized.CreatedAt
 	}
 
-	if err := g.registerSession(ctx, g.db, normalized); err != nil {
+	if err := g.withImmediateTransaction(ctx, "register session", func(exec globalSQLExecutor) error {
+		return g.registerSession(ctx, exec, normalized)
+	}); err != nil {
 		return fmt.Errorf("store: register session %q: %w", normalized.ID, err)
 	}
 	return nil
@@ -72,6 +74,15 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 		g.db,
 		"update session state",
 		func(ctx context.Context, tx *store.WriteTx) error {
+			if update.State != "" && update.State != globalDBSessionStateStopped {
+				workspaceID, err := sqlcgen.New(tx).GetSessionWorkspaceID(ctx, update.ID)
+				if err != nil {
+					return err
+				}
+				if err := store.RequireWorkspaceActive(ctx, tx, workspaceID); err != nil {
+					return err
+				}
+			}
 			var execErr error
 			result, execErr = tx.ExecContext(ctx, query, args...)
 			return execErr
@@ -332,6 +343,11 @@ func (g *SessionRepo) ReconcileSessions(
 }
 
 func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecutor, session store.SessionInfo) error {
+	if session.State != globalDBSessionStateStopped {
+		if err := store.RequireWorkspaceActive(ctx, exec, session.WorkspaceID); err != nil {
+			return err
+		}
+	}
 	record, err := newSessionCatalogRecord(session)
 	if err != nil {
 		return err

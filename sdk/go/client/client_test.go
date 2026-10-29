@@ -267,6 +267,33 @@ func TestClientRequests(t *testing.T) {
 
 func TestClientGeneratedOperations(t *testing.T) {
 	t.Parallel()
+	// Invariant: the original no-options workspace list call remains source-compatible.
+	t.Run("Should list workspaces with or without the archived filter", func(t *testing.T) {
+		t.Parallel()
+		archived := true
+		for _, options := range [][]ListWorkspacesParams{nil, {{Archived: &archived}}} {
+			c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+				want := ""
+				if len(options) > 0 {
+					want = "true"
+				}
+				if r.URL.Path != "/api/workspaces" || r.URL.Query().Get("archived") != want {
+					t.Errorf("workspace list request = %s", r.URL.String())
+				}
+				writeResponse(t, w, `{"workspaces":[]}`)
+			})
+			var err error
+			if options == nil {
+				_, err = c.ListWorkspaces(t.Context())
+			} else {
+				_, err = c.ListWorkspaces(t.Context(), options...)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+
 	t.Run("Should preserve workspace configuration error details for callers", func(t *testing.T) {
 		t.Parallel()
 		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {

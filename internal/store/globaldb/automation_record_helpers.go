@@ -153,7 +153,6 @@ func requireAutomationID(value string, label string) (string, error) {
 }
 
 func mapAutomationJobConstraintError(err error) error {
-	err = mapWorkspaceArchivedConstraint(err)
 	if err == nil {
 		return nil
 	}
@@ -174,7 +173,6 @@ func mapAutomationTriggerConstraintError(
 	trigger automation.Trigger,
 	err error,
 ) error {
-	err = mapWorkspaceArchivedConstraint(err)
 	if err == nil {
 		return nil
 	}
@@ -206,7 +204,6 @@ func mapAutomationTriggerConstraintError(
 }
 
 func mapAutomationRunConstraintError(err error) error {
-	err = mapWorkspaceArchivedConstraint(err)
 	if err == nil {
 		return nil
 	}

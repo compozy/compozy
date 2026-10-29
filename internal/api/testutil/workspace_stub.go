@@ -96,7 +96,11 @@ func (s StubWorkspaceService) ResolveOrRegister(
 var _ core.WorkspaceService = (*StubWorkspaceService)(nil)
 var _ workspacepkg.ProfileRuntimeResolver = (*StubWorkspaceService)(nil)
 
-func (s StubWorkspaceService) SetArchived(ctx context.Context, ref string, archived bool) (workspacepkg.Workspace, error) {
+func (s StubWorkspaceService) SetArchived(
+	ctx context.Context,
+	ref string,
+	archived bool,
+) (workspacepkg.Workspace, error) {
 	if s.SetArchivedFn != nil {
 		return s.SetArchivedFn(ctx, ref, archived)
 	}

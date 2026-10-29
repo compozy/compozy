@@ -176,5 +176,12 @@ func ActiveWorkspaceClause(column, workspaceID string) Clause {
 	if err := validateSQLiteColumnReference(column); err != nil {
 		return alwaysFalseClause()
 	}
-	return Clause{sql: fmt.Sprintf("(%s IS NULL OR %s NOT IN (SELECT id FROM workspaces WHERE archived_at IS NOT NULL))", column, column), ok: true}
+	return Clause{
+		sql: fmt.Sprintf(
+			"(%s IS NULL OR %s NOT IN (SELECT id FROM workspaces WHERE archived_at IS NOT NULL))",
+			column,
+			column,
+		),
+		ok: true,
+	}
 }

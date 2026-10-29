@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/store"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func nativeHTTPStatusToolError(id toolspkg.ToolID, err error, status int) error {
-	if errors.Is(err, workspace.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeWorkspaceArchived,
 			id,

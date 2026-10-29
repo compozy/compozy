@@ -27,16 +27,8 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 			continue
 		}
 
-		if err := r.Unregister(ctx, ws.ID); err != nil {
-			if errors.Is(err, ErrWorkspaceNotFound) {
-				continue
-			}
-			return nil, fmt.Errorf("workspace: prune missing workspace %q: %w", ws.ID, err)
-		}
-		r.logger.Info("workspace.prune",
-			"workspace_id", ws.ID,
-			"root_dir", ws.RootDir,
-		)
+		// An unavailable folder is not consent to delete its registration or history.
+		// Explicit removal is the only destructive lifecycle operation.
 	}
 
 	return reconciled, nil

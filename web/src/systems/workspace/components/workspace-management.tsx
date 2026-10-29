@@ -1,7 +1,7 @@
 import { Folder, Archive } from "lucide-react";
 import { Alert, AlertDescription, ListGroup, ListingRow, Spinner } from "@compozy/ui";
-import { useArchivedWorkspaces, useWorkspaces } from "../hooks/use-workspaces";
-import type { WorkspacePayload } from "../types";
+import { useArchivedWorkspaces, useWorkspaces } from "@/systems/workspace/hooks/use-workspaces";
+import type { WorkspacePayload } from "@/systems/workspace/types";
 import { WorkspaceProjectActions } from "./workspace-project-actions";
 
 function ProjectRows({ projects }: { projects: WorkspacePayload[] }) {

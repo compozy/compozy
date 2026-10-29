@@ -73,6 +73,8 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeNotFound),
 		string(tools.ErrorCodeConflict),
 		string(tools.ErrorCodeSessionBusy),
+		string(tools.ErrorCodeWorkspaceBusy),
+		string(tools.ErrorCodeWorkspaceArchived),
 		string(tools.ErrorCodeSessionMessageHopLimit),
 		string(tools.ErrorCodeSessionMessageRateLimited),
 		string(tools.ErrorCodeCompactionUnsupported),

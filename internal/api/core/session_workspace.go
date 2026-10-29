@@ -116,7 +116,7 @@ func statusForWorkspaceError(err error) int {
 	if _, ok := errors.AsType[*workspacepkg.BusyError](err); ok {
 		return http.StatusConflict
 	}
-	if errors.Is(err, workspacepkg.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return http.StatusConflict
 	}
 	switch {
@@ -152,7 +152,7 @@ func statusForWorkspaceError(err error) int {
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
-	if errors.Is(err, workspacepkg.ErrWorkspaceArchived) {
+	if errors.Is(err, store.ErrWorkspaceArchived) {
 		return http.StatusConflict
 	}
 	if WorktreeErrorCode(err) != "" {

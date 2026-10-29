@@ -82,7 +82,9 @@ func parseWorkspaceBreadth(
 			fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector),
 		)
 	}
-	if all {
+	implicitAll := enc.OmissionIsAll && selector == "" && c.Query("workspace") == "" &&
+		(c.Query("scope") == "" || c.Query("scope") == "all")
+	if all || implicitAll {
 		normalized, err = defaultActiveWorkspaceIDs(c.Request.Context(), getter, normalized)
 		if err != nil {
 			return WorkspaceBreadth{}, err

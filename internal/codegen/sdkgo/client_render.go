@@ -126,8 +126,14 @@ func renderClientParams(op ClientOperation) *jen.Statement {
 func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, error) {
 	name := exportIdentifier(op.ID)
 	args := []jen.Code{jen.Id("ctx").Qual("context", "Context")}
+	// ListWorkspaces predates query parameters; retain its public no-options call.
+	optionalWorkspaceParams := op.ID == "listWorkspaces"
 	if len(op.Params) > 0 {
-		args = append(args, jen.Id("params").Id(name+"Params"))
+		if optionalWorkspaceParams {
+			args = append(args, jen.Id("options").Op("...").Id(name+"Params"))
+		} else {
+			args = append(args, jen.Id("params").Id(name+"Params"))
+		}
 	}
 	body := jen.Nil()
 	if op.RequestContentType == "multipart/form-data" {
@@ -142,6 +148,13 @@ func renderClientMethod(g *typeGenerator, op ClientOperation) (*jen.Statement, e
 		body = jen.Id("body")
 	}
 	statements, headers := renderClientRequest(op)
+	if optionalWorkspaceParams {
+		statements = append([]jen.Code{
+			jen.Var().Id("params").Id(name + "Params"),
+			jen.If(jen.Len(jen.Id("options")).Op(">").Lit(0)).
+				Block(jen.Id("params").Op("=").Id("options").Index(jen.Lit(0))),
+		}, statements...)
+	}
 	responseType, err := clientResponseType(g, op)
 	if err != nil {
 		return nil, err

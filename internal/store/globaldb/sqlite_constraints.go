@@ -10,7 +10,6 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	"github.com/compozy/compozy/internal/workspace"
 )
 
 const terminalRunCommandGuardMessage = "task run terminal command in progress"
@@ -71,12 +70,4 @@ func mapTerminalRunCommandGuardError(err error) error {
 		return err
 	}
 	return fmt.Errorf("%w: %w", taskpkg.ErrTerminalRunCommandInProgress, err)
-}
-
-func mapWorkspaceArchivedConstraint(err error) error {
-	if isSQLiteTriggerConstraint(err) && strings.HasSuffix(err.Error(),
-		fmt.Sprintf(": workspace archived (%d)", sqlite3.SQLITE_CONSTRAINT_TRIGGER)) {
-		return fmt.Errorf("%w: %w", workspace.ErrWorkspaceArchived, err)
-	}
-	return err
 }

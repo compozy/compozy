@@ -17893,7 +17893,9 @@ export interface components {
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
         | "tool_timed_out"
-        | "tool_unavailable";
+        | "tool_unavailable"
+        | "workspace_archived"
+        | "workspace_busy";
       input_digest?: string;
       /** @enum {string} */
       kind:
@@ -18086,7 +18088,9 @@ export interface components {
         | "tool_result_persistence_failed"
         | "tool_result_too_large"
         | "tool_timed_out"
-        | "tool_unavailable";
+        | "tool_unavailable"
+        | "workspace_archived"
+        | "workspace_busy";
       details?: {
         [key: string]: unknown;
       };

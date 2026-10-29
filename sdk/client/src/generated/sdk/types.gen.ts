@@ -10667,7 +10667,9 @@ export type ToolCallEventPayload = {
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
     | "tool_timed_out"
-    | "tool_unavailable";
+    | "tool_unavailable"
+    | "workspace_archived"
+    | "workspace_busy";
   input_digest?: string;
   kind:
     | "tool.call_started"
@@ -10855,7 +10857,9 @@ export type ToolErrorPayload = {
     | "tool_result_persistence_failed"
     | "tool_result_too_large"
     | "tool_timed_out"
-    | "tool_unavailable";
+    | "tool_unavailable"
+    | "workspace_archived"
+    | "workspace_busy";
   details?: {
     [key: string]: unknown;
   };

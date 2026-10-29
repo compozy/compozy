@@ -3972,10 +3972,56 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 			},
 		}
 		for name, check := range checks {
-			if err := check(); !errors.Is(err, compozyworkspace.ErrWorkspaceArchived) {
+			if err := check(); !errors.Is(err, store.ErrWorkspaceArchived) {
 				t.Errorf("%s: %v", name, err)
 			}
 		}
+		// Definition reload retains the disabled overlay even when config says enabled.
+		job.Name = "reloaded-job"
+		if _, err := db.UpdateJob(ctx, job); err != nil {
+			t.Fatalf("reload disabled job: %v", err)
+		}
+		trigger.Name = "reloaded-trigger"
+		if _, err := db.UpdateTrigger(ctx, trigger); err != nil {
+			t.Fatalf("reload disabled trigger: %v", err)
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, id, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetJobEnabledOverlay(ctx, JobEnabledOverlay{JobID: job.ID, EnabledOverride: true}); err != nil {
+			t.Fatalf("enable after unarchive: %v", err)
+		}
+		if _, err := db.SetTriggerEnabledOverlay(
+			ctx,
+			TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: true},
+		); err != nil {
+			t.Fatalf("enable after unarchive: %v", err)
+		}
+		if _, err := db.SetJobEnabledOverlay(
+			ctx,
+			JobEnabledOverlay{JobID: job.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetTriggerEnabledOverlay(
+			ctx,
+			TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, id, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteWorkspace(ctx, id); err != nil {
+			t.Fatalf("remove archived project with disabled config automations: %v", err)
+		}
+		if _, err := db.GetJob(ctx, job.ID); !errors.Is(err, automation.ErrJobNotFound) {
+			t.Fatalf("job survived removal: %v", err)
+		}
+		if _, err := db.GetTrigger(ctx, trigger.ID); !errors.Is(err, automation.ErrTriggerNotFound) {
+			t.Fatalf("trigger survived removal: %v", err)
+		}
+
 	})
 	for _, kind := range []string{"loop", "job", "trigger"} {
 		t.Run("Should refuse archive with a live "+kind, func(t *testing.T) {
@@ -4061,8 +4107,15 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 			t.Fatalf("archive is not idempotent: %#v, %v", again, err)
 		}
 		session.ID, session.State = "archive-new", "active"
-		if err := db.RegisterSession(ctx, session); !errors.Is(err, compozyworkspace.ErrWorkspaceArchived) {
+		if err := db.RegisterSession(ctx, session); !errors.Is(err, store.ErrWorkspaceArchived) {
 			t.Fatalf("new session error = %v", err)
+		}
+		if err := db.UpdateSessionState(
+			ctx,
+			SessionStateUpdate{ID: "archive-history", State: "active"},
+		); !errors.Is(err, store.ErrWorkspaceArchived) ||
+			strings.Contains(err.Error(), "constraint failed") {
+			t.Fatalf("resume error must be typed without SQLite detail: %v", err)
 		}
 		history, err := db.ListSessions(ctx, SessionListQuery{
 			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: id,
@@ -6865,6 +6918,10 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 					t.Error(err)
 				}
 			})
+			// Boundary reads use the current repository after the historical upgrade.
+			if err := applyGlobalMigrationPrefix(t, db, MigrationStream()); err != nil {
+				t.Fatal(err)
+			}
 			repo := &WorkspaceRepo{repoBase: newRepoBase(db, nil, new(atomic.Int32))}
 			for old, want := range map[string]string{"user": "user-project-2", "global": "global-project", "@x": "x"} {
 				got, err := repo.GetWorkspaceByName(t.Context(), old)
