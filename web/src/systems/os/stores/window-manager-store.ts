@@ -58,6 +58,7 @@ function sameWorkArea(
 ): boolean {
   if (left === null || right === null) return left === right;
   return (
+    left.viewportWidth === right.viewportWidth &&
     left.rect.x === right.rect.x &&
     left.rect.y === right.rect.y &&
     left.rect.w === right.rect.w &&
@@ -113,6 +114,7 @@ export function createWindowManagerStore() {
       workAreaMeasured: (state, event: { workArea: WindowManagerWorkArea | null }) => {
         if (sameWorkArea(state.workArea, event.workArea)) return;
         const workArea = event.workArea && {
+          viewportWidth: event.workArea.viewportWidth,
           rect: { ...event.workArea.rect },
           origin: { ...event.workArea.origin },
         };

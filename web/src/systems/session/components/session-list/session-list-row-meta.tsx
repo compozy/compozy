@@ -11,9 +11,15 @@ import type { SessionPayload } from "../../types";
  * never leaves a stray `·`. The words repeat the target's accessible name, so the
  * line itself stays out of the a11y tree.
  */
-export function SessionListRowWho({ session, meta }: { session: SessionPayload; meta: RowMeta }) {
+export function SessionListRowWho({
+  session,
+  meta,
+}: {
+  session: Pick<SessionPayload, "agent_name" | "badge">;
+  meta: Pick<RowMeta, "attention" | "notes">;
+}) {
   const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
-  parts.push({ key: "agent", kind: "agent", text: session.agent_name });
+  if (session.agent_name) parts.push({ key: "agent", kind: "agent", text: session.agent_name });
   meta.attention.forEach((text, index) =>
     parts.push({ key: `attention-${index}`, kind: "attention", text })
   );

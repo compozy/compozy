@@ -27,7 +27,10 @@
                                 "task": "Slow review: recommend a diff panel default.",
                                 "title": "Review the diff panel default",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -52,7 +55,10 @@
                                 "task": "Group ok: audit payment webhooks.",
                                 "title": "Audit payment webhooks",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -64,7 +70,10 @@
                                 "task": "Group ok: audit refund handlers.",
                                 "title": "Audit refund handlers",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -76,7 +85,10 @@
                                 "task": "Group fail: audit checkout retries.",
                                 "title": "Audit checkout retries",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -101,7 +113,10 @@
                                 "task": "Blocking work: webhooks.",
                                 "title": "Long audit of webhooks",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -113,7 +128,10 @@
                                 "task": "Blocking work: refunds.",
                                 "title": "Long audit of refunds",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -139,7 +157,10 @@
                                 "title": "Extract billing client",
                                 "isolation": "worktree",
                                 "target": {
-                                    "agent": "subagent-journey-worker"
+                                    "agent": "subagent-journey-worker",
+                                    "provider": "claude",
+                                    "model": "claude-sonnet-5",
+                                    "reasoning_effort": "medium"
                                 }
                             }
                         },
@@ -276,6 +297,31 @@
                         }
                     ]
                 }
+            ],
+            "model": "claude-sonnet-5",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "claude-sonnet-5",
+                    "values": [
+                        {
+                            "value": "claude-sonnet-5",
+                            "label": "Sonnet 5"
+                        }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        {
+                            "value": "medium",
+                            "label": "Medium"
+                        }
+                    ]
+                }
             ]
         },
         {
@@ -302,6 +348,13 @@
                             "kind": "driver_control",
                             "driver_control": {
                                 "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"_claude/sdkMessage\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"message\":{\"type\":\"system\",\"subtype\":\"task_started\",\"task_id\":\"native-review\",\"tool_use_id\":\"toolu_agent\",\"description\":\"Review the diff (high effort)\",\"subagent_type\":\"Explore\",\"task_type\":\"local_agent\",\"is_backgrounded\":true,\"prompt\":\"Review the diff\",\"uuid\":\"native-start\",\"session_id\":\"sdk-native\"}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
                                 "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"Inspecting the diff.\"},\"_meta\":{\"claudeCode\":{\"parentToolUseId\":\"toolu_agent\"}}}}}"
                             }
                         },
@@ -322,6 +375,13 @@
                         {
                             "kind": "driver_control",
                             "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"session/update\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"update\":{\"sessionUpdate\":\"agent_message_chunk\",\"content\":{\"type\":\"text\",\"text\":\"Nested inspection confirmed the project notes.\"},\"_meta\":{\"claudeCode\":{\"parentToolUseId\":\"toolu_read\"}}}}}"
+                            }
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
                                 "action": "delay",
                                 "delay_ms": 6000
                             }
@@ -334,8 +394,40 @@
                             }
                         },
                         {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "write_raw_jsonrpc",
+                                "raw_jsonrpc": "{\"jsonrpc\":\"2.0\",\"method\":\"_claude/sdkMessage\",\"params\":{\"sessionId\":\"subagent-native-session-1\",\"message\":{\"type\":\"system\",\"subtype\":\"task_notification\",\"task_id\":\"native-review\",\"tool_use_id\":\"toolu_agent\",\"status\":\"completed\",\"summary\":\"Background reviewer confirmed no issues.\",\"uuid\":\"native-result\",\"session_id\":\"sdk-native\"}}}"
+                            }
+                        },
+                        {
                             "kind": "assistant",
                             "text": "The reviewer found no issues."
+                        }
+                    ]
+                }
+            ],
+            "model": "claude-sonnet-5",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "claude-sonnet-5",
+                    "values": [
+                        {
+                            "value": "claude-sonnet-5",
+                            "label": "Sonnet 5"
+                        }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        {
+                            "value": "medium",
+                            "label": "Medium"
                         }
                     ]
                 }

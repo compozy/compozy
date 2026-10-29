@@ -82,7 +82,7 @@ export type SubagentView = Pick<
   | "updated_at"
   | "delivery"
 > &
-  Partial<Pick<SubagentPayload, "role" | "depth">> & {
+  Partial<Pick<SubagentPayload, "role" | "depth" | "result" | "result_truncated">> & {
     id: string;
     status: SubagentStatus;
     origin: SubagentOrigin;

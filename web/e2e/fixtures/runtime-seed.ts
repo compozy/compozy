@@ -65,6 +65,8 @@ interface SeededSessionPayload {
 }
 
 interface BrowserMockAgentSeed {
+  runtimeProvider?: string;
+  runtimeCommandName?: "claude-agent-acp";
   fixturePath: string;
   fixtureAgent?: string;
   agentName?: string;
@@ -403,13 +405,23 @@ export async function seedBrowserRuntimeHome(
   await mkdir(diagnosticsDir, { recursive: true });
 
   for (const spec of mockAgents) {
-    const registration = await loadMockAgentRegistration(driverPath, diagnosticsDir, spec);
+    let agentDriverPath = driverPath;
+    if (spec.runtimeCommandName) {
+      await installACPmockDriverShim(paths.homeDir, driverPath, spec.runtimeCommandName);
+      agentDriverPath = path.join(paths.homeDir, "bin", spec.runtimeCommandName);
+    }
+    const registration = await loadMockAgentRegistration(agentDriverPath, diagnosticsDir, spec);
     const agentDir = path.join(agentsDir, registration.agentName);
     const agentDefPath = path.join(agentDir, "AGENT.md");
     await mkdir(agentDir, { recursive: true });
     await writeFile(
       agentDefPath,
-      renderMockAgentDef(registration.agentName, registration.agent, registration.command),
+      renderMockAgentDef(
+        registration.agentName,
+        registration.agent,
+        registration.command,
+        spec.runtimeProvider
+      ),
       "utf8"
     );
   }
@@ -1289,9 +1301,13 @@ async function buildACPmockDriverBinary(repoRoot: string): Promise<string> {
   return outputPath;
 }
 
-async function installACPmockDriverShim(homeDir: string, driverPath: string): Promise<void> {
+async function installACPmockDriverShim(
+  homeDir: string,
+  driverPath: string,
+  name = acpMockDriverBinaryName()
+): Promise<void> {
   const binDir = path.join(homeDir, "bin");
-  const targetPath = path.join(binDir, acpMockDriverBinaryName());
+  const targetPath = path.join(binDir, name);
   await mkdir(binDir, { recursive: true });
   await rm(targetPath, { force: true });
 
@@ -1312,14 +1328,14 @@ function acpMockDriverBinaryName(): string {
   return process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver";
 }
 
-function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: string): string {
+function renderMockAgentDef(
+  name: string,
+  agent: MockFixtureAgent,
+  command: string,
+  provider = MOCK_AGENT_PROVIDER_NAME
+): string {
   const prompt = agent.prompt?.trim() || `You are ${name}.`;
-  const lines = [
-    "---",
-    `name: ${name}`,
-    `provider: ${MOCK_AGENT_PROVIDER_NAME}`,
-    `command: ${command}`,
-  ];
+  const lines = ["---", `name: ${name}`, `provider: ${provider}`, `command: ${command}`];
 
   if (agent.model?.trim()) {
     lines.push(`model: ${agent.model.trim()}`);

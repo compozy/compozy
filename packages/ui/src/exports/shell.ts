@@ -40,3 +40,4 @@ export {
 } from "../components/custom/connection-indicator";
 export { LiveBadge, type LiveBadgeProps } from "../components/custom/live-badge";
 export { ThemeToggle, type ThemeToggleProps } from "../components/custom/theme-toggle";
+export { ResizableDrawer, type ResizableDrawerProps } from "../components/custom/resizable-drawer";

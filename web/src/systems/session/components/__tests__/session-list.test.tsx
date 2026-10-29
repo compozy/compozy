@@ -945,6 +945,25 @@ describe("SessionList subagents", () => {
     expect(within(open("Subagent 4")).getByText("Done")).toBeInTheDocument();
   });
 
+  // Invariant: a sidebar without a drawer must not advertise an action with no target.
+  // Owner/canonical suite: session sidebar navigation, this file.
+  it("Should keep a pending child without a drawer host non-interactive", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [{ ...wireSubagent(1, "queued"), child_session_id: null }],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    renderList({ sessions: [row("parent", summary(1, 1))], subagentThreadIds: ["parent"] });
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    expect(await within(branch).findByText("Subagent 1")).toBeVisible();
+    expect(
+      within(branch).queryByRole("button", { name: "Open Subagent 1" })
+    ).not.toBeInTheDocument();
+  });
+
   // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
   it("UT-W17: opens a bounded subagent branch that reads one page and pages with Show more", async () => {
     const user = userEvent.setup();
