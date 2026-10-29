@@ -1212,6 +1212,42 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	// Invariant: missing project files cannot prevent reads of daemon-owned session history.
+	t.Run("Should read retained history while the project folder is missing", func(t *testing.T) {
+		missing := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			},
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-workspace", RootMissing: true}, nil
+			},
+		})
+		response := performRequest(t, missing.Engine, http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/history", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("missing-root history = %d: %s", response.Code, response.Body)
+		}
+		var payload contract.SessionHistoryResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.History) != 1 || payload.History[0].TurnID != "turn-1" ||
+			len(payload.History[0].Events) != 1 || payload.History[0].Events[0].ID != "ev-1" {
+			t.Fatalf("retained history = %#v", payload.History)
+		}
+		// Recovery permits stopping existing work, but never starting new work.
+		stop := performRequest(t, missing.Engine, http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/stop", nil)
+		if stop.Code != http.StatusNoContent {
+			t.Fatalf("missing-root stop = %d: %s", stop.Code, stop.Body)
+		}
+		attach := performRequest(t, missing.Engine, http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/attach", nil)
+		if attach.Code != core.StatusForWorkspaceError(workspacepkg.ErrWorkspaceRootMissing) {
+			t.Fatalf("missing-root attach = %d: %s", attach.Code, attach.Body)
+		}
+	})
+
 	t.Run("Should return session history", func(t *testing.T) {
 		historyResp := performRequest(
 			t,

@@ -10880,3 +10880,7 @@ func (f *fakeSessionManager) LatestSettledTurn(context.Context, string) (session
 func (f *fakeSessionManager) ContextEvents(context.Context, string) (session.ContextEvents, error) {
 	return session.ContextEvents{}, nil
 }
+
+func (r *recordingRegistry) SetWorkspaceArchived(context.Context, string, bool) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}

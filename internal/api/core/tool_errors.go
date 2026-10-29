@@ -77,6 +77,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		}
 		return http.StatusAccepted
 	case toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeWorkspaceBusy, toolspkg.ErrorCodeWorkspaceArchived,
 		toolspkg.ErrorCodeWorktreeNotReady,
 		toolspkg.ErrorCodeWorktreeMissing,
 		toolspkg.ErrorCodeWorktreeOperationInProgress,

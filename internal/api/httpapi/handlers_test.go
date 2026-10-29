@@ -505,6 +505,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/webhooks/global/:endpoint",
 		"POST /api/webhooks/workspaces/:workspace_id/:endpoint",
 		"POST /api/workspaces",
+		"POST /api/workspaces/:workspace_id/archive",
+		"POST /api/workspaces/:workspace_id/unarchive",
 		"POST /api/workspaces/resolve",
 		"PUT /api/agents/:name/heartbeat",
 		"PUT /api/agents/:name/soul",

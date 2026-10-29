@@ -163,6 +163,9 @@ func sdkGoSample(operation spec.OperationSpec, kind, body string) string {
 	if body != "" {
 		arguments = append(arguments, body)
 	}
+	if operation.OperationID == "listWorkspaces" {
+		method = "ListWorkspacesWithParams"
+	}
 	call := fmt.Sprintf("c.%s(%s)", method, strings.Join(arguments, ", "))
 	if kind == sdkKindSSE {
 		return "stream, err := " + call + "\nif err != nil { return err }\ndefer stream.Close()\nfor {\n" +

@@ -12,10 +12,10 @@ import { USER_SCOPE_SELECTOR } from "./destination";
 
 export const WORKSPACE_REFETCH_INTERVAL = 10_000;
 
-export function workspacesListOptions(enabled = true) {
+export function workspacesListOptions(enabled = true, archived = false) {
   return queryOptions({
-    queryKey: workspaceKeys.list(),
-    queryFn: ({ signal }) => fetchWorkspaces(signal),
+    queryKey: archived ? workspaceKeys.archived() : workspaceKeys.list(),
+    queryFn: ({ signal }) => fetchWorkspaces(signal, archived),
     enabled,
     staleTime: 60_000,
     refetchInterval: WORKSPACE_REFETCH_INTERVAL,

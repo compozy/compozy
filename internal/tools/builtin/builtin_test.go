@@ -1719,6 +1719,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__workspace_info", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__workspace_archive", risk: toolspkg.RiskMutating},
+		{id: "compozy__workspace_unarchive", risk: toolspkg.RiskMutating},
 		{id: "compozy__workspace_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 	}

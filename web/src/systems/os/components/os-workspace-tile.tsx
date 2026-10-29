@@ -60,6 +60,7 @@ export interface OsWorkspaceTileProps extends Omit<
   current?: OsWorkspaceTileCurrent | null;
   /** Sessions working in this workspace; the well's top corner carries the dot. */
   workingSessions?: number;
+  rootMissing?: boolean;
 }
 
 /**
@@ -73,6 +74,7 @@ export function OsWorkspaceTile({
   focused,
   current = null,
   workingSessions = 0,
+  rootMissing = false,
   className,
   ...props
 }: OsWorkspaceTileProps) {
@@ -87,7 +89,7 @@ export function OsWorkspaceTile({
       data-on={focused ? "true" : undefined}
       data-current={current ?? undefined}
       aria-selected={current !== null}
-      aria-label={label}
+      aria-label={rootMissing ? `${label}, Folder not found` : label}
       className={cn(TILE_CLASS, className)}
       {...props}
     >
@@ -99,6 +101,7 @@ export function OsWorkspaceTile({
         <WorkspaceWorkingDot count={workingSessions} className="top-1 right-1 ring-0" />
       </span>
       <span className={NAME_CLASS}>{name}</span>
+      {rootMissing ? <span className="text-caption text-muted">Folder not found</span> : null}
     </button>
   );
 }

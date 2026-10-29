@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WorkspaceManagement } from "@/systems/workspace";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
@@ -394,6 +395,10 @@ export function GeneralSettingsPage() {
           options={PERMISSION_OPTIONS}
           value={draft.permissions.mode}
         />
+      </SettingsGroup>
+
+      <SettingsGroup title="Projects">
+        <WorkspaceManagement />
       </SettingsGroup>
 
       <ToolApprovalGrantsSection />

@@ -8,6 +8,47 @@ import (
 	"strings"
 )
 
+// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
+func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
+	path := "/api/app-tokens/{app_token_id}"
+	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
+	var out AppTokenResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAutomationJobParams carries the path, query, and header parameters.
+type UpdateAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateAutomationJob Update one automation job
+func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
+	path := "/api/automation/jobs/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out JobResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateAutomationTriggerParams carries the path, query, and header parameters.
+type UpdateAutomationTriggerParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateAutomationTrigger Update one automation trigger
 func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
 	path := "/api/automation/triggers/{id}"
@@ -404,46 +445,4 @@ func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspacePara
 type UploadSessionAttachmentParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
-}
-
-// UploadSessionAttachment Upload a session attachment
-func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessionAttachmentParams, body *UploadFile) (*SessionAttachmentUploadResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionAttachmentUploadResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "multipart/form-data", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentDefinitionSoulParams carries the path, query, and header parameters.
-type ValidateAgentDefinitionSoulParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// ValidateAgentDefinitionSoul Validate a proposed Soul body for an agent definition
-func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params ValidateAgentDefinitionSoulParams, body AgentSoulValidateByPathRequest) (*AgentSoulPayload, error) {
-	path := "/api/agents/{name}/soul/validate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentHeartbeatParams carries the path, query, and header parameters.
-type ValidateAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

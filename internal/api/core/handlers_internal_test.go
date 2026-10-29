@@ -106,3 +106,7 @@ func TestPaletteDeprecationWarnings(t *testing.T) {
 		}
 	})
 }
+
+func (s workspaceResolveServiceStub) SetArchived(context.Context, string, bool) (workspacepkg.Workspace, error) {
+	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}

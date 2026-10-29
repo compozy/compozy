@@ -8,56 +8,34 @@ import (
 
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreateJob stores a new automation job definition.
-func (g *AutomationRepo) CreateJob(
-	ctx context.Context,
-	job automation.Job,
-) (created automation.Job, err error) {
+func (g *AutomationRepo) CreateJob(ctx context.Context, value automation.Job) (automation.Job, error) {
 	if err := g.checkReady(ctx, "create automation job"); err != nil {
 		return automation.Job{}, err
 	}
-	normalized, err := g.normalizeJobForCreate(job)
+	normalized, err := g.normalizeJobForCreate(value)
 	if err != nil {
 		return automation.Job{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
+	err = g.withImmediateTransaction(ctx, "create automation job", func(tx globalSQLExecutor) error {
+		if err := g.insertJob(ctx, tx, normalized); err != nil {
+			return err
+		}
+		return upsertAutomationJobCatalog(ctx, tx, normalized)
+	})
 	if err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: begin create automation job %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	defer rollbackAutomationDefinitionTx(&err, tx, "create automation job")
-	if err := g.insertJob(ctx, tx, normalized); err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: create automation job %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	if err := upsertAutomationJobCatalog(ctx, tx, normalized); err != nil {
 		return automation.Job{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: commit create automation job %q: %w",
-			normalized.ID,
-			err,
-		)
 	}
 	return normalized, nil
 }
 
 // UpdateJob replaces the mutable fields of a persisted automation job definition.
-func (g *AutomationRepo) UpdateJob(
-	ctx context.Context,
-	job automation.Job,
-) (updated automation.Job, err error) {
+func (g *AutomationRepo) UpdateJob(ctx context.Context, job automation.Job) (automation.Job, error) {
 	if err := g.checkReady(ctx, "update automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -69,41 +47,37 @@ func (g *AutomationRepo) UpdateJob(
 	if err != nil {
 		return automation.Job{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
+	err = g.withImmediateTransaction(ctx, "update automation job", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationWorkspaceActive(
+			ctx,
+			tx,
+			"automation.job",
+			normalized.ID,
+			normalized.WorkspaceID,
+			params.LoopWorkspaceID.String,
+			normalized.Enabled,
+			normalized.Source == automation.JobSourceConfig ||
+				normalized.Source == automation.JobSourcePackage,
+		); err != nil {
+			return err
+		}
+		params.Operator = workspaceaccess.OriginFromContext(ctx).Kind == workspaceaccess.ActorHuman
+		affected, err := sqlcgen.New(tx).UpdateAutomationJob(ctx, params)
+		if err != nil {
+			return mapAutomationJobConstraintError(err)
+		}
+		if err := requireAutomationAffected(
+			affected,
+			automation.ErrJobNotFound,
+			normalized.ID,
+			"automation job",
+		); err != nil {
+			return err
+		}
+		return upsertAutomationJobCatalog(ctx, tx, normalized)
+	})
 	if err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: begin update automation job %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	defer rollbackAutomationDefinitionTx(&err, tx, "update automation job")
-	params.Operator = workspaceaccess.OriginFromContext(ctx).Kind == workspaceaccess.ActorHuman
-	affected, err := sqlcgen.New(tx).UpdateAutomationJob(ctx, params)
-	if err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: update automation job %q: %w",
-			normalized.ID,
-			mapAutomationJobConstraintError(err),
-		)
-	}
-	if err := requireAutomationAffected(
-		affected,
-		automation.ErrJobNotFound,
-		normalized.ID,
-		"automation job",
-	); err != nil {
 		return automation.Job{}, err
-	}
-	if err := upsertAutomationJobCatalog(ctx, tx, normalized); err != nil {
-		return automation.Job{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.Job{}, fmt.Errorf(
-			"store: commit update automation job %q: %w",
-			normalized.ID,
-			err,
-		)
 	}
 	return g.GetJob(ctx, normalized.ID)
 }
@@ -153,42 +127,22 @@ func (g *AutomationRepo) GetJob(ctx context.Context, id string) (automation.Job,
 }
 
 // CreateTrigger stores a new automation trigger definition.
-func (g *AutomationRepo) CreateTrigger(
-	ctx context.Context,
-	trigger automation.Trigger,
-) (created automation.Trigger, err error) {
+func (g *AutomationRepo) CreateTrigger(ctx context.Context, value automation.Trigger) (automation.Trigger, error) {
 	if err := g.checkReady(ctx, "create automation trigger"); err != nil {
 		return automation.Trigger{}, err
 	}
-	normalized, err := g.normalizeTriggerForCreate(trigger)
+	normalized, err := g.normalizeTriggerForCreate(value)
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
+	err = g.withImmediateTransaction(ctx, "create automation trigger", func(tx globalSQLExecutor) error {
+		if err := g.insertTrigger(ctx, tx, normalized); err != nil {
+			return err
+		}
+		return upsertAutomationTriggerCatalog(ctx, tx, normalized)
+	})
 	if err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: begin create automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	defer rollbackAutomationDefinitionTx(&err, tx, "create automation trigger")
-	if err := g.insertTrigger(ctx, tx, normalized); err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: create automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
-	}
-	if err := upsertAutomationTriggerCatalog(ctx, tx, normalized); err != nil {
 		return automation.Trigger{}, err
-	}
-	if err := tx.Commit(); err != nil {
-		return automation.Trigger{}, fmt.Errorf(
-			"store: commit create automation trigger %q: %w",
-			normalized.ID,
-			err,
-		)
 	}
 	return normalized, nil
 }
@@ -210,6 +164,19 @@ func (g *AutomationRepo) UpdateTrigger(
 		return automation.Trigger{}, err
 	}
 	err = g.withImmediateTransaction(ctx, "update automation trigger", func(tx globalSQLExecutor) error {
+		if err := store.RequireAutomationWorkspaceActive(
+			ctx,
+			tx,
+			"automation.trigger",
+			normalized.ID,
+			normalized.WorkspaceID,
+			params.LoopWorkspaceID.String,
+			normalized.Enabled,
+			normalized.Source == automation.JobSourceConfig ||
+				normalized.Source == automation.JobSourcePackage,
+		); err != nil {
+			return err
+		}
 		queries := sqlcgen.New(tx)
 		previous, err := queries.GetAutomationTrigger(ctx, normalized.ID)
 		if errors.Is(err, sql.ErrNoRows) {

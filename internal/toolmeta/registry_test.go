@@ -325,6 +325,8 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__worktree_remove":          expectedNativeEntry("Removing", " ", false, "🗂️", "auto"),
 		"compozy__workspace_describe":       expectedNativeEntry("Reading", " ", false, "🗂️", "auto"),
 		"compozy__workspace_info":           expectedNativeEntry("Reading", " ", false, "🗂️", "auto"),
+		"compozy__workspace_archive":        expectedNativeEntry("Archiving", " ", false, "🗂️", "auto"),
+		"compozy__workspace_unarchive":      expectedNativeEntry("Restoring", " ", false, "🗂️", "auto"),
 		"compozy__workspace_list":           expectedNativeEntry("Reading", " ", false, "🗂️", "auto"),
 	}
 }

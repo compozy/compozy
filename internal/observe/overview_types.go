@@ -42,6 +42,7 @@ type OverviewQuery struct {
 	AcknowledgementProfileID string
 	ReadScope                store.ReadScope
 	WorkspaceID              string
+	WorkspaceIDs             []string
 	TaskScope                taskpkg.CatalogScope
 	UsageWindowDays          int
 	Actor                    taskpkg.ActorIdentity

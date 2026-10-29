@@ -20,7 +20,7 @@ func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract
 	breadth, err := parseWorkspaceBreadth(
 		c,
 		c.Param("workspace_id"),
-		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true},
+		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true, CatalogFiltersArchived: true},
 		workspaces...)
 	if err != nil {
 		return contract.TaskListQuery{}, err

@@ -13,25 +13,9 @@ func (r *Resolver) reconcileWorkspaceList(ctx context.Context, workspaces []Work
 			return nil, err
 		}
 
-		missing, err := workspaceRootMissing(ws)
-		if err != nil {
-			return nil, err
-		}
-		if !missing {
-			reconciled = append(reconciled, ws)
-			continue
-		}
-
-		if err := r.Unregister(ctx, ws.ID); err != nil {
-			if errors.Is(err, ErrWorkspaceNotFound) {
-				continue
-			}
-			return nil, fmt.Errorf("workspace: prune missing workspace %q: %w", ws.ID, err)
-		}
-		r.logger.Info("workspace.prune",
-			"workspace_id", ws.ID,
-			"root_dir", ws.RootDir,
-		)
+		ws = r.withRootAvailability(ctx, ws)
+		// An unavailable folder is not consent to delete its registration or history.
+		reconciled = append(reconciled, ws)
 	}
 
 	return reconciled, nil
@@ -46,4 +30,14 @@ func workspaceRootMissing(ws Workspace) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (r *Resolver) withRootAvailability(ctx context.Context, ws Workspace) Workspace {
+	missing, err := workspaceRootMissing(ws)
+	if err != nil {
+		r.logger.WarnContext(ctx, "workspace.root_inspection_failed", "workspace_id", ws.ID, "error", err)
+		return ws
+	}
+	ws.RootMissing = missing
+	return ws
 }

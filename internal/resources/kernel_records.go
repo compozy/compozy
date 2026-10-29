@@ -11,6 +11,9 @@ import (
 )
 
 func insertRecord(ctx context.Context, exec sqlExecutor, record RawRecord) error {
+	if err := checkAutomationWorkspaceAdmission(ctx, exec, record); err != nil {
+		return err
+	}
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO resource_records (
@@ -36,6 +39,9 @@ func insertRecord(ctx context.Context, exec sqlExecutor, record RawRecord) error
 }
 
 func updateRecord(ctx context.Context, exec sqlExecutor, record RawRecord, expectedVersion int64) error {
+	if err := checkAutomationWorkspaceAdmission(ctx, exec, record); err != nil {
+		return err
+	}
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE resource_records

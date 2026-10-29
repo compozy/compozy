@@ -41,7 +41,8 @@ export function buildWorkspacesWorktreeMenuModel(
   node: WorkspaceTreeNode<WorkspacePayload> | null | undefined,
   canCreate: boolean
 ): OsWorkspacesWorktreeMenuModel | null {
-  if (!node || worktreeNestPresence(node, canCreate) === "absent") return null;
+  if (!node || node.workspace.root_missing || worktreeNestPresence(node, canCreate) === "absent")
+    return null;
   const visible = node.worktrees;
   const navRows: WorkspacesMenuNavRow[] = [];
   for (const entry of visible) {

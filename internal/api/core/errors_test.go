@@ -321,6 +321,7 @@ func TestErrorPayloadForError(t *testing.T) {
 			code   string
 			status int
 		}{
+			{workspacepkg.ErrWorkspaceRootMissing, "workspace_root_missing", http.StatusGone},
 			{session.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionNotFound, "session_not_found", http.StatusNotFound},
 			{store.ErrSessionInputQueueFull, "queue_full", http.StatusConflict},

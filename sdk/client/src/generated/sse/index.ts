@@ -180,5 +180,6 @@ export type {
   ViewFrame,
   ViewPatch,
   ViewPayload,
+  WorkspaceArchiveBlocker,
   WorktreeCatalogEventPayload,
 } from "./types.gen.js";

@@ -68,6 +68,8 @@ type DaemonClient interface {
 	sessionClientAPI
 	CreateWorkspace(ctx context.Context, request WorkspaceCreateRequest) (WorkspaceRecord, error)
 	ListWorkspaces(ctx context.Context) ([]WorkspaceRecord, error)
+	ListArchivedWorkspaces(ctx context.Context) ([]WorkspaceRecord, error)
+	SetWorkspaceArchived(ctx context.Context, ref string, archived bool) (WorkspaceRecord, error)
 	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
 	UpdateWorkspace(ctx context.Context, ref string, request WorkspaceUpdateRequest) (WorkspaceRecord, error)
 	DeleteWorkspace(ctx context.Context, ref string) error

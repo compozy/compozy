@@ -5,5 +5,6 @@ export function reconcileWorkspaceList(
   current: WorkspacePayload[] | undefined,
   workspace: WorkspacePayload
 ): WorkspacePayload[] {
-  return [workspace, ...(current ?? []).filter(item => item.id !== workspace.id)];
+  const others = (current ?? []).filter(item => item.id !== workspace.id);
+  return workspace.archived_at ? others : [workspace, ...others];
 }

@@ -107,7 +107,7 @@ func (m *Manager) resolveCreateWorkspacePath(
 			)
 		}
 		applyDefaultProfileIdentity(&resolved)
-		return resolved, nil
+		return requireActiveResolvedWorkspace(&resolved)
 	}
 	profileName, err := resolveProfileName(ctx, m.profileNames, profileID)
 	if err != nil {
@@ -120,7 +120,7 @@ func (m *Manager) resolveCreateWorkspacePath(
 		)
 	}
 	resolved.ProfileID = profileID
-	return resolved, nil
+	return requireActiveResolvedWorkspace(&resolved)
 }
 
 func (m *Manager) resolveResumeWorkspace(
@@ -162,7 +162,7 @@ func resolveWorkspaceForProfile(
 			return workspacepkg.ResolvedWorkspace{}, err
 		}
 		applyDefaultProfileIdentity(&resolved)
-		return resolved, nil
+		return requireActiveResolvedWorkspace(&resolved)
 	}
 	profileName, err := resolveProfileName(ctx, profileNames, profileID)
 	if err != nil {
@@ -179,7 +179,7 @@ func resolveWorkspaceForProfile(
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
 	resolved.ProfileID = profileID
-	return resolved, nil
+	return requireActiveResolvedWorkspace(&resolved)
 }
 
 func applyDefaultProfileIdentity(resolved *workspacepkg.ResolvedWorkspace) {
@@ -335,4 +335,11 @@ func resolveUserWorkspace(
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace resolver does not support User scope")
 	}
 	return userResolver.ResolveUser(ctx, normalizeCreateProfileID(profileID))
+}
+
+func requireActiveResolvedWorkspace(resolved *workspacepkg.ResolvedWorkspace) (workspacepkg.ResolvedWorkspace, error) {
+	if resolved.ArchivedAt != nil {
+		return workspacepkg.ResolvedWorkspace{}, store.ErrWorkspaceArchived
+	}
+	return *resolved, nil
 }

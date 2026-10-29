@@ -110,6 +110,7 @@ export type Entry = {
 };
 
 export type ErrorPayload = {
+  blockers?: Array<WorkspaceArchiveBlocker>;
   code?: string;
   config_path?: string;
   current_turn_id?: string;
@@ -909,6 +910,12 @@ export type ViewPayload = {
   grid?: GridBody | null;
   sections?: Array<Section>;
   view: string;
+};
+
+export type WorkspaceArchiveBlocker = {
+  id: string;
+  kind: string;
+  name: string;
 };
 
 export type WorktreeCatalogEventPayload = {

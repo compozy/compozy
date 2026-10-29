@@ -22,6 +22,7 @@ import (
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/extensionenv"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -3989,6 +3990,306 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	})
 }
 
+func TestGlobalDBWorkspaceArchive(t *testing.T) {
+	t.Run("Should reconcile observed non-stopped metadata without starting archived work", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		id := registerWorkspaceForGlobalTests(t, db, "recovery-project", t.TempDir())
+		healthyID := registerWorkspaceForGlobalTests(t, db, "healthy-project", t.TempDir())
+		if _, err := db.SetWorkspaceArchived(t.Context(), id, true); err != nil {
+			t.Fatal(err)
+		}
+		rows := []SessionInfo{}
+		for i, workspaceID := range []string{id, healthyID} {
+			rows = append(rows, SessionInfo{
+				ID: fmt.Sprintf("recovered-%d", i), WorkspaceID: workspaceID,
+				AgentName: "coder", Provider: "codex", State: "idle",
+				RuntimeStatus: store.SessionRuntimeUnbound, ProfileID: store.DefaultProfileID,
+				CreatedAt: time.Now(), UpdatedAt: time.Now(),
+			})
+		}
+		if _, err := db.ReconcileSessions(t.Context(), rows); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.ListSessions(
+			t.Context(),
+			SessionListQuery{WorkspaceID: id, ReadScope: store.ReadScope{AllProfiles: true}},
+		)
+		if err != nil || len(got) != 1 || got[0].State != "idle" || got[0].WorkspaceID != id {
+			t.Fatalf("recovered row = %#v, %v", got, err)
+		}
+		if err := db.RegisterSession(t.Context(), rows[0]); !errors.Is(err, store.ErrWorkspaceArchived) {
+			t.Fatalf("new admission = %v", err)
+		}
+	})
+
+	t.Run("Should prevent new work and reactivation through automation overlays", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		id := registerWorkspaceForGlobalTests(t, db, "disabled-project", t.TempDir())
+		job, err := db.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace,
+			"disabled-job", id, automation.JobSourceConfig))
+		if err != nil {
+			t.Fatal(err)
+		}
+		trigger, err := db.CreateTrigger(ctx, automationNonWebhookTriggerForTest(automation.AutomationScopeWorkspace,
+			"disabled-trigger", id, automation.JobSourceConfig))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetJobEnabledOverlay(
+			ctx,
+			JobEnabledOverlay{JobID: job.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetTriggerEnabledOverlay(
+			ctx,
+			TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, id, true); err != nil {
+			t.Fatal(err)
+		}
+		checks := map[string]func() error{
+			"enable job": func() error {
+				_, err := db.SetJobEnabledOverlay(ctx, JobEnabledOverlay{JobID: job.ID, EnabledOverride: true})
+				return err
+			},
+			"enable trigger": func() error {
+				_, err := db.SetTriggerEnabledOverlay(
+					ctx,
+					TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: true},
+				)
+				return err
+			},
+			"clear job override":     func() error { return db.DeleteJobEnabledOverlay(ctx, job.ID) },
+			"clear trigger override": func() error { return db.DeleteTriggerEnabledOverlay(ctx, trigger.ID) },
+			"start loop": func() error {
+				run := testLoopRun("archived-loop", time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC), looppkg.StatusQueued)
+				run.WorkspaceID = looppkg.WorkspaceID(id)
+				_, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow)
+				return err
+			},
+		}
+		for name, check := range checks {
+			t.Run("Should refuse "+name, func(t *testing.T) {
+				if err := check(); !errors.Is(err, store.ErrWorkspaceArchived) {
+					t.Fatalf("admission = %v", err)
+				}
+			})
+		}
+		// Definition reload retains the disabled overlay even when config says enabled.
+		job.Name = "reloaded-job"
+		if _, err := db.UpdateJob(ctx, job); err != nil {
+			t.Fatalf("reload disabled job: %v", err)
+		}
+		trigger.Name = "reloaded-trigger"
+		if _, err := db.UpdateTrigger(ctx, trigger); err != nil {
+			t.Fatalf("reload disabled trigger: %v", err)
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, id, false); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetJobEnabledOverlay(ctx, JobEnabledOverlay{JobID: job.ID, EnabledOverride: true}); err != nil {
+			t.Fatalf("enable after unarchive: %v", err)
+		}
+		if _, err := db.SetTriggerEnabledOverlay(
+			ctx,
+			TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: true},
+		); err != nil {
+			t.Fatalf("enable after unarchive: %v", err)
+		}
+		if _, err := db.SetJobEnabledOverlay(
+			ctx,
+			JobEnabledOverlay{JobID: job.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetTriggerEnabledOverlay(
+			ctx,
+			TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.SetWorkspaceArchived(ctx, id, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DeleteWorkspace(ctx, id); err != nil {
+			t.Fatalf("remove archived project with disabled config automations: %v", err)
+		}
+		if _, err := db.GetJob(ctx, job.ID); !errors.Is(err, automation.ErrJobNotFound) {
+			t.Fatalf("job survived removal: %v", err)
+		}
+		if _, err := db.GetTrigger(ctx, trigger.ID); !errors.Is(err, automation.ErrTriggerNotFound) {
+			t.Fatalf("trigger survived removal: %v", err)
+		}
+	})
+	for _, kind := range []string{"loop", "job", "trigger"} {
+		t.Run("Should refuse archive with a live "+kind, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			id := registerWorkspaceForGlobalTests(t, db, "busy-project", t.TempDir())
+			switch kind {
+			case "loop":
+				run := testLoopRun(
+					"archive-live-loop",
+					time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC),
+					looppkg.StatusRunning,
+				)
+				run.WorkspaceID = looppkg.WorkspaceID(id)
+				if _, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+					t.Fatal(err)
+				}
+			case "job":
+				if _, err := db.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace,
+					"archive-live-job", id, automation.JobSourceDynamic)); err != nil {
+					t.Fatal(err)
+				}
+			case "trigger":
+				if _, err := db.CreateTrigger(
+					ctx,
+					automationNonWebhookTriggerForTest(automation.AutomationScopeWorkspace,
+						"archive-live-trigger", id, automation.JobSourceDynamic),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := db.SetWorkspaceArchived(ctx, id, true)
+			busy, ok := errors.AsType[*compozyworkspace.BusyError](err)
+			if !ok || len(busy.Blockers) != 1 || busy.Blockers[0].Kind != kind {
+				t.Fatalf("missing %s blocker: %v", kind, err)
+			}
+		})
+	}
+
+	t.Run("Should preserve identity and stopped history while refusing new sessions", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		id := registerWorkspaceForGlobalTests(t, db, "archive-project", t.TempDir())
+		original, err := db.GetWorkspace(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		session := SessionInfo{ID: "archive-history", ProfileID: store.DefaultProfileID,
+			AgentName: "coder", WorkspaceID: id, State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt: original.CreatedAt, UpdatedAt: original.UpdatedAt}
+		if err := db.RegisterSession(ctx, session); err != nil {
+			t.Fatal(err)
+		}
+		worktree := worktreepkg.Worktree{
+			ID: "wt-archive", WorkspaceID: id, Name: "preserved-worktree",
+			Branch: "feature/preserved", Path: filepath.Join(t.TempDir(), "preserved-worktree"),
+			State: worktreepkg.StateReady, Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+			ProfileID: store.DefaultProfileID, CreatedAt: original.CreatedAt, UpdatedAt: original.UpdatedAt,
+		}
+		if err := db.Worktrees.Insert(ctx, worktree); err != nil {
+			t.Fatal(err)
+		}
+		assertWorktreePreserved := func() {
+			t.Helper()
+			loaded, err := db.Worktrees.Get(ctx, id, worktree.ID)
+			if err != nil || loaded.ID != worktree.ID || loaded.Path != worktree.Path ||
+				loaded.Branch != worktree.Branch || loaded.State != worktree.State {
+				t.Fatalf("worktree changed: %#v, %v", loaded, err)
+			}
+		}
+		archived, err := db.SetWorkspaceArchived(ctx, id, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if archived.ArchivedAt == nil || archived.ID != id || archived.RootDir != original.RootDir {
+			t.Fatalf("archive lost identity: %#v", archived)
+		}
+		assertWorktreePreserved()
+		again, err := db.SetWorkspaceArchived(ctx, id, true)
+		if err != nil || again.ArchivedAt == nil || !again.ArchivedAt.Equal(*archived.ArchivedAt) {
+			t.Fatalf("archive is not idempotent: %#v, %v", again, err)
+		}
+		session.ID, session.State = "archive-new", "active"
+		if err := db.RegisterSession(ctx, session); !errors.Is(err, store.ErrWorkspaceArchived) {
+			t.Fatalf("new session error = %v", err)
+		}
+		if err := db.UpdateSessionState(
+			ctx,
+			SessionStateUpdate{ID: "archive-history", State: "active"},
+		); !errors.Is(err, store.ErrWorkspaceArchived) ||
+			strings.Contains(err.Error(), "constraint failed") {
+			t.Fatalf("resume error must be typed without SQLite detail: %v", err)
+		}
+		history, err := db.ListSessions(ctx, SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: id,
+		})
+		if err != nil || len(history) != 1 || history[0].ID != "archive-history" {
+			t.Fatalf("history changed: %#v, %v", history, err)
+		}
+		restored, err := db.SetWorkspaceArchived(ctx, id, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if restored.ArchivedAt != nil || restored.ID != id || restored.Name != original.Name {
+			t.Fatalf("restore lost identity: %#v", restored)
+		}
+		assertWorktreePreserved()
+		if err := db.RegisterSession(ctx, session); err != nil {
+			t.Fatal(err)
+		}
+		_, err = db.SetWorkspaceArchived(ctx, id, true)
+		busy, ok := errors.AsType[*compozyworkspace.BusyError](err)
+		if !ok || len(busy.Blockers) != 1 || busy.Blockers[0].ID != session.ID {
+			t.Fatalf("archive did not report active session: %v", err)
+		}
+		current, err := db.GetWorkspace(ctx, id)
+		if err != nil || current.ArchivedAt != nil {
+			t.Fatalf("refusal changed workspace: %#v, %v", current, err)
+		}
+	})
+	t.Run("Should upgrade existing registrations losslessly and retain archive across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00155_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, insertErr := prior.ExecContext(ctx, `INSERT INTO workspaces
+ (id, root_dir, add_dirs, name, default_agent, created_at, updated_at)
+ VALUES ('ws-upgrade-archive', '/archive-upgrade', '["/extra"]', 'archive-upgrade', 'coder',
+ '2026-10-28T00:00:00Z', '2026-10-28T00:00:00Z')`)
+		closeErr := prior.Close()
+		if insertErr != nil || closeErr != nil {
+			t.Fatalf("seed: %v; close: %v", insertErr, closeErr)
+		}
+		upgraded, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		archived, archiveErr := upgraded.SetWorkspaceArchived(ctx, "ws-upgrade-archive", true)
+		closeErr = upgraded.Close(ctx)
+		if archiveErr != nil || closeErr != nil {
+			t.Fatalf("archive: %v; close: %v", archiveErr, closeErr)
+		}
+		reopened := openGlobalDBForTest(t, path)
+		got, err := reopened.GetWorkspace(ctx, archived.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.ArchivedAt == nil || !got.ArchivedAt.Equal(*archived.ArchivedAt) ||
+			got.Name != "archive-upgrade" || got.DefaultAgent != "coder" || !slices.Equal(got.AdditionalDirs, []string{"/extra"}) {
+			t.Fatalf("upgrade/reopen lost workspace state: %#v", got)
+		}
+		status, err := store.Status(ctx, reopened.db, MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+}
+
 func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 	t.Parallel()
 
@@ -6721,6 +7022,10 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 					t.Error(err)
 				}
 			})
+			// Boundary reads use the current repository after the historical upgrade.
+			if err := applyGlobalMigrationPrefix(t, db, MigrationStream()); err != nil {
+				t.Fatal(err)
+			}
 			repo := &WorkspaceRepo{repoBase: newRepoBase(db, nil, new(atomic.Int32))}
 			for old, want := range map[string]string{"user": "user-project-2", "global": "global-project", "@x": "x"} {
 				got, err := repo.GetWorkspaceByName(t.Context(), old)

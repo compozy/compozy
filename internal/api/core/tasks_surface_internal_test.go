@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
@@ -494,6 +495,20 @@ func TestTaskNormalizationHelpers(t *testing.T) {
 
 func TestTaskBreadthQuerySemantics(t *testing.T) {
 	t.Parallel()
+	t.Run("Should query persisted tasks without inspecting project folders", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?workspace=%20&scope=%20", nil)
+		catalog := workspaceArchiveCatalogStub{listErr: errors.New("unrelated root is inaccessible")}
+		query, err := ParseTaskListQuery(c, catalog)
+		if err != nil || query.AllWorkspaces || len(query.WorkspaceIDs) != 0 {
+			t.Fatalf("default list = %+v, %v", query, err)
+		}
+		inbox, err := ParseTaskInboxQuery(c)
+		if err != nil || len(inbox.WorkspaceIDs) != 0 {
+			t.Fatalf("default inbox = %+v, %v", inbox, err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name, query string
 		all         bool
@@ -510,7 +525,11 @@ func TestTaskBreadthQuerySemantics(t *testing.T) {
 			t.Parallel()
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
-			list, err := ParseTaskListQuery(c)
+			archivedAt := time.Now()
+			catalog := workspaceArchiveCatalogStub{items: []workspacepkg.Workspace{
+				{ID: "ws-active"}, {ID: "ws-archived", ArchivedAt: &archivedAt},
+			}}
+			list, err := ParseTaskListQuery(c, catalog)
 			if tc.invalid {
 				if StatusForTaskError(err) != 400 {
 					t.Fatalf("list error=%v", err)

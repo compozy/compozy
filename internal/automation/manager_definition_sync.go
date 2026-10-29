@@ -97,12 +97,21 @@ func (m *Manager) syncJobsForSource(ctx context.Context, source JobSource, desir
 		switch {
 		case !exists:
 			if _, err := m.store.CreateJob(ctx, job); err != nil {
+				if m.deferArchivedDefinition(ctx, "job", job.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		case current.Source != source:
 			return 0, 0, fmt.Errorf("automation: managed job %q conflicts with non-%s source", job.ID, source)
 		case !sameJobDefinition(current, job):
 			if _, err := m.store.UpdateJob(ctx, job); err != nil {
+				if m.deferArchivedDefinition(ctx, "job", job.ID, err) {
+					if err := m.pauseDeferredDefinition(ctx, "job", job.ID, true); err != nil {
+						return 0, 0, err
+					}
+					continue
+				}
 				return 0, 0, err
 			}
 		}
@@ -149,12 +158,21 @@ func (m *Manager) syncTriggersForSource(
 		switch {
 		case !exists:
 			if _, err := m.store.CreateTrigger(ctx, trigger); err != nil {
+				if m.deferArchivedDefinition(ctx, "trigger", trigger.ID, err) {
+					continue
+				}
 				return 0, 0, err
 			}
 		case current.Source != source:
 			return 0, 0, fmt.Errorf("automation: managed trigger %q conflicts with non-%s source", trigger.ID, source)
 		case !sameTriggerDefinition(current, trigger):
 			if _, err := m.store.UpdateTrigger(ctx, trigger); err != nil {
+				if m.deferArchivedDefinition(ctx, "trigger", trigger.ID, err) {
+					if err := m.pauseDeferredDefinition(ctx, "trigger", trigger.ID, true); err != nil {
+						return 0, 0, err
+					}
+					continue
+				}
 				return 0, 0, err
 			}
 		}
@@ -325,4 +343,31 @@ func (m *Manager) persistTriggerOverlay(ctx context.Context, definition Trigger,
 		EnabledOverride: enabled,
 	})
 	return err
+}
+
+// deferArchivedDefinition leaves source intent intact for the next sync after unarchive.
+func (m *Manager) deferArchivedDefinition(ctx context.Context, kind, id string, err error) bool {
+	if !errors.Is(err, storepkg.ErrWorkspaceArchived) {
+		return false
+	}
+	m.logger.WarnContext(ctx, "automation.managed.definition_deferred", "kind", kind, "id", id, "error", err)
+	return true
+}
+
+// A refused replacement must not leave its previous target enabled across restart.
+func (m *Manager) pauseDeferredDefinition(ctx context.Context, kind, id string, replacement bool) error {
+	if !replacement {
+		return nil
+	}
+	var err error
+	switch kind {
+	case "job":
+		_, err = m.store.SetJobEnabledOverlay(ctx, JobEnabledOverlay{JobID: id, EnabledOverride: false})
+	case "trigger":
+		_, err = m.store.SetTriggerEnabledOverlay(ctx, TriggerEnabledOverlay{TriggerID: id, EnabledOverride: false})
+	}
+	if err != nil {
+		return fmt.Errorf("automation: pause deferred %s %q: %w", kind, id, err)
+	}
+	return nil
 }

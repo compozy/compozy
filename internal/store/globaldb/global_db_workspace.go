@@ -327,8 +327,13 @@ func workspaceFromGenerated(
 	if err != nil {
 		return compozyworkspace.Workspace{}, err
 	}
+	archivedAt, err := parseNullableAttentionTime(row.ArchivedAt, "workspace archived at")
+	if err != nil {
+		return compozyworkspace.Workspace{}, err
+	}
 	return compozyworkspace.Workspace{
-		ID: row.ID, RootDir: row.RootDir, AdditionalDirs: addDirs, Name: row.Name,
+		ArchivedAt: archivedAt,
+		ID:         row.ID, RootDir: row.RootDir, AdditionalDirs: addDirs, Name: row.Name,
 		DefaultAgent: strings.TrimSpace(
 			row.DefaultAgent.String,
 		),

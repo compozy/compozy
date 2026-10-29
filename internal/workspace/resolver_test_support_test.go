@@ -892,3 +892,22 @@ func assertResolveCancellationRollback(
 		t.Fatalf("GetWorkspace(rolled back after cancellation) error = %v, want %v", err, ErrWorkspaceNotFound)
 	}
 }
+
+func (m *mockWorkspaceStore) SetWorkspaceArchived(ctx context.Context, id string, archived bool) (Workspace, error) {
+	ws, err := m.GetWorkspace(ctx, id)
+	if err != nil {
+		return Workspace{}, err
+	}
+	ws.ArchivedAt = nil
+	if archived {
+		ws.ArchivedAt = new(ws.UpdatedAt)
+	}
+	if err := m.UpdateWorkspace(ctx, ws); err != nil {
+		return Workspace{}, err
+	}
+	return ws, nil
+}
+
+func (s *concurrentPathStore) SetWorkspaceArchived(context.Context, string, bool) (Workspace, error) {
+	return Workspace{}, ErrWorkspaceNotFound
+}

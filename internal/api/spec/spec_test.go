@@ -3467,6 +3467,15 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1005: lossless workspace archive metadata and typed busy blockers are additive.
+	if addWorkspaceArchiveSchemas(baseline) == 0 {
+		t.Fatal("no historical workspace/error schemas found")
+	}
+	for _, code := range []tools.ErrorCode{tools.ErrorCodeWorkspaceBusy, tools.ErrorCodeWorkspaceArchived, tools.ErrorCodeWorkspaceRootMissing} {
+		if addToolErrorCode(baseline, string(code)) == 0 {
+			t.Fatal("no historical tool error codes found")
+		}
+	}
 	// #1008: optional browser registration partition; existing parameters retain their meaning.
 	addTerminalClientPartitionHeader(t, baseline)
 	// #992: optional execution-environment availability; existing fields remain unchanged.
@@ -4451,6 +4460,42 @@ func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 		}
 		configProperties["appearance"] = appearance
 	}
+}
+
+func addWorkspaceArchiveSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addWorkspaceArchiveSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addWorkspaceArchiveSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		if properties["id"] != nil && properties["root_dir"] != nil && properties["created_at"] != nil {
+			properties["archived_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			properties["root_missing"] = map[string]any{"type": "boolean"}
+			count++
+		}
+		if properties["error"] != nil && properties["current_turn_id"] != nil && properties["diagnostic"] != nil {
+			properties["blockers"] = map[string]any{"type": "array", "items": map[string]any{
+				"type": "object", "required": []any{"id", "kind", "name"}, "properties": map[string]any{
+					"id": map[string]any{
+						"type": "string",
+					},
+					"kind": map[string]any{"type": "string"},
+					"name": map[string]any{"type": "string"},
+				},
+			}}
+			count++
+		}
+	}
+	return count
 }
 
 // The additive field is optional. The historical required fields remain intact.

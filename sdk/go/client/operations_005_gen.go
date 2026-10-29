@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+// DeleteSessionParams carries the path, query, and header parameters.
+type DeleteSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteSession Delete one session and remove it from persisted history
 func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) error {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"

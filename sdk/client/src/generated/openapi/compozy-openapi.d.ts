@@ -4544,7 +4544,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List registered workspaces */
+    /** List active or archived workspaces */
     get: operations["listWorkspaces"];
     put?: never;
     /** Register a workspace */
@@ -4589,6 +4589,40 @@ export interface paths {
     head?: never;
     /** Update a registered workspace */
     patch: operations["updateWorkspace"];
+    trace?: never;
+  };
+  "/api/workspaces/{id}/archive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** archive a workspace without removing its data */
+    post: operations["archiveWorkspace"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{id}/unarchive": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** unarchive a workspace without removing its data */
+    post: operations["unarchiveWorkspace"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/workspaces/{workspace_id}/automation/suggestions": {
@@ -8579,6 +8613,7 @@ export interface components {
       start_sequence: number;
     };
     ErrorPayload: {
+      blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -13490,6 +13525,7 @@ export interface components {
       turn_settled: boolean;
     };
     SessionDeriveErrorPayload: {
+      blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       child_session_id?: string;
       code?: string;
       config_path?: string;
@@ -13923,6 +13959,7 @@ export interface components {
       state: "passing" | "failing" | "pending" | "none" | "unknown";
     };
     SessionPullRequestErrorPayload: {
+      blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       cause?: string;
       code?: string;
       config_path?: string;
@@ -16861,6 +16898,7 @@ export interface components {
       workspace_id?: string;
     };
     TaskQueryErrorPayload: {
+      blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       code?: string;
       config_path?: string;
       current_turn_id?: string;
@@ -17881,6 +17919,9 @@ export interface components {
         | "tool_result_too_large"
         | "tool_timed_out"
         | "tool_unavailable"
+        | "workspace_archived"
+        | "workspace_busy"
+        | "workspace_root_missing"
         | "worktree_missing"
         | "worktree_not_found"
         | "worktree_not_ready"
@@ -18080,6 +18121,9 @@ export interface components {
         | "tool_result_too_large"
         | "tool_timed_out"
         | "tool_unavailable"
+        | "workspace_archived"
+        | "workspace_busy"
+        | "workspace_root_missing"
         | "worktree_missing"
         | "worktree_not_found"
         | "worktree_not_ready"
@@ -19556,6 +19600,11 @@ export interface components {
       /** @enum {string} */
       speed?: "normal" | "fast";
     };
+    WorkspaceArchiveBlocker: {
+      id: string;
+      kind: string;
+      name: string;
+    };
     WorkspaceAttentionSummaryPayload: {
       finished: number;
       needs_you: number;
@@ -19593,11 +19642,14 @@ export interface components {
     WorkspacePayload: {
       add_dirs: string[];
       /** Format: date-time */
+      archived_at?: string | null;
+      /** Format: date-time */
       created_at: string;
       default_agent?: string;
       id: string;
       name: string;
       root_dir: string;
+      root_missing?: boolean;
       /** Format: date-time */
       updated_at: string;
     };
@@ -41625,7 +41677,10 @@ export interface operations {
   };
   listWorkspaces: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description List archived projects instead of active projects */
+        archived?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -41900,6 +41955,106 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  archiveWorkspace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace name or id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceResponse"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace has active sessions, live Loops or enabled automations */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  unarchiveWorkspace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace name or id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorkspaceResponse"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace has active sessions, live Loops or enabled automations */
+      409: {
         headers: {
           [name: string]: unknown;
         };

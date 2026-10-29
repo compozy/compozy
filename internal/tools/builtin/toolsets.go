@@ -113,6 +113,8 @@ var builtinToolsets = []toolspkg.Toolset{
 		Tools: []string{
 			toolspkg.ToolIDAgentList.String(),
 			toolspkg.ToolIDWorkspaceList.String(),
+			toolspkg.ToolIDWorkspaceArchive.String(),
+			toolspkg.ToolIDWorkspaceUnarchive.String(),
 			toolspkg.ToolIDWorkspaceInfo.String(),
 			toolspkg.ToolIDWorkspaceDescribe.String(),
 			toolspkg.ToolIDAgentCreate.String(),

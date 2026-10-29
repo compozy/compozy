@@ -332,6 +332,22 @@ while its own request is in flight, and when the session is not active. A refusa
 as a timeline row (labels in Observed native compaction above) and as a "Requested compaction" marker in the rail's Turns
 section.
 
+### Archived projects
+
+`compozy workspace archive <name-or-id>` hides a project from default navigation and
+All projects catalogs while preserving its ID, sessions, history, desktops, layouts,
+worktrees and config. `workspace list --archived` lists only archived projects;
+`workspace unarchive <name-or-id>` restores visibility without preconditions.
+Archive returns `workspace_busy` with blockers while any session is non-stopped, any
+Loop is nonterminal, or any effectively enabled automation belongs to or targets the
+project. Stop or disable those blockers first; archive never does so implicitly.
+
+An explicit new session or Loop, resumed session, or enabled automation targeting an
+archived project is refused with `workspace_archived`. Read retained history by explicit
+project identity. Existing bound windows retain their binding and can read history;
+starting execution from them follows the same refusal. Explicit `workspace_ids` filters
+may include archived projects for historical aggregate reads.
+
 ## Session CLI
 
 Reasoning levels are model-specific. Inspect the live catalog instead of assuming levels from a model name: Codex uses native `model/list` metadata (including `ultra` only when advertised), and Cursor uses exact CLI model variants for effort, thinking, and Fast. Provider-default reasoning remains distinct from explicitly disabling reasoning.

@@ -422,26 +422,24 @@ func (c *Client) ArchiveTask(ctx context.Context, params ArchiveTaskParams) (*Ta
 	return &out, nil
 }
 
-// AttachSessionParams carries the path, query, and header parameters.
-type AttachSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+// ArchiveWorkspaceParams carries the path, query, and header parameters.
+type ArchiveWorkspaceParams struct {
+	ID string `url:"id"`
 }
 
-// AttachSession Attach to a resumable live session
-func (c *Client) AttachSession(ctx context.Context, params AttachSessionParams, body AttachSessionRequest) (*SessionAttachResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attach"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionAttachResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+// ArchiveWorkspace archive a workspace without removing its data
+func (c *Client) ArchiveWorkspace(ctx context.Context, params ArchiveWorkspaceParams) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}/archive"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// AttachTaskRunSessionParams carries the path, query, and header parameters.
-type AttachTaskRunSessionParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+// AttachSessionParams carries the path, query, and header parameters.
+type AttachSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
 }

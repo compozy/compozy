@@ -75,6 +75,9 @@ const (
 	ErrorCodeAgentNameReserved ErrorCode = "agent_name_reserved"
 	// ErrorCodeSessionBusy reports exclusive prompt admission contention.
 	ErrorCodeSessionBusy                 ErrorCode = "session_busy"
+	ErrorCodeWorkspaceBusy               ErrorCode = "workspace_busy"
+	ErrorCodeWorkspaceArchived           ErrorCode = "workspace_archived"
+	ErrorCodeWorkspaceRootMissing        ErrorCode = "workspace_root_missing"
 	ErrorCodeSessionWorktreeConflict     ErrorCode = "session_worktree_conflict"
 	ErrorCodeWorktreeNotFound            ErrorCode = "worktree_not_found"
 	ErrorCodeWorktreeNotReady            ErrorCode = "worktree_not_ready"

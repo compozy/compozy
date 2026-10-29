@@ -3707,6 +3707,13 @@ func (s *stubClient) GetSessionUsageTurns(ctx context.Context, id string) (contr
 	return contract.SessionUsageTurnsResponse{}, errors.New("unexpected GetSessionUsageTurns call")
 }
 
+func (s *stubClient) ListArchivedWorkspaces(ctx context.Context) ([]WorkspaceRecord, error) {
+	return s.ListWorkspaces(ctx)
+}
+func (s *stubClient) SetWorkspaceArchived(context.Context, string, bool) (WorkspaceRecord, error) {
+	return WorkspaceRecord{}, errors.New("archive stub not configured")
+}
+
 func (s *stubClient) ChangeSessionWorktree(ctx context.Context, id, ref, expected string) (SessionRecord, error) {
 	if s.changeSessionWorktreeFn == nil {
 		return SessionRecord{}, errors.New("unexpected ChangeSessionWorktree call")

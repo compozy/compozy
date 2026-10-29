@@ -49,19 +49,19 @@ DELETE FROM sessions WHERE id = sqlc.arg(id);
 DELETE FROM workspaces WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspace :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspaceByPath :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE root_dir = sqlc.arg(root_dir);
 
 -- name: GetWorkspaceByName :one
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces WHERE name = sqlc.arg(name);
 
 -- name: ListWorkspaces :many
-SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
+SELECT id, root_dir, add_dirs, name, default_agent, archived_at, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC;
 
 -- name: GetWorkspaceByLegacyName :one

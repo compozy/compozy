@@ -20,6 +20,20 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if busy, ok := errors.AsType[*workspace.BusyError](err); ok {
+		payload.Code = "workspace_busy"
+		for _, blocker := range busy.Blockers {
+			payload.Blockers = append(payload.Blockers, contract.WorkspaceArchiveBlocker{
+				Kind: blocker.Kind, ID: blocker.ID, Name: blocker.Name,
+			})
+		}
+	}
+	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
+		payload.Code = "workspace_root_missing"
+	}
+	if errors.Is(err, store.ErrWorkspaceArchived) {
+		payload.Code = "workspace_archived"
+	}
 	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {
 		payload.Code = breadth.code
 	}
