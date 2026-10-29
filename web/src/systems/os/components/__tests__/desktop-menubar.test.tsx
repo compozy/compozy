@@ -13,13 +13,15 @@
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
 // Boundary: daemon reads and refreshes run over a stubbed `fetch`.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
+import type { WorkspacePayload } from "@/systems/workspace";
+import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
 import {
   codexOkTarget,
   statusTargets,
@@ -136,6 +138,7 @@ function renderMenubar({
   activeOverlay = null,
   onOverlayOpenChange = vi.fn(),
   usage,
+  workspaces = [],
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
@@ -145,6 +148,7 @@ function renderMenubar({
   onOverlayOpenChange?: (overlay: DesktopOverlay, open: boolean) => void;
   /** Cached and served usage envelope for the default profile. */
   usage?: ProviderUsageEnvelope;
+  workspaces?: WorkspacePayload[];
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
@@ -153,12 +157,12 @@ function renderMenubar({
     serveUsage(usage);
     queryClient.setQueryData(["provider-usage", "envelope", "default"], usage);
   }
-  return render(
+  const tree = (listed: WorkspacePayload[]) => (
     <QueryClientProvider client={queryClient}>
       <UIProvider reducedMotion="never" skipAnimations>
         <CmdPaletteRegistryProvider registry={paletteRegistryFixture(commands)}>
           <DesktopMenubar
-            workspaces={[]}
+            workspaces={listed}
             activeWorkspace={undefined}
             breadthMode={breadthMode}
             focus={{ kind: "user" }}
@@ -176,7 +180,103 @@ function renderMenubar({
       </UIProvider>
     </QueryClientProvider>
   );
+  const view = render(tree(workspaces));
+  return {
+    ...view,
+    /** The catalog answers a new project list (archived or removed elsewhere). */
+    setWorkspaces: (next: WorkspacePayload[]) => view.rerender(tree(next)),
+  };
 }
+
+// #1029: a menubar menu cannot nest a context menu, so a context click on a project row closes
+// the workspace menu and the host opens that project's actions at the point; the confirm
+// outlives the menu that opened it.
+describe("DesktopMenubar project context menu", () => {
+  it("Should relay a project row's context click to that project's actions", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    renderMenubar({ workspaces: [project], activeOverlay: "workspace-menu", onOverlayOpenChange });
+
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    // Shift+F10 on the focused row relays the same click from the keyboard.
+    fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    expect(onOverlayOpenChange).toHaveBeenCalledWith("workspace-menu", false);
+    expect(await screen.findByTestId(`workspace-project-menu-${project.id}`)).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull()
+    );
+    expect(fireEvent.contextMenu(row, { clientX: 40, clientY: 60 })).toBe(false);
+    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+    expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+  });
+
+  it("Should drop the relayed menu and its idle confirm once the project leaves the catalog", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    const { setWorkspaces } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+    });
+
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    const menuId = `workspace-project-menu-${project.id}`;
+    // An open menu closes when its project leaves and stays closed when it returns.
+    fireEvent.contextMenu(row, { clientX: 40, clientY: 60 });
+    expect(await screen.findByTestId(menuId)).toBeVisible();
+    setWorkspaces([]);
+    await waitFor(() => expect(screen.queryByTestId(menuId)).toBeNull());
+    setWorkspaces([project]);
+    expect(screen.queryByTestId(menuId)).toBeNull();
+
+    fireEvent.contextMenu(await screen.findByTestId(`os-workspace-option-${project.id}`), {
+      clientX: 40,
+      clientY: 60,
+    });
+    const menu = await screen.findByTestId(menuId);
+    await user.click(within(menu).getByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: `Archive ${project.name}?` })).toBeVisible();
+
+    // Archived from another window: the idle confirm closes and does not reopen on return.
+    setWorkspaces([]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    setWorkspaces([project]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByTestId(`workspace-project-menu-${project.id}`)).toBeNull();
+  });
+
+  it("Should keep a failed removal readable, but not retryable, once its project leaves", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    const { setWorkspaces } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+    });
+
+    fireEvent.contextMenu(await screen.findByTestId(`os-workspace-option-${project.id}`), {
+      clientX: 40,
+      clientY: 60,
+    });
+    const menu = await screen.findByTestId(`workspace-project-menu-${project.id}`);
+    await user.click(within(menu).getByRole("menuitem", { name: "Remove project" }));
+    const dialog = await screen.findByRole("dialog", { name: `Remove ${project.name}?` });
+    // The stubbed daemon refuses the removal.
+    await user.click(within(dialog).getByRole("button", { name: "Remove project" }));
+    const error = await within(dialog).findByRole("alert");
+
+    setWorkspaces([]);
+    expect(screen.getByRole("dialog", { name: `Remove ${project.name}?` })).toBeVisible();
+    expect(error).toBeVisible();
+    // Neither the confirm nor its Archive instead can act on a project the catalog dropped.
+    expect(within(dialog).getByRole("button", { name: "Remove project" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Archive instead" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
 
 describe("DesktopMenubar scope control", () => {
   it("Should aria-disable the scope control while scope resolution is pending [RA0289]", () => {

@@ -18,12 +18,12 @@
 // sentence, never an empty-state claim — and loaded cards replace them. The
 // standalone board skeleton needs no query client.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { workspaceBadgeIdentity } from "@/systems/workspace";
+import { workspaceBadgeIdentity, workspacesListOptions } from "@/systems/workspace";
 
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -375,6 +375,25 @@ describe("SessionsBoard card actions", () => {
 });
 
 describe("SessionsBoard swimlanes", () => {
+  const names = new Map([
+    ["ws-alpha", "Alpha"],
+    ["ws-beta", "Beta"],
+  ]);
+  const lane = (workspaceId: string, total: number) => ({
+    group: {
+      key: `project:${workspaceId}`,
+      kind: "project" as const,
+      badge: workspaceBadgeIdentity(workspaceId, names),
+      total,
+      working: total,
+      needsYou: 0,
+      scope: { kind: "project" as const, workspaceId },
+      lens: { profile: "default" },
+      pair: null,
+    },
+    filters: { workspace_id: workspaceId, sort: "created" as const },
+  });
+
   it("Should render one lane per group, each reading the four columns in its own scope", async () => {
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions:
@@ -396,24 +415,6 @@ describe("SessionsBoard swimlanes", () => {
       by_workspace: [],
       by_profile: [],
     });
-    const names = new Map([
-      ["ws-alpha", "Alpha"],
-      ["ws-beta", "Beta"],
-    ]);
-    const lane = (workspaceId: string, total: number) => ({
-      group: {
-        key: `project:${workspaceId}`,
-        kind: "project" as const,
-        badge: workspaceBadgeIdentity(workspaceId, names),
-        total,
-        working: total,
-        needsYou: 0,
-        scope: { kind: "project" as const, workspaceId },
-        lens: { profile: "default" },
-        pair: null,
-      },
-      filters: { workspace_id: workspaceId, sort: "created" as const },
-    });
     renderBoard({
       ...board(),
       columns: [],
@@ -432,6 +433,50 @@ describe("SessionsBoard swimlanes", () => {
     const reads = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query);
     expect(reads.filter(query => query?.workspace_id === "ws-beta")).toHaveLength(4);
     expect(reads.every(query => query?.sort === "created")).toBe(true);
+  });
+
+  // #1029: a project lane header is a project surface: right-click and Shift+F10 open the
+  // project's own actions, the same flow every other project surface uses.
+  it("Should open a project lane's actions from its header by mouse and keyboard", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 50 },
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(workspacesListOptions().queryKey, [
+      {
+        id: "ws-alpha",
+        name: "Alpha",
+        root_dir: "/projects/alpha",
+        add_dirs: [],
+        created_at: "2026-10-29T00:00:00Z",
+        updated_at: "2026-10-29T00:00:00Z",
+      },
+    ]);
+    render(
+      <SessionsBoard
+        board={{ ...board(), columns: [], lanes: [lane("ws-alpha", 0)] }}
+        onOpen={vi.fn()}
+      />,
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    const header = screen.getByTestId("sessions-board-lane-project:ws-alpha-header");
+    fireEvent.contextMenu(header);
+    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Archive project" })).toBeNull()
+    );
+    header.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+    expect(await screen.findByRole("dialog", { name: "Remove Alpha?" })).toBeVisible();
   });
 });
 

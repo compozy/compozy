@@ -7,6 +7,7 @@ import { usePaletteCommand } from "../hooks/use-palette-registry";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
+import { useProjectPointMenu } from "../hooks/use-project-point-menu";
 import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
 import { useProviderUsageSurface } from "../hooks/use-provider-usage-surface";
 import { useDesktop } from "../hooks/use-desktop";
@@ -34,6 +35,8 @@ import {
   type Focus,
   type WorkspaceChipIdentity,
   type WorkspacePayload,
+  type WorkspaceProjectMenuPoint,
+  WorkspaceProjectPointMenu,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
@@ -118,7 +121,25 @@ function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
  * button. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
-export function DesktopMenubar({
+export function DesktopMenubar(props: DesktopMenubarProps) {
+  const projectMenu = useProjectPointMenu(props.workspaces);
+  return (
+    <>
+      <DesktopMenubarChrome {...props} onProjectContextMenu={projectMenu.open} />
+      {projectMenu.workspace ? (
+        <WorkspaceProjectPointMenu
+          key={projectMenu.workspace.id}
+          workspace={projectMenu.workspace}
+          listed={projectMenu.listed}
+          point={projectMenu.point}
+          onClose={projectMenu.close}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DesktopMenubarChrome({
   className,
   workspaces,
   activeWorkspace,
@@ -149,7 +170,10 @@ export function DesktopMenubar({
   onRemoveWorktrees,
   pager,
   layoutUnbound = false,
-}: DesktopMenubarProps) {
+  onProjectContextMenu,
+}: DesktopMenubarProps & {
+  onProjectContextMenu: (workspace: WorkspacePayload, point: WorkspaceProjectMenuPoint) => void;
+}) {
   const breadthMode = breadthModeProp ?? (activeWorkspace ? "focused" : "all");
   const focus: Focus =
     focusProp ??
@@ -251,6 +275,10 @@ export function DesktopMenubar({
           onRemoveWorktree={onRemoveWorktree}
           onRemoveWorktrees={onRemoveWorktrees}
           notice={scopeModel.fallbackNotice}
+          onProjectContextMenu={(workspace, point) => {
+            onOverlayOpenChange("workspace-menu", false);
+            onProjectContextMenu(workspace, point);
+          }}
         />
       )}
       menus={

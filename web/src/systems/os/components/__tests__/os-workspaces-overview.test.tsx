@@ -6,7 +6,7 @@
 // Boundary IN: OsWorkspacesOverview interaction model — tiles, caption, worktree menu, hints.
 // Boundary OUT: active-workspace store semantics, worktree dialog flows, transport, and the
 // strip's scroll physics (no layout in jsdom).
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -152,6 +152,38 @@ describe("OsWorkspacesOverview", () => {
     await user.keyboard("{Escape}");
     await user.dblClick(tile(COMPOZY.id));
     expect(onSelectWorkspace).toHaveBeenCalledWith(COMPOZY.id);
+  });
+
+  // #1029: a project tile is a project surface: right-click and Shift+F10 open its actions.
+  it("Should open a project's actions from its tile by right-click and Shift+F10", async () => {
+    const user = userEvent.setup();
+    renderOverview();
+    fireEvent.contextMenu(tile(BRANAS.id));
+    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.queryByRole("menuitem", { name: "Archive project" })).toBeNull()
+    );
+    tile(COMPOZY.id).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+    expect(await screen.findByRole("dialog", { name: "Remove compozy?" })).toBeVisible();
+  });
+
+  // A confirm belongs to the project it was opened for: when that project leaves and focus
+  // moves to a neighbor, the confirm closes instead of naming (and acting on) the neighbor.
+  it("Should drop the focused project's confirm when focus moves to another project", async () => {
+    const user = userEvent.setup();
+    const { rerenderOverview } = renderOverview();
+    await user.click(screen.getByRole("button", { name: "Manage compozy" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Archive project" }));
+    expect(await screen.findByRole("dialog", { name: "Archive compozy?" })).toBeVisible();
+
+    rerenderOverview({ workspaces: [BRANAS, NOTES], activeWorkspaceId: BRANAS.id });
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Archive compozy?" })).toBeNull()
+    );
+    expect(screen.queryByRole("dialog", { name: /^Archive / })).toBeNull();
   });
 
   it("Should offer lossless archive instead of removal and display refusal blockers", async () => {

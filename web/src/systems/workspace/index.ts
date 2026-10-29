@@ -399,5 +399,10 @@ export { WorktreeSelectionToolbar } from "./components/worktree-selection-toolba
 
 export { WorktreeBulkRemoveDialog } from "./components/worktree-bulk-remove-dialog";
 
-export { WorkspaceProjectActions } from "./components/workspace-project-actions";
+export {
+  WorkspaceProjectActions,
+  WorkspaceProjectContextMenu,
+  WorkspaceProjectPointMenu,
+  type WorkspaceProjectMenuPoint,
+} from "./components/workspace-project-actions";
 export { WorkspaceManagement } from "./components/workspace-management";

@@ -10,6 +10,7 @@ import {
   type WorkspacesSwitcherEntry,
 } from "../hooks/use-workspaces-switcher";
 import { useWorkspacesStripScroll } from "../hooks/use-workspaces-strip-scroll";
+import { openContextMenuFromKeyboard } from "../lib/context-menu-keyboard";
 import { OsWorkspaceAddTile, OsWorkspaceTile } from "./os-workspace-tile";
 import { OsWorkspacesCaption, type OsWorkspacesCaptionModel } from "./os-workspaces-caption";
 import { OsWorkspacesHints } from "./os-workspaces-hints";
@@ -309,7 +310,7 @@ function OsWorkspacesStage({
           </OsWorkspacesStrip>
         )}
         {focusedEntry?.kind === "workspace" ? (
-          <WorkspaceProjectActions workspace={focusedEntry.node.workspace} />
+          <WorkspaceProjectActions key={focusedEntry.key} workspace={focusedEntry.node.workspace} />
         ) : null}
         <OsWorkspacesCaption
           model={empty ? USER_CAPTION : captionFor(focusedEntry, userHomeDir)}
@@ -413,6 +414,7 @@ function WorkspaceTiles({
               }
               ref={switcher.registerTile(entry.key)}
               {...switcher.tileHandlers(index)}
+              onKeyDown={openContextMenuFromKeyboard}
             />
           </WorkspaceProjectActions>
         );

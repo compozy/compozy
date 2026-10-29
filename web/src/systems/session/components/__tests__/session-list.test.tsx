@@ -601,6 +601,58 @@ describe("SessionList selection", () => {
     );
   });
 
+  // #1029: a context click inside a multi-selection acts on the whole selection with the
+  // bar's verbs; one outside it retargets the selection to that row (Finder) and keeps the
+  // per-session menu, which a single selection also keeps.
+  it("scopes a selected row's context menu to the whole multi-selection", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList();
+    const running = screen.getByTestId("session-sidebar-session-running");
+    fireEvent.click(running, { metaKey: true });
+    fireEvent.contextMenu(running);
+    expect(await screen.findByTestId("session-row-menu-copy-id-running")).toBeVisible();
+    await user.keyboard("{Escape}");
+    fireEvent.click(screen.getByTestId("session-sidebar-session-stopped"));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
+    fireEvent.contextMenu(running);
+    expect(await screen.findByTestId("session-sidebar-selection-menu-count")).toHaveTextContent(
+      "2 sessions"
+    );
+    expect(screen.queryByTestId("session-row-menu-copy-id-running")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-selection-menu-stop")).toHaveTextContent("1 active");
+    expect(screen.getByTestId("session-sidebar-selection-menu-archive")).toHaveTextContent(
+      "Stop and archive2 sessions"
+    );
+    expect(screen.getByTestId("session-sidebar-selection-menu-delete-item")).toHaveTextContent(
+      "Delete 2 sessions"
+    );
+    // The list's ⌘⌫ cannot reach a portaled context menu, so its hint stays on the bar only.
+    expect(screen.getByTestId("session-sidebar-selection-menu-delete-item")).not.toHaveTextContent(
+      "⌘⌫"
+    );
+    await user.click(screen.getByTestId("session-sidebar-selection-menu-archive"));
+    expect(actions.onArchiveMany).toHaveBeenCalledWith([sessions[0], sessions[1]]);
+    expect(actions.onArchive).not.toHaveBeenCalled();
+
+    // Shift+F10 opens the same selection menu from the keyboard.
+    running.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByTestId("session-sidebar-selection-menu-delete-item"));
+    expect(actions.onDeleteMany).toHaveBeenCalledWith(
+      [sessions[0], sessions[1]],
+      expect.any(Function)
+    );
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-other"));
+    expect(await screen.findByTestId("session-row-menu-copy-id-other")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
+    expect(screen.getByTestId("session-sidebar-session-other")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(running).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("offers stop and archive on a running session row in one action", async () => {
     const user = userEvent.setup();
     const { actions } = renderList();
@@ -1191,7 +1243,8 @@ describe("SessionList subagents", () => {
   });
 });
 
-// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and say so.
+// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and the
+// selection menu copies every selected ID, and say so.
 describe("SessionList row copy actions", () => {
   it("Should copy the session ID from the … menu and the title from the context menu", async () => {
     const user = userEvent.setup();
@@ -1210,6 +1263,31 @@ describe("SessionList row copy actions", () => {
     await user.click(within(menu).getByRole("menuitem", { name: "Copy title" }));
     expect(writeText).toHaveBeenLastCalledWith("Stopped work");
     await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
+  });
+
+  it("Should copy every selected session ID, one per line, from the selection menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const success = vi.spyOn(toast, "success");
+    renderList();
+    fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
+    fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    await user.click(await screen.findByTestId("session-sidebar-selection-copy-ids"));
+    expect(writeText).toHaveBeenLastCalledWith("running\nother");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session IDs copied"));
+  });
+
+  it("Should copy every selected session ID from a selected row's context menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    renderList();
+    fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
+    fireEvent.click(screen.getByTestId("session-sidebar-session-other"));
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-running"));
+    const menu = await screen.findByRole("menu");
+    await user.click(within(menu).getByRole("menuitem", { name: "Copy session IDs" }));
+    expect(writeText).toHaveBeenLastCalledWith("running\nother");
   });
 });
 
@@ -2224,6 +2302,15 @@ describe("SessionList breadth and Group by", () => {
         return json({ folders: [] });
       }
       if (url.pathname === "/api/profiles") return json(PROFILES);
+      if (url.pathname === "/api/workspaces") {
+        return json({
+          workspaces: WORKSPACES.map(workspace => ({
+            ...workspace,
+            root_dir: `/projects/${workspace.id}`,
+            archived_at: null,
+          })),
+        });
+      }
       if (url.pathname === "/api/sessions/facets") return json(facetsFor(url));
       if (url.pathname !== "/api/sessions") return json({ error: "not found" }, 404);
       const selector = url.searchParams.get("workspace_id");
@@ -2459,6 +2546,58 @@ describe("SessionList breadth and Group by", () => {
       expect(url.pathname).toBe("/api/workspaces/ws-alpha/session-folders");
       expect(url.searchParams.get("profile")).toBe("work");
     });
+  });
+
+  // #1029: a project group header is a project surface: right-click and Shift+F10 open the
+  // project's own actions and confirm; the User group stands for no project and has none.
+  it("Should open the project's actions from its group header", async () => {
+    const user = userEvent.setup();
+    renderList({ sessions: [], view: grouped() });
+
+    const toggle = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    // The header's trigger is inert until the project catalog answers.
+    await waitFor(() => {
+      fireEvent.contextMenu(toggle);
+      expect(screen.getByRole("menuitem", { name: "Archive project" })).toBeVisible();
+    });
+    await user.keyboard("{Escape}");
+
+    toggle.focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    await user.click(await screen.findByRole("menuitem", { name: "Remove project" }));
+    expect(await screen.findByRole("dialog", { name: "Remove Alpha?" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // No project behind the User group: the click falls through and no project menu opens.
+    expect(fireEvent.contextMenu(screen.getByTestId("session-sidebar-group-user"))).toBe(true);
+    expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
+  });
+
+  // A profile group inside a project stands for a profile, not the project: no project menu.
+  it("Should keep project actions off a profile group header", async () => {
+    const groups = profileSessionGroups(
+      { by_profile: [{ profile_id: "p-work", facets: facet(1) }] },
+      {
+        profiles: [{ id: "p-work", name: "work", archived: false }],
+        scope: { kind: "project", workspaceId: "ws-alpha" },
+      }
+    );
+    renderList({
+      sessions: [],
+      view: grouped({ storedGroupBy: "profile", groupBy: "profile", groups }),
+    });
+
+    const header = await screen.findByTestId("session-sidebar-group-profile:p-work");
+    // Let the project catalog answer, as it does for the project header test above.
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.some(([input]) =>
+          new URL((input as Request).url).pathname.endsWith("/api/workspaces")
+        )
+      ).toBe(true)
+    );
+    expect(fireEvent.contextMenu(header)).toBe(true);
+    expect(screen.queryByRole("menuitem", { name: "Archive project" })).not.toBeInTheDocument();
   });
 
   // Invariant: a grouped list keeps one selection across its groups; lifecycle verbs

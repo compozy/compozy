@@ -106,3 +106,20 @@ before/confirmation/after captures under distinct names.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Selection context menu (issue #1029)
+
+Added 2026-10-29. Walk in both the session window sidebar and the Sessions modal, flat and
+grouped (Group by project under All projects).
+
+1. With no selection, right-click a row: the per-session menu (Copy session ID, Copy title,
+   Archive/Stop and archive session, Delete session) opens for that row, unchanged.
+2. Select one row and right-click it: still the per-session menu for that row.
+3. Select two or more rows and right-click any selected row (or focus it and press Shift+F10):
+   the menu is headed "N sessions" and offers the selection bar's More verbs with the same
+   counts and eligibility (Move to folder when folders exist, Stop · N active, Archive · N
+   stopped or Stop and archive · N sessions, Unarchive · N archived), plus Copy session IDs
+   (one ID per line, "Session IDs copied") and Delete N sessions, which opens the same set
+   confirmation as the toolbar. No single-session verb appears.
+4. Right-click a row outside the selection (Finder convention): the selection becomes that one
+   row, the bar reads "1 selected", and the per-session menu opens for it.

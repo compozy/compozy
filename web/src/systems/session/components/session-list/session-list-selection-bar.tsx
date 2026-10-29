@@ -1,13 +1,10 @@
-import { Archive, RotateCcw, Square, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 
 import {
   Button,
   Checkbox,
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
   Kbd,
   Tooltip,
@@ -16,62 +13,32 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
-import type { SessionBulkFolderMenu } from "../../hooks/use-session-list-bulk-folders";
+import type { SessionSelectionVerbs } from "../../hooks/use-session-list-bulk-selection";
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
-import { SessionSelectionFolderMenu } from "./session-list-selection-folders";
+import { sessionCountLabel } from "../../lib/session-folders";
+import { SessionSelectionMenuItems } from "./session-list-selection-menu";
 
 interface SessionListSelectionBarProps {
-  count: number;
+  verbs: SessionSelectionVerbs;
   hiddenByFilter: number;
   allSelected: boolean;
-  stoppable: number;
-  archivable: number;
-  /** Archivable sessions that archiving stops first. */
-  archivableLive: number;
-  unarchivable: number;
-  disabled: boolean;
   onSelectAll: () => void;
   onClear: () => void;
-  onDelete?: () => void;
-  onStop?: () => void;
-  onArchive?: () => void;
-  onUnarchive?: () => void;
-  /** Move to folder; absent while the list has no folders to move into. */
-  folders?: SessionBulkFolderMenu;
   testIdPrefix: string;
-}
-
-/** Archive stops live rows first, so the verb and count say so when the selection has any. */
-function archiveSelectionCopy(archivable: number, archivableLive: number) {
-  if (archivableLive === 0) return { label: "Archive", count: `${archivable} stopped` };
-  return {
-    label: "Stop and archive",
-    count: `${archivable} ${archivable === 1 ? "session" : "sessions"}`,
-  };
 }
 
 /** The selection owns these verbs in both session list hosts. */
 export function SessionListSelectionBar({
-  count,
+  verbs,
   hiddenByFilter,
   allSelected,
-  stoppable,
-  archivable,
-  archivableLive,
-  unarchivable,
-  disabled,
   onSelectAll,
   onClear,
-  onDelete,
-  onStop,
-  onArchive,
-  onUnarchive,
-  folders,
   testIdPrefix,
 }: SessionListSelectionBarProps) {
+  const { count, disabled, onDelete } = verbs;
   const allLabel = allSelected ? "Clear selection" : "Select all";
-  const deleteLabel = `Delete ${count} ${count === 1 ? "session" : "sessions"}`;
-  const archiveCopy = archiveSelectionCopy(archivable, archivableLive);
+  const deleteLabel = `Delete ${sessionCountLabel(count)}`;
   return (
     <div
       role="toolbar"
@@ -141,52 +108,11 @@ export function SessionListSelectionBar({
           <TooltipContent>More actions</TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="end" className="min-w-50">
-          {folders ? (
-            <>
-              <SessionSelectionFolderMenu
-                menu={folders}
-                disabled={disabled}
-                testIdPrefix={testIdPrefix}
-              />
-              <DropdownMenuSeparator />
-            </>
-          ) : null}
-          <DropdownMenuItem
-            disabled={disabled || stoppable === 0 || !onStop}
-            onClick={onStop}
-            data-testid={`${testIdPrefix}-selection-stop`}
-          >
-            <Square className="size-3" />
-            Stop<DropdownMenuShortcut>{stoppable} active</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled || archivable === 0 || !onArchive}
-            onClick={onArchive}
-            data-testid={`${testIdPrefix}-selection-archive`}
-          >
-            <Archive className="size-3" />
-            {archiveCopy.label}
-            <DropdownMenuShortcut>{archiveCopy.count}</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={disabled || unarchivable === 0 || !onUnarchive}
-            onClick={onUnarchive}
-            data-testid={`${testIdPrefix}-selection-unarchive`}
-          >
-            <RotateCcw className="size-3" />
-            Unarchive<DropdownMenuShortcut>{unarchivable} archived</DropdownMenuShortcut>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            disabled={disabled || !onDelete}
-            onClick={onDelete}
-            data-testid={`${testIdPrefix}-selection-delete-item`}
-          >
-            <Trash2 className="size-3" />
-            {deleteLabel}
-            <DropdownMenuShortcut>⌘⌫</DropdownMenuShortcut>
-          </DropdownMenuItem>
+          <SessionSelectionMenuItems
+            verbs={verbs}
+            kind="dropdown"
+            testId={`${testIdPrefix}-selection`}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       <Tooltip>

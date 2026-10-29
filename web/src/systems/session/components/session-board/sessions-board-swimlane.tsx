@@ -1,6 +1,8 @@
 import { CircleSlash } from "lucide-react";
 
-import { Button } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
+
+import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import {
@@ -10,6 +12,7 @@ import {
 } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionListGroupIdentity } from "../session-list/session-list-group-header";
+import { SessionListGroupProjectMenu } from "../session-list/session-list-group-project-menu";
 import { SessionsBoardColumn } from "./sessions-board-column";
 import {
   SESSIONS_BOARD_COLUMNS_ROW,
@@ -76,14 +79,31 @@ export function SessionsBoardSwimlane({
   const columns = useSessionsBoardColumns(lane.filters, true);
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
+  // A project lane's header is a project surface: it takes focus so Shift+F10 reaches its menu.
+  const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
   return (
     <section aria-label={name} className={SESSIONS_BOARD_LANE} data-testid={testId}>
-      <header className={SESSIONS_BOARD_LANE_HEADER}>
-        <SessionListGroupIdentity group={lane.group} />
-        <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
-          {lane.group.total}
-        </span>
-      </header>
+      <SessionListGroupProjectMenu group={lane.group}>
+        <header
+          className={cn(
+            SESSIONS_BOARD_LANE_HEADER,
+            projectLane && "rounded-sm outline-none focus-visible:shadow-focus-ring"
+          )}
+          data-testid={`${testId}-header`}
+          {...(projectLane
+            ? {
+                tabIndex: 0,
+                "aria-label": `${name} project`,
+                onKeyDown: openContextMenuFromKeyboard,
+              }
+            : {})}
+        >
+          <SessionListGroupIdentity group={lane.group} />
+          <span className={SESSIONS_BOARD_LANE_COUNT} data-testid={`${testId}-count`}>
+            {lane.group.total}
+          </span>
+        </header>
+      </SessionListGroupProjectMenu>
       <SessionsBoardColumnsRow
         {...props}
         // A project lane names its project once, in its header, like a List project group.

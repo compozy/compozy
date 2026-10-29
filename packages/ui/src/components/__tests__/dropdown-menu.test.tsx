@@ -173,4 +173,21 @@ describe("DropdownMenu", () => {
     });
     expect(trigger).toHaveFocus();
   });
+
+  it("Should open a controlled menu at a virtual point anchor without a trigger", async () => {
+    const anchor = {
+      getBoundingClientRect: () => DOMRect.fromRect({ x: 120, y: 80, width: 0, height: 0 }),
+    };
+    render(
+      <DropdownMenu open>
+        <DropdownMenuContent anchor={anchor}>
+          <DropdownMenuItem>Archive project</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+    expect(await screen.findByRole("menuitem", { name: "Archive project" })).toBeInTheDocument();
+    // The positioner places the popup from the virtual point, not from a trigger at the origin.
+    const positioner = screen.getByRole("menu").parentElement!;
+    expect(positioner.style.transform).toMatch(/^translate\(120px, /);
+  });
 });

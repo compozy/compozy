@@ -83,6 +83,21 @@ their monogram well and corner dot. Expected text only; status fields untouched.
 
 Pinning and recent-use ordering are outside this regression.
 
+### Project context menu on every project surface (issue #1029)
+
+Repeat step 2's Archive project / Remove project entry from each surface where a project
+appears; each opens the same actions and confirm dialog, and none shows the browser's native
+Copy menu:
+
+- the overview tile (right-click, or focus the tile and press Shift+F10);
+- a project group header in the session list and Sessions modal under All projects with Group
+  by project (right-click, or Shift+F10 on the group toggle); the User and profile group
+  headers have no project menu;
+- a project swimlane header on the Sessions board grouped by project;
+- a project row in the menubar workspace menu (right-click or Shift+F10): the workspace menu
+  closes and the project menu opens at the pointer; Archive project keeps its confirm open
+  after the menu closes.
+
 qa-impact: 2026-10-28 archive/remove lifecycle slice passed against an isolated daemon and
 production web bundle. See `docs/qa/reports/2026-10-28-archive-projects.md`; older unrelated
 scenario verdicts above are retained rather than inferred from this focused walk.
