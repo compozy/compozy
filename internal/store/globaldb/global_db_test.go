@@ -4021,7 +4021,6 @@ func TestGlobalDBWorkspaceArchive(t *testing.T) {
 		if _, err := db.GetTrigger(ctx, trigger.ID); !errors.Is(err, automation.ErrTriggerNotFound) {
 			t.Fatalf("trigger survived removal: %v", err)
 		}
-
 	})
 	for _, kind := range []string{"loop", "job", "trigger"} {
 		t.Run("Should refuse archive with a live "+kind, func(t *testing.T) {

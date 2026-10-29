@@ -92,7 +92,7 @@ func ParseTaskInboxQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contrac
 	if err != nil {
 		return contract.TaskInboxQuery{}, invalidWorkspaceBreadth("all_workspaces must be a boolean")
 	}
-	if (allWorkspaces || c.Query("workspace") == "" && (c.Query("scope") == "" || c.Query("scope") == "all")) &&
+	if (allWorkspaces || c.Query("workspace") == "" && (c.Query("scope") == "" || c.Query("scope") == queryFilterAllValue)) &&
 		len(workspaces) > 0 {
 		workspaceIDs, err = defaultActiveWorkspaceIDs(c.Request.Context(), workspaces[0], workspaceIDs)
 		if err != nil {

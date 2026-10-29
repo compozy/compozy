@@ -83,7 +83,7 @@ func parseWorkspaceBreadth(
 		)
 	}
 	implicitAll := enc.OmissionIsAll && selector == "" && c.Query("workspace") == "" &&
-		(c.Query("scope") == "" || c.Query("scope") == "all")
+		(c.Query("scope") == "" || c.Query("scope") == queryFilterAllValue)
 	if all || implicitAll {
 		normalized, err = defaultActiveWorkspaceIDs(c.Request.Context(), getter, normalized)
 		if err != nil {
