@@ -77,24 +77,7 @@ func (n *daemonNativeTools) setSessionArchived(
 			return toolspkg.ToolResult{}, err
 		}
 	}
-	if archived && input.Processes == contract.SessionProcessesTerminate {
-		if err := ctx.Err(); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		// Keep the accepted archive stop and cleanup in one bounded lifetime.
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
-		defer cancel()
-	}
-	var info *session.Info
-	switch {
-	case archived && input.Stop:
-		info, err = manager.ArchiveWithStop(ctx, workspaceID, input.SessionID)
-	case archived:
-		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
-	default:
-		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
-	}
+	info, err := executeSessionArchive(ctx, manager, workspaceID, input, archived)
 	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeSessionArchiveStopFailed,
@@ -113,6 +96,32 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+func executeSessionArchive(
+	ctx context.Context, manager core.SessionArchiveManager, workspaceID string,
+	input sessionArchiveInput, archived bool,
+) (*session.Info, error) {
+	if archived && input.Processes == contract.SessionProcessesTerminate {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// Keep the accepted archive stop and cleanup in one bounded lifetime.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
+	var info *session.Info
+	var err error
+	switch {
+	case archived && input.Stop:
+		info, err = manager.ArchiveWithStop(ctx, workspaceID, input.SessionID)
+	case archived:
+		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
+	default:
+		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
+	}
+	return info, err
 }
 
 // nativeCallerWithinSession reports whether stopping target would stop the

@@ -237,3 +237,26 @@ The final native policy race run passed (4.659 s), and scoped Linux daemon lint 
 issues. Retained-process aggregate cleanup now accepts archived profile labels and deleted
 profiles' stable IDs without widening ownership: live and foreign-profile owners remain refused.
 The existing HTTP handler suite verifies both lifecycle cases and its race run passed (2.265 s).
+
+## CI lifecycle confirmation recovery
+
+Head ff31006b4 passed the eight Go race shards, frontend verification, runtime E2E, desktop E2E,
+and three Web shards. Go lint rejected archive cyclomatic complexity; extracting the bounded
+archive operation preserves its lifetime while the complete daemon lint (without diff filtering)
+reports zero issues and native policy race passes (4.599 s).
+
+The Web shard artifact showed a composer with one process beside a delete dialog without the
+process choice. The dialog retained an older catalog row. Confirmation now observes the existing
+profile-scoped detail cache; stop/archive also consult that cache before deciding whether to ask.
+The owning lifecycle hook suite covers detail updates after opening delete and stale archive rows.
+An initial isolated walk exposed the same archive race and a test diagnostic error: eagerly reading
+an empty delete response body after window retirement lost its CDP resource. The test now reports
+status/status-text/URL while retaining success, policy, and independent process-liveness assertions.
+The final isolated three-scenario walk passed (37.8 s): stop, archive keep/terminate, and delete
+keep/terminate. No timeout or behavioral assertion was relaxed. The archive test locator now
+scopes the composer to its exact session surface instead of the frame shared by multiple tabs.
+The latest owning hook suite passed 48 tests; root Turbo lint/typecheck/build passed seven tasks,
+and React Doctor reports 100/100.
+
+Review follow-ups also preserve in-flight process reads during catalog invalidation and remove the
+invalid composer reference from delete's kept-process copy. No public wire or storage shape changes.

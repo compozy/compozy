@@ -87,7 +87,7 @@ test("E2E-PROC-001: stopping a session with its processes ends them and clears t
     await expect(win).toBeVisible();
     const frame = windowFrame(win);
 
-    const indicator = frame.getByTestId("composer-processes-button");
+    const indicator = win.getByTestId("composer-processes-button");
     await expect(indicator).toHaveAccessibleName("Processes, 1 running", {
       timeout: SCAN_TIMEOUT_MS,
     });
@@ -149,7 +149,7 @@ async function runListVerbWithChoice(
   const win = sessionWindow(page, sessionId);
   await expect(win).toBeVisible();
   // The row's choice reads the same process summary the composer indicator shows.
-  await expect(windowFrame(win).getByTestId("composer-processes-button")).toHaveAccessibleName(
+  await expect(win.getByTestId("composer-processes-button")).toHaveAccessibleName(
     "Processes, 1 running",
     { timeout: SCAN_TIMEOUT_MS }
   );
@@ -164,7 +164,9 @@ async function runListVerbWithChoice(
   );
   await page.getByTestId(flow[choice]).click();
   const answered = await response;
-  expect(answered.ok(), await answered.text()).toBe(true);
+  expect(answered.ok(), `${answered.status()} ${answered.statusText()} ${answered.url()}`).toBe(
+    true
+  );
   expect(new URL(answered.url()).searchParams.get("processes")).toBe(choice);
 }
 

@@ -1,3 +1,4 @@
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
+import { sessionScopedDetailOptions } from "../lib/query-options";
 import { useSessionReparent } from "./use-session-reparent";
 
 export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
@@ -155,6 +157,20 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
+function useCurrentDeleteSessions(sessions: readonly SessionPayload[] | undefined) {
+  // Catalog rows may lag the detail stream; keep an open confirmation current.
+  const deleteReads = useQueries({
+    queries: (sessions ?? []).map(session =>
+      sessionScopedDetailOptions(
+        session.id,
+        { profile: session.profile_name },
+        { enabled: false, liveTail: false }
+      )
+    ),
+  });
+  return sessions?.map((session, index) => deleteReads[index]?.data ?? session);
+}
+
 /**
  * Owns the mutation and confirmation state behind session-list lifecycle menus.
  * Lists stay presentational and their host keeps one shared delete confirmation.
@@ -162,6 +178,7 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
 export function useSessionLifecycleActions(
   options: Parameters<typeof useDeleteSession>[0] = {}
 ): UseSessionLifecycleActionsResult {
+  const queryClient = useQueryClient();
   const stop = useStopSession();
   const archive = useArchiveSession();
   const unarchive = useUnarchiveSession();
@@ -176,7 +193,8 @@ export function useSessionLifecycleActions(
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useRef(false);
-  const deleteSession = deleteTarget?.sessions[0] ?? null;
+  const deleteSessions = useCurrentDeleteSessions(deleteTarget?.sessions);
+  const deleteSession = deleteSessions?.[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
   const [processChoice, setProcessChoice] = useState<{
     action: "stop" | "archive";
@@ -272,12 +290,18 @@ export function useSessionLifecycleActions(
     run: (processes?: SessionProcessPolicy) => void
   ) => {
     if (sessions.length === 0) return;
-    if (sessionsRunningProcesses(sessions) === 0) {
+    const currentSessions = sessions.map(
+      session =>
+        queryClient.getQueryData(
+          sessionScopedDetailOptions(session.id, { profile: session.profile_name }).queryKey
+        ) ?? session
+    );
+    if (sessionsRunningProcesses(currentSessions) === 0) {
       run();
       return;
     }
     if (pendingAction !== null || batchRunning.current) return;
-    setProcessChoice({ action, sessions, run });
+    setProcessChoice({ action, sessions: currentSessions, run });
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
@@ -394,7 +418,7 @@ export function useSessionLifecycleActions(
     deleteDialog: {
       open: deleteSession !== null,
       session: deleteSession,
-      sessions: deleteTarget?.sessions,
+      sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {

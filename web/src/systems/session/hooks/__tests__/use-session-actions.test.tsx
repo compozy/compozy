@@ -30,6 +30,7 @@ import {
   usePromoteSessionInput,
   useReplaceSessionInput,
 } from "../use-session-inputs";
+import { sessionScopedDetailOptions } from "../../lib/query-options";
 import { sessionKeys } from "../../lib/query-keys";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
@@ -910,6 +911,31 @@ describe("session actions", () => {
     await expect(mutation).rejects.toThrow("Aborted");
   });
 
+  // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.
+  // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+  it("updates an open delete confirmation when the detail cache reports running processes", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(createdSession));
+    const current = withSessionProcessSummary(createdSession);
+    act(() =>
+      client.setQueryData(
+        sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
+          .queryKey,
+        current
+      )
+    );
+    await waitFor(() =>
+      expect(result.current.deleteDialog.session?.process_summary).toEqual(current.process_summary)
+    );
+    expect(result.current.deleteDialog.sessions?.[0]?.process_summary).toEqual(
+      current.process_summary
+    );
+    client.clear();
+  });
+
   it("archives a live session in one action by asking the daemon to stop it first", async () => {
     vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
       ...createdSession,
@@ -954,7 +980,12 @@ describe("session actions", () => {
     });
     const running = withSessionProcessSummary(createdSession);
 
-    act(() => result.current.actions.onArchive(running));
+    queryClient.setQueryData(
+      sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
+        .queryKey,
+      running
+    );
+    act(() => result.current.actions.onArchive(createdSession));
     expect(archiveSession).not.toHaveBeenCalled();
     expect(result.current.processDialog).toMatchObject({
       open: true,

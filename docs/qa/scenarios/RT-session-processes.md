@@ -46,3 +46,8 @@ label (archived) or stable owner ID (deleted) shown by the process list. Live ow
 from another selected profile remain refused. The owning HTTP handler race regression covers
 both lifecycle selector cases; the prior isolated restart/deleted-session walk remains separate
 from this profile-lifecycle coverage.
+
+Catalog freshness regression: open a process-bearing session while its sidebar row still has an
+older zero-process summary. Delete and archive must offer the keep/terminate choice using current
+profile-scoped detail evidence. A delete confirmation already open must reflect a subsequent detail
+update. E2E-PROC-002 preserves the policy-response and independent process-liveness checks.

@@ -47,7 +47,8 @@ export function sessionProcessChoiceCopy(
         : `These sessions started ${count} that ${running}.`,
     confirmLabel: confirmFor(action, sessions, count),
     keepLabel: KEEP_LABEL,
-    note: KEEP_NOTE,
+    note:
+      action === "delete" ? "Kept processes stay listed under Processes left running." : KEEP_NOTE,
   };
 }
 
