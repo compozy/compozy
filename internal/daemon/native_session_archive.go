@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -75,6 +76,15 @@ func (n *daemonNativeTools) setSessionArchived(
 		if err := n.prepareSessionProcessPolicy(ctx, req.ToolID, input.Processes); err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+	}
+	if archived && input.Processes == contract.SessionProcessesTerminate {
+		if err := ctx.Err(); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		// Keep the accepted archive stop and cleanup in one bounded lifetime.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
 	}
 	var info *session.Info
 	switch {

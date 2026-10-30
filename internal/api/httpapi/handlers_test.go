@@ -4068,6 +4068,27 @@ func (marketingProfileService) Resolve(_ context.Context, in profilepkg.ResolveI
 	}}, nil
 }
 
+type retainedProcessProfileService struct {
+	core.ProfileService
+	archived bool
+}
+
+func (s retainedProcessProfileService) Resolve(
+	context.Context, profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if s.archived {
+		return profilepkg.Resolution{}, profilepkg.ErrArchived
+	}
+	return profilepkg.Resolution{}, profilepkg.ErrNotFound
+}
+
+func (s retainedProcessProfileService) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	if s.archived {
+		return []profilepkg.Profile{{ID: "profile-retained", Name: "retained", State: profilepkg.StateArchived}}, nil
+	}
+	return nil, nil
+}
+
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
 func TestSessionMonitorHandlers(t *testing.T) {
@@ -4312,6 +4333,31 @@ func TestSessionProcessHandlers(t *testing.T) {
 			t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
 		}
 	})
+	t.Run("Should clean retained owners after their profile is archived or deleted", func(t *testing.T) {
+		t.Parallel()
+		for _, archived := range []bool{false, true} {
+			processes := &handlerProcessService{aggregateProfile: "profile-retained"}
+			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers.Profiles = retainedProcessProfileService{archived: archived}
+			handlers.SessionProcesses = processes
+			selector := "profile-retained"
+			if archived {
+				selector = "retained"
+			}
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodPost,
+				"/api/processes/terminate?profile="+selector,
+				[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`))
+			if response.Code != http.StatusOK || processes.calls != 1 {
+				t.Fatalf(
+					"archived=%t status=%d calls=%d body=%s",
+					archived,
+					response.Code,
+					processes.calls,
+					response.Body.String(),
+				)
+			}
+		}
+	})
 	t.Run("Should list process metadata and reject conflicting or foreign targets before mutation", func(t *testing.T) {
 		processes := &handlerProcessService{}
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
@@ -4538,6 +4584,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 }
 
 type handlerProcessService struct {
+	aggregateProfile     string
 	calls                int
 	refreshErr           error
 	unsupported          bool
@@ -4584,8 +4631,12 @@ func (s *handlerProcessService) Terminate(
 	allowed func(sessionprocess.Owner) bool,
 ) ([]sessionprocess.Result, error) {
 	if id == "" {
-		if !allowed(sessionprocess.Owner{WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}) ||
-			allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, Live: true}) ||
+		profileID := s.aggregateProfile
+		if profileID == "" {
+			profileID = store.DefaultProfileID
+		}
+		if !allowed(sessionprocess.Owner{WorkspaceID: "foreign", ProfileID: profileID}) ||
+			allowed(sessionprocess.Owner{ProfileID: profileID, Live: true}) ||
 			allowed(sessionprocess.Owner{ProfileID: "foreign"}) {
 			return nil, errors.New("incorrect aggregate process mutation scope")
 		}

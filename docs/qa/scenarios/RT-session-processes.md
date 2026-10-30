@@ -39,3 +39,10 @@ A process-change event invalidates every cached profile variant for that session
 termination for a live owner or a foreign profile: neither may be signaled. Retained owners in
 the selected profile remain eligible across workspaces. If a terminal exits during graceful-close
 timeout handling, cleanup succeeds without signaling any replacement PID identity.
+
+Profile lifecycle regression: retain a detached process, remove its session, then archive or
+remove the otherwise-empty profile. Aggregate operator cleanup must still accept the profile
+label (archived) or stable owner ID (deleted) shown by the process list. Live owners and owners
+from another selected profile remain refused. The owning HTTP handler race regression covers
+both lifecycle selector cases; the prior isolated restart/deleted-session walk remains separate
+from this profile-lifecycle coverage.

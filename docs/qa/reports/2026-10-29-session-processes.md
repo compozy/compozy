@@ -219,3 +219,21 @@ The test-shape checker reports pre-existing findings outside the changed HTTP su
 The aggregate Web action carries each target's profile and splits requests at profile boundaries.
 Catalog events use the existing five-second aggregate reconciler, while session process prefixes
 remain promptly invalidated; reconnect recognizes the profile-suffixed process keys.
+
+## Native archive cancellation follow-up
+
+The archive boundary regression now returns the caller context error after committing the stop,
+exposing the same lost-cleanup path as legacy stop. Explicit terminate uses a bounded independent
+archive lifetime after checking caller cancellation; keep retains its existing lifetime. The first
+focused native race run passed (4.681 s). The asynchronous stop case additionally verifies that
+cleanup is registered before process termination and its callback awaits the correct session.
+
+A real Darwin Unix-domain listening socket named `listener:3000` was inspected with the scanner's
+lsof field selection. Output contained `tunix` and the pathname but no `TST=LISTEN`; the parser's
+required listen-state flag excludes that proposed false TCP port. This is bounded evidence for
+the review's Unix-socket example, not a proof about every possible kernel socket family.
+
+The final native policy race run passed (4.659 s), and scoped Linux daemon lint reported zero
+issues. Retained-process aggregate cleanup now accepts archived profile labels and deleted
+profiles' stable IDs without widening ownership: live and foreign-profile owners remain refused.
+The existing HTTP handler suite verifies both lifecycle cases and its race run passed (2.265 s).

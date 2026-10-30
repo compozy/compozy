@@ -15603,6 +15603,7 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				unsupported bool
 				cancel      bool
 				wait        bool
+				async       bool
 				wantCode    toolspkg.ErrorCode
 			}{
 				{name: "Should keep omitted policy despite scan failure", scanFailure: true},
@@ -15611,9 +15612,10 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				{name: "Should refuse unsupported termination before mutation", policy: "terminate", unsupported: true, wantCode: toolspkg.ErrorCodeUnavailable},
 				{name: "Should finish cleanup after lifecycle cancels the caller", policy: "terminate", cancel: true},
 				{name: "Should finish waited stop cleanup after admission cancels the caller", policy: "terminate", cancel: true, wait: true},
+				{name: "Should schedule cleanup after an asynchronous stop", policy: "terminate", async: true},
 				{name: "Should reject invalid policy before mutation", policy: "invalid", wantCode: toolspkg.ErrorCodeInvalidInput},
 			} {
-				if tc.wait && toolID != toolspkg.ToolIDSessionStop {
+				if (tc.wait || tc.async) && toolID != toolspkg.ToolIDSessionStop {
 					continue
 				}
 				t.Run(tc.name, func(t *testing.T) {
@@ -15629,6 +15631,7 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 						State: session.StateActive, Type: session.SessionTypeUser,
 					}
 					mutated := false
+					awaited := false
 					commit := func() {
 						mutated = true
 						if tc.cancel {
@@ -15641,9 +15644,13 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 							commit()
 							return stopCtx.Err()
 						},
-						ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) { commit(); return info, nil },
-						requestStopFn:     func(context.Context, string, session.StopCause, string) error { commit(); return nil },
-						awaitStoppedFn: func(waitCtx context.Context, _ string) (session.StopOutcome, error) {
+						ArchiveWithStopFn: func(archiveCtx context.Context, _ string, _ string) (*session.Info, error) {
+							commit()
+							return info, archiveCtx.Err()
+						},
+						requestStopFn: func(context.Context, string, session.StopCause, string) error { commit(); return nil },
+						awaitStoppedFn: func(waitCtx context.Context, id string) (session.StopOutcome, error) {
+							awaited = id == info.ID
 							if _, bounded := waitCtx.Deadline(); !bounded {
 								t.Error("committed terminate wait has no deadline")
 							}
@@ -15660,8 +15667,8 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 					}
 					if toolID == toolspkg.ToolIDSessionArchive {
 						input["stop"] = true
-					} else if tc.wait {
-						input["wait"] = true
+					} else if tc.wait || tc.async {
+						input["wait"] = tc.wait
 					}
 					encoded, err := json.Marshal(input)
 					if err != nil {
@@ -15691,6 +15698,20 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 					if !mutated {
 						t.Fatal("successful preparation did not commit the lifecycle change")
 					}
+					if tc.async {
+						if processes.afterStop == nil || !processes.alive {
+							t.Fatal("asynchronous stop must register cleanup before terminating processes")
+						}
+						cleanupCtx, cleanupCancel := context.WithTimeout(t.Context(), time.Second)
+						defer cleanupCancel()
+						if err := processes.afterStop(cleanupCtx); err != nil {
+							t.Fatal(err)
+						}
+						if !awaited {
+							t.Fatal("registered callback did not await the target session stop")
+						}
+						return
+					}
 					if processes.alive != (tc.policy != "terminate") {
 						t.Fatalf("policy=%q process alive=%t", tc.policy, processes.alive)
 					}
@@ -15701,6 +15722,7 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 }
 
 type nativeProcessPolicyService struct {
+	afterStop  func(context.Context) error
 	supported  bool
 	refreshErr error
 	alive      bool
@@ -15712,8 +15734,10 @@ func (s *nativeProcessPolicyService) Refresh(context.Context) (sessionprocess.Sn
 func (s *nativeProcessPolicyService) Summary(string) sessionprocess.Summary {
 	return sessionprocess.Summary{Supported: s.supported}
 }
-func (*nativeProcessPolicyService) Acquire() func()                               { return func() {} }
-func (*nativeProcessPolicyService) AfterStop(string, func(context.Context) error) {}
+func (*nativeProcessPolicyService) Acquire() func() { return func() {} }
+func (s *nativeProcessPolicyService) AfterStop(_ string, await func(context.Context) error) {
+	s.afterStop = await
+}
 func (s *nativeProcessPolicyService) Terminate(
 	ctx context.Context,
 	id string,

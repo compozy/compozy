@@ -6,9 +6,11 @@ import (
 	"errors"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/gin-gonic/gin"
@@ -176,7 +178,7 @@ func (h *BaseHandlers) TerminateProcesses(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "session process aggregate termination") || !h.requireSessionProcesses(c) {
 		return
 	}
-	scope, err := h.resolveProfileMutationScope(c)
+	scope, err := h.resolveRetainedProcessProfile(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
 		return
@@ -203,6 +205,28 @@ func (h *BaseHandlers) TerminateProcesses(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, ProcessResults(h.SessionProcesses.Summary("").Supported, results))
+}
+
+// resolveRetainedProcessProfile is only used after the aggregate operator guard.
+// Deleted profiles retain their stable owner ID in observations and list responses.
+func (h *BaseHandlers) resolveRetainedProcessProfile(c *gin.Context) (profilepkg.ReadScope, error) {
+	scope, err := h.resolveProfileMutationScope(c)
+	requested := strings.TrimSpace(c.Query("profile"))
+	if requested == "" || (!errors.Is(err, profilepkg.ErrNotFound) && !errors.Is(err, profilepkg.ErrArchived)) {
+		return scope, err
+	}
+	owners, readErr := h.profileOwnerIdentities(c.Request.Context())
+	if readErr != nil {
+		return profilepkg.ReadScope{}, readErr
+	}
+	for id, owner := range owners {
+		if id == requested || owner.Name == requested {
+			return profilepkg.ReadScope{ProfileID: id}, nil
+		}
+	}
+	// An unknown name cannot match an observation's immutable profile ID.
+	// The termination service still verifies each target and rejects live owners.
+	return profilepkg.ReadScope{ProfileID: requested}, nil
 }
 
 func SessionProcessPayload(p sessionprocess.Process, at time.Time) contract.SessionProcessPayload {

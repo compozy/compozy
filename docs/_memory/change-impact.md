@@ -4773,3 +4773,11 @@ as not found. The totals footer reads the existing exact session facets (no cont
 and extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
 `docs/sessions/index.mdx`, generated CLI docs, and QA scenario
 `ET-web-session-folders-manual-order` record the contract.
+
+Session-process review follow-up: operator aggregate cleanup resolves retained owners even when
+profile selection rejects an archived/deleted profile. Archived labels map to stable IDs; deleted
+owners use the ID already returned by the process list. Explicit identity fencing, retained-only
+selection and profile isolation remain. Native archive terminate completes under a bounded
+independent lifetime after cancellation precheck. No DTO, config, hook, schema, or extension
+contract changes; Web batches already carry the listed owner selector. QA: RT-session-processes
+and the 2026-10-29 session-processes report.
