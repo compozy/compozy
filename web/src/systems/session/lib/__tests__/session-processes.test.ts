@@ -42,7 +42,7 @@ describe("processCommandLabel", () => {
     expect(
       processCommandLabel({
         command:
-          "/Users/dev/.local/share/mise/installs/node/24.22.1/bin/node /Users/dev/Lab/server.js --port 50399",
+          "/Users/dev/.local/share/mise/installs/node/24.22.1/bin/node /Users/dev/lab/server.js --port 50399",
         argv0: "/Users/dev/.local/share/mise/installs/node/24.22.1/bin/node",
         cwd: "/Users/dev/lab",
       })
@@ -51,6 +51,10 @@ describe("processCommandLabel", () => {
       "sleep 9999"
     );
     expect(processCommandLabel({ command: "", argv0: "vite", cwd: "/tmp" })).toBe("vite");
+    // Paths are case-sensitive on Linux and case-sensitive APFS: no relative form across case.
+    expect(
+      processCommandLabel({ command: "node /work/Foo/server.js", argv0: "node", cwd: "/work/foo" })
+    ).toBe("node /work/Foo/server.js");
     expect(
       processCommandLabel({ command: "bash -c 'a\nb' /etc/hosts", argv0: "bash", cwd: "/tmp" })
     ).toBe("bash -c 'a ↵ b' /etc/hosts");

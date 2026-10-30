@@ -62,14 +62,15 @@ export function processCommandLabel(
  */
 function shortenCommandPaths(command: string, cwd: string): string {
   const base = cwd.trim().replace(/\/+$/, "");
-  const prefix = base === "" ? null : `${base.toLowerCase()}/`;
+  const prefix = base === "" ? null : `${base}/`;
   let first = true;
   return command.replace(/[^\s]+/g, token => {
     const program = first;
     first = false;
     if (program && token.startsWith("/")) return token.slice(token.lastIndexOf("/") + 1) || token;
-    // macOS paths are case-insensitive, and argv often differs in case from cwd.
-    if (prefix && token.toLowerCase().startsWith(prefix) && token.length > prefix.length) {
+    // Exact case only: Linux and case-sensitive APFS treat /work/Foo and /work/foo as
+    // different directories, so a case-differing path keeps its full form.
+    if (prefix && token.startsWith(prefix) && token.length > prefix.length) {
       return token.slice(prefix.length);
     }
     return token;
