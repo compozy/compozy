@@ -97,8 +97,8 @@ async function terminateProcessesBatch(
 
 /**
  * Stops processes by identity whatever their session's state; the operator
- * aggregate's cleanup. Targets go in batches the route accepts and the per-target
- * results come back as one answer. A batch the daemon refuses reads as `failed`
+ * aggregate's cleanup. Targets go in batches the route accepts, sent one after
+ * another, and the per-target results come back as one answer. A batch the daemon refuses reads as `failed`
  * for each of its targets, so the rest still report; only when every batch is
  * refused does the first refusal reject.
  */
@@ -109,7 +109,16 @@ export async function terminateProcesses(
   for (let start = 0; start < targets.length; start += TERMINATE_PROCESSES_MAX_TARGETS) {
     batches.push(targets.slice(start, start + TERMINATE_PROCESSES_MAX_TARGETS));
   }
-  const settled = await Promise.allSettled(batches.map(terminateProcessesBatch));
+  // One batch at a time: each stop signals, waits out a grace period, and
+  // re-verifies identities on the daemon, so batches must not pile up there.
+  const settled: PromiseSettledResult<TerminateProcessesResponse>[] = [];
+  for (const batch of batches) {
+    try {
+      settled.push({ status: "fulfilled", value: await terminateProcessesBatch(batch) });
+    } catch (reason) {
+      settled.push({ status: "rejected", reason });
+    }
+  }
   const firstRefusal = settled.find(outcome => outcome.status === "rejected");
   if (firstRefusal && settled.every(outcome => outcome.status === "rejected")) {
     throw firstRefusal.reason;

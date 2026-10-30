@@ -132,6 +132,8 @@ export function useSessionPageControls(
     }
 
     const retry = stopAttention !== null;
+    // A retry repeats the answer the stop it retries gave about running processes.
+    const policy = processes ?? (retry ? (controlsState.stopProcesses ?? undefined) : undefined);
     store.trigger.stopRequested({
       execute: () =>
         stopMutation.mutateAsync({
@@ -139,9 +141,10 @@ export function useSessionPageControls(
           workspace_id: session.workspace_id,
           profile_name: session.profile_name,
           wait: retry,
-          ...(processes ? { processes } : {}),
+          ...(policy ? { processes: policy } : {}),
         }),
       failureMessage: null,
+      ...(policy ? { processes: policy } : {}),
       retry,
       scope: "session",
       turnId: activeTurnId,

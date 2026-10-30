@@ -435,6 +435,47 @@ describe("useSessionPageControls", () => {
     expect(result.current.isStopRetrying).toBe(true);
   });
 
+  // Invariant: Retry of an unverified stop repeats the stop's answer about the
+  // session's running processes; a chosen terminate is never downgraded to keep.
+  it("Should retry an unverified stop with the process answer the stop was given", async () => {
+    routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active"), wrapper: createWrapper() }
+    );
+
+    await act(async () => {
+      result.current.handleStop("terminate");
+    });
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
+      id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
+      wait: false,
+      processes: "terminate",
+    });
+
+    rerender({
+      ...makeSession("stopping"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      updated_at: "2026-09-05T10:00:00Z",
+    });
+    expect(result.current.canRetryStop).toBe(true);
+    await act(async () => {
+      result.current.handleStop();
+    });
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
+      id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
+      wait: true,
+      processes: "terminate",
+    });
+  });
+
   it("Should read an unverified stop on a managed session without offering the user-only retry", () => {
     const { result } = renderControls({
       ...makeSession("stopping", undefined, "system"),

@@ -1406,12 +1406,18 @@ describe("session processes", () => {
   });
 
   // The operator route takes at most 100 targets; Stop all over more must still stop every one.
-  it("stops left-running processes in batches the route accepts and answers once per target", async () => {
+  it("stops left-running processes in sequential batches the route accepts and answers once per target", async () => {
     const targets = Array.from({ length: 250 }, (_, index) => ({
       pid: 1000 + index,
       started_at: "2026-10-29T12:00:00Z",
     }));
+    let inFlight = 0;
+    let maxInFlight = 0;
     vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      inFlight -= 1;
       const body = (await (input as Request).clone().json()) as { targets: typeof targets };
       if (body.targets[0]!.pid === 1100) {
         return new Response(JSON.stringify({ error: "scan unavailable" }), {
@@ -1438,6 +1444,8 @@ describe("session processes", () => {
       })
     );
     expect(sizes).toEqual([100, 100, 50]);
+    // Batches go one after another, never piling up on the daemon.
+    expect(maxInFlight).toBe(1);
     expect(response.results.map(result => result.pid)).toEqual(targets.map(target => target.pid));
     const refused = response.results.filter(result => result.outcome === "failed");
     expect(refused).toHaveLength(100);

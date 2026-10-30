@@ -288,7 +288,7 @@ function ConfirmDialogFooter({
           onClick={event => {
             confirmButtonProps?.onClick?.(event);
             if (event.defaultPrevented) return;
-            void onConfirm();
+            runConfirmDialogAction(onConfirm);
           }}
         >
           {ConfirmIcon ? <ConfirmIcon /> : null}
@@ -297,6 +297,18 @@ function ConfirmDialogFooter({
       </div>
     </DialogFooter>
   );
+}
+
+/**
+ * Runs a confirm or alternate handler. A rejected promise is reported rather
+ * than left unhandled; callers that need to show the failure handle it inside
+ * their handler and pass `error`.
+ */
+function runConfirmDialogAction(action: () => void | Promise<void>): void {
+  // Called synchronously, as the click handler always has; only the returned promise is observed.
+  void Promise.resolve(action()).catch((error: unknown) => {
+    console.error("Confirm dialog action failed", error);
+  });
 }
 
 function ConfirmDialogAlternateButton({
@@ -309,14 +321,15 @@ function ConfirmDialogAlternateButton({
   const { icon: AlternateIcon, buttonProps } = action;
   return (
     <Button
-      disabled={disabled}
       type="button"
       variant="outline"
       {...buttonProps}
+      // The pending lock wins over a caller's `disabled: false`.
+      disabled={disabled || Boolean(buttonProps?.disabled)}
       onClick={event => {
         buttonProps?.onClick?.(event);
         if (event.defaultPrevented) return;
-        void action.onSelect();
+        runConfirmDialogAction(action.onSelect);
       }}
     >
       {AlternateIcon ? <AlternateIcon /> : null}

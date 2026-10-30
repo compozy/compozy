@@ -10,6 +10,7 @@ import {
   SessionApiError,
   type SessionPromptSendResult,
   type SessionSendAction,
+  type SessionProcessPolicy,
   type SessionSendEnvelope,
   type SessionState,
   type UnconfirmedSend,
@@ -102,6 +103,11 @@ export interface SessionPageControlsState {
   stop: SessionStopPhase;
   /** A turn stop the daemon answered `nothing-in-flight`; `null` once it expires or a new request starts. */
   stopCompletion: SessionStopCompletionNote | null;
+  /**
+   * What the last session stop answered about the session's running processes.
+   * A retry of an unverified stop repeats it, so a chosen terminate is not lost.
+   */
+  stopProcesses: SessionProcessPolicy | null;
   nextRequestId: number;
   /** The cap the daemon last named in a `queue_full` refusal; unknown until then. */
   queueCap: number | null;
@@ -133,6 +139,8 @@ export type SessionPageControlsEventPayloadMap = {
     failureMessage: string | null;
     /** Retry of an unverified stop: the same session stop, waited on until it settles. */
     retry?: boolean;
+    /** The session stop's answer about running processes; absent when none ran. */
+    processes?: SessionProcessPolicy;
     scope: SessionStopScope;
     turnId: string;
   };
@@ -165,6 +173,7 @@ export function createSessionPageControlsLogic() {
       lifecycle: { running: false, state: "active", turnId: "" },
       stop: { phase: "idle", requestId: 0 },
       stopCompletion: null,
+      stopProcesses: null,
       nextRequestId: 0,
       queueCap: null,
       unconfirmedSends: [],
@@ -270,6 +279,8 @@ export function createSessionPageControlsLogic() {
           },
           // A fresh request supersedes any completion note still showing.
           stopCompletion: null,
+          stopProcesses:
+            event.scope === "session" ? (event.processes ?? null) : context.stopProcesses,
         };
       },
       stopSucceeded: (context, event, enqueue) => {
