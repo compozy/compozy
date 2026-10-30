@@ -12,6 +12,7 @@ dist/
 .release-dist/
 .artifacts/
 web/embed/
+web/dist-gallery/
 storybook-static/
 coverage.out
 coverage.html
@@ -101,3 +102,8 @@ graphify-out/
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Prototype gallery: unclaimed comment uploads (claimed images live beside comments.json)
+web/gallery/comments/*/attachments/pending/
+web/gallery/comments/*/.comments.lock/
+web/gallery/comments/*/comments.json.*.tmp

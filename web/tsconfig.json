@@ -1,6 +1,14 @@
 {
     "include": ["**/*.ts", "**/*.tsx"],
-    "exclude": ["node_modules", "dist", ".tmp", "storybook-static", "coverage", "scripts"],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "dist-gallery",
+        ".tmp",
+        "storybook-static",
+        "coverage",
+        "scripts"
+    ],
     "compilerOptions": {
         "target": "ES2022",
         "jsx": "react-jsx",
@@ -18,7 +26,8 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
         "paths": {
-            "@/*": ["./src/*"]
+            "@/*": ["./src/*"],
+            "#gallery/*": ["./gallery/*"]
         }
     }
 }

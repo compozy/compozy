@@ -1,5 +1,5 @@
 import { ChevronRight, CircleSlash } from "lucide-react";
-import { useId } from "react";
+import { use, useId } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";
 
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
-import { SessionBoardCard } from "./session-board-card";
+import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import {
   SESSIONS_BOARD_COLUMN_BODY,
@@ -161,6 +161,7 @@ function SessionsBoardColumnBody({
 }: Omit<SessionsBoardColumnProps, "collapsible" | "layout" | "regionPrefix"> & {
   testIdPrefix: string;
 }) {
+  const BoardCard = slottedCard(use(SessionBoardCardSlot));
   if (column.loading) return <SessionsBoardColumnCardsSkeleton id={column.id} />;
   if (column.failure === "initial") {
     return (
@@ -198,7 +199,7 @@ function SessionsBoardColumnBody({
         </div>
       ) : (
         column.sessions.map(session => (
-          <SessionBoardCard
+          <BoardCard
             actions={actions}
             current={session.id === currentSessionId}
             key={session.id}

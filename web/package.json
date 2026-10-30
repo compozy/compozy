@@ -53,6 +53,7 @@
         "ai": "7.0.128",
         "boring-avatars": "2.0.4",
         "date-fns": "^4.4.0",
+        "elkjs": "0.12.1",
         "lexical": "0.52.0",
         "lucide-react": "1.52.0",
         "motion": "14.0.0",

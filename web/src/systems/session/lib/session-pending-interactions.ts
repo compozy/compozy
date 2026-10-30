@@ -9,7 +9,9 @@
  * badge derives from counts (`waiting-for-auth` outranks `waiting-for-input`)
  * and the masked side stays visible as a note rather than disappearing.
  */
-import { terminalAttentionReason } from "@/systems/terminal/parts";
+// The pure copy module, not the `parts` entry: that entry also carries terminal hooks and the
+// catalog stream, which a payload read (and every view that renders one) must not load.
+import { terminalAttentionReason } from "@/systems/terminal/lib/terminal-permission-copy";
 
 import type { SessionInteractionRecord, SessionPayload, SessionPendingInteraction } from "../types";
 

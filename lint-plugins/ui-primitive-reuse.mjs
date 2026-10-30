@@ -87,7 +87,11 @@ function normalizeFilename(filename) {
 function isConsumerSourcePath(filename) {
   const normalized = normalizeFilename(filename);
   if (!normalized) return false;
-  if (!normalized.includes("/web/src/") && !normalized.includes("/packages/site/")) {
+  if (
+    !normalized.includes("/web/src/") &&
+    !normalized.includes("/web/gallery/") &&
+    !normalized.includes("/packages/site/")
+  ) {
     return false;
   }
   for (const segment of EXEMPT_PATH_SEGMENTS) {
