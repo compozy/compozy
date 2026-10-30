@@ -4723,3 +4723,19 @@ as not found. The totals footer reads the existing exact session facets (no cont
 and extension SDKs are unchanged. Official skill `references/runtime-operations.md`, site
 `docs/sessions/index.mdx`, generated CLI docs, and QA scenario
 `ET-web-session-folders-manual-order` record the contract.
+
+## Kanban session drawer (#1052) — 2026-10-30
+
+Owner: `feat/issue-1052-kanban-session-drawer`. A board card opens the window's own session in a
+resizable drawer beside the live board instead of switching the window to List. Web-only; no native
+tool, CLI/HTTP/UDS, DTO, hook, extension SDK, config key, or SQLite change, and workspace/profile
+isolation is unchanged (the drawer resolves sessions through the same profile-enforced read as
+List). Public surface, additive (SD-013): the session window route accepts `drawer=open`
+(`/agents/<agent>/sessions/<id>?drawer=open`), persisted by the existing window-manager route
+search and ignored by List; older clients drop the unknown key. User state: the browser-local
+`compozy:session:sidebar:v1` entries gain `drawerWidth` (normalized, `null` default); entries
+written before it read the default width, so no migration or schema bump is needed. `@compozy/ui`
+`ResizableDrawer` gains `breakpointBasis`, `header`, `initialFocus`, `modal` and a function
+`returnFocus` (internal regime; its one other consumer keeps the defaults). Official skill: not
+affected (no agent-facing surface). Site `docs/sessions/board.mdx` and QA scenarios
+`ET-web-sessions-board-drawer` and `ET-web-sessions-board-toggle` record the behavior.

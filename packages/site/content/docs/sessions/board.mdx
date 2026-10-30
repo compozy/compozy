@@ -1,6 +1,6 @@
 ---
 title: Sessions board
-description: See every session by who owns the next step — Needs you, Working, In review, Done — and open any of them in one click.
+description: See every session by who owns the next step — Needs you, Working, In review, Done — and open any of them in a drawer without leaving the board.
 ---
 
 The sessions board is a Kanban view of the session window. It places every session in one of four
@@ -50,12 +50,80 @@ Archived sessions never appear in the columns; they live in the **Archive** bar 
 
 5. Click a card.
 
-   **Expected:** the window switches back to **List** with that session open.
+   **Expected:** the session opens in a drawer on the right side of the board. The board stays where
+   it was, keeps updating, and highlights the card you opened. See
+   [Work in a session from the board](#work-in-a-session-from-the-board).
 
 6. Reload the app.
 
-   **Expected:** the window keeps the view you chose last. Each session window remembers its own
-   view, and a new window always opens in **List**.
+   **Expected:** the window keeps the view you chose last, and the drawer is still open on the same
+   session. Each session window remembers its own view, and a new window always opens in **List**.
+
+## Work in a session from the board
+
+The drawer is the complete session: transcript, composer, model and runtime picker, goal controls,
+subagents, terminal output, approvals and questions, and the session's header actions. Everything
+you can do in **List** you can do here, while the board stays visible beside it.
+
+1. Click a card in **Working**.
+
+   **Expected:** the drawer opens with that session. Its header shows the session state, the title,
+   the pull request and status chips, **Stop** while it runs, and the context sidebar toggle. On the
+   right are **Previous session**, **Next session**, **Open full session**, the session's **…** menu,
+   and **Close**.
+
+2. Click another card.
+
+   **Expected:** the drawer switches to that session. Anything you typed in the composer of the first
+   session stays there as a draft, and its card shows **Draft** until you send or clear it.
+
+3. Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↓</kbd> (or select **Next session**).
+
+   **Expected:** the drawer moves to the next card on the board: down the column, then on to the next
+   column. <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>↑</kbd> goes back. These are the same
+   **Next session** and **Previous session** shortcuts as the session list, so a remapped shortcut
+   works here too. They do nothing while you are typing in the composer.
+
+4. Drag the drawer's left edge to resize it, or focus the edge with <kbd>Tab</kbd> and use
+   <kbd>←</kbd> and <kbd>→</kbd> (<kbd>Home</kbd> and <kbd>End</kbd> jump to the narrowest and widest).
+
+   **Expected:** the board narrows or widens beside the drawer and scrolls sideways when its columns
+   no longer fit. The width is remembered for this window, and new windows start from the last width
+   you chose.
+
+5. Press <kbd>Esc</kbd>.
+
+   **Expected:** the drawer closes and focus returns to the session's card, even if the card moved to
+   another column while the drawer was open. Clicking an empty part of the board also closes the
+   drawer, unless the composer holds a message you have not sent.
+
+6. Use the browser's back button.
+
+   **Expected:** the drawer opens again on the session you closed. Back and forward step through the
+   sessions you opened, and the address bar always points at the session in the drawer, so you can
+   copy it as a link.
+
+7. Select **Open full session**.
+
+   **Expected:** the window switches to **List** with that session open, the same as before the
+   board existed.
+
+A few things to know:
+
+- **Child sessions.** A child session's header starts with its parent's title. Select it to open the
+  parent in the drawer. Subagents open in their own panel inside the drawer, as they do in **List**.
+- **Archive and delete.** Archiving or deleting the session from the drawer's **…** menu (or from its
+  card) closes the drawer and moves focus to the next card in the same column.
+- **Cards that move.** A card can move from **Working** to **Needs you** or **Done** while its session
+  is open. The drawer stays open and the highlight follows the card.
+- **A session open in another window.** A session is shown by one window at a time. If another
+  window already shows it, clicking its card brings that window forward instead of opening the
+  drawer.
+- **Narrow windows.** When the window is too narrow for the drawer and a column side by side, the
+  drawer covers the board edge to edge. Press <kbd>Esc</kbd> to get back to the board.
+- **All projects and All profiles.** The drawer opens sessions from any project shown on the board.
+  A session that belongs to another profile opens read-only, with the option to switch to its
+  profile, exactly as it does in **List**.
 
 ## Group and sort the board
 
