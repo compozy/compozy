@@ -118,6 +118,7 @@ export interface StopSessionParams extends Pick<
   processes?: SessionProcessPolicy;
 }
 
+/** Stops the captured session in its owner scope and refreshes owner and aggregate reads. */
 export function useStopSession() {
   const queryClient = useQueryClient();
 
@@ -175,7 +176,7 @@ export function useSessionDeletedByOperator(sessionId: string | null): boolean {
   );
 }
 
-/** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
+/** Captured session ownership and the optional process disposition for deletion. */
 export interface DeleteSessionParams extends Pick<
   SessionPayload,
   "id" | "workspace_id" | "profile_name"
@@ -184,6 +185,7 @@ export interface DeleteSessionParams extends Pick<
   processes?: SessionProcessPolicy;
 }
 
+/** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
 export function useDeleteSession(
   options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {}
 ) {
