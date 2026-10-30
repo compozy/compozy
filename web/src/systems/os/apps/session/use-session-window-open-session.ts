@@ -1,9 +1,9 @@
-import { subagentRevealStore } from "@/systems/session";
 import {
   SESSION_BOARD_DRAWER_OPEN,
   SESSION_BOARD_DRAWER_SEARCH_KEY,
   sessionBoardDrawerOpen,
-} from "@/systems/session/lib/session-deeplink-search";
+  subagentRevealStore,
+} from "@/systems/session";
 import {
   ownerDataScope,
   sameDataScope,

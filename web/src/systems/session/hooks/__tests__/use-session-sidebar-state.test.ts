@@ -240,6 +240,11 @@ describe("useSessionSidebarState", () => {
     expect(one.current.drawerWidth).toBe(812);
     expect(renderView(before, WINDOW_TWO).current.drawerWidth).toBe(812);
 
+    // Another window's unrelated gesture never replaces the width new windows start from.
+    const two = renderView(before, WINDOW_TWO);
+    act(() => two.current.setHideChildren(true));
+    expect(renderView(before, "win_three").current.drawerWidth).toBe(812);
+
     act(() => one.current.setDrawerWidth(5000));
     expect(one.current.drawerWidth).toBe(1200);
 

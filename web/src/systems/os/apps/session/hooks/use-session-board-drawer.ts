@@ -1,11 +1,12 @@
 import { useEffect, useEffectEvent, useRef, type PointerEvent } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { sessionHasUnsentInput, type SessionLifecycleActionHandlers } from "@/systems/session";
 import {
   SESSION_BOARD_DRAWER_OPEN,
   SESSION_BOARD_DRAWER_SEARCH_KEY,
-} from "@/systems/session/lib/session-deeplink-search";
+  sessionHasUnsentInput,
+  type SessionLifecycleActionHandlers,
+} from "@/systems/session";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { adjacentShortcutItem } from "../../../lib/adjacent-shortcut-item";
@@ -23,6 +24,9 @@ interface BoardCard extends SessionWindowSidebarTarget {
 
 const CARD_SELECTOR = "[data-session-id]";
 
+/** A folded column (Done) keeps its cards mounted but out of sight: they are not stepped to. */
+const FOLDED_COLUMN_SELECTOR = '[data-collapsed="true"]';
+
 /** Pointer targets that are controls, so a press on them is never "outside" the drawer. */
 const INTERACTIVE_SELECTOR = [
   "button, a[href], input, textarea, select, label, summary, [contenteditable]",
@@ -37,7 +41,7 @@ function boardCards(board: HTMLElement | null): BoardCard[] {
   if (!board) return [];
   return Array.from(board.querySelectorAll<HTMLElement>(CARD_SELECTOR)).flatMap(element => {
     const id = element.dataset.sessionId ?? "";
-    if (!id) return [];
+    if (!id || element.closest(FOLDED_COLUMN_SELECTOR)) return [];
     return [
       {
         id,

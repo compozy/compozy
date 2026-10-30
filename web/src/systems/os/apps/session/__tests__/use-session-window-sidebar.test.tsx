@@ -70,10 +70,9 @@ vi.mock("../../../hooks/use-attention-jump", () => ({
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget }, manager: { getState } }),
 }));
-vi.mock("@/systems/session/hooks/use-session-window-presentation", () => ({
-  useSessionWindowPresentation: () => presentation.value,
-}));
 vi.mock("@/systems/session", async () => ({
+  ...(await import("@/systems/session/lib/session-deeplink-search")),
+  useSessionWindowPresentation: () => presentation.value,
   sessionHasUnsentInput: () => false,
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
     .subagentRevealStore,

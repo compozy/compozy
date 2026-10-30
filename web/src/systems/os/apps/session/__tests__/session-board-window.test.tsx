@@ -285,14 +285,28 @@ describe("SessionBoardWindow drawer", () => {
     await userEvent.click(within(drawer).getByRole("button", { name: "Previous session" }));
     expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w1"));
 
+    harness.userRetarget.mockClear();
+
     // The shortcut works from the drawer's controls, never from inside text entry.
     within(drawer).getByRole("button", { name: "Next session" }).focus();
     await userEvent.keyboard("{Control>}{Shift>}{ArrowDown}{/Shift}{/Control}");
-    expect(harness.userRetarget).toHaveBeenCalledTimes(3);
+    expect(harness.userRetarget).toHaveBeenCalledTimes(1);
     expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w3"));
     within(drawer).getByLabelText("Composer").focus();
     await userEvent.keyboard("{Control>}{Shift>}{ArrowDown}{/Shift}{/Control}");
-    expect(harness.userRetarget).toHaveBeenCalledTimes(3);
+    expect(harness.userRetarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should skip the cards of a folded column when stepping", async () => {
+    setRoute("w3", true);
+    renderBoard();
+    const drawer = await screen.findByRole("dialog", { name: "Session w2" });
+    await userEvent.click(within(drawer).getByRole("button", { name: "Next session" }));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("d1"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse Done" }));
+    await userEvent.click(within(drawer).getByRole("button", { name: "Next session" }));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w1"));
   });
 
   it("Should close when its session is archived and land focus on the next card in the column", async () => {

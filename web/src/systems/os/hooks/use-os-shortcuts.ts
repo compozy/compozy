@@ -12,7 +12,7 @@ export interface OsShortcutOptions {
 }
 
 /** AltGr aliases ⌃⌥ on some layouts — never steal keystrokes from text entry. */
-export function isEditableTarget(target: EventTarget | null): boolean {
+function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   const editable = target.closest("input, textarea, select, [contenteditable]");
   if (!(editable instanceof HTMLElement)) return false;

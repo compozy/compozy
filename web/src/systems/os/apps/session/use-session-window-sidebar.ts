@@ -1,6 +1,5 @@
 import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
-import { useSessionWindowPresentation } from "@/systems/session/hooks/use-session-window-presentation";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 import {
@@ -16,6 +15,7 @@ import {
   useSessionListView,
   useSessionSidebarState,
   useSessionTransportState,
+  useSessionWindowPresentation,
   useTransportGraceElapsed,
   type SessionListViewModel,
   type SessionCreateOpenOptions,

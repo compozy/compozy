@@ -1,4 +1,4 @@
-import { sessionBoardDrawerOpen } from "@/systems/session/lib/session-deeplink-search";
+import { sessionBoardDrawerOpen } from "@/systems/session";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useWindowLiveDataEnabled } from "../../../hooks/use-window-live-data-enabled";

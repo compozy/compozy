@@ -11,8 +11,7 @@ import { act, fireEvent, render as renderUI, screen, waitFor } from "@testing-li
 import { createContext, type ReactNode, Suspense, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
-import { SessionWindowPresentationContext } from "@/systems/session/contexts/session-window-presentation-context";
+import { SessionWindowPresentationContext, type SessionPayload } from "@/systems/session";
 
 // The real drawer consumes the application query/UI providers even when closed.
 // Keep the recovery/stop invariants in this canonical suite with its normal host boundaries.

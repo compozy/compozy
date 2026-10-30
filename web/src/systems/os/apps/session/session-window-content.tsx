@@ -36,8 +36,8 @@ import {
   SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
   useCreateSession,
+  useSessionWindowPresentation,
 } from "@/systems/session";
-import { useSessionWindowPresentation } from "@/systems/session/hooks/use-session-window-presentation";
 
 const SessionClearDialog = lazy(() =>
   import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))

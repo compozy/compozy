@@ -120,6 +120,8 @@ function withScopeState(
     hideChildren: false,
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
+    // Only a drag sets the drawer width new windows start from (`drawerWidthChanged`).
+    drawerWidth: previousShell?.drawerWidth ?? null,
   };
   return {
     ...context,
@@ -239,7 +241,13 @@ export const sessionSidebarLogic = createStoreLogic({
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).drawerWidth === drawerWidth) {
         return;
       }
-      return withScopeState(context, event.scopeId, state => ({ ...state, drawerWidth }));
+      const next = withScopeState(context, event.scopeId, state => ({ ...state, drawerWidth }));
+      // The width a new window starts from is the one last dragged, in any window.
+      const shell = next.byScope[SHELL_WORKTREE_SCOPE];
+      return {
+        ...next,
+        byScope: { ...next.byScope, [SHELL_WORKTREE_SCOPE]: { ...shell, drawerWidth } },
+      };
     },
     widthReset: (context, event: { scopeId: string }) => {
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).width === null) {

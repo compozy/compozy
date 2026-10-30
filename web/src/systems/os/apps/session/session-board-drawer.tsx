@@ -26,21 +26,19 @@ import {
 
 import { useProfileReadScope } from "@/systems/profiles";
 import {
-  SessionRowActions,
-  getSessionDisplayTitle,
-  sessionScopedDetailOptions,
-  type SessionLifecycleActionHandlers,
-} from "@/systems/session";
-import { SessionWindowPresentationContext } from "@/systems/session/contexts/session-window-presentation-context";
-import {
+  isEditableTarget,
   SESSION_BOARD_DRAWER_INLINE_BREAKPOINT,
   SESSION_BOARD_DRAWER_MAX_WIDTH,
   SESSION_BOARD_DRAWER_MIN_WIDTH,
-} from "@/systems/session/lib/session-board-drawer-width";
-import { sessionTreeParentId } from "@/systems/session/lib/session-hierarchy";
+  SessionRowActions,
+  getSessionDisplayTitle,
+  sessionScopedDetailOptions,
+  sessionTreeParentId,
+  SessionWindowPresentationContext,
+  type SessionLifecycleActionHandlers,
+} from "@/systems/session";
 
 import { useDesktop } from "../../hooks/use-desktop";
-import { isEditableTarget } from "../../hooks/use-os-shortcuts";
 import {
   parseShortcutChord,
   primaryShortcutModifier,
