@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -45,6 +46,72 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		if err := service.WaitForBind(t.Context(), "sess-unbound"); !errors.Is(err, ErrHostedBindTimeout) {
 			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
 		}
+	})
+
+	t.Run("Should wait until the current bind deadline expires", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+			if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-timeout"}); err != nil {
+				t.Fatal(err)
+			}
+			started := time.Now()
+			if err := service.ArmLaunch(t.Context(), "sess-timeout"); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.WaitForBind(t.Context(), "sess-timeout"); !errors.Is(err, ErrHostedBindTimeout) {
+				t.Fatalf("WaitForBind() = %v, want timeout", err)
+			}
+			if elapsed := time.Since(started); elapsed < 2*time.Second {
+				t.Fatalf("bind wait elapsed = %v, want the full configured window", elapsed)
+			}
+		})
+	})
+
+	t.Run("Should honor a renewed deadline while awaiting the first projection", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			release := make(chan struct{})
+			registry := &hostedRegistryStub{releaseList: release}
+			service := newHostedTestService(t, executable, registry, time.Now)
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-renewed"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), "sess-renewed"); err != nil {
+				t.Fatal(err)
+			}
+			request := HostedBindRequest{SessionID: "sess-renewed", Nonce: hostedLaunchNonce(t, launch.Args)}
+			bindCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			bound := make(chan error, 1)
+			go func() { _, err := service.Bind(bindCtx, request, hostedTestPeer(executable)); bound <- err }()
+			synctest.Wait()
+			ready := make(chan error, 1)
+			go func() { ready <- service.WaitForBind(t.Context(), request.SessionID) }()
+			synctest.Wait()
+			time.Sleep(time.Second)
+			cancel()
+			if err := <-bound; !errors.Is(err, context.Canceled) {
+				t.Fatalf("initial bind = %v", err)
+			}
+			synctest.Wait()
+			time.Sleep(1500 * time.Millisecond)
+			select {
+			case err := <-ready:
+				t.Fatalf("wait ended before renewed deadline: %v", err)
+			default:
+			}
+			close(release)
+			if _, err := service.Bind(t.Context(), request, hostedTestPeer(executable)); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-ready; err != nil {
+				t.Fatalf("replacement bind readiness = %v", err)
+			}
+		})
 	})
 
 	for _, late := range []bool{false, true} {

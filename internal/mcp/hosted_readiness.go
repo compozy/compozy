@@ -19,15 +19,15 @@ func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error
 		s.mu.Unlock()
 		return ErrHostedNonceInvalid
 	}
-	remaining := launch.expiresAt.Sub(s.now().UTC())
 	s.mu.Unlock()
-	timer := time.NewTimer(max(remaining, 0))
+	timer := time.NewTimer(0)
 	defer timer.Stop()
 	for {
 		changed := launch.readiness.wait()
 		s.mu.Lock()
 		current := s.launches[sessionID] == launch
 		ready := current && launch.established && launch.readyBindID == launch.bindID && s.binds[launch.bindID] != nil
+		remaining := launch.expiresAt.Sub(s.now().UTC())
 		s.mu.Unlock()
 		if !current {
 			return ErrHostedBindNotFound
@@ -35,12 +35,16 @@ func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error
 		if ready {
 			return nil
 		}
+		if remaining <= 0 {
+			return ErrHostedBindTimeout
+		}
+		timer.Reset(remaining)
 		select {
 		case <-changed:
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
-			return ErrHostedBindTimeout
+			// Recheck readiness and the deadline; a released bind may renew it.
 		}
 	}
 }

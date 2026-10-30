@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (m *Manager) prepareSessionLaunch(
@@ -49,7 +50,8 @@ func (m *Manager) prepareSessionLaunch(
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
-	if m.hostedMCP != nil && len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
+	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP && m.hostedMCP != nil &&
+		len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
 		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
 		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
 			started := time.Now()

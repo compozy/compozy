@@ -3332,9 +3332,10 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		}
 		hosted.mu.Lock()
 		canceled := slices.Contains(hosted.cancels, session.ID)
+		waited := slices.Equal(hosted.waits, []string{session.ID})
 		hosted.mu.Unlock()
-		if !canceled {
-			t.Fatal("failed startup did not cancel its hosted launch")
+		if !canceled || !waited {
+			t.Fatal("failed startup did not wait for and cancel its own hosted launch")
 		}
 		h.driver.mu.Lock()
 		prompts := len(h.driver.promptCalls)

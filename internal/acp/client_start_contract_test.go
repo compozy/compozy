@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -1546,7 +1547,10 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 		t.Run(route.name, func(t *testing.T) {
 			t.Parallel()
 
-			driver := New()
+			var logs lockedBuffer
+			driver := New(
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
 			captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
 			proc := startHelperProcess(t, driver, route.scenario, "", StartOpts{
 				ResumeSessionID: route.resumeID,
@@ -1569,6 +1573,9 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 			})
 			defer stopProcess(t, driver, proc)
 
+			if !strings.Contains(logs.String(), "msg=acp.session.mcp_server method="+route.method) {
+				t.Fatalf("missing MCP shape diagnostic for %s", route.method)
+			}
 			params := captureRequestParams(t, captureFile, route.method)
 			var wireServers []map[string]json.RawMessage
 			if err := json.Unmarshal(params["mcpServers"], &wireServers); err != nil {
