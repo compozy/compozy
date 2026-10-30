@@ -39,7 +39,7 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 		return
 	}
 	handle, err := service.Open(c.Request.Context(), terminalpkg.OpenRequest{
-		WS: workspaceID, Cwd: request.Cwd, Shell: request.Shell,
+		WS: workspaceID, Worktree: strings.TrimSpace(request.Worktree), Cwd: request.Cwd, Shell: request.Shell,
 		Cols: request.Cols, Rows: request.Rows, Title: terminalpkg.SanitizeTitle(request.Title),
 		Actor: actor,
 	})

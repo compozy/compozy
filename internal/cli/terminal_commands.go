@@ -10,7 +10,7 @@ import (
 )
 
 func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
-	var workspace, cwd, shell, title string
+	var workspace, worktree, cwd, shell, title string
 	var cols, rows uint16
 	var detach bool
 	command := &cobra.Command{
@@ -26,7 +26,7 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			terminal, err := client.CreateTerminal(cmd.Context(), workspaceID, TerminalCreateRequest{
-				Cwd: cwd, Shell: shell, Cols: cols, Rows: rows, Title: title,
+				Worktree: strings.TrimSpace(worktree), Cwd: cwd, Shell: shell, Cols: cols, Rows: rows, Title: title,
 			})
 			if err != nil {
 				return err
@@ -53,7 +53,8 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
-	command.Flags().StringVar(&cwd, "cwd", "", "Working directory under the workspace")
+	command.Flags().StringVar(&worktree, "worktree", "", "Managed worktree id or name to start the terminal in")
+	command.Flags().StringVar(&cwd, "cwd", "", "Working directory under the workspace, or under --worktree")
 	command.Flags().StringVar(&shell, "shell", "", "Shell executable")
 	command.Flags().StringVar(&title, "title", "", "Pinned terminal title")
 	command.Flags().Uint16Var(&cols, "cols", 80, "Initial columns")

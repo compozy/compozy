@@ -49,8 +49,10 @@ worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned p
 their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
 ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
 `add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
-session and run; callers cannot supply another execution root. Sessions without a worktree and
-human terminal launches keep the workspace directory rules. This validates the launch directory;
+session and run; callers cannot supply another execution root, and a `terminal_open` `worktree`
+other than the bound one fails with `invalid_cwd`. A session without a worktree may pass
+`worktree` to `terminal_open` to start in a ready worktree of its workspace and profile. Sessions
+without a worktree and human terminal launches otherwise keep the workspace directory rules. This validates the launch directory;
 it does not add filesystem sandboxing or change shared terminal access.
 
 ## Approval and shared-input rules

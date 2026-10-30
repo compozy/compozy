@@ -165,6 +165,7 @@ func TerminalCommandRowFromPayload(row TerminalCommandRowPayload) terminalpkg.Co
 }
 
 type TerminalCreateRequest struct {
+	Worktree string `json:"worktree,omitempty"`
 	Cwd      string `json:"cwd,omitempty"`
 	Shell    string `json:"shell,omitempty"`
 	Cols     uint16 `json:"cols,omitzero"`

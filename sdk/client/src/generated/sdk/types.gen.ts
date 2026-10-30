@@ -5417,7 +5417,10 @@ export type Redaction = {
     | "tool_unknown"
     | "toolset_cycle"
     | "toolset_unknown"
-    | "visibility_denied";
+    | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready";
 };
 
 export type Reference = {
@@ -10255,6 +10258,7 @@ export type TerminalCreateRequest = {
   rows?: number;
   shell?: string;
   title?: string;
+  worktree?: string;
 };
 
 export type TerminalDeliveredResponse = {
@@ -10725,6 +10729,9 @@ export type ToolAvailabilityPayload = {
     | "toolset_cycle"
     | "toolset_unknown"
     | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
   >;
   registered: boolean;
 };
@@ -10894,6 +10901,9 @@ export type ToolCallEventPayload = {
     | "toolset_cycle"
     | "toolset_unknown"
     | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
   >;
   redacted_input_fields?: Array<string>;
   result_bytes?: number;
@@ -11088,6 +11098,9 @@ export type ToolErrorPayload = {
     | "toolset_cycle"
     | "toolset_unknown"
     | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
   >;
   tool_id?: string;
 };
@@ -11211,6 +11224,9 @@ export type ToolPolicyDecisionPayload = {
     | "toolset_cycle"
     | "toolset_unknown"
     | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
   >;
   registry_policy_result?: string;
   session_policy_result?: string;
@@ -11347,6 +11363,9 @@ export type ToolsetPayload = {
     | "toolset_cycle"
     | "toolset_unknown"
     | "visibility_denied"
+    | "worktree_missing"
+    | "worktree_not_found"
+    | "worktree_not_ready"
   >;
   status: string;
   tools?: Array<string>;
@@ -36382,7 +36401,11 @@ export type CreateTerminalErrors = {
    */
   403: TerminalErrorResponse;
   /**
-   * Terminal limit reached
+   * Worktree not found
+   */
+  404: TerminalErrorResponse;
+  /**
+   * Terminal limit reached or worktree unavailable
    */
   409: TerminalErrorResponse;
   /**

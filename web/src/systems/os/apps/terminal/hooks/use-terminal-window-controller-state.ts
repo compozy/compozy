@@ -35,6 +35,7 @@ import {
   focusedWorkspaceSelector,
   useActiveWorkspace,
   useWindowDataWorkspace,
+  useWorktreeAggregate,
   WINDOW_BINDING_SEARCH_KEY,
 } from "@/systems/workspace";
 
@@ -109,6 +110,8 @@ export function useTerminalWindowControllerState(windowId: string) {
     enabled: aggregateMode,
   });
   useTerminalAggregateStream({ scope: aggregateScope, enabled: aggregateMode });
+  // The launcher's worktree rows: one store read across every project.
+  const aggregateWorktrees = useWorktreeAggregate([], { enabled: aggregateMode });
   const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
@@ -238,7 +241,9 @@ export function useTerminalWindowControllerState(windowId: string) {
 
   return {
     /** All projects: every project's terminals; opening one binds this window to it. */
-    aggregate: aggregateMode ? { catalog: aggregateCatalog } : null,
+    aggregate: aggregateMode
+      ? { catalog: aggregateCatalog, worktrees: aggregateWorktrees.data?.worktrees }
+      : null,
     answer,
     catalog,
     close,

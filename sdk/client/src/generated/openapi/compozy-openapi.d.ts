@@ -12636,7 +12636,10 @@ export interface components {
         | "tool_unknown"
         | "toolset_cycle"
         | "toolset_unknown"
-        | "visibility_denied";
+        | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready";
     };
     Reference: {
       effective_paused?: boolean;
@@ -17642,6 +17645,7 @@ export interface components {
       rows?: number;
       shell?: string;
       title?: string;
+      worktree?: string;
     };
     TerminalDeliveredResponse: {
       delivered: boolean;
@@ -18119,6 +18123,9 @@ export interface components {
         | "toolset_cycle"
         | "toolset_unknown"
         | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
       )[];
       registered: boolean;
     };
@@ -18290,6 +18297,9 @@ export interface components {
         | "toolset_cycle"
         | "toolset_unknown"
         | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
       )[];
       redacted_input_fields?: string[];
       /** Format: int64 */
@@ -18488,6 +18498,9 @@ export interface components {
         | "toolset_cycle"
         | "toolset_unknown"
         | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
       )[];
       tool_id?: string;
     };
@@ -18607,6 +18620,9 @@ export interface components {
         | "toolset_cycle"
         | "toolset_unknown"
         | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
       )[];
       registry_policy_result?: string;
       session_policy_result?: string;
@@ -18740,6 +18756,9 @@ export interface components {
         | "toolset_cycle"
         | "toolset_unknown"
         | "visibility_denied"
+        | "worktree_missing"
+        | "worktree_not_found"
+        | "worktree_not_ready"
       )[];
       status: string;
       tools?: string[];
@@ -51722,7 +51741,16 @@ export interface operations {
           "application/json": components["schemas"]["TerminalErrorResponse"];
         };
       };
-      /** @description Terminal limit reached */
+      /** @description Worktree not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal limit reached or worktree unavailable */
       409: {
         headers: {
           [name: string]: unknown;

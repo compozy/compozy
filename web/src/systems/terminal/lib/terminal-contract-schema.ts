@@ -81,6 +81,9 @@ export type GeneratedTerminalErrorCode = Extract<
   | "slow_consumer"
   | "journal_unavailable"
   | "subscriber_limit_reached"
+  | "worktree_not_found"
+  | "worktree_not_ready"
+  | "worktree_missing"
 >;
 
 export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErrorCode>()([
@@ -112,6 +115,9 @@ export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErro
   "recording_unavailable",
   "slow_consumer",
   "journal_unavailable",
+  "worktree_not_found",
+  "worktree_not_ready",
+  "worktree_missing",
 ]);
 export type TerminalErrorCode = z.infer<typeof terminalErrorCodeSchema>;
 

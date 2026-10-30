@@ -18,7 +18,7 @@ export function TerminalLauncherDialog({ open, onOpenChange }: TerminalLauncherD
   return (
     <CommandDialog
       className="sm:max-w-lg"
-      description="Start a terminal in a project, or go back to a running one"
+      description="Start a terminal in a project or worktree, or go back to a running one"
       onOpenChange={onOpenChange}
       open={open}
       title="Open a terminal"

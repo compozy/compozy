@@ -4,7 +4,7 @@ area: ET
 title: Use persistent terminals from the browser
 persona: Marina
 journey: J-operate-integrated-terminal
-expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope, and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
+expected: Reload preserves terminal tabs and their processes. Window Close confirms running terminal termination before removing the window; Cancel preserves both; Stop leaves the window open; exited or missing terminals close directly; failures retain retryable windows. Group close confirms exactly its affected terminals and normal history remains retained. Under All projects the dock's Terminal item, with no Terminal window open, opens the Terminal launcher dialog instead of a window: New terminal rows for every project, each followed by its ready managed worktrees owned by the acting profile (read once from `/api/worktrees?all_workspaces=true`), plus User (the remembered project preselected, so Enter opens it) and a Running group read from `/api/terminals?all_workspaces=true` with project badges, kept live by the selection-bound aggregate stream; exited terminals are not listed. Opening a row lands in a Terminal window bound to that terminal's scope (a worktree row starts the shell in that worktree's checkout, bound to its project), and an unbound Terminal window (dock menu placement, restored layout) shows the same launcher in place and binds itself on open; a bound window keeps its binding across terminal switches. The dock live mark and bell terminal rows follow the same breadth.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
 qa_status: untested
 bug_ids: BUG-20260906-hidden-terminal-pane-minimum-vote
@@ -93,3 +93,12 @@ creating a terminal. Use the dock menu's Open in new window; confirm the window 
 in place. Choose a project whose folder was removed; confirm the toast names the missing folder
 (typed `invalid_cwd`) instead of "Internal Server Error". Project desktops keep the direct open.
 Isolated-lab evidence for this walk is linked from the PR.
+
+2026-10-30 qa-impact (#1026): the launcher lists each project's ready managed worktrees and opens
+a terminal in one. Walk: in a git project with one ready worktree of the acting profile, one pending
+or removed worktree, and one owned by another profile, open the launcher under All projects;
+confirm only the ready same-profile worktree appears under its project, select it, and confirm the
+new terminal's `pwd` and `compozy terminal get` cwd are the worktree path while the window binds to
+the project. Then `compozy terminal open --worktree <id> --detach -o json` and native
+`compozy__terminal_open {"worktree": "<id>"}` start in the same checkout; the same id against another
+workspace fails with typed `worktree_not_found`, the pending one with `worktree_not_ready`.

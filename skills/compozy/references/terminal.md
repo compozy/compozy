@@ -33,7 +33,8 @@ Native `compozy__window_close` and CLI/API window close remain view-only. Detach
 closing the browser does not terminate the process. A closed managed window does not reopen
 automatically for the same terminal.
 
-Under All projects, choose a project or User when opening a new terminal. The window stays bound
+Under All projects, choose a project, one of its ready worktrees, or User when opening a new
+terminal. The window stays bound
 to that destination: new tabs and Close use its binding even while the desktop shows All projects.
 A window whose terminal is gone closes without a running confirmation. User terminals load the
 acting profile's User environment, independently of project selection.
@@ -55,9 +56,21 @@ worktree. Agent-owned ACP pipe launches enforce the same binding; system-owned p
 their prepared roots. The worktree must belong to the session profile. Relative `cwd` values resolve inside it; absolute paths must remain inside the same
 ready worktree after symlink resolution. The parent checkout, sibling worktrees, and workspace
 `add_dirs` do not expand this launch boundary. The daemon resolves the binding from the active
-session and run; callers cannot supply another execution root. Sessions without a worktree and
-human terminal launches keep the workspace directory rules. This validates the launch directory;
+session and run; callers cannot supply another execution root, and a `terminal_open` `worktree`
+other than the bound one fails with `invalid_cwd`. A session without a worktree may pass
+`worktree` to `terminal_open` to start in a ready worktree of its workspace and profile. Sessions
+without a worktree and human terminal launches otherwise keep the workspace directory rules. This validates the launch directory;
 it does not add filesystem sandboxing or change shared terminal access.
+
+## Worktree Terminals
+
+`terminal_open` accepts an optional `worktree` (ID or name) to start the shell in a ready managed
+worktree of the current workspace owned by the acting profile; operators use
+`compozy terminal open --worktree` or the create body's `worktree` field. The daemon resolves the
+reference, so never pass a worktree path as `cwd` instead. `cwd` then resolves inside the worktree.
+Refusals are structured: `worktree_not_found` (another workspace or profile, or unknown),
+`worktree_not_ready` (pending, failed, or removing), and `worktree_missing` (removed or folder
+gone). Read `compozy__worktree_list` for ready worktree IDs rather than guessing them.
 
 ## Native Toolset
 

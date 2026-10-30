@@ -50,6 +50,9 @@ var (
 	ErrTicketExpired           = errors.New("terminal attach ticket expired")
 	ErrRunIdentityIncomplete   = errors.New("terminal agent run identity incomplete")
 	ErrServiceUnavailable      = errors.New("terminal service unavailable")
+	ErrWorktreeNotFound        = errors.New("terminal worktree not found")
+	ErrWorktreeNotReady        = errors.New("terminal worktree not ready")
+	ErrWorktreeMissing         = errors.New("terminal worktree missing")
 )
 
 // ErrorCode is the closed public terminal failure vocabulary.
@@ -84,6 +87,9 @@ const (
 	ErrorCodeRecordingUnavailable       ErrorCode = "recording_unavailable"
 	ErrorCodeSlowConsumer               ErrorCode = "slow_consumer"
 	ErrorCodeJournalUnavailable         ErrorCode = "journal_unavailable"
+	ErrorCodeWorktreeNotFound           ErrorCode = "worktree_not_found"
+	ErrorCodeWorktreeNotReady           ErrorCode = "worktree_not_ready"
+	ErrorCodeWorktreeMissing            ErrorCode = "worktree_missing"
 )
 
 var errorCodeValues = [...]ErrorCode{
@@ -97,6 +103,7 @@ var errorCodeValues = [...]ErrorCode{
 	ErrorCodeInputRequestRequiresHidden,
 	ErrorCodeRecordingAlreadyStarted, ErrorCodeRecordingNotActive, ErrorCodeRecordingUnavailable, ErrorCodeSlowConsumer,
 	ErrorCodeJournalUnavailable,
+	ErrorCodeWorktreeNotFound, ErrorCodeWorktreeNotReady, ErrorCodeWorktreeMissing,
 }
 
 func inputRequiresHiddenError(cause error) *Error {

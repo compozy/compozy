@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, TerminalSquare } from "lucide-react";
+import { GitBranch, Plus, TerminalSquare } from "lucide-react";
 
 import {
   cn,
@@ -30,7 +30,7 @@ export interface TerminalLauncherProps {
   busy?: boolean;
   /** The running list could not load; new terminals still open. */
   runningError?: string | null;
-  onOpenNew: (destination: string) => void;
+  onOpenNew: (destination: TerminalLauncherDestination) => void;
   onAttach: (terminal: TerminalInfo) => void;
   className?: string;
 }
@@ -73,7 +73,7 @@ export function TerminalLauncher({
     >
       <CommandInput autoFocus placeholder="Open a terminal in…" variant="quiet" />
       <CommandList className="max-h-[min(24rem,50vh)]">
-        <CommandEmpty>No project or terminal matches.</CommandEmpty>
+        <CommandEmpty>No project, worktree, or terminal matches.</CommandEmpty>
         {readOnly ? null : (
           <CommandGroup heading="New terminal">
             {destinations.map(destination => (
@@ -81,12 +81,25 @@ export function TerminalLauncher({
                 data-testid={`terminal-launcher-new-${destination.value}`}
                 disabled={busy || destination.unavailableReason !== null}
                 key={destination.value}
-                keywords={[destination.label]}
-                onSelect={() => onOpenNew(destination.value)}
+                keywords={
+                  destination.projectLabel
+                    ? [destination.label, destination.projectLabel]
+                    : [destination.label]
+                }
+                onSelect={() => onOpenNew(destination)}
                 value={`${NEW_PREFIX}${destination.value}`}
               >
-                <Plus aria-hidden="true" className="text-subtle" />
+                {destination.worktreeId ? (
+                  <GitBranch aria-hidden="true" className="ms-4 text-subtle" />
+                ) : (
+                  <Plus aria-hidden="true" className="text-subtle" />
+                )}
                 <span className="min-w-0 truncate">{destination.label}</span>
+                {destination.projectLabel ? (
+                  <span className="ms-auto min-w-0 truncate ps-3 text-micro text-subtle">
+                    {destination.projectLabel}
+                  </span>
+                ) : null}
                 {destination.unavailableReason ? (
                   <span className="ms-auto ps-3 text-micro text-subtle">
                     {destination.unavailableReason}

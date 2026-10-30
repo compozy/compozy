@@ -58,6 +58,7 @@ type Capabilities struct {
 
 type OpenRequest struct {
 	WS           string
+	Worktree     string
 	Cwd          string
 	Shell        string
 	Title        string

@@ -1168,6 +1168,111 @@ func TestManagerCwdAndShell(t *testing.T) {
 		}
 	})
 
+	t.Run("Should start in a resolved worktree and confine cwd to that checkout", func(t *testing.T) {
+		t.Parallel()
+		checkout := t.TempDir()
+		if err := os.Mkdir(filepath.Join(checkout, "child"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		refused := &Error{Code: ErrorCodeWorktreeNotReady, Message: "worktree is pending", Err: ErrWorktreeNotReady}
+		var calls atomic.Int32
+		manager, starter, root := newTestManager(t, DefaultSettings(), WithWorktreeRootResolver(
+			func(_ context.Context, workspaceID, profileID, ref string) (string, error) {
+				calls.Add(1)
+				if workspaceID != "workspace-a" || profileID != "profile-a" {
+					return "", worktreeNotFoundError(ref)
+				}
+				if ref == "wt-pending" {
+					return "", refused
+				}
+				return checkout, nil
+			},
+		))
+		open := func(worktree, cwd, profileID string) (Handle, error) {
+			return manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Worktree: worktree, Cwd: cwd, Shell: "sh",
+				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: profileID},
+			})
+		}
+		for cwd, want := range map[string]string{"": checkout, "child": filepath.Join(checkout, "child")} {
+			handle, err := open("wt-ready", cwd, "profile-a")
+			if err != nil {
+				t.Fatalf("Open(worktree, cwd=%q) error = %v", cwd, err)
+			}
+			want, _ = filepath.EvalSymlinks(want)
+			if got := handle.Info().Cwd; got != want {
+				t.Fatalf("Open(worktree, cwd=%q).Cwd = %q, want %q", cwd, got, want)
+			}
+		}
+		started := starter.starts.Load()
+		for _, tc := range []struct {
+			name, worktree, cwd, profile string
+			code                         ErrorCode
+			sentinel                     error
+		}{
+			{name: "project root cwd", worktree: "wt-ready", cwd: root, profile: "profile-a",
+				code: ErrorCodeInvalidCwd, sentinel: ErrInvalidCwd},
+			{name: "pending worktree", worktree: "wt-pending", profile: "profile-a",
+				code: ErrorCodeWorktreeNotReady, sentinel: ErrWorktreeNotReady},
+			{name: "foreign profile", worktree: "wt-ready", profile: "profile-b",
+				code: ErrorCodeWorktreeNotFound, sentinel: ErrWorktreeNotFound},
+		} {
+			_, err := open(tc.worktree, tc.cwd, tc.profile)
+			terminalErr, ok := errors.AsType[*Error](err)
+			if !ok || terminalErr.Code != tc.code || !errors.Is(err, tc.sentinel) {
+				t.Fatalf("%s: Open() error = %#v, want %s", tc.name, err, tc.code)
+			}
+		}
+		if got := starter.starts.Load(); got != started {
+			t.Fatalf("refused worktree opens started %d processes", got-started)
+		}
+		if _, err := open("", "", "profile-a"); err != nil {
+			t.Fatalf("Open(no worktree) error = %v", err)
+		}
+		if got := calls.Load(); got != 5 {
+			t.Fatalf("worktree resolver calls = %d, want 5 (none without a worktree)", got)
+		}
+	})
+
+	t.Run("Should refuse a worktree outside an agent's bound execution root", func(t *testing.T) {
+		t.Parallel()
+		bound, other := t.TempDir(), t.TempDir()
+		manager, starter, _ := newTestManager(t, DefaultSettings(),
+			WithExecutionRootResolver(func(context.Context, string, Actor) (string, error) { return bound, nil }),
+			WithWorktreeRootResolver(func(_ context.Context, _, _, ref string) (string, error) {
+				if ref == "wt-bound" {
+					return bound, nil
+				}
+				return other, nil
+			}),
+		)
+		actor := Actor{
+			Kind: ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
+			SessionID: "session-a", RunID: "run-a", Generation: 1,
+		}
+		_, err := manager.Open(
+			t.Context(),
+			OpenRequest{WS: "workspace-a", Worktree: "wt-other", Shell: "sh", Actor: actor},
+		)
+		if terminalErr, ok := errors.AsType[*Error](err); !ok || terminalErr.Code != ErrorCodeInvalidCwd {
+			t.Fatalf("Open(foreign worktree) error = %#v, want invalid_cwd", err)
+		}
+		if starter.starts.Load() != 0 {
+			t.Fatal("refused worktree started a process")
+		}
+		handle, err := manager.Open(
+			t.Context(),
+			OpenRequest{WS: "workspace-a", Worktree: "wt-bound", Shell: "sh", Actor: actor},
+		)
+		if err != nil {
+			t.Fatalf("Open(bound worktree) error = %v", err)
+		}
+		want, _ := filepath.EvalSymlinks(bound)
+		if got := handle.Info().Cwd; got != want {
+			t.Fatalf("Open(bound worktree).Cwd = %q, want %q", got, want)
+		}
+	})
+
 	t.Run(
 		"Should fall back from an unavailable requested shell and report the actual shell [UT-005]",
 		func(t *testing.T) {

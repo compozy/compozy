@@ -16,11 +16,12 @@ type terminalExecInput struct {
 }
 
 type terminalOpenInput struct {
-	Cwd   string `json:"cwd,omitempty"`
-	Shell string `json:"shell,omitempty"`
-	Cols  uint16 `json:"cols,omitzero"`
-	Rows  uint16 `json:"rows,omitzero"`
-	Title string `json:"title"`
+	Worktree string `json:"worktree,omitempty"`
+	Cwd      string `json:"cwd,omitempty"`
+	Shell    string `json:"shell,omitempty"`
+	Cols     uint16 `json:"cols,omitzero"`
+	Rows     uint16 `json:"rows,omitzero"`
+	Title    string `json:"title"`
 }
 
 type terminalIDInput struct {
