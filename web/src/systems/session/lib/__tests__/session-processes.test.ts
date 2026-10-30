@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { SessionProcessResult } from "../../adapters/session-processes-api";
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
-import { processStopReport, sessionRunningProcesses } from "../session-processes";
+import {
+  processCommandLabel,
+  processStopReport,
+  sessionRunningProcesses,
+} from "../session-processes";
 
 // Suite: session process view model.
 // Invariant: the count is background + Terminal rows of a supported scan, and a stop reads as
@@ -30,6 +34,26 @@ describe("sessionRunningProcesses", () => {
       })
     ).toBe(0);
     expect(sessionRunningProcesses({ process_summary: null })).toBe(0);
+  });
+});
+
+describe("processCommandLabel", () => {
+  it("Should name the program and keep paths inside the working directory relative", () => {
+    expect(
+      processCommandLabel({
+        command:
+          "/Users/dev/.local/share/mise/installs/node/24.22.1/bin/node /Users/dev/Lab/server.js --port 50399",
+        argv0: "/Users/dev/.local/share/mise/installs/node/24.22.1/bin/node",
+        cwd: "/Users/dev/lab",
+      })
+    ).toBe("node server.js --port 50399");
+    expect(processCommandLabel({ command: "/bin/sleep 9999", argv0: "/bin/sleep", cwd: "" })).toBe(
+      "sleep 9999"
+    );
+    expect(processCommandLabel({ command: "", argv0: "vite", cwd: "/tmp" })).toBe("vite");
+    expect(
+      processCommandLabel({ command: "bash -c 'a\nb' /etc/hosts", argv0: "bash", cwd: "/tmp" })
+    ).toBe("bash -c 'a ↵ b' /etc/hosts");
   });
 });
 

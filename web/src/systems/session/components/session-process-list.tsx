@@ -80,7 +80,7 @@ function ProcessRow({
       <span className={PROCESS_ROW_TEXT_FRAME}>
         <span
           className="line-clamp-2 font-mono text-transcript-meta break-all text-fg"
-          title={process.cwd ? `${command}\n${process.cwd}` : command}
+          title={process.cwd ? `${process.command}\n${process.cwd}` : process.command}
         >
           {command}
         </span>

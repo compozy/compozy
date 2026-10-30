@@ -47,9 +47,33 @@ export function processKindLabel(kind: SessionProcessKind): string {
 }
 
 /** The command line as one row: newlines folded so a heredoc cannot push the row open. */
-export function processCommandLabel(process: Pick<SessionProcessPayload, "command" | "argv0">) {
+export function processCommandLabel(
+  process: Pick<SessionProcessPayload, "command" | "argv0" | "cwd">
+) {
   const command = process.command.trim() || process.argv0.trim();
-  return command.replace(/\s*\n\s*/g, " ↵ ");
+  return shortenCommandPaths(command, process.cwd).replace(/\s*\n\s*/g, " ↵ ");
+}
+
+/**
+ * Reads like what was typed: the program by name (`node`, not the interpreter's
+ * install path) and paths inside the working directory relative to it, so the
+ * part that tells two rows apart (`server.js`) survives the row's two lines.
+ * The full command stays in the row's title.
+ */
+function shortenCommandPaths(command: string, cwd: string): string {
+  const base = cwd.trim().replace(/\/+$/, "");
+  const prefix = base === "" ? null : `${base.toLowerCase()}/`;
+  let first = true;
+  return command.replace(/[^\s]+/g, token => {
+    const program = first;
+    first = false;
+    if (program && token.startsWith("/")) return token.slice(token.lastIndexOf("/") + 1) || token;
+    // macOS paths are case-insensitive, and argv often differs in case from cwd.
+    if (prefix && token.toLowerCase().startsWith(prefix) && token.length > prefix.length) {
+      return token.slice(prefix.length);
+    }
+    return token;
+  });
 }
 
 /**
