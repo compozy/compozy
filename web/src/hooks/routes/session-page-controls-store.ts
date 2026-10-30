@@ -104,8 +104,9 @@ export interface SessionPageControlsState {
   /** A turn stop the daemon answered `nothing-in-flight`; `null` once it expires or a new request starts. */
   stopCompletion: SessionStopCompletionNote | null;
   /**
-   * What the last session stop answered about the session's running processes.
-   * A retry of an unverified stop repeats it, so a chosen terminate is not lost.
+   * What the current session stop answered about the session's running
+   * processes. A retry of that stop while it reads unverified repeats it, so a
+   * chosen terminate is not lost; it clears once the session leaves `stopping`.
    */
   stopProcesses: SessionProcessPolicy | null;
   nextRequestId: number;
@@ -246,7 +247,12 @@ export function createSessionPageControlsLogic() {
           context.stop.phase === "stopping" && hasStopLanded(context.stop, lifecycle)
             ? { phase: "idle" as const, requestId: context.stop.requestId }
             : context.stop;
-        return { ...context, lifecycle, stop };
+        // The saved process answer belongs to the stop it was given with: it lives
+        // while that stop is in flight or reads unverified (`stopping`), and ends
+        // once the session leaves `stopping`, so a later stop never inherits it.
+        const stopProcesses =
+          stop.phase === "idle" && lifecycle.state !== "stopping" ? null : context.stopProcesses;
+        return { ...context, lifecycle, stop, stopProcesses };
       },
       stopFailed: (context, event, enqueue) => {
         if (context.stop.phase !== "pending" || context.stop.requestId !== event.requestId) return;
