@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"path/filepath"
 	"slices"
 
 	"strings"
@@ -124,7 +123,6 @@ func (d *Driver) logMCPServerShape(method string, servers []acpsdk.McpServer) {
 		stdio := server.Stdio
 		logger.Debug("acp.session.mcp_server", "method", method,
 			"transport", "stdio", "type_field_present", false,
-			"command_basename", filepath.Base(stdio.Command),
 			"command_fingerprint", compozyconfig.CommandFingerprint(stdio.Command),
 			"arg_count", len(stdio.Args), "env_count", len(stdio.Env))
 	}

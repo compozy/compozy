@@ -72,3 +72,8 @@ subagent capabilities before replaying the adapter frames, which activates its
 existing startup connection behavior. The browser assertions and production
 readiness gate are unchanged. Focused mock-driver native-call and fixture-loading
 tests pass with the race detector; CI owns the browser re-walk.
+
+The full follow-up review identified that taking a configured command basename
+could retain sensitive command text. Diagnostics now emit only the command
+fingerprint, with existing coverage extended to a command containing a token and
+no path separator.

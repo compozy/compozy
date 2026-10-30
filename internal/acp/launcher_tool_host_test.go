@@ -1081,15 +1081,21 @@ func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 					Args:    []string{"--bind-nonce", "private-nonce"},
 					Env:     map[string]string{"TOKEN": "private-token"},
 				},
+				{Name: "configured", Command: "TOKEN=private-command-token helper"},
 			},
 		)
 		driver.logMCPServerShape("session/new", servers)
-		for _, secret := range []string{"private-seat", "private-nonce", "private-token"} {
+		for _, secret := range []string{"private-seat", "private-nonce", "private-token", "private-command-token"} {
 			if strings.Contains(logs.String(), secret) {
 				t.Fatalf("MCP diagnostic exposes %q", secret)
 			}
 		}
-		for _, field := range []string{"method=session/new", "command_basename=compozy", "type_field_present=false", "arg_count=2", "env_count=1"} {
+		for _, field := range []string{
+			"method=session/new",
+			"command_fingerprint=" + compozyconfig.CommandFingerprint("/private-seat/compozy"),
+			"command_fingerprint=" + compozyconfig.CommandFingerprint("TOKEN=private-command-token helper"),
+			"type_field_present=false", "arg_count=2", "env_count=1",
+		} {
 			if !strings.Contains(logs.String(), field) {
 				t.Fatalf("MCP diagnostic is missing %q", field)
 			}
