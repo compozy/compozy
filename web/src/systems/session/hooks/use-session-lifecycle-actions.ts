@@ -91,14 +91,17 @@ const CHILD_SKIP = "child";
 function batchSkipReason(action: BatchVerb, session: SessionPayload): string | null {
   const archived = session.archived_at !== null;
   if (action === "stop") {
-    return !archived && (session.state === "active" || session.state === "starting")
-      ? null
-      : "not running";
+    if (session.state !== "active" && session.state !== "starting") return "not running";
+    return archived ? "archived" : null;
   }
   // Subagent sessions archive and unarchive with their parent (ADR-005), never on their own.
   if (isSubagentSession(session)) return CHILD_SKIP;
   if (action === "archive") return archived ? "already archived" : null;
   return archived ? null : "not archived";
+}
+
+function batchVerbPast(action: BatchVerb): string {
+  return action === "stop" ? "stopped" : `${action}d`;
 }
 
 /** The selection a verb skipped, by reason: "2 skipped: 1 already archived, 1 not running". */
@@ -126,7 +129,7 @@ function reportBatch(
   sessions: readonly SessionPayload[],
   skipped: ReadonlyMap<string, number>
 ): void {
-  const verb = action === "stop" ? "stopped" : `${action}d`;
+  const verb = batchVerbPast(action);
   const done = results.filter(result => result.status === "done").length;
   const failures = results.filter(result => result.status === "failed");
   const skipNote = batchSkipNote(skipped);
@@ -248,6 +251,12 @@ export function useSessionLifecycleActions(
       const reason = batchSkipReason(action, session);
       if (reason === null) eligible.push(session);
       else skipped.set(reason, (skipped.get(reason) ?? 0) + 1);
+    }
+    if (eligible.length === 0) {
+      // Nothing to run, but the operator still learns why the selection sat it out.
+      const skipNote = batchSkipNote(skipped);
+      if (skipNote) toast.info(`No sessions ${batchVerbPast(action)}`, { description: skipNote });
+      return;
     }
     const results = await runBatch(action, eligible);
     if (results) reportBatch(action, results, eligible, skipped);

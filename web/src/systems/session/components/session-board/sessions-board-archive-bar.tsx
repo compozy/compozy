@@ -9,7 +9,6 @@ import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-sel
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import { sessionListGroupRank } from "../../lib/session-list-group-rows";
-import type { SessionListPair } from "../../lib/session-list-groups";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
@@ -21,8 +20,6 @@ export interface SessionsBoardArchiveBarProps {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
   actions?: SessionLifecycleActionHandlers;
-  /** The folder pair archived cards move within, when the board reads exactly one. */
-  pair?: SessionListPair | null;
 }
 
 /**
@@ -36,7 +33,6 @@ export function SessionsBoardArchiveBar({
   workspaceNameOf,
   onOpen,
   actions,
-  pair = null,
 }: SessionsBoardArchiveBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
   const [open, setOpen] = useState(false);
@@ -48,7 +44,8 @@ export function SessionsBoardArchiveBar({
     rank: sessionListGroupRank([9999]),
     sessions: shown,
     visibleOrder: shown.map(session => session.id),
-    pair,
+    // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
+    pair: null,
     fetching: open && archive.fetching,
   });
   if (archive.loading) {

@@ -80,7 +80,6 @@ export function sessionsBoardViewFixture(
     },
     workspaceNameOf: () => null,
     selectionKey: "board",
-    pair: null,
   };
 }
 

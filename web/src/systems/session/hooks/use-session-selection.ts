@@ -96,24 +96,34 @@ export function sessionSelectionCounts(
 
 export type SessionSelectionStore = ReturnType<typeof sessionSelectionLogic.createStore>;
 
-/** One transient selection per list identity; filters and folds do not change that identity. */
+/**
+ * One transient selection per list identity; filters and folds do not change that identity.
+ * Selected sessions missing from `sessions` leave the selection, unless `holdMissing` keeps
+ * them until their absence is confirmed (a board card between two column reads).
+ */
 export function useSessionSelection(
   scope: string,
   archived: boolean,
-  sessions?: readonly SessionPayload[]
+  sessions?: readonly SessionPayload[],
+  holdMissing?: (missingIds: readonly string[]) => boolean
 ) {
   const { store } = useStoreBinding(JSON.stringify([scope, archived]), () =>
     sessionSelectionLogic.createStore()
   );
   const context = useSelector(store, snapshot => snapshot.context);
-  useEffect(() => {
-    if (sessions) store.trigger.prune({ ids: sessions.map(session => session.id) });
-  }, [store, sessions]);
   const currentIds = sessions ? new Set(sessions.map(session => session.id)) : null;
-  const selectedIds = currentIds
-    ? context.selectedIds.filter(id => currentIds.has(id))
-    : context.selectedIds;
-  const anchorId = currentIds && !currentIds.has(context.anchorId ?? "") ? null : context.anchorId;
+  const missing = currentIds ? context.selectedIds.filter(id => !currentIds.has(id)) : [];
+  const held = missing.length > 0 && holdMissing?.(missing) === true;
+  const pruneTo = held ? undefined : sessions;
+  useEffect(() => {
+    if (pruneTo) store.trigger.prune({ ids: pruneTo.map(session => session.id) });
+  }, [store, pruneTo]);
+  const selectedIds =
+    currentIds && !held
+      ? context.selectedIds.filter(id => currentIds.has(id))
+      : context.selectedIds;
+  const anchorId =
+    currentIds && !held && !currentIds.has(context.anchorId ?? "") ? null : context.anchorId;
   return {
     /** The store itself, for hosts whose items subscribe to their own membership. */
     store,

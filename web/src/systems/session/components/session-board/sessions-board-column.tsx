@@ -10,7 +10,6 @@ import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/
 import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
 import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
-import type { SessionListPair } from "../../lib/session-list-groups";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
 import { SessionsBoardSelectAll } from "./sessions-board-select-all";
@@ -50,7 +49,7 @@ export interface SessionsBoardColumnProps {
   /** Swimlanes repeat the columns: the lane names the region and prefixes test ids. */
   regionPrefix?: string;
   testIdPrefix?: string;
-  /** Where the column joins the board selection: its key, on-screen rank and folder pair. */
+  /** Where the column joins the board selection: its key and on-screen rank. */
   selectionRows?: SessionsBoardSelectionRows;
 }
 
@@ -58,7 +57,6 @@ export interface SessionsBoardColumnProps {
 export interface SessionsBoardSelectionRows {
   key: string;
   rank: string;
-  pair: SessionListPair | null;
 }
 
 function sessionCountLabel(count: number): string {
@@ -113,7 +111,8 @@ export function SessionsBoardColumn({
       rank: selectionRows?.rank ?? "",
       sessions: column.sessions,
       visibleOrder: shownIds,
-      pair: selectionRows?.pair ?? null,
+      // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
+      pair: null,
       fetching: column.fetching,
     }
   );

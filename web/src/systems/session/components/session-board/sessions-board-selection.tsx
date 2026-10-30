@@ -17,6 +17,8 @@ export interface SessionsBoardSelectionProps {
   /** The board's identity (`SessionsBoardView.selectionKey`): a new one starts an empty selection. */
   selectionKey: string;
   sessionActions: SessionLifecycleActionHandlers;
+  /** The board's lanes are loading or failed: selected cards in them are kept, not pruned. */
+  paused?: boolean;
   /** The window head; while cards are selected the selection bar takes its actions' place. */
   topbar: TopbarSlotValue;
   /** The board. It renders once per window render, never per selection change. */
@@ -34,10 +36,11 @@ export interface SessionsBoardSelectionProps {
 export function SessionsBoardSelection({
   selectionKey,
   sessionActions,
+  paused = false,
   topbar,
   children,
 }: SessionsBoardSelectionProps) {
-  const { bulk, rows } = useSessionsBoardSelection({ selectionKey, sessionActions });
+  const { bulk, rows } = useSessionsBoardSelection({ selectionKey, sessionActions, paused });
   const { count } = bulk.bar.verbs;
   useTopbarSlot({
     ...topbar,

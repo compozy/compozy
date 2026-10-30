@@ -1,4 +1,5 @@
-import { use, type MouseEvent } from "react";
+import { use, useEffect, useRef, useState, type MouseEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSelector, useStore } from "@xstate/store-react";
 
 import type { SessionListGroupRowsStore } from "../contexts/session-list-group-selection-context-value";
@@ -6,41 +7,95 @@ import {
   SessionsBoardRowsStoreContext,
   SessionsBoardSelectionStoreContext,
 } from "../contexts/sessions-board-selection-context-value";
+import { isSessionBoardQueryKey } from "../lib/session-catalog-options";
 import { sessionListGroupedRows, sessionListGroupRowsLogic } from "../lib/session-list-group-rows";
+import type { SessionListPair } from "../lib/session-list-groups";
 import { sessionCheckboxGesture, sessionSelectionGesture } from "../lib/session-selection-gesture";
+import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { useSessionListBulkSelection } from "./use-session-list-bulk-selection";
 import { sessionSelectionLogic, type SessionSelectionStore } from "./use-session-selection";
+
+/** After a confirming re-read resolves, the columns publish its cards before pruning trusts them. */
+const BOARD_ABSENCE_SETTLE_MS = 250;
+
+/** A session's own folder pair; User-scope sessions have no project folders. */
+function ownerPair(session: SessionPayload): SessionListPair | null {
+  return session.workspace_id
+    ? { workspaceId: session.workspace_id, profile: session.profile_name }
+    : null;
+}
 
 /**
  * The board's one bulk selection: the session list's selection, verbs, counts,
  * shortcuts and folder moves, fed by the cards each column and the open Archive
  * bar publish, in on-screen order (lane, then column, then the Archive bar).
- * Pruning waits while any of those reads is in flight, so a card moving between
- * columns keeps its selection and a card gone from every read leaves it.
- * Move to folder applies where the published columns name a (project, profile) pair.
+ *
+ * The columns are separate reads, so a card changing column can be missing from
+ * all of them for a moment even after every read settles. A selected card that
+ * goes missing is kept while reads are in flight or the lanes are not on screen,
+ * then the board is re-read once; only a card still missing after that leaves the
+ * selection. Move to folder resolves each selected session's own (project,
+ * profile) pair, so matching owners move and mixed owners get the list's reason.
  */
 export function useSessionsBoardSelection({
   selectionKey,
   sessionActions,
+  paused = false,
 }: {
   /** The board's identity: a new breadth, lens or grouping is a new selection. */
   selectionKey: string;
   sessionActions: SessionLifecycleActionHandlers;
+  /** The lanes are loading or failed: their cards are off screen, not gone. */
+  paused?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const rows = useStore(sessionListGroupRowsLogic);
   const published = sessionListGroupedRows(useSelector(rows, snapshot => snapshot.context.groups));
-  const movable = published.sessions.some(session => published.pairOf(session.id) !== null);
+  const owners = new Map(published.sessions.map(session => [session.id, ownerPair(session)]));
+  // The absences a completed re-read confirmed; any other absence is held.
+  const [confirmed, setConfirmed] = useState<string | null>(null);
+  const settled = !published.fetching && !paused;
   const bulk = useSessionListBulkSelection({
     selectionKey,
     archived: false,
     sessions: published.sessions,
     visibleOrder: published.visibleOrder,
     sessionActions,
-    folders: movable ? { pairOf: published.pairOf } : {},
-    settling: published.fetching,
+    folders: { pairOf: sessionId => owners.get(sessionId) ?? null },
+    holdMissing: missing => !settled || absenceKey(missing) !== confirmed,
   });
+  const { store } = bulk;
+  const presentKey = published.sessions.map(session => session.id).join("\n");
+  const requested = useRef<string | null>(null);
+  // The absence whose re-read has resolved; it is confirmed once the columns publish that read.
+  const [reread, setReread] = useState<string | null>(null);
+  useEffect(() => {
+    if (!settled) return;
+    const present = new Set(presentKey === "" ? [] : presentKey.split("\n"));
+    const missing = store.getSnapshot().context.selectedIds.filter(id => !present.has(id));
+    if (missing.length === 0) {
+      requested.current = null;
+      return;
+    }
+    const key = absenceKey(missing);
+    // One re-read per absence: the re-read itself unsettles the board, which must not ask again.
+    if (key === requested.current) return;
+    requested.current = key;
+    void queryClient
+      .invalidateQueries({ predicate: query => isSessionBoardQueryKey(query.queryKey) })
+      .then(() => setReread(key));
+  }, [settled, presentKey, store, queryClient]);
+  useEffect(() => {
+    if (reread === null) return;
+    const timer = setTimeout(() => setConfirmed(reread), BOARD_ABSENCE_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [reread]);
   return { bulk, rows };
+}
+
+function absenceKey(ids: readonly string[]): string {
+  return [...ids].sort().join("\n");
 }
 
 /** Stands in for the store on a board rendered without a selection (prototypes, menus-off tests). */

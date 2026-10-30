@@ -112,7 +112,6 @@ function board(
     archive: { ...page(), count: 0, ...archive },
     workspaceNameOf: () => null,
     selectionKey: "board",
-    pair: null,
   };
 }
 
@@ -619,6 +618,7 @@ describe("SessionsBoard selection", () => {
       <QueryClientProvider client={client}>
         <SessionsBoardSelection
           selectionKey={next.selectionKey}
+          paused={next.lanesLoading}
           sessionActions={actions}
           topbar={{ actions: <button type="button">New session</button> }}
         >
@@ -787,16 +787,60 @@ describe("SessionsBoard selection", () => {
     await user.click(screen.getByTestId("sessions-board-column-select-working"));
     expect(selectedCount()).toHaveTextContent("2 selected");
 
-    // Working re-read first: the card is in no column while Done is still reading.
+    // Working re-read first: the card is in no column while Done is still reading. The bar
+    // counts what the verbs would act on, but the card keeps its place in the selection.
     rerender(board({ working: { sessions: [gone], count: 1 }, done: { fetching: true } }));
-    expect(selectedCount()).toHaveTextContent("2 selected");
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    // Both reads settled without it (Done read before it finished): still held for a re-read.
+    rerender(board({ working: { sessions: [gone], count: 1 } }));
     const moved = { ...moving, board_column: "done" as const, badge: "idle" as const };
     rerender(board({ working: { sessions: [gone], count: 1 }, done: { sessions: [moved] } }));
     expect(selectedCount()).toHaveTextContent("2 selected");
     expect(cardOf("moving")).toHaveAttribute("aria-pressed", "true");
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("2 selected");
 
+    // Gone from every read after the confirming re-read: it leaves the selection.
     rerender(board({ done: { sessions: [moved], count: 1 } }));
     await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    await user.keyboard("{Control>}a{/Control}");
+    expect(selectedCount()).toHaveTextContent("1 selected");
+  });
+
+  it("Should hold the selection while the lanes are off screen", async () => {
+    const user = userEvent.setup();
+    const kept = card("kept");
+    const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
+    await user.click(screen.getByTestId("session-board-card-select-kept"));
+
+    rerender({ ...board(), columns: [], lanes: [], lanesLoading: true, groupBy: "project" });
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(board({ working: { sessions: [kept], count: 1 } }));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should move only a selection that sits in one project and profile", async () => {
+    const user = userEvent.setup();
+    renderSelectable(
+      board({
+        working: {
+          sessions: [
+            card("alpha", { workspace_id: "ws-alpha" }),
+            card("beta", { workspace_id: "ws-beta" }),
+          ],
+          count: 2,
+        },
+      })
+    );
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    await user.click(screen.getByTestId("sessions-board-selection-more"));
+    await user.click(await screen.findByTestId("sessions-board-selection-move"));
+    expect(await screen.findByTestId("sessions-board-selection-move-blocked")).toHaveTextContent(
+      "Select sessions from one project and profile to move them."
+    );
   });
 
   it("Should keep folded Done cards as hidden and drop archived cards once the bar closes", async () => {

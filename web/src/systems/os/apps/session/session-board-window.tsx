@@ -96,6 +96,7 @@ export function SessionBoardWindow({
   const { deleteDialog, renameDialog } = lifecycle;
   return (
     <SessionsBoardSelection
+      paused={board.lanesLoading || board.lanesError !== undefined}
       selectionKey={board.selectionKey}
       sessionActions={lifecycle.actions}
       topbar={topbar}

@@ -73,7 +73,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   }),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: vi.fn() }));
 
 import {
@@ -1641,6 +1641,20 @@ describe("session lifecycle batches", () => {
       [WORKSPACE_ID, createdSession.id, "default", { wait: true }],
       ["ws_beta", "starting", "studio", { wait: true }],
     ]);
+  });
+
+  it("explains a batch that applies to none of the selection, by reason", async () => {
+    const stopped = { ...createdSession, id: "stopped", state: "stopped" as const };
+    const archivedLive = { ...createdSession, id: "archived-live", archived_at: "2026-09-11" };
+    const { result } = lifecycle();
+    act(() => result.current.actions.onStopMany?.([stopped, archivedLive]));
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledExactlyOnceWith("No sessions stopped", {
+        description: "2 skipped: 1 not running, 1 archived.",
+      })
+    );
+    expect(stopSession).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("does not announce an unverified stop as stopped", async () => {

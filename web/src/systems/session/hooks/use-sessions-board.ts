@@ -14,11 +14,7 @@ import {
   sessionFacetsOptions,
 } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
-import {
-  sessionListPair,
-  type SessionListGroupSpec,
-  type SessionListPair,
-} from "../lib/session-list-groups";
+import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
@@ -86,8 +82,6 @@ export interface SessionsBoardView {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   /** The board's identity for its selection: breadth, profile lens and grouping. */
   selectionKey: string;
-  /** The one (project, profile) pair the ungrouped board and Archive bar read; `null` for any aggregate. */
-  pair: SessionListPair | null;
 }
 
 function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
@@ -216,6 +210,5 @@ export function useSessionsBoard({
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
     selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),
-    pair: sessionListPair(scope, params),
   };
 }

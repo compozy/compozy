@@ -62,7 +62,7 @@ export function SessionsBoardView({
             {...row}
             columns={board.columns}
             layout="fill"
-            selectionRow={{ key: "board", rank: 0, pair: board.pair }}
+            selectionRow={{ key: "board", rank: 0 }}
           />
         ) : (
           <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
@@ -71,7 +71,6 @@ export function SessionsBoardView({
       <SessionsBoardArchiveBar
         actions={actions}
         archive={board.archive}
-        pair={board.pair}
         onOpen={onOpen}
         workspaceNameOf={board.workspaceNameOf}
       />
@@ -105,7 +104,7 @@ function SessionsBoardLanes({
       {board.lanes.map((lane, index) =>
         renderLane?.(lane, {
           ...row,
-          selectionRow: { key: `lane:${lane.group.key}`, rank: index, pair: lane.group.pair },
+          selectionRow: { key: `lane:${lane.group.key}`, rank: index },
         })
       )}
     </div>
