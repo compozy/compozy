@@ -81,6 +81,10 @@ describe("product preload contract", () => {
       true
     );
     expect(validProductParams("dialog.pick_directory", { default_path: "~/code" })).toBe(false);
+    expect(validProductParams("dialog.pick_directory", { default_path: "\\\\server\\share" })).toBe(
+      true
+    );
+    expect(validProductParams("dialog.pick_directory", { default_path: "\\\\server" })).toBe(false);
     expect(validProductParams("dialog.pick_directory", { default_path: "/tmp\u0000x" })).toBe(
       false
     );

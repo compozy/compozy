@@ -395,4 +395,32 @@ describe("useOnboardingWorkspaces", () => {
     await waitFor(() => expect(result.current.pathField.status).toBe("invalid"));
     expect(result.current.pathField.message).toBe("This folder is already a project.");
   });
+
+  it("keeps a folder typed while the previous add was still in flight", async () => {
+    let finishCreate: (() => void) | undefined;
+    mocks.createWorkspace.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          finishCreate = () =>
+            resolve(
+              workspace({ id: "ws_first", root_dir: "/Users/operator/first", name: "first" })
+            );
+        })
+    );
+    const { result } = renderHook(() => useOnboardingWorkspaces(), { wrapper });
+
+    act(() => result.current.pathField.onValueChange("~/first"));
+    await waitFor(() => expect(result.current.pathField.status).toBe("valid"));
+    let adding: Promise<void> | undefined;
+    act(() => {
+      adding = result.current.addFromField();
+    });
+    act(() => result.current.pathField.onValueChange("~/second"));
+    await act(async () => {
+      finishCreate?.();
+      await adding;
+    });
+
+    expect(result.current.pathField.value).toBe("~/second");
+  });
 });

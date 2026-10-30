@@ -58,7 +58,9 @@ export function isAbsoluteDirectoryPath(value: unknown): value is string {
   if (value.length > MAX_DIRECTORY_PATH_LENGTH) return false;
   // oxlint-disable-next-line no-control-regex -- control characters are exactly what is rejected.
   if (/[\u0000-\u001f\u007f]/.test(value)) return false;
-  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+  return (
+    value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(value)
+  );
 }
 
 /** Parameters of `dialog.pick_directory`: the folder the dialog opens in, when known. */

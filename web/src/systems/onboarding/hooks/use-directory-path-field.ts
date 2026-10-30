@@ -4,33 +4,26 @@ import { useState } from "react";
 import type { DirectoryPickerSuggestion } from "@compozy/ui";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
-import { OnboardingApiError } from "../adapters/onboarding-api";
 import {
   completionTarget,
   contractHome,
   expandHome,
   isAbsolutePath,
+  isWindowsPath,
   normalizeDirectoryPath,
-  suggestionValue,
 } from "../lib/directory-path";
+import {
+  DIRECTORY_PATH_COPY,
+  directorySuggestions,
+  judgeDirectoryPath,
+  type DirectoryPathStatus,
+} from "../lib/directory-path-field";
 import { directoryBrowseOptions } from "../lib/query-options";
+import type { FSBrowseResponse } from "../types";
 
 /** Most completions the list shows; typing narrows the rest. */
 const MAX_SUGGESTIONS = 50;
 const VALIDATE_DELAY_MS = 150;
-
-/** `incomplete`: the text is a place to browse from (`~/`), not yet a choice. */
-export type DirectoryPathStatus = "empty" | "incomplete" | "checking" | "invalid" | "valid";
-
-export const DIRECTORY_PATH_COPY = {
-  relative: "Use an absolute path, like ~/code/app.",
-  missing: "No folder at this path.",
-  notDirectory: "This path is a file, not a folder.",
-  unreadable: "This folder can't be read. Check its permissions.",
-  alreadyProject: "This folder is already a project.",
-  home: "Your home folder can't be a project. Choose a folder inside it.",
-  browseFailed: "Couldn't open the folder dialog.",
-} as const;
 
 interface UseDirectoryPathFieldOptions {
   value: string;
@@ -54,15 +47,89 @@ export interface DirectoryPathField {
   browsePending: boolean;
 }
 
-function browseErrorMessage(error: unknown): string {
-  if (error instanceof OnboardingApiError) {
-    if (error.status === 404) return DIRECTORY_PATH_COPY.missing;
-    if (error.status === 400) return DIRECTORY_PATH_COPY.notDirectory;
-    if (error.status === 403) return DIRECTORY_PATH_COPY.unreadable;
+/**
+ * The desktop shell's native folder dialog, when the shell offers one. It opens
+ * at `defaultPath` and reports the chosen folder in the field's `~` spelling.
+ */
+function useNativeDirectoryDialog(
+  defaultPath: string | null,
+  home: string | null,
+  onChoose: (value: string) => void
+) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dialogs = typeof window === "undefined" ? undefined : window.compozyShell?.dialogs;
+
+  const open = (shell: NonNullable<typeof dialogs>) => {
+    setPending(true);
+    setError(null);
+    void shell
+      .pickDirectory(defaultPath ? { default_path: defaultPath } : {})
+      .then(
+        chosen => {
+          if (chosen) onChoose(contractHome(chosen, home));
+        },
+        () => setError(DIRECTORY_PATH_COPY.browseFailed)
+      )
+      .then(() => setPending(false));
+  };
+
+  return {
+    browse: dialogs ? () => open(dialogs) : undefined,
+    pending,
+    error,
+    clearError: () => setError(null),
+  };
+}
+
+/** Folder to list for completions and the name prefix to match, once typing settles. */
+function completionQuery(settled: string) {
+  const target = isAbsolutePath(settled) ? completionTarget(settled) : null;
+  const showHidden = target?.prefix.startsWith(".") ?? false;
+  return {
+    target,
+    query: { path: target?.dir, dirsOnly: true, ...(showHidden ? { showHidden } : {}) },
+  };
+}
+
+/**
+ * Completions for the current text. The listing follows the settled text, so it
+ * serves the current text only while both name the same folder; a stale list
+ * never completes newer typing. An empty field suggests the folders in home.
+ */
+function fieldSuggestions({
+  typed,
+  expanded,
+  home,
+  homeEntries,
+  listedDir,
+  listedEntries,
+}: {
+  typed: string;
+  expanded: string;
+  home: string | null;
+  homeEntries: FSBrowseResponse["entries"] | undefined;
+  listedDir: string | undefined;
+  listedEntries: FSBrowseResponse["entries"] | undefined;
+}): DirectoryPickerSuggestion[] {
+  if (typed === "") {
+    return directorySuggestions({
+      entries: homeEntries,
+      prefix: "",
+      typed: "~/",
+      windows: isWindowsPath(home ?? ""),
+      limit: MAX_SUGGESTIONS,
+    });
   }
-  return error instanceof Error && error.message.trim() !== ""
-    ? error.message
-    : DIRECTORY_PATH_COPY.missing;
+  const current = isAbsolutePath(expanded) ? completionTarget(expanded) : null;
+  if (current === null || current.dir !== listedDir) return [];
+  return directorySuggestions({
+    entries: listedEntries,
+    prefix: current.prefix,
+    typed,
+    windows: isWindowsPath(expanded),
+    limit: MAX_SUGGESTIONS,
+  });
 }
 
 /**
@@ -76,27 +143,18 @@ export function useDirectoryPathField({
   isProject = () => false,
   enabled = true,
 }: UseDirectoryPathFieldOptions): DirectoryPathField {
-  const [browsePending, setBrowsePending] = useState(false);
-  const [browseError, setBrowseError] = useState<string | null>(null);
-
   // The unscoped listing names the daemon's home and doubles as the empty-field suggestions.
   const homeListing = useQuery(directoryBrowseOptions({ dirsOnly: true }, enabled));
   const home = homeListing.data?.home ?? null;
 
   const typed = value.trim();
-  const expanded = expandHome(typed, home);
   // Listing and validation follow the text once typing pauses.
   const settledTyped = useDebouncedValue(typed, VALIDATE_DELAY_MS);
   const settled = expandHome(settledTyped, home);
-  const isSettled = settledTyped === typed;
 
-  const target = isAbsolutePath(settled) ? completionTarget(settled) : null;
-  const showHidden = target?.prefix.startsWith(".") ?? false;
+  const completion = completionQuery(settled);
   const listing = useQuery(
-    directoryBrowseOptions(
-      { path: target?.dir, dirsOnly: true, ...(showHidden ? { showHidden } : {}) },
-      enabled && target !== null
-    )
+    directoryBrowseOptions(completion.query, enabled && completion.target !== null)
   );
 
   const candidate = isAbsolutePath(settled) ? normalizeDirectoryPath(settled) : "";
@@ -104,77 +162,44 @@ export function useDirectoryPathField({
     directoryBrowseOptions({ path: candidate, dirsOnly: true }, enabled && candidate !== "")
   );
 
-  const entries = typed === "" ? homeListing.data?.entries : target ? listing.data?.entries : [];
-  const prefix = (target?.prefix ?? "").toLowerCase();
-  const suggestions = (entries ?? [])
-    // The folder already typed in full is not a completion; `/` drills into it.
-    .filter(entry => {
-      const name = entry.name.toLowerCase();
-      return entry.is_dir && name.startsWith(prefix) && name !== prefix;
-    })
-    .slice(0, MAX_SUGGESTIONS)
-    .map(entry => ({
-      value: suggestionValue(typed === "" ? "~/" : settledTyped, entry.name),
-      label: entry.name,
-    }));
+  const expanded = expandHome(typed, home);
+  const suggestions = fieldSuggestions({
+    typed,
+    expanded,
+    home,
+    homeEntries: homeListing.data?.entries,
+    listedDir: completion.target?.dir,
+    listedEntries: listing.data?.entries,
+  });
 
-  let status: DirectoryPathStatus = "checking";
-  let message: string | null = null;
-  if (typed === "") {
-    status = "empty";
-  } else if (!isAbsolutePath(expanded)) {
-    // `~` waits for the daemon's home before it can be judged.
-    if (!(typed.startsWith("~") && home === null)) {
-      status = "invalid";
-      message = DIRECTORY_PATH_COPY.relative;
-    }
-  } else if (isSettled && validation.error) {
-    status = "invalid";
-    message = browseErrorMessage(validation.error);
-  } else if (isSettled && validation.data) {
-    const resolved = validation.data.path;
-    if (home !== null && (candidate === normalizeDirectoryPath(home) || resolved === home)) {
-      // `~/` is where browsing starts; only `~` itself reads as choosing home.
-      const browsing = /[\\/]$/.test(typed);
-      status = browsing ? "incomplete" : "invalid";
-      message = browsing ? null : DIRECTORY_PATH_COPY.home;
-    } else if (isProject(candidate) || isProject(resolved)) {
-      status = "invalid";
-      message = DIRECTORY_PATH_COPY.alreadyProject;
-    } else {
-      status = "valid";
-    }
-  }
-
-  const pickDirectory = typeof window === "undefined" ? undefined : window.compozyShell?.dialogs;
-  const browse = pickDirectory
-    ? async () => {
-        setBrowsePending(true);
-        setBrowseError(null);
-        try {
-          const chosen = await pickDirectory.pickDirectory(
-            status === "valid" ? { default_path: candidate } : home ? { default_path: home } : {}
-          );
-          if (chosen) onValueChange(contractHome(chosen, home));
-        } catch {
-          setBrowseError(DIRECTORY_PATH_COPY.browseFailed);
-        } finally {
-          setBrowsePending(false);
-        }
-      }
-    : undefined;
+  const isSettled = settledTyped === typed;
+  const { status, message } = judgeDirectoryPath({
+    typed,
+    expanded,
+    candidate,
+    home,
+    homeUnavailable: homeListing.isError,
+    validation: isSettled
+      ? { error: validation.error, resolved: validation.data?.path ?? null }
+      : null,
+    isProject,
+  });
+  const valid = status === "valid";
+  // Browse opens at the typed folder whenever it exists, even if it cannot be added.
+  const folderExists = isSettled && validation.data !== undefined;
+  const dialog = useNativeDirectoryDialog(folderExists ? candidate : home, home, onValueChange);
 
   return {
     value,
     onValueChange: next => {
-      setBrowseError(null);
+      dialog.clearError();
       onValueChange(next);
     },
     suggestions,
     status,
-    path: status === "valid" ? candidate : null,
-    message: message ?? browseError,
-    browse: browse ? () => void browse() : undefined,
-    browsePending,
+    path: valid ? candidate : null,
+    message: message ?? dialog.error,
+    browse: dialog.browse,
+    browsePending: dialog.pending,
   };
 }

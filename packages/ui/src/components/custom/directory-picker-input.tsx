@@ -58,18 +58,19 @@ function DirectoryPickerInput({
   ...inputProps
 }: DirectoryPickerInputProps) {
   const [open, setOpen] = React.useState(false);
-  const [highlighted, setHighlighted] = React.useState<DirectoryPickerSuggestion | undefined>();
+  // Read only when Tab completes, so it lives in a ref rather than render state.
+  const highlighted = React.useRef<DirectoryPickerSuggestion | undefined>(undefined);
   const showList = open && suggestions.length > 0;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(event);
     if (event.defaultPrevented) return;
     if (event.key !== "Tab" || event.shiftKey || !showList) return;
-    const next = highlighted ?? suggestions[0];
+    const next = highlighted.current ?? suggestions[0];
     if (!next || next.value === value) return;
     event.preventDefault();
     onValueChange(next.value);
-    setHighlighted(undefined);
+    highlighted.current = undefined;
   };
 
   return (
@@ -79,7 +80,9 @@ function DirectoryPickerInput({
         filter={null}
         items={suggestions}
         itemToStringValue={item => item.value}
-        onItemHighlighted={item => setHighlighted(item)}
+        onItemHighlighted={item => {
+          highlighted.current = item;
+        }}
         onOpenChange={setOpen}
         onValueChange={next => onValueChange(next)}
         open={showList}

@@ -199,6 +199,13 @@ describe("WorkspaceSetupDialog", () => {
 
     expect(input).toHaveValue("~/Dev/checkout-platform/");
     await waitFor(() => expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled());
+
+    // A listing of the previous folder never completes newer text.
+    await user.clear(input);
+    await user.type(input, "~/Dev/ch");
+    expect(await screen.findByRole("option", { name: "checkout-platform" })).toBeInTheDocument();
+    await user.keyboard("{Tab}src{Tab}");
+    expect(input).toHaveValue("~/Dev/checkout-platform/src");
   });
 
   it("explains why a typed root cannot be a project", async () => {

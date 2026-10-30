@@ -139,8 +139,12 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   };
 
   const addFromField = async () => {
+    const submitted = pathField.value;
     if (pathField.path === null) return;
-    if (await addWorkspace(pathField.path)) setFieldValue("");
+    // Text typed while the add was in flight is the operator's next choice; keep it.
+    if (await addWorkspace(pathField.path)) {
+      setFieldValue(current => (current === submitted ? "" : current));
+    }
   };
 
   const removeWorkspace = async (path: string) => {
