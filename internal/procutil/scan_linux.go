@@ -55,7 +55,32 @@ type linuxClock struct {
 
 // Keep the wall-time projection stable for the daemon lifetime; kernel tokens
 // preserve identity when a later daemon starts after a wall-clock correction.
-var linuxProcessClock = sync.OnceValues(func() (linuxClock, error) {
+var processClockCache linuxClockCache
+
+type linuxClockCache struct {
+	mu    sync.Mutex
+	clock linuxClock
+}
+
+func (c *linuxClockCache) get(load func() (linuxClock, error)) (linuxClock, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.clock.ticks > 0 {
+		return c.clock, nil
+	}
+	clock, err := load()
+	if err != nil {
+		return linuxClock{}, err
+	}
+	c.clock = clock
+	return clock, nil
+}
+
+func linuxProcessClock() (linuxClock, error) {
+	return processClockCache.get(loadLinuxClock)
+}
+
+func loadLinuxClock() (linuxClock, error) {
 	boot, ticks, err := readLinuxProcessClock()
 	if err != nil {
 		return linuxClock{}, err
@@ -68,7 +93,7 @@ var linuxProcessClock = sync.OnceValues(func() (linuxClock, error) {
 		return linuxClock{}, errors.New("empty boot identity")
 	}
 	return linuxClock{boot: boot, ticks: ticks, bootID: strings.TrimSpace(string(id))}, nil
-})
+}
 
 func readLinuxProcessClock() (int64, int64, error) {
 	data, err := os.ReadFile("/proc/stat")

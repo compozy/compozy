@@ -944,6 +944,10 @@ func TestSharedSessionStopOperation(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("prompt setup did not settle after Goal pause persistence")
 		}
+		receipt := lifecycle.waitAmbiguous(t)
+		if receipt.Owner.SessionID != active.ID || receipt.ReasonCode != managedInputReasonRecoveryAmbiguous {
+			t.Fatalf("unexpected ambiguity receipt: %#v", receipt)
+		}
 	})
 	// Invariant: verified exit remains terminal during storage loss; retained receipts settle before reuse or deletion.
 	for _, tc := range []struct {

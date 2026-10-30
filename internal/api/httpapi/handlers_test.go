@@ -4516,42 +4516,52 @@ func TestSessionProcessHandlers(t *testing.T) {
 			)
 		}
 	})
-	t.Run("Should finish a waited stop and cleanup after the caller disconnects", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		processes := &handlerProcessService{}
-		manager := &disconnectedProcessStopManager{
-			cancel: cancel,
-			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-				return &session.Info{
-					ID:          id,
-					WorkspaceID: "ws-workspace",
-					ProfileID:   store.DefaultProfileID,
-					State:       session.StateActive,
-				}, nil
-			},
-		}
-		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
-		handlers.SessionProcesses = processes
-		request := httptest.NewRequestWithContext(
-			ctx,
-			http.MethodPost,
-			"/api/workspaces/ws-workspace/sessions/sess-123/stop",
-			strings.NewReader(`{"wait":true,"processes":"terminate"}`),
-		)
-		request.Header.Set("Content-Type", "application/json")
-		response := httptest.NewRecorder()
-		newTestRouter(t, handlers).ServeHTTP(response, request)
-		if response.Code != http.StatusOK || processes.calls != 1 || manager.awaitErr != nil ||
-			processes.terminateContextErr != nil {
-			t.Fatalf(
-				"status=%d calls=%d wait=%v cleanup=%v body=%s",
-				response.Code,
-				processes.calls,
-				manager.awaitErr,
-				processes.terminateContextErr,
-				response.Body.String(),
-			)
+	t.Run("Should finish stop and cleanup after the caller disconnects", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, body string
+			status     int
+		}{
+			{"waited", `{"wait":true,"processes":"terminate"}`, http.StatusOK},
+			{"legacy", `{"processes":"terminate"}`, http.StatusNoContent},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				processes := &handlerProcessService{}
+				manager := &disconnectedProcessStopManager{
+					cancel: cancel,
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						return &session.Info{
+							ID:          id,
+							WorkspaceID: "ws-workspace",
+							ProfileID:   store.DefaultProfileID,
+							State:       session.StateActive,
+						}, nil
+					},
+				}
+				handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+				handlers.SessionProcesses = processes
+				request := httptest.NewRequestWithContext(
+					ctx,
+					http.MethodPost,
+					"/api/workspaces/ws-workspace/sessions/sess-123/stop",
+					strings.NewReader(tc.body),
+				)
+				request.Header.Set("Content-Type", "application/json")
+				response := httptest.NewRecorder()
+				newTestRouter(t, handlers).ServeHTTP(response, request)
+				if response.Code != tc.status || processes.calls != 1 || manager.awaitErr != nil ||
+					processes.terminateContextErr != nil {
+					t.Fatalf(
+						"status=%d calls=%d wait=%v cleanup=%v body=%s",
+						response.Code,
+						processes.calls,
+						manager.awaitErr,
+						processes.terminateContextErr,
+						response.Body.String(),
+					)
+				}
+			})
 		}
 	})
 	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
@@ -4666,4 +4676,10 @@ func (s *disconnectedProcessStopManager) RequestStop(context.Context, string, se
 func (s *disconnectedProcessStopManager) AwaitStopped(ctx context.Context, _ string) (session.StopOutcome, error) {
 	s.awaitErr = ctx.Err()
 	return session.StopOutcome{FinalState: session.StateStopped, Verified: s.awaitErr == nil}, s.awaitErr
+}
+
+func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) error {
+	s.cancel()
+	s.awaitErr = ctx.Err()
+	return s.awaitErr
 }

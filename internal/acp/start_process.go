@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/compozy/compozy/internal/procutil"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
@@ -157,6 +159,7 @@ func (d *Driver) newAgentProcess(
 		Args:                 append([]string(nil), args...),
 		Cwd:                  normalized.Cwd,
 		StartedAt:            timeNowUTC(),
+		KernelToken:          procutil.CreationProcessToken(handle.PID()),
 		handle:               handle,
 		toolHost:             toolHost,
 		toolGateway:          normalized.ToolGateway,

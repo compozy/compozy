@@ -1584,6 +1584,31 @@ describe("session lifecycle batches", () => {
     });
   }
 
+  // Invariant: a failed current-detail read fails only its own target, without mutating stale data.
+  // Owner/canonical suite: session lifecycle batches, mocked only at adapter I/O.
+  it("archives readable targets and reports unreadable targets as individual failures", async () => {
+    const unavailable = { ...createdSession, id: "unavailable" };
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id === unavailable.id) throw new Error("Detail unavailable");
+      return { ...createdSession, id };
+    });
+    vi.mocked(archiveSession).mockResolvedValue({ ...createdSession, archived_at: "2026-10-30" });
+    const { result } = lifecycle();
+    act(() => result.current.actions.onArchiveMany?.([unavailable, createdSession]));
+    await waitFor(() =>
+      expect(result.current.batchResults).toEqual([
+        { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+        { id: createdSession.id, status: "done" },
+      ])
+    );
+    expect(archiveSession).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(archiveSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+    expect(toast.error).toHaveBeenCalledWith(
+      "1 session archived, 1 failed",
+      expect.objectContaining({ description: expect.stringContaining("Detail unavailable") })
+    );
+  });
+
   // Invariant: both list flows notify their host only after successful owner-scoped deletion.
   // Owner: session lifecycle mutation; canonical suite: session lifecycle batches.
   it.each([false, true])("reconciles only successful deletes with bulk=%s", async bulk => {

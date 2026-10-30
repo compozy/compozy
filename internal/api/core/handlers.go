@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -307,7 +308,13 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		"Warning",
 		`299 compozy "Bodyless stop is deprecated; send {wait:false} or {wait:true}; removed in v0.5.0"`,
 	)
-	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
+	ctx := c.Request.Context()
+	if req.Processes == contract.SessionProcessesTerminate {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
+	if err := h.Sessions.Stop(ctx, sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}

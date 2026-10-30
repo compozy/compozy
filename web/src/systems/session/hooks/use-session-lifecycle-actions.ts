@@ -1,8 +1,12 @@
-import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
+import {
+  readCurrentSessions,
+  runSessionBatch,
+  type SessionBatchResult,
+} from "../lib/session-batch";
 
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
@@ -157,20 +161,6 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
-async function readCurrentSessions(queryClient: QueryClient, sessions: readonly SessionPayload[]) {
-  return Promise.all(
-    sessions.map(async session => {
-      const options = sessionScopedDetailOptions(session.id, { profile: session.profile_name });
-      // An already-running read may predate the click; let it settle before refreshing.
-      const existing = queryClient
-        .getQueryCache()
-        .find({ queryKey: options.queryKey, exact: true });
-      if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
-      return queryClient.fetchQuery({ ...options, staleTime: 0 });
-    })
-  );
-}
-
 function useCurrentDeleteSessions(
   sessions: readonly SessionPayload[] | undefined,
   openedAt: number
@@ -249,7 +239,8 @@ export function useSessionLifecycleActions(
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
     previous: readonly SessionBatchResult[] = [],
-    processes?: SessionProcessPolicy
+    processes?: SessionProcessPolicy,
+    readErrors: ReadonlyMap<string, unknown> = new Map()
   ): Promise<SessionBatchResult[] | null> => {
     const policy = processes ? { processes } : {};
     if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
@@ -261,6 +252,7 @@ export function useSessionLifecycleActions(
       previous,
       onProgress: setBatchResults,
       execute: async id => {
+        if (readErrors.has(id)) throw readErrors.get(id);
         if (action === "delete")
           await remove.mutateAsync({ ...sessions.find(session => session.id === id)!, ...policy });
         else if (action === "archive")
@@ -292,9 +284,10 @@ export function useSessionLifecycleActions(
   const actOnMany = async (
     action: BatchVerb,
     eligible: readonly SessionPayload[],
-    processes?: SessionProcessPolicy
+    processes?: SessionProcessPolicy,
+    readErrors?: ReadonlyMap<string, unknown>
   ) => {
-    const results = await runBatch(action, eligible, [], processes);
+    const results = await runBatch(action, eligible, [], processes, readErrors);
     if (results) reportBatch(action, results, eligible);
   };
 
@@ -306,7 +299,7 @@ export function useSessionLifecycleActions(
   const askAboutProcesses = (
     action: "stop" | "archive",
     sessions: readonly SessionPayload[],
-    run: (processes?: SessionProcessPolicy) => void
+    run: (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => void
   ) => {
     if (
       sessions.length === 0 ||
@@ -318,8 +311,10 @@ export function useSessionLifecycleActions(
     checkingProcesses.current = true;
     void readCurrentSessions(queryClient, sessions)
       .then(currentSessions => {
-        if (sessionsRunningProcesses(currentSessions) === 0) run();
-        else setProcessChoice({ action, sessions: currentSessions, run });
+        const runChecked = (processes?: SessionProcessPolicy) =>
+          run(processes, currentSessions.errors);
+        if (sessionsRunningProcesses(currentSessions.sessions) === 0) runChecked();
+        else setProcessChoice({ action, sessions: currentSessions.sessions, run: runChecked });
       })
       .catch(error => reportActionError(action, error))
       .finally(() => {
@@ -415,14 +410,14 @@ export function useSessionLifecycleActions(
       },
       onStopMany: sessions => {
         const eligible = eligibleSessions("stop", sessions);
-        askAboutProcesses("stop", eligible, processes => {
-          void actOnMany("stop", eligible, processes);
+        askAboutProcesses("stop", eligible, (processes, readErrors) => {
+          void actOnMany("stop", eligible, processes, readErrors);
         });
       },
       onArchiveMany: sessions => {
         const eligible = eligibleSessions("archive", sessions);
-        askAboutProcesses("archive", eligible, processes => {
-          void actOnMany("archive", eligible, processes);
+        askAboutProcesses("archive", eligible, (processes, readErrors) => {
+          void actOnMany("archive", eligible, processes, readErrors);
         });
       },
       onUnarchiveMany: sessions => {

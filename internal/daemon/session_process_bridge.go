@@ -24,11 +24,12 @@ type sessionProcessSource struct {
 
 func processOwner(info *session.Info) sessionprocess.Owner {
 	o := sessionprocess.Owner{
-		SessionID:   info.ID,
-		WorkspaceID: info.WorkspaceID,
-		ProfileID:   info.ProfileID,
-		Name:        info.Name,
-		Live:        info.State != session.StateStopped && info.ArchivedAt == nil,
+		SessionID:         info.ID,
+		WorkspaceID:       info.WorkspaceID,
+		ProfileID:         info.ProfileID,
+		Name:              info.Name,
+		LeaderKernelToken: info.LeaderKernelToken,
+		Live:              info.State != session.StateStopped && info.ArchivedAt == nil,
 	}
 	o.Starting = info.State == session.StateStarting || info.RuntimeStatus == session.RuntimeStatusBinding ||
 		info.RuntimeStatus == session.RuntimeStatusRecovering ||

@@ -66,7 +66,17 @@ func newAttributionScan(snap procutil.ProcessSnapshot, owners []Owner) *attribut
 	for _, owner := range owners {
 		scan.known[owner.SessionID] = owner
 		p, ok := scan.byPID[owner.LeaderPID]
-		if ok && !owner.LeaderStartedAt.IsZero() && p.StartedAt.Sub(owner.LeaderStartedAt).Abs() < 2*time.Second {
+		if !ok {
+			continue
+		}
+		// Never expose a published leader group while its identity is uncertain.
+		// Only a verified identity grants ancestry attribution to its descendants.
+		scan.protectedGroups[p.PGID] = true
+		matches := !owner.LeaderStartedAt.IsZero() && p.StartedAt.Sub(owner.LeaderStartedAt).Abs() < 2*time.Second
+		if owner.LeaderKernelToken != "" {
+			matches = owner.LeaderKernelToken == p.KernelToken
+		}
+		if matches {
 			scan.leaders[p.PID] = owner
 			scan.protectedGroups[p.PGID] = true
 		}
@@ -317,6 +327,7 @@ func observationChanges(previous, next map[Identity]Observation) ([]Observation,
 func persistedObservation(o Observation) Observation {
 	// Runtime demand and leader state are not persisted observation fields.
 	o.Owner.LeaderPID, o.Owner.LeaderStartedAt = 0, time.Time{}
+	o.Owner.LeaderKernelToken = ""
 	o.Owner.Live, o.Owner.ToolBusy, o.Owner.Starting = false, false, false
 	return o
 }

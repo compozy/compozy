@@ -50,24 +50,56 @@ func TestProcessToken(t *testing.T) {
 // Owner/canonical suite: procutil Linux identity.
 func TestScannedKernelToken(t *testing.T) {
 	t.Parallel()
-	clock, err := linuxProcessClock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	original, err := linuxProcess(os.Getpid(), clock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	token, err := ProcessToken(os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	clock.boot += 3600
-	shifted, err := linuxProcess(os.Getpid(), clock)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if original.KernelToken != token || shifted.KernelToken != token || original.StartedAt.Equal(shifted.StartedAt) {
-		t.Fatalf("original=%+v shifted=%+v token=%q", original, shifted, token)
-	}
+	t.Run("Should keep the kernel token stable when the boot projection shifts", func(t *testing.T) {
+		clock, err := linuxProcessClock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		original, err := linuxProcess(os.Getpid(), clock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		token, err := ProcessToken(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		clock.boot += 3600
+		shifted, err := linuxProcess(os.Getpid(), clock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if original.KernelToken != token || shifted.KernelToken != token ||
+			original.StartedAt.Equal(shifted.StartedAt) {
+			t.Fatalf("original=%+v shifted=%+v token=%q", original, shifted, token)
+		}
+	})
+}
+
+// Invariant: a transient clock read failure must not permanently disable process scans.
+// Owner/canonical suite: procutil Linux identity; load models the proc filesystem I/O boundary.
+func TestLinuxProcessClock(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retry failed reads and retain the first successful projection", func(t *testing.T) {
+		var cache linuxClockCache
+		calls := 0
+		want := linuxClock{boot: 100, ticks: 100, bootID: "boot-id"}
+		load := func() (linuxClock, error) {
+			calls++
+			if calls == 1 {
+				return linuxClock{}, os.ErrPermission
+			}
+			return want, nil
+		}
+		if _, err := cache.get(load); !errors.Is(err, os.ErrPermission) {
+			t.Fatalf("first read: %v", err)
+		}
+		for range 2 {
+			if got, err := cache.get(load); err != nil || got != want {
+				t.Fatalf("clock=%+v error=%v", got, err)
+			}
+		}
+		if calls != 2 {
+			t.Fatalf("loads=%d, want 2", calls)
+		}
+	})
 }

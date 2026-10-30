@@ -4791,3 +4791,11 @@ Web stop/archive consult fresh profile-scoped details and delete subscribes to c
 process stream reconciliation includes trailing reads. No hook, config, extension, or official skill
 contract changes. Isolation remains enforced by owning profile/session; no cross-profile fallback.
 Validation and scenario coverage: RT-session-processes and the 2026-10-29 session-processes report.
+
+PR #1049 follow-up: ACP captures a kernel token at launch and passes it through internal session
+snapshots to process attribution; the snapshot field is excluded from JSON. Public timestamps,
+DTOs, storage, native tools, hooks, config and official skill contracts remain unchanged. Unknown
+leader identity protects its group without authorizing ancestry. Linux clock initialization retries
+failed reads. Legacy HTTP terminate cleanup survives client disconnect under a two-minute bound.
+Web bulk detail failures become per-target failures without blocking readable targets or mutating
+stale data; owner/profile scoping remains unchanged. QA: RT-session-processes.

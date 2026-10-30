@@ -62,3 +62,14 @@ Linux clock continuity: retain lineage observations with the kernel boot-ID/star
 After a wall-time correction and daemon restart, the same token preserves ownership while the
 current timestamp projection replaces the old one. A different token (PID reuse or another boot)
 must never retain ownership. Existing observations without a token keep the exact timestamp fence.
+
+A newly launched agent after a clock correction must remain excluded from cleanup, with its
+separate-group descendants still attributed by the captured kernel identity. Uncertain leader
+identities protect their group without granting ancestry. A transient Linux clock read failure
+must be retried; the first successful projection remains stable. Legacy stop with an explicit
+terminate policy must complete cleanup after client disconnect, like waited stop.
+
+For a bulk archive, make one selected session detail unavailable and keep another readable.
+Only the unreadable target fails, with its error in the batch report; readable targets still run.
+Never mutate an unreadable target using its stale catalog summary. Single-target read failures
+continue to block the mutation.

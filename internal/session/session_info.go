@@ -23,7 +23,9 @@ func (s *Session) Info() *Info {
 func (s *Session) infoLocked() *Info {
 	acpCaps := cloneCaps(s.ACPCaps)
 	acpCapsKnown := s.ACPCapsKnown
+	var leaderKernelToken string
 	if s.process != nil {
+		leaderKernelToken = s.process.KernelToken
 		acpCaps = cloneCaps(s.process.CapsSnapshot())
 		acpCapsKnown = true
 	}
@@ -34,6 +36,7 @@ func (s *Session) infoLocked() *Info {
 	}
 
 	return &Info{
+		LeaderKernelToken:        leaderKernelToken,
 		runtimeStrategy:          s.runtimeStrategyLocked(),
 		Supervision:              CloneSupervisionState(s.supervisionState),
 		BusyInput:                s.busyInputStateLocked(acpCaps),

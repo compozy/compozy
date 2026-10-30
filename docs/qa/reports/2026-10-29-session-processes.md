@@ -281,3 +281,20 @@ closed. The migration, persistence and attribution race checks passed, including
 integrity/schema equivalence. Full procutil and sessionprocess race suites passed (3.396/4.833 s).
 A static Linux procutil test binary also passed the live kernel-token and shifted-projection tests
 inside an isolated networkless Debian container. No host clock was changed.
+
+## Review follow-ups after b0f7752f6
+
+Agent attribution now uses the launch-time kernel identity across wall-clock corrections while
+preserving existing public timestamps. An uncertain published leader group is protected without
+granting lineage. Linux clock initialization caches only successful reads. Existing Linux identity
+tests passed in a networkless Debian container; no host clock was changed.
+
+The legacy HTTP stop honors explicit terminate cleanup after disconnect. The owning HTTP suite
+passed with race detection (2.080 s), as did the shared-stop ambiguity receipt check (3.021 s).
+Selected sessionprocess/session/ACP race checks passed (3.549/3.081/3.222 s); the daemon filter
+selected no tests. Web bulk reads now report unreadable targets individually and proceed only with
+readable targets. All 51 lifecycle hook tests passed through root Turbo, and lint/typecheck/build
+passed all seven tasks. The three isolated process E2Es passed in 44.5 seconds. React Doctor on changed files passed
+100/100. Windows cross-build of ACP, session, process attribution and daemon passed. The staged-file
+format/lint checks passed. Expanded Linux Go lint found one test whitespace issue; after removing the blank line,
+the affected sessionprocess package passed with zero issues. All other scoped packages were clean.

@@ -124,6 +124,37 @@ func TestAgentStartupProtection(t *testing.T) {
 			}
 		})
 	}
+	// A kernel identity grants lineage across clock corrections; an uncertain
+	// published PID stays protected without granting lineage to a reused process.
+	for _, tc := range []struct {
+		name, token string
+		want        int
+	}{
+		{"Should protect the leader and retain lineage after a clock correction", "boot:123", 1},
+		{"Should protect an uncertain leader PID without adopting reused ancestry", "boot:456", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			leader := process
+			leader.KernelToken = "boot:123"
+			published := owner
+			published.Starting = false
+			published.LeaderPID = leader.PID
+			published.LeaderStartedAt = start.Add(time.Hour)
+			published.LeaderKernelToken = tc.token
+			child := procutil.ScannedProcess{PID: 502, PPID: leader.PID, PGID: 502, StartedAt: start.Add(time.Second)}
+			service := &Service{source: attributionSource{}, observations: make(map[Identity]Observation)}
+			_, rows, err := service.reconcile(t.Context(), procutil.ProcessSnapshot{
+				Supported: true, ScannedAt: start.Add(time.Hour), Processes: []procutil.ScannedProcess{leader, child},
+			}, []Owner{published}, true)
+			if err != nil || len(rows) != tc.want {
+				t.Fatalf("rows=%+v error=%v", rows, err)
+			}
+			if len(rows) != 0 && (rows[0].PID != child.PID || rows[0].Kind != "tool") {
+				t.Fatalf("wrong lineage: %+v", rows)
+			}
+		})
+	}
 }
 
 type attributionSource struct{}

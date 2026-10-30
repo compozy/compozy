@@ -19,6 +19,7 @@ type Owner struct {
 	SessionID, WorkspaceID, ProfileID, Name string
 	LeaderPID                               int
 	LeaderStartedAt                         time.Time
+	LeaderKernelToken                       string
 	Live, ToolBusy, Starting                bool
 }
 
