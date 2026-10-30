@@ -6,7 +6,8 @@
 // scope; otherwise a foreign session goes through the jump coordinator. An open rail that is still
 // waiting on its destination or worktree filter reads as loading, never as an empty list, and an
 // in-place retarget animates through React (the window's keyed boundary), not by calling the
-// document's view transition itself.
+// document's view transition itself. Over the board (#1052) the rail is never read, and an
+// in-place open keeps the window's drawer open.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,7 +24,9 @@ const {
   useSessionListView,
   useScopedWorktreeFilter,
   scopes,
+  presentation,
 } = vi.hoisted(() => ({
+  presentation: { value: "window" as "window" | "board-drawer" },
   scopes: {
     destination: { kind: "project", workspaceId: "workspace-1" } as unknown,
     window: { kind: "project", workspaceId: "workspace-1" } as unknown,
@@ -31,7 +34,15 @@ const {
   transport: { degradedAt: null as number | null },
   getState: vi.fn<
     () => {
-      windows: Record<string, { id: string; app: string; instanceKey: string }>;
+      windows: Record<
+        string,
+        {
+          id: string;
+          app: string;
+          instanceKey: string;
+          route?: { pathname: string; search: Record<string, unknown> };
+        }
+      >;
       client: { focusOrder: string[] };
     }
   >(() => ({ windows: {}, client: { focusOrder: [] } })),
@@ -59,7 +70,11 @@ vi.mock("../../../hooks/use-attention-jump", () => ({
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userRetarget }, manager: { getState } }),
 }));
+vi.mock("@/systems/session/hooks/use-session-window-presentation", () => ({
+  useSessionWindowPresentation: () => presentation.value,
+}));
 vi.mock("@/systems/session", async () => ({
+  sessionHasUnsentInput: () => false,
   subagentRevealStore: (await import("@/systems/session/lib/subagent-navigation"))
     .subagentRevealStore,
   useSessionTransportState: () => transport,
@@ -122,6 +137,8 @@ describe("useSessionWindowSidebar", () => {
     transport.degradedAt = null;
     scopes.destination = { kind: "project", workspaceId: "workspace-1" };
     scopes.window = { kind: "project", workspaceId: "workspace-1" };
+    presentation.value = "window";
+    getState.mockReturnValue({ windows: {}, client: { focusOrder: [] } });
   });
   afterEach(() => vi.useRealTimers());
 
@@ -292,23 +309,121 @@ describe("useSessionWindowSidebar", () => {
       Reflect.deleteProperty(document, "startViewTransition");
     }
   });
+
+  it("Should never read the rail over the board", () => {
+    presentation.value = "board-drawer";
+    renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+    );
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, pending: false })
+    );
+  });
+
+  it("Should keep the board drawer open when a session opens in place from inside it", () => {
+    getState.mockReturnValue({
+      windows: {
+        "window-session": {
+          id: "window-session",
+          app: "session",
+          instanceKey: "session-current",
+          route: {
+            pathname: "/agents/claude/sessions/session-current",
+            search: { drawer: "open" },
+          },
+        },
+      },
+      client: { focusOrder: ["window-session"] },
+    });
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
+    );
+    act(() =>
+      result.current.openSession(
+        { sessionId: "session-child", agentName: "claude", workspaceId: "workspace-1" },
+        { newWindow: false }
+      )
+    );
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("window-session", {
+      app: "session",
+      instanceKey: "session-child",
+      route: { pathname: "/agents/claude/sessions/session-child", search: { drawer: "open" } },
+    });
+  });
 });
 
-// Invariant: a board card opens List in the actual destination window.
+// Invariant: a board card opens its session in this window's drawer (#1052); a session another
+// window already shows is focused there, in List, never duplicated into the drawer.
 // Owning layer: session-window navigation; this suite owns selection routing.
 describe("useSessionBoardWindow", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("Should switch the existing destination window to List before focusing it", () => {
     const target = session("workspace-1");
     getState.mockReturnValue({
       windows: { destination: { id: "destination", app: "session", instanceKey: target.id } },
       client: { focusOrder: ["destination"] },
     });
-    const { result } = renderHook(() => useSessionBoardWindow("source", null));
+    const { result } = renderHook(() => useSessionBoardWindow("source", null, false));
     act(() => result.current.onOpen(target));
     expect(setSessionWindowView).toHaveBeenCalledWith("destination", "list");
     expect(userRetarget).toHaveBeenCalledWith(
       "source",
-      expect.objectContaining({ instanceKey: target.id })
+      expect.objectContaining({
+        instanceKey: target.id,
+        route: expect.objectContaining({ search: {} }),
+      })
     );
+  });
+
+  it("Should open a card in this window's drawer and reopen the drawer on its own session", () => {
+    const target = session("workspace-1");
+    getState.mockReturnValue({
+      windows: {
+        source: {
+          id: "source",
+          app: "session",
+          instanceKey: target.id,
+          route: { pathname: `/agents/claude/sessions/${target.id}`, search: {} },
+        },
+      },
+      client: { focusOrder: ["source"] },
+    });
+    const { result } = renderHook(() => useSessionBoardWindow("source", target.id, false));
+    act(() => result.current.onOpen(target));
+    expect(setSessionWindowView).not.toHaveBeenCalled();
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
+      app: "session",
+      instanceKey: target.id,
+      route: { pathname: `/agents/claude/sessions/${target.id}`, search: { drawer: "open" } },
+    });
+  });
+
+  it("Should close the drawer when the window leaves the board for List", () => {
+    const target = session("workspace-1");
+    getState.mockReturnValue({
+      windows: {
+        source: {
+          id: "source",
+          app: "session",
+          instanceKey: target.id,
+          route: {
+            pathname: `/agents/claude/sessions/${target.id}`,
+            search: { drawer: "open", workspace: "workspace-1" },
+          },
+        },
+      },
+      client: { focusOrder: ["source"] },
+    });
+    const { result } = renderHook(() => useSessionBoardWindow("source", target.id, true));
+    act(() => result.current.setView("list"));
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("source", {
+      app: "session",
+      instanceKey: target.id,
+      route: {
+        pathname: `/agents/claude/sessions/${target.id}`,
+        search: { workspace: "workspace-1" },
+      },
+    });
   });
 });

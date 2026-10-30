@@ -5,6 +5,7 @@ import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
 import {
   invalidateSessionLiveQueries,
+  invalidateSessionOwnLiveQueries,
   invalidateSessionUsageQueries,
 } from "../lib/session-query-invalidation";
 import {
@@ -63,6 +64,12 @@ interface CreateSessionLiveTailRuntimeOptions {
   queryClient: QueryClient;
   sessionId: string;
   workspaceId: string;
+  /**
+   * Whether a burst of transcript deltas also rereads the session catalogs. A session shown
+   * over its own board (#1052) leaves that to the catalog stream: rereading every column per
+   * streamed burst would re-render the board under the drawer.
+   */
+  catalogRefreshOnDelta?: boolean;
 }
 
 function normalizeEntries(
@@ -137,6 +144,7 @@ export function createSessionLiveTailRuntime({
   queryClient,
   sessionId,
   workspaceId,
+  catalogRefreshOnDelta = true,
 }: CreateSessionLiveTailRuntimeOptions): SessionLiveTailRuntime {
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
@@ -148,10 +156,12 @@ export function createSessionLiveTailRuntime({
     );
   };
 
-  const invalidateSessionSurfaces = () => {
-    void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId).catch(error =>
-      reportInvalidationFailure("session live queries", error)
-    );
+  const invalidateSessionSurfaces = (reason?: "delta") => {
+    const invalidation =
+      reason === "delta" && !catalogRefreshOnDelta
+        ? invalidateSessionOwnLiveQueries(queryClient, workspaceId, sessionId)
+        : invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
+    void invalidation.catch(error => reportInvalidationFailure("session live queries", error));
   };
 
   const invalidateExact = (queryKey: readonly unknown[], surface: string) => {

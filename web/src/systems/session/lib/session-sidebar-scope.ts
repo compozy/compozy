@@ -4,6 +4,7 @@ import {
   type SessionListGroupBy,
   type SessionListSort,
 } from "./session-list-preferences";
+import { normalizeSessionBoardDrawerWidth } from "./session-board-drawer-width";
 import { normalizeSessionSidebarWidth } from "./session-sidebar-width";
 
 /** The session window body: the list + transcript, or the sessions board. */
@@ -36,6 +37,11 @@ export interface SessionSidebarScopeState {
    * follows the default, so a reset tracks it.
    */
   width: number | null;
+  /**
+   * The board's session drawer width in this window (#1052). `null` follows the default; the
+   * last width dragged anywhere seeds windows that never chose one.
+   */
+  drawerWidth: number | null;
   /** List | Kanban (US-011). Window-only: new windows always open in List. */
   view: SessionWindowViewMode;
   /** The board's "Hide child sessions" filter, remembered per window. */
@@ -56,6 +62,7 @@ export const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   collapsedFolders: {},
   collapsedGroups: {},
   width: null,
+  drawerWidth: null,
   view: "list",
   hideChildren: false,
   sort: null,
@@ -88,6 +95,7 @@ export function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
     collapsedGroups: normalizedCollapsedFlags(value.collapsedGroups),
     width: normalizeSessionSidebarWidth(value.width),
+    drawerWidth: normalizeSessionBoardDrawerWidth(value.drawerWidth),
     view: value.view === "kanban" ? "kanban" : "list",
     hideChildren: value.hideChildren === true,
     sort: oneOf(SESSION_LIST_SORTS, value.sort),

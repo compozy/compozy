@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ResizableDrawer } from "../resizable-drawer";
@@ -7,7 +7,15 @@ import { UIProvider } from "../ui-provider";
 
 // Invariant: opening/closing detail preserves host state and returns keyboard focus.
 // Owner and canonical suite: the shared ResizableDrawer primitive.
-function Harness() {
+function Harness({
+  basis,
+  header,
+  focusTarget,
+}: {
+  basis?: "viewport" | "container";
+  header?: boolean;
+  focusTarget?: () => HTMLElement | null;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [trigger, setTrigger] = useState<HTMLElement | null>(null);
   const [width, setWidth] = useState(480);
@@ -18,12 +26,25 @@ function Harness() {
         onOpenChange={setOpen}
         width={width}
         onWidthChange={setWidth}
-        returnFocus={trigger}
+        returnFocus={focusTarget ?? trigger}
+        breakpointBasis={basis}
+        inlineBreakpoint={basis === "container" ? 760 : undefined}
+        header={
+          header ? (
+            <div>
+              <span>Custom head</span>
+              <button type="button" onClick={() => setOpen(false)}>
+                Dismiss
+              </button>
+            </div>
+          ) : undefined
+        }
         title="Child session"
         content={<button type="button">Read activity</button>}
       >
         <div>
           <input aria-label="Parent draft" />
+          <button type="button">Landing card</button>
           <button
             type="button"
             onClick={event => {
@@ -92,4 +113,41 @@ describe("ResizableDrawer", () => {
       await waitFor(() => expect(trigger).toHaveFocus());
     }
   );
+
+  // Invariant: a contained drawer follows its host's width, not the viewport's, and covers a
+  // narrow host edge to edge. Owner: this primitive; the measured width is the browser boundary.
+  it.each([
+    [1200, "inline"],
+    [600, "overlay"],
+  ])("Should choose the layout from a %ipx host (container basis)", async (hostWidth, mode) => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(hostWidth);
+    const user = userEvent.setup();
+    render(<Harness basis="container" />);
+    await user.click(screen.getByRole("button", { name: "Open child" }));
+    const dialog = await screen.findByRole("dialog", { name: "Child session" });
+    expect(dialog).toHaveAttribute("data-mode", mode);
+    if (mode === "overlay") expect(dialog.style.width).toBe("100%");
+  });
+
+  // Invariant: a replacement head keeps the dialog named by `title`, owns closing, and focus
+  // returns to the target resolved at close time.
+  it("Should name a custom head by title and return focus to the resolved target", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    );
+    const user = userEvent.setup();
+    render(<Harness header focusTarget={() => screen.getByText("Landing card")} />);
+    await user.click(screen.getByRole("button", { name: "Open child" }));
+    const dialog = await screen.findByRole("dialog", { name: "Child session" });
+    expect(within(dialog).getByText("Custom head")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Close drawer" })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Dismiss" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Landing card" })).toHaveFocus());
+  });
 });

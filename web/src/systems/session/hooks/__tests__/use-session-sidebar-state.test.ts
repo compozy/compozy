@@ -12,6 +12,9 @@
 // and a stored blob without subagent flags reads as every subagent list closed.
 // The List | Kanban view and the board's "Hide child sessions" filter are
 // window-only (UT-067): they survive a reload but never seed another window.
+// The board's session drawer width (#1052) is per window and survives a reload; the last
+// width dragged seeds windows that never chose one, it clamps into bounds, and a blob
+// written before drawers existed reads the default.
 // Sort and Group by (#952) are one per-window choice shared by that window's
 // List and Kanban: they survive the view toggle and a reload, two windows stay
 // independent, and a window that never chose follows the daemon's
@@ -222,6 +225,46 @@ describe("useSessionSidebarState", () => {
       })
     );
     expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
+  });
+
+  it("Should restore a window's drawer width, seed new windows with the last one, and clamp it", async () => {
+    const before = await loadFreshSidebarState();
+    const renderView = (module: SidebarModule, scopeId: string) =>
+      renderHook(() => module.useSessionWindowViewState(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(module.WindowScopeContext, { value: scopeId }, children),
+      }).result;
+    const one = renderView(before, WINDOW_ONE);
+    expect(one.current.drawerWidth).toBe(640);
+    act(() => one.current.setDrawerWidth(812.4));
+    expect(one.current.drawerWidth).toBe(812);
+    expect(renderView(before, WINDOW_TWO).current.drawerWidth).toBe(812);
+
+    act(() => one.current.setDrawerWidth(5000));
+    expect(one.current.drawerWidth).toBe(1200);
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() => expect(renderView(after, WINDOW_ONE).current.drawerWidth).toBe(1200));
+  });
+
+  it("Should read the default drawer width from a window entry stored before drawers existed", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: {
+          byScope: { [WINDOW_ONE]: { open: true, view: "kanban" } },
+          partitionByScope: {},
+        },
+        version: 3,
+      })
+    );
+    const upgraded = await loadFreshSidebarState();
+    const result = renderHook(() => upgraded.useSessionWindowViewState(), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(upgraded.WindowScopeContext, { value: WINDOW_ONE }, children),
+    }).result;
+    await waitFor(() => expect(result.current.view).toBe("kanban"));
+    expect(result.current.drawerWidth).toBe(640);
   });
 
   describe("per-window Sort and Group by", () => {

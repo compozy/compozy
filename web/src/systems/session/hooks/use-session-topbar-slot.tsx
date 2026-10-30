@@ -20,6 +20,7 @@ import { useSessionTransportState } from "./use-session-transcript-thread-messag
 import { SessionUnrestrictedBadge } from "../components/session-unrestricted-badge";
 import { SessionViewToggle } from "../components/session-board/session-view-toggle";
 import { useSessionWindowViewState } from "./use-session-window-view-state";
+import { useSessionWindowPresentation } from "./use-session-window-presentation";
 import { sessionIsUnrestricted } from "../lib/session-unrestricted";
 
 interface SessionTopbarWorktreeBinding {
@@ -89,6 +90,8 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session, worktreeBinding, transportChip } = input;
   const actions = sessionTopbarActions(input);
   const view = useSessionWindowViewState();
+  // Over the board the drawer owns its chrome: no rail to toggle, and the board is the view.
+  const inWindow = useSessionWindowPresentation() === "window";
   // The slot consumer (the OS head) renders outside this window's session
   // runtime provider, so a node that reads the transport — the chip — would
   // see the default live snapshot there. The publisher runs inside the
@@ -144,11 +147,13 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     actions: (
       <>
         <SessionPrimaryAction key={session.id} {...input} {...actions} />
-        <SessionPanelToggle
-          panel="sidebar"
-          open={input.sidebarOpen}
-          onToggle={input.onSidebarToggle}
-        />
+        {inWindow ? (
+          <SessionPanelToggle
+            panel="sidebar"
+            open={input.sidebarOpen}
+            onToggle={input.onSidebarToggle}
+          />
+        ) : null}
         <SessionPanelToggle
           panel="inspector"
           open={input.inspectorOpen}
@@ -157,6 +162,8 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
       </>
     ),
     // Per-session verbs live in the session list row menus; the head keeps only the view toggle.
-    overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
+    overflow: inWindow ? (
+      <SessionViewToggle onValueChange={view.setView} value={view.view} />
+    ) : undefined,
   });
 }

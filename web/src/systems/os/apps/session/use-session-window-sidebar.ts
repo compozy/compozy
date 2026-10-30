@@ -1,5 +1,6 @@
 import { useDataScope, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
+import { useSessionWindowPresentation } from "@/systems/session/hooks/use-session-window-presentation";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 import {
@@ -60,6 +61,9 @@ export function useSessionWindowSidebar({
 }): SessionWindowSidebarModel {
   const scope = useDataScope();
   const sidebar = useSessionSidebarState();
+  const presentation = useSessionWindowPresentation();
+  // Over its board the window shows no rail, so the rail's list is never read there.
+  const railShown = sidebar.open && presentation === "window";
   const transport = useSessionTransportState();
   const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
   const { openForAgent } = useSessionCreateActions();
@@ -68,14 +72,14 @@ export function useSessionWindowSidebar({
   const worktree = useScopedWorktreeFilter(
     scope?.kind === "project" ? scope.workspaceId : null,
     useWorktreeScopeId(),
-    { enabled: sidebar.open }
+    { enabled: railShown }
   );
   const view = useSessionListView({
     scope,
     worktreeId: worktree.worktreeId,
-    enabled: sidebar.open && worktree.resolved && scope !== null,
+    enabled: railShown && worktree.resolved && scope !== null,
     // An open rail waiting on its destination or worktree filter is loading, not empty.
-    pending: sidebar.open && (!worktree.resolved || scope === null),
+    pending: railShown && (!worktree.resolved || scope === null),
   });
 
   const openSession = useSessionWindowOpenSession({ windowId, sessionId });

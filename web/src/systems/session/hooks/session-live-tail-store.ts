@@ -336,7 +336,7 @@ export const sessionLiveTailLogic = createStoreLogic<SessionLiveTailContext, Ses
       surfaceRefreshElapsed: (context, event, enqueue) => {
         if (event.generation !== context.generation || !context.surfaceRefreshScheduled) return;
         enqueue.effect(({ trigger }) => {
-          handlesByTrigger.get(trigger)?.runtime.invalidateSessionSurfaces();
+          handlesByTrigger.get(trigger)?.runtime.invalidateSessionSurfaces("delta");
         });
         return { ...context, surfaceRefreshScheduled: false };
       },

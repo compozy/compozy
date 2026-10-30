@@ -2,7 +2,8 @@
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
 // retains readonly array identity while the exact message sequence is unchanged; burst intake is
 // bounded and reconciles from an authoritative cursor; Goal snapshot frames invalidate only their
-// exact read models without mutating transcript pages.
+// exact read models without mutating transcript pages. Over the Kanban board (#1052) a delta
+// burst rereads the session's own reads but leaves the catalogs the board lists to the catalog stream.
 // Owning layer: session live-tail query orchestration.
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
@@ -19,6 +20,10 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture, sessionTranscriptFixture } from "../../mocks/fixtures";
+import {
+  SessionWindowPresentationContext,
+  type SessionWindowPresentation,
+} from "../../contexts/session-window-presentation-context";
 import { sessionKeys } from "../../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../../lib/session-query-invalidation";
 import { sessionUsageOptions } from "../../lib/query-options";
@@ -229,6 +234,7 @@ function renderLiveTail(
     enabled?: boolean;
     queryClient?: QueryClient;
     sources?: FakeSessionEventSource[];
+    presentation?: SessionWindowPresentation;
   } = {}
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
@@ -238,6 +244,7 @@ function renderLiveTail(
     sources.push(source);
     return source;
   };
+  const QueryWrapper = createWrapper(queryClient);
   const rendered = renderHook(
     () =>
       useSessionLiveTail({
@@ -246,7 +253,14 @@ function renderLiveTail(
         sessionId: SESSION_ID,
         eventSourceFactory,
       }),
-    { wrapper: createWrapper(queryClient) }
+    {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(
+          SessionWindowPresentationContext,
+          { value: options.presentation ?? "window" },
+          createElement(QueryWrapper, null, children)
+        ),
+    }
   );
   return { ...rendered, queryClient, sources };
 }
@@ -1190,6 +1204,31 @@ describe("useSessionLiveTail", () => {
     });
     await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
   });
+
+  it.each([
+    ["window", true],
+    ["board-drawer", false],
+  ] as const)(
+    "Should reread the catalogs after a delta burst only when shown in a %s",
+    async (presentation, catalogRefreshed) => {
+      vi.mocked(fetchSessionTranscript).mockResolvedValue(
+        transcriptResponse([textMessage("m1", "hi")])
+      );
+      const { result, sources, queryClient } = renderLiveTail({ presentation });
+      await waitFor(() => expect(result.current.messages).toHaveLength(1));
+      const inputKey = sessionKeys.inputQueue(WORKSPACE_ID, SESSION_ID);
+      const boardKey = [...sessionKeys.workspaceLists(WORKSPACE_ID), "board", {}];
+      queryClient.setQueryData(inputKey, { inputs: [] });
+      queryClient.setQueryData(boardKey, { pages: [] });
+
+      act(() => {
+        sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m2", "more")), "2");
+      });
+
+      await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
+      expect(queryClient.getQueryState(boardKey)?.isInvalidated).toBe(catalogRefreshed);
+    }
+  );
 
   it("Should reject a mismatched delta and reconnect without replacing history", async () => {
     vi.useFakeTimers();

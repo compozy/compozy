@@ -16,6 +16,7 @@ import {
   type SessionWindowViewMode,
 } from "../lib/session-sidebar-scope";
 import type { SessionThreadSegment } from "../lib/session-thread-branch";
+import { normalizeSessionBoardDrawerWidth } from "../lib/session-board-drawer-width";
 import {
   normalizeSessionSidebarWidth,
   SESSION_SIDEBAR_DEFAULT_WIDTH,
@@ -231,6 +232,14 @@ export const sessionSidebarLogic = createStoreLogic({
         return;
       }
       return withScopeState(context, event.scopeId, state => ({ ...state, width }));
+    },
+    drawerWidthChanged: (context, event: { scopeId: string; width: number }) => {
+      const drawerWidth = normalizeSessionBoardDrawerWidth(event.width);
+      if (drawerWidth === null) return;
+      if (resolveSessionSidebarScope(context.byScope, event.scopeId).drawerWidth === drawerWidth) {
+        return;
+      }
+      return withScopeState(context, event.scopeId, state => ({ ...state, drawerWidth }));
     },
     widthReset: (context, event: { scopeId: string }) => {
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).width === null) {
