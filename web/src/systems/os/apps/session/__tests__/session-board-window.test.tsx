@@ -326,6 +326,14 @@ describe("SessionBoardWindow drawer", () => {
     await userEvent.click(within(drawer).getByRole("button", { name: "Previous session" }));
     expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w3"));
 
+    // Once the drawer lands on a visible card, stepping continues from that card.
+    setRoute("w1", true);
+    rerenderBoard();
+    await userEvent.click(within(drawer).getByRole("button", { name: "Next session" }));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w2"));
+
+    setRoute("d1", true);
+    rerenderBoard();
     within(drawer).getByLabelText("Composer").focus();
     await userEvent.keyboard("{Escape}");
     harness.desktop.windows[WINDOW_ID] = {
@@ -371,6 +379,20 @@ describe("SessionBoardWindow drawer", () => {
     await userEvent.click(within(drawer).getByRole("button", { name: "Open full session" }));
     expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, closedRoute("w2"));
     expect(harness.setView).toHaveBeenCalledWith("list");
+  });
+
+  it("Should land focus on a visible card when the archived session sat in a folded column", async () => {
+    setRoute("d1", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+    await userEvent.click(screen.getByRole("button", { name: "Collapse Done" }));
+
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "d1" }, "archive"));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("d1"));
+    applyLastRetarget();
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
   });
 
   it("Should land focus below a deleted session once its window retires the drawer", async () => {

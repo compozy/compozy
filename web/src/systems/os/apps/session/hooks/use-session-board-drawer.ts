@@ -60,15 +60,22 @@ function boardCards(board: HTMLElement | null, { visible = true } = {}): BoardCa
  * below it in the same column, else the one above, else the next card on the board.
  */
 function successorCard(board: HTMLElement | null, sessionId: string): BoardCard | null {
-  const cards = boardCards(board);
-  const current = cards.find(card => card.id === sessionId);
-  if (!current) return null;
-  const column = current.element.closest("section");
-  const siblings = column ? cards.filter(card => column.contains(card.element)) : [];
-  const index = siblings.indexOf(current);
-  const neighbour = siblings[index + 1] ?? siblings[index - 1];
-  if (neighbour) return neighbour;
-  return cards.length > 1 ? adjacentShortcutItem(cards, sessionId, "next") : null;
+  // The removed card may sit in a folded column: find it among every card, land on a visible one.
+  const everyCard = boardCards(board, { visible: false });
+  const position = everyCard.findIndex(card => card.id === sessionId);
+  if (position < 0) return null;
+  const visibleIds = new Set(boardCards(board).map(card => card.id));
+  const isLanding = (card: BoardCard) => card.id !== sessionId && visibleIds.has(card.id);
+  const column = everyCard[position]!.element.closest("section");
+  const siblings = column ? everyCard.filter(card => column.contains(card.element)) : [];
+  const inColumn = siblings.indexOf(everyCard[position]!);
+  return (
+    siblings.slice(inColumn + 1).find(isLanding) ??
+    siblings.slice(0, inColumn).reverse().find(isLanding) ??
+    everyCard.slice(position + 1).find(isLanding) ??
+    everyCard.slice(0, position).reverse().find(isLanding) ??
+    null
+  );
 }
 
 /**

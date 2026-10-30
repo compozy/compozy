@@ -25,6 +25,7 @@ import {
   type SessionWindowPresentation,
 } from "../../contexts/session-window-presentation-context";
 import { sessionKeys } from "../../lib/query-keys";
+import { SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS } from "../session-live-tail-runtime";
 import { invalidateSessionMutationQueries } from "../../lib/session-query-invalidation";
 import { sessionUsageOptions } from "../../lib/query-options";
 import { isSessionStreamLive } from "../../lib/session-stream-liveness";
@@ -1243,9 +1244,15 @@ describe("useSessionLiveTail", () => {
         return queryClient.getQueryState(boardKey)?.isInvalidated;
       };
 
-      // The first burst always repairs the catalogs; over the board, later ones are spaced out.
+      // The first burst always repairs the catalogs; over the board, later ones are spaced out
+      // to one reread per interval.
+      const now = vi.spyOn(Date, "now");
+      now.mockReturnValue(1_000_000);
       expect(await burst(2)).toBe(true);
       expect(await burst(3)).toBe(everyBurst);
+      now.mockReturnValue(1_000_000 + SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS);
+      expect(await burst(4)).toBe(true);
+      now.mockRestore();
     }
   );
 

@@ -250,6 +250,10 @@ describe("useSessionSidebarState", () => {
     act(() => one.current.setDrawerWidth(900));
     expect(two.current.drawerWidth).toBe(500);
     expect(one.current.drawerWidth).toBe(900);
+    expect(renderView(before, "win_four").current.drawerWidth).toBe(900);
+    // Dragging window two to the width it already holds makes it the seed again.
+    act(() => two.current.setDrawerWidth(500));
+    expect(renderView(before, "win_five").current.drawerWidth).toBe(500);
 
     act(() => one.current.setDrawerWidth(5000));
     expect(one.current.drawerWidth).toBe(1200);
