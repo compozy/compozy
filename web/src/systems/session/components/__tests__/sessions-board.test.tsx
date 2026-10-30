@@ -744,6 +744,12 @@ describe("SessionsBoard selection", () => {
     expect(await screen.findByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
     expect(selectedCount()).toHaveTextContent("1 selected");
     expect(cardOf("other")).toHaveAttribute("aria-pressed", "true");
+
+    // Escape closes the menu onto its card, so the next Escape clears the selection.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(cardOf("other")).toHaveFocus());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("sessions-board-selection-bar")).not.toBeInTheDocument();
   });
 
   it("Should run the bar's verbs and confirm a delete through the list's dialog", async () => {

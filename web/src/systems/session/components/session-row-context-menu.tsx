@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Check, Folder, FolderInput, FolderOutput } from "lucide-react";
+import { useRef } from "react";
 import type * as React from "react";
 
 import {
@@ -60,15 +61,24 @@ export function SessionRowContextMenu({
 }: SessionRowContextMenuProps) {
   const items = useSessionRowMenuItems(session, actions);
   const disabled = actions.pendingAction !== null;
+  const trigger = useRef<HTMLDivElement>(null);
   return (
     <ContextMenu>
       <ContextMenuTrigger
+        ref={trigger}
         data-testid={`session-row-menu-${session.id}`}
         render={render}
         onKeyDown={openContextMenuFromKeyboard}
         {...(children === undefined ? {} : { children })}
       />
-      <ContextMenuContent className="min-w-56">
+      <ContextMenuContent
+        className="min-w-56"
+        // Escape hands focus back to the row, so the list's keys (Esc clears the
+        // selection) keep working; a pointer dismissal leaves focus where it lands.
+        finalFocus={closeType =>
+          closeType === "keyboard" ? rowFocusTarget(trigger.current) : false
+        }
+      >
         {selectionMenu !== undefined ? (
           selectionMenu
         ) : (
@@ -82,6 +92,12 @@ export function SessionRowContextMenu({
       </ContextMenuContent>
     </ContextMenu>
   );
+}
+
+/** The row's own focus target: the trigger when it takes focus, else its first button. */
+function rowFocusTarget(trigger: HTMLElement | null): HTMLElement | null {
+  if (!trigger || trigger.tabIndex >= 0) return trigger;
+  return trigger.querySelector<HTMLElement>("button");
 }
 
 function SessionRowMenuContent({
