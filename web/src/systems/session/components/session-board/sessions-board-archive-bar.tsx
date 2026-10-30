@@ -34,7 +34,11 @@ export function SessionsBoardArchiveBar({
 }: SessionsBoardArchiveBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
   const bodyId = useId();
-  const { open, toggle } = useSessionsBoardArchiveSelection(archive.sessions, archive.fetching);
+  const { open, toggle } = useSessionsBoardArchiveSelection(
+    archive.sessions,
+    archive.fetching,
+    archive.failure !== null
+  );
   if (archive.loading) {
     return (
       <SessionsBoardArchiveStatus>

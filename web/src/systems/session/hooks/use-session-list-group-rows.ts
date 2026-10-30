@@ -13,7 +13,7 @@ export function usePublishSessionListGroupRows(
   key: string,
   rows: SessionListGroupRows
 ) {
-  const { rank, sessions, visibleOrder, pair, fetching = false } = rows;
+  const { rank, sessions, visibleOrder, pair, fetching = false, failed = false } = rows;
   const order = visibleOrder.join("\n");
   const workspaceId = pair?.workspaceId;
   const profile = pair?.profile;
@@ -26,8 +26,9 @@ export function usePublishSessionListGroupRows(
         visibleOrder: order === "" ? [] : order.split("\n"),
         pair: workspaceId !== undefined && profile !== undefined ? { workspaceId, profile } : null,
         fetching,
+        failed,
       },
     });
-  }, [store, key, rank, sessions, order, workspaceId, profile, fetching]);
+  }, [store, key, rank, sessions, order, workspaceId, profile, fetching, failed]);
   useEffect(() => () => store?.trigger.removed({ key }), [store, key]);
 }

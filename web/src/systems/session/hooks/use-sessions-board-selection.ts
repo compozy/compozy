@@ -70,6 +70,7 @@ export function useSessionsBoardSelection({
     selection: bulk.store,
     presentIds: published.sessions.map(session => session.id),
     settled,
+    failed: published.failed,
   });
   return { bulk, rows };
 }
@@ -177,7 +178,8 @@ export function useSessionsBoardGroupSelection(ids: readonly string[]) {
  */
 export function useSessionsBoardArchiveSelection(
   sessions: readonly SessionPayload[],
-  fetching: boolean
+  fetching: boolean,
+  failed: boolean
 ) {
   const [open, setOpen] = useState(false);
   const store = use(SessionsBoardSelectionStoreContext);
@@ -189,6 +191,7 @@ export function useSessionsBoardArchiveSelection(
     // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
     pair: null,
     fetching: open && fetching,
+    failed: open && failed,
   });
   return {
     open,

@@ -114,6 +114,7 @@ export function SessionsBoardColumn({
       // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
       pair: null,
       fetching: column.fetching,
+      failed: column.failure !== null,
     }
   );
   const regionLabel = count === undefined ? label : `${label}, ${sessionCountLabel(count)}`;

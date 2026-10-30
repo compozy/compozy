@@ -834,6 +834,19 @@ describe("SessionsBoard selection", () => {
     expect(selectedCount()).toHaveTextContent("2 selected");
   });
 
+  it("Should hold a missing card while a board read has failed", async () => {
+    const user = userEvent.setup();
+    const kept = card("kept");
+    const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
+    await user.click(screen.getByTestId("session-board-card-select-kept"));
+
+    // The re-read returns, but a column failed: nothing confirms the card is gone.
+    rerender(board({ working: { failure: "refresh" } }));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(board({ working: { sessions: [kept], count: 1 } }));
+    expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("Should hold the selection while the lanes are off screen", async () => {
     const user = userEvent.setup();
     const kept = card("kept");

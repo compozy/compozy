@@ -15,6 +15,8 @@ export interface SessionListGroupRows {
   pair: SessionListPair | null;
   /** A read behind these rows is in flight; a session may be between two groups' reads. */
   fetching?: boolean;
+  /** The last read behind these rows failed, so a session missing from them may still exist. */
+  failed?: boolean;
 }
 
 interface SessionListGroupRowsContext {
@@ -28,6 +30,7 @@ function sameRows(left: SessionListGroupRows | undefined, right: SessionListGrou
     left.pair?.workspaceId === right.pair?.workspaceId &&
     left.pair?.profile === right.pair?.profile &&
     (left.fetching ?? false) === (right.fetching ?? false) &&
+    (left.failed ?? false) === (right.failed ?? false) &&
     sameItems(left.sessions, right.sessions) &&
     sameItems(left.visibleOrder, right.visibleOrder)
   );
@@ -71,6 +74,7 @@ export function sessionListGroupedRows(groups: Readonly<Record<string, SessionLi
     pairOf: (sessionId: string) => pairs.get(sessionId) ?? null,
     /** Some group is re-reading; a session missing from every group may only be moving. */
     fetching: ordered.some(group => group.fetching === true),
+    failed: ordered.some(group => group.failed === true),
   };
 }
 
