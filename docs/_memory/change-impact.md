@@ -4720,7 +4720,8 @@ its separate termination route does not bypass session-scoped authorization.
   no session foreign key so deletion preserves cleanup ownership. Boot revalidates
   exact PID/start identities; scans prune dead rows. Group inference requires live
   identity continuity. Unknown owners require matching daemon-home and profile
-  markers. Runtime/API scopes continue to enforce workspace and profile ownership.
+  markers. Process attribution uses `COMPOZY_PROFILE_ID`; `COMPOZY_PROFILE` retains
+  its existing CLI profile-name semantics. Runtime/API scopes continue to enforce workspace and profile ownership.
   QA uses a separate daemon home. No existing schema history or user rows change.
 - Official skill/site/QA: process inspection and cleanup guidance and a real-process
   lifecycle scenario co-ship with the implementation. No new configuration is needed;

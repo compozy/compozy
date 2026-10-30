@@ -113,3 +113,14 @@ were completed without changing their existing test assertions. The navigation t
 migration race suite passed. API route registration and catalog event streaming were split at
 their existing responsibilities to satisfy function limits; targeted API/CLI race tests passed,
 and Linux lint over core, HTTP, UDS, API spec and CLI reported zero issues.
+
+Runtime CI caught a launch-environment regression: the new process marker overwrote
+`COMPOZY_PROFILE` with an ID, while the CLI expects a profile name. Attribution now uses
+`COMPOZY_PROFILE_ID`. Existing launch and real-process suites demonstrated the failure before
+the fix and passed afterward with the race detector. The full existing fallback-ledger and Goal
+command E2E functions passed in a targeted local run (32.904 s); the Goal stop/removal case also
+passed three repetitions (17.370 s). Its earlier CI pause failure did not reproduce, and no Goal
+assertion, timeout or production behavior was changed. Linux session/procutil lint reported zero issues.
+
+All four Web E2E shards and desktop E2E passed on CI head `5c51a2f33`. These results precede the
+final environment correction; required checks on the eventual PR head remain the delivery gate.

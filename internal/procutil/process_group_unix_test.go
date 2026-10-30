@@ -232,6 +232,8 @@ func TestScannedProcessTermination(t *testing.T) {
 			os.Environ(),
 			"COMPOZY_SESSION_ID=sess-procscan-test",
 			"COMPOZY_PROCSCAN_HELPER=1",
+			"COMPOZY_PROFILE=engineering",
+			"COMPOZY_PROFILE_ID=profile-engineering",
 			"COMPOZY_HOME="+t.TempDir(),
 		)
 		ConfigureCommandSession(command)
@@ -269,6 +271,9 @@ func TestScannedProcessTermination(t *testing.T) {
 		}
 		if target.SessionID != "sess-procscan-test" || target.PGID != target.PID || target.StartedAt.IsZero() {
 			t.Fatalf("process not attributed: %#v", target)
+		}
+		if target.Profile != "profile-engineering" {
+			t.Fatalf("process profile identity = %q, want profile-engineering", target.Profile)
 		}
 		// The owning real-process suite also verifies readable command arguments survive discovery.
 		enriched := []ScannedProcess{target}

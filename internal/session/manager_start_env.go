@@ -24,8 +24,6 @@ func (m *Manager) sessionStartOpts(
 		strings.TrimSpace(s.reasoningEffort),
 	)
 	env = setSessionStartEnvValue(env, "COMPOZY_HOME", m.homePaths.HomeDir)
-	env = setSessionStartEnvValue(env, "COMPOZY_PROFILE", session.ProfileID)
-	env = setSessionStartEnvValue(env, "COMPOZY_WORKSPACE_ID", session.WorkspaceID)
 	providerID := strings.TrimSpace(resolved.RuntimeProvider)
 	if providerID == "" {
 		providerID = strings.TrimSpace(resolved.Provider)
@@ -115,6 +113,8 @@ func sessionStartEnvForProvider(
 	}
 
 	env = setSessionStartEnvValue(env, "COMPOZY_SESSION_ID", strings.TrimSpace(session.ID))
+	env = setSessionStartEnvValue(env, "COMPOZY_PROFILE_ID", session.ProfileID)
+	env = setSessionStartEnvValue(env, "COMPOZY_WORKSPACE_ID", session.WorkspaceID)
 	env = setSessionStartEnvValue(env, "COMPOZY_AGENT", strings.TrimSpace(session.AgentName))
 	env = setSessionStartEnvValue(env, "COMPOZY_AGENT_NAME", strings.TrimSpace(session.AgentName))
 

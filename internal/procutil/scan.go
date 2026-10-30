@@ -45,7 +45,7 @@ func processMarkers(p *ScannedProcess, env []string) {
 			p.SessionID = value
 		case "COMPOZY_HOME":
 			p.Home = value
-		case "COMPOZY_PROFILE":
+		case "COMPOZY_PROFILE_ID":
 			p.Profile = value
 		case "COMPOZY_WORKSPACE_ID":
 			p.Workspace = value

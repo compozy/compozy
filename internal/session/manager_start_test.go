@@ -374,7 +374,7 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	})
 }
 
-// Invariant: local provider launch filters daemon secrets while preserving session and agent identity.
+// Invariant: provider launch filters secrets, preserves CLI profile names and exports stable process ownership.
 // Owner: session launch environment; canonical session start environment suite.
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 	t.Parallel()
@@ -388,10 +388,11 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 				"OPENAI_API_KEY=sk-secret",
 				"GITHUB_TOKEN=ghp-secret",
 				"PROVIDER_HOME=/tmp/provider",
+				"COMPOZY_PROFILE=engineering",
 			},
 			&Session{
-				ID:        "sess-1",
-				AgentName: "coder",
+				ID: "sess-1", AgentName: "coder",
+				ProfileID: "profile-engineering", WorkspaceID: "ws-code",
 			},
 		)
 
@@ -406,6 +407,15 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 		}
 		if got := envValue(env, "COMPOZY_SESSION_ID"); got != "sess-1" {
 			t.Fatalf("COMPOZY_SESSION_ID = %q, want %q", got, "sess-1")
+		}
+		if got := envValue(env, "COMPOZY_PROFILE"); got != "engineering" {
+			t.Fatalf("CLI profile name = %q, want engineering", got)
+		}
+		if got := envValue(env, "COMPOZY_PROFILE_ID"); got != "profile-engineering" {
+			t.Fatalf("process profile identity = %q, want profile-engineering", got)
+		}
+		if got := envValue(env, "COMPOZY_WORKSPACE_ID"); got != "ws-code" {
+			t.Fatalf("process workspace identity = %q, want ws-code", got)
 		}
 		if got := envValue(env, "COMPOZY_AGENT"); got != "coder" {
 			t.Fatalf("COMPOZY_AGENT = %q, want coder", got)
