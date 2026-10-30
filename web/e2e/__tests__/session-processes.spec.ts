@@ -6,15 +6,17 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 
 import { sessionWindow, windowFrame } from "../fixtures/os-navigation";
+import { sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace } from "../fixtures/workspace";
 
 // Invariant: a process carrying a session's COMPOZY_SESSION_ID that escaped the agent's process
-// group shows on that session's composer; stopping the session with "Stop session and N
-// processes" ends the process and the indicator goes away (keep/terminate choice, D4/D5).
-// Owner: public session window + daemon process scan and stop. Copy, read states, and the keep
-// branch are owned by the Vitest suites.
+// group shows on that session's composer; stopping, archiving, or deleting the session asks what
+// happens to it, and the answer reaches the daemon: terminate ends the process, keep leaves it
+// running (keep/terminate choice, D4/D5; RT-session-processes).
+// Owner: public session window + daemon process scan and stop. Copy and read states are owned by
+// the Vitest suites.
 
 const agentName = "browser-lifecycle-agent";
 const fixturePath = path.resolve(
@@ -106,3 +108,88 @@ test("E2E-PROC-001: stopping a session with its processes ends them and clears t
     if (isAlive(pid)) process.kill(pid, "SIGKILL");
   }
 });
+
+type ProcessChoice = "keep" | "terminate";
+
+/** The list verbs that ask about running processes, with their request and choice controls. */
+const LIFECYCLE_CHOICES = {
+  archive: {
+    method: "POST",
+    path: (workspaceId: string, sessionId: string) =>
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}/archive`,
+    dialog: "session-process-choice-dialog",
+    keep: "session-process-choice-keep",
+    terminate: "session-process-choice-terminate",
+  },
+  delete: {
+    method: "DELETE",
+    path: (workspaceId: string, sessionId: string) =>
+      `/api/workspaces/${workspaceId}/sessions/${sessionId}`,
+    dialog: "delete-dialog",
+    keep: "delete-dialog-keep-processes",
+    terminate: "delete-dialog-confirm",
+  },
+} as const;
+
+/**
+ * Opens the session once the daemon's scan reports its process, then runs `verb` from the
+ * session list row and answers the process choice; resolves once the daemon answered the request,
+ * which must carry the choice.
+ */
+async function runListVerbWithChoice(
+  page: Page,
+  runtime: BrowserRuntime,
+  workspaceId: string,
+  sessionId: string,
+  verb: keyof typeof LIFECYCLE_CHOICES,
+  choice: ProcessChoice
+) {
+  const flow = LIFECYCLE_CHOICES[verb];
+  await page.goto(runtime.url(`/agents/${agentName}/sessions/${sessionId}`));
+  const win = sessionWindow(page, sessionId);
+  await expect(win).toBeVisible();
+  // The row's choice reads the same process summary the composer indicator shows.
+  await expect(windowFrame(win).getByTestId("composer-processes-button")).toHaveAccessibleName(
+    "Processes, 1 running",
+    { timeout: SCAN_TIMEOUT_MS }
+  );
+  const ui = sessionWindowSelectors(win, page);
+  await ui.sessionRowActions(sessionId).click();
+  await ui.sessionRowMenuItem(verb, sessionId).click();
+  await expect(page.getByTestId(flow.dialog)).toBeVisible();
+  const response = page.waitForResponse(
+    candidate =>
+      candidate.request().method() === flow.method &&
+      new URL(candidate.url()).pathname === flow.path(workspaceId, sessionId)
+  );
+  await page.getByTestId(flow[choice]).click();
+  const answered = await response;
+  expect(answered.ok(), await answered.text()).toBe(true);
+  expect(new URL(answered.url()).searchParams.get("processes")).toBe(choice);
+}
+
+for (const verb of ["archive", "delete"] as const) {
+  test(`E2E-PROC-002 (${verb}): the list ${verb} keeps or ends the processes as answered`, async ({
+    appPage,
+    browserArtifacts,
+    runtime,
+  }) => {
+    const workspace = await resolveWorkspace(runtime);
+    const keptSession = await createSession(appPage, runtime, workspace.id);
+    const endedSession = await createSession(appPage, runtime, workspace.id);
+    const kept = spawnLeftBehindProcess(keptSession);
+    const ended = spawnLeftBehindProcess(endedSession);
+    try {
+      await runListVerbWithChoice(appPage, runtime, workspace.id, keptSession, verb, "keep");
+      // Keep leaves the process running after the daemon finished the verb.
+      expect(isAlive(kept)).toBe(true);
+
+      await runListVerbWithChoice(appPage, runtime, workspace.id, endedSession, verb, "terminate");
+      await expect.poll(() => isAlive(ended), { timeout: SCAN_TIMEOUT_MS }).toBe(false);
+      expect(isAlive(kept)).toBe(true);
+      await browserArtifacts.captureScreenshot(`session-processes-${verb}-settled`, appPage);
+    } finally {
+      for (const pid of [kept, ended]) if (isAlive(pid)) process.kill(pid, "SIGKILL");
+    }
+  });
+}
