@@ -176,6 +176,10 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 				t.Fatalf("AttentionSummary() read scope = %#v, want all profiles", readScope)
 			}
 			return store.SessionAttentionSummary{
+				TerminalApprovals: []store.TerminalApprovalCount{
+					{WorkspaceID: "ws-1", ProfileID: "profile-work", Count: 110},
+					{WorkspaceID: "ws-1", ProfileID: "profile-personal", Count: 3},
+				},
 				NeedsYou: 101,
 				Finished: 17,
 				ByWorkspace: []store.WorkspaceAttentionSummary{
@@ -193,6 +197,14 @@ func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
 		testutil.DecodeJSONResponse(t, response, &payload)
 		if payload.NeedsYou != 101 || payload.Finished != 17 || len(payload.ByWorkspace) != 2 {
 			t.Fatalf("attention summary payload = %#v, want exact aggregate", payload)
+		}
+		if len(payload.TerminalApprovals) != 2 ||
+			payload.TerminalApprovals[0] != (contract.TerminalApprovalCountPayload{WorkspaceID: "ws-1", ProfileID: "profile-work", Count: 110}) ||
+			payload.TerminalApprovals[1].ProfileID != "profile-personal" || payload.TerminalApprovals[1].Count != 3 {
+			t.Fatalf(
+				"terminal approval scopes = %#v, want exact workspace/profile intersections",
+				payload.TerminalApprovals,
+			)
 		}
 	})
 }

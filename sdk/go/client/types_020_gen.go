@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// SettingsRoleConfigPayload is a daemon API value.
+type SettingsRoleConfigPayload struct {
+	Enabled         bool                          `json:"enabled"`
+	Agent           string                        `json:"agent"`
+	Provider        string                        `json:"provider"`
+	Model           string                        `json:"model"`
+	ReasoningEffort string                        `json:"reasoning_effort"`
+	Speed           *Speed                        `json:"speed,omitzero"`
+	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
+	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
+}
+
 // SettingsRoleFallbackPayload is a daemon API value.
 type SettingsRoleFallbackPayload struct {
 	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
@@ -432,19 +444,4 @@ type SettingsWindowManagerDefaultPayload struct {
 	Binding      []string `json:"binding"`
 	Dormant      bool     `json:"dormant"`
 	ConflictWith string   `json:"conflict_with,omitempty"`
-}
-
-// SettingsWindowManagerDiagnosticPayload is a daemon API value.
-type SettingsWindowManagerDiagnosticPayload struct {
-	CommandID string `json:"command_id"`
-	Message   string `json:"message"`
-}
-
-// SettingsWindowManagerGapsPayload is a daemon API value.
-type SettingsWindowManagerGapsPayload struct {
-	Inner  int `json:"inner"`
-	Top    int `json:"top"`
-	Right  int `json:"right"`
-	Bottom int `json:"bottom"`
-	Left   int `json:"left"`
 }

@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// ViewKind is a daemon API value.
+type ViewKind string
+
 // ViewPatch is a daemon API value.
 type ViewPatch struct {
 	ViewID string    `json:"view_id"`
@@ -437,12 +440,4 @@ type WorkspacePlacementPayload struct {
 	WorkspaceID string `json:"workspace_id"`
 	FolderID    string `json:"folder_id,omitempty"`
 	Position    int    `json:"position"`
-}
-
-// WorkspaceProfileHintPayload is a daemon API value.
-type WorkspaceProfileHintPayload struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-	Action  string `json:"action"`
 }

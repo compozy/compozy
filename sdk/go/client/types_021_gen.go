@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerDiagnosticPayload is a daemon API value.
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
+// SettingsWindowManagerGapsPayload is a daemon API value.
+type SettingsWindowManagerGapsPayload struct {
+	Inner  int `json:"inner"`
+	Top    int `json:"top"`
+	Right  int `json:"right"`
+	Bottom int `json:"bottom"`
+	Left   int `json:"left"`
+}
+
 // SettingsWindowManagerMutationResponse is a daemon API value.
 type SettingsWindowManagerMutationResponse struct {
 	Section            SettingsSectionName                      `json:"section"`

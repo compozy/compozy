@@ -4,6 +4,28 @@ package client
 
 import "time"
 
+// SettingsInstalledExtensionPayload is a daemon API value.
+type SettingsInstalledExtensionPayload struct {
+	Name          string                                    `json:"name"`
+	Version       string                                    `json:"version,omitempty"`
+	Enabled       bool                                      `json:"enabled"`
+	State         string                                    `json:"state,omitempty"`
+	Health        string                                    `json:"health,omitempty"`
+	HealthMessage string                                    `json:"health_message,omitempty"`
+	LastError     string                                    `json:"last_error,omitempty"`
+	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
+	MissingEnv    []string                                  `json:"missing_env,omitempty"`
+	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitzero"`
+}
+
+// SettingsLayeredScopeKind is a daemon API value.
+type SettingsLayeredScopeKind string
+
+// SettingsLimitsPayload is a daemon API value.
+type SettingsLimitsPayload struct {
+	MaxConcurrentAgents int `json:"max_concurrent_agents"`
+}
+
 // SettingsLogTailCapabilityPayload is a daemon API value.
 type SettingsLogTailCapabilityPayload struct {
 	Available bool                    `json:"available"`
@@ -425,16 +447,4 @@ type SettingsProvidersResponse struct {
 // SettingsRedactPayload is a daemon API value.
 type SettingsRedactPayload struct {
 	Enabled bool `json:"enabled"`
-}
-
-// SettingsRoleConfigPayload is a daemon API value.
-type SettingsRoleConfigPayload struct {
-	Enabled         bool                          `json:"enabled"`
-	Agent           string                        `json:"agent"`
-	Provider        string                        `json:"provider"`
-	Model           string                        `json:"model"`
-	ReasoningEffort string                        `json:"reasoning_effort"`
-	Speed           *Speed                        `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
-	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
 }

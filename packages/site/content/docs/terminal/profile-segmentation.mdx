@@ -31,3 +31,9 @@ or mutating a terminal under that owner.
 Deleting a workspace removes the terminal runtime and its workspace-owned journal, recordings, and
 artifacts. Terminal data never needs a cross-workspace query, and a terminal ID from another workspace
 does not widen the caller's read scope.
+
+The operator-only attention summary exposes terminal approval counts as optional
+`terminal_approvals` entries containing `workspace_id`, `profile_id`, and `count`.
+An omitted array means no pending approvals. Counts include child-session permissions;
+the shell selects the current workspace and profile before combining them with terminal
+input requests. This shares the shell attention refresh without another catalog read.

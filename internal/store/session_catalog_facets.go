@@ -27,9 +27,17 @@ type ProfileSessionCatalogFacets struct {
 
 // SessionCatalogFacetResult aggregates durable metadata without hydrating rows.
 type SessionCatalogFacetResult struct {
-	Facets      SessionCatalogFacets
-	ByWorkspace []WorkspaceSessionCatalogFacets
-	ByProfile   []ProfileSessionCatalogFacets
+	TerminalApprovals []TerminalApprovalCount
+	Facets            SessionCatalogFacets
+	ByWorkspace       []WorkspaceSessionCatalogFacets
+	ByProfile         []ProfileSessionCatalogFacets
+}
+
+// TerminalApprovalCount retains the exact workspace/profile intersection for shell badges.
+type TerminalApprovalCount struct {
+	WorkspaceID string
+	ProfileID   string
+	Count       int
 }
 
 // SessionCatalogFacetReader is the metadata-only catalog count boundary.

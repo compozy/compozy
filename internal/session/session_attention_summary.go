@@ -27,9 +27,10 @@ func (m *Manager) AttentionSummary(
 		return store.SessionAttentionSummary{}, err
 	}
 	summary := store.SessionAttentionSummary{
-		NeedsYou:    facets.Facets.NeedsYou,
-		Finished:    facets.Facets.Finished,
-		ByWorkspace: make([]store.WorkspaceAttentionSummary, 0, len(facets.ByWorkspace)),
+		TerminalApprovals: facets.TerminalApprovals,
+		NeedsYou:          facets.Facets.NeedsYou,
+		Finished:          facets.Facets.Finished,
+		ByWorkspace:       make([]store.WorkspaceAttentionSummary, 0, len(facets.ByWorkspace)),
 	}
 	for _, workspace := range facets.ByWorkspace {
 		if workspace.Facets.NeedsYou == 0 && workspace.Facets.Finished == 0 {

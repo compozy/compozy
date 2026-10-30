@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SessionUsagePayload is a daemon API value.
+type SessionUsagePayload struct {
+	WorkTime         *SessionWorkTimePayload `json:"work_time,omitzero"`
+	CacheReadTokens  *int64                  `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64                  `json:"cache_write_tokens,omitzero"`
+	Context          SessionContextPayload   `json:"context"`
+	InputTokens      *int64                  `json:"input_tokens,omitzero"`
+	OutputTokens     *int64                  `json:"output_tokens,omitzero"`
+	TotalTokens      *int64                  `json:"total_tokens,omitzero"`
+	TotalCost        *float64                `json:"total_cost,omitzero"`
+	CostCurrency     string                  `json:"cost_currency,omitempty"`
+	CostStatus       CostStatus              `json:"cost_status,omitempty"`
+	CostSource       CostSource              `json:"cost_source,omitempty"`
+	TurnCount        int64                   `json:"turn_count"`
+}
+
 // SessionUsageResponse is a daemon API value.
 type SessionUsageResponse struct {
 	Usage SessionUsagePayload `json:"usage"`
@@ -420,26 +436,4 @@ type SettingsInstalledExtensionPaletteViewPayload struct {
 	Title     string `json:"title"`
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
-}
-
-// SettingsInstalledExtensionPayload is a daemon API value.
-type SettingsInstalledExtensionPayload struct {
-	Name          string                                    `json:"name"`
-	Version       string                                    `json:"version,omitempty"`
-	Enabled       bool                                      `json:"enabled"`
-	State         string                                    `json:"state,omitempty"`
-	Health        string                                    `json:"health,omitempty"`
-	HealthMessage string                                    `json:"health_message,omitempty"`
-	LastError     string                                    `json:"last_error,omitempty"`
-	RequiresEnv   []string                                  `json:"requires_env,omitempty"`
-	MissingEnv    []string                                  `json:"missing_env,omitempty"`
-	Palette       *SettingsInstalledExtensionPalettePayload `json:"palette,omitzero"`
-}
-
-// SettingsLayeredScopeKind is a daemon API value.
-type SettingsLayeredScopeKind string
-
-// SettingsLimitsPayload is a daemon API value.
-type SettingsLimitsPayload struct {
-	MaxConcurrentAgents int `json:"max_concurrent_agents"`
 }

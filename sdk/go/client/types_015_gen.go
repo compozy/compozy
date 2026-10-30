@@ -332,9 +332,10 @@ type SessionAttentionEventPayload struct {
 
 // SessionAttentionSummaryPayload is a daemon API value.
 type SessionAttentionSummaryPayload struct {
-	NeedsYou    int                                `json:"needs_you"`
-	Finished    int                                `json:"finished"`
-	ByWorkspace []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
+	TerminalApprovals []TerminalApprovalCountPayload     `json:"terminal_approvals,omitempty"`
+	NeedsYou          int                                `json:"needs_you"`
+	Finished          int                                `json:"finished"`
+	ByWorkspace       []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
 }
 
 // SessionBoardCountsPayload is a daemon API value.
@@ -440,11 +441,4 @@ type SessionCompactResponse struct {
 	PromptID  string `json:"prompt_id"`
 	Command   string `json:"command"`
 	Status    string `json:"status"`
-}
-
-// SessionCompactionContextAfterPayload is a daemon API value.
-type SessionCompactionContextAfterPayload struct {
-	Used     int64  `json:"used"`
-	Size     *int64 `json:"size,omitzero"`
-	Sequence int64  `json:"sequence"`
 }

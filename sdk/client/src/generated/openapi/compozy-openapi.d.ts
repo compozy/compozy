@@ -13477,6 +13477,7 @@ export interface components {
       by_workspace: components["schemas"]["WorkspaceAttentionSummaryPayload"][];
       finished: number;
       needs_you: number;
+      terminal_approvals?: components["schemas"]["TerminalApprovalCountPayload"][];
     };
     SessionBoardCountsPayload: {
       done: number;
@@ -17576,6 +17577,11 @@ export interface components {
     };
     TerminalAnswerInputRequest: {
       input: string;
+    };
+    TerminalApprovalCountPayload: {
+      count: number;
+      profile_id: string;
+      workspace_id: string;
     };
     TerminalAttachTicketRequest: {
       client_id?: string;

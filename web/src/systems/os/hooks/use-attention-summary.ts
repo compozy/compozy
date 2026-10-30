@@ -2,13 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
-import { sessionAttentionSummaryOptions, type SessionCatalogStreamStatus } from "@/systems/session";
+import {
+  sessionAttentionSummaryOptions,
+  type SessionAttentionSummary,
+  type SessionCatalogStreamStatus,
+} from "@/systems/session";
 
 import type { OsAttentionSummary } from "../lib/attention-model";
 
 const ATTENTION_SUMMARY_REFETCH_INTERVAL_MS = 5_000;
 
 export interface OsAttentionSummaryModel {
+  terminalApprovals: SessionAttentionSummary["terminal_approvals"];
   summary: OsAttentionSummary | null;
   stale: boolean;
   loading: boolean;
@@ -30,12 +35,15 @@ export function useAttentionSummary(
   const query = useQuery({
     ...sessionAttentionSummaryOptions(),
     refetchInterval: query => {
-      if (!documentVisible || streamStatus === "live") return false;
-      return query.state.status === "error" ? 30_000 : ATTENTION_SUMMARY_REFETCH_INTERVAL_MS;
+      if (!documentVisible) return false;
+      if (query.state.status === "error") return 30_000;
+      return streamStatus === "live" ? false : ATTENTION_SUMMARY_REFETCH_INTERVAL_MS;
     },
   });
   const payload = query.data;
   return {
+    terminalApprovals:
+      query.isError || payload === undefined ? undefined : (payload.terminal_approvals ?? []),
     summary:
       payload === undefined ? null : { needsYou: payload.needs_you, finished: payload.finished },
     stale: streamStatus !== "live" || query.isError || payload === undefined,

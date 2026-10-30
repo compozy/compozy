@@ -120,8 +120,15 @@ func (h *BaseHandlers) SessionAttentionSummary(c *gin.Context) {
 			Finished:    workspace.Finished,
 		})
 	}
+	approvals := make([]contract.TerminalApprovalCountPayload, 0, len(summary.TerminalApprovals))
+	for _, approval := range summary.TerminalApprovals {
+		approvals = append(approvals, contract.TerminalApprovalCountPayload{
+			WorkspaceID: approval.WorkspaceID, ProfileID: approval.ProfileID, Count: approval.Count,
+		})
+	}
 	c.JSON(http.StatusOK, contract.SessionAttentionSummaryPayload{
-		NeedsYou: summary.NeedsYou, Finished: summary.Finished, ByWorkspace: workspaces,
+		TerminalApprovals: approvals,
+		NeedsYou:          summary.NeedsYou, Finished: summary.Finished, ByWorkspace: workspaces,
 	})
 }
 

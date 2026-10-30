@@ -2193,7 +2193,8 @@ test("@nightly Should bound catalog requests during sixty minutes of native desk
     "/api/sessions/facets": 13,
     "/api/sessions/attention-summary": 13,
   };
-  const requests: Array<{ elapsed_ms: number; path: string; client_id: string }> = [];
+  const requests: Array<{ elapsed_ms: number; path: string; query: string; client_id: string }> =
+    [];
   const windows: Record<string, number[]> = {};
   const maxima: Record<string, number> = {};
   const clientIDs = new Set<string>();
@@ -2211,7 +2212,8 @@ test("@nightly Should bound catalog requests during sixty minutes of native desk
   let churn = 0;
   const onRequest = (request: Request) => {
     if (!measured || request.method() !== "GET") return;
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    const path = url.pathname;
     const pathLimit = budget[path];
     if (pathLimit === undefined) return;
     const clientID = request.headers()["x-compozy-client-id"] ?? "";
@@ -2221,7 +2223,7 @@ test("@nightly Should bound catalog requests during sixty minutes of native desk
     }
     clientIDs.add(clientID);
     const elapsed = performance.now() - began;
-    requests.push({ elapsed_ms: elapsed, path, client_id: clientID });
+    requests.push({ elapsed_ms: elapsed, path, query: url.search, client_id: clientID });
     for (const [key, limit] of [
       [path, pathLimit],
       ["all", 52],

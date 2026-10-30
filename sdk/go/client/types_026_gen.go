@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// ToolResponse is a daemon API value.
+type ToolResponse struct {
+	Tool ToolPayload `json:"tool"`
+}
+
 // ToolResult is a daemon API value.
 type ToolResult struct {
 	Content    []ToolContent              `json:"content,omitempty"`
@@ -442,6 +447,3 @@ type ViewFrame struct {
 	Effects     []Effect     `json:"effects,omitempty"`
 	Handlers    []string     `json:"handlers"`
 }
-
-// ViewKind is a daemon API value.
-type ViewKind string

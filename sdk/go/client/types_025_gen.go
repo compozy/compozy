@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// TerminalOutputShape is a daemon API value.
+type TerminalOutputShape struct {
+	MaxBytes int    `json:"max_bytes,omitzero"`
+	Strategy string `json:"strategy,omitempty"`
+	Grep     string `json:"grep,omitempty"`
+}
+
 // TerminalPendingInputRequest is a daemon API value.
 type TerminalPendingInputRequest struct {
 	ID            string                    `json:"id"`
@@ -437,9 +444,4 @@ type ToolPolicyDecisionPayload struct {
 	AvailabilityResult   string       `json:"availability_result,omitempty"`
 	HookResult           string       `json:"hook_result,omitempty"`
 	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
-}
-
-// ToolResponse is a daemon API value.
-type ToolResponse struct {
-	Tool ToolPayload `json:"tool"`
 }

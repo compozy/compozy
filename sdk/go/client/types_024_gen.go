@@ -255,6 +255,13 @@ type TerminalAnswerInputRequest struct {
 	Input string `json:"input"`
 }
 
+// TerminalApprovalCountPayload is a daemon API value.
+type TerminalApprovalCountPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	Count       int    `json:"count"`
+}
+
 // TerminalAttachMode is a daemon API value.
 type TerminalAttachMode string
 
@@ -438,10 +445,3 @@ type TerminalListResponse struct {
 
 // TerminalMode is a daemon API value.
 type TerminalMode string
-
-// TerminalOutputShape is a daemon API value.
-type TerminalOutputShape struct {
-	MaxBytes int    `json:"max_bytes,omitzero"`
-	Strategy string `json:"strategy,omitempty"`
-	Grep     string `json:"grep,omitempty"`
-}

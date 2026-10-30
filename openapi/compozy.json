@@ -22596,6 +22596,12 @@
           },
           "needs_you": {
             "type": "integer"
+          },
+          "terminal_approvals": {
+            "items": {
+              "$ref": "#/components/schemas/TerminalApprovalCountPayload"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -36868,6 +36874,25 @@
         },
         "required": [
           "input"
+        ],
+        "type": "object"
+      },
+      "TerminalApprovalCountPayload": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "profile_id",
+          "workspace_id"
         ],
         "type": "object"
       },

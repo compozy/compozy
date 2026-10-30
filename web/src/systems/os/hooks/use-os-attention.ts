@@ -15,7 +15,6 @@ import {
   type SessionPayload,
   useSessionWindowOrder,
   useSessionCatalog,
-  sessionFacetsOptions,
 } from "@/systems/session";
 import { taskScopeForActiveWorkspace, useTaskDashboard } from "@/systems/tasks";
 import {
@@ -28,6 +27,7 @@ import {
   useActiveWorkspace,
   useScopedWorktreeFilter,
   workspaceSelectorOrAll,
+  USER_SCOPE_SELECTOR,
   type DataScope,
   type WorkspacePayload,
 } from "@/systems/workspace";
@@ -35,7 +35,7 @@ import {
 import { useBellNotifications } from "./use-bell-notifications";
 
 import { useAttentionPolicy } from "./use-attention-policy";
-import { useAttentionSummary } from "./use-attention-summary";
+import { useAttentionSummary, type OsAttentionSummaryModel } from "./use-attention-summary";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 
 const ATTENTION_REFETCH_INTERVAL_MS = 5_000;
@@ -85,7 +85,7 @@ export function useOsAttention(
   // Terminals belong to a project or to User; All projects has no terminal badge.
   const terminal = useTerminalAttentionSources({
     documentVisible,
-    sessionCatalogStreamStatus,
+    terminalApprovals: sessions.summary.terminalApprovals,
     workspaceId: dataScope === null ? null : workspaceSelectorOrAll(dataScope),
   });
   const policy = useAttentionPolicy();
@@ -193,11 +193,11 @@ function useTaskAttentionSources({
 
 function useTerminalAttentionSources({
   documentVisible,
-  sessionCatalogStreamStatus,
+  terminalApprovals,
   workspaceId,
 }: {
   documentVisible: boolean;
-  sessionCatalogStreamStatus: SessionCatalogStreamStatus;
+  terminalApprovals: OsAttentionSummaryModel["terminalApprovals"];
   workspaceId: string | null;
 }) {
   const profile = useProfileReadScope();
@@ -208,27 +208,18 @@ function useTerminalAttentionSources({
     enabled,
     refetchInterval: documentVisible ? ATTENTION_REFETCH_INTERVAL_MS : false,
   });
-  const terminalFacets = useQuery({
-    ...sessionFacetsOptions({
-      workspace_id: workspaceId ?? undefined,
-      profile: profile.destination,
-    }),
-    enabled,
-    // Catalog wakes own this read while connected; a second poll would
-    // amplify each authoritative update with an independent timer read.
-    refetchInterval: query => {
-      if (!documentVisible) return false;
-      if (query.state.status === "error") return 30_000;
-      return sessionCatalogStreamStatus === "live" ? false : ATTENTION_REFETCH_INTERVAL_MS;
-    },
-  });
   const ready =
     enabled &&
     !terminalRequests.isError &&
     terminalRequests.data !== undefined &&
-    !terminalFacets.isError &&
-    terminalFacets.data !== undefined;
+    terminalApprovals !== undefined;
   const profileId = profile.destinationOwner?.id;
+  const approvalCount =
+    terminalApprovals?.find(
+      approval =>
+        approval.workspace_id === (workspaceId === USER_SCOPE_SELECTOR ? "" : workspaceId) &&
+        approval.profile_id === profileId
+    )?.count ?? 0;
   return {
     badge:
       !ready || !profileId
@@ -240,9 +231,9 @@ function useTerminalAttentionSources({
             ),
             profileId,
             inputRequests: terminalRequests.data?.pending ?? [],
-            pendingApprovalCount: terminalFacets.data?.facets.terminal_approvals ?? 0,
+            pendingApprovalCount: approvalCount,
           }).count,
-    loading: terminalRequests.isLoading || terminalFacets.isLoading,
+    loading: terminalRequests.isLoading || terminalApprovals === undefined,
     ready,
   };
 }

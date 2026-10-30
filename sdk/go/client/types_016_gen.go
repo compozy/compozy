@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// SessionCompactionContextAfterPayload is a daemon API value.
+type SessionCompactionContextAfterPayload struct {
+	Used     int64  `json:"used"`
+	Size     *int64 `json:"size,omitzero"`
+	Sequence int64  `json:"sequence"`
+}
+
 // SessionCompactionPayload is a daemon API value.
 type SessionCompactionPayload struct {
 	ContextAfter *SessionCompactionContextAfterPayload `json:"context_after,omitzero"`
@@ -430,20 +437,4 @@ type SessionInspectResponse struct {
 // SessionInteractionsResponse is a daemon API value.
 type SessionInteractionsResponse struct {
 	Interactions []PendingInteractionPayload `json:"interactions"`
-}
-
-// SessionLineagePayload is a daemon API value.
-type SessionLineagePayload struct {
-	ParentSessionID  string                       `json:"parent_session_id,omitempty"`
-	RootSessionID    string                       `json:"root_session_id,omitempty"`
-	SpawnDepth       int                          `json:"spawn_depth"`
-	SpawnRole        string                       `json:"spawn_role,omitempty"`
-	Kind             LineageKind                  `json:"kind,omitempty"`
-	OriginMessageID  string                       `json:"origin_message_id,omitempty"`
-	OriginAgentName  string                       `json:"origin_agent_name,omitempty"`
-	TTLExpiresAt     *time.Time                   `json:"ttl_expires_at,omitempty"`
-	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator    bool                         `json:"notify_creator"`
-	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
-	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }

@@ -40,6 +40,9 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 			return fmt.Errorf("store: scan terminal approval facets: %w", err)
 		}
 		result.Facets.TerminalApprovals += count
+		result.TerminalApprovals = append(result.TerminalApprovals, store.TerminalApprovalCount{
+			WorkspaceID: workspaceID, ProfileID: profileID, Count: count,
+		})
 		profileFound := false
 		for i := range result.ByProfile {
 			if result.ByProfile[i].ProfileID == profileID {

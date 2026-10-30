@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## Release 0.4.6 catalog request repair — 2026-10-30
+
+Owner: `fix/release-046-validation`, release PR #1042. The shell reuses the
+operator attention summary for terminal approval counts instead of requesting a
+second facets population on each catalog wake. The existing SQL aggregate retains
+its workspace/profile intersections, including child sessions; list facets keep
+their own population. No additional SQL read or page hydration is introduced.
+
+- **Public surfaces:** HTTP/UDS attention-summary gains optional `terminal_approvals`
+  entries with `workspace_id`, `profile_id`, and `count`. An omitted field means no
+  pending approvals. Existing fields and operator-only authorization remain intact;
+  OpenAPI and generated TS/Go SDKs co-ship. This is additive under SD-013.
+- **Isolation / persistence:** exact profile IDs and workspace IDs select the badge;
+  User scope maps to the empty persisted workspace ID. No schema, configuration,
+  migration, native tool, extension, hook, or mutation-authority change.
+- **Web / docs / official skill:** one shared refresh owner retains live wakes,
+  disconnected fallback and error backoff. Terminal operating docs and affected
+  catalog QA scenarios describe the additive read model.
+- **Validation:** existing store, transport and OS hook suites own focused checks.
+  The unchanged packaged desktop sixty-minute rate budget and broad gates remain
+  CI-owned; local focused checks do not substitute for that pending evidence.
+
 ## Merge-train skip-link focus repair — 2026-10-29
 
 Owner: merge train main CI run `40942387025`, web shard 2. Web-only focus styling

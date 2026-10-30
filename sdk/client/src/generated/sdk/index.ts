@@ -3253,6 +3253,7 @@ export type {
   TaskTriageStatePayload,
   TaskTriageStateResponse,
   TerminalAnswerInputRequest,
+  TerminalApprovalCountPayload,
   TerminalAttachTicketRequest,
   TerminalAttachTicketResponse,
   TerminalCapabilitiesPayload,

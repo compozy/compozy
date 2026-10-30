@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SessionLineagePayload is a daemon API value.
+type SessionLineagePayload struct {
+	ParentSessionID  string                       `json:"parent_session_id,omitempty"`
+	RootSessionID    string                       `json:"root_session_id,omitempty"`
+	SpawnDepth       int                          `json:"spawn_depth"`
+	SpawnRole        string                       `json:"spawn_role,omitempty"`
+	Kind             LineageKind                  `json:"kind,omitempty"`
+	OriginMessageID  string                       `json:"origin_message_id,omitempty"`
+	OriginAgentName  string                       `json:"origin_agent_name,omitempty"`
+	TTLExpiresAt     *time.Time                   `json:"ttl_expires_at,omitempty"`
+	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
+	NotifyCreator    bool                         `json:"notify_creator"`
+	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
+	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
+}
+
 // SessionMentionKind is a daemon API value.
 type SessionMentionKind string
 
@@ -429,20 +445,4 @@ type SessionUsageChangedPayload struct {
 	Sequence int64  `json:"sequence"`
 	TurnID   string `json:"turn_id,omitempty"`
 	Kind     string `json:"kind"`
-}
-
-// SessionUsagePayload is a daemon API value.
-type SessionUsagePayload struct {
-	WorkTime         *SessionWorkTimePayload `json:"work_time,omitzero"`
-	CacheReadTokens  *int64                  `json:"cache_read_tokens,omitzero"`
-	CacheWriteTokens *int64                  `json:"cache_write_tokens,omitzero"`
-	Context          SessionContextPayload   `json:"context"`
-	InputTokens      *int64                  `json:"input_tokens,omitzero"`
-	OutputTokens     *int64                  `json:"output_tokens,omitzero"`
-	TotalTokens      *int64                  `json:"total_tokens,omitzero"`
-	TotalCost        *float64                `json:"total_cost,omitzero"`
-	CostCurrency     string                  `json:"cost_currency,omitempty"`
-	CostStatus       CostStatus              `json:"cost_status,omitempty"`
-	CostSource       CostSource              `json:"cost_source,omitempty"`
-	TurnCount        int64                   `json:"turn_count"`
 }

@@ -6214,6 +6214,7 @@ export type SessionAttentionSummaryPayload = {
   by_workspace: Array<WorkspaceAttentionSummaryPayload>;
   finished: number;
   needs_you: number;
+  terminal_approvals?: Array<TerminalApprovalCountPayload>;
 };
 
 export type SessionBoardCountsPayload = {
@@ -10195,6 +10196,12 @@ export type TasksResponse = {
 
 export type TerminalAnswerInputRequest = {
   input: string;
+};
+
+export type TerminalApprovalCountPayload = {
+  count: number;
+  profile_id: string;
+  workspace_id: string;
 };
 
 export type TerminalAttachTicketRequest = {

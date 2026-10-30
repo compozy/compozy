@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// WorkspaceProfileHintPayload is a daemon API value.
+type WorkspaceProfileHintPayload struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+	Action  string `json:"action"`
+}
+
 // WorkspaceResponse is a daemon API value.
 type WorkspaceResponse struct {
 	Workspace WorkspacePayload `json:"workspace"`

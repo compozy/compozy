@@ -260,9 +260,10 @@ type SessionAttentionCommit struct {
 
 // SessionAttentionSummary is the exact operator-wide attention aggregate.
 type SessionAttentionSummary struct {
-	NeedsYou    int
-	Finished    int
-	ByWorkspace []WorkspaceAttentionSummary
+	TerminalApprovals []TerminalApprovalCount
+	NeedsYou          int
+	Finished          int
+	ByWorkspace       []WorkspaceAttentionSummary
 }
 
 // WorkspaceAttentionSummary is one exact workspace aggregate.

@@ -233,6 +233,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			facets.ByWorkspace[0].Facets.TerminalApprovals != 110 {
 			t.Fatalf("scoped approval facets=%#v error=%v", facets, err)
 		}
+		// The shared summary must retain the same exact workspace/profile population.
+		if len(facets.TerminalApprovals) != 1 || facets.TerminalApprovals[0] != (store.TerminalApprovalCount{
+			WorkspaceID: workspace, ProfileID: store.DefaultProfileID, Count: 110,
+		}) {
+			t.Fatalf("scoped terminal approval groups = %#v", facets.TerminalApprovals)
+		}
 		if _, err := db.TransitionPendingInteraction(
 			ctx,
 			store.PendingInteractionTransition{
@@ -283,6 +289,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		facets, err = db.SessionCatalogFacets(ctx, query)
 		if err != nil || facets.Facets.TerminalApprovals != 110 || len(facets.ByWorkspace) != 2 {
 			t.Fatalf("all workspace facets=%#v error=%v", facets, err)
+		}
+		if len(facets.TerminalApprovals) != 3 {
+			t.Fatalf(
+				"terminal approval intersections = %#v, want three workspace/profile groups",
+				facets.TerminalApprovals,
+			)
 		}
 		query.WorkspaceID = registerWorkspaceForGlobalTests(t, db, "terminal-empty", t.TempDir())
 		facets, err = db.SessionCatalogFacets(ctx, query)

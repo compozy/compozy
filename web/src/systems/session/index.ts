@@ -56,6 +56,7 @@ export type {
   SessionBadge,
   SessionPendingInteraction,
   SessionAttentionEventPayload,
+  SessionAttentionSummary,
   OperatorNotificationEventPayload,
   SessionCatalogEventPayload,
   SessionCommandPayload,

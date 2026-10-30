@@ -179,6 +179,10 @@ Recording or spill failure does not turn missing bytes into durable history.
 Terminal runtime, input requests, journal rows, artifacts, recordings, and approval decisions are
 scoped to one workspace and profile. A profile switch invalidates cached terminal lists and badges.
 Aggregate reads are operator-only and do not grant cross-profile mutation authority.
+The operator-only `/api/sessions/attention-summary` includes optional `terminal_approvals`
+counts by `workspace_id` and `profile_id`, including child-session permissions. An absent array
+means no pending approvals. The shell combines the matching count with pending terminal input
+requests; catalog list filters do not narrow this badge.
 
 Archiving a profile closes its live terminals and invalidates tickets while retaining its historical
 journal, artifacts, and recordings. Workspace deletion removes all terminal data owned by that

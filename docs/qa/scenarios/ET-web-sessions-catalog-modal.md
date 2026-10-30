@@ -73,12 +73,15 @@ summaries and 52 combined. Native visibility/focus, monotonic duration, current 
 digest are retained in the CI artifact. The release desktop nightly lane (`make test-e2e-desktop-nightly`) owns execution; its pending
 result cannot be replaced by the historical soak.
 
-When the catalog stream is live, terminal badge facets follow the shared stream reconciliation
-clock without an independent polling timer for healthy reads. A failed facets read retries at the
-existing thirty-second error interval even while the stream is live, so a quiet workspace can
-recover its badge. A disconnected stream retains visible-window fallback polling; hiding the
-document disables that fallback. Verify badge freshness across live, error recovery, disconnected
-and reconnect transitions without multiplying healthy facet requests.
+Release 0.4.6: terminal approval badges consume workspace/profile intersections from the
+shared attention summary, including approvals on child sessions. They do not mount another
+facets query; the session list retains its own filtered facets. Verify two profiles in one
+workspace, another workspace, and User scope without leaking counts between them. Live catalog
+wakes refresh the shared summary; failed reads retry after thirty seconds even in a quiet live
+workspace. Disconnected visible windows retain fallback polling; hidden documents do not poll.
+The sixty-minute packaged desktop scenario above remains the rate-budget authority. Its receipt
+now includes request query parameters to distinguish populations when a budget fails.
+
 
 qa-impact: 2026-10-06 (BUG-20261006-derived-child-nested-under-source) — the 2026-09-28 walk's "Children nest under their source" no
 longer holds for Continue/Fork: those children are top-level rows in the catalog. Flag only.

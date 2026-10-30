@@ -56,9 +56,17 @@ type SessionInteractionsResponse struct {
 
 // SessionAttentionSummaryPayload carries exact operator-wide attention counts.
 type SessionAttentionSummaryPayload struct {
-	NeedsYou    int                                `json:"needs_you"`
-	Finished    int                                `json:"finished"`
-	ByWorkspace []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
+	TerminalApprovals []TerminalApprovalCountPayload     `json:"terminal_approvals,omitempty"`
+	NeedsYou          int                                `json:"needs_you"`
+	Finished          int                                `json:"finished"`
+	ByWorkspace       []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
+}
+
+// TerminalApprovalCountPayload is an exact count for one workspace/profile pair, including child sessions.
+type TerminalApprovalCountPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+	Count       int    `json:"count"`
 }
 
 // WorkspaceAttentionSummaryPayload carries exact counts for one workspace.
