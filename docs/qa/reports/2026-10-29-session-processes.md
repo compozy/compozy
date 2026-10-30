@@ -311,3 +311,25 @@ context. The Windows cross-build passed. React Doctor scanned 251 changed files 
 issues and a score of 93. Root Turbo lint/typecheck/build passed all seven tasks after installing
 the merged lockfile dependencies. All three integrated process E2Es passed against a fresh daemon
 binary in 39.3 seconds: stop, archive and delete preserved the selected process policy.
+
+## Authorization, confirmation and restart follow-up
+
+The integrated drawer fixture now supplies the process-choice contract; all ten existing drawer
+checks pass without changing their assertions. Process termination invalidates every profile's
+session detail. A pending choice retains its target, and delete confirmation rereads details and
+blocks failed reads. The combined owning Web suites passed 87 tests, followed by 54 lifecycle
+tests with the delete-read regression. Root Turbo lint/typecheck passed; React Doctor reports
+100/100 with no issues.
+
+Unauthorized process identities now return one neutral outcome without inspecting the PID.
+HTTP archive/delete register verified-stop cleanup after caller cancellation (race: 2.081 s).
+AfterStop freezes target identities before waiting, so resumed work cannot enter the old cleanup
+set; the full process race suite passed in 4.687 s, including a real newly launched process.
+
+CI's subagent E2E failed with a 503 after its explicit isolated-daemon restart. The restart receipt
+can become ready before admission opens. Ready operation reads now check responder admission;
+the owning restart race regression passed in 3.906 s. All ten isolated process/subagent E2Es
+passed against the rebuilt daemon in 2.5 minutes, including the previously failing same-turn
+delegation scenario. Full scoped Linux lint for core, HTTP, sessionprocess and daemon passed
+with zero issues. The Windows cross-build passed, and the root Turbo Web build passed all five
+tasks. Current-head remote CI and review remain pending until this batch is pushed.

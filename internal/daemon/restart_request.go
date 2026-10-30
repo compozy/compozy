@@ -235,6 +235,15 @@ func failRestartOperation(
 }
 
 // GetRestartOperation reads one persisted restart operation by id.
-func (d *Daemon) GetRestartOperation(_ context.Context, operationID string) (RestartOperation, error) {
-	return newRestartStore(d.homePaths, d.now).Get(operationID)
+func (d *Daemon) GetRestartOperation(ctx context.Context, operationID string) (RestartOperation, error) {
+	operation, err := newRestartStore(d.homePaths, d.now).Get(operationID)
+	if err != nil {
+		return RestartOperation{}, err
+	}
+	if operation.Status == RestartStatusReady {
+		if err := d.admission.Check(ctx); err != nil {
+			return RestartOperation{}, err
+		}
+	}
+	return operation, nil
 }

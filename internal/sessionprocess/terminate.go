@@ -73,17 +73,7 @@ func (s *Service) terminateTargets(
 }
 
 func unavailableTarget(id Identity) Result {
-	result := Result{Identity: id}
-	observed, err := procutil.InspectProcess(id.PID)
-	switch {
-	case errors.Is(err, procutil.ErrProcessIdentityGone):
-		result.Outcome = "already_exited"
-	case err == nil && !observed.StartedAt.Equal(id.StartedAt):
-		result.Outcome = "identity_mismatch"
-	default:
-		result.Outcome, result.Error = "unproven", "process ownership could not be verified"
-	}
-	return result
+	return Result{Identity: id, Outcome: "unproven", Error: "process ownership could not be verified"}
 }
 
 func (s *Service) terminateProcess(ctx context.Context, p Process) Result {
@@ -122,6 +112,15 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 	if s.closing {
 		return
 	}
+	// Freeze identities before waiting; a resumed session must not expand this stop's targets.
+	s.mu.RLock()
+	var targets []Identity
+	for _, p := range s.snapshot.Processes {
+		if p.Owner.SessionID == sessionID {
+			targets = append(targets, identity(p.ScannedProcess))
+		}
+	}
+	s.mu.RUnlock()
 	s.work.Go(func() {
 		ctx, cancel := context.WithTimeout(s.runCtx, max(2*time.Minute, s.stopBudget))
 		err := await(ctx)
@@ -132,7 +131,13 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 		}
 		ctx, cancel = context.WithTimeout(s.runCtx, 2*time.Minute)
 		defer cancel()
-		results, err := s.Terminate(ctx, sessionID, nil, true, func(o Owner) bool { return o.SessionID == sessionID })
+		results, err := s.Terminate(
+			ctx,
+			sessionID,
+			targets,
+			false,
+			func(o Owner) bool { return o.SessionID == sessionID },
+		)
 		if err != nil {
 			s.logger.Error("Terminate stopped session processes", "session_id", sessionID, "error", err)
 			return

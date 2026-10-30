@@ -68,6 +68,9 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		info, err = archiver.Unarchive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	}
 	if err != nil {
+		if archived {
+			h.continueProcessCleanup(sessionID, policy, err)
+		}
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}

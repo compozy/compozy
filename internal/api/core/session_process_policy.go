@@ -74,7 +74,8 @@ func (h *BaseHandlers) finishProcessPolicy(
 
 // A caller deadline does not cancel the accepted shared stop operation.
 func (h *BaseHandlers) continueProcessCleanup(id string, policy contract.SessionProcessPolicy, err error) {
-	if policy != contract.SessionProcessesTerminate || !errors.Is(err, context.DeadlineExceeded) {
+	if policy != contract.SessionProcessesTerminate ||
+		(!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled)) {
 		return
 	}
 	if manager, ok := h.Sessions.(SessionStopManager); ok {

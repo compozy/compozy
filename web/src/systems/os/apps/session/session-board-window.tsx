@@ -19,7 +19,7 @@ import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
 import { SessionBoardDrawer } from "./session-board-drawer";
 
 const SessionProcessChoiceDialog = lazy(() =>
-  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionProcessChoiceDialog,
   }))
 );

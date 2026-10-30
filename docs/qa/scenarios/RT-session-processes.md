@@ -80,3 +80,12 @@ cooperative/forced/kill budget plus a bounded settlement allowance; termination 
 bounded context. A failed await must never signal descendants. In a mixed bulk archive, the
 readable process-bearing session still offers the keep/terminate dialog and an unreadable target
 remains a failed result after the answer.
+
+### Cleanup and confirmation races
+
+- A process choice remains bound to its original session while open.
+- Delete confirmation fails closed when current details cannot be read.
+- A stop's deferred cleanup only targets identities captured before its wait; new processes
+  from a resumed session survive that cleanup.
+- Archive/delete with terminate retain verified-stop cleanup after caller disconnect.
+- Unauthorized process identities return an ownership-neutral result.

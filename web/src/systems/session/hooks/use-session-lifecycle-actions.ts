@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -20,7 +20,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
-import { sessionScopedDetailOptions } from "../lib/query-options";
+import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
 import { useSessionReparent } from "./use-session-reparent";
 
 export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
@@ -161,27 +161,6 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
-function useCurrentDeleteSessions(
-  sessions: readonly SessionPayload[] | undefined,
-  openedAt: number
-) {
-  // Catalog rows may lag the detail stream; keep an open confirmation current.
-  const deleteReads = useQueries({
-    queries: (sessions ?? []).map(session => ({
-      ...sessionScopedDetailOptions(
-        session.id,
-        { profile: session.profile_name },
-        { liveTail: false }
-      ),
-      refetchOnMount: "always" as const,
-    })),
-  });
-  return sessions?.map((session, index) => {
-    const read = deleteReads[index];
-    return read && read.dataUpdatedAt >= openedAt ? (read.data ?? session) : session;
-  });
-}
-
 /**
  * Owns the mutation and confirmation state behind session-list lifecycle menus.
  * Lists stay presentational and their host keeps one shared delete confirmation.
@@ -305,6 +284,7 @@ export function useSessionLifecycleActions(
     if (
       sessions.length === 0 ||
       checkingProcesses.current ||
+      processChoice !== null ||
       pendingAction !== null ||
       batchRunning.current
     )
@@ -344,7 +324,7 @@ export function useSessionLifecycleActions(
   };
 
   /** Keep single-row deletion behavior while routing selection batches through result tracking. */
-  const confirmDelete = (processes?: SessionProcessPolicy) => {
+  const performDelete = (processes?: SessionProcessPolicy) => {
     if (!deleteSession || remove.isPending || batchRunning.current) return;
     if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
@@ -364,6 +344,18 @@ export function useSessionLifecycleActions(
     );
   };
 
+  const confirmDelete = (processes?: SessionProcessPolicy) => {
+    if (!deleteTarget) return;
+    void readCurrentSessions(queryClient, deleteTarget.sessions)
+      .then(current => {
+        if (current.errors.size) throw current.errors.values().next().value;
+        // A fresh nonzero count must be answered in the now-updated dialog.
+        if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0)
+          return;
+        performDelete(processes);
+      })
+      .catch(error => reportActionError("delete", error));
+  };
   /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;

@@ -4487,6 +4487,38 @@ func TestSessionProcessHandlers(t *testing.T) {
 			t.Fatalf("status=%d deleted=%t body=%s", response.Code, deleted, response.Body.String())
 		}
 	})
+
+	// Invariant: accepted stop cleanup survives caller cancellation during archive/delete.
+	// Owning layer: HTTP lifecycle handlers; canonical suite: TestSessionProcessHandlers.
+	for _, verb := range []string{"archive", "delete"} {
+		t.Run("Should retain cleanup after disconnected "+verb, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			processes := &handlerProcessService{}
+			manager := &disconnectedProcessStopManager{cancel: cancel}
+			manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID,
+					State: session.StateActive}, nil
+			}
+			manager.DeleteFn = func(ctx context.Context, _ string) error { cancel(); return ctx.Err() }
+			manager.ArchiveWithStopFn = func(ctx context.Context, _, _ string) (*session.Info, error) { cancel(); return nil, ctx.Err() }
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			method, path := http.MethodDelete, "/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate"
+			if verb == "archive" {
+				method, path = http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/archive?stop=true&processes=terminate"
+			}
+			request := httptest.NewRequestWithContext(ctx, method, path, http.NoBody)
+			response := httptest.NewRecorder()
+			newTestRouter(t, handlers).ServeHTTP(response, request)
+			if response.Code < 400 || processes.afterStop == nil || processes.calls != 0 {
+				t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+			}
+			if err := processes.afterStop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 	t.Run("Should finish cleanup after deletion cancels the caller context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()

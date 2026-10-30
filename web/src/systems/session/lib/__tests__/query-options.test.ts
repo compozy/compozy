@@ -116,7 +116,13 @@ describe("sessionProcessesOptions", () => {
       items: [],
       scanned_at: "2026-01-01T00:00:00Z",
     });
+    const details = [sessionKeys.byId("sess_1", "default"), sessionKeys.byId("sess_1", "design")];
+    for (const key of details) client.setQueryData(key, {});
+    const unrelated = sessionKeys.byId("sess_other", "default");
+    client.setQueryData(unrelated, {});
     await invalidateSessionProcessesQueries(client, "ws_alpha", "sess_1");
+    for (const key of details) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
     expect(client.getQueryState(first.queryKey)?.isInvalidated).toBe(true);
     expect(client.getQueryState(second.queryKey)?.isInvalidated).toBe(true);
     client.clear();

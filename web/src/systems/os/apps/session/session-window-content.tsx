@@ -44,7 +44,7 @@ const SessionClearDialog = lazy(() =>
   import("./session-window-dialogs").then(module => ({ default: module.SessionClearDialog }))
 );
 const SessionProcessChoiceDialog = lazy(() =>
-  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+  import("@/systems/session").then(module => ({
     default: module.SessionProcessChoiceDialog,
   }))
 );

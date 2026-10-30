@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
+	"os/exec"
+	"runtime"
 	"slices"
 	"testing"
 	"time"
@@ -368,4 +371,97 @@ func (s *cleanupDeadlineSource) Owners(ctx context.Context) ([]Owner, error) {
 	}
 	s.seen <- ctx
 	return nil, errors.New("stop at the inspection I/O boundary")
+}
+
+// Invariant: targets outside the authorized set reveal no host process state.
+// Owning layer/canonical suite: sessionprocess termination authorization.
+func TestUnauthorizedTerminationTargets(t *testing.T) {
+	t.Parallel()
+	service := &Service{}
+	targets := []Identity{
+		{PID: os.Getpid(), StartedAt: time.Unix(1, 0)},
+		{PID: -1, StartedAt: time.Unix(1, 0)},
+	}
+	results, err := service.terminateTargets(t.Context(), targets, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != len(targets) {
+		t.Fatalf("results=%v", results)
+	}
+	for i, result := range results {
+		if result.Identity != targets[i] || result.Outcome != "unproven" ||
+			result.Error != "process ownership could not be verified" {
+			t.Fatalf("unauthorized target revealed state: %+v", result)
+		}
+	}
+}
+
+// Invariant: cleanup registered before a resume cannot signal the new run's processes.
+// Owning layer/canonical suite: sessionprocess orchestration with real OS identity checks.
+func TestAfterStopPreservesResumedProcesses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process inspection unsupported")
+	}
+	leader, err := procutil.InspectProcess(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := &resumedProcessSource{owner: Owner{SessionID: "sess-resumed", Live: true,
+		LeaderPID: leader.PID, LeaderStartedAt: leader.StartedAt}}
+	service := &Service{runCtx: t.Context(), source: source, store: discardObservations{},
+		observations: make(map[Identity]Observation), logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	release := make(chan struct{})
+	service.AfterStop(source.owner.SessionID, func(ctx context.Context) error {
+		select {
+		case <-release:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	t.Cleanup(func() { service.work.Wait() })
+	defer close(release)
+	child := exec.CommandContext(t.Context(), "/bin/sleep", "60")
+	procutil.ConfigureCommandSession(child)
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := child.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Error(err)
+		}
+		_ = child.Wait()
+	}()
+	snapshot, err := service.Refresh(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(snapshot.Processes, func(p Process) bool { return p.PID == child.Process.Pid }) {
+		t.Fatal("new process was not attributed to the resumed session")
+	}
+	release <- struct{}{}
+	service.work.Wait()
+	if _, err := procutil.InspectProcess(child.Process.Pid); err != nil {
+		t.Fatalf("old cleanup ended resumed work: %v", err)
+	}
+}
+
+type resumedProcessSource struct {
+	attributionSource
+	owner Owner
+}
+
+func (s *resumedProcessSource) Owners(context.Context) ([]Owner, error) { return []Owner{s.owner}, nil }
+func (s *resumedProcessSource) Owner(context.Context, string) (Owner, bool, error) {
+	return s.owner, true, nil
+}
+
+type discardObservations struct{}
+
+func (discardObservations) LoadProcessObservations(context.Context) ([]Observation, error) {
+	return nil, nil
+}
+func (discardObservations) SaveProcessObservations(context.Context, []Observation, []Identity) error {
+	return nil
 }

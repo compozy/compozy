@@ -4822,3 +4822,13 @@ retains explicit terminate cleanup across HTTP and native legacy/waited paths; t
 uses the configured session termination budget with a bounded settlement allowance and a separate
 cleanup deadline. No new wire, storage, config key, extension/hook or official skill contract.
 Existing profile/workspace ownership checks remain unchanged. QA: RT-session-processes.
+
+### Session process review and restart readiness follow-up
+
+HTTP archive/delete retain requested process cleanup across disconnect. Native and HTTP deferred
+cleanup share a captured identity set, excluding resumed work. Unauthorized PID outcomes reveal
+no host state. Web confirmation and detail invalidation preserve profile ownership. No migration,
+config, hook or extension SDK shape changes. The existing official skill contract remains valid.
+Restart operation readiness additionally requires open admission on the responding daemon; this
+prevents a ready receipt from admitting work during boot/drain. QA evidence is in the session
+process report and scenarios.

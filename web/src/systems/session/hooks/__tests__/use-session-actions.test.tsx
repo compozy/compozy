@@ -1056,6 +1056,12 @@ describe("session actions", () => {
       })
     );
 
+    const readsBeforeSecondAction = vi.mocked(fetchSessionById).mock.calls.length;
+    await act(async () => {
+      result.current.actions.onArchive({ ...running, id: "sess_other" });
+    });
+    expect(fetchSessionById).toHaveBeenCalledTimes(readsBeforeSecondAction);
+    expect(archiveSession).not.toHaveBeenCalled();
     act(() => result.current.processDialog.onChoose("terminate"));
     expect(result.current.processDialog.open).toBe(false);
     await waitFor(() =>
@@ -1123,6 +1129,23 @@ describe("session actions", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith("Archive is unavailable");
     });
+  });
+
+  // Invariant: an unreadable detail cannot authorize deletion from a stale catalog row.
+  // Owning layer: lifecycle actions; canonical suite: this shared action-hook suite.
+  it("Should keep deletion blocked when the current detail cannot be read", async () => {
+    vi.mocked(fetchSessionById).mockRejectedValue(new Error("Detail unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(createdSession));
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Detail unavailable"));
+    expect(deleteSession).not.toHaveBeenCalled();
+    expect(result.current.deleteDialog.open).toBe(true);
+    unmount();
+    client.clear();
   });
 
   it("keeps the delete confirmation open until deletion succeeds", async () => {
