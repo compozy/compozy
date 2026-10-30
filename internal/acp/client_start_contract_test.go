@@ -896,7 +896,8 @@ func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 	t.Run("Should retain acceptance when startup finalization fails", func(t *testing.T) {
 		t.Parallel()
 		cause := errors.New("startup assembly failed")
-		driver := New()
+		launcher := &recordingLauncher{delegate: NewLocalLauncher(testDiscardLogger(), time.Second)}
+		driver := New(WithLauncher(launcher))
 		proc, err := driver.Start(t.Context(), StartOpts{
 			AgentName:       "helper",
 			Command:         helperCommand(t),
@@ -907,6 +908,25 @@ func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 		if proc != nil {
 			t.Fatal("failed startup retained a process")
 		}
+		launcher.mu.Lock()
+		handle := launcher.launched
+		launcher.mu.Unlock()
+		if handle == nil {
+			t.Fatal("helper subprocess was not launched")
+		}
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := handle.Stop(ctx); err != nil {
+				t.Errorf("helper cleanup: %v", err)
+			}
+		})
+		select {
+		case <-handle.Done():
+		default:
+			t.Fatal("accepted-start failure returned before its helper subprocess exited")
+		}
+
 		id, accepted := AcceptedSessionID(err)
 		if !accepted || id != "sess-new" || !errors.Is(err, cause) {
 			t.Fatalf("finalizer failure lost acceptance or cause: %v (%s)", err, id)

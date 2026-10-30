@@ -48,6 +48,18 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a bind whose response was never acknowledged by the proxy", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+			hostedTestBind(t, service, "sess-undelivered", hostedTestPeer(executable))
+			if err := service.WaitForBind(t.Context(), "sess-undelivered"); !errors.Is(err, ErrHostedBindTimeout) {
+				t.Fatalf("unacknowledged bind readiness = %v, want timeout", err)
+			}
+		})
+	})
+
 	t.Run("Should wait until the current bind deadline expires", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -105,7 +117,16 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 			default:
 			}
 			close(release)
-			if _, err := service.Bind(t.Context(), request, hostedTestPeer(executable)); err != nil {
+			second, err := service.Bind(t.Context(), request, hostedTestPeer(executable))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.StreamProjection(
+				t.Context(),
+				second.BindID,
+				hostedTestPeer(executable),
+				second.Digest,
+			); err != nil {
 				t.Fatal(err)
 			}
 			if err := <-ready; err != nil {
@@ -127,7 +148,10 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 				}
 				service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 				peer := hostedTestPeer(executable)
-				hostedTestBind(t, service, "sess-projection-deadline", peer)
+				bound := hostedTestBind(t, service, "sess-projection-deadline", peer)
+				if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err != nil {
+					t.Fatal(err)
+				}
 				// Negotiation may return after the deadline even when projection was on time.
 				now = now.Add(time.Hour)
 				err := service.WaitForBind(t.Context(), "sess-projection-deadline")
@@ -163,6 +187,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Bind(first proxy) error = %v", err)
 		}
+		if _, err := service.StreamProjection(t.Context(), first.BindID, peer, first.Digest); err != nil {
+			t.Fatal(err)
+		}
 		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
 			t.Fatalf("WaitForBind() = %v", err)
 		}
@@ -192,6 +219,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		reconnected, err := service.Bind(t.Context(), request, peer)
 		if err != nil {
 			t.Fatalf("Bind(restarted proxy) error = %v", err)
+		}
+		if _, err := service.StreamProjection(t.Context(), reconnected.BindID, peer, reconnected.Digest); err != nil {
+			t.Fatal(err)
 		}
 		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
 			t.Fatalf("WaitForBind(reconnected) = %v", err)

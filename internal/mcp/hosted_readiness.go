@@ -48,3 +48,17 @@ func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error
 		}
 	}
 }
+
+// acknowledgeHostedBind uses the proxy's authenticated stream request as receipt
+// confirmation: it can only name the bind after receiving its initial projection.
+func (s *HostedService) acknowledgeHostedBind(record *hostedBindRecord) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	launch := s.launches[record.sessionID]
+	if launch == nil || launch.bindID != record.bindID || !s.ownsBindRecord(record) ||
+		!s.now().UTC().Before(launch.expiresAt) {
+		return
+	}
+	launch.readyBindID = record.bindID
+	launch.readiness.notify(nil)
+}

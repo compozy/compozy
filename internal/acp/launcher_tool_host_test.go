@@ -1130,6 +1130,7 @@ func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 }
 
 type recordingLauncher struct {
+	launched Handle
 	delegate Launcher
 	handle   Handle
 	err      error
@@ -1197,7 +1198,11 @@ func (l *recordingLauncher) Launch(
 	if l.err != nil {
 		return nil, l.err
 	}
-	return l.delegate.Launch(ctx, spec)
+	handle, err := l.delegate.Launch(ctx, spec)
+	l.mu.Lock()
+	l.launched = handle
+	l.mu.Unlock()
+	return handle, err
 }
 
 func (l *recordingLauncher) lastSpec() (LaunchSpec, bool) {

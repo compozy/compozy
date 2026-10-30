@@ -52,13 +52,6 @@ func (s *HostedService) Bind(
 		s.ReleaseBind(bindID)
 		return HostedBindResponse{}, err
 	}
-	s.mu.Lock()
-	if launch := s.launches[sessionID]; launch != nil && launch.bindID == bindID &&
-		s.now().UTC().Before(launch.expiresAt) {
-		launch.readyBindID = bindID
-		launch.readiness.notify(nil)
-	}
-	s.mu.Unlock()
 	return HostedBindResponse{
 		BindID: bindID,
 		Scope:  record.scope(),
