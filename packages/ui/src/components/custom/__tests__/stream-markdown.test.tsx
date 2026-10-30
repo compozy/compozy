@@ -60,6 +60,40 @@ describe("MarkdownMermaid", () => {
     expect(screen.getByRole("img", { name: "Mermaid diagram" })).toBeInTheDocument();
   });
 
+  // Invariant: modified wheel/pinch and plain keys zoom the diagram within 25%–400% and claim
+  // the event from page zoom; plain wheel and modified keys keep their browser defaults.
+  // Browser geometry (cursor anchoring) is owned by the MermaidSizing story.
+  it("Should zoom the fullscreen diagram with modified wheel and keyboard shortcuts", async () => {
+    renderMermaid.mockResolvedValue("data:image/svg+xml,test");
+    render(<MarkdownMermaid code={code} streaming={false} />);
+    await screen.findByRole("img", { name: "Mermaid diagram" });
+    fireEvent.click(screen.getByRole("button", { name: "Fullscreen" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    const viewer = dialog.getByRole("region", { name: "Diagram viewer" });
+    const zoom = dialog.getByLabelText("Zoom");
+
+    expect(fireEvent.wheel(viewer, { deltaY: -100 })).toBe(true);
+    expect(zoom).toHaveTextContent("100%");
+    expect(fireEvent.wheel(viewer, { deltaY: -100, ctrlKey: true })).toBe(false);
+    expect(zoom).toHaveTextContent("128%");
+    expect(fireEvent.wheel(viewer, { deltaY: 200, metaKey: true })).toBe(false);
+    expect(zoom).toHaveTextContent("100%");
+    for (let step = 0; step < 200; step++) fireEvent.wheel(viewer, { deltaY: 5, ctrlKey: true });
+    expect(zoom).toHaveTextContent("25%");
+    expect(dialog.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+
+    fireEvent.keyDown(viewer, { key: "0" });
+    expect(zoom).toHaveTextContent("100%");
+    fireEvent.keyDown(viewer, { key: "=" });
+    fireEvent.keyDown(viewer, { key: "+" });
+    expect(zoom).toHaveTextContent("150%");
+    fireEvent.keyDown(viewer, { key: "-" });
+    expect(zoom).toHaveTextContent("125%");
+    expect(fireEvent.keyDown(viewer, { key: "0", metaKey: true })).toBe(true);
+    expect(zoom).toHaveTextContent("125%");
+    expect(fireEvent.keyDown(viewer, { key: " " })).toBe(false);
+  });
+
   it("Should restore readable source when the diagram image cannot load", async () => {
     renderMermaid.mockResolvedValue("data:image/svg+xml,test");
     const { container } = render(<MarkdownMermaid code={code} streaming={false} />);

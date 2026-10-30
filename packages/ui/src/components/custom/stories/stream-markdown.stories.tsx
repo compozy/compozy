@@ -142,6 +142,37 @@ export const MermaidSizing: Story = {
     await userEvent.pointer({ target: viewer, coords: { clientX: 180, clientY: 200 } });
     await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(dragged.left);
     await expect(expandedImage.getBoundingClientRect().top).toBeCloseTo(dragged.top);
+    // Ctrl/Cmd+wheel and pinch zoom keep the diagram point under the cursor fixed and
+    // cancel the event before browser/Electron page zoom; plain wheel stays untouched.
+    const before = expandedImage.getBoundingClientRect();
+    const anchor = { x: before.left + before.width / 4, y: before.top + before.height / 4 };
+    const wheel = (init: WheelEventInit) =>
+      viewer.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          clientX: anchor.x,
+          clientY: anchor.y,
+          ...init,
+        })
+      );
+    await expect(wheel({ deltaY: -100 })).toBe(true);
+    await expect(wheel({ deltaY: -100, ctrlKey: true })).toBe(false);
+    await expect(wheel({ deltaY: -8, ctrlKey: true })).toBe(false);
+    await waitFor(() => expect(overlay.getByLabelText("Zoom")).toHaveTextContent("139%"));
+    const zoomed = expandedImage.getBoundingClientRect();
+    await expect(zoomed.width).toBeCloseTo(before.width * 1.39, -1);
+    await expect(zoomed.left + zoomed.width / 4).toBeCloseTo(anchor.x, 0);
+    await expect(zoomed.top + zoomed.height / 4).toBeCloseTo(anchor.y, 0);
+    await userEvent.keyboard("0");
+    await expect(expandedImage.getBoundingClientRect().left).toBeCloseTo(initial.left);
+    await userEvent.pointer([
+      { target: viewer, keys: "[MouseMiddle>]", coords: { clientX: 100, clientY: 150 } },
+      { target: viewer, coords: { clientX: 130, clientY: 160 } },
+      { target: viewer, keys: "[/MouseMiddle]" },
+    ]);
+    await expect(expandedImage.getBoundingClientRect().left - initial.left).toBeCloseTo(30);
+    await expect(expandedImage.getBoundingClientRect().top - initial.top).toBeCloseTo(10);
     await userEvent.keyboard("{Escape}");
   },
 };
