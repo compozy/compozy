@@ -23,6 +23,7 @@ type session struct {
 	titlePinned        bool
 	origin             Actor
 	environmentRelease func()
+	worktreeRelease    func()
 
 	mu                  sync.RWMutex
 	info                Info

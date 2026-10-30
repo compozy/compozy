@@ -24,22 +24,35 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if ctx == nil {
 		return nil, errors.New("terminal: open context is required")
 	}
-	cwd, workspaceID, err := m.resolveOpenWorkspace(
+	cwd, workspaceID, releaseWorktree, err := m.resolveOpenWorkspace(
 		ctx, request.WS, strings.TrimSpace(request.Worktree), request.Cwd, request.Actor.ProfileID, &request.Actor,
 	)
 	if err != nil {
 		return nil, err
 	}
+	opened := false
+	defer func() {
+		if !opened && releaseWorktree != nil {
+			releaseWorktree()
+		}
+	}()
 	request.WS, request.Cwd = workspaceID, cwd
 	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer producer.Release()
-	return m.open(ctx, request, cwd, workspaceID)
+	handle, err := m.open(ctx, request, cwd, workspaceID, releaseWorktree)
+	opened = err == nil
+	return handle, err
 }
 
-func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceID string) (Handle, error) {
+func (m *Service) open(
+	ctx context.Context,
+	request OpenRequest,
+	cwd, workspaceID string,
+	releaseWorktree func(),
+) (Handle, error) {
 	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
 		return nil, err
 	}
@@ -94,7 +107,7 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 	titlePinned := strings.TrimSpace(request.Title) != ""
 	item, key, err := m.launchTerminal(ctx, &terminalLaunch{
 		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: titlePinned,
-		startLabel: fmt.Sprintf("shell %q", shell),
+		startLabel: fmt.Sprintf("shell %q", shell), worktreeRelease: releaseWorktree,
 	})
 	if err != nil {
 		return nil, err
@@ -263,9 +276,12 @@ func limitError(current, maximum int, ids []string) error {
 }
 
 func (m *Service) resolveActorWorkspace(ctx context.Context, ws, cwd string, actor Actor) (string, string, error) {
-	return m.resolveOpenWorkspace(ctx, ws, "", cwd, actor.ProfileID, &actor)
+	cwd, workspaceID, _, err := m.resolveOpenWorkspace(ctx, ws, "", cwd, actor.ProfileID, &actor)
+	return cwd, workspaceID, err
 }
 
+// resolveOpenWorkspace returns the launch cwd, the canonical workspace ID, and the
+// usage release of a requested worktree (nil without one).
 func (m *Service) resolveOpenWorkspace(
 	ctx context.Context,
 	workspaceID string,
@@ -274,16 +290,16 @@ func (m *Service) resolveOpenWorkspace(
 	profileID string,
 	actor *Actor,
 	additionalRoots ...string,
-) (string, string, error) {
+) (string, string, func(), error) {
 	if strings.TrimSpace(workspaceID) == "" {
-		return "", "", &Error{
+		return "", "", nil, &Error{
 			Code: ErrorCodeRequiresWorkspace, Message: "terminal operations require a workspace",
 			Err: ErrRequiresWorkspace,
 		}
 	}
 	if m.workspaces == nil {
 		if worktreeRef != "" {
-			return "", "", errors.Join(
+			return "", "", nil, errors.Join(
 				ErrUnsupported,
 				errors.New("terminal: worktree terminals require a workspace resolver"),
 			)
@@ -292,11 +308,11 @@ func (m *Service) resolveOpenWorkspace(
 			cwd = "."
 		}
 		resolved, err := filepath.Abs(cwd)
-		return resolved, workspaceID, err
+		return resolved, workspaceID, nil, err
 	}
 	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
 	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
-		return "", "", &Error{
+		return "", "", nil, &Error{
 			Code: ErrorCodeInvalidCwd,
 			Message: "this project's folder no longer exists; restore the folder or update the project location " +
 				"before opening a terminal",
@@ -304,32 +320,46 @@ func (m *Service) resolveOpenWorkspace(
 		}
 	}
 	if err != nil {
-		return "", "", fmt.Errorf(
-			"terminal: resolve workspace %q: %w",
-			workspaceID,
-			err,
-		)
+		return "", "", nil, fmt.Errorf("terminal: resolve workspace %q: %w", workspaceID, err)
 	}
 	canonicalID := strings.TrimSpace(resolved.ID)
 	if canonicalID == "" && resolved.Scope != workspacepkg.ScopeUser {
-		return "", "", errors.New(
-			"terminal: resolved workspace registration is required",
-		)
+		return "", "", nil, errors.New("terminal: resolved workspace registration is required")
 	}
 	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
+	var releaseWorktree func()
 	if worktreeRef != "" {
-		if err := m.applyWorktreeRoot(ctx, &resolved, canonicalID, profileID, worktreeRef); err != nil {
-			return "", "", err
+		releaseWorktree, err = m.applyWorktreeRoot(ctx, &resolved, canonicalID, profileID, worktreeRef)
+		if err != nil {
+			return "", "", nil, err
 		}
 	}
+	validCwd, err := m.resolveLaunchCwd(ctx, &resolved, canonicalID, worktreeRef, cwd, actor)
+	if err != nil {
+		if releaseWorktree != nil {
+			releaseWorktree()
+		}
+		return "", "", nil, err
+	}
+	return validCwd, canonicalID, releaseWorktree, nil
+}
+
+func (m *Service) resolveLaunchCwd(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	workspaceID string,
+	worktreeRef string,
+	cwd string,
+	actor *Actor,
+) (string, error) {
 	if actor != nil && actor.Kind == ActorKindAgent && m.executionRoot != nil {
-		root, resolveErr := m.executionRoot(ctx, canonicalID, *actor)
-		if resolveErr != nil {
-			return "", "", resolveErr
+		root, err := m.executionRoot(ctx, workspaceID, *actor)
+		if err != nil {
+			return "", err
 		}
 		if strings.TrimSpace(root) != "" {
 			if worktreeRef != "" && boundRootConflict(root, resolved.RootDir) {
-				return "", "", &Error{
+				return "", &Error{
 					Code:    ErrorCodeInvalidCwd,
 					Message: "worktree " + worktreeRef + " is outside this session's bound worktree",
 					Err:     ErrInvalidCwd,
@@ -339,11 +369,7 @@ func (m *Service) resolveOpenWorkspace(
 			resolved.AdditionalDirs = nil
 		}
 	}
-	validCwd, err := resolveWorkspaceCwd(&resolved, cwd)
-	if err != nil {
-		return "", "", err
-	}
-	return validCwd, canonicalID, nil
+	return resolveWorkspaceCwd(resolved, cwd)
 }
 
 func (m *Service) resolveWorkspace(

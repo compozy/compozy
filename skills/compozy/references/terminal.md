@@ -70,7 +70,9 @@ worktree of the current workspace owned by the acting profile; operators use
 reference, so never pass a worktree path as `cwd` instead. `cwd` then resolves inside the worktree.
 Refusals are structured: `worktree_not_found` (another workspace or profile, or unknown),
 `worktree_not_ready` (pending, failed, or removing), and `worktree_missing` (removed or folder
-gone). Read `compozy__worktree_list` for ready worktree IDs rather than guessing them.
+gone). A running worktree terminal holds the worktree in use, so its removal fails with
+`worktree_operation_in_progress` until the terminal exits. Read `compozy__worktree_list` for ready
+worktree IDs rather than guessing them.
 
 ## Native Toolset
 

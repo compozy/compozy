@@ -16,6 +16,8 @@ type terminalLaunch struct {
 	nonce       string
 	titlePinned bool
 	startLabel  string
+	// worktreeRelease ends the worktree usage lease when the terminal exits.
+	worktreeRelease func()
 }
 
 // launchTerminal starts an owned terminal with workspace settings and actor-bound process identity.
@@ -60,6 +62,7 @@ func (m *Service) launchTerminal(
 	}
 	item.processRecord = processRecord
 	item.environmentRelease = release
+	item.worktreeRelease = launch.worktreeRelease
 	key := terminalKey{
 		workspaceID: launch.info.WS,
 		profileID:   launch.info.ProfileID,

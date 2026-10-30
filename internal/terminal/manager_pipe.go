@@ -31,7 +31,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		return nil, errors.New("terminal: pipe command is required")
 	}
 	request.Title = SanitizeTitle(request.Title)
-	cwd, workspaceID, err := m.resolveOpenWorkspace(
+	cwd, workspaceID, _, err := m.resolveOpenWorkspace(
 		ctx, request.WS, "", request.Cwd, request.Actor.ProfileID, &request.Actor, request.AllowedRoots...,
 	)
 	if err != nil {

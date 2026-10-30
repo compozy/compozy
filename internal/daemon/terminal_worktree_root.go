@@ -10,34 +10,52 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
+type terminalWorktreeUsage interface {
+	AcquireUsage(context.Context, string, string) (*worktree.Worktree, func(), error)
+}
+
 func terminalWorktreeRootResolver(state *bootState) terminalpkg.WorktreeRootResolver {
-	return func(ctx context.Context, workspaceID, profileID, ref string) (string, error) {
-		if state == nil {
-			return "", terminalpkg.ErrServiceUnavailable
+	return func(ctx context.Context, workspaceID, profileID, ref string) (string, func(), error) {
+		if state == nil || state.worktrees == nil {
+			return "", nil, terminalpkg.ErrServiceUnavailable
 		}
-		return resolveTerminalWorktreeRoot(
-			ctx,
-			daemonSessionWorktreeResolver{state: state},
-			workspaceID,
-			profileID,
-			ref,
+		root, release, err := resolveTerminalWorktreeRoot(
+			ctx, daemonSessionWorktreeResolver{state: state}, state.worktrees, workspaceID, profileID, ref,
 		)
+		if errors.Is(err, terminalpkg.ErrServiceUnavailable) {
+			state.logger.Warn(
+				"terminal: resolve worktree", "workspace_id", workspaceID, "worktree", ref, "error", err,
+			)
+			return "", nil, terminalpkg.ErrServiceUnavailable
+		}
+		return root, release, err
 	}
 }
 
+// resolveTerminalWorktreeRoot holds a usage lease on the ready worktree so removal
+// refuses while the terminal runs in its checkout.
 func resolveTerminalWorktreeRoot(
 	ctx context.Context,
 	worktrees terminalExecutionWorktrees,
+	usage terminalWorktreeUsage,
 	workspaceID, profileID, ref string,
-) (string, error) {
-	_, root, err := worktrees.ResolveSessionWorktreeForProfile(ctx, workspaceID, profileID, ref)
+) (string, func(), error) {
+	id, root, err := worktrees.ResolveSessionWorktreeForProfile(ctx, workspaceID, profileID, ref)
 	if err == nil && strings.TrimSpace(root) == "" {
 		err = worktree.ErrNotFound
 	}
 	if err != nil {
-		return "", terminalWorktreeError(ref, err)
+		return "", nil, terminalWorktreeError(ref, err)
 	}
-	return root, nil
+	item, release, err := usage.AcquireUsage(ctx, workspaceID, id)
+	if err != nil {
+		return "", nil, terminalWorktreeError(ref, err)
+	}
+	if item == nil || item.ID != id || item.ProfileID != profileID || item.Path != root {
+		release()
+		return "", nil, terminalWorktreeError(ref, worktree.ErrNotFound)
+	}
+	return root, release, nil
 }
 
 func terminalWorktreeError(ref string, err error) error {
@@ -63,6 +81,6 @@ func terminalWorktreeError(ref string, err error) error {
 			Err:     errors.Join(terminalpkg.ErrWorktreeMissing, err),
 		}
 	default:
-		return terminalpkg.ErrServiceUnavailable
+		return errors.Join(terminalpkg.ErrServiceUnavailable, err)
 	}
 }

@@ -101,4 +101,6 @@ confirm only the ready same-profile worktree appears under its project, select i
 new terminal's `pwd` and `compozy terminal get` cwd are the worktree path while the window binds to
 the project. Then `compozy terminal open --worktree <id> --detach -o json` and native
 `compozy__terminal_open {"worktree": "<id>"}` start in the same checkout; the same id against another
-workspace fails with typed `worktree_not_found`, the pending one with `worktree_not_ready`.
+workspace fails with typed `worktree_not_found`, the pending one with `worktree_not_ready`. While
+the worktree terminal runs, `compozy worktree remove` refuses with `worktree_operation_in_progress`;
+after the terminal exits the removal succeeds.

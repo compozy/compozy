@@ -5,13 +5,16 @@ import (
 	"errors"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // WorktreeRootResolver returns the checkout root of a ready managed worktree owned by
-// the workspace and profile. Failures are terminal errors with a worktree error code.
-type WorktreeRootResolver func(ctx context.Context, workspaceID, profileID, ref string) (string, error)
+// the workspace and profile, plus a release for the usage lease that keeps the
+// checkout from being removed while the terminal runs. Failures are terminal
+// errors with a worktree error code.
+type WorktreeRootResolver func(ctx context.Context, workspaceID, profileID, ref string) (string, func(), error)
 
 // WithWorktreeRootResolver lets terminal opens start in a managed worktree of their workspace.
 func WithWorktreeRootResolver(resolver WorktreeRootResolver) Option {
@@ -30,23 +33,34 @@ func (m *Service) applyWorktreeRoot(
 	workspaceID string,
 	profileID string,
 	ref string,
-) error {
+) (func(), error) {
 	if resolved.Scope == workspacepkg.ScopeUser {
-		return worktreeNotFoundError(ref)
+		return nil, worktreeNotFoundError(ref)
 	}
 	if m.worktreeRoot == nil {
-		return errors.Join(ErrUnsupported, errors.New("terminal: worktree terminals are unavailable"))
+		return nil, errors.Join(ErrUnsupported, errors.New("terminal: worktree terminals are unavailable"))
 	}
-	root, err := m.worktreeRoot(ctx, workspaceID, profileID, ref)
+	root, release, err := m.worktreeRoot(ctx, workspaceID, profileID, ref)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	if release == nil {
+		release = func() {}
+	}
+	release = sync.OnceFunc(release)
 	if strings.TrimSpace(root) == "" {
-		return worktreeNotFoundError(ref)
+		release()
+		return nil, worktreeNotFoundError(ref)
 	}
 	resolved.RootDir = root
 	resolved.AdditionalDirs = nil
-	return nil
+	return release, nil
+}
+
+func (s *session) releaseWorktree() {
+	if s.worktreeRelease != nil {
+		s.worktreeRelease()
+	}
 }
 
 func worktreeNotFoundError(ref string) *Error {

@@ -1175,17 +1175,18 @@ func TestManagerCwdAndShell(t *testing.T) {
 			t.Fatal(err)
 		}
 		refused := &Error{Code: ErrorCodeWorktreeNotReady, Message: "worktree is pending", Err: ErrWorktreeNotReady}
-		var calls atomic.Int32
+		var calls, leases atomic.Int32
 		manager, starter, root := newTestManager(t, DefaultSettings(), WithWorktreeRootResolver(
-			func(_ context.Context, workspaceID, profileID, ref string) (string, error) {
+			func(_ context.Context, workspaceID, profileID, ref string) (string, func(), error) {
 				calls.Add(1)
 				if workspaceID != "workspace-a" || profileID != "profile-a" {
-					return "", worktreeNotFoundError(ref)
+					return "", nil, worktreeNotFoundError(ref)
 				}
 				if ref == "wt-pending" {
-					return "", refused
+					return "", nil, refused
 				}
-				return checkout, nil
+				leases.Add(1)
+				return checkout, func() { leases.Add(-1) }, nil
 			},
 		))
 		open := func(worktree, cwd, profileID string) (Handle, error) {
@@ -1194,6 +1195,7 @@ func TestManagerCwdAndShell(t *testing.T) {
 				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: profileID},
 			})
 		}
+		procs := make([]*fakeProc, 0, 2)
 		for cwd, want := range map[string]string{"": checkout, "child": filepath.Join(checkout, "child")} {
 			handle, err := open("wt-ready", cwd, "profile-a")
 			if err != nil {
@@ -1203,6 +1205,10 @@ func TestManagerCwdAndShell(t *testing.T) {
 			if got := handle.Info().Cwd; got != want {
 				t.Fatalf("Open(worktree, cwd=%q).Cwd = %q, want %q", cwd, got, want)
 			}
+			procs = append(procs, receiveStartedProc(t, starter))
+		}
+		if got := leases.Load(); got != 2 {
+			t.Fatalf("worktree usage leases = %d, want one per running terminal", got)
 		}
 		started := starter.starts.Load()
 		for _, tc := range []struct {
@@ -1226,6 +1232,20 @@ func TestManagerCwdAndShell(t *testing.T) {
 		if got := starter.starts.Load(); got != started {
 			t.Fatalf("refused worktree opens started %d processes", got-started)
 		}
+		if got := leases.Load(); got != 2 {
+			t.Fatalf("worktree usage leases after refusals = %d, want 2 (a refused open releases its lease)", got)
+		}
+		code := 0
+		for _, proc := range procs {
+			proc.complete(terminalExit("exited", &code, nil))
+		}
+		deadline := time.Now().Add(2 * time.Second)
+		for leases.Load() != 0 && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if got := leases.Load(); got != 0 {
+			t.Fatalf("worktree usage leases after exit = %d, want 0", got)
+		}
 		if _, err := open("", "", "profile-a"); err != nil {
 			t.Fatalf("Open(no worktree) error = %v", err)
 		}
@@ -1239,11 +1259,11 @@ func TestManagerCwdAndShell(t *testing.T) {
 		bound, other := t.TempDir(), t.TempDir()
 		manager, starter, _ := newTestManager(t, DefaultSettings(),
 			WithExecutionRootResolver(func(context.Context, string, Actor) (string, error) { return bound, nil }),
-			WithWorktreeRootResolver(func(_ context.Context, _, _, ref string) (string, error) {
+			WithWorktreeRootResolver(func(_ context.Context, _, _, ref string) (string, func(), error) {
 				if ref == "wt-bound" {
-					return bound, nil
+					return bound, nil, nil
 				}
-				return other, nil
+				return other, nil, nil
 			}),
 		)
 		actor := Actor{

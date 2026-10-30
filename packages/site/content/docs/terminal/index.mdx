@@ -35,6 +35,10 @@ with `worktree_not_ready` (409), and one that was removed or whose folder is gon
 `worktree_missing` (409). Requests without `worktree` keep the project directory rules. User-scope
 terminals have no worktrees.
 
+While a terminal runs in a worktree, removing that worktree is refused with
+`worktree_operation_in_progress`. Close the terminal first; once it exits the worktree can be
+removed.
+
 ## Choose a path
 
 | Goal                                                | Start here                                                      |
