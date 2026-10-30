@@ -235,7 +235,7 @@ func (m *Service) Close(
 // Lookup binds the operation to one terminal object, even if its registry ID is later reused.
 func (m *Service) CloseProcess(
 	ctx context.Context, workspaceID string, id ID, actor Actor, signal Signal,
-	pid int, startedAt time.Time,
+	pid int, startedAt time.Time, kernelToken string,
 ) (*Exit, error) {
 	target, err := m.lookup(terminalKey{workspaceID: workspaceID, profileID: actor.ProfileID, id: id})
 	if err != nil {
@@ -244,7 +244,11 @@ func (m *Service) CloseProcess(
 	if err := target.authorizeClose(actor); err != nil {
 		return nil, err
 	}
-	if target.proc.PID() != pid || !target.proc.StartedAt().Equal(startedAt) {
+	matches := target.proc.StartedAt().Equal(startedAt)
+	if captured, ok := target.proc.(interface{ KernelToken() string }); ok && captured.KernelToken() != "" {
+		matches = kernelToken != "" && captured.KernelToken() == kernelToken
+	}
+	if target.proc.PID() != pid || !matches {
 		return nil, errors.New("terminal: process identity changed")
 	}
 	return target.close(ctx, signal, "operator_close", actor)

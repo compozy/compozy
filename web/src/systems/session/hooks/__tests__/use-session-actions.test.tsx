@@ -1741,34 +1741,60 @@ describe("session lifecycle batches", () => {
 
   // Invariant: unreadable bulk targets fail individually while readable targets proceed.
   // Owner/canonical suite: session lifecycle batches, adapter I/O boundary only.
-  it("Should delete readable targets and retain unreadable targets for retry", async () => {
-    const unavailable = { ...createdSession, id: "unavailable" };
-    vi.mocked(fetchSessionById).mockImplementation(async id => {
-      if (id === unavailable.id) throw new Error("Detail unavailable");
-      return { ...createdSession, id };
-    });
-    vi.mocked(deleteSession).mockResolvedValue(undefined);
-    const { result } = lifecycle();
-    act(() => result.current.actions.onDeleteMany?.([unavailable, createdSession]));
-    act(() => result.current.deleteDialog.onConfirm());
-    await waitFor(() =>
-      expect(result.current.batchResults).toEqual([
-        { id: unavailable.id, status: "failed", error: "Detail unavailable" },
-        { id: createdSession.id, status: "done" },
-      ])
-    );
-    expect(deleteSession).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
-    act(() => result.current.deleteDialog.onRetry?.());
-    await waitFor(() =>
-      expect(result.current.batchResults[0]).toEqual({
-        id: unavailable.id,
-        status: "failed",
-        error: "Detail unavailable",
-      })
-    );
-    expect(deleteSession).toHaveBeenCalledTimes(1);
-  });
+  it.each(["keep", "terminate"] as const)(
+    "Should recover unreadable delete targets with a %s process choice",
+    async processes => {
+      const unavailable = { ...createdSession, id: "unavailable" };
+      vi.mocked(fetchSessionById).mockImplementation(async id => {
+        if (id === unavailable.id) throw new Error("Detail unavailable");
+        return { ...createdSession, id };
+      });
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
+      const { result } = lifecycle();
+      act(() => result.current.actions.onDeleteMany?.([unavailable, createdSession]));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() =>
+        expect(result.current.batchResults).toEqual([
+          { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+          { id: createdSession.id, status: "done" },
+        ])
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+      const readsBeforeRetry = vi
+        .mocked(fetchSessionById)
+        .mock.calls.filter(([id]) => id === unavailable.id).length;
+      act(() => result.current.deleteDialog.onRetry?.());
+      await waitFor(() =>
+        expect(
+          vi.mocked(fetchSessionById).mock.calls.filter(([id]) => id === unavailable.id).length
+        ).toBeGreaterThan(readsBeforeRetry)
+      );
+      await waitFor(() =>
+        expect(result.current.batchResults[0]).toEqual({
+          id: unavailable.id,
+          status: "failed",
+          error: "Detail unavailable",
+        })
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      const recovered = withSessionProcessSummary(unavailable);
+      vi.mocked(fetchSessionById).mockResolvedValue(recovered);
+      act(() => result.current.deleteDialog.onRetry?.());
+      await waitFor(() => expect(result.current.batchResults).toEqual([]));
+      expect(result.current.deleteDialog.sessions?.map(session => session.id)).toEqual([
+        unavailable.id,
+      ]);
+      expect(result.current.deleteDialog.session?.process_summary).toEqual(
+        recovered.process_summary
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      act(() => result.current.deleteDialog.onConfirm(processes));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(2));
+      expect(vi.mocked(deleteSession).mock.calls[1]?.[1]).toBe(unavailable.id);
+      expect(vi.mocked(deleteSession).mock.calls[1]?.[4]).toBe(processes);
+    }
+  );
 
   it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
     const targets = [

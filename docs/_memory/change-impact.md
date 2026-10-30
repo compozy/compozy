@@ -4840,3 +4840,9 @@ and checks terminal PID/start on the actual handle before signaling. Web bulk de
 failed targets only and ignores stale dialog callbacks. No public DTO, config, hook, schema or
 official-skill surface changes; existing owner/profile/workspace isolation remains in force.
 QA scenarios and evidence: RT-session-processes and the 2026-10-29 session-processes report.
+
+PR #1049 kernel-identity follow-up: terminal launch captures kernel start time/token for
+native process cleanup; the token stays internal and existing public timestamp fields retain
+their meaning. Web Retry restores process choices after a failed detail read recovers.
+No schema, config, hook, extension SDK or official-skill changes; authorization and workspace
+isolation remain unchanged. Evidence is recorded in the same QA report and scenarios.

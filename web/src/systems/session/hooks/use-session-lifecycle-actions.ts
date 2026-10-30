@@ -338,8 +338,14 @@ export function useSessionLifecycleActions(
         if (confirmation !== deleteConfirmation.current) return;
         if (!deleteTarget.bulk && current.errors.size) throw current.errors.values().next().value;
         // A fresh nonzero count must be answered in the now-updated dialog.
-        if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0)
+        if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0) {
+          if (failedIds.size > 0) {
+            reportDeletedSessions(batchResults);
+            setDeleteTarget(target => (target ? { ...target, sessions: targets } : null));
+            setBatchResults([]);
+          }
           return;
+        }
         performDelete(processes, current.errors);
       })
       .catch(error => {

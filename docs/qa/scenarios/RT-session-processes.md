@@ -102,3 +102,7 @@ remains a failed result after the answer.
 - Deferred cleanup retries a timed-out stop wait without expanding its original identity
   set; service shutdown ends the retry. A reused terminal ID with a different PID/start
   identity must remain untouched by both TERM and KILL cleanup.
+- When Retry recovers a previously unreadable target with running processes, keep/terminate
+  choices become available for that target; successful deletions are not repeated.
+- Real PTY and pipe terminals close with their original kernel identity. On Linux a wrong
+  token is rejected, while the original token remains valid across timestamp projection changes.

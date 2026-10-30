@@ -455,9 +455,10 @@ func TestAfterStopPreservesResumedProcesses(t *testing.T) {
 			if err := child.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 				t.Error(err)
 			}
-			var exitErr *exec.ExitError
-			if err := child.Wait(); err != nil && !errors.As(err, &exitErr) {
-				t.Errorf("wait for resumed process cleanup: %v", err)
+			if err := child.Wait(); err != nil {
+				if _, expectedExit := errors.AsType[*exec.ExitError](err); !expectedExit {
+					t.Errorf("wait for resumed process cleanup: %v", err)
+				}
 			}
 		}()
 		snapshot, err := service.Refresh(t.Context())

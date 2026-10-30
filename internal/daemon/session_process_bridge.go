@@ -109,7 +109,7 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 		terminalpkg.ID(p.TerminalID),
 		actor,
 		terminalpkg.SignalTERM,
-		p.PID, p.StartedAt,
+		p.PID, p.StartedAt, p.KernelToken,
 	)
 	cancel()
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
@@ -120,7 +120,8 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 		if identityErr != nil {
 			return identityErr
 		}
-		if !current.StartedAt.Equal(p.StartedAt) {
+		if (p.KernelToken != "" && current.KernelToken != p.KernelToken) ||
+			(p.KernelToken == "" && !current.StartedAt.Equal(p.StartedAt)) {
 			return nil
 		}
 		forced, finish := context.WithTimeout(ctx, time.Second)
@@ -131,7 +132,7 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 			terminalpkg.ID(p.TerminalID),
 			actor,
 			terminalpkg.SignalKILL,
-			p.PID, p.StartedAt,
+			p.PID, p.StartedAt, p.KernelToken,
 		)
 	}
 	return err

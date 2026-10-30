@@ -365,3 +365,22 @@ checker passes attribution/native tools; HTTP, restart and terminal files have n
 findings compared with HEAD. All 14 real process/Kanban/subagent E2Es passed against the rebuilt daemon in 3.4 minutes,
 including parent-stop cancellation of both children. Staged-file formatting and lint passed.
 Remote CI and both reviews must still complete on the resulting pushed head.
+
+## Kernel identity and recovered delete choices
+
+PTY and pipe terminals capture kernel process identity at launch. Closure uses the captured
+kernel token where available and the kernel start timestamp otherwise, avoiding rejection of
+the original process because a launch clock differs from the scanner clock. Real Linux PTY
+and pipe checks reject a mismatched token and accept the original token despite a shifted
+timestamp. Focused terminal, PTY and daemon race checks passed; Windows cross-build passed.
+
+When a failed delete detail read recovers with running processes, Retry presents keep/terminate
+choices for the remaining targets without repeating successful deletes. The lifecycle suite
+passed 59 tests. React Doctor passed at 100/100 after using a functional state update. Final
+root Turbo lint/typecheck/build passed seven tasks, scoped Linux lint reported zero issues,
+and seven real process/Kanban E2Es passed against the rebuilt daemon in 1.1 minutes.
+
+CI on f847fdef6 found an errors.As modernization violation, now corrected to errors.AsType,
+and a prompt-event drain timeout. The unchanged prompt regression passed 20 focused race
+repetitions; no production cause was established. The next pushed head still requires green
+remote CI and completed reviews. CI owns the heavy gate.

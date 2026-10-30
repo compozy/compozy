@@ -970,7 +970,7 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 				actor,
 				SignalTERM,
 				identity.pid,
-				identity.started,
+				identity.started, "",
 			); err == nil {
 				t.Fatal("stale identity accepted")
 			}
@@ -987,9 +987,14 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 			actor,
 			SignalTERM,
 			proc.PID(),
-			proc.StartedAt(),
+			proc.StartedAt(), "",
 		); err != nil {
 			t.Fatal(err)
+		}
+		select {
+		case <-proc.done:
+		default:
+			t.Fatal("matching identity did not signal the terminal")
 		}
 	})
 
