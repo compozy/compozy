@@ -179,3 +179,8 @@ exemption records that resource constraint, following existing repository practi
 reproduced without it (93/100); the pinned changed-scope scan passed with it (100/100), while
 the adapter regression still verifies one request in flight and per-target failure reporting.
 The final root Turbo Web typecheck also passed all four tasks after both frontend commits.
+
+The later source-size check found the session registry at 504 lines after documenting cleanup
+errors. The Stop operation definition was moved unchanged into its own registry file, matching
+the neighboring session-operation files. The source-size check, API-spec race suite (28.401 s),
+and codegen-check passed; the generated public contract did not change.
