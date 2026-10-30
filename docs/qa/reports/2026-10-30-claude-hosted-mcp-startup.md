@@ -39,13 +39,19 @@ field. It does not prove a fix for the unobserved WSL2 command corruption.
 ## Focused automated evidence
 
 Race-enabled tests passed in `internal/mcp`, `internal/acp`, and `internal/session`
-for hosted bind lifecycle/deadline/cancellation, new/load wire shape, accepted-start
-failure cleanup, finalized first-prompt guidance, hosted injection, and diagnostic
+for hosted bind lifecycle/deadline/cancellation, on-time versus late projection,
+new/load wire shape, accepted-start
+failure cleanup and fallback suppression, finalized first-prompt guidance, hosted
+injection, and diagnostic
 secret omission. Existing subprocess fixtures exercise the actual ACP JSON boundary.
 
 The test-shape checker passed for the modified MCP suite and session helper. It
 reports pre-existing direct-case tests in the ACP files; the new/modified cases use
 `Should` subtests. Local broad gates and full E2E were not run; CI owns those gates.
+
+Review remediation also verified that a failed Claude bind cancels the hosted
+launch during first-prompt binding. The owning manager regression initially exposed
+that missing cleanup; the startup finalizer now performs it before returning failure.
 
 Lab teardown completed with `clean: true`. The strict evidence audit's local-gate
 requirement remains intentionally unsatisfied under the session instruction that CI

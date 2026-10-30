@@ -907,6 +907,7 @@ func cloneResolvedWorkspaceForTests(src *workspacepkg.ResolvedWorkspace) workspa
 
 type recordingHostedMCPLauncher struct {
 	mu       sync.Mutex
+	bindErr  error
 	server   compozyconfig.MCPServer
 	requests []HostedMCPLaunchRequest
 	arms     []string
@@ -921,7 +922,7 @@ func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID stri
 	return nil
 }
 
-func (*recordingHostedMCPLauncher) WaitForBind(context.Context, string) error { return nil }
+func (l *recordingHostedMCPLauncher) WaitForBind(context.Context, string) error { return l.bindErr }
 
 func (*recordingHostedMCPLauncher) BindRun(context.Context, string, string, int64) error { return nil }
 

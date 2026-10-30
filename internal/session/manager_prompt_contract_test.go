@@ -3286,6 +3286,64 @@ func TestPromptBindFallbackChain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop accepted Claude startup when hosted tools cannot bind", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		bindErr := errors.New("hosted bind deadline expired")
+		hosted := &recordingHostedMCPLauncher{
+			bindErr: bindErr,
+			server:  compozyconfig.MCPServer{Name: "compozy-hosted-tools", Command: "/bin/compozy"},
+		}
+		h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+		ledger := installFallbackAgent(t, h, codexRoute(h))
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range workspace.Agents {
+			if workspace.Agents[i].Name == "reviewer" {
+				workspace.Agents[i].Command = "claude-agent-acp"
+			}
+		}
+		h.resolver.upsert(&workspace)
+		h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-accepted")
+			if opts.FinalizeStartup == nil {
+				return proc, nil
+			}
+			_, _, err := opts.FinalizeStartup(ctx)
+			if err != nil {
+				// The ACP driver owns failed subprocess cleanup and returns no handle.
+				proc.exit()
+				return nil, acp.WrapAcceptedStart("acp-accepted", err)
+			}
+			return proc, nil
+		}
+		session := acceptFallbackReviewer(t, h)
+		_, err = h.manager.Prompt(t.Context(), session.ID, "review the diff")
+		if !errors.Is(err, bindErr) || !StartAccepted(err) {
+			t.Fatalf("Prompt() = %v, want accepted bind failure", err)
+		}
+		if got := startCommands(h); len(got) != 1 {
+			t.Fatalf("start commands = %v, want no fallback after acceptance", got)
+		}
+		if rows := ledger.fallbackRows(); len(rows) != 0 {
+			t.Fatalf("fallback rows = %d, want zero", len(rows))
+		}
+		hosted.mu.Lock()
+		canceled := slices.Contains(hosted.cancels, session.ID)
+		hosted.mu.Unlock()
+		if !canceled {
+			t.Fatal("failed startup did not cancel its hosted launch")
+		}
+		h.driver.mu.Lock()
+		prompts := len(h.driver.promptCalls)
+		h.driver.mu.Unlock()
+		if prompts != 0 || session.runtimeBindingSnapshot().process != nil {
+			t.Fatalf("prompts = %d, want no model prompt or committed runtime after failure", prompts)
+		}
+	})
+
 	t.Run("Should stop the chain when an attempt is accepted and then fails", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

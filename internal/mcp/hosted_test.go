@@ -47,6 +47,33 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 	})
 
+	for _, late := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should require projection completion before the deadline late=%t", late),
+			func(t *testing.T) {
+				t.Parallel()
+				now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+				executable := hostedTestExecutable(t, "compozy")
+				registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+				if late {
+					registry.onListed = func() { now = now.Add(time.Hour) }
+				}
+				service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+				peer := hostedTestPeer(executable)
+				hostedTestBind(t, service, "sess-projection-deadline", peer)
+				// Negotiation may return after the deadline even when projection was on time.
+				now = now.Add(time.Hour)
+				err := service.WaitForBind(t.Context(), "sess-projection-deadline")
+				if late && !errors.Is(err, ErrHostedBindTimeout) {
+					t.Fatalf("WaitForBind(late projection) = %v, want timeout", err)
+				}
+				if !late && err != nil {
+					t.Fatalf("WaitForBind(on-time projection) = %v", err)
+				}
+			},
+		)
+	}
+
 	t.Run("Should rearm a released proxy without replacing the provider session", func(t *testing.T) {
 		t.Parallel()
 

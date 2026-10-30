@@ -53,7 +53,8 @@ func (s *HostedService) Bind(
 		return HostedBindResponse{}, err
 	}
 	s.mu.Lock()
-	if launch := s.launches[sessionID]; launch != nil && launch.bindID == bindID {
+	if launch := s.launches[sessionID]; launch != nil && launch.bindID == bindID &&
+		s.now().UTC().Before(launch.expiresAt) {
 		launch.readyBindID = bindID
 		launch.readiness.notify(nil)
 	}

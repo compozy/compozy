@@ -57,6 +57,7 @@ func (m *Manager) prepareSessionLaunch(
 			outcome := "succeeded"
 			if err != nil {
 				outcome = "failed"
+				m.hostedMCP.CancelLaunch(session.ID)
 			}
 			m.sessionLogger(session).
 				Info("acp.start.stage", "stage", "mcp_bind", "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())

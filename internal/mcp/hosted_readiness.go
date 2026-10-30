@@ -10,6 +10,9 @@ func (s *HostedService) WaitForBind(ctx context.Context, sessionID string) error
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	if s == nil || !s.enabled {
+		return ErrHostedDisabled
+	}
 	s.mu.Lock()
 	launch := s.launches[sessionID]
 	if launch == nil || !launch.armed {
