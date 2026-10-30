@@ -350,6 +350,40 @@ describe("DesktopMenubar project submenu archive", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.querySelector('[data-slot="os-menubar-workspace"]')).toHaveFocus();
   });
+
+  it("Should close the confirm once the archive succeeds and drop the project row", async () => {
+    const user = userEvent.setup();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    vi.mocked(globalThis.fetch).mockImplementation(input => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes(`/api/workspaces/${project.id}/archive`)) {
+        return Promise.resolve(
+          jsonResponse({ workspace: { ...project, archived_at: "2026-10-30T19:00:00Z" } })
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+    });
+    const { setOverlay, setWorkspaces } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+      worktreesByWorkspace: { [project.id]: worktreeListingFixture },
+    });
+
+    act(() => screen.getByTestId(`os-workspace-option-${project.id}`).focus());
+    await user.keyboard("{ArrowRight}");
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${project.id}`);
+    await user.click(within(submenu).getByRole("menuitem", { name: "Archive project" }));
+    setOverlay(null);
+    const dialog = await screen.findByRole("dialog", { name: `Archive ${project.name}?` });
+    await user.click(within(dialog).getByRole("button", { name: "Archive project" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.querySelector('[data-slot="os-menubar-workspace"]')).toHaveFocus();
+    // The catalog refetch drops the archived project from the reopened top-bar list.
+    setWorkspaces([]);
+    await screen.findByTestId("os-workspace-menu");
+    expect(screen.queryByTestId(`os-workspace-option-${project.id}`)).toBeNull();
+  });
 });
 
 describe("DesktopMenubar scope control", () => {

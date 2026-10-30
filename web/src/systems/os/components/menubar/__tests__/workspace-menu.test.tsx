@@ -320,6 +320,20 @@ describe("WorkspaceMenu", () => {
     expect(onArchiveProject).toHaveBeenCalledWith(gitAlpha);
   });
 
+  it("Should not offer Archive project for a project that is already archived", async () => {
+    const user = userEvent.setup();
+    renderMenu({
+      onArchiveProject: vi.fn(),
+      workspaces: [{ ...gitAlpha, archived_at: "2026-10-30T19:00:00Z" }, gitBeta, plainNotes],
+    });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
+    expect(within(submenu).getByRole("menuitem", { name: "New worktree" })).toBeVisible();
+    expect(within(submenu).queryByRole("menuitem", { name: "Archive project" })).toBeNull();
+  });
+
   it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {
     const user = userEvent.setup();
     renderMenu({ userHomeDir: "/Users/ada" });
