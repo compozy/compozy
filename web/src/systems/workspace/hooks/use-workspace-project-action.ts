@@ -16,10 +16,12 @@ export type WorkspaceProjectAction = "archive" | "remove";
  */
 export function useWorkspaceProjectAction(
   workspace: WorkspacePayload | undefined,
-  listedInCatalog?: boolean
+  listedInCatalog?: boolean,
+  /** An action chosen before the flow mounted (a menu item that closed with its menu). */
+  initialAction: WorkspaceProjectAction | null = null
 ) {
   const listed = listedInCatalog ?? Boolean(workspace);
-  const [action, setAction] = useState<WorkspaceProjectAction | null>(null);
+  const [action, setAction] = useState<WorkspaceProjectAction | null>(initialAction);
   const archive = useSetWorkspaceArchived();
   const remove = useDeleteWorkspace();
   const pending = archive.isPending || remove.isPending;

@@ -99,6 +99,18 @@ Copy menu:
   after the menu closes. Dismiss the project menu with Escape before choosing an action:
   focus must return to the project menubar trigger, even though the source row has unmounted.
 
+### Archive project from the menubar project submenu (issue #1057)
+
+1. Open the menubar workspace menu and hover (or ArrowRight onto) a git-backed project row.
+   The submenu ends with a separator and **Archive project**, below New worktree. It never
+   offers Remove project; a non-git project row has no submenu and keeps only its right-click
+   menu.
+2. Choose Archive project. The workspace menu closes and the same Archive confirm the overview
+   uses opens. Cancel: focus returns to the project menubar trigger.
+3. Repeat with a project that has a non-stopped session (for example the current one). Confirm:
+   the dialog shows `workspace_busy` with the named blockers, and nothing changes.
+4. Repeat with an idle project and confirm. It disappears from the menubar project list.
+
 qa-impact: 2026-10-28 archive/remove lifecycle slice passed against an isolated daemon and
 production web bundle. See `docs/qa/reports/2026-10-28-archive-projects.md`; older unrelated
 scenario verdicts above are retained rather than inferred from this focused walk.

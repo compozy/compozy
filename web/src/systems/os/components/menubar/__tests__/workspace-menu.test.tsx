@@ -3,8 +3,9 @@
 // current destination; picking All projects or User reports that destination, and User
 // has no worktree submenu. A git-backed workspace row is a submenu trigger — a pointer
 // click selects the workspace and closes the menu, while keyboard traversal opens the
-// side submenu holding the root row, the worktree rows, and New worktree. A non-git
-// workspace stays a plain selectable item with no submenu affordance.
+// side submenu holding the root row, the worktree rows, New worktree, and, last after a
+// separator, Archive project (never Remove project). A non-git workspace stays a plain
+// selectable item with no submenu affordance.
 // Owning layer: WorkspaceMenu. No existing suite owned this fold.
 import type { ComponentProps } from "react";
 import { act, render, screen, within } from "@testing-library/react";
@@ -299,6 +300,24 @@ describe("WorkspaceMenu", () => {
     expect(onSelectWorkspace).not.toHaveBeenCalled();
     expect(openChangeFlags(onOpenChange)).not.toContain(false);
     expect(onRun).not.toHaveBeenCalled();
+  });
+
+  it("Should end the project submenu with Archive project and relay it for that project", async () => {
+    const user = userEvent.setup();
+    const onArchiveProject = vi.fn();
+    renderMenu({ onArchiveProject });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${gitAlpha.id}`);
+    const items = within(submenu).getAllByRole("menuitem");
+    const archive = items.at(-1);
+    expect(archive).toHaveAccessibleName("Archive project");
+    expect(archive?.previousElementSibling).toHaveAttribute("role", "separator");
+    expect(within(submenu).queryByRole("menuitem", { name: "Remove project" })).toBeNull();
+
+    await user.click(archive!);
+    expect(onArchiveProject).toHaveBeenCalledWith(gitAlpha);
   });
 
   it("Should contract home-rooted nest paths when the host supplies userHomeDir", async () => {

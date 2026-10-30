@@ -20,8 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
-import type { WorkspacePayload } from "@/systems/workspace";
-import { primaryWorkspaceFixture } from "@/systems/workspace/mocks";
+import type { WorkspacePayload, WorktreeListingByWorkspace } from "@/systems/workspace";
+import { primaryWorkspaceFixture, worktreeListingFixture } from "@/systems/workspace/mocks";
 import {
   codexOkTarget,
   statusTargets,
@@ -139,6 +139,7 @@ function renderMenubar({
   onOverlayOpenChange = vi.fn(),
   usage,
   workspaces = [],
+  worktreesByWorkspace,
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
@@ -149,6 +150,8 @@ function renderMenubar({
   /** Cached and served usage envelope for the default profile. */
   usage?: ProviderUsageEnvelope;
   workspaces?: WorkspacePayload[];
+  /** Gives git-backed project rows their worktree submenu. */
+  worktreesByWorkspace?: WorktreeListingByWorkspace;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
@@ -175,6 +178,8 @@ function renderMenubar({
             onOverlayOpenChange={onOverlayOpenChange}
             attention={ATTENTION}
             update={{ state: "hidden" }}
+            worktreesByWorkspace={worktreesByWorkspace}
+            onCreateWorktree={worktreesByWorkspace ? vi.fn() : undefined}
           />
         </CmdPaletteRegistryProvider>
       </UIProvider>
@@ -295,6 +300,55 @@ describe("DesktopMenubar project context menu", () => {
     expect(within(dialog).getByRole("button", { name: "Archive instead" })).toBeDisabled();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+// #1057: Archive project closes the submenu with the workspace menu, so the host opens the same
+// confirm the context menu uses, blockers included, and focus returns to the project trigger.
+describe("DesktopMenubar project submenu archive", () => {
+  it("Should open the archive confirm from the project submenu and return focus on cancel", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    const project = { ...primaryWorkspaceFixture, archived_at: null };
+    vi.mocked(globalThis.fetch).mockImplementation(input => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes(`/api/workspaces/${project.id}/archive`)) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              error: "project has active work",
+              code: "workspace_busy",
+              blockers: [{ kind: "session", id: "sess-1", name: "Fix the build" }],
+            },
+            409
+          )
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+    });
+    const { setOverlay } = renderMenubar({
+      workspaces: [project],
+      activeOverlay: "workspace-menu",
+      onOverlayOpenChange,
+      worktreesByWorkspace: { [project.id]: worktreeListingFixture },
+    });
+
+    const row = await screen.findByTestId(`os-workspace-option-${project.id}`);
+    act(() => row.focus());
+    await user.keyboard("{ArrowRight}");
+    const submenu = await screen.findByTestId(`os-worktree-submenu-${project.id}`);
+    // Archive alone: Remove project stays off the hover menu.
+    expect(within(submenu).queryByRole("menuitem", { name: "Remove project" })).toBeNull();
+    await user.click(within(submenu).getByRole("menuitem", { name: "Archive project" }));
+    expect(onOverlayOpenChange).toHaveBeenCalledWith("workspace-menu", false);
+    setOverlay(null);
+
+    const dialog = await screen.findByRole("dialog", { name: `Archive ${project.name}?` });
+    await user.click(within(dialog).getByRole("button", { name: "Archive project" }));
+    expect(await within(dialog).findByText("session: Fix the build")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(document.querySelector('[data-slot="os-menubar-workspace"]')).toHaveFocus();
   });
 });
 

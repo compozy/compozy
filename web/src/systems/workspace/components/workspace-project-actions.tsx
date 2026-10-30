@@ -27,9 +27,12 @@ type ProjectAction = WorkspaceProjectAction;
 function WorkspaceProjectActionDialog({
   workspace,
   flow,
+  finalFocus,
 }: {
   workspace: WorkspacePayload;
   flow: WorkspaceProjectActionFlow;
+  /** Where focus lands on close when the element that opened the confirm has unmounted. */
+  finalFocus?: ComponentProps<typeof DropdownMenuContent>["finalFocus"];
 }) {
   const { action, archived, pending, failure } = flow;
   const copy = projectActionCopy(action, archived);
@@ -44,6 +47,7 @@ function WorkspaceProjectActionDialog({
       confirmLabel={`${copy.verb} project`}
       cancelLabel="Cancel"
       tone={copy.tone}
+      contentProps={finalFocus ? { finalFocus } : undefined}
       isPending={pending}
       onConfirm={flow.submit}
       // A project that left the catalog can no longer be acted on; its failure stays readable.
@@ -151,12 +155,15 @@ export interface WorkspaceProjectMenuPoint {
 /**
  * A project's actions at a point, for a surface that cannot nest a context
  * menu of its own (a menubar menu): the host relays the click and keeps this
- * mounted, so the confirm dialog outlives the menu.
+ * mounted, so the confirm dialog outlives the menu. A menu item that already
+ * chose an action (the menubar submenu's Archive project) mounts it with
+ * `initialAction` and no point, opening the confirm directly.
  */
 export function WorkspaceProjectPointMenu({
   workspace,
   listed,
   point,
+  initialAction = null,
   finalFocus,
   onClose,
 }: {
@@ -165,10 +172,11 @@ export function WorkspaceProjectPointMenu({
   listed: boolean;
   /** The open menu's position; `null` while closed. */
   point: WorkspaceProjectMenuPoint | null;
+  initialAction?: ProjectAction | null;
   finalFocus?: ComponentProps<typeof DropdownMenuContent>["finalFocus"];
   onClose: () => void;
 }) {
-  const flow = useWorkspaceProjectAction(workspace, listed);
+  const flow = useWorkspaceProjectAction(workspace, listed, initialAction);
   return (
     <>
       <DropdownMenu
@@ -189,7 +197,7 @@ export function WorkspaceProjectPointMenu({
           <WorkspaceActionItems workspace={workspace} choose={flow.choose} kind="dropdown" />
         </DropdownMenuContent>
       </DropdownMenu>
-      <WorkspaceProjectActionDialog workspace={workspace} flow={flow} />
+      <WorkspaceProjectActionDialog workspace={workspace} flow={flow} finalFocus={finalFocus} />
     </>
   );
 }
