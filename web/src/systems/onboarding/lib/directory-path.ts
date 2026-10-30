@@ -55,10 +55,15 @@ export function completionTarget(path: string): { dir: string; prefix: string } 
   return { dir, prefix: path.slice(cut + 1) };
 }
 
-/** The text a chosen suggestion leaves in the field: the folder plus a separator to drill in. */
-export function suggestionValue(typed: string, folderPath: string, home: string | null): string {
-  const shown = typed.trimStart().startsWith("~") ? contractHome(folderPath, home) : folderPath;
-  return `${shown}${separatorFor(folderPath)}`;
+/**
+ * The text a chosen suggestion leaves in the field: what the operator typed up
+ * to the last separator, the folder name, and a separator to drill in. Keeping
+ * the typed spelling preserves `~` and symlinked prefixes the daemon resolves.
+ */
+export function suggestionValue(typed: string, name: string): string {
+  const cut = lastSeparatorIndex(typed);
+  const dir = cut < 0 ? `${typed}/` : typed.slice(0, cut + 1);
+  return `${dir}${name}${separatorFor(dir)}`;
 }
 
 /** Folder name of a path, used to autofill a project's display name. */

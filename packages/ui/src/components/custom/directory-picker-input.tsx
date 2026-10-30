@@ -85,7 +85,18 @@ function DirectoryPickerInput({
         open={showList}
         value={value}
       >
-        <InputGroup className={cn("min-w-0 flex-1", className)} data-slot="directory-picker-input">
+        {/* The group, not the bare input, anchors the suggestion list. */}
+        <AutocompletePrimitive.InputGroup
+          render={
+            <InputGroup
+              className={cn(
+                "min-w-0 flex-1 has-[[data-slot=input-group-control]:focus-visible]:shadow-focus-ring",
+                className
+              )}
+              data-slot="directory-picker-input"
+            />
+          }
+        >
           <InputGroupAddon align="inline-start">
             <Folder aria-hidden="true" className="size-3.5 text-subtle" />
           </InputGroupAddon>
@@ -96,11 +107,13 @@ function DirectoryPickerInput({
             autoCorrect="off"
             disabled={disabled}
             onKeyDown={handleKeyDown}
-            render={<InputGroupInput className="font-mono text-form-input" />}
+            render={
+              <InputGroupInput className="font-mono text-form-input focus-visible:shadow-none" />
+            }
             spellCheck={false}
             {...inputProps}
           />
-        </InputGroup>
+        </AutocompletePrimitive.InputGroup>
         <AutocompletePrimitive.Portal>
           <AutocompletePrimitive.Positioner align="start" className="isolate z-50" sideOffset={6}>
             <AutocompletePrimitive.Popup

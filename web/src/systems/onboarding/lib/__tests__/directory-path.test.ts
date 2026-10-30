@@ -34,12 +34,11 @@ describe("directory path text", () => {
     expect(completionTarget("code")).toBeNull();
   });
 
-  it("Should keep the operator's `~` spelling when a suggestion is chosen", () => {
-    expect(suggestionValue("~/co", "/Users/ada/code", "/Users/ada")).toBe("~/code/");
-    expect(suggestionValue("/Users/ada/co", "/Users/ada/code", "/Users/ada")).toBe(
-      "/Users/ada/code/"
-    );
-    expect(suggestionValue("C:\\U", "C:\\Users", null)).toBe("C:\\Users\\");
+  it("Should keep the operator's spelling when a suggestion is chosen", () => {
+    expect(suggestionValue("~/co", "code")).toBe("~/code/");
+    expect(suggestionValue("/tmp/pro", "projects")).toBe("/tmp/projects/");
+    expect(suggestionValue("C:\\U", "Users")).toBe("C:\\Users\\");
+    expect(suggestionValue("~", "code")).toBe("~/code/");
     expect(folderName("~/code/app/")).toBe("app");
   });
 });

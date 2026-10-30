@@ -84,8 +84,10 @@ export function useDirectoryPathField({
 
   const typed = value.trim();
   const expanded = expandHome(typed, home);
-  const settled = useDebouncedValue(expanded, VALIDATE_DELAY_MS);
-  const isSettled = settled === expanded;
+  // Listing and validation follow the text once typing pauses.
+  const settledTyped = useDebouncedValue(typed, VALIDATE_DELAY_MS);
+  const settled = expandHome(settledTyped, home);
+  const isSettled = settledTyped === typed;
 
   const target = isAbsolutePath(settled) ? completionTarget(settled) : null;
   const showHidden = target?.prefix.startsWith(".") ?? false;
@@ -104,10 +106,14 @@ export function useDirectoryPathField({
   const entries = typed === "" ? homeListing.data?.entries : target ? listing.data?.entries : [];
   const prefix = (target?.prefix ?? "").toLowerCase();
   const suggestions = (entries ?? [])
-    .filter(entry => entry.is_dir && entry.name.toLowerCase().startsWith(prefix))
+    // The folder already typed in full is not a completion; `/` drills into it.
+    .filter(entry => {
+      const name = entry.name.toLowerCase();
+      return entry.is_dir && name.startsWith(prefix) && name !== prefix;
+    })
     .slice(0, MAX_SUGGESTIONS)
     .map(entry => ({
-      value: suggestionValue(typed === "" ? "~" : typed, entry.path, home),
+      value: suggestionValue(typed === "" ? "~/" : settledTyped, entry.name),
       label: entry.name,
     }));
 
