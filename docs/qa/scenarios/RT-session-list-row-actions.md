@@ -63,4 +63,10 @@ delete them through the catalog. Keep a delete confirmation open while switching
 to a project; confirmation must still target `@user` with the captured profile.
 Project-owned targets must retain their own workspace. Check mixed User/project
 bulk delete and archive, and ensure unrelated project detail caches remain intact.
-Focused hook coverage passes; browser verification is pending.
+Focused hook coverage: 65 tests pass. Real Chrome validation against an isolated
+v0.4.6 daemon and the changed Web frontend passed individual User deletion in All
+projects and mixed User/project bulk archive and deletion. Both rows disappeared
+after their success receipts. Switching to a project while confirmation was open
+closed the session window without deleting its target; returning to All projects
+showed that target intact. This current shell transition cannot retain the dialog
+across the switch; the mutation hooks independently use captured ownership.
