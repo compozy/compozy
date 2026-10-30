@@ -19,7 +19,8 @@ import { directoryBrowseOptions } from "../lib/query-options";
 const MAX_SUGGESTIONS = 50;
 const VALIDATE_DELAY_MS = 150;
 
-export type DirectoryPathStatus = "empty" | "checking" | "invalid" | "valid";
+/** `incomplete`: the text is a place to browse from (`~/`), not yet a choice. */
+export type DirectoryPathStatus = "empty" | "incomplete" | "checking" | "invalid" | "valid";
 
 export const DIRECTORY_PATH_COPY = {
   relative: "Use an absolute path, like ~/code/app.",
@@ -133,8 +134,10 @@ export function useDirectoryPathField({
   } else if (isSettled && validation.data) {
     const resolved = validation.data.path;
     if (home !== null && (candidate === normalizeDirectoryPath(home) || resolved === home)) {
-      status = "invalid";
-      message = DIRECTORY_PATH_COPY.home;
+      // `~/` is where browsing starts; only `~` itself reads as choosing home.
+      const browsing = /[\\/]$/.test(typed);
+      status = browsing ? "incomplete" : "invalid";
+      message = browsing ? null : DIRECTORY_PATH_COPY.home;
     } else if (isProject(candidate) || isProject(resolved)) {
       status = "invalid";
       message = DIRECTORY_PATH_COPY.alreadyProject;

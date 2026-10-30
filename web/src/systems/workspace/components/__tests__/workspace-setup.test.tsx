@@ -212,7 +212,7 @@ describe("WorkspaceSetupDialog", () => {
       ["~/notes.txt", "This path is a file, not a folder."],
       ["~/locked", "This folder can't be read. Check its permissions."],
       ["~/Dev/billing", "This folder is already a project."],
-      ["~/", "Your home folder can't be a project. Choose a folder inside it."],
+      ["~", "Your home folder can't be a project. Choose a folder inside it."],
     ];
 
     for (const [path, message] of cases) {
