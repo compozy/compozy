@@ -5,9 +5,44 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
+
+// Invariant: an observed identity keeps its latest owner across durable reads.
+// Owning layer/canonical suite: globaldb process-record persistence.
+func TestGlobalDBSessionProcessObservations(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replace ownership without replacing the process identity or first observation", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		start := time.Date(2026, 10, 29, 10, 0, 0, 0, time.UTC)
+		observation := sessionprocess.Observation{
+			PID: 1234, StartedAt: start, FirstSeen: start.Add(time.Second),
+			Owner:       sessionprocess.Owner{SessionID: "sess-old", WorkspaceID: "ws-old", ProfileID: "profile-old"},
+			Attribution: "lineage",
+		}
+		if err := db.SaveProcessObservations(ctx, []sessionprocess.Observation{observation}, nil); err != nil {
+			t.Fatal(err)
+		}
+		observation.Owner = sessionprocess.Owner{
+			SessionID: "sess-new", WorkspaceID: "ws-new", ProfileID: "profile-new", Name: "Moved session",
+		}
+		observation.Attribution = "env"
+		if err := db.SaveProcessObservations(ctx, []sessionprocess.Observation{observation}, nil); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.LoadProcessObservations(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0] != observation {
+			t.Fatalf("reloaded observations = %+v, want %+v", rows, observation)
+		}
+	})
+}
 
 func TestGlobalDBToolProcessRecords(t *testing.T) {
 	t.Parallel()

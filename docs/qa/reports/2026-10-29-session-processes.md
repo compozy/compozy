@@ -145,3 +145,9 @@ The final HTTP race rerun passed (2.053 s), scoped Linux lint reported zero issu
 `make codegen-check` passed. The existing Goal runtime E2E function also passed locally
 (31.076 s). CI on a19d5c416 nevertheless reproduced the Goal pause/run-status mismatch;
 that Linux CI failure remains under investigation and is not covered by the local pass.
+
+The follow-up ownership regression failed against the original observation upsert: a second
+save changed the in-memory owner but a durable read retained the old session, workspace and
+profile. The upsert now persists all three owner fields. The existing globaldb process-record
+suite passed with the race detector (3.246 s), scoped Linux lint reported zero issues, and
+code generation plus `make codegen-check` passed.

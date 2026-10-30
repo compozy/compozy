@@ -7,6 +7,9 @@ INSERT INTO session_process_observations (
   pgid, first_seen, group_observed_at, attribution
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(pid, started_at) DO UPDATE SET
+  session_id = excluded.session_id,
+  workspace_id = excluded.workspace_id,
+  profile_id = excluded.profile_id,
   session_name = excluded.session_name,
   pgid = excluded.pgid,
   group_observed_at = excluded.group_observed_at,
