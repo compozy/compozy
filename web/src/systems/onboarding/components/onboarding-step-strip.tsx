@@ -60,7 +60,10 @@ export function OnboardingStepStrip({ step, maxStep, busy, onSelect }: Onboardin
               aria-hidden="true"
               className={cn(
                 "grid size-setup-step-marker flex-none place-items-center rounded-full border",
-                "font-mono text-pill-group-badge font-semibold",
+                // A 1:1 line box trimmed to the digit's cap height centres the figure
+                // optically; the button's inherited line-height would sit it low.
+                "font-mono text-pill-group-badge leading-none font-semibold tabular-nums",
+                "[text-box:trim-both_cap_alphabetic]",
                 "transition-colors duration-base",
                 state === "done"
                   ? "border-transparent bg-primary text-primary-foreground"

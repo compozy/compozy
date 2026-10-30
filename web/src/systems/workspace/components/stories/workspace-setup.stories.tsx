@@ -57,42 +57,29 @@ function dialogHarness(padding: string) {
   );
 }
 
-/** Stalls the directory browse so the reading state stays on screen. */
-const browseLoading = storybookMswParameters({
+/** The daemon refuses to read the typed folder, so the field explains why. */
+const browseUnreadable = storybookMswParameters({
   workspace: [
-    compozyApiMock.get("/api/fs/browse", async () => {
-      await delay("infinite");
-      return HttpResponse.json({
-        entries: [],
-        home: "/Users/pedro",
-        path: "/Users/pedro",
-        roots: ["/"],
-      });
-    }),
-  ],
-});
-
-const browseEmpty = storybookMswParameters({
-  workspace: [
-    compozyApiMock.get("/api/fs/browse", () =>
-      HttpResponse.json({
-        entries: [],
-        home: "/Users/pedro",
-        parent: "/Users",
-        path: "/Users/pedro",
-        roots: ["/"],
-      })
+    compozyApiMock.get("/api/fs/browse", ({ request }) =>
+      new URL(request.url).searchParams.get("path")
+        ? HttpResponse.json({ error: "permission denied" }, { status: 403 })
+        : HttpResponse.json({
+            entries: [],
+            home: "/Users/pedronauck",
+            path: "/Users/pedronauck",
+            roots: ["/"],
+          })
     ),
   ],
 });
 
-const browseError = storybookMswParameters({
-  workspace: [
-    compozyApiMock.get("/api/fs/browse", () =>
-      HttpResponse.json({ error: "permission denied" }, { status: 403 })
-    ),
-  ],
-});
+/** Types a root and waits until the daemon validates it. */
+async function chooseRoot(canvasElement: HTMLElement, path = "~/Dev") {
+  const canvas = within(canvasElement.ownerDocument.body);
+  await userEvent.type(await canvas.findByTestId("workspace-setup-root-input"), path);
+  await waitFor(() => expect(canvas.getByTestId("workspace-setup-submit")).toBeEnabled());
+  return canvas;
+}
 
 /** VC-03 capture target: the xl split shell at desktop width. */
 export const SetupDialogOpen: Story = {
@@ -115,38 +102,41 @@ export const SetupDialogStacked: Story = {
   render: () => dialogHarness("p-4"),
 };
 
-/** A root chosen in the browser, ready for the single create on submit. */
+/** A root typed with `~`, validated and ready for the single create on submit. */
 export const SetupDialogRootSelected: Story = {
   args: {},
   tags: ["play-fn"],
   render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement.ownerDocument.body);
-    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
-    // The control stays disabled until the browse resolves a current path; clicking
-    // before then is a silent no-op.
-    await waitFor(() => expect(useCurrent).toBeEnabled());
-    await userEvent.click(useCurrent);
-    await expect(await canvas.findByTestId("workspace-setup-selected-root")).toBeVisible();
+    const canvas = await chooseRoot(canvasElement);
+    await expect(canvas.getByTestId("workspace-setup-name-input")).toHaveValue("Dev");
   },
 };
 
-export const SetupDialogBrowserLoading: Story = {
+/** Typing completes folders from the daemon listing. */
+export const SetupDialogRootAutocomplete: Story = {
   args: {},
-  parameters: browseLoading,
+  tags: ["play-fn"],
   render: () => dialogHarness("p-10"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    await userEvent.type(await canvas.findByTestId("workspace-setup-root-input"), "~/D");
+    await expect(await canvas.findByRole("option", { name: "Dev" })).toBeVisible();
+  },
 };
 
-export const SetupDialogBrowserEmpty: Story = {
+/** An unreadable folder blocks submit with an inline reason. */
+export const SetupDialogRootInvalid: Story = {
   args: {},
-  parameters: browseEmpty,
+  tags: ["play-fn"],
+  parameters: browseUnreadable,
   render: () => dialogHarness("p-10"),
-};
-
-export const SetupDialogBrowserError: Story = {
-  args: {},
-  parameters: browseError,
-  render: () => dialogHarness("p-10"),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    await userEvent.type(await canvas.findByTestId("workspace-setup-root-input"), "~/locked");
+    await expect(await canvas.findByTestId("workspace-setup-root-error")).toBeVisible();
+    await expect(canvas.getByTestId("workspace-setup-submit")).toBeDisabled();
+  },
 };
 
 /** Registration spinner: stall `POST /api/workspaces` after picking a root. */
@@ -165,10 +155,7 @@ export const SetupDialogLoadingCreate: Story = {
   },
   render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement.ownerDocument.body);
-    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
-    await waitFor(() => expect(useCurrent).toBeEnabled());
-    await userEvent.click(useCurrent);
+    const canvas = await chooseRoot(canvasElement);
     await userEvent.click(canvas.getByTestId("workspace-setup-submit"));
     await expect(canvas.getByTestId("workspace-setup-submit")).toBeDisabled();
   },
@@ -189,10 +176,7 @@ export const SetupDialogCreateError: Story = {
   },
   render: () => dialogHarness("p-10"),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement.ownerDocument.body);
-    const useCurrent = await canvas.findByTestId("workspace-setup-browser-use-current");
-    await waitFor(() => expect(useCurrent).toBeEnabled());
-    await userEvent.click(useCurrent);
+    const canvas = await chooseRoot(canvasElement);
     await userEvent.click(canvas.getByTestId("workspace-setup-submit"));
     await expect(await canvas.findByTestId("workspace-setup-error")).toBeVisible();
   },

@@ -44,6 +44,13 @@ export interface CompozyShellBridge {
   readonly theme?: {
     set(preference: ThemePreference): Promise<void>;
   };
+  /**
+   * Native OS dialogs. `pickDirectory` resolves the chosen absolute folder, or
+   * `null` on cancel. Absent on desktop shells that predate it.
+   */
+  readonly dialogs?: {
+    pickDirectory(options?: { default_path?: string }): Promise<string | null>;
+  };
 }
 
 declare global {

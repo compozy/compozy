@@ -44,13 +44,18 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
 
   await expect(dialog.getByTestId("workspace-setup-global-card")).toHaveCount(0);
 
+  // The folder field completes from the daemon's directory listing and validates the typed root.
   const browse = await runtime.requestJSON<{ path: string; roots: string[] }>("/api/fs/browse");
   expect(browse.roots.length).toBeGreaterThan(0);
-  for (const root of browse.roots) {
-    await expect(dialog.getByRole("button", { name: `Go to location ${root}` })).toBeVisible();
-  }
-  await dialog.getByRole("button", { name: `Go to location ${browse.roots[0]}` }).click();
-  await expect(dialog.getByTitle(browse.roots[0])).toBeVisible();
+  const rootInput = dialog.getByTestId("workspace-setup-root-input");
+  await rootInput.fill(browse.roots[0]);
+  await expect(appPage.locator('[data-slot="directory-picker-suggestion"]').first()).toBeVisible();
+  await expect(dialog.getByTestId("workspace-setup-submit")).toBeEnabled();
+  await rootInput.fill(`${browse.roots[0]}compozy-e2e-missing-folder`);
+  await expect(dialog.getByTestId("workspace-setup-root-error")).toHaveText(
+    "No folder at this path."
+  );
+  await expect(dialog.getByTestId("workspace-setup-submit")).toBeDisabled();
 
   // The ruled chrome means the trigger row uses px-5 / py-4. Verify computed rule via DOM box.
   const ruledHeaderBox = await ruledHeader.evaluate(node => {

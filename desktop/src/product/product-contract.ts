@@ -10,6 +10,7 @@ export const PRODUCT_METHOD_VALUES = [
   "global_shortcuts.sync",
   "global_shortcuts.status",
   "theme.set",
+  "dialog.pick_directory",
 ] as const;
 export type ProductMethod = (typeof PRODUCT_METHOD_VALUES)[number];
 export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
@@ -44,6 +45,31 @@ const REGISTRATION_KEYS = new Set([
   "reason",
   "settings_url",
 ]);
+
+/** Longest path the folder dialog accepts or reports; far above any real OS limit. */
+const MAX_DIRECTORY_PATH_LENGTH = 4096;
+
+/**
+ * An absolute POSIX or Windows path (`/x`, `C:\x`, `\\server\share`). The renderer cannot
+ * reach `node:path`, so both sides share this syntactic check.
+ */
+export function isAbsoluteDirectoryPath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (value.length > MAX_DIRECTORY_PATH_LENGTH) return false;
+  // oxlint-disable-next-line no-control-regex -- control characters are exactly what is rejected.
+  if (/[\u0000-\u001f\u007f]/.test(value)) return false;
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+}
+
+/** Parameters of `dialog.pick_directory`: the folder the dialog opens in, when known. */
+export interface PickDirectoryParams {
+  default_path?: string;
+}
+
+/** The chosen folder, or `null` when the operator canceled the dialog. */
+export interface PickDirectoryResult {
+  path: string | null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -82,6 +108,11 @@ export function validProductParams(method: ProductMethod, value: unknown): boole
   if (method === "theme.set") {
     return Object.keys(value).length === 1 && isThemePreference(value.preference);
   }
+  if (method === "dialog.pick_directory") {
+    const keys = Object.keys(value);
+    if (keys.some(key => key !== "default_path")) return false;
+    return value.default_path === undefined || isAbsoluteDirectoryPath(value.default_path);
+  }
   return (
     Object.keys(value).length === 1 &&
     Array.isArray(value.bindings) &&
@@ -93,6 +124,7 @@ export interface ProductResponses {
   "global_shortcuts.sync": GlobalShortcutRegistration[];
   "global_shortcuts.status": GlobalShortcutRegistration[];
   "theme.set": { preference: ThemePreference };
+  "dialog.pick_directory": PickDirectoryResult;
 }
 
 export function validProductResponse<M extends ProductMethod>(
@@ -102,6 +134,13 @@ export function validProductResponse<M extends ProductMethod>(
   if (method === "theme.set") {
     return (
       isRecord(value) && Object.keys(value).length === 1 && isThemePreference(value.preference)
+    );
+  }
+  if (method === "dialog.pick_directory") {
+    return (
+      isRecord(value) &&
+      Object.keys(value).length === 1 &&
+      (value.path === null || isAbsoluteDirectoryPath(value.path))
     );
   }
   return Array.isArray(value) && value.every(validRegistration);

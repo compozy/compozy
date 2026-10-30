@@ -40,6 +40,7 @@ import { resolveDesktopPaths, runtimeExecutableName } from "./home";
 import { DesktopLogger } from "./logging/desktop-logger";
 import { AppStatePublisher } from "./state/app-state";
 import { publicSafeText } from "./state/public-safe-text";
+import { electronDirectoryDialog } from "./product/directory-dialog";
 import { ProductBridgeController } from "./product/product-bridge-controller";
 import { detectAccessibility } from "./shortcuts/accessibility";
 import { ElectronGlobalShortcut } from "./shortcuts/electron-global-shortcut";
@@ -219,6 +220,7 @@ async function start(): Promise<void> {
     ipcMain,
     shortcuts: shortcutPolicy,
     theme: windowTheme,
+    directories: electronDirectoryDialog,
   });
   productBridge.register();
   if (__COMPOZY_DESKTOP_E2E_BUILD__) {

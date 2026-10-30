@@ -1,12 +1,14 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useSelector } from "@xstate/store-react";
 
-import { useDirectoryBrowser } from "./use-directory-browser";
+import { useDirectoryPathField, type DirectoryPathField } from "./use-directory-path-field";
+import { folderName } from "../lib/directory-path";
+import { directoryBrowseOptions } from "../lib/query-options";
 import {
   onboardingDraftStore,
   type OnboardingWorkspaceDraft,
 } from "../stores/use-onboarding-draft-store";
-import type { FSEntry } from "../types";
 import {
   isOperatorHomeWorkspace,
   useCreateWorkspace,
@@ -16,32 +18,20 @@ import {
 } from "@/systems/workspace";
 
 export interface OnboardingWorkspacesApi {
-  currentPath: string;
-  parent: string | null;
-  home: string | null;
-  roots: string[];
-  entries: FSEntry[];
-  isBrowsing: boolean;
-  browseError: string | null;
+  /** The folder field; adding its validated path registers the project. */
+  pathField: DirectoryPathField;
+  /** Registers the field's validated folder and clears the field on success. */
+  addFromField: () => Promise<void>;
   workspaces: OnboardingWorkspaceDraft[];
   isResolving: boolean;
   resolveError: string | null;
   catalogError: string | null;
-  navigateTo: (path: string) => void;
-  goToParent: () => void;
-  goHome: () => void;
   addWorkspace: (path: string) => Promise<void>;
   removeWorkspace: (path: string) => Promise<void>;
   isAdded: (path: string) => boolean;
   isRemoving: boolean;
   isCatalogLoading: boolean;
   reloadCatalog: () => Promise<void>;
-}
-
-function basename(path: string): string {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  const segment = trimmed.split(/[\\/]/).pop();
-  return segment && segment.length > 0 ? segment : trimmed;
 }
 
 function draftFromWorkspace(
@@ -51,7 +41,7 @@ function draftFromWorkspace(
   const path = workspace.root_dir.trim() || fallbackPath;
   return {
     path,
-    name: workspace.name || basename(path),
+    name: workspace.name || folderName(path),
     workspaceId: workspace.id,
   };
 }
@@ -78,9 +68,19 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const [resolveError, setResolveError] = useState<string | null>(null);
   const catalogSeeded = useRef(false);
 
-  const browse = useDirectoryBrowser({ dirsOnly: true });
-  const data = browse.data;
-  const userHomeDir = browse.home ?? undefined;
+  const [fieldValue, setFieldValue] = useState("");
+  const homeListing = useQuery(directoryBrowseOptions({ dirsOnly: true }, true));
+  const userHomeDir = homeListing.data?.home ?? undefined;
+  const pathField = useDirectoryPathField({
+    value: fieldValue,
+    onValueChange: value => {
+      setResolveError(null);
+      setFieldValue(value);
+    },
+    isProject: path =>
+      workspaces.some(item => item.path === path) ||
+      (registeredWorkspaces.data ?? []).some(workspace => workspace.root_dir === path),
+  });
 
   useEffect(() => {
     if (
@@ -114,14 +114,14 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     }
   }, [registeredWorkspaces.data, userHomeDir, workspaces]);
 
-  const addWorkspace = async (path: string) => {
+  const addWorkspace = async (path: string): Promise<boolean> => {
     const trimmed = path.trim();
     if (
       trimmed.length === 0 ||
       isOperatorHomeWorkspace({ id: "operator-home", root_dir: trimmed }, userHomeDir) ||
       workspaces.some(item => item.path === trimmed)
     ) {
-      return;
+      return false;
     }
     setResolveError(null);
     try {
@@ -129,11 +129,18 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
       onboardingDraftStore.trigger.workspaceDraftAdded({
         workspace: draftFromWorkspace(workspace, trimmed),
       });
+      return true;
     } catch (error) {
       setResolveError(
         error instanceof Error ? error.message : "Failed to register that folder as a workspace."
       );
+      return false;
     }
+  };
+
+  const addFromField = async () => {
+    if (pathField.path === null) return;
+    if (await addWorkspace(pathField.path)) setFieldValue("");
   };
 
   const removeWorkspace = async (path: string) => {
@@ -165,27 +172,17 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     : null;
 
   return {
-    currentPath: browse.currentPath,
-    parent: browse.parent,
-    home: browse.home,
-    roots: browse.roots,
-    entries: data?.entries ?? [],
-    isBrowsing: browse.isLoading,
-    browseError: browse.error
-      ? browse.error instanceof Error
-        ? browse.error.message
-        : "Failed to browse directory."
-      : null,
+    pathField,
+    addFromField,
     workspaces,
     isResolving: createWorkspace.isPending,
     isRemoving: deleteWorkspace.isPending,
     isCatalogLoading: registeredWorkspaces.isLoading,
     catalogError,
     resolveError,
-    navigateTo: browse.navigateTo,
-    goToParent: browse.goToParent,
-    goHome: browse.goHome,
-    addWorkspace,
+    addWorkspace: async path => {
+      await addWorkspace(path);
+    },
     removeWorkspace,
     isAdded,
     reloadCatalog: async () => {
