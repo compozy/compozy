@@ -22,7 +22,21 @@ export function ProcessesLeftRunningHost({ open, onOpenChange }: ProcessesLeftRu
   const queryClient = useQueryClient();
   const query = useQuery({ ...processesLeftRunningOptions(), enabled: open });
   const mutation = useMutation({
-    mutationFn: (processes: readonly SessionProcessPayload[]) => terminateProcesses(processes),
+    mutationFn: (processes: readonly SessionProcessPayload[]) => {
+      const profiles = new Map(
+        (query.data?.groups ?? []).flatMap(group =>
+          group.items.map(process => [processIdentity(process), group.profile] as const)
+        )
+      );
+      return terminateProcesses(
+        processes.map(process => {
+          const profile = profiles.get(processIdentity(process));
+          if (!profile)
+            throw new Error("Process ownership changed. Refresh the list and try again.");
+          return { ...process, profile };
+        })
+      );
+    },
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: sessionKeys.processesLeftRunning() }),

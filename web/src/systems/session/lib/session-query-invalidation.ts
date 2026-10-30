@@ -85,8 +85,8 @@ export function invalidateSessionProcessesQueries(
 ): Promise<void> {
   return invalidateSessionReads(
     queryClient,
-    [],
-    [sessionKeys.processes(workspaceId, sessionId), sessionKeys.processesLeftRunning()]
+    [sessionKeys.processes(workspaceId, sessionId)],
+    [sessionKeys.processesLeftRunning()]
   );
 }
 

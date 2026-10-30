@@ -4736,6 +4736,10 @@ retries without publishing retained rows; loading persisted observations still f
 Group members receive individual identity-verified signals to exclude later joiners. Audit
 failure does not skip remaining selected targets, and summary ports match the counted rows.
 Observation updates persist current session/workspace/profile ownership across reloads.
+Aggregate termination now enforces the selected mutation profile and retained-owner status.
+Session process caches include the profile while invalidation reaches every profile variant.
+Terminal cleanup treats a vanished or replaced identity after graceful close as completed,
+without signaling a replacement process.
 Runtime CI also exposed Stop racing an in-flight Goal prompt setup: the Manager now orders
 durable Goal pause before that setup can settle as ambiguous. This preserves session Stop's
 existing resumable-pause contract without new public surfaces or schema changes.

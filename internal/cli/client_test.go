@@ -5502,7 +5502,13 @@ func TestSubagentClientRequests(t *testing.T) {
 func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 	t.Parallel()
 	for _, policy := range []contract.SessionProcessPolicy{"", "keep", "terminate"} {
-		for _, operation := range []string{"stop", "archive", "delete"} {
+		for _, choice := range []struct {
+			operation string
+			flag      bool
+		}{
+			{"stop", false}, {"stop", true}, {"archive", false}, {"archive", true}, {"delete", false},
+		} {
+			operation := choice.operation
 			t.Run("Should encode "+operation+" with process policy "+string(policy), func(t *testing.T) {
 				t.Parallel()
 				mutated := false
@@ -5532,7 +5538,7 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 							if present != (policy != "") || (present && actual != string(policy)) {
 								t.Fatalf("stop process policy: %#v", body)
 							}
-							if body["wait"] != false || req.URL.Query().Has("processes") {
+							if body["wait"] != choice.flag || req.URL.Query().Has("processes") {
 								t.Fatalf("stop request: %#v %s", body, req.URL)
 							}
 						} else {
@@ -5540,7 +5546,7 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 							if query.Has("processes") != (policy != "") || query.Get("processes") != string(policy) {
 								t.Fatalf("policy query: %s", req.URL)
 							}
-							if operation == "archive" && query.Get("stop") != "true" {
+							if operation == "archive" && (query.Get("stop") == "true") != choice.flag {
 								t.Fatalf("archive stop query: %s", req.URL)
 							}
 						}
@@ -5553,9 +5559,9 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 				var err error
 				switch operation {
 				case "stop":
-					_, err = client.StopSession(t.Context(), "sess-1", false, policy)
+					_, err = client.StopSession(t.Context(), "sess-1", choice.flag, policy)
 				case "archive":
-					_, err = client.ArchiveSession(t.Context(), "sess-1", true, policy)
+					_, err = client.ArchiveSession(t.Context(), "sess-1", choice.flag, policy)
 				case "delete":
 					err = client.DeleteSession(t.Context(), "sess-1", policy)
 				}

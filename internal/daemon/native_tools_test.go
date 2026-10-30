@@ -15636,8 +15636,11 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 						}
 					}
 					manager := &nativeOrchestrationSessionManager{
-						StatusFn:          func(context.Context, string) (*session.Info, error) { return info, nil },
-						StopWithCauseFn:   func(context.Context, string, session.StopCause, string) error { commit(); return nil },
+						StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
+						StopWithCauseFn: func(stopCtx context.Context, _ string, _ session.StopCause, _ string) error {
+							commit()
+							return stopCtx.Err()
+						},
 						ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) { commit(); return info, nil },
 						requestStopFn:     func(context.Context, string, session.StopCause, string) error { commit(); return nil },
 						awaitStoppedFn: func(waitCtx context.Context, _ string) (session.StopOutcome, error) {

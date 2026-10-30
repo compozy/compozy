@@ -119,6 +119,8 @@ export const sessionKeys = {
   /** Processes the session started that are still running (composer processes popover). */
   processes: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "processes"] as const,
+  processesForProfile: (workspace: string, id: string, profile: string) =>
+    [...sessionKeys.processes(workspace, id), profile] as const,
   contextReset: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "context-reset"] as const,
   toolArtifact: (workspace: string, artifactURI: string) =>

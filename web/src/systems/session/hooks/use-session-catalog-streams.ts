@@ -9,10 +9,7 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
-import {
-  invalidateSessionMonitorsQueries,
-  invalidateSessionProcessesQueries,
-} from "../lib/session-query-invalidation";
+import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
 import { createSessionReadReconciler } from "./session-catalog-reconciliation";
 import type {
   OperatorNotificationEventPayload,
@@ -136,7 +133,11 @@ function createCatalogReconciler(queryClient: QueryClient) {
     const prefixes = [
       ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
       ...(workspaces.size > 0
-        ? [sessionKeys.attentionSummary(), notificationKeys.attentionRoot()]
+        ? [
+            sessionKeys.attentionSummary(),
+            notificationKeys.attentionRoot(),
+            sessionKeys.processesLeftRunning(),
+          ]
         : []),
     ];
     workspaces.clear();
@@ -246,7 +247,7 @@ function isSessionProcessesQuery(query: { queryKey: QueryKey }): boolean {
   const key = query.queryKey;
   return (
     key[0] === sessionKeys.all[0] &&
-    ((key.at(-1) === "processes" && key.includes("detail")) ||
+    ((key[3] === "detail" && key[5] === "processes") ||
       key[1] === sessionKeys.processesLeftRunning()[1])
   );
 }
@@ -332,7 +333,9 @@ function openSessionCatalogStream(
     // marked stale. An in-flight read may predate the change, so it is replaced.
     void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
     // `process_summary` rides the same upsert; an open processes view rereads its list.
-    void invalidateSessionProcessesQueries(queryClient, payload.workspace_id, payload.session_id);
+    void queryClient.invalidateQueries({
+      queryKey: sessionKeys.processes(payload.workspace_id, payload.session_id),
+    });
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

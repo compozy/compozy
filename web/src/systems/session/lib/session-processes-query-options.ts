@@ -14,7 +14,7 @@ import { sessionKeys } from "./query-keys";
  */
 export function sessionProcessesOptions(workspaceId: string, sessionId: string, profile: string) {
   return queryOptions({
-    queryKey: sessionKeys.processes(workspaceId, sessionId),
+    queryKey: sessionKeys.processesForProfile(workspaceId, sessionId, profile),
     queryFn: ({ signal }) => fetchSessionProcesses(workspaceId, sessionId, profile, signal),
     enabled: sessionId !== "",
     staleTime: 5_000,

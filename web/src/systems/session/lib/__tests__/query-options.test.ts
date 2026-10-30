@@ -22,6 +22,7 @@ import { sessionKeys } from "../query-keys";
 import { sessionProcessesOptions } from "../session-processes-query-options";
 import {
   invalidateSessionLiveQueries,
+  invalidateSessionProcessesQueries,
   invalidateSessionMutationQueries,
   invalidateSessionUsageQueries,
   invalidateWorkspaceSessionCatalog,
@@ -100,6 +101,27 @@ describe("sessionDetailOptions", () => {
 });
 
 describe("sessionProcessesOptions", () => {
+  it("Should isolate profile process data and invalidate every profile after a process change", async () => {
+    const client = new QueryClient();
+    const first = sessionProcessesOptions("ws_alpha", "sess_1", "default");
+    const second = sessionProcessesOptions("ws_alpha", "sess_1", "design");
+    client.setQueryData(first.queryKey, {
+      supported: true,
+      items: [],
+      scanned_at: "2026-01-01T00:00:00Z",
+    });
+    expect(client.getQueryData(second.queryKey)).toBeUndefined();
+    client.setQueryData(second.queryKey, {
+      supported: false,
+      items: [],
+      scanned_at: "2026-01-01T00:00:00Z",
+    });
+    await invalidateSessionProcessesQueries(client, "ws_alpha", "sess_1");
+    expect(client.getQueryState(first.queryKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(second.queryKey)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
   it("Should read a User session's processes, whose workspace id is empty", () => {
     expect(sessionProcessesOptions("", "sess_1", "default").enabled).toBe(true);
     expect(sessionProcessesOptions("ws_alpha", "sess_1", "default").enabled).toBe(true);

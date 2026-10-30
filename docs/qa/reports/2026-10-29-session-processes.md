@@ -197,3 +197,25 @@ registry still reports cancellation to the caller; the cleanup outcome is checke
 The existing native suite also asserts workspace/profile fencing at the process service boundary.
 The focused native policy, archive-refusal, and session-orchestration race suites passed (5.163 s).
 Scoped Linux daemon lint reported zero issues, and the production source-size check passed.
+
+## Final review scope hardening
+
+Aggregate cleanup now restricts targets to retained owners in the selected mutation profile.
+The existing HTTP handler suite checks live/foreign refusal and same-profile cross-workspace
+eligibility; focused HTTP and native daemon race suites passed (2.020 s and 4.545 s).
+The query-cache regression reproduced missed invalidation after adding profile identity; prefix
+invalidation repairs it and all 24 query-options tests pass through root Turborepo.
+Bun 1.4.4 produced an embedded-linter mismatch; the pinned Bun 1.4.0 passes codegen-check.
+The terminal bridge returns success when graceful-close fallback finds the original identity gone
+or replaced, preserving refusal to signal replacement identities. Focused Go race suites pass for HTTP, native policy, sessionprocess and procutil.
+The omitted-wait native stop regression now propagates caller cancellation from its I/O boundary;
+the bounded independent legacy stop passes (5.207 s). Root Turbo checks pass for 116 process
+adapter/control/cache tests and 129 adapter/cache/stream tests; lint/typecheck pass with zero
+lint issues. Scoped Linux Go lint reports zero issues and Windows daemon cross-build passes.
+React Doctor returns 100/100 after keeping the existing sequential-batch exemption adjacent
+to its await. Exact-head CI and both external reviewers remain required.
+The test-shape checker reports pre-existing findings outside the changed HTTP subtest.
+
+The aggregate Web action carries each target's profile and splits requests at profile boundaries.
+Catalog events use the existing five-second aggregate reconciler, while session process prefixes
+remain promptly invalidated; reconnect recognizes the profile-suffixed process keys.

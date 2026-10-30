@@ -176,6 +176,11 @@ func (h *BaseHandlers) TerminateProcesses(c *gin.Context) {
 	if !h.requireOperatorSurface(c, "session process aggregate termination") || !h.requireSessionProcesses(c) {
 		return
 	}
+	scope, err := h.resolveProfileMutationScope(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	var req contract.TerminateProcessesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -191,7 +196,7 @@ func (h *BaseHandlers) TerminateProcesses(c *gin.Context) {
 		"",
 		targets,
 		false,
-		func(sessionprocess.Owner) bool { return true },
+		func(o sessionprocess.Owner) bool { return !o.Live && scope.Matches(o.ProfileID) },
 	)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)

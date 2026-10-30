@@ -1405,6 +1405,35 @@ describe("session processes", () => {
     });
   });
 
+  it("Should keep aggregate termination batches within each target profile", async () => {
+    const targets = ["default", "design", "default"].map((profile, index) => ({
+      pid: 2000 + index,
+      started_at: "2026-10-29T12:00:00Z",
+      profile,
+    }));
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const request = input as Request;
+      const profile = new URL(request.url).searchParams.get("profile");
+      const body = (await request.clone().json()) as {
+        targets: { pid: number; started_at: string }[];
+      };
+      for (const target of body.targets) {
+        expect(profile).toBe(targets.find(item => item.pid === target.pid)?.profile);
+        expect(target).not.toHaveProperty("profile");
+      }
+      return new Response(
+        JSON.stringify({
+          supported: true,
+          results: body.targets.map(target => ({ ...target, outcome: "terminated" })),
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+    const response = await terminateProcesses(targets);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+    expect(response.results.map(result => result.pid)).toEqual(targets.map(target => target.pid));
+  });
+
   // The operator route takes at most 100 targets; Stop all over more must still stop every one.
   it("stops left-running processes in sequential batches the route accepts and answers once per target", async () => {
     const targets = Array.from({ length: 250 }, (_, index) => ({
@@ -1456,7 +1485,12 @@ describe("session processes", () => {
   it("rejects with the daemon's refusal when no batch is accepted", async () => {
     mockJsonResponse({ error: "operator scope required" }, { status: 403 });
     await expect(
-      terminateProcesses([{ pid: 1, started_at: "2026-10-29T12:00:00Z" }])
+      terminateProcesses(
+        Array.from({ length: 201 }, (_, index) => ({
+          pid: 1000 + index,
+          started_at: "2026-10-29T12:00:00Z",
+        }))
+      )
     ).rejects.toThrow("operator scope required");
   });
 });

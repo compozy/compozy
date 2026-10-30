@@ -112,11 +112,14 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 	cancel()
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
 		current, identityErr := procutil.InspectProcess(p.PID)
+		if errors.Is(identityErr, procutil.ErrProcessIdentityGone) {
+			return nil
+		}
 		if identityErr != nil {
 			return identityErr
 		}
 		if !current.StartedAt.Equal(p.StartedAt) {
-			return errors.New("terminal process identity changed")
+			return nil
 		}
 		forced, finish := context.WithTimeout(ctx, time.Second)
 		defer finish()

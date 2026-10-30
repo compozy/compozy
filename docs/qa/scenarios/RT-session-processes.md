@@ -33,3 +33,9 @@ walks archive and delete from the session list with both keep and terminate, ver
 reaches the daemon, and checks process survival or exit independently. Real OS identity,
 lineage/restart persistence, and reused-PID safety remain in `internal/procutil` and
 `internal/sessionprocess`; wire policy belongs to the API/client suites.
+
+Switch profile lenses while a process list is cached: never reuse the preceding profile's rows.
+A process-change event invalidates every cached profile variant for that session. Submit aggregate
+termination for a live owner or a foreign profile: neither may be signaled. Retained owners in
+the selected profile remain eligible across workspaces. If a terminal exits during graceful-close
+timeout handling, cleanup succeeds without signaling any replacement PID identity.

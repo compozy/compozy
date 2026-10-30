@@ -4299,6 +4299,19 @@ func TestSessionInputOriginContract(t *testing.T) {
 // Owning layer: shared HTTP handlers; canonical suite: handlers_test.go (UDS reuses these handlers).
 func TestSessionProcessHandlers(t *testing.T) {
 	t.Parallel()
+	t.Run("Should restrict aggregate termination to retained owners in the selected profile", func(t *testing.T) {
+		t.Parallel()
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		response := performRequest(t, newTestRouter(t, handlers), http.MethodPost,
+			"/api/processes/terminate",
+			[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`))
+		if response.Code != http.StatusOK || processes.calls != 1 ||
+			!strings.Contains(response.Body.String(), `"results"`) {
+			t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+		}
+	})
 	t.Run("Should list process metadata and reject conflicting or foreign targets before mutation", func(t *testing.T) {
 		processes := &handlerProcessService{}
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
@@ -4570,7 +4583,13 @@ func (s *handlerProcessService) Terminate(
 	all bool,
 	allowed func(sessionprocess.Owner) bool,
 ) ([]sessionprocess.Result, error) {
-	if !allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID}) ||
+	if id == "" {
+		if !allowed(sessionprocess.Owner{WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}) ||
+			allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, Live: true}) ||
+			allowed(sessionprocess.Owner{ProfileID: "foreign"}) {
+			return nil, errors.New("incorrect aggregate process mutation scope")
+		}
+	} else if !allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID}) ||
 		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}) ||
 		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: "foreign"}) {
 		return nil, errors.New("incorrect process mutation scope")

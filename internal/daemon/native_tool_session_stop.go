@@ -39,6 +39,11 @@ func (n *daemonNativeTools) sessionStop(
 	}
 	detail := "native session_stop requested by " + strings.TrimSpace(scope.SessionID)
 	if input.Wait == nil {
+		if input.Processes == contract.SessionProcessesTerminate {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+			defer cancel()
+		}
 		result, err := n.legacySessionStop(ctx, req.ToolID, target, info, detail)
 		if err == nil {
 			err = n.finishSessionProcessPolicy(ctx, info, input.Processes)

@@ -84,9 +84,11 @@ export async function fetchLeftRunningProcesses(signal?: AbortSignal): Promise<P
 export const TERMINATE_PROCESSES_MAX_TARGETS = 100;
 
 async function terminateProcessesBatch(
-  targets: readonly SessionProcessTarget[]
+  targets: readonly SessionProcessTarget[],
+  profile?: string
 ): Promise<TerminateProcessesResponse> {
   const { data, error, response } = await apiClient.POST("/api/processes/terminate", {
+    params: { query: { profile } },
     body: { targets: targets.map(({ pid, started_at }) => ({ pid, started_at })) },
   });
   if (apiRequestFailed(response, error)) {
@@ -96,18 +98,27 @@ async function terminateProcessesBatch(
 }
 
 /**
- * Stops processes by identity whatever their session's state; the operator
+ * Stops retained processes by identity in their owning profile; the operator
  * aggregate's cleanup. Targets go in batches the route accepts, sent one after
  * another, and the per-target results come back as one answer. A batch the daemon refuses reads as `failed`
  * for each of its targets, so the rest still report; only when every batch is
  * refused does the first refusal reject.
  */
 export async function terminateProcesses(
-  targets: readonly SessionProcessTarget[]
+  targets: readonly (SessionProcessTarget & { profile?: string })[]
 ): Promise<TerminateProcessesResponse> {
-  const batches: SessionProcessTarget[][] = [];
-  for (let start = 0; start < targets.length; start += TERMINATE_PROCESSES_MAX_TARGETS) {
-    batches.push(targets.slice(start, start + TERMINATE_PROCESSES_MAX_TARGETS));
+  const batches: (SessionProcessTarget & { profile?: string })[][] = [];
+  for (const target of targets) {
+    const last = batches.at(-1);
+    if (
+      last &&
+      last.length < TERMINATE_PROCESSES_MAX_TARGETS &&
+      last[0]?.profile === target.profile
+    ) {
+      last.push(target);
+    } else {
+      batches.push([target]);
+    }
   }
   // One batch at a time: each stop signals, waits out a grace period, and
   // re-verifies identities on the daemon, so batches must not pile up there.
@@ -115,7 +126,8 @@ export async function terminateProcesses(
   for (const batch of batches) {
     try {
       // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one batch in flight at a time is the point: each batch signals, waits out the daemon's grace period, and re-verifies identities.
-      settled.push({ status: "fulfilled", value: await terminateProcessesBatch(batch) });
+      const value = await terminateProcessesBatch(batch, batch[0]?.profile);
+      settled.push({ status: "fulfilled", value });
     } catch (reason) {
       settled.push({ status: "rejected", reason });
     }
