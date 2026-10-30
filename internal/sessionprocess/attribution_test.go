@@ -2,6 +2,7 @@ package sessionprocess
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -137,3 +138,61 @@ func (attributionSource) Terminals(context.Context) ([]Terminal, error)         
 func (attributionSource) CloseTerminal(context.Context, Process) error             { return nil }
 func (attributionSource) ProcessesChanged(context.Context, string)                 {}
 func (attributionSource) RecordTermination(context.Context, Process, Result) error { return nil }
+
+// Invariant: open process lists refresh on identity or displayed-data changes, not just counts.
+// Owning layer/canonical suite: sessionprocess observed-process attribution and catalog changes.
+func TestProcessCatalogChanges(t *testing.T) {
+	t.Parallel()
+	original := Process{
+		PID: 501, StartedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		Owner: Owner{SessionID: "sess-test"}, Kind: "background", Attribution: "env",
+		Command: "node server.js", CWD: "/project", Ports: []int{3000},
+	}
+	cases := []struct {
+		name   string
+		change func(*Process)
+		want   []string
+	}{
+		{
+			"Should refresh when a process is replaced without changing counts or ports",
+			func(p *Process) { p.PID++ },
+			[]string{"sess-test"},
+		},
+		{
+			"Should refresh when a PID is reused",
+			func(p *Process) { p.StartedAt = p.StartedAt.Add(time.Second) },
+			[]string{"sess-test"},
+		},
+		{
+			"Should refresh when command arguments change",
+			func(p *Process) { p.Command = "node worker.js" },
+			[]string{"sess-test"},
+		},
+		{
+			"Should refresh when the working directory changes",
+			func(p *Process) { p.CWD = "/other" },
+			[]string{"sess-test"},
+		},
+		{
+			"Should refresh both owners when attribution moves",
+			func(p *Process) { p.Owner.SessionID = "sess-other" },
+			[]string{"sess-other", "sess-test"},
+		},
+		{
+			"Should avoid a notification for unchanged displayed data",
+			func(*Process) {},
+			nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			next := original
+			tc.change(&next)
+			got := changedProcessSessions([]Process{original}, []Process{next})
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("changed sessions = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

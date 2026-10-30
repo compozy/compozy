@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -186,17 +187,7 @@ func (s *Service) scan(ctx context.Context, owners []Owner, force bool) (Snapsho
 	}
 	summaries := summarize(snapshot)
 	s.mu.Lock()
-	changed := []string{}
-	for id := range s.summaries {
-		if !sameSummary(s.summaries[id], summaries[id]) {
-			changed = append(changed, id)
-		}
-	}
-	for id := range summaries {
-		if _, ok := s.summaries[id]; !ok {
-			changed = append(changed, id)
-		}
-	}
+	changed := changedProcessSessions(s.snapshot.Processes, snapshot.Processes)
 	s.snapshot = snapshot
 	s.summaries = summaries
 	s.mu.Unlock()
@@ -251,6 +242,33 @@ func summarize(s Snapshot) map[string]Summary {
 	}
 	return out
 }
-func sameSummary(a, b Summary) bool {
-	return a.Background == b.Background && a.Terminals == b.Terminals && slices.Equal(a.Ports, b.Ports)
+
+// Catalog notifications also refresh open process lists, even when their counts stay unchanged.
+func changedProcessSessions(before, after []Process) []string {
+	previous := make(map[Identity]Process, len(before))
+	for _, p := range before {
+		previous[identity(p.ScannedProcess)] = p
+	}
+	changed := make(map[string]bool)
+	for _, p := range after {
+		id := identity(p.ScannedProcess)
+		old, exists := previous[id]
+		if !exists || !sameProcessView(old, p) {
+			changed[p.Owner.SessionID] = true
+			if exists {
+				changed[old.Owner.SessionID] = true
+			}
+		}
+		delete(previous, id)
+	}
+	for _, p := range previous {
+		changed[p.Owner.SessionID] = true
+	}
+	return slices.Sorted(maps.Keys(changed))
+}
+
+func sameProcessView(a, b Process) bool {
+	return a.Owner.SessionID == b.Owner.SessionID && a.Kind == b.Kind && a.Attribution == b.Attribution &&
+		a.TerminalID == b.TerminalID && a.PGID == b.PGID && a.Argv0 == b.Argv0 &&
+		a.Command == b.Command && a.CWD == b.CWD && slices.Equal(a.Ports, b.Ports)
 }

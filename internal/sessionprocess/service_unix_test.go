@@ -62,9 +62,10 @@ func TestDurableLineage(t *testing.T) {
 					if err := shell.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 						t.Errorf("kill shell: %v", err)
 					}
-					var exitErr *exec.ExitError
-					if err := shell.Wait(); err != nil && !errors.As(err, &exitErr) {
-						t.Errorf("wait for shell: %v", err)
+					if err := shell.Wait(); err != nil {
+						if _, expected := errors.AsType[*exec.ExitError](err); !expected {
+							t.Errorf("wait for shell: %v", err)
+						}
 					}
 				}
 			})

@@ -63,6 +63,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 	want := []string{
 		"DELETE /api/app-tokens/:app_token_id",
 		"GET /api/app-tokens",
+		"GET /api/processes",
+		"POST /api/processes/terminate",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/processes",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/processes/terminate",
 		"GET /api/openapi.json",
 		"PATCH /api/app-tokens/:app_token_id",
 		"POST /api/app-tokens",

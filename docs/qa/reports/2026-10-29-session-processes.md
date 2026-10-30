@@ -90,3 +90,19 @@ F ran 2,182 passing tests across 160 files; one additional palette suite failed 
 its fixture path resolves outside this worktree. That known path issue is not a passing test and
 remains subject to CI's normal checkout. The stream merge preserves both workspace-layout refresh
 and process-query invalidation.
+
+## Review and CI remediation
+
+Greptile identified stale process rows when identities changed without changing totals/ports.
+Catalog invalidation now compares identities and displayed process data; owning regressions cover
+replacement, PID reuse, command/CWD changes, owner changes and unchanged observations. Process
+stop controls now serialize requests so one pending identity cannot be hidden by a second stop.
+The reported composite-literal compilation issue was a Go-version false positive: the pinned
+Go 1.27.1 compiles these literals and executed the domain tests on both macOS and Linux CI.
+
+CI also exposed missing native visual metadata and transport inventory entries, two oversized
+frontend files, and formatter drift in the generated emoji mirror. Production metadata and exact
+contract expectations were completed, frontend modules extracted, and the mirror formatted with
+its existing formatter owner (semantic generator check passes). Focused HTTP/UDS/toolmeta race
+checks passed. Sessionprocess race tests and lint passed; Linux procutil lint and cross-build passed.
+Current-head CI remains the final delivery gate.

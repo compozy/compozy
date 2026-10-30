@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -34,7 +35,7 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 		if err != nil {
 			continue
 		}
-		root := filepath.Join("/proc", entry.Name())
+		root := fmt.Sprintf("/proc/%d", pid)
 		if environment {
 			if env, e := os.ReadFile(filepath.Join(root, "environ")); e == nil {
 				processMarkers(&p, strings.Split(string(env), "\x00"))
@@ -52,9 +53,9 @@ func linuxProcessClock() (int64, int64, error) {
 		return 0, 0, err
 	}
 	var boot int64
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "btime ") {
-			boot, err = strconv.ParseInt(strings.TrimPrefix(line, "btime "), 10, 64)
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if value, ok := strings.CutPrefix(line, "btime "); ok {
+			boot, err = strconv.ParseInt(value, 10, 64)
 			if err != nil {
 				return 0, 0, err
 			}
@@ -75,7 +76,7 @@ func linuxProcessClock() (int64, int64, error) {
 			key = uint64(binary.NativeEndian.Uint32(aux))
 			value = uint64(binary.NativeEndian.Uint32(aux[width:]))
 		}
-		if key == 17 && value > 0 && boot > 0 {
+		if key == 17 && value > 0 && value <= math.MaxInt64 && boot > 0 {
 			return boot, int64(value), nil
 		}
 		aux = aux[width*2:]
@@ -136,7 +137,7 @@ func linuxListeners() map[string]int {
 		if err != nil {
 			continue
 		}
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			fields := strings.Fields(line)
 			if len(fields) < 10 || fields[3] != "0A" {
 				continue
@@ -165,8 +166,8 @@ func linuxProcessPorts(root string, listeners map[string]int) []int {
 		if err != nil {
 			continue
 		}
-		if strings.HasPrefix(link, "socket:[") {
-			if port, ok := listeners[strings.TrimSuffix(strings.TrimPrefix(link, "socket:["), "]")]; ok {
+		if inode, ok := strings.CutPrefix(link, "socket:["); ok {
+			if port, ok := listeners[strings.TrimSuffix(inode, "]")]; ok {
 				ports = append(ports, port)
 			}
 		}
