@@ -1,31 +1,32 @@
-## 0.4.5 - 2026-10-29
+## 0.4.6 - 2026-10-30
 
 ### Bug Fixes
 
-- Preserve default profile customization across daemon startup (#1001)
-- Preserve Linux update executor identity across clock drift (#1004)
-- Restore terminal lifecycle under All projects and User (#1009)
-- Preserve archive recovery and pause rejected automation replacements
-- Unblock missing-root recovery and restore native input contracts
-- Preserve picker focus and synchronize subagent navigation checks
-- Preserve native tool domain errors and sanitized causes (#1014)
-- Recover detached message edits after lost acknowledgment (#1018)
-- Isolate missing workspace state from healthy operations (#1016)
-- Register SQLite Unicode search before opening connections
-- Make Goal controls interrupt work and clarify session lifecycle (#1019)
-- Expose CompozyOS native tools in Pi sessions (#1021)
+- Make automatic titles lightweight and retry failed attempts
+- Return conversation clear after durable reset
+- Default terminals to the account login shell and open them from a launcher
+- Refresh session rows in every catalog scope when the runtime changes
+- Stop requests for unavailable desktop resources (#1038)
+- Hand focus between project overlays before hiding their origins (#1040)
+- Preserve Claude usage access across Keychain token refreshes (#1041)
+- Restore project menubar focus after context menu dismissal
+- Keep focused skip link out of desktop layout
+- Report the enforced spawn budget to agents (#1048)
+- Share terminal approvals through attention summary
+- Restore workspace focus after worktree creation dialog
 
 ### Features
 
-- Change existing session worktrees in place (#1002)
-- Inspect subagents in a resizable activity drawer (#1007)
-- Archive projects and add safe removal actions (#1010)
-
-### Performance Improvements
-
-- Accelerate session and app data loading (#1006)
+- Simplify the Fork session dialog and always fork into this window
+- Selection-aware session context menu and project context menus (#1032)
+- Group projects into folders and add session totals footer (#1047)
+- Add proto.tsx prototype gallery that renders real web components (#1043)
+- Open Kanban sessions in a resizable drawer over the board (#1055)
+- Multi-select sessions and run bulk actions on the Kanban board (#1054)
+- Inspect and control processes started by sessions (#1049)
 
 ### Testing
 
-- Wait for subagent branch expansion before paging
-- Account for uptime in denied settings mutation checks
+- Cover remaining merge train review invariants
+- Synchronize detached harness session fixtures
+- Record additive attention approval schema contract
