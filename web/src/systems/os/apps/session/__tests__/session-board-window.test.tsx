@@ -277,21 +277,27 @@ describe("SessionBoardWindow drawer", () => {
 
   it("Should step through the cards in board order from the head and the session shortcut", async () => {
     setRoute("w2", true);
-    renderBoard();
+    const { rerenderBoard } = renderBoard();
     const drawer = await screen.findByRole("dialog", { name: "Session w2" });
+    // Each step lands like the window manager would before the next one reads the drawer.
+    const land = () => {
+      applyLastRetarget();
+      rerenderBoard();
+    };
 
     await userEvent.click(within(drawer).getByRole("button", { name: "Next session" }));
     expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w3"));
+    land();
     await userEvent.click(within(drawer).getByRole("button", { name: "Previous session" }));
-    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w1"));
-
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w2"));
+    land();
     harness.userRetarget.mockClear();
 
     // The shortcut works from the drawer's controls, never from inside text entry.
     within(drawer).getByRole("button", { name: "Next session" }).focus();
     await userEvent.keyboard("{Control>}{Shift>}{ArrowDown}{/Shift}{/Control}");
-    expect(harness.userRetarget).toHaveBeenCalledTimes(1);
-    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w3"));
+    expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, drawerRoute("w3"));
+    land();
     within(drawer).getByLabelText("Composer").focus();
     await userEvent.keyboard("{Control>}{Shift>}{ArrowDown}{/Shift}{/Control}");
     expect(harness.userRetarget).toHaveBeenCalledTimes(1);

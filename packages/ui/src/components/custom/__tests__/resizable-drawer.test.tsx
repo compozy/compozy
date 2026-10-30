@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ResizableDrawer } from "../resizable-drawer";
@@ -168,5 +168,43 @@ describe("ResizableDrawer", () => {
     width.mockReturnValue(0);
     rerender(<Harness basis="container" />);
     expect(screen.getByRole("dialog", { name: "Child session" })).toBe(dialog);
+  });
+
+  // Invariant: the contained layout follows its host live — crossing the breakpoint while open
+  // moves the drawer between inline and edge to edge. Owner: this primitive's host observation.
+  it("Should follow its host across the breakpoint while open", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    );
+    const observed: Array<() => void> = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observed.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    );
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
+    const user = userEvent.setup();
+    render(<Harness basis="container" />);
+    await user.click(screen.getByRole("button", { name: "Open child" }));
+    expect(await screen.findByRole("dialog", { name: "Child session" })).toHaveAttribute(
+      "data-mode",
+      "inline"
+    );
+
+    width.mockReturnValue(600);
+    act(() => observed.forEach(callback => callback()));
+    await waitFor(() =>
+      expect(screen.getByRole("dialog", { name: "Child session" })).toHaveAttribute(
+        "data-mode",
+        "overlay"
+      )
+    );
   });
 });

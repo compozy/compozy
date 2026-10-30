@@ -245,6 +245,12 @@ describe("useSessionSidebarState", () => {
     act(() => two.current.setHideChildren(true));
     expect(renderView(before, "win_three").current.drawerWidth).toBe(812);
 
+    // Each window keeps its own width once it chose one.
+    act(() => two.current.setDrawerWidth(500));
+    act(() => one.current.setDrawerWidth(900));
+    expect(two.current.drawerWidth).toBe(500);
+    expect(one.current.drawerWidth).toBe(900);
+
     act(() => one.current.setDrawerWidth(5000));
     expect(one.current.drawerWidth).toBe(1200);
 
