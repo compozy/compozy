@@ -262,6 +262,9 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 			releasedBindIDs = append(releasedBindIDs, bindID)
 		}
 	}
+	if previous := s.launches[sessionID]; previous != nil {
+		previous.readiness.notify(nil)
+	}
 	s.launches[sessionID] = record
 	s.mu.Unlock()
 	s.releaseProjectionCaches(releasedBindIDs)
@@ -330,6 +333,7 @@ func (s *HostedService) discardUnarmedLaunch(sessionID string, target *hostedLau
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if record := s.launches[sessionID]; record == target && !record.armed {
+		record.readiness.notify(nil)
 		delete(s.launches, sessionID)
 	}
 }
@@ -349,6 +353,9 @@ func (s *HostedService) ReleaseSession(sessionID string) {
 		return
 	}
 	s.mu.Lock()
+	if record := s.launches[sessionID]; record != nil {
+		record.readiness.notify(nil)
+	}
 	delete(s.launches, sessionID)
 	releasedBindIDs := make([]string, 0)
 	for bindID, record := range s.binds {

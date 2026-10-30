@@ -48,6 +48,45 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		}
 	})
 
+	for _, action := range []string{"replace", "release", "cancel"} {
+		t.Run("Should wake a live bind wait on launch "+action, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				executable := hostedTestExecutable(t, "compozy")
+				service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+				request := HostedLaunchRequest{SessionID: "sess-removed"}
+				if _, err := service.Launch(t.Context(), request); err != nil {
+					t.Fatal(err)
+				}
+				if err := service.ArmLaunch(t.Context(), request.SessionID); err != nil {
+					t.Fatal(err)
+				}
+				result := make(chan error, 1)
+				go func() { result <- service.WaitForBind(t.Context(), request.SessionID) }()
+				synctest.Wait()
+				switch action {
+				case "replace":
+					if _, err := service.Launch(t.Context(), request); err != nil {
+						t.Fatal(err)
+					}
+				case "release":
+					service.ReleaseSession(request.SessionID)
+				case "cancel":
+					service.CancelLaunch(request.SessionID)
+				}
+				synctest.Wait()
+				select {
+				case err := <-result:
+					if !errors.Is(err, ErrHostedBindNotFound) {
+						t.Fatalf("removed launch wait = %v", err)
+					}
+				default:
+					t.Fatal("removed launch kept waiting with a live context")
+				}
+			})
+		})
+	}
+
 	t.Run("Should reject a bind whose response was never acknowledged by the proxy", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {
@@ -2007,6 +2046,9 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 		if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-failed"}); err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err := service.WaitForBind(t.Context(), "sess-arm-failed"); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("WaitForBind(unarmed) = %v, want ErrHostedNonceInvalid", err)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()

@@ -50,22 +50,7 @@ func (m *Manager) prepareSessionLaunch(
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
-	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP && m.hostedMCP != nil &&
-		len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
-		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
-		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
-			started := time.Now()
-			err := m.hostedMCP.WaitForBind(ctx, session.ID)
-			outcome := "succeeded"
-			if err != nil {
-				outcome = "failed"
-				m.hostedMCP.CancelLaunch(session.ID)
-			}
-			m.sessionLogger(session).
-				Info("acp.start.stage", "stage", "mcp_bind", "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
-			return prompt, manifest, err
-		}
-	}
+	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
 
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
@@ -97,6 +82,32 @@ func (m *Manager) prepareSessionLaunch(
 		)
 	}
 	return startOpts, nil
+}
+
+func (m *Manager) prepareHostedMCPStartup(
+	session *Session,
+	runtime *sessionStartRuntime,
+	startOpts acp.StartOpts,
+) acp.StartOpts {
+	const failedOutcome = "failed"
+	if runtime.agent.Harness != compozyconfig.ProviderHarnessPiACP && m.hostedMCP != nil &&
+		len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
+		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
+		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
+			started := time.Now()
+			err := m.hostedMCP.WaitForBind(ctx, session.ID)
+			outcome := "succeeded"
+			if err != nil {
+				outcome = failedOutcome
+				m.hostedMCP.CancelLaunch(session.ID)
+			}
+			m.sessionLogger(session).
+				Info("acp.start.stage", "stage", "mcp_bind", "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
+			return prompt, manifest, err
+		}
+	}
+
+	return startOpts
 }
 
 func (m *Manager) prepareSessionReplay(

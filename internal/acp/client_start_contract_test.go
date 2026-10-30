@@ -1593,8 +1593,17 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 			})
 			defer stopProcess(t, driver, proc)
 
-			if !strings.Contains(logs.String(), "msg=acp.session.mcp_server method="+route.method) {
-				t.Fatalf("missing MCP shape diagnostic for %s", route.method)
+			var diagnostic string
+			for line := range strings.SplitSeq(logs.String(), "\n") {
+				if strings.Contains(line, "msg=acp.session.mcp_server method="+route.method) {
+					diagnostic = line
+					break
+				}
+			}
+			for _, field := range []string{"transport=stdio", "command_fingerprint=" + compozyconfig.CommandFingerprint("/bin/compozy")} {
+				if !strings.Contains(diagnostic, field) {
+					t.Fatalf("MCP diagnostic for %s missing %q: %s", route.method, field, diagnostic)
+				}
 			}
 			params := captureRequestParams(t, captureFile, route.method)
 			var wireServers []map[string]json.RawMessage
