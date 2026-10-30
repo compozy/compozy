@@ -341,3 +341,27 @@ and process-policy confirmation for eligible targets. Existing lifecycle and dra
 passed all 69 tests. Root Turbo lint/typecheck/build passed seven tasks; React Doctor scored
 100/100 with no issues. Seven real process and Kanban E2Es passed in 1.2 minutes, including
 bulk stop/archive and the stop/archive/delete process choices. Remote CI owns the heavy gate.
+
+## Retry, cancellation and terminal identity follow-up
+
+Bulk delete retries only failed targets. Unreadable targets fail individually while readable
+targets proceed; dismissing or replacing a dialog invalidates its pending confirmation read.
+The owning lifecycle suite passed all 58 tests. Root Turbo lint/typecheck/build passed seven
+tasks in 86.735 seconds, and changed-file React Doctor scored 100/100 with no issues.
+
+Keep/default process capture has a two-second best-effort budget and a cancellable scan lock;
+a timeout allows the lifecycle action to proceed without a complete pre-stop snapshot.
+Native archive preserves deferred cleanup after a slow accepted stop. Delete schedules that
+cleanup only after its stop was accepted, sharing the complete existing stop path, including
+subagent cascade and settlement. Cleanup retries timed-out waits until service shutdown,
+retaining the original frozen process identities. Terminal closure checks PID/start identity
+on the same handle it signals, preventing terminal-ID reuse from targeting a replacement.
+
+Focused process/HTTP/daemon race checks passed (2.712/2.452/3.980 seconds). After sharing the
+stop implementation, session and HTTP race checks passed (7.431/2.663 seconds). Terminal and
+daemon race checks passed (1.764/5.122 seconds). Windows cross-build passed. Full scoped Linux lint passed with zero issues. The resumed-process cleanup regression passed
+with race detection in 1.945 seconds after explicit cleanup error handling. The test-shape
+checker passes attribution/native tools; HTTP, restart and terminal files have no new heuristic
+findings compared with HEAD. All 14 real process/Kanban/subagent E2Es passed against the rebuilt daemon in 3.4 minutes,
+including parent-stop cancellation of both children. Staged-file formatting and lint passed.
+Remote CI and both reviews must still complete on the resulting pushed head.

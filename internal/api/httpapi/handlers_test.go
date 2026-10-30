@@ -4466,6 +4466,28 @@ func TestSessionProcessHandlers(t *testing.T) {
 			}
 		}
 	})
+	// Invariant: unsuccessful cleanup outcomes remain a lifecycle conflict with an actionable body.
+	// Owner/canonical suite: HTTP TestSessionProcessHandlers; process service is the I/O boundary.
+	for _, outcome := range []string{"unproven", "failed"} {
+		t.Run("Should report deletion cleanup conflict for "+outcome, func(t *testing.T) {
+			handlers := newTestHandlers(
+				t,
+				stubSessionManager{DeleteFn: func(context.Context, string) error { return nil }},
+				stubObserver{},
+				newTestHomePaths(t),
+			)
+			handlers.SessionProcesses = &handlerProcessService{
+				results: []sessionprocess.Result{{PID: 123, Outcome: outcome}},
+			}
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate", nil)
+			if response.Code != http.StatusConflict ||
+				!strings.Contains(response.Body.String(), "process 123 termination is "+outcome) {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+
 	t.Run("Should reject unsupported termination before deleting the session", func(t *testing.T) {
 		deleted := false
 		handlers := newTestHandlers(
@@ -4500,7 +4522,10 @@ func TestSessionProcessHandlers(t *testing.T) {
 				return &session.Info{ID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID,
 					State: session.StateActive}, nil
 			}
-			manager.DeleteFn = func(ctx context.Context, _ string) error { cancel(); return ctx.Err() }
+			manager.DeleteFn = func(ctx context.Context, _ string) error {
+				cancel()
+				return errors.Join(session.ErrDeleteStopAccepted, ctx.Err())
+			}
 			manager.ArchiveWithStopFn = func(ctx context.Context, _, _ string) (*session.Info, error) { cancel(); return nil, ctx.Err() }
 			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
 			handlers.SessionProcesses = processes
@@ -4519,6 +4544,27 @@ func TestSessionProcessHandlers(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should not clean up a canceled delete that never accepted a stop", func(t *testing.T) {
+		processes := &handlerProcessService{}
+		manager := &disconnectedProcessStopManager{}
+		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-workspace",
+				ProfileID:   store.DefaultProfileID,
+				State:       session.StateStopped,
+			}, nil
+		}
+		manager.DeleteFn = func(context.Context, string) error { return context.Canceled }
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		response := performRequest(t, newTestRouter(t, handlers), http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate", nil)
+		if response.Code < 400 || processes.afterStop != nil || processes.calls != 0 {
+			t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+		}
+	})
+
 	t.Run("Should finish cleanup after deletion cancels the caller context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
@@ -4666,6 +4712,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 }
 
 type handlerProcessService struct {
+	results              []sessionprocess.Result
 	aggregateProfile     string
 	calls                int
 	refreshErr           error
@@ -4732,7 +4779,7 @@ func (s *handlerProcessService) Terminate(
 	s.targets, s.all = targets, all
 	s.terminateContextErr = ctx.Err()
 	_, s.terminateHasDeadline = ctx.Deadline()
-	return []sessionprocess.Result{}, nil
+	return s.results, nil
 }
 func (s *handlerProcessService) AfterStop(_ string, await func(context.Context) error) {
 	s.afterStop = await

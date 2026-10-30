@@ -78,6 +78,9 @@ func (n *daemonNativeTools) setSessionArchived(
 		}
 	}
 	info, err := executeSessionArchive(ctx, manager, workspaceID, input, archived)
+	if archived && input.Stop && err != nil {
+		n.continueSessionProcessCleanup(input.SessionID, input.Processes, err)
+	}
 	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeSessionArchiveStopFailed,

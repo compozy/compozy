@@ -35,9 +35,11 @@ func (s *Service) Terminate(
 		}
 	}
 	// Serialize signaling and the durable audit against periodic observation publication.
-	s.scanMu.Lock()
+	if err := s.lockScan(ctx); err != nil {
+		return nil, err
+	}
 	results, err := s.terminateTargets(ctx, targets, indexed)
-	s.scanMu.Unlock()
+	s.scanGate.Release(1)
 	_, refreshErr := s.Refresh(ctx)
 	return results, errors.Join(err, refreshErr)
 }
@@ -122,14 +124,12 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 	}
 	s.mu.RUnlock()
 	s.work.Go(func() {
-		ctx, cancel := context.WithTimeout(s.runCtx, max(2*time.Minute, s.stopBudget))
-		err := await(ctx)
-		cancel()
+		err := s.awaitCleanupStop(await)
 		if err != nil {
 			s.logger.Error("Await session stop before process cleanup", "session_id", sessionID, "error", err)
 			return
 		}
-		ctx, cancel = context.WithTimeout(s.runCtx, 2*time.Minute)
+		ctx, cancel := context.WithTimeout(s.runCtx, 2*time.Minute)
 		defer cancel()
 		results, err := s.Terminate(
 			ctx,
@@ -156,4 +156,23 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 			}
 		}
 	})
+}
+
+// A slow accepted stop remains owned until it settles or this service shuts down.
+func (s *Service) awaitCleanupStop(await func(context.Context) error) error {
+	for {
+		ctx, cancel := context.WithTimeout(s.runCtx, max(2*time.Minute, s.stopBudget))
+		err := await(ctx)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) || s.runCtx.Err() != nil {
+			return err
+		}
+		retry := time.NewTimer(time.Second)
+		select {
+		case <-s.runCtx.Done():
+			retry.Stop()
+			return s.runCtx.Err()
+		case <-retry.C:
+		}
+	}
 }

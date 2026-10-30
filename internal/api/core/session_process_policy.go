@@ -22,7 +22,14 @@ func (h *BaseHandlers) prepareProcessPolicy(c *gin.Context, policy contract.Sess
 	if h.SessionProcesses == nil {
 		return policy != contract.SessionProcessesTerminate || h.requireSessionProcesses(c)
 	}
-	snapshot, err := h.SessionProcesses.Refresh(c.Request.Context())
+	ctx := c.Request.Context()
+	if policy != contract.SessionProcessesTerminate {
+		// Keep remains available if capture times out; retained discovery may use an incomplete pre-stop snapshot.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, sessionprocess.CaptureTimeout)
+		defer cancel()
+	}
+	snapshot, err := h.SessionProcesses.Refresh(ctx)
 	if policy != contract.SessionProcessesTerminate {
 		if err != nil && h.Logger != nil {
 			h.Logger.Warn("Capture processes before keeping session descendants", "error", err)

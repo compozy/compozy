@@ -144,6 +144,7 @@ export function useSessionLifecycleActions(
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useRef(false);
+  const deleteConfirmation = useRef(0);
   const deleteSessions = useCurrentDeleteSessions(
     deleteTarget?.sessions,
     deleteTarget?.openedAt ?? Infinity
@@ -272,7 +273,7 @@ export function useSessionLifecycleActions(
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
-  const confirmDeleteMany = async () => {
+  const confirmDeleteMany = async (readErrors?: ReadonlyMap<string, unknown>) => {
     if (!deleteTarget) return;
     const failedIds = new Set(
       batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
@@ -281,7 +282,13 @@ export function useSessionLifecycleActions(
       failedIds.size > 0
         ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
         : deleteTarget.sessions;
-    const results = await runBatch("delete", targets, batchResults, deletePolicy.current);
+    const results = await runBatch(
+      "delete",
+      targets,
+      batchResults,
+      deletePolicy.current,
+      readErrors
+    );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
@@ -292,11 +299,14 @@ export function useSessionLifecycleActions(
   };
 
   /** Keep single-row deletion behavior while routing selection batches through result tracking. */
-  const performDelete = (processes?: SessionProcessPolicy) => {
+  const performDelete = (
+    processes?: SessionProcessPolicy,
+    readErrors?: ReadonlyMap<string, unknown>
+  ) => {
     if (!deleteSession || remove.isPending || batchRunning.current) return;
     if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
-      void confirmDeleteMany();
+      void confirmDeleteMany(readErrors);
       return;
     }
     const { id } = deleteSession;
@@ -314,15 +324,27 @@ export function useSessionLifecycleActions(
 
   const confirmDelete = (processes?: SessionProcessPolicy) => {
     if (!deleteTarget) return;
-    void readCurrentSessions(queryClient, deleteTarget.sessions)
+    const confirmation = ++deleteConfirmation.current;
+    const failedIds = new Set<string>();
+    for (const result of batchResults) {
+      if (result.status === "failed") failedIds.add(result.id);
+    }
+    const targets =
+      deleteTarget.bulk && failedIds.size > 0
+        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        : deleteTarget.sessions;
+    void readCurrentSessions(queryClient, targets, deleteTarget.bulk)
       .then(current => {
-        if (current.errors.size) throw current.errors.values().next().value;
+        if (confirmation !== deleteConfirmation.current) return;
+        if (!deleteTarget.bulk && current.errors.size) throw current.errors.values().next().value;
         // A fresh nonzero count must be answered in the now-updated dialog.
         if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0)
           return;
-        performDelete(processes);
+        performDelete(processes, current.errors);
       })
-      .catch(error => reportActionError("delete", error));
+      .catch(error => {
+        if (confirmation === deleteConfirmation.current) reportActionError("delete", error);
+      });
   };
   /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
@@ -365,6 +387,7 @@ export function useSessionLifecycleActions(
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
         if (pendingAction === null && !batchRunning.current) {
+          deleteConfirmation.current++;
           deletePolicy.current = undefined;
           setBatchResults([]);
           setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
@@ -377,6 +400,7 @@ export function useSessionLifecycleActions(
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
+          deleteConfirmation.current++;
           deletePolicy.current = undefined;
           setBatchResults([]);
           setDeleteTarget({
@@ -396,6 +420,7 @@ export function useSessionLifecycleActions(
       isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {
         if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
+          deleteConfirmation.current++;
           if (batchResults.some(result => result.status === "failed")) {
             deleteTarget?.onSelectionChange?.(
               batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))

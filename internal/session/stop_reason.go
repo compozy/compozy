@@ -89,10 +89,15 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 
 // StopWithCause waits for the same operation used by asynchronous stop requests.
 func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	_, err := m.stopWithCauseReceipt(ctx, id, cause, detail)
+	return err
+}
+
+func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
 	previousRun := m.finalizedStopRun(id)
 	run, err := m.requestSessionStop(ctx, id, cause, detail)
 	if err != nil || run == nil {
-		return err
+		return false, err
 	}
 	if service := m.subagentService(); service != nil && cause != CauseShutdown && cause != CauseProcessExited {
 		if cascadeErr := service.OnParentStopped(ctx, id); cascadeErr != nil {
@@ -108,7 +113,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 			err = service.OnChildSettled(ctx, id)
 		}
 	}
-	return err
+	return true, err
 }
 
 func (m *Manager) finalizedStopRun(id string) *sessionStopRun {

@@ -89,3 +89,16 @@ remains a failed result after the answer.
   from a resumed session survive that cleanup.
 - Archive/delete with terminate retain verified-stop cleanup after caller disconnect.
 - Unauthorized process identities return an ownership-neutral result.
+
+- In a partially successful bulk delete, Retry rereads and deletes only failed targets;
+  already deleted targets are not fetched again. Readable targets proceed even if another
+  selected target cannot be read.
+- Dismiss or replace a delete dialog while its confirmation read is pending. Its stale
+  callback must not delete anything or report an error into the replacement interaction.
+- A canceled delete that never accepted a stop must not schedule descendant cleanup. An
+  accepted stop retains the existing subagent cascade and settlement behavior.
+- A busy scan must respect the keep/default capture budget. The action may proceed after
+  two seconds without a complete capture; explicit terminate retains its error semantics.
+- Deferred cleanup retries a timed-out stop wait without expanding its original identity
+  set; service shutdown ends the retry. A reused terminal ID with a different PID/start
+  identity must remain untouched by both TERM and KILL cleanup.

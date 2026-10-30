@@ -12,7 +12,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
+	"golang.org/x/sync/semaphore"
 )
+
+// CaptureTimeout bounds best-effort ownership capture before keeping descendants.
+const CaptureTimeout = 2 * time.Second
 
 const normalInterval = 5 * time.Second
 const toolInterval = 250 * time.Millisecond
@@ -27,7 +31,8 @@ type Service struct {
 	source       Source
 	store        Store
 	logger       *slog.Logger
-	scanMu       sync.Mutex
+	scanOnce     sync.Once
+	scanGate     *semaphore.Weighted
 	observations map[Identity]Observation
 	mu           sync.RWMutex
 	snapshot     Snapshot
@@ -148,10 +153,17 @@ func (s *Service) Refresh(ctx context.Context) (Snapshot, error) {
 	return s.refresh(ctx, owners, true)
 }
 
+func (s *Service) lockScan(ctx context.Context) error {
+	s.scanOnce.Do(func() { s.scanGate = semaphore.NewWeighted(1) })
+	return s.scanGate.Acquire(ctx, 1)
+}
+
 func (s *Service) refresh(ctx context.Context, owners []Owner, force bool) (Snapshot, error) {
-	s.scanMu.Lock()
+	if err := s.lockScan(ctx); err != nil {
+		return Snapshot{}, err
+	}
 	snap, changed, err := s.scan(ctx, owners, force)
-	s.scanMu.Unlock()
+	s.scanGate.Release(1)
 	if err != nil {
 		return Snapshot{}, err
 	}

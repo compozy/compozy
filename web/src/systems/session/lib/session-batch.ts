@@ -57,7 +57,8 @@ export async function runSessionBatch({
 
 export async function readCurrentSessions(
   queryClient: QueryClient,
-  sessions: readonly SessionPayload[]
+  sessions: readonly SessionPayload[],
+  allowPartial = false
 ) {
   const reads = await Promise.allSettled(
     sessions.map(async session => {
@@ -77,6 +78,6 @@ export async function readCurrentSessions(
     if (read.status === "fulfilled") current.push(read.value);
     else errors.set(sessions[index]!.id, read.reason);
   });
-  if (sessions.length === 1 && errors.size > 0) throw errors.values().next().value;
+  if (!allowPartial && sessions.length === 1 && errors.size > 0) throw errors.values().next().value;
   return { sessions: current, errors };
 }

@@ -331,6 +331,27 @@ func TestRetainedKernelIdentity(t *testing.T) {
 // Owner/canonical suite: sessionprocess orchestration, observed at the source I/O boundary.
 func TestAfterStopBudget(t *testing.T) {
 	t.Parallel()
+	t.Run("Should retain cleanup after the initial stop wait deadline", func(t *testing.T) {
+		source := &cleanupDeadlineSource{seen: make(chan context.Context, 1)}
+		service := &Service{runCtx: t.Context(), source: source, logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+		attempts := 0
+		service.AfterStop("sess-test", func(context.Context) error {
+			attempts++
+			if attempts == 1 {
+				return context.DeadlineExceeded
+			}
+			return nil
+		})
+		service.work.Wait()
+		if attempts != 2 {
+			t.Fatalf("await attempts = %d", attempts)
+		}
+		select {
+		case <-source.seen:
+		default:
+			t.Fatal("cleanup did not run after retry")
+		}
+	})
 	t.Run("Should preserve the configured wait budget and start a fresh cleanup deadline", func(t *testing.T) {
 		source := &cleanupDeadlineSource{seen: make(chan context.Context, 1)}
 		service := &Service{runCtx: t.Context(), source: source, stopBudget: 5 * time.Minute,
@@ -376,75 +397,82 @@ func (s *cleanupDeadlineSource) Owners(ctx context.Context) ([]Owner, error) {
 // Invariant: targets outside the authorized set reveal no host process state.
 // Owning layer/canonical suite: sessionprocess termination authorization.
 func TestUnauthorizedTerminationTargets(t *testing.T) {
-	t.Parallel()
-	service := &Service{}
-	targets := []Identity{
-		{PID: os.Getpid(), StartedAt: time.Unix(1, 0)},
-		{PID: -1, StartedAt: time.Unix(1, 0)},
-	}
-	results, err := service.terminateTargets(t.Context(), targets, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(results) != len(targets) {
-		t.Fatalf("results=%v", results)
-	}
-	for i, result := range results {
-		if result.Identity != targets[i] || result.Outcome != "unproven" ||
-			result.Error != "process ownership could not be verified" {
-			t.Fatalf("unauthorized target revealed state: %+v", result)
+	t.Run("Should return neutral outcomes for unauthorized targets", func(t *testing.T) {
+		t.Parallel()
+		service := &Service{}
+		targets := []Identity{
+			{PID: os.Getpid(), StartedAt: time.Unix(1, 0)},
+			{PID: -1, StartedAt: time.Unix(1, 0)},
 		}
-	}
+		results, err := service.terminateTargets(t.Context(), targets, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) != len(targets) {
+			t.Fatalf("results=%v", results)
+		}
+		for i, result := range results {
+			if result.Identity != targets[i] || result.Outcome != "unproven" ||
+				result.Error != "process ownership could not be verified" {
+				t.Fatalf("unauthorized target revealed state: %+v", result)
+			}
+		}
+	})
 }
 
 // Invariant: cleanup registered before a resume cannot signal the new run's processes.
 // Owning layer/canonical suite: sessionprocess orchestration with real OS identity checks.
 func TestAfterStopPreservesResumedProcesses(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("process inspection unsupported")
-	}
-	leader, err := procutil.InspectProcess(os.Getpid())
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := &resumedProcessSource{owner: Owner{SessionID: "sess-resumed", Live: true,
-		LeaderPID: leader.PID, LeaderStartedAt: leader.StartedAt}}
-	service := &Service{runCtx: t.Context(), source: source, store: discardObservations{},
-		observations: make(map[Identity]Observation), logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
-	release := make(chan struct{})
-	service.AfterStop(source.owner.SessionID, func(ctx context.Context) error {
-		select {
-		case <-release:
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
+	t.Run("Should preserve new process identities after resume", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("process inspection unsupported")
+		}
+		leader, err := procutil.InspectProcess(os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := &resumedProcessSource{owner: Owner{SessionID: "sess-resumed", Live: true,
+			LeaderPID: leader.PID, LeaderStartedAt: leader.StartedAt}}
+		service := &Service{runCtx: t.Context(), source: source, store: discardObservations{},
+			observations: make(map[Identity]Observation), logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+		release := make(chan struct{})
+		service.AfterStop(source.owner.SessionID, func(ctx context.Context) error {
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		t.Cleanup(func() { service.work.Wait() })
+		defer close(release)
+		child := exec.CommandContext(t.Context(), "/bin/sleep", "60")
+		procutil.ConfigureCommandSession(child)
+		if err := child.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := child.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Error(err)
+			}
+			var exitErr *exec.ExitError
+			if err := child.Wait(); err != nil && !errors.As(err, &exitErr) {
+				t.Errorf("wait for resumed process cleanup: %v", err)
+			}
+		}()
+		snapshot, err := service.Refresh(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(snapshot.Processes, func(p Process) bool { return p.PID == child.Process.Pid }) {
+			t.Fatal("new process was not attributed to the resumed session")
+		}
+		release <- struct{}{}
+		service.work.Wait()
+		if _, err := procutil.InspectProcess(child.Process.Pid); err != nil {
+			t.Fatalf("old cleanup ended resumed work: %v", err)
 		}
 	})
-	t.Cleanup(func() { service.work.Wait() })
-	defer close(release)
-	child := exec.CommandContext(t.Context(), "/bin/sleep", "60")
-	procutil.ConfigureCommandSession(child)
-	if err := child.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := child.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			t.Error(err)
-		}
-		_ = child.Wait()
-	}()
-	snapshot, err := service.Refresh(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.ContainsFunc(snapshot.Processes, func(p Process) bool { return p.PID == child.Process.Pid }) {
-		t.Fatal("new process was not attributed to the resumed session")
-	}
-	release <- struct{}{}
-	service.work.Wait()
-	if _, err := procutil.InspectProcess(child.Process.Pid); err != nil {
-		t.Fatalf("old cleanup ended resumed work: %v", err)
-	}
 }
 
 type resumedProcessSource struct {
@@ -464,4 +492,21 @@ func (discardObservations) LoadProcessObservations(context.Context) ([]Observati
 }
 func (discardObservations) SaveProcessObservations(context.Context, []Observation, []Identity) error {
 	return nil
+}
+
+// Invariant: a queued process capture obeys cancellation while another scan holds exclusivity.
+// Owning layer/canonical suite: sessionprocess attribution and capture.
+func TestProcessCaptureCancellation(t *testing.T) {
+	t.Run("Should cancel a queued scan without waiting for its predecessor", func(t *testing.T) {
+		var service Service
+		if err := service.lockScan(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		defer service.scanGate.Release(1)
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if _, err := service.refresh(ctx, nil, true); !errors.Is(err, context.Canceled) {
+			t.Fatalf("queued refresh error = %v", err)
+		}
+	})
 }

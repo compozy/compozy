@@ -103,12 +103,13 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 	}
 	actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindSystem, ID: "session-processes", ProfileID: p.Owner.ProfileID}
 	grace, cancel := context.WithTimeout(ctx, 3*time.Second)
-	_, err := b.state.terminals.Close(
+	_, err := b.state.terminals.CloseProcess(
 		grace,
 		p.Owner.WorkspaceID,
 		terminalpkg.ID(p.TerminalID),
 		actor,
 		terminalpkg.SignalTERM,
+		p.PID, p.StartedAt,
 	)
 	cancel()
 	if errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
@@ -124,12 +125,13 @@ func (b sessionProcessSource) CloseTerminal(ctx context.Context, p sessionproces
 		}
 		forced, finish := context.WithTimeout(ctx, time.Second)
 		defer finish()
-		_, err = b.state.terminals.Close(
+		_, err = b.state.terminals.CloseProcess(
 			forced,
 			p.Owner.WorkspaceID,
 			terminalpkg.ID(p.TerminalID),
 			actor,
 			terminalpkg.SignalKILL,
+			p.PID, p.StartedAt,
 		)
 	}
 	return err

@@ -130,6 +130,12 @@ func (n *daemonNativeTools) prepareSessionProcessPolicy(
 		}
 		return nil
 	}
+	if policy != contract.SessionProcessesTerminate {
+		// Keep continues on timeout, possibly without a complete pre-stop ownership capture.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, sessionprocess.CaptureTimeout)
+		defer cancel()
+	}
 	snapshot, err := service.Refresh(ctx)
 	if policy != contract.SessionProcessesTerminate {
 		if err != nil && n.deps.Logger != nil {

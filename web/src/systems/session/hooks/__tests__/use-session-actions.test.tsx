@@ -1148,6 +1148,37 @@ describe("session actions", () => {
     client.clear();
   });
 
+  // Invariant: dismissal or replacement revokes an in-flight delete confirmation.
+  // Owning layer/canonical suite: lifecycle actions; only detail adapter I/O is deferred.
+  it.each([false, true])(
+    "Should discard a pending delete read after dismissal with replacement=%s",
+    async replace => {
+      let resolveDetail!: (session: SessionPayload) => void;
+      const detail = new Promise<SessionPayload>(resolve => {
+        resolveDetail = resolve;
+      });
+      vi.mocked(fetchSessionById).mockReturnValue(detail);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(client),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(fetchSessionById).toHaveBeenCalled());
+      act(() => result.current.deleteDialog.onOpenChange(false));
+      if (replace)
+        act(() => result.current.actions.onDelete({ ...createdSession, id: "replacement" }));
+      await act(async () => {
+        resolveDetail(createdSession);
+        await detail;
+      });
+      expect(deleteSession).not.toHaveBeenCalled();
+      expect(result.current.deleteDialog.open).toBe(replace);
+      unmount();
+      client.clear();
+    }
+  );
+
   it("keeps the delete confirmation open until deletion succeeds", async () => {
     let resolveDelete!: () => void;
     vi.mocked(deleteSession).mockImplementation(
@@ -1708,6 +1739,37 @@ describe("session lifecycle batches", () => {
     ]);
   });
 
+  // Invariant: unreadable bulk targets fail individually while readable targets proceed.
+  // Owner/canonical suite: session lifecycle batches, adapter I/O boundary only.
+  it("Should delete readable targets and retain unreadable targets for retry", async () => {
+    const unavailable = { ...createdSession, id: "unavailable" };
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id === unavailable.id) throw new Error("Detail unavailable");
+      return { ...createdSession, id };
+    });
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    const { result } = lifecycle();
+    act(() => result.current.actions.onDeleteMany?.([unavailable, createdSession]));
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() =>
+      expect(result.current.batchResults).toEqual([
+        { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+        { id: createdSession.id, status: "done" },
+      ])
+    );
+    expect(deleteSession).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+    act(() => result.current.deleteDialog.onRetry?.());
+    await waitFor(() =>
+      expect(result.current.batchResults[0]).toEqual({
+        id: unavailable.id,
+        status: "failed",
+        error: "Detail unavailable",
+      })
+    );
+    expect(deleteSession).toHaveBeenCalledTimes(1);
+  });
+
   it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
     const targets = [
       createdSession,
@@ -1757,6 +1819,11 @@ describe("session lifecycle batches", () => {
     expect(selectionChanged).toHaveBeenLastCalledWith(["second"]);
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+    // Completed targets are gone: retry must read only the remaining failed ID.
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id !== "second") throw new Error("Session not found");
+      return { ...createdSession, id };
+    });
     act(() => result.current.deleteDialog.onRetry?.());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
     expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([

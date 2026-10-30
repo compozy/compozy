@@ -15605,6 +15605,7 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				wait        bool
 				async       bool
 				timeout     bool
+				wrapped     bool
 				wantCode    toolspkg.ErrorCode
 			}{
 				{name: "Should keep omitted policy despite scan failure", scanFailure: true},
@@ -15615,10 +15616,14 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				{name: "Should finish waited stop cleanup after admission cancels the caller", policy: "terminate", cancel: true, wait: true},
 				{name: "Should schedule cleanup after an asynchronous stop", policy: "terminate", async: true},
 				{name: "Should retain cleanup after a legacy stop deadline", policy: "terminate", timeout: true},
+				{name: "Should retain cleanup after a wrapped archive deadline", policy: "terminate", timeout: true, wrapped: true},
 				{name: "Should retain cleanup after a waited stop deadline", policy: "terminate", timeout: true, wait: true},
 				{name: "Should reject invalid policy before mutation", policy: "invalid", wantCode: toolspkg.ErrorCodeInvalidInput},
 			} {
-				if (tc.wait || tc.async || tc.timeout) && toolID != toolspkg.ToolIDSessionStop {
+				if (tc.wait || tc.async) && toolID != toolspkg.ToolIDSessionStop {
+					continue
+				}
+				if tc.wrapped && toolID != toolspkg.ToolIDSessionArchive {
 					continue
 				}
 				t.Run(tc.name, func(t *testing.T) {
@@ -15652,6 +15657,15 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 						},
 						ArchiveWithStopFn: func(archiveCtx context.Context, _ string, _ string) (*session.Info, error) {
 							commit()
+							if tc.timeout {
+								if tc.wrapped {
+									return nil, errors.Join(
+										session.ErrSessionArchiveStopFailed,
+										context.DeadlineExceeded,
+									)
+								}
+								return nil, context.DeadlineExceeded
+							}
 							return info, archiveCtx.Err()
 						},
 						requestStopFn: func(context.Context, string, session.StopCause, string) error { commit(); return nil },

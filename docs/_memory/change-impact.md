@@ -4832,3 +4832,11 @@ config, hook or extension SDK shape changes. The existing official skill contrac
 Restart operation readiness additionally requires open admission on the responding daemon; this
 prevents a ready receipt from admitting work during boot/drain. QA evidence is in the session
 process report and scenarios.
+
+PR #1049 retry/cancellation follow-up: HTTP/native keep capture is bounded and cancellable;
+native archive retains slow-stop cleanup, and delete requires an accepted-stop receipt while
+preserving the shared subagent stop path. Deferred cleanup retries waits with frozen identities
+and checks terminal PID/start on the actual handle before signaling. Web bulk delete retries
+failed targets only and ignores stale dialog callbacks. No public DTO, config, hook, schema or
+official-skill surface changes; existing owner/profile/workspace isolation remains in force.
+QA scenarios and evidence: RT-session-processes and the 2026-10-29 session-processes report.

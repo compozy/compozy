@@ -268,7 +268,9 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 		return
 	}
 	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
-		h.continueProcessCleanup(sessionID, policy, err)
+		if errors.Is(err, session.ErrDeleteStopAccepted) {
+			h.continueProcessCleanup(sessionID, policy, err)
+		}
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
