@@ -500,4 +500,34 @@ describe("SessionBoardWindow drawer", () => {
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "delete"));
     await waitFor(() => expect(screen.getByTestId("session-board-card-w1")).toHaveFocus());
   });
+
+  it("Should land on a batch member the archive skipped when no other card remains", async () => {
+    harness.board = sessionsBoardViewFixture(
+      {
+        needs_you: empty,
+        working: { sessions: [card("w2", "working"), card("w3", "working")] },
+        in_review: empty,
+        done: empty,
+      },
+      { sessions: [], count: 0, hasMore: false }
+    );
+    setRoute("w2", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("session-board-card-select-w2"));
+    await user.click(screen.getByTestId("session-board-card-w3"));
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId("session-board-card-w2"),
+    });
+    await user.click(await screen.findByTestId("sessions-board-selection-menu-archive"));
+
+    // w3 was skipped (or failed) and stays on the board: it is still the best landing.
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
+    applyLastRetarget();
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
+  });
 });

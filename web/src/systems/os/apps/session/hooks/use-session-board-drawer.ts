@@ -56,32 +56,38 @@ function boardCards(board: HTMLElement | null, { visible = true } = {}): BoardCa
 }
 
 /**
- * Where focus goes once the drawer's session leaves the board (archived, deleted): the card
- * below it in the same column, else the one above, else the next card on the board. Cards
- * leaving with it (a bulk archive or delete) are never landed on.
+ * Where focus may go once the drawer's session leaves the board (archived, deleted), best
+ * first: the cards below it in the same column, then above, then the rest of the board after
+ * and before it. Cards leaving with it (a bulk archive or delete) come last, so a member the
+ * batch skips or fails still beats nowhere.
  */
-function successorCard(
+function successorCandidates(
   board: HTMLElement | null,
   sessionId: string,
   leaving: ReadonlySet<string> = new Set()
-): BoardCard | null {
+): string[] {
   // The removed card may sit in a folded column: find it among every card, land on a visible one.
   const everyCard = boardCards(board, { visible: false });
   const position = everyCard.findIndex(card => card.id === sessionId);
-  if (position < 0) return null;
+  if (position < 0) return [];
   const visibleIds = new Set(boardCards(board).map(card => card.id));
-  const isLanding = (card: BoardCard) =>
-    card.id !== sessionId && !leaving.has(card.id) && visibleIds.has(card.id);
   const column = everyCard[position]!.element.closest("section");
   const siblings = column ? everyCard.filter(card => column.contains(card.element)) : [];
   const inColumn = siblings.indexOf(everyCard[position]!);
-  return (
-    siblings.slice(inColumn + 1).find(isLanding) ??
-    siblings.slice(0, inColumn).reverse().find(isLanding) ??
-    everyCard.slice(position + 1).find(isLanding) ??
-    everyCard.slice(0, position).reverse().find(isLanding) ??
-    null
-  );
+  const ordered = [
+    ...siblings.slice(inColumn + 1),
+    ...siblings.slice(0, inColumn).reverse(),
+    ...everyCard.slice(position + 1),
+    ...everyCard.slice(0, position).reverse(),
+  ].flatMap(card => (card.id !== sessionId && visibleIds.has(card.id) ? [card.id] : []));
+  const unique = [...new Set(ordered)];
+  return [...unique.filter(id => !leaving.has(id)), ...unique.filter(id => leaving.has(id))];
+}
+
+/** The first candidate still visible on the board. */
+function firstOnBoard(board: HTMLElement | null, candidates: readonly string[]): string | null {
+  const visibleIds = new Set(boardCards(board).map(card => card.id));
+  return candidates.find(id => visibleIds.has(id)) ?? null;
 }
 
 /**
@@ -151,7 +157,7 @@ export function useSessionBoardDrawer({
    * The landing chosen when an archive or delete was requested: by the time the daemon
    * confirms it, a delete has already taken the card off the board.
    */
-  const requestedLandingRef = useRef<{ sessionId: string; landing: string | null } | null>(null);
+  const requestedLandingRef = useRef<{ sessionId: string; candidates: string[] } | null>(null);
   /** The session the drawer shows, kept after it closes: a delete closes it before it confirms. */
   const shownRef = useRef<string | null>(null);
   /** Whether the drawer is open now; a removal confirms asynchronously, after renders moved on. */
@@ -222,10 +228,12 @@ export function useSessionBoardDrawer({
       if (session.id !== shownRef.current) return;
       const requested = requestedLandingRef.current;
       requestedLandingRef.current = null;
-      landingRef.current =
+      landingRef.current = firstOnBoard(
+        boardRef.current,
         requested?.sessionId === session.id
-          ? requested.landing
-          : (successorCard(boardRef.current, session.id)?.id ?? null);
+          ? requested.candidates
+          : successorCandidates(boardRef.current, session.id)
+      );
       // Archive closes the drawer here; a delete retires this window's session, which closes
       // the drawer with it — possibly already, in which case focus moves now.
       if (!openRef.current) landFocus();
@@ -238,10 +246,16 @@ export function useSessionBoardDrawer({
         if (sessionId === null || !sessions.some(session => session.id === sessionId)) return;
         requestedLandingRef.current = {
           sessionId,
-          landing:
-            successorCard(boardRef.current, sessionId, new Set(sessions.map(session => session.id)))
-              ?.id ?? null,
+          candidates: successorCandidates(
+            boardRef.current,
+            sessionId,
+            new Set(sessions.map(session => session.id))
+          ),
         };
+      };
+      // A host busy with another lifecycle action declines a batch: remember nothing for it.
+      const rememberBatch = (sessions: readonly { id: string }[]) => {
+        if (actions.pendingAction === null) remember(sessions);
       };
       const { onArchiveMany, onDeleteMany } = actions;
       return {
@@ -256,13 +270,13 @@ export function useSessionBoardDrawer({
         },
         onArchiveMany: onArchiveMany
           ? sessions => {
-              remember(sessions);
+              rememberBatch(sessions);
               onArchiveMany(sessions);
             }
           : undefined,
         onDeleteMany: onDeleteMany
           ? (sessions, onSelectionChange) => {
-              remember(sessions);
+              rememberBatch(sessions);
               onDeleteMany(sessions, onSelectionChange);
             }
           : undefined,

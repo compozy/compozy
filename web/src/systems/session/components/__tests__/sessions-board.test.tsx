@@ -904,6 +904,23 @@ describe("SessionsBoard selection", () => {
     expect(cardOf("arch")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("Should keep a card's checkbox on a board that offers no verbs", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithTopbar(
+      <QueryClientProvider client={client}>
+        <SessionsBoardSelection selectionKey="board" sessionActions={bulkActions()} topbar={{}}>
+          <SessionsBoard
+            board={board({ working: { sessions: [card("bare")], count: 1 } })}
+            onOpen={vi.fn()}
+          />
+        </SessionsBoardSelection>
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByTestId("session-board-card-select-bare"));
+    expect(cardOf("bare")).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("Should re-render only the cards a toggle changes", async () => {
     const user = userEvent.setup();
     const ids = ["a", "b", "c", "d", "e"];

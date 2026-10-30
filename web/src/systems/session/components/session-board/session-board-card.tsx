@@ -29,6 +29,9 @@ export interface SessionBoardCardProps {
   actions?: SessionLifecycleActionHandlers;
 }
 
+/** The card's hover/focus group: its checkbox and `…` reveal against it. */
+const SESSION_BOARD_CARD_FRAME_GROUP = "group/session-card relative w-full min-w-0 shrink-0";
+
 type CardSelection = NonNullable<ReturnType<typeof useSessionBoardCardSelection>>;
 
 /**
@@ -49,15 +52,25 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
   const { session } = props;
   const selection = useSessionBoardCardSelection(session.id);
   const button = <SessionBoardCardButton {...props} selection={selection} />;
-  if (!actions) return button;
+  const checkbox = selection ? (
+    <SessionBoardCardCheckbox selection={selection} session={session} />
+  ) : null;
+  if (!actions) {
+    // Without verbs there is no menu, but a selectable card still shows its checkbox.
+    return checkbox ? (
+      <div className={SESSION_BOARD_CARD_FRAME_GROUP}>
+        {button}
+        {checkbox}
+      </div>
+    ) : (
+      button
+    );
+  }
   return (
     <SessionRowContextMenu
       actions={actions}
       render={
-        <div
-          className="group/session-card relative w-full min-w-0 shrink-0"
-          onContextMenu={selection?.retarget}
-        />
+        <div className={SESSION_BOARD_CARD_FRAME_GROUP} onContextMenu={selection?.retarget} />
       }
       selectionMenu={
         selection?.inMultiSelection ? (
@@ -67,7 +80,7 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
       session={session}
     >
       {button}
-      {selection ? <SessionBoardCardCheckbox selection={selection} session={session} /> : null}
+      {checkbox}
       {selection?.mode ? null : (
         <span
           className="absolute top-2 right-2 rounded-md bg-surface-2 opacity-0 transition-opacity duration-fast group-focus-within/session-card:opacity-100 group-hover/session-card:opacity-100 group-has-data-popup-open/session-card:opacity-100 motion-reduce:transition-none"
