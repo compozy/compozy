@@ -58,9 +58,7 @@ func (m *Service) applyWorktreeRoot(
 }
 
 func (s *session) releaseWorktree() {
-	if s.worktreeRelease != nil {
-		s.worktreeRelease()
-	}
+	releaseWorktreeNow(s.worktreeRelease)
 }
 
 func worktreeNotFoundError(ref string) *Error {
@@ -81,4 +79,28 @@ func canonicalDir(path string) string {
 		return resolved
 	}
 	return clean
+}
+
+func releaseWorktreeNow(release func()) {
+	if release != nil {
+		release()
+	}
+}
+
+// releaseWorktreeAfterExit keeps a rolled-back launch's worktree lease until its
+// process has exited, so a shell that outlived cleanup still fences removal.
+func (m *Service) releaseWorktreeAfterExit(proc Proc, release func()) {
+	if release == nil {
+		return
+	}
+	if proc == nil {
+		release()
+		return
+	}
+	go func() {
+		defer release()
+		if _, err := proc.Wait(context.Background()); err != nil {
+			m.logger.Warn("terminal: wait for rolled-back process before releasing worktree", "error", err)
+		}
+	}()
 }

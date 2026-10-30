@@ -27,21 +27,14 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if err != nil {
 		return nil, err
 	}
-	opened := false
-	defer func() {
-		if !opened && releaseWorktree != nil {
-			releaseWorktree()
-		}
-	}()
 	request.WS, request.Cwd = workspaceID, cwd
 	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
+		releaseWorktreeNow(releaseWorktree)
 		return nil, err
 	}
 	defer producer.Release()
-	handle, err := m.open(ctx, request, cwd, workspaceID, releaseWorktree)
-	opened = err == nil
-	return handle, err
+	return m.open(ctx, request, cwd, workspaceID, releaseWorktree)
 }
 
 func (m *Service) open(
@@ -50,6 +43,13 @@ func (m *Service) open(
 	cwd, workspaceID string,
 	releaseWorktree func(),
 ) (Handle, error) {
+	// The launch owns the worktree lease once it starts; earlier failures release it here.
+	launched := false
+	defer func() {
+		if !launched {
+			releaseWorktreeNow(releaseWorktree)
+		}
+	}()
 	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
 		return nil, err
 	}
@@ -102,6 +102,7 @@ func (m *Service) open(
 		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	titlePinned := strings.TrimSpace(request.Title) != ""
+	launched = true
 	item, key, err := m.launchTerminal(ctx, &terminalLaunch{
 		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: titlePinned,
 		startLabel: fmt.Sprintf("shell %q", shell), worktreeRelease: releaseWorktree,
@@ -112,7 +113,9 @@ func (m *Service) open(
 	if err := m.startOpenedSession(ctx, item, request.Actor, settings.Recording); err != nil {
 		m.removeInserted(key, item)
 		item.cancel()
-		return nil, cleanupRegisteredProcess(ctx, item.proc, item.processRecord, err)
+		cleanupErr := cleanupRegisteredProcess(ctx, item.proc, item.processRecord, err)
+		m.releaseWorktreeAfterExit(item.proc, item.worktreeRelease)
+		return nil, cleanupErr
 	}
 	return item, nil
 }

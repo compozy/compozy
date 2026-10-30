@@ -1254,6 +1254,43 @@ func TestManagerCwdAndShell(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the worktree lease until a rolled-back shell actually exits", func(t *testing.T) {
+		t.Parallel()
+		checkout := t.TempDir()
+		var leases atomic.Int32
+		var starter *fakePTY
+		manager, starterPTY, _ := newTestManager(t, DefaultSettings(),
+			WithWorktreeRootResolver(func(context.Context, string, string, string) (string, func(), error) {
+				leases.Add(1)
+				return checkout, func() { leases.Add(-1) }, nil
+			}),
+			withProcessRegister(func(context.Context, toolruntime.RegisterConfig) (processCheckpoint, error) {
+				starter.latest().failKill(errors.New("kill refused"))
+				return nil, errors.New("process registry unavailable")
+			}),
+		)
+		starter = starterPTY
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Worktree: "wt-ready", Shell: "sh",
+			Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err == nil {
+			t.Fatal("Open() with a failing process registry succeeded")
+		}
+		if got := leases.Load(); got != 1 {
+			t.Fatalf("worktree leases while the unkilled shell lives = %d, want 1", got)
+		}
+		code := 0
+		receiveStartedProc(t, starter).complete(terminalExit("exited", &code, nil))
+		deadline := time.Now().Add(2 * time.Second)
+		for leases.Load() != 0 && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if got := leases.Load(); got != 0 {
+			t.Fatalf("worktree leases after the shell exited = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should refuse a worktree outside an agent's bound execution root", func(t *testing.T) {
 		t.Parallel()
 		bound, other := t.TempDir(), t.TempDir()
