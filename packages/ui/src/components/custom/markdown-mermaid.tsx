@@ -105,7 +105,8 @@ function zoomModifierLabel() {
 /** Keeps diagram inspection at viewport scope, independent of the transcript's window portal. */
 function MermaidFullscreen({ src }: { src: string | null }) {
   const [view, setView] = React.useState(INITIAL_VIEW);
-  const drag = React.useRef<{ x: number; y: number } | null>(null);
+  // Last pointer position of an active drag.
+  const drag = React.useRef<ViewerPoint | null>(null);
   const reset = () => setView(INITIAL_VIEW);
   const zoomBy = (step: number) => setView(value => zoomView(value, value.zoom + step));
   // React wheel listeners are passive; Ctrl/Cmd+wheel and pinch must be cancelled before
@@ -119,10 +120,13 @@ function MermaidFullscreen({ src }: { src: string | null }) {
         x: event.clientX - bounds.left - bounds.width / 2,
         y: event.clientY - bounds.top - bounds.height / 2,
       };
-      const pixels =
-        event.deltaMode === WheelEvent.DOM_DELTA_PIXEL
-          ? event.deltaY
-          : event.deltaY * WHEEL_LINE_HEIGHT;
+      const unit =
+        event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? bounds.height
+          : event.deltaMode === WheelEvent.DOM_DELTA_LINE
+            ? WHEEL_LINE_HEIGHT
+            : 1;
+      const pixels = event.deltaY * unit;
       const delta = Math.min(WHEEL_DELTA_LIMIT, Math.max(-WHEEL_DELTA_LIMIT, pixels));
       setView(value => zoomView(value, value.zoom * Math.exp(-delta * WHEEL_ZOOM_RATE), anchor));
     };
@@ -210,16 +214,16 @@ function MermaidFullscreen({ src }: { src: string | null }) {
             onPointerDown={event => {
               if (event.button !== 0 && event.button !== 1) return;
               event.currentTarget.setPointerCapture(event.pointerId);
-              drag.current = { x: event.clientX - view.x, y: event.clientY - view.y };
+              drag.current = { x: event.clientX, y: event.clientY };
             }}
             onPointerMove={event => {
-              const origin = drag.current;
-              if (origin)
-                setView(value => ({
-                  ...value,
-                  x: event.clientX - origin.x,
-                  y: event.clientY - origin.y,
-                }));
+              const last = drag.current;
+              if (!last) return;
+              // Apply each move as a delta so a wheel zoom during the drag keeps its anchor.
+              const dx = event.clientX - last.x;
+              const dy = event.clientY - last.y;
+              drag.current = { x: event.clientX, y: event.clientY };
+              setView(value => ({ ...value, x: value.x + dx, y: value.y + dy }));
             }}
             onPointerUp={() => {
               drag.current = null;

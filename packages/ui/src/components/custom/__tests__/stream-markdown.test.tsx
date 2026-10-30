@@ -81,6 +81,9 @@ describe("MarkdownMermaid", () => {
     for (let step = 0; step < 200; step++) fireEvent.wheel(viewer, { deltaY: 5, ctrlKey: true });
     expect(zoom).toHaveTextContent("25%");
     expect(dialog.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    for (let step = 0; step < 20; step++) fireEvent.keyDown(viewer, { key: "=" });
+    expect(zoom).toHaveTextContent("400%");
+    expect(dialog.getByRole("button", { name: "Zoom in" })).toBeDisabled();
 
     fireEvent.keyDown(viewer, { key: "0" });
     expect(zoom).toHaveTextContent("100%");

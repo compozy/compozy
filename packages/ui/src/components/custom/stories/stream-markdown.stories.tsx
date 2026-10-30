@@ -173,6 +173,26 @@ export const MermaidSizing: Story = {
     ]);
     await expect(expandedImage.getBoundingClientRect().left - initial.left).toBeCloseTo(30);
     await expect(expandedImage.getBoundingClientRect().top - initial.top).toBeCloseTo(10);
+    // Zooming mid-drag keeps the zoom anchor: later moves apply only their own delta.
+    const user = userEvent.setup();
+    await user.pointer({
+      target: viewer,
+      keys: "[MouseLeft>]",
+      coords: { clientX: 300, clientY: 300 },
+    });
+    await expect(wheel({ deltaY: -100, ctrlKey: true })).toBe(false);
+    await waitFor(() => expect(overlay.getByLabelText("Zoom")).toHaveTextContent("128%"));
+    const zoomedMidDrag = expandedImage.getBoundingClientRect();
+    await user.pointer({ target: viewer, coords: { clientX: 320, clientY: 310 } });
+    await user.pointer({ target: viewer, keys: "[/MouseLeft]" });
+    await expect(expandedImage.getBoundingClientRect().left - zoomedMidDrag.left).toBeCloseTo(20);
+    await expect(expandedImage.getBoundingClientRect().top - zoomedMidDrag.top).toBeCloseTo(10);
+    // A page-mode wheel delta is measured in viewer heights, so it takes a full capped step.
+    await userEvent.keyboard("0");
+    await expect(wheel({ deltaY: -1, deltaMode: WheelEvent.DOM_DELTA_PAGE, ctrlKey: true })).toBe(
+      false
+    );
+    await waitFor(() => expect(overlay.getByLabelText("Zoom")).toHaveTextContent("128%"));
     await userEvent.keyboard("{Escape}");
   },
 };
