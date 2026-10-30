@@ -28,6 +28,8 @@ and cross-profile isolation. On macOS, observe the protected sleep while attache
 its parent; the documented pre-observation blind spot is not a passing attribution case.
 
 Automation: `web/e2e/__tests__/session-processes.spec.ts` (`E2E-PROC-001`) owns composer discovery
-of an externally parented, marked detached Node process and stop-with-terminate. Real OS identity,
+of an externally parented, marked detached Node process and stop-with-terminate. `E2E-PROC-002`
+walks archive and delete from the session list with both keep and terminate, verifies the policy
+reaches the daemon, and checks process survival or exit independently. Real OS identity,
 lineage/restart persistence, and reused-PID safety remain in `internal/procutil` and
 `internal/sessionprocess`; wire policy belongs to the API/client suites.

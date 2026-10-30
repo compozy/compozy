@@ -168,3 +168,14 @@ reported zero issues, and the unchanged real Goal E2E function passed ten Linux 
 with one CPU plus five Linux repetitions with the race-enabled test binary and two CPUs.
 The daemon and mock binaries used Go 1.27.1; the test containers used isolated temporary
 runtime state and removed themselves on exit. No operator daemon was touched.
+
+## Final Web delivery coverage
+
+The existing process E2E suite now includes `E2E-PROC-002` for session-list archive and delete,
+with both process choices. It drives the real dialogs, verifies successful policy-bearing
+requests and independently observes process survival/exit; execution remains assigned to CI.
+The aggregate adapter intentionally serializes destructive batches. A narrow React Doctor
+exemption records that resource constraint, following existing repository practice. The warning
+reproduced without it (93/100); the pinned changed-scope scan passed with it (100/100), while
+the adapter regression still verifies one request in flight and per-target failure reporting.
+The final root Turbo Web typecheck also passed all four tasks after both frontend commits.
