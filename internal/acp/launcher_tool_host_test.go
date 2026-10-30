@@ -1090,14 +1090,23 @@ func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 				t.Fatalf("MCP diagnostic exposes %q", secret)
 			}
 		}
-		for _, field := range []string{
-			"method=session/new",
-			"command_fingerprint=" + compozyconfig.CommandFingerprint("/private-seat/compozy"),
-			"command_fingerprint=" + compozyconfig.CommandFingerprint("TOKEN=private-command-token helper"),
-			"type_field_present=false", "arg_count=2", "env_count=1",
-		} {
-			if !strings.Contains(logs.String(), field) {
-				t.Fatalf("MCP diagnostic is missing %q", field)
+		for _, server := range servers {
+			stdio := server.Stdio
+			fingerprint := "command_fingerprint=" + compozyconfig.CommandFingerprint(stdio.Command)
+			var record string
+			for line := range strings.SplitSeq(logs.String(), "\n") {
+				if strings.Contains(line, fingerprint) {
+					record = line
+					break
+				}
+			}
+			for _, field := range []string{
+				fingerprint, "method=session/new", "transport=stdio", "type_field_present=false",
+				fmt.Sprintf("arg_count=%d", len(stdio.Args)), fmt.Sprintf("env_count=%d", len(stdio.Env)),
+			} {
+				if !slices.Contains(strings.Fields(record), field) {
+					t.Fatalf("MCP diagnostic record for %s is missing %q", fingerprint, field)
+				}
 			}
 		}
 	})
