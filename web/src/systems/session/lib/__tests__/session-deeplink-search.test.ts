@@ -35,4 +35,13 @@ describe("validateSessionDeepLinkSearch", () => {
       })
     ).toEqual({ workspaceSwitch: "confirm" });
   });
+
+  it("Should keep only the open board drawer state", () => {
+    expect(validateSessionDeepLinkSearch({ drawer: "open", workspace: "ws_a" })).toEqual({
+      drawer: "open",
+      workspace: "ws_a",
+    });
+    expect(validateSessionDeepLinkSearch({ drawer: "closed" })).toEqual({});
+    expect(validateSessionDeepLinkSearch({ drawer: true })).toEqual({});
+  });
 });

@@ -15604,6 +15604,7 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				cancel      bool
 				wait        bool
 				async       bool
+				timeout     bool
 				wantCode    toolspkg.ErrorCode
 			}{
 				{name: "Should keep omitted policy despite scan failure", scanFailure: true},
@@ -15613,9 +15614,11 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 				{name: "Should finish cleanup after lifecycle cancels the caller", policy: "terminate", cancel: true},
 				{name: "Should finish waited stop cleanup after admission cancels the caller", policy: "terminate", cancel: true, wait: true},
 				{name: "Should schedule cleanup after an asynchronous stop", policy: "terminate", async: true},
+				{name: "Should retain cleanup after a legacy stop deadline", policy: "terminate", timeout: true},
+				{name: "Should retain cleanup after a waited stop deadline", policy: "terminate", timeout: true, wait: true},
 				{name: "Should reject invalid policy before mutation", policy: "invalid", wantCode: toolspkg.ErrorCodeInvalidInput},
 			} {
-				if (tc.wait || tc.async) && toolID != toolspkg.ToolIDSessionStop {
+				if (tc.wait || tc.async || tc.timeout) && toolID != toolspkg.ToolIDSessionStop {
 					continue
 				}
 				t.Run(tc.name, func(t *testing.T) {
@@ -15642,6 +15645,9 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 						StatusFn: func(context.Context, string) (*session.Info, error) { return info, nil },
 						StopWithCauseFn: func(stopCtx context.Context, _ string, _ session.StopCause, _ string) error {
 							commit()
+							if tc.timeout {
+								return context.DeadlineExceeded
+							}
 							return stopCtx.Err()
 						},
 						ArchiveWithStopFn: func(archiveCtx context.Context, _ string, _ string) (*session.Info, error) {
@@ -15650,6 +15656,10 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 						},
 						requestStopFn: func(context.Context, string, session.StopCause, string) error { commit(); return nil },
 						awaitStoppedFn: func(waitCtx context.Context, id string) (session.StopOutcome, error) {
+							if tc.timeout && !awaited {
+								awaited = true
+								return session.StopOutcome{}, context.DeadlineExceeded
+							}
 							awaited = id == info.ID
 							if _, bounded := waitCtx.Deadline(); !bounded {
 								t.Error("committed terminate wait has no deadline")
@@ -15681,6 +15691,23 @@ func TestNativeSessionProcessPolicies(t *testing.T) {
 							ToolID: toolID, Input: encoded,
 						},
 					)
+					if tc.timeout {
+						if err == nil || processes.afterStop == nil || !processes.alive {
+							t.Fatalf(
+								"deadline error=%v callback=%t alive=%t",
+								err,
+								processes.afterStop != nil,
+								processes.alive,
+							)
+						}
+						awaited = true
+						cleanupCtx, cleanupCancel := context.WithTimeout(t.Context(), time.Second)
+						defer cleanupCancel()
+						if err := processes.afterStop(cleanupCtx); err != nil {
+							t.Fatal(err)
+						}
+						return
+					}
 					if tc.wantCode != "" {
 						if mutated || !processes.alive {
 							t.Fatalf("refused policy mutated lifecycle=%t alive=%t", mutated, processes.alive)

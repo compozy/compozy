@@ -201,7 +201,13 @@ func newSessionProcessService(ctx context.Context, state *bootState, home string
 	if !ok {
 		return nil, errors.New("daemon: process observation store unavailable")
 	}
-	service, err := sessionprocess.New(ctx, sessionProcessSource{state: state, home: home}, persistence, state.logger)
+	service, err := sessionprocess.New(
+		ctx,
+		sessionProcessSource{state: state, home: home},
+		persistence,
+		state.logger,
+		session.TerminationBudget(state.cfg.Session.Stop)+2*time.Minute,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create session process service: %w", err)
 	}

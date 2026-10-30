@@ -4799,3 +4799,26 @@ leader identity protects its group without authorizing ancestry. Linux clock ini
 failed reads. Legacy HTTP terminate cleanup survives client disconnect under a two-minute bound.
 Web bulk detail failures become per-target failures without blocking readable targets or mutating
 stale data; owner/profile scoping remains unchanged. QA: RT-session-processes.
+
+## Kanban session drawer (#1052) — 2026-10-30
+
+Owner: `feat/issue-1052-kanban-session-drawer`. A board card opens the window's own session in a
+resizable drawer beside the live board instead of switching the window to List. Web-only; no native
+tool, CLI/HTTP/UDS, DTO, hook, extension SDK, config key, or SQLite change, and workspace/profile
+isolation is unchanged (the drawer resolves sessions through the same profile-enforced read as
+List). Public surface, additive (SD-013): the session window route accepts `drawer=open`
+(`/agents/<agent>/sessions/<id>?drawer=open`), persisted by the existing window-manager route
+search and ignored by List; older clients drop the unknown key. User state: the browser-local
+`compozy:session:sidebar:v1` entries gain `drawerWidth` (normalized, `null` default); entries
+written before it read the default width, so no migration or schema bump is needed. `@compozy/ui`
+`ResizableDrawer` gains `breakpointBasis`, `header`, `initialFocus`, `modal` and a function
+`returnFocus` (internal regime; its one other consumer keeps the defaults). Official skill: not
+affected (no agent-facing surface). Site `docs/sessions/board.mdx` and QA scenarios
+`ET-web-sessions-board-drawer` and `ET-web-sessions-board-toggle` record the behavior.
+
+PR #1049 integration with #1055 preserves the board drawer's archive-success notification and
+presentation-specific panel controls alongside process-policy choices. Slow-stop deadline handling
+retains explicit terminate cleanup across HTTP and native legacy/waited paths; the background wait
+uses the configured session termination budget with a bounded settlement allowance and a separate
+cleanup deadline. No new wire, storage, config key, extension/hook or official skill contract.
+Existing profile/workspace ownership checks remain unchanged. QA: RT-session-processes.

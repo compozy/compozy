@@ -37,6 +37,7 @@ import {
   SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
   useCreateSession,
+  useSessionWindowPresentation,
 } from "@/systems/session";
 
 const SessionClearDialog = lazy(() =>
@@ -162,6 +163,20 @@ function SessionWindowNoticeContent({
   return null;
 }
 
+/** The sessions rail beside the session pane; over the board the board is the list, so no rail. */
+function SessionWindowRailLayout({
+  sidebar,
+  children,
+}: {
+  sidebar: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (useSessionWindowPresentation() === "board-drawer") {
+    return <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>;
+  }
+  return <SessionSidebarLayout sidebar={sidebar}>{children}</SessionSidebarLayout>;
+}
+
 /** Compose the active session window and the sidebar-owned single or batch lifecycle dialogs. */
 export function SessionWindowContent({
   windowId,
@@ -252,7 +267,7 @@ export function SessionWindowContent({
         >
           <SessionSubagentDrawer openSession={sidebar.openSession}>
             <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-              <SessionSidebarLayout
+              <SessionWindowRailLayout
                 sidebar={
                   <SessionSidebar
                     open={sidebar.open}
@@ -365,7 +380,7 @@ export function SessionWindowContent({
                     }
                   />
                 </div>
-              </SessionSidebarLayout>
+              </SessionWindowRailLayout>
               {inspector.open ? (
                 <Suspense fallback={null}>
                   <SessionWindowInspector

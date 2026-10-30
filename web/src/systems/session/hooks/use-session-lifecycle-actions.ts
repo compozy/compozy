@@ -187,13 +187,17 @@ function useCurrentDeleteSessions(
  * Lists stay presentational and their host keeps one shared delete confirmation.
  */
 export function useSessionLifecycleActions(
-  options: Parameters<typeof useDeleteSession>[0] = {}
+  options: Parameters<typeof useDeleteSession>[0] & {
+    /** Each session this host archived, single or batched, once the daemon confirmed it. */
+    onArchiveSuccess?: (session: SessionPayload) => void;
+  } = {}
 ): UseSessionLifecycleActionsResult {
   const queryClient = useQueryClient();
+  const { onArchiveSuccess, ...deleteOptions } = options;
   const stop = useStopSession();
   const archive = useArchiveSession();
   const unarchive = useUnarchiveSession();
-  const remove = useDeleteSession(options);
+  const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();
   const reparent = useSessionReparent();
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -255,14 +259,11 @@ export function useSessionLifecycleActions(
         if (readErrors.has(id)) throw readErrors.get(id);
         if (action === "delete")
           await remove.mutateAsync({ ...sessions.find(session => session.id === id)!, ...policy });
-        else if (action === "archive")
-          await archive.mutateAsync(
-            archiveTarget(
-              sessions.find(session => session.id === id)!,
-              processes
-            )
-          );
-        else if (action === "unarchive")
+        else if (action === "archive") {
+          const session = sessions.find(candidate => candidate.id === id)!;
+          await archive.mutateAsync(archiveTarget(session, processes));
+          onArchiveSuccess?.(session);
+        } else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
           const outcome = await stop.mutateAsync({
@@ -397,6 +398,7 @@ export function useSessionLifecycleActions(
         void askAboutProcesses("archive", [session], processes =>
           archive.mutate(archiveTarget(session, processes), {
             onError: error => reportActionError("archive", error),
+            onSuccess: () => onArchiveSuccess?.(session),
           })
         ),
       onUnarchive: session =>

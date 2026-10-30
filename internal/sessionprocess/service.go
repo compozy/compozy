@@ -18,10 +18,11 @@ const normalInterval = 5 * time.Second
 const toolInterval = 250 * time.Millisecond
 
 type Service struct {
-	runCtx  context.Context
-	workMu  sync.Mutex
-	closing bool
-	work    sync.WaitGroup
+	runCtx     context.Context
+	stopBudget time.Duration
+	workMu     sync.Mutex
+	closing    bool
+	work       sync.WaitGroup
 
 	source       Source
 	store        Store
@@ -37,7 +38,13 @@ type Service struct {
 	lastFull     time.Time
 }
 
-func New(ctx context.Context, source Source, persistence Store, logger *slog.Logger) (*Service, error) {
+func New(
+	ctx context.Context,
+	source Source,
+	persistence Store,
+	logger *slog.Logger,
+	stopBudget time.Duration,
+) (*Service, error) {
 	if source == nil || persistence == nil {
 		return nil, errors.New("session processes: source and store are required")
 	}
@@ -51,6 +58,7 @@ func New(ctx context.Context, source Source, persistence Store, logger *slog.Log
 	runCtx, cancel := context.WithCancel(ctx)
 	s := &Service{
 		runCtx:       runCtx,
+		stopBudget:   max(2*time.Minute, stopBudget),
 		source:       source,
 		store:        persistence,
 		logger:       logger,

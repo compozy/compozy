@@ -109,7 +109,7 @@ func TestDurableLineage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err := sessionprocess.New(ctx, source, db, nil)
+			service, err := sessionprocess.New(ctx, source, db, nil, 0)
 			if err != nil {
 				if closeErr := db.Close(ctx); closeErr != nil {
 					t.Errorf("close database after initialization failure: %v", closeErr)
@@ -160,7 +160,7 @@ func TestDurableLineage(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err = sessionprocess.New(ctx, source, db, nil)
+			service, err = sessionprocess.New(ctx, source, db, nil, 0)
 			if err != nil {
 				if closeErr := db.Close(ctx); closeErr != nil {
 					t.Errorf("close database after initialization failure: %v", closeErr)
@@ -256,7 +256,7 @@ func TestInitialProcessScanRecovery(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		service, err := sessionprocess.New(t.Context(), source, db, nil)
+		service, err := sessionprocess.New(t.Context(), source, db, nil, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

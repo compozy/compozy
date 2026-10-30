@@ -3,6 +3,9 @@ import { shallowEqual } from "@xstate/store";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { notifyUser } from "@/lib/user-feedback";
+
+import { adjacentShortcutItem } from "../lib/adjacent-shortcut-item";
+import { cycleSessionBoardDrawer } from "../lib/session-board-drawer-cycle";
 import {
   useSessionSidebarState,
   sessionListVisibleOrder,
@@ -135,18 +138,6 @@ function openDesktopOverview(request: DesktopOverviewSegmentRequest): void {
   windowManagerStore.trigger.overviewSegmentRequested({ request });
 }
 
-export function adjacentShortcutItem<T extends { id: string }>(
-  items: readonly T[],
-  currentId: string | null,
-  direction: "previous" | "next"
-): T | null {
-  if (items.length < 2) return null;
-  const currentIndex = items.findIndex(item => item.id === currentId);
-  const start = currentIndex < 0 ? 0 : currentIndex;
-  const offset = direction === "next" ? 1 : -1;
-  return items[(start + offset + items.length) % items.length] ?? null;
-}
-
 export function shortcutAttentionTarget(
   sections: OsAttentionSections
 ): OsSessionAttentionRow | null {
@@ -255,6 +246,8 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     },
     cycleSession: direction => {
       const state = manager.getState();
+      // A board showing a session in its drawer steps through its own cards.
+      if (cycleSessionBoardDrawer(state.focusedId, direction)) return;
       const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
         queryClient,
         sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,

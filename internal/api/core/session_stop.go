@@ -69,6 +69,7 @@ func (h *BaseHandlers) stopSessionWithResult(
 	}
 	outcome, err := manager.AwaitStopped(ctx, info.ID)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {
+		h.continueProcessCleanup(info.ID, policy, err)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}

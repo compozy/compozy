@@ -56,6 +56,23 @@ export function invalidateSessionLiveQueries(
   );
 }
 
+/** The session's own live reads, without the catalogs that list it. */
+export function invalidateSessionOwnLiveQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+): Promise<void> {
+  return invalidateSessionReads(
+    queryClient,
+    [sessionKeys.byIdRoot(sessionId)],
+    [
+      sessionKeys.detail(workspaceId, sessionId),
+      sessionKeys.history(workspaceId, sessionId),
+      sessionKeys.inputQueue(workspaceId, sessionId),
+    ]
+  );
+}
+
 /** The context rail's reads: the usage reading and its per-turn compaction markers. */
 export function invalidateSessionUsageQueries(
   queryClient: QueryClient,

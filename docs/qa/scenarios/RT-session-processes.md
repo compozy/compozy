@@ -73,3 +73,10 @@ For a bulk archive, make one selected session detail unavailable and keep anothe
 Only the unreadable target fails, with its error in the batch report; readable targets still run.
 Never mutate an unreadable target using its stale catalog summary. Single-target read failures
 continue to block the mutation.
+
+Slow-stop cleanup: when an accepted stop exceeds the caller deadline, HTTP and native waited and
+legacy stop preserve the terminate choice through deferred cleanup. Wait using the configured
+cooperative/forced/kill budget plus a bounded settlement allowance; termination gets a separate
+bounded context. A failed await must never signal descendants. In a mixed bulk archive, the
+readable process-bearing session still offers the keep/terminate dialog and an unreadable target
+remains a failed result after the answer.

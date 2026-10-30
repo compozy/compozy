@@ -1080,6 +1080,33 @@ describe("session actions", () => {
     for (const call of vi.mocked(archiveSession).mock.calls) expect(call[5]).toBe("keep");
   });
 
+  // Invariant (#1052): a host hears every archive the daemon confirmed — single and batched —
+  // and never a failed one, so the board drawer closes only on a real archive.
+  it("reports each confirmed archive, single and batched, through onArchiveSuccess", async () => {
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === "sess-refused") throw new Error("Archive is unavailable");
+      return { ...createdSession, id, state: "stopped", archived_at: "2026-08-04T12:00:00Z" };
+    });
+    const onArchiveSuccess = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions({ onArchiveSuccess }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onArchive(createdSession));
+    await waitFor(() => expect(onArchiveSuccess).toHaveBeenCalledExactlyOnceWith(createdSession));
+
+    const batch = [
+      { ...createdSession, id: "sess-batch" },
+      { ...createdSession, id: "sess-refused" },
+    ];
+    await act(async () => result.current.actions.onArchiveMany?.(batch));
+    await waitFor(() => expect(onArchiveSuccess).toHaveBeenCalledTimes(2));
+    expect(onArchiveSuccess).toHaveBeenLastCalledWith(batch[0]);
+  });
+
   it("reports a lifecycle action failure without showing a success notification", async () => {
     vi.mocked(archiveSession).mockRejectedValue(new Error("Archive is unavailable"));
     const queryClient = new QueryClient({
@@ -1586,28 +1613,37 @@ describe("session lifecycle batches", () => {
 
   // Invariant: a failed current-detail read fails only its own target, without mutating stale data.
   // Owner/canonical suite: session lifecycle batches, mocked only at adapter I/O.
-  it("archives readable targets and reports unreadable targets as individual failures", async () => {
-    const unavailable = { ...createdSession, id: "unavailable" };
-    vi.mocked(fetchSessionById).mockImplementation(async id => {
-      if (id === unavailable.id) throw new Error("Detail unavailable");
-      return { ...createdSession, id };
-    });
-    vi.mocked(archiveSession).mockResolvedValue({ ...createdSession, archived_at: "2026-10-30" });
-    const { result } = lifecycle();
-    act(() => result.current.actions.onArchiveMany?.([unavailable, createdSession]));
-    await waitFor(() =>
-      expect(result.current.batchResults).toEqual([
-        { id: unavailable.id, status: "failed", error: "Detail unavailable" },
-        { id: createdSession.id, status: "done" },
-      ])
-    );
-    expect(archiveSession).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(archiveSession).mock.calls[0]?.[1]).toBe(createdSession.id);
-    expect(toast.error).toHaveBeenCalledWith(
-      "1 session archived, 1 failed",
-      expect.objectContaining({ description: expect.stringContaining("Detail unavailable") })
-    );
-  });
+  it.each([false, true])(
+    "archives readable targets and reports unreadable targets with dialog=%s",
+    async dialog => {
+      const unavailable = { ...createdSession, id: "unavailable" };
+      vi.mocked(fetchSessionById).mockImplementation(async id => {
+        if (id === unavailable.id) throw new Error("Detail unavailable");
+        return { ...(dialog ? withSessionProcessSummary(createdSession) : createdSession), id };
+      });
+      vi.mocked(archiveSession).mockResolvedValue({ ...createdSession, archived_at: "2026-10-30" });
+      const { result } = lifecycle();
+      act(() => result.current.actions.onArchiveMany?.([unavailable, createdSession]));
+      if (dialog) {
+        await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+        expect(archiveSession).not.toHaveBeenCalled();
+        act(() => result.current.processDialog.onChoose("keep"));
+      }
+      await waitFor(() =>
+        expect(result.current.batchResults).toEqual([
+          { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+          { id: createdSession.id, status: "done" },
+        ])
+      );
+      expect(archiveSession).toHaveBeenCalledTimes(1);
+      if (dialog) expect(vi.mocked(archiveSession).mock.calls[0]?.[5]).toBe("keep");
+      expect(vi.mocked(archiveSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+      expect(toast.error).toHaveBeenCalledWith(
+        "1 session archived, 1 failed",
+        expect.objectContaining({ description: expect.stringContaining("Detail unavailable") })
+      );
+    }
+  );
 
   // Invariant: both list flows notify their host only after successful owner-scoped deletion.
   // Owner: session lifecycle mutation; canonical suite: session lifecycle batches.

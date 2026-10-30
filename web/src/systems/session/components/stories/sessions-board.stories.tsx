@@ -11,7 +11,8 @@ import type { SessionsBoardLane } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
-import { SESSIONS_BOARD_SESSIONS, sessionsBoardView } from "./sessions-board-fixtures";
+import { SESSIONS_BOARD_SESSIONS } from "../../mocks/sessions-board-fixtures";
+import { sessionsBoardView } from "./sessions-board-fixtures";
 
 const meta: Meta<typeof SessionsBoard> = {
   title: "systems/session/components/SessionsBoard",

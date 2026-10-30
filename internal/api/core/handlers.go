@@ -315,6 +315,7 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		defer cancel()
 	}
 	if err := h.Sessions.Stop(ctx, sessionID); err != nil {
+		h.continueProcessCleanup(sessionID, req.Processes, err)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}

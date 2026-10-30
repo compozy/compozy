@@ -16,6 +16,7 @@ import {
   type SessionWindowViewMode,
 } from "../lib/session-sidebar-scope";
 import type { SessionThreadSegment } from "../lib/session-thread-branch";
+import { normalizeSessionBoardDrawerWidth } from "../lib/session-board-drawer-width";
 import {
   normalizeSessionSidebarWidth,
   SESSION_SIDEBAR_DEFAULT_WIDTH,
@@ -119,6 +120,8 @@ function withScopeState(
     hideChildren: false,
     sort: previousShell?.sort ?? null,
     groupBy: previousShell?.groupBy ?? null,
+    // Only a drag sets the drawer width new windows start from (`drawerWidthChanged`).
+    drawerWidth: previousShell?.drawerWidth ?? null,
   };
   return {
     ...context,
@@ -231,6 +234,21 @@ export const sessionSidebarLogic = createStoreLogic({
         return;
       }
       return withScopeState(context, event.scopeId, state => ({ ...state, width }));
+    },
+    drawerWidthChanged: (context, event: { scopeId: string; width: number }) => {
+      const drawerWidth = normalizeSessionBoardDrawerWidth(event.width);
+      if (drawerWidth === null) return;
+      const scopeWidth = resolveSessionSidebarScope(context.byScope, event.scopeId).drawerWidth;
+      // A drag back to this window's own width still makes it the width new windows start from.
+      const shellWidth = context.byScope[SHELL_WORKTREE_SCOPE]?.drawerWidth ?? null;
+      if (scopeWidth === drawerWidth && shellWidth === drawerWidth) return;
+      const next = withScopeState(context, event.scopeId, state => ({ ...state, drawerWidth }));
+      // The width a new window starts from is the one last dragged, in any window.
+      const shell = next.byScope[SHELL_WORKTREE_SCOPE];
+      return {
+        ...next,
+        byScope: { ...next.byScope, [SHELL_WORKTREE_SCOPE]: { ...shell, drawerWidth } },
+      };
     },
     widthReset: (context, event: { scopeId: string }) => {
       if (resolveSessionSidebarScope(context.byScope, event.scopeId).width === null) {

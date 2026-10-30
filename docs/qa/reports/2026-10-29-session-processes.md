@@ -298,3 +298,16 @@ passed all seven tasks. The three isolated process E2Es passed in 44.5 seconds. 
 100/100. Windows cross-build of ACP, session, process attribution and daemon passed. The staged-file
 format/lint checks passed. Expanded Linux Go lint found one test whitespace issue; after removing the blank line,
 the affected sessionprocess package passed with zero issues. All other scoped packages were clean.
+
+## Slow-stop and drawer integration follow-up
+
+Integrated main's Kanban drawer while preserving process-aware topbar actions and the archive
+success callback. The existing lifecycle/topbar suites passed all 75 tests. HTTP/native deadline
+regressions and real durable lineage passed with race detection (2.052/5.155/3.462 s). The process
+cleanup budget regression passed with race detection (1.543 s), proving the configured wait budget
+and a fresh bounded cleanup context. The expanded lifecycle suite passed all 53 tests, including
+the mixed-read dialog keep choice. Scoped Linux Go lint passed after adding the test request
+context. The Windows cross-build passed. React Doctor scanned 251 changed files with no reported
+issues and a score of 93. Root Turbo lint/typecheck/build passed all seven tasks after installing
+the merged lockfile dependencies. All three integrated process E2Es passed against a fresh daemon
+binary in 39.3 seconds: stop, archive and delete preserved the selected process policy.

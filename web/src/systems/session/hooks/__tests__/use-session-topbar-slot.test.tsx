@@ -3,6 +3,8 @@
 // (no per-session `…` menu: those verbs live in the session list row menus), then the PR chip
 // first in the status zone (no agent, provider or time there), then lifecycle controls and the
 // sidebar and inspector toggles; the chip menu offers only the actions the session allows.
+// Shown in the board drawer (#1052) the head drops the rail toggle and the view toggle: the
+// board is the list there, and the drawer carries its own controls.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
@@ -15,6 +17,7 @@ import type { SessionPayload } from "../../types";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
+import { SessionWindowPresentationContext } from "../../contexts/session-window-presentation-context";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 import { SessionTransportChip } from "../../components/session-transport-chip";
 import { SESSION_TRANSPORT_LIVE } from "../../lib/session-transport";
@@ -354,6 +357,17 @@ describe("useSessionTopbarSlot", () => {
       expect(screen.queryByRole("button", { name: "More actions" })).toBeNull();
     }
   );
+
+  it("Should drop the rail and view toggles when the session shows in the board drawer", () => {
+    renderWithTopbar(
+      <SessionWindowPresentationContext value="board-drawer">
+        <SessionPublisher onStop={vi.fn()} />
+      </SessionWindowPresentationContext>
+    );
+    expect(screen.queryByTestId("session-sidebar-toggle")).toBeNull();
+    expect(screen.queryByRole("group", { name: "View" })).toBeNull();
+    expect(screen.getByTestId("session-inspector-toggle")).toBeInTheDocument();
+  });
 
   it.each([
     { sidebarOpen: false, pressed: "false", label: "Open sessions sidebar" },

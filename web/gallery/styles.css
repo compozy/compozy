@@ -1,0 +1,5 @@
+@import "../src/styles.css";
+
+/* The gallery root is web/gallery: register the app views and prototypes it renders. */
+@source "../src";
+@source "./";

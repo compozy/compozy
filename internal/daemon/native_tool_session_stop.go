@@ -45,6 +45,9 @@ func (n *daemonNativeTools) sessionStop(
 			defer cancel()
 		}
 		result, err := n.legacySessionStop(ctx, req.ToolID, target, info, detail)
+		if err != nil {
+			n.continueSessionProcessCleanup(target, input.Processes, err)
+		}
 		if err == nil {
 			err = n.finishSessionProcessPolicy(ctx, info, input.Processes)
 		}
@@ -84,6 +87,7 @@ func (n *daemonNativeTools) sessionStop(
 	}
 	outcome, err := manager.AwaitStopped(ctx, target)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {
+		n.continueSessionProcessCleanup(target, input.Processes, err)
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	if outcome.Verified {
@@ -110,4 +114,16 @@ func (n *daemonNativeTools) legacySessionStop(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(toolID, err)
 	}
 	return structuredResult(payload, "stopped")
+}
+
+func (n *daemonNativeTools) continueSessionProcessCleanup(id string, policy contract.SessionProcessPolicy, err error) {
+	if policy != contract.SessionProcessesTerminate || !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	if manager, ok := n.deps.Sessions.(nativeSessionStopper); ok {
+		n.sessionProcesses().AfterStop(id, func(ctx context.Context) error {
+			_, err := manager.AwaitStopped(ctx, id)
+			return err
+		})
+	}
 }

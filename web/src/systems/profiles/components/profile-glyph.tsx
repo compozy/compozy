@@ -3,7 +3,9 @@ import { Layers } from "lucide-react";
 
 import { cn, identityColorsFor, identitySurfaceFor, SpriteIcon } from "@compozy/ui";
 
-import { useThemePreference } from "@/systems/theme";
+// Not the `@/systems/theme` barrel: it re-exports `useFontAppearance`, which reads the settings
+// API, and this glyph renders in prototypes that must not reach the network layer.
+import { useThemePreference } from "@/systems/theme/hooks/use-theme-preference";
 
 import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 

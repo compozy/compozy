@@ -20,9 +20,7 @@ import { configure as configureStorybookTestingLibrary, sb } from "storybook/tes
 import "../src/styles.css";
 import { routeTree } from "@/routeTree.gen";
 import { storybookSystemHandlerGroups, storybookSystemHandlers } from "@/storybook/msw";
-import { resetSettingsRestartStore } from "@/systems/settings/stores/use-settings-restart-store";
-import { clearActiveWorkspaceSelection } from "@/systems/workspace";
-import { sessionStore } from "@/systems/session/stores/session-store";
+import { resetClientStores } from "@/storybook/reset-client-stores";
 import { resetWindowManagerSettingsMockState } from "@/systems/settings/mocks";
 import { resetAgentMockState } from "@/systems/agent/mocks";
 import { resetWindowManagerMockState, windowManagerStreamHandler } from "@/systems/os/mocks";
@@ -274,9 +272,7 @@ export function resetStorybookAppState(initialEntry?: string) {
   resetAgentMockState();
   resetWindowManagerSettingsMockState();
   resetWindowManagerMockState(initialEntry);
-  clearActiveWorkspaceSelection();
-  sessionStore.trigger.allDraftsDiscarded();
-  resetSettingsRestartStore();
+  resetClientStores();
 }
 
 function StorybookQueryClientBoundary({ children }: { children: ReactNode }) {

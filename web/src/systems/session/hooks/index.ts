@@ -26,7 +26,12 @@ export {
   type PromoteSessionInputVariables,
   type ReplaceSessionInputVariables,
 } from "./use-session-inputs";
-export { useSessionComposerDraft, useSessionGoalFeedback } from "./use-session-store";
+export {
+  sessionHasUnsentInput,
+  useSessionComposerDraft,
+  useSessionGoalFeedback,
+  useSessionHasDraft,
+} from "./use-session-store";
 export {
   useSession,
   useSessionById,

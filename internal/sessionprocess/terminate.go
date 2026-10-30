@@ -115,7 +115,7 @@ func (s *Service) terminateProcess(ctx context.Context, p Process) Result {
 	return result
 }
 
-// AfterStop owns and joins asynchronous cleanup for a wait:false stop request.
+// AfterStop owns and joins cleanup after an accepted stop outlives its caller.
 func (s *Service) AfterStop(sessionID string, await func(context.Context) error) {
 	s.workMu.Lock()
 	defer s.workMu.Unlock()
@@ -123,12 +123,15 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 		return
 	}
 	s.work.Go(func() {
-		ctx, cancel := context.WithTimeout(s.runCtx, 2*time.Minute)
-		defer cancel()
-		if err := await(ctx); err != nil {
+		ctx, cancel := context.WithTimeout(s.runCtx, max(2*time.Minute, s.stopBudget))
+		err := await(ctx)
+		cancel()
+		if err != nil {
 			s.logger.Error("Await session stop before process cleanup", "session_id", sessionID, "error", err)
 			return
 		}
+		ctx, cancel = context.WithTimeout(s.runCtx, 2*time.Minute)
+		defer cancel()
 		results, err := s.Terminate(ctx, sessionID, nil, true, func(o Owner) bool { return o.SessionID == sessionID })
 		if err != nil {
 			s.logger.Error("Terminate stopped session processes", "session_id", sessionID, "error", err)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -4521,8 +4522,8 @@ func TestSessionProcessHandlers(t *testing.T) {
 			name, body string
 			status     int
 		}{
-			{"waited", `{"wait":true,"processes":"terminate"}`, http.StatusOK},
-			{"legacy", `{"processes":"terminate"}`, http.StatusNoContent},
+			{"Should finish a waited stop", `{"wait":true,"processes":"terminate"}`, http.StatusOK},
+			{"Should finish a legacy stop", `{"processes":"terminate"}`, http.StatusNoContent},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				ctx, cancel := context.WithCancel(t.Context())
@@ -4564,6 +4565,45 @@ func TestSessionProcessHandlers(t *testing.T) {
 			})
 		}
 	})
+	// Invariant: only a timed-out stop schedules deferred cleanup; the original error response is preserved.
+	// Owner/canonical suite: HTTP session process policies.
+	for _, wait := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve cleanup after stop deadline with wait=%t", wait), func(t *testing.T) {
+			processes := &handlerProcessService{}
+			manager := &disconnectedProcessStopManager{cancel: func() {}, stopErr: context.DeadlineExceeded,
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID:          id,
+						WorkspaceID: "ws-workspace",
+						ProfileID:   store.DefaultProfileID,
+						State:       session.StateActive,
+					}, nil
+				},
+			}
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			body := `{"processes":"terminate"}`
+			if wait {
+				body = `{"wait":true,"processes":"terminate"}`
+			}
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/stop",
+				strings.NewReader(body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			newTestRouter(t, handlers).ServeHTTP(response, request)
+			if response.Code < 400 || processes.afterStop == nil || processes.calls != 0 {
+				t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+			}
+			manager.afterDeadline = true
+			if err := processes.afterStop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
 		for _, choice := range []string{"", "?processes=keep", "?processes=terminate"} {
 			processes := &handlerProcessService{}
@@ -4602,6 +4642,7 @@ type handlerProcessService struct {
 	all                  bool
 	terminateContextErr  error
 	terminateHasDeadline bool
+	afterStop            func(context.Context) error
 }
 
 func (s *handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
@@ -4661,12 +4702,16 @@ func (s *handlerProcessService) Terminate(
 	_, s.terminateHasDeadline = ctx.Deadline()
 	return []sessionprocess.Result{}, nil
 }
-func (*handlerProcessService) AfterStop(string, func(context.Context) error) {}
+func (s *handlerProcessService) AfterStop(_ string, await func(context.Context) error) {
+	s.afterStop = await
+}
 
 type disconnectedProcessStopManager struct {
 	stubSessionManager
-	cancel   context.CancelFunc
-	awaitErr error
+	cancel        context.CancelFunc
+	awaitErr      error
+	stopErr       error
+	afterDeadline bool
 }
 
 func (s *disconnectedProcessStopManager) RequestStop(context.Context, string, session.StopCause) error {
@@ -4674,12 +4719,19 @@ func (s *disconnectedProcessStopManager) RequestStop(context.Context, string, se
 	return nil
 }
 func (s *disconnectedProcessStopManager) AwaitStopped(ctx context.Context, _ string) (session.StopOutcome, error) {
+	if s.stopErr != nil && !s.afterDeadline {
+		s.afterDeadline = true
+		return session.StopOutcome{}, s.stopErr
+	}
 	s.awaitErr = ctx.Err()
 	return session.StopOutcome{FinalState: session.StateStopped, Verified: s.awaitErr == nil}, s.awaitErr
 }
 
 func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) error {
 	s.cancel()
+	if s.stopErr != nil {
+		return s.stopErr
+	}
 	s.awaitErr = ctx.Err()
 	return s.awaitErr
 }

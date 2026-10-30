@@ -105,6 +105,7 @@ export function isFrontendSourcePath(filename) {
   const normalized = normalizeFilename(filename);
   return (
     normalized.includes("/web/src/") ||
+    normalized.includes("/web/gallery/") ||
     normalized.includes("/packages/ui/src/") ||
     normalized.includes("/packages/site/")
   );

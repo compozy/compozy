@@ -202,14 +202,12 @@ export {
   queuedPromptOwner,
   queuedPromptsFromInputs,
   withCachedInputs,
-} from "./lib/queued-prompt";
-export type {
-  QueuedPrompt,
-  QueuedPromptAttachmentPreview,
-  QueuedPromptAttachmentSummary,
-  QueuedPromptEditOutcome,
-  QueuedPromptOwner,
-  QueuedPromptStatus,
+  type QueuedPrompt,
+  type QueuedPromptAttachmentPreview,
+  type QueuedPromptAttachmentSummary,
+  type QueuedPromptEditOutcome,
+  type QueuedPromptOwner,
+  type QueuedPromptStatus,
 } from "./lib/queued-prompt";
 export { queuedPromptPreview, type QueuedPromptPreview } from "./lib/queued-prompt-preview";
 export {
@@ -493,3 +491,4 @@ export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/sess
 export * from "./subagents";
 // Processes surface — what a session left running and the stop/keep choice (./processes).
 export * from "./processes";
+export * from "./board-drawer";

@@ -3,6 +3,8 @@ package sessionprocess
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"slices"
 	"testing"
 	"time"
@@ -320,4 +322,50 @@ func TestRetainedKernelIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a configured long stop gets its own wait budget and cleanup starts with a fresh bounded context.
+// Owner/canonical suite: sessionprocess orchestration, observed at the source I/O boundary.
+func TestAfterStopBudget(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve the configured wait budget and start a fresh cleanup deadline", func(t *testing.T) {
+		source := &cleanupDeadlineSource{seen: make(chan context.Context, 1)}
+		service := &Service{runCtx: t.Context(), source: source, stopBudget: 5 * time.Minute,
+			logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+		var waitCtx context.Context
+		service.AfterStop("sess-test", func(ctx context.Context) error {
+			waitCtx = ctx
+			deadline, ok := ctx.Deadline()
+			if !ok || time.Until(deadline) < 4*time.Minute {
+				t.Errorf("wait deadline=%v", deadline)
+			}
+			return nil
+		})
+		service.work.Wait()
+		select {
+		case cleanupCtx := <-source.seen:
+			if cleanupCtx == waitCtx {
+				t.Fatal("cleanup reused the wait context")
+			}
+		case <-time.After(time.Second):
+			t.Fatal("cleanup did not start")
+		}
+		if !errors.Is(waitCtx.Err(), context.Canceled) {
+			t.Fatalf("wait context not released: %v", waitCtx.Err())
+		}
+	})
+}
+
+type cleanupDeadlineSource struct {
+	attributionSource
+	seen chan context.Context
+}
+
+func (s *cleanupDeadlineSource) Owners(ctx context.Context) ([]Owner, error) {
+	deadline, ok := ctx.Deadline()
+	if ctx.Err() != nil || !ok || time.Until(deadline) < time.Minute || time.Until(deadline) > 2*time.Minute {
+		return nil, errors.New("cleanup context is not fresh and bounded")
+	}
+	s.seen <- ctx
+	return nil, errors.New("stop at the inspection I/O boundary")
 }
