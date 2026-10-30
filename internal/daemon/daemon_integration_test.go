@@ -376,6 +376,7 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 	}
 
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.mu.Lock()
 	sessions.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -406,6 +407,7 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 			State:     session.StateActive,
 		},
 	}
+	sessions.mu.Unlock()
 
 	workspaceSubmission, err := daemonInstance.tasks.submitDetachedHarnessWork(
 		testutil.Context(t),
@@ -558,6 +560,7 @@ func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 	})
 
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.mu.Lock()
 	sessions.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -578,7 +581,8 @@ func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 			Workspace:   workspace.RootDir,
 		},
 	}
-	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+	sessions.mu.Unlock()
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.List())
 
 	submission := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
 		SubmissionKey:  "integration-reentry-live",
@@ -673,6 +677,7 @@ func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 	})
 
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.mu.Lock()
 	sessions.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -693,7 +698,8 @@ func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 			Workspace:   workspace.RootDir,
 		},
 	}
-	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+	sessions.mu.Unlock()
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.List())
 
 	submission := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
 		SubmissionKey:  "integration-reentry-silent",
@@ -756,6 +762,7 @@ func testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 	})
 
 	workspace := resolveDaemonWorkspace(t, daemonInstance.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessions.mu.Lock()
 	sessions.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -776,7 +783,8 @@ func testDetachedHarnessCompletionWakePreservesFIFOAcrossRuns(t *testing.T) {
 			Workspace:   workspace.RootDir,
 		},
 	}
-	seedDetachedHarnessSessionIndex(t, homePaths, sessions.infos)
+	sessions.mu.Unlock()
+	seedDetachedHarnessSessionIndex(t, homePaths, sessions.List())
 
 	first := submitDetachedHarnessWorkForTest(t, daemonInstance.tasks, detachedHarnessSubmitRequest{
 		SubmissionKey:  "integration-reentry-fifo-1",
@@ -833,6 +841,7 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 	sessionsOne := &fakeSessionManager{}
 	firstDaemon := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessionsOne)
 	workspace := resolveDaemonWorkspace(t, firstDaemon.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessionsOne.mu.Lock()
 	sessionsOne.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -853,7 +862,8 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 			Workspace:   workspace.RootDir,
 		},
 	}
-	seedDetachedHarnessSessionIndex(t, homePaths, sessionsOne.infos)
+	sessionsOne.mu.Unlock()
+	seedDetachedHarnessSessionIndex(t, homePaths, sessionsOne.List())
 
 	submission := submitDetachedHarnessWorkForTest(t, firstDaemon.tasks, detachedHarnessSubmitRequest{
 		SubmissionKey:  "integration-reentry-recovery",
@@ -966,6 +976,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	sessionsOne := &fakeSessionManager{}
 	firstDaemon := bootDetachedHarnessIntegrationDaemon(t, homePaths, &cfg, sessionsOne)
 	workspace := resolveDaemonWorkspace(t, firstDaemon.workspaceResolver, filepath.Join(t.TempDir(), "workspace"))
+	sessionsOne.mu.Lock()
 	sessionsOne.infos = []*session.Info{
 		{
 			ProfileID:   store.DefaultProfileID,
@@ -992,6 +1003,7 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 			Workspace:   workspace.RootDir,
 		},
 	}
+	sessionsOne.mu.Unlock()
 
 	submission, err := firstDaemon.tasks.submitDetachedHarnessWork(testutil.Context(t), detachedHarnessSubmitRequest{
 		SubmissionKey:  "detached-boot-recovery",
