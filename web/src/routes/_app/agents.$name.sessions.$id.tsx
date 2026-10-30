@@ -27,7 +27,8 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
       throw redirect({
         to: "/agents/$name/sessions/$id",
         params,
-        search: { workspace: data.binding },
+        // Only the binding changes: a board drawer the link opened stays open.
+        search: prev => ({ ...prev, workspace: data.binding }),
         replace: true,
       });
     }

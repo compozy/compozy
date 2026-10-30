@@ -164,12 +164,16 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
  * Lists stay presentational and their host keeps one shared delete confirmation.
  */
 export function useSessionLifecycleActions(
-  options: Parameters<typeof useDeleteSession>[0] = {}
+  options: Parameters<typeof useDeleteSession>[0] & {
+    /** Each session this host archived, single or batched, once the daemon confirmed it. */
+    onArchiveSuccess?: (session: SessionPayload) => void;
+  } = {}
 ): UseSessionLifecycleActionsResult {
+  const { onArchiveSuccess, ...deleteOptions } = options;
   const stop = useStopSession();
   const archive = useArchiveSession();
   const unarchive = useUnarchiveSession();
-  const remove = useDeleteSession(options);
+  const remove = useDeleteSession(deleteOptions);
   const rename = useRenameSession();
   const reparent = useSessionReparent();
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -222,9 +226,11 @@ export function useSessionLifecycleActions(
       execute: async id => {
         if (action === "delete")
           await remove.mutateAsync(sessions.find(session => session.id === id)!);
-        else if (action === "archive")
-          await archive.mutateAsync(archiveTarget(sessions.find(session => session.id === id)!));
-        else if (action === "unarchive")
+        else if (action === "archive") {
+          const session = sessions.find(candidate => candidate.id === id)!;
+          await archive.mutateAsync(archiveTarget(session));
+          onArchiveSuccess?.(session);
+        } else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
           const outcome = await stop.mutateAsync({
@@ -326,6 +332,7 @@ export function useSessionLifecycleActions(
       onArchive: session =>
         archive.mutate(archiveTarget(session), {
           onError: error => reportActionError("archive", error),
+          onSuccess: () => onArchiveSuccess?.(session),
         }),
       onUnarchive: session =>
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),

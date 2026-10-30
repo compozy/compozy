@@ -1,4 +1,9 @@
-import { subagentRevealStore } from "@/systems/session";
+import {
+  SESSION_BOARD_DRAWER_OPEN,
+  SESSION_BOARD_DRAWER_SEARCH_KEY,
+  sessionBoardDrawerOpen,
+  subagentRevealStore,
+} from "@/systems/session";
 import {
   ownerDataScope,
   sameDataScope,
@@ -18,8 +23,17 @@ export interface SessionWindowSidebarTarget {
   subagentId?: string;
 }
 
+export interface SessionWindowOpenOptions {
+  newWindow: boolean;
+  /**
+   * Show the target in the board drawer (#1052). Omitted, an in-place open keeps whatever the
+   * window shows: a session opened from inside the drawer opens in the drawer.
+   */
+  drawer?: boolean;
+}
+
 /**
- * Opens a session from inside a session window (rail row, board card). It
+ * Opens a session from inside a session window (rail row, board card, drawer). It
  * retargets this window in place — rebinding it under All projects — unless the
  * target belongs elsewhere or already owns a window: that window wins focus.
  */
@@ -32,10 +46,10 @@ export function useSessionWindowOpenSession({
 }) {
   const scope = useDataScope();
   const windowScope = useWindowDataWorkspace();
-  const { coordinator } = useOsShell();
+  const { coordinator, manager } = useOsShell();
   const jumpToSession = useAttentionJump();
 
-  return (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
+  return (target: SessionWindowSidebarTarget, options: SessionWindowOpenOptions) => {
     if (target.subagentId) {
       subagentRevealStore.trigger.requested({
         workspaceId: target.workspaceId,
@@ -43,7 +57,9 @@ export function useSessionWindowOpenSession({
         subagentId: target.subagentId,
       });
     }
-    if (sessionId !== undefined && target.sessionId === sessionId) return;
+    const drawerOpen = sessionBoardDrawerOpen(manager.getState().windows[windowId]?.route.search);
+    const drawer = options.drawer ?? drawerOpen;
+    if (sessionId !== undefined && target.sessionId === sessionId && drawer === drawerOpen) return;
     const targetScope = ownerDataScope(target.workspaceId);
     const allProjects = scope?.kind === "all";
     const sameScope = windowScope !== null && sameDataScope(windowScope, targetScope);
@@ -58,7 +74,7 @@ export function useSessionWindowOpenSession({
     }
     const route = {
       pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
-      search: {},
+      search: drawer ? { [SESSION_BOARD_DRAWER_SEARCH_KEY]: SESSION_BOARD_DRAWER_OPEN } : {},
     };
     // Same window, different conversation. The shell's store applies the retarget, and
     // `useSessionWindowRuntime` defers the session identity it feeds, so the switch is the

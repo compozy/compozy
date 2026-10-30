@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
+import { useSessionHasDraft } from "../../hooks/use-session-store";
 import { useSessionBoardCardSelection } from "../../hooks/use-sessions-board-selection";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
@@ -86,6 +87,7 @@ function SessionBoardCardButton({
   // A click inside an open selection toggles, so it never warms the session's entry.
   const preloadHandlers = useSessionEntryPreload(props.session, !props.current && !selection?.mode);
   const runtime = useSessionRowRuntimeLabel(props.session);
+  const draft = useSessionHasDraft(props.session.id);
   return (
     <SessionBoardCardView
       {...props}
@@ -97,6 +99,7 @@ function SessionBoardCardButton({
             }
           : undefined
       }
+      draft={draft}
       runtime={runtime}
       selection={selection ? { selected: selection.selected, mode: selection.mode } : undefined}
     />

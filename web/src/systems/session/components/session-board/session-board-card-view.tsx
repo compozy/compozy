@@ -7,6 +7,7 @@ import {
   GitPullRequestDraft,
   ListTree,
   type LucideIcon,
+  PencilLine,
 } from "lucide-react";
 import type { ComponentProps, MouseEvent } from "react";
 
@@ -66,6 +67,8 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   archived?: boolean;
   /** The provider mark and model label shown beside the agent name. */
   runtime: SessionRuntimeLabel;
+  /** The composer holds unsent text for this session (#1052). */
+  draft?: boolean;
   onOpen: (session: SessionBoardPayload) => void;
   /**
    * The board selection (`SessionBoardCard`): the card can be selected, so the footer
@@ -74,6 +77,37 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   selection?: { selected: boolean; mode: boolean };
   /** Replaces the plain open: a selection gesture, or `onOpen` when the click is not one. */
   onActivate?: (event: MouseEvent<HTMLButtonElement>) => void;
+}
+
+/** The card's accessible name: the title, then every fact its rows show, in reading order. */
+function sessionBoardCardLabel({
+  session,
+  title,
+  status,
+  waiting,
+  rollup,
+  draft,
+}: {
+  session: SessionBoardPayload;
+  title: string;
+  status: SessionBoardCardStatus | null;
+  waiting: ReturnType<typeof sessionBoardCardWaiting>;
+  rollup: SessionBoardCardRollup | null;
+  draft: boolean;
+}): string {
+  const parentTitle = session.parent_title?.trim();
+  return [
+    title,
+    status?.label,
+    waiting?.word,
+    parentTitle ? `Child of ${parentTitle}` : null,
+    rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
+    rollup?.needsYou ? "A child needs you" : null,
+    draft ? "Unsent draft" : null,
+    formatRelativeTime(session.updated_at),
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 /**
@@ -88,6 +122,7 @@ export function SessionBoardCardView({
   current = false,
   archived = false,
   runtime,
+  draft = false,
   onOpen,
   selection,
   onActivate,
@@ -100,18 +135,7 @@ export function SessionBoardCardView({
   const meta = sessionBoardCardMeta(session, workspaceName);
   const waiting = sessionBoardCardWaiting(session);
   const rollup = sessionBoardCardRollup(session);
-  const parentTitle = session.parent_title?.trim();
-  const label = [
-    title,
-    status?.label,
-    waiting?.word,
-    parentTitle ? `Child of ${parentTitle}` : null,
-    rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
-    rollup?.needsYou ? "A child needs you" : null,
-    formatRelativeTime(session.updated_at),
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const label = sessionBoardCardLabel({ session, title, status, waiting, rollup, draft });
   return (
     <button
       aria-current={current ? "true" : undefined}
@@ -127,9 +151,12 @@ export function SessionBoardCardView({
         selected && "bg-selected shadow-inset-strong hover:bg-selected"
       )}
       data-archived={archived ? "true" : undefined}
+      data-agent-name={session.agent_name}
       data-board-column={session.board_column}
       data-selected={selected ? "true" : undefined}
+      data-session-id={session.id}
       data-testid={`session-board-card-${session.id}`}
+      data-workspace-id={session.workspace_id ?? ""}
       onClick={event => (onActivate ? onActivate(event) : onOpen(session))}
       {...intentHandlers}
       type="button"
@@ -155,6 +182,7 @@ export function SessionBoardCardView({
         </span>
       </span>
       <SessionBoardCardFooter
+        draft={draft}
         rollup={rollup}
         runtime={runtime}
         selection={selection}
@@ -221,8 +249,10 @@ function SessionBoardCardFooter({
   rollup,
   waiting,
   selection,
+  draft,
 }: {
   session: SessionBoardPayload;
+  draft: boolean;
   runtime: SessionRuntimeLabel;
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
@@ -267,6 +297,15 @@ function SessionBoardCardFooter({
         >
           <StateGlyph size="sm" state={waiting.glyph} />
           {waiting.word}
+        </span>
+      ) : null}
+      {draft ? (
+        <span
+          className="flex shrink-0 items-center gap-1 text-muted"
+          data-testid={`session-board-card-draft-${session.id}`}
+        >
+          <PencilLine aria-hidden="true" className="size-3 text-subtle" />
+          Draft
         </span>
       ) : null}
       <Time

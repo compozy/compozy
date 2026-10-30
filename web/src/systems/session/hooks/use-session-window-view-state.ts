@@ -2,6 +2,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
+import { SESSION_BOARD_DRAWER_DEFAULT_WIDTH } from "../lib/session-board-drawer-width";
 import {
   resolveSessionSidebarScope,
   sessionSidebarStore,
@@ -14,6 +15,9 @@ export interface SessionWindowViewState {
   /** The board's "Hide child sessions" filter (`children=exclude`). */
   hideChildren: boolean;
   setHideChildren: (hideChildren: boolean) => void;
+  /** The board's session drawer width in this window (#1052), or the default. */
+  drawerWidth: number;
+  setDrawerWidth: (width: number) => void;
 }
 
 export function setSessionWindowView(scopeId: string, view: SessionWindowViewMode): void {
@@ -35,5 +39,7 @@ export function useSessionWindowViewState(): SessionWindowViewState {
     hideChildren: state.hideChildren,
     setHideChildren: hideChildren =>
       sessionSidebarStore.trigger.hideChildrenChanged({ scopeId, hideChildren }),
+    drawerWidth: state.drawerWidth ?? SESSION_BOARD_DRAWER_DEFAULT_WIDTH,
+    setDrawerWidth: width => sessionSidebarStore.trigger.drawerWidthChanged({ scopeId, width }),
   };
 }

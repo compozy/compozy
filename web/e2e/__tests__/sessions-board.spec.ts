@@ -12,9 +12,11 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
 
 // Invariant: the session window switches between List and the Sessions board, whose
 // columns are the daemon's board_column reads with facets.board counts; cards open
-// their session in List; columns page by 50; archived sessions live in the Archive
-// bar; child sessions link to their parent and can be hidden (E2E-005..E2E-007); cards
-// multi-select and run the List's bulk verbs against the daemon (E2E-008).
+// their session in a drawer over the live board (#1052) that Escape closes back to the
+// card, Back reopens, a reload restores, and "Open full session" turns into List; columns
+// page by 50; archived sessions live in the Archive bar; child sessions link to their
+// parent and can be hidden (E2E-005..E2E-007); cards multi-select and run the List's bulk
+// verbs against the daemon (E2E-008).
 // Owner: public session window + daemon catalog. Durable rows come from the store
 // seeder; mapping rules and rendering states are owned by the Vitest suites.
 // Use the blank page fixture: the seeder restarts the daemon, so loading the app
@@ -145,7 +147,7 @@ async function expectColumnCounts(frame: Locator, counts: Record<BoardColumn, nu
   }
 }
 
-test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the view across reloads", async ({
+test("E2E-005: operator switches to Kanban, opens a card in the drawer over the board, and keeps both across reloads", async ({
   page: appPage,
   browserArtifacts,
   runtime,
@@ -191,14 +193,39 @@ test("E2E-005: operator switches to Kanban, opens a card in List, and keeps the 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(frame.getByTestId("sessions-board")).toBeVisible();
 
-  await frame.getByTestId(`session-board-card-${target}`).click();
+  // A card opens its session in the drawer: the window keeps the board and shows that session.
+  const card = frame.getByTestId(`session-board-card-${target}`);
+  await card.click();
   const openedFrame = sessionWindow(appPage, target);
-  await expect(openedFrame).toBeVisible();
+  const drawer = openedFrame.getByRole("dialog", { name: "Board target session" });
+  await expect(drawer).toBeVisible();
+  await expect(openedFrame.getByTestId("sessions-board")).toBeVisible();
+  await expect(openedFrame.getByTestId(`session-board-card-${target}`)).toHaveAttribute(
+    "aria-current",
+    "true"
+  );
+  await expect(drawer.getByRole("button", { name: "Send message" })).toBeVisible();
+  await expect(appPage).toHaveURL(/[?&]drawer=open/);
+  await browserArtifacts.captureScreenshot("sessions-board-drawer", appPage);
+
+  // Escape closes it back to the card; Back reopens it; a reload restores it.
+  await appPage.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(openedFrame.getByTestId(`session-board-card-${target}`)).toBeFocused();
+  await appPage.goBack();
+  await expect(drawer).toBeVisible();
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(drawer).toBeVisible();
+  await expect(openedFrame.getByTestId("sessions-board")).toBeVisible();
+
+  // Open full session: the same window shows that session in List, and keeps it on reload.
+  await drawer.getByTestId("session-board-drawer-expand").click();
   await expect(openedFrame.getByTestId("sessions-board")).toHaveCount(0);
   const openedList = openedFrame
     .getByRole("group", { name: "View" })
     .getByRole("button", { name: "List" });
   await expect(openedList).toHaveAttribute("aria-pressed", "true");
+  await expect(appPage).not.toHaveURL(/[?&]drawer=open/);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(sessionWindow(appPage, target)).toBeVisible();

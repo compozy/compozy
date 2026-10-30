@@ -22,7 +22,7 @@ export function isSubagentSession(session: SessionPayload): boolean {
  * origin pill and divider), not hierarchy. Spawned, provenance and recovery
  * children nest.
  */
-function sessionTreeParentId(session: SessionPayload): string {
+export function sessionTreeParentId(session: SessionPayload): string {
   if (sessionOriginKind(session) !== null) return "";
   return session.lineage?.parent_session_id ?? "";
 }

@@ -89,7 +89,8 @@ export interface SessionLiveTailRuntime {
   invalidateClarifications: () => void;
   invalidateCommands: () => void;
   invalidateGoal: () => void;
-  invalidateSessionSurfaces: () => void;
+  /** `delta`: the trailing refresh after a burst of transcript deltas. */
+  invalidateSessionSurfaces: (reason?: "delta") => void;
   openStream: (handlers: SessionLiveTailStreamHandlers) => (reason: string) => void;
   recordApplyFailure: (frame: SessionLiveTailFrame, error: unknown) => void;
   recordReconnect: (attempt: number, delayMs: number, error?: unknown) => void;

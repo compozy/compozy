@@ -12,6 +12,8 @@ export interface SessionWindowRuntime {
   presenceEnabled: boolean;
   sessionId: string | null;
   agentName: string | null;
+  /** The route asks the window's board to show the session in its drawer (#1052). */
+  drawerOpen: boolean;
 }
 
 /**
@@ -30,10 +32,18 @@ export interface SessionWindowRuntime {
  * (`<ViewTransition>` only plays for transitions). Deferring the path turns the switch to
  * another session into one: the window keeps showing the current session until the next is
  * ready, then swaps under the keyed boundary in `SessionWindowView`.
+ *
+ * The session is being viewed only while it is on screen: always in List, and on the
+ * Kanban view only while the board shows it in its drawer.
  */
 export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime {
-  const { liveTailEnabled, pathname: livePathname } = useSessionWindowDesktopState(windowId);
-  const pathname = useDeferredValue(livePathname);
+  const live = useSessionWindowDesktopState(windowId);
+  const { liveTailEnabled } = live;
+  // The drawer flag defers with the path: opening a card must not show the drawer a frame
+  // early with the previous session in it.
+  const location = useDeferredValue(`${live.drawerOpen ? "1" : "0"}${live.pathname}`);
+  const drawerOpen = location.startsWith("1");
+  const pathname = location.slice(1);
   const focused = useDesktop(state => state.focusedId === windowId);
   const documentActive = useDocumentActive();
   const sessionId = matchSessionInstance(pathname);
@@ -43,5 +53,6 @@ export function useSessionWindowRuntime(windowId: string): SessionWindowRuntime 
     presenceEnabled: focused && liveTailEnabled && documentActive,
     sessionId,
     agentName: agentMatch ? decodeURIComponent(agentMatch[1]) : null,
+    drawerOpen,
   };
 }
