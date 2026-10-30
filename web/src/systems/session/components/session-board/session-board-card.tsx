@@ -1,6 +1,7 @@
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
+import { useSessionHasDraft } from "../../hooks/use-session-store";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
@@ -52,5 +53,6 @@ export function SessionBoardCard({ actions, ...props }: SessionBoardCardProps) {
 function SessionBoardCardButton(props: Omit<SessionBoardCardProps, "actions">) {
   const preloadHandlers = useSessionEntryPreload(props.session, !props.current);
   const runtime = useSessionRowRuntimeLabel(props.session);
-  return <SessionBoardCardView {...props} {...preloadHandlers} runtime={runtime} />;
+  const draft = useSessionHasDraft(props.session.id);
+  return <SessionBoardCardView {...props} {...preloadHandlers} draft={draft} runtime={runtime} />;
 }

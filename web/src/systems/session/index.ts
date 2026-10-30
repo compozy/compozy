@@ -202,14 +202,12 @@ export {
   queuedPromptOwner,
   queuedPromptsFromInputs,
   withCachedInputs,
-} from "./lib/queued-prompt";
-export type {
-  QueuedPrompt,
-  QueuedPromptAttachmentPreview,
-  QueuedPromptAttachmentSummary,
-  QueuedPromptEditOutcome,
-  QueuedPromptOwner,
-  QueuedPromptStatus,
+  type QueuedPrompt,
+  type QueuedPromptAttachmentPreview,
+  type QueuedPromptAttachmentSummary,
+  type QueuedPromptEditOutcome,
+  type QueuedPromptOwner,
+  type QueuedPromptStatus,
 } from "./lib/queued-prompt";
 export { queuedPromptPreview, type QueuedPromptPreview } from "./lib/queued-prompt-preview";
 export {
@@ -498,3 +496,4 @@ export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runt
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
 export * from "./subagents";
+export * from "./board-drawer";

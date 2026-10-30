@@ -4,9 +4,15 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { defaultDialogInitialFocus } from "../../lib/dialog-initial-focus";
 import { Button } from "../button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../sheet";
-import { useInlineLayout } from "./hooks/use-inline-layout";
+import { useContainerInlineLayout, useInlineLayout } from "./hooks/use-inline-layout";
+
+type DrawerInitialFocus = DialogPrimitive.Popup.Props["initialFocus"];
+type DrawerOpenChangeDetails = Parameters<
+  NonNullable<DialogPrimitive.Root.Props["onOpenChange"]>
+>[1];
 
 export interface ResizableDrawerProps {
   children: ReactNode;
@@ -14,16 +20,35 @@ export interface ResizableDrawerProps {
   title: ReactNode;
   actions?: ReactNode;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean, details: DrawerOpenChangeDetails) => void;
   width: number;
   onWidthChange: (width: number) => void;
   minWidth?: number;
   maxWidth?: number;
   inlineBreakpoint?: number;
-  returnFocus?: HTMLElement | null;
+  /**
+   * What `inlineBreakpoint` measures: the viewport (default), or the drawer's own host, so a
+   * pane inside a window follows that window. Below it the host is narrow: the drawer then
+   * covers the host edge to edge instead of opening at `width`.
+   */
+  breakpointBasis?: "viewport" | "container";
+  /**
+   * Replaces the default head (title, actions and the close button). `title` still names the
+   * dialog for assistive technology; the replacement owns its own close control.
+   */
+  header?: ReactNode;
+  /** Where focus lands on close; a function resolves it at close time, after the host re-rendered. */
+  returnFocus?: HTMLElement | null | (() => HTMLElement | null);
+  initialFocus?: DrawerInitialFocus;
+  /**
+   * The inline pane's modality. `trap-focus` (default) contains focus while pointer access to
+   * the host can still select another item; `false` leaves the host fully operable beside the
+   * pane (its menus and dialogs included). The overlay always contains focus: it covers the host.
+   */
+  modal?: "trap-focus" | false;
 }
 
-/** A focus-contained detail pane; pointer access to the host can select another item. */
+/** A resizable detail pane beside its host; pointer access to the host can select another item. */
 export function ResizableDrawer({
   children,
   content,
@@ -36,12 +61,26 @@ export function ResizableDrawer({
   minWidth = 360,
   maxWidth = 800,
   inlineBreakpoint = 1440,
+  breakpointBasis = "viewport",
+  header,
   returnFocus,
+  initialFocus,
+  modal = "trap-focus",
 }: ResizableDrawerProps) {
-  const inline = useInlineLayout(inlineBreakpoint);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const viewportInline = useInlineLayout(inlineBreakpoint);
+  const containerInline = useContainerInlineLayout(container, inlineBreakpoint);
+  const contained = breakpointBasis === "container";
+  // A contained drawer waits for its host's first measurement rather than mounting its
+  // content in one layout and moving it to the other a frame later.
+  const inline = contained ? containerInline === true : viewportInline;
+  const overlay = contained ? containerInline === false : !viewportInline;
   const drag = useRef<{ x: number; width: number } | null>(null);
-  const finalFocus = () => (returnFocus?.isConnected ? returnFocus : true);
+  const popup = useRef<HTMLDivElement | null>(null);
+  const finalFocus = () => {
+    const target = typeof returnFocus === "function" ? returnFocus() : returnFocus;
+    return target?.isConnected ? target : true;
+  };
   const resize = (next: number) => {
     const maximum = Math.min(maxWidth, (container?.clientWidth ?? maxWidth / 0.7) * 0.7);
     onWidthChange(Math.max(Math.min(minWidth, maximum), Math.min(maximum, next)));
@@ -50,7 +89,7 @@ export function ResizableDrawer({
     <DialogPrimitive.Root
       open={open && inline}
       onOpenChange={onOpenChange}
-      modal="trap-focus"
+      modal={modal}
       disablePointerDismissal
     >
       <div ref={setContainer} className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -60,7 +99,9 @@ export function ResizableDrawer({
             <DialogPrimitive.Popup
               data-slot="resizable-drawer"
               data-mode="inline"
+              ref={popup}
               finalFocus={finalFocus}
+              initialFocus={initialFocus ?? (() => defaultDialogInitialFocus(popup.current))}
               className="relative flex min-h-0 min-w-0 shrink-0 flex-col border-l border-line bg-canvas outline-none"
               style={{ width: Math.max(minWidth, Math.min(maxWidth, width)), maxWidth: "70%" }}
             >
@@ -112,36 +153,52 @@ export function ResizableDrawer({
                   resize(next);
                 }}
               />
-              <header className="flex shrink-0 items-start gap-2 border-b border-line p-4">
-                <DialogPrimitive.Title className="min-w-0 flex-1 text-item-title font-medium text-fg-strong">
-                  {title}
-                </DialogPrimitive.Title>
-                {actions}
-                <DialogPrimitive.Close
-                  render={<Button variant="quiet" size="icon-sm" aria-label="Close drawer" />}
-                >
-                  <XIcon />
-                </DialogPrimitive.Close>
-              </header>
+              {header ? (
+                <>
+                  <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
+                  {header}
+                </>
+              ) : (
+                <header className="flex shrink-0 items-start gap-2 border-b border-line p-4">
+                  <DialogPrimitive.Title className="min-w-0 flex-1 text-item-title font-medium text-fg-strong">
+                    {title}
+                  </DialogPrimitive.Title>
+                  {actions}
+                  <DialogPrimitive.Close
+                    render={<Button variant="quiet" size="icon-sm" aria-label="Close drawer" />}
+                  >
+                    <XIcon />
+                  </DialogPrimitive.Close>
+                </header>
+              )}
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
             </DialogPrimitive.Popup>
           </DialogPrimitive.Portal>
         )}
       </div>
-      <Sheet open={open && !inline} onOpenChange={onOpenChange} modal="trap-focus">
+      <Sheet open={open && overlay} onOpenChange={onOpenChange} modal="trap-focus">
         <SheetContent
           data-slot="resizable-drawer"
           data-mode="overlay"
           finalFocus={finalFocus}
+          initialFocus={initialFocus}
+          showCloseButton={!header}
           className="w-full gap-0 sm:max-w-none"
-          style={{ width: `min(${width}px, 100%)` }}
+          style={{ width: contained ? "100%" : `min(${width}px, 100%)` }}
         >
-          <SheetHeader className="shrink-0 border-b border-line pr-12">
-            <div className="flex min-w-0 items-start gap-2">
-              <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
-              {actions}
-            </div>
-          </SheetHeader>
+          {header ? (
+            <>
+              <SheetTitle className="sr-only">{title}</SheetTitle>
+              {header}
+            </>
+          ) : (
+            <SheetHeader className="shrink-0 border-b border-line pr-12">
+              <div className="flex min-w-0 items-start gap-2">
+                <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+                {actions}
+              </div>
+            </SheetHeader>
+          )}
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{content}</div>
         </SheetContent>
       </Sheet>

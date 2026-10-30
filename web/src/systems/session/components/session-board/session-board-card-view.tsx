@@ -7,6 +7,7 @@ import {
   GitPullRequestDraft,
   ListTree,
   type LucideIcon,
+  PencilLine,
 } from "lucide-react";
 import type { ComponentProps } from "react";
 
@@ -66,6 +67,8 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   archived?: boolean;
   /** The provider mark and model label shown beside the agent name. */
   runtime: SessionRuntimeLabel;
+  /** The composer holds unsent text for this session (#1052). */
+  draft?: boolean;
   onOpen: (session: SessionBoardPayload) => void;
 }
 
@@ -81,6 +84,7 @@ export function SessionBoardCardView({
   current = false,
   archived = false,
   runtime,
+  draft = false,
   onOpen,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
@@ -98,6 +102,7 @@ export function SessionBoardCardView({
     parentTitle ? `Child of ${parentTitle}` : null,
     rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
     rollup?.needsYou ? "A child needs you" : null,
+    draft ? "Unsent draft" : null,
     formatRelativeTime(session.updated_at),
   ]
     .filter(Boolean)
@@ -113,8 +118,11 @@ export function SessionBoardCardView({
         archived && "bg-transparent shadow-hairline-inset"
       )}
       data-archived={archived ? "true" : undefined}
+      data-agent-name={session.agent_name}
       data-board-column={session.board_column}
+      data-session-id={session.id}
       data-testid={`session-board-card-${session.id}`}
+      data-workspace-id={session.workspace_id ?? ""}
       onClick={() => onOpen(session)}
       {...intentHandlers}
       type="button"
@@ -140,6 +148,7 @@ export function SessionBoardCardView({
         </span>
       </span>
       <SessionBoardCardFooter
+        draft={draft}
         rollup={rollup}
         runtime={runtime}
         session={session}
@@ -204,8 +213,10 @@ function SessionBoardCardFooter({
   runtime,
   rollup,
   waiting,
+  draft,
 }: {
   session: SessionBoardPayload;
+  draft: boolean;
   runtime: SessionRuntimeLabel;
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
@@ -234,6 +245,15 @@ function SessionBoardCardFooter({
         >
           <StateGlyph size="sm" state={waiting.glyph} />
           {waiting.word}
+        </span>
+      ) : null}
+      {draft ? (
+        <span
+          className="flex shrink-0 items-center gap-1 text-muted"
+          data-testid={`session-board-card-draft-${session.id}`}
+        >
+          <PencilLine aria-hidden="true" className="size-3 text-subtle" />
+          Draft
         </span>
       ) : null}
       <Time

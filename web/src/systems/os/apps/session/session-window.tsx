@@ -27,6 +27,25 @@ void Promise.allSettled([preloadSessionWindowModules()]);
 const PROJECT_UNAVAILABLE = "This session's project isn't available right now";
 
 export function SessionWindow({ windowId }: { windowId: string }) {
+  const { view } = useSessionWindowViewState();
+  // On Kanban the board owns the window body; it shows the window's session in its drawer
+  // (#1052) through `SessionWindowSession`, so the session resolves only while it is shown.
+  if (view === "kanban") {
+    return (
+      <SessionBoardWindow
+        windowId={windowId}
+        session={<SessionWindowSession windowId={windowId} />}
+      />
+    );
+  }
+  return <SessionWindowSession windowId={windowId} />;
+}
+
+/**
+ * The window's session at full size, or inside the board drawer: the one session view both
+ * hosts mount, resolution and notices included.
+ */
+export function SessionWindowSession({ windowId }: { windowId: string }) {
   const {
     agentName,
     crossesWorkspace,
@@ -40,11 +59,7 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     sessionId,
     workspaceId,
   } = useSessionWindowController(windowId);
-  const { view } = useSessionWindowViewState();
 
-  if (view === "kanban") {
-    return <SessionBoardWindow windowId={windowId} sessionId={sessionId} />;
-  }
   if (deletedLocally || sessionId === null) {
     return <SessionWindowEmpty windowId={windowId} />;
   }
