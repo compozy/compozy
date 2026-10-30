@@ -151,3 +151,20 @@ save changed the in-memory owner but a durable read retained the old session, wo
 profile. The upsert now persists all three owner fields. The existing globaldb process-record
 suite passed with the race detector (3.246 s), scoped Linux lint reported zero issues, and
 code generation plus `make codegen-check` passed.
+
+## Goal stop ordering regression
+
+The repeated CI failure was reproduced in an isolated Linux runtime with the existing Goal
+command E2E function. With one CPU assigned, two of ten repetitions left Stop in
+`needs-approval` with `goal_recovery_ambiguous`. The interrupted prompt setup observed
+`stopping` before Goal pause persistence completed, failed with `session is not active`, and
+committed ambiguity first. A diagnostic-only run identified that original setup error.
+
+The Manager now serializes this setup recovery against the stop state/Goal-pause transition,
+and releases the lock before waiting for setup to drain. A regression in the existing stop
+lifecycle suite failed before the fix and passes afterward. Existing assertions and timeouts
+are unchanged. Owning stop/managed-input race suites passed (8.726 s), scoped Linux lint
+reported zero issues, and the unchanged real Goal E2E function passed ten Linux repetitions
+with one CPU plus five Linux repetitions with the race-enabled test binary and two CPUs.
+The daemon and mock binaries used Go 1.27.1; the test containers used isolated temporary
+runtime state and removed themselves on exit. No operator daemon was touched.

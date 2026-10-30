@@ -408,6 +408,10 @@ func (m *Manager) recordManagedInputAmbiguous(
 	if lifecycle == nil {
 		return
 	}
+	if session, ok := m.Get(submission.Owner.SessionID); ok {
+		session.goalStopMu.Lock()
+		defer session.goalStopMu.Unlock()
+	}
 	reason := strings.TrimSpace(reasonCode)
 	if reason == "" || reason == managedInputReasonBudgetFenced || reason == managedInputReasonControlFenced {
 		reason = managedInputReasonRecoveryAmbiguous

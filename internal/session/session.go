@@ -148,6 +148,7 @@ type Session struct {
 	steerDelivery              store.SteerDeliveryMode
 	mu                         sync.RWMutex
 	persistMu                  sync.Mutex
+	goalStopMu                 sync.Mutex // Orders Goal pause persistence before interrupted setup recovery.
 	conversationRewindReserved bool
 
 	ID                        string

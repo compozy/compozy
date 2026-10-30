@@ -4733,6 +4733,10 @@ outlives request cancellation with a bounded deadline. Initial inspection failur
 retries without publishing retained rows; loading persisted observations still fails explicitly.
 Group members receive individual identity-verified signals to exclude later joiners. Audit
 failure does not skip remaining selected targets, and summary ports match the counted rows.
+Observation updates persist current session/workspace/profile ownership across reloads.
+Runtime CI also exposed Stop racing an in-flight Goal prompt setup: the Manager now orders
+durable Goal pause before that setup can settle as ambiguous. This preserves session Stop's
+existing resumable-pause contract without new public surfaces or schema changes.
 
 Contract checkpoint: DTOs, OpenAPI and generated SDKs land first to unblock the
 parallel frontend. Runtime, API, native tools and CLI passed focused validation. The isolated lab verified
