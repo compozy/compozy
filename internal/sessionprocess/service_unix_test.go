@@ -214,14 +214,15 @@ func findProcess(t *testing.T, snapshot sessionprocess.Snapshot, pid int) sessio
 }
 
 type processSource struct {
-	mu    sync.Mutex
-	owner sessionprocess.Owner
+	mu        sync.Mutex
+	owner     sessionprocess.Owner
+	ownersErr error
 }
 
 func (s *processSource) Owners(context.Context) ([]sessionprocess.Owner, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return []sessionprocess.Owner{s.owner}, nil
+	return []sessionprocess.Owner{s.owner}, s.ownersErr
 }
 func (s *processSource) Owner(_ context.Context, id string) (sessionprocess.Owner, bool, error) {
 	s.mu.Lock()
@@ -239,4 +240,36 @@ func (*processSource) RecordTermination(context.Context, sessionprocess.Process,
 
 func (*processSource) OrphanOwner(context.Context, procutil.ScannedProcess) (sessionprocess.Owner, bool, error) {
 	return sessionprocess.Owner{}, false, nil
+}
+
+// Invariant: transient startup inspection failures do not abort the daemon or publish unverified ownership.
+// Owning layer/canonical suite: sessionprocess initialization and real persistence recovery.
+func TestInitialProcessScanRecovery(t *testing.T) {
+	t.Run("Should recover inspection after an initial failure without failing initialization", func(t *testing.T) {
+		source := &processSource{ownersErr: errors.New("process owners temporarily unavailable")}
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "global.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		service, err := sessionprocess.New(t.Context(), source, db, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(service.Shutdown)
+		if service.Summary("sess-test").Supported {
+			t.Fatal("failed initial scan published a supported snapshot")
+		}
+		source.mu.Lock()
+		source.ownersErr = nil
+		source.mu.Unlock()
+		snapshot, err := service.Refresh(t.Context())
+		if err != nil || !snapshot.Supported {
+			t.Fatalf("recovered snapshot=%+v error=%v", snapshot, err)
+		}
+	})
 }

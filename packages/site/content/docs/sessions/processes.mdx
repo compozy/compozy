@@ -7,7 +7,7 @@ A session can start a development server, watcher, or background command that ke
 the agent finishes. The composer’s **Processes** control shows the number of background processes
 and native terminals, their commands, age, and listening ports. Commands include readable arguments
 with the standard redaction rules applied, and fall back to the process name when unavailable. Foreground tool commands appear in
-the list but do not add to the badge count. Select a row to stop that process, or stop all listed
+the list but do not add to the badge count or its summary ports. Select a row to stop that process, or stop all listed
 processes for the session.
 
 When stopping, archiving, or deleting a session, choose whether to keep its processes or terminate
@@ -42,6 +42,10 @@ approval policy.
 
 Stop accepts `processes: "keep" | "terminate"` in its JSON body alongside `wait`. Archive and
 DELETE accept the `processes` query parameter. Omission means `keep` on every surface.
+A failed ownership refresh does not block keeping processes. Explicit termination requires a
+supported scanner and is rejected before the session transition when inspection is unavailable.
+Once a stop is accepted or an archive/delete transition succeeds, requested cleanup continues
+with a bounded execution lifetime even if the client disconnects.
 
 Operators can read `GET /api/processes?all_workspaces=true&all_profiles=true&orphaned=true` and
 terminate listed identities with `POST /api/processes/terminate` and a `targets` array. This route
@@ -49,8 +53,12 @@ also works when the original session no longer exists; it does not accept `all`.
 workspace ownership are retained with the observation. Raw process environments are never returned.
 
 A result reports `terminated`, `already_exited`, `identity_mismatch`, `failed`, or `unproven` for
-each target. Treat only the first two as verified completion. A successful request can contain an
+each target. Treat only the first two as verified completion. Verified group members receive
+individual PID signals, so a process joining the group after inspection is not included. A successful request can contain an
 unverified result; inspect every row. The durable audit event is `session.processes.terminated`.
+An audit-write failure is reported after attempting the remaining selected targets. A transient
+initial inspection failure is logged and retried; it does not prevent daemon startup or expose
+unverified saved observations.
 
 ## Attribution and restart behavior
 
@@ -78,4 +86,4 @@ reparenting and restart. Do not disable system protections to make it visible.
 An unknown session’s environment marker needs matching daemon-home and profile markers to establish
 ownership. A legacy process with only a session ID and no retained observation cannot be safely
 assigned to a deleted session’s profile. Windows reports `supported: false` and does not show the
-process control.
+process control. Explicit lifecycle termination is unavailable there, and CLI process termination exits with an error.

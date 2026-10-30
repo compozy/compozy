@@ -893,19 +893,23 @@ Use `compozy__session_processes_list` with `session_id` (omitted selects the cal
 session-owned background commands, active tools, and native terminals. Rows carry exact `pid` and
 `started_at`, `kind`, `attribution` (`env` or `lineage`), command, CWD, age, and listening ports.
 Raw environments are never exposed. The session's `process_summary` counts background processes
-and native terminals; foreground tools do not increment the badge. Catalog changes invalidate it.
+and native terminals, with ports from that same population; foreground tools remain in the detailed list. Catalog changes invalidate it.
 
 `compozy__session_processes_terminate` accepts either `all: true` or a nonempty `targets` array of
 `{pid, started_at}` copied from the list. Never terminate by PID alone. It is a destructive tool,
 subject to the current permission/approval policy and session workspace/profile boundaries. Agent
-leaders and the daemon remain protected. Native terminals close through the terminal manager.
+leaders and the daemon remain protected. Verified group members are signaled individually to
+exclude later group joiners. Native terminals close through the terminal manager.
 Inspect every result: only `terminated` and `already_exited` confirm completion;
 `identity_mismatch`, `failed`, and `unproven` require inspection. Audit event:
 `session.processes.terminated`.
 
 Stop and archive native tools accept `processes: keep|terminate`; omission means keep. HTTP/UDS stop
 places it in the JSON body with `wait`; archive and DELETE place it in the query. CLI stop, archive,
-and remove accept mutually exclusive `--keep-processes` / `--terminate-processes`. Read through
+and remove accept mutually exclusive `--keep-processes` / `--terminate-processes`. A failed
+ownership refresh does not block keep. Explicit termination rejects unsupported inspection before
+the lifecycle mutation, and accepted cleanup survives client disconnect with a bounded lifetime.
+CLI process termination reports an error on unsupported hosts. Read through
 `compozy session processes <id> -o json`; terminate with `processes stop <id> --all` or the paired
 `--pid` and `--started-at`. Canceling a turn and idle release do not request cleanup.
 

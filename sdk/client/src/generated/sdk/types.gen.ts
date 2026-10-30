@@ -32922,13 +32922,25 @@ export type DeleteSessionData = {
 
 export type DeleteSessionErrors = {
   /**
+   * Invalid process policy
+   */
+  400: ErrorPayload;
+  /**
    * Session not found
    */
   404: ErrorPayload;
   /**
+   * Process cleanup could not be verified
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
 };
 
 export type DeleteSessionError = DeleteSessionErrors[keyof DeleteSessionErrors];
@@ -35427,11 +35439,15 @@ export type StopSessionErrors = {
    */
   404: ErrorPayload;
   /**
+   * Process cleanup could not be verified
+   */
+  409: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
   /**
-   * Stop manager unavailable
+   * Service unavailable - dependent service missing
    */
   503: ErrorPayload;
 };

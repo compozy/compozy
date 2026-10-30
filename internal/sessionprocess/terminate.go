@@ -38,13 +38,8 @@ func (s *Service) Terminate(
 	s.scanMu.Lock()
 	results, err := s.terminateTargets(ctx, targets, indexed)
 	s.scanMu.Unlock()
-	if err != nil {
-		return results, err
-	}
-	if _, err := s.Refresh(ctx); err != nil {
-		return results, err
-	}
-	return results, nil
+	_, refreshErr := s.Refresh(ctx)
+	return results, errors.Join(err, refreshErr)
 }
 
 func (s *Service) terminateTargets(
@@ -54,6 +49,7 @@ func (s *Service) terminateTargets(
 ) ([]Result, error) {
 	results := make([]Result, 0, len(targets))
 	seen := make(map[Identity]bool)
+	var auditErrors []error
 	for _, id := range targets {
 		if seen[id] {
 			continue
@@ -70,10 +66,10 @@ func (s *Service) terminateTargets(
 		err := s.source.RecordTermination(auditCtx, p, result)
 		cancel()
 		if err != nil {
-			return results, fmt.Errorf("record process termination: %w", err)
+			auditErrors = append(auditErrors, fmt.Errorf("record process %d termination: %w", id.PID, err))
 		}
 	}
-	return results, nil
+	return results, errors.Join(auditErrors...)
 }
 
 func unavailableTarget(id Identity) Result {

@@ -198,6 +198,13 @@ func deleteSessionOperationSpec() OperationSpec {
 		),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
+			{Status: 400, Description: "Invalid process policy", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Process cleanup could not be verified", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -222,7 +229,12 @@ func stopSessionOperationSpec() OperationSpec {
 			{Status: 200, Description: "Settled stop result or already stopped", Body: contract.SessionStopPayload{}},
 			{Status: 202, Description: "Stop accepted", Body: contract.SessionStopPayload{}},
 			{Status: 400, Description: "Invalid stop request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Stop manager unavailable", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 409, Description: "Process cleanup could not be verified", Body: contract.ErrorPayload{}},
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

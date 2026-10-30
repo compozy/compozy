@@ -4321,8 +4321,34 @@ func TestSessionProcessHandlers(t *testing.T) {
 			}
 		}
 		response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(`{"all":true}`))
-		if response.Code != http.StatusOK || processes.calls != 1 {
-			t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+		if response.Code != http.StatusOK || processes.calls != 1 || !processes.all || len(processes.targets) != 0 {
+			t.Fatalf(
+				"status=%d calls=%d all=%t targets=%v body=%s",
+				response.Code,
+				processes.calls,
+				processes.all,
+				processes.targets,
+				response.Body.String(),
+			)
+		}
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		response = performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			base+"/processes/terminate",
+			[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`),
+		)
+		if response.Code != http.StatusOK || processes.calls != 2 || processes.all || len(processes.targets) != 1 ||
+			processes.targets[0].PID != 123 ||
+			!processes.targets[0].StartedAt.Equal(stamp) {
+			t.Fatalf(
+				"status=%d calls=%d all=%t targets=%v",
+				response.Code,
+				processes.calls,
+				processes.all,
+				processes.targets,
+			)
 		}
 		foreign := newTestHandlers(
 			t,
@@ -4345,8 +4371,128 @@ func TestSessionProcessHandlers(t *testing.T) {
 			base+"/processes/terminate",
 			[]byte(`{"all":true}`),
 		)
-		if response.Code != http.StatusNotFound || processes.calls != 1 {
+		if response.Code != http.StatusNotFound || processes.calls != 2 {
 			t.Fatalf("foreign status=%d calls=%d", response.Code, processes.calls)
+		}
+	})
+	// Invariants: keep tolerates scanner failure; unsupported terminate never mutates;
+	// committed lifecycle cleanup survives request cancellation with a bounded lifetime.
+	t.Run("Should retain keep lifecycle behavior when process inspection fails", func(t *testing.T) {
+		for _, policy := range []string{"", "keep", "terminate"} {
+			processes := &handlerProcessService{refreshErr: errors.New("process table unavailable")}
+			deleted := false
+			manager := stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }}
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			response := performRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123?processes="+policy,
+				nil,
+			)
+			want := http.StatusNoContent
+			if policy == "terminate" {
+				want = http.StatusInternalServerError
+			}
+			if response.Code != want || deleted != (policy != "terminate") {
+				t.Fatalf(
+					"policy=%q status=%d deleted=%t body=%s",
+					policy,
+					response.Code,
+					deleted,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+	t.Run("Should reject unsupported termination before deleting the session", func(t *testing.T) {
+		deleted := false
+		handlers := newTestHandlers(
+			t,
+			stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		handlers.SessionProcesses = &handlerProcessService{unsupported: true}
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate",
+			nil,
+		)
+		if response.Code != http.StatusServiceUnavailable || deleted ||
+			!strings.Contains(response.Body.String(), http.StatusText(http.StatusServiceUnavailable)) {
+			t.Fatalf("status=%d deleted=%t body=%s", response.Code, deleted, response.Body.String())
+		}
+	})
+	t.Run("Should finish cleanup after deletion cancels the caller context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(
+			t,
+			stubSessionManager{DeleteFn: func(context.Context, string) error { cancel(); return nil }},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		handlers.SessionProcesses = processes
+		request := httptest.NewRequestWithContext(
+			ctx,
+			http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate",
+			http.NoBody,
+		)
+		response := httptest.NewRecorder()
+		newTestRouter(t, handlers).ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent || processes.calls != 1 || processes.terminateContextErr != nil ||
+			!processes.terminateHasDeadline {
+			t.Fatalf(
+				"status=%d calls=%d ctxErr=%v bounded=%t",
+				response.Code,
+				processes.calls,
+				processes.terminateContextErr,
+				processes.terminateHasDeadline,
+			)
+		}
+	})
+	t.Run("Should finish a waited stop and cleanup after the caller disconnects", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		processes := &handlerProcessService{}
+		manager := &disconnectedProcessStopManager{
+			cancel: cancel,
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-workspace",
+					ProfileID:   store.DefaultProfileID,
+					State:       session.StateActive,
+				}, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		request := httptest.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/stop",
+			strings.NewReader(`{"wait":true,"processes":"terminate"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		newTestRouter(t, handlers).ServeHTTP(response, request)
+		if response.Code != http.StatusOK || processes.calls != 1 || manager.awaitErr != nil ||
+			processes.terminateContextErr != nil {
+			t.Fatalf(
+				"status=%d calls=%d wait=%v cleanup=%v body=%s",
+				response.Code,
+				processes.calls,
+				manager.awaitErr,
+				processes.terminateContextErr,
+				response.Body.String(),
+			)
 		}
 	})
 	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
@@ -4378,9 +4524,23 @@ func TestSessionProcessHandlers(t *testing.T) {
 	})
 }
 
-type handlerProcessService struct{ calls int }
+type handlerProcessService struct {
+	calls                int
+	refreshErr           error
+	unsupported          bool
+	targets              []sessionprocess.Identity
+	all                  bool
+	terminateContextErr  error
+	terminateHasDeadline bool
+}
 
-func (*handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+func (s *handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+	if s.refreshErr != nil {
+		return sessionprocess.Snapshot{}, s.refreshErr
+	}
+	if s.unsupported {
+		return sessionprocess.Snapshot{}, nil
+	}
 	return sessionprocess.Snapshot{
 		Supported: true,
 		ScannedAt: time.Now(),
@@ -4404,10 +4564,10 @@ func (*handlerProcessService) Summary(string) sessionprocess.Summary {
 func (*handlerProcessService) Acquire() func() { return func() {} }
 
 func (s *handlerProcessService) Terminate(
-	_ context.Context,
+	ctx context.Context,
 	id string,
-	_ []sessionprocess.Identity,
-	_ bool,
+	targets []sessionprocess.Identity,
+	all bool,
 	allowed func(sessionprocess.Owner) bool,
 ) ([]sessionprocess.Result, error) {
 	if !allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID}) ||
@@ -4416,6 +4576,24 @@ func (s *handlerProcessService) Terminate(
 		return nil, errors.New("incorrect process mutation scope")
 	}
 	s.calls++
+	s.targets, s.all = targets, all
+	s.terminateContextErr = ctx.Err()
+	_, s.terminateHasDeadline = ctx.Deadline()
 	return []sessionprocess.Result{}, nil
 }
 func (*handlerProcessService) AfterStop(string, func(context.Context) error) {}
+
+type disconnectedProcessStopManager struct {
+	stubSessionManager
+	cancel   context.CancelFunc
+	awaitErr error
+}
+
+func (s *disconnectedProcessStopManager) RequestStop(context.Context, string, session.StopCause) error {
+	s.cancel()
+	return nil
+}
+func (s *disconnectedProcessStopManager) AwaitStopped(ctx context.Context, _ string) (session.StopOutcome, error) {
+	s.awaitErr = ctx.Err()
+	return session.StopOutcome{FinalState: session.StateStopped, Verified: s.awaitErr == nil}, s.awaitErr
+}

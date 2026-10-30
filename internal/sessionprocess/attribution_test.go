@@ -2,6 +2,7 @@ package sessionprocess
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -195,4 +196,55 @@ func TestProcessCatalogChanges(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a failed audit write never skips later authorized terminations, and the failure remains visible.
+// Owning layer/canonical suite: sessionprocess orchestration, with terminal/audit I/O boundaries stubbed.
+func TestTerminationAuditFailure(t *testing.T) {
+	t.Parallel()
+	t.Run("Should attempt every selected terminal despite an audit failure", func(t *testing.T) {
+		t.Parallel()
+		source := &failingAuditSource{failure: errors.New("audit storage unavailable")}
+		service := &Service{source: source}
+		ids := []Identity{{PID: 900001}, {PID: 900002}}
+		indexed := map[Identity]Process{}
+		for _, id := range ids {
+			indexed[id] = Process{PID: id.PID, TerminalID: "terminal", Owner: Owner{SessionID: "sess-test"}}
+		}
+		results, err := service.terminateTargets(t.Context(), ids, indexed)
+		if !errors.Is(err, source.failure) || len(results) != 2 || source.closes != 2 || source.audits != 2 {
+			t.Fatalf("results=%v closes=%d audits=%d error=%v", results, source.closes, source.audits, err)
+		}
+	})
+}
+
+type failingAuditSource struct {
+	attributionSource
+	failure        error
+	closes, audits int
+}
+
+func (s *failingAuditSource) CloseTerminal(context.Context, Process) error { s.closes++; return nil }
+func (s *failingAuditSource) RecordTermination(context.Context, Process, Result) error {
+	s.audits++
+	return s.failure
+}
+
+// Invariant: summary ports describe the same background/terminal population as its count.
+// Owning layer/canonical suite: sessionprocess summary projection.
+func TestProcessSummaryPorts(t *testing.T) {
+	t.Parallel()
+	t.Run("Should leave foreground tool ports in the detailed list only", func(t *testing.T) {
+		t.Parallel()
+		owner := Owner{SessionID: "sess-test"}
+		summaries := summarize(Snapshot{Supported: true, Processes: []Process{
+			{Owner: owner, Kind: "background", Ports: []int{3000}},
+			{Owner: owner, Kind: "tool", Ports: []int{4000}},
+			{Owner: owner, Kind: "terminal", Ports: []int{5000}},
+		}})
+		got := summaries[owner.SessionID]
+		if got.Background != 1 || got.Terminals != 1 || !slices.Equal(got.Ports, []int{3000, 5000}) {
+			t.Fatalf("summary=%+v", got)
+		}
+	})
 }

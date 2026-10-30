@@ -300,6 +300,78 @@ func TestScannedProcessTermination(t *testing.T) {
 	})
 }
 
+// Invariant: joining an inspected process group never grants termination authority to the new member.
+// Owning layer/canonical suite: procutil real-process signaling safety.
+func TestScannedGroupMembershipFence(t *testing.T) {
+	t.Parallel()
+	t.Run("Should signal selected group identities without signaling a late joiner", func(t *testing.T) {
+		t.Parallel()
+		leader := startScannedGroupHelper(t, 0)
+		snapshot, err := ScanProcesses(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var target ScannedProcess
+		for _, p := range snapshot.Processes {
+			if p.PID == leader {
+				target = p
+				break
+			}
+		}
+		members, valid := scannedSignalMembers(snapshot, target, false)
+		if !valid || len(members) != 1 {
+			t.Fatalf("members=%v valid=%t", members, valid)
+		}
+		late := startScannedGroupHelper(t, leader)
+		if err := signalScannedMembers(members, syscall.SIGTERM); err != nil {
+			t.Fatal(err)
+		}
+		result := awaitGracefulScannedExit(t.Context(), members, time.Second)
+		if result.Outcome != "terminated" {
+			t.Fatalf("termination=%+v", result)
+		}
+		if !Alive(late) {
+			t.Fatal("late group member received a signal without being selected")
+		}
+	})
+}
+
+func startScannedGroupHelper(t *testing.T, pgid int) int {
+	t.Helper()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), executable, "-test.run=^TestScannedProcessTermination$")
+	command.Env = append(
+		os.Environ(),
+		"COMPOZY_PROCSCAN_HELPER=1",
+		"COMPOZY_SESSION_ID=sess-group-fence",
+		"COMPOZY_HOME="+t.TempDir(),
+	)
+	ConfigureCommandProcessGroup(command)
+	command.SysProcAttr.Pgid = pgid
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := command.Wait(); err != nil {
+			if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+				t.Errorf("wait: %v", err)
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		if err := command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			t.Errorf("cleanup: %v", err)
+		}
+		<-done
+	})
+	return command.Process.Pid
+}
+
 // Measures both cadences on the actual host table; no fake process enumeration.
 func BenchmarkProcessScan(b *testing.B) {
 	for _, full := range []bool{false, true} {

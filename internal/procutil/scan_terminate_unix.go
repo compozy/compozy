@@ -54,7 +54,7 @@ func terminateObservedProcess(
 	if err != nil {
 		return ProcessTermination{Outcome: terminationUnproven, Err: err}
 	}
-	members, signalPID, valid := scannedSignalTarget(snapshot, target, lineage)
+	members, valid := scannedSignalMembers(snapshot, target, lineage)
 	if !valid {
 		return ProcessTermination{Outcome: terminationUnproven, Err: errors.New("process attribution changed")}
 	}
@@ -73,15 +73,17 @@ func terminateObservedProcess(
 		return ProcessTermination{Outcome: terminationFailed, Err: errors.New("process moved into protected group")}
 	}
 	if observed.PGID != target.PGID {
-		members, signalPID = []ScannedProcess{target}, target.PID
+		members = []ScannedProcess{target}
 	}
-	if err := syscall.Kill(signalPID, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+	// A process can join a group after any snapshot. Signal the verified members
+	// individually so a late joiner never inherits this operation's authority.
+	if err := signalScannedMembers(members, syscall.SIGTERM); err != nil {
 		return ProcessTermination{Outcome: terminationFailed, Err: err}
 	}
 	return awaitGracefulScannedExit(ctx, members, grace)
 }
 
-func scannedSignalTarget(snapshot ProcessSnapshot, target ScannedProcess, lineage bool) ([]ScannedProcess, int, bool) {
+func scannedSignalMembers(snapshot ProcessSnapshot, target ScannedProcess, lineage bool) ([]ScannedProcess, bool) {
 	attributed := false
 	for _, p := range snapshot.Processes {
 		if p.PID == target.PID && p.StartedAt.Equal(target.StartedAt) && p.SessionID == target.SessionID &&
@@ -91,10 +93,9 @@ func scannedSignalTarget(snapshot ProcessSnapshot, target ScannedProcess, lineag
 		}
 	}
 	if !attributed && !lineage {
-		return nil, 0, false
+		return nil, false
 	}
 	members := []ScannedProcess{target}
-	signalPID := target.PID
 	// A group leader is an anchor; unreadable or foreign members force a PID-only signal.
 	if !lineage && target.PID == target.PGID && target.PGID > 1 {
 		safe := true
@@ -111,10 +112,9 @@ func scannedSignalTarget(snapshot ProcessSnapshot, target ScannedProcess, lineag
 		}
 		if safe && len(group) > 0 {
 			members = group
-			signalPID = -target.PGID
 		}
 	}
-	return members, signalPID, true
+	return members, true
 }
 
 func awaitGracefulScannedExit(ctx context.Context, members []ScannedProcess, grace time.Duration) ProcessTermination {
@@ -136,7 +136,7 @@ func awaitGracefulScannedExit(ctx context.Context, members []ScannedProcess, gra
 		case <-poll.C:
 			continue
 		case <-deadline.C:
-			if err := killScannedMembers(members); err != nil {
+			if err := signalScannedMembers(members, syscall.SIGKILL); err != nil {
 				return ProcessTermination{Outcome: terminationUnproven, Err: err}
 			}
 
@@ -145,7 +145,7 @@ func awaitGracefulScannedExit(ctx context.Context, members []ScannedProcess, gra
 	}
 }
 
-func killScannedMembers(members []ScannedProcess) error {
+func signalScannedMembers(members []ScannedProcess, signal syscall.Signal) error {
 	for _, p := range members {
 		current, e := scanProcessIdentity(p.PID)
 		if errors.Is(e, ErrProcessIdentityGone) {
@@ -157,7 +157,10 @@ func killScannedMembers(members []ScannedProcess) error {
 		if !current.StartedAt.Equal(p.StartedAt) || current.Zombie {
 			continue
 		}
-		if e := syscall.Kill(p.PID, syscall.SIGKILL); e != nil && !errors.Is(e, syscall.ESRCH) {
+		if p.PID <= 1 || p.PID == os.Getpid() || current.PGID == syscall.Getpgrp() {
+			return errors.New("process moved into protected group")
+		}
+		if e := syscall.Kill(p.PID, signal); e != nil && !errors.Is(e, syscall.ESRCH) {
 			return e
 		}
 	}

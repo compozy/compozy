@@ -4727,6 +4727,13 @@ its separate termination route does not bypass session-scoped authorization.
   lifecycle scenario co-ship with the implementation. No new configuration is needed;
   scan demand and shared snapshots bound background work.
 
+Review hardening keeps ownership capture before lifecycle transitions, but makes scan failure
+non-blocking for keep. Explicit cleanup rejects unsupported inspection before mutation and
+outlives request cancellation with a bounded deadline. Initial inspection failure logs and
+retries without publishing retained rows; loading persisted observations still fails explicitly.
+Group members receive individual identity-verified signals to exclude later joiners. Audit
+failure does not skip remaining selected targets, and summary ports match the counted rows.
+
 Contract checkpoint: DTOs, OpenAPI and generated SDKs land first to unblock the
 parallel frontend. Runtime, API, native tools and CLI passed focused validation. The isolated lab verified
 terminate, keep/restart, deleted-owner cleanup and native-terminal shutdown; its teardown

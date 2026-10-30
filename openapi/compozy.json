@@ -85593,6 +85593,16 @@
           "204": {
             "description": "No Content"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process policy"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -85603,6 +85613,16 @@
             },
             "description": "Session not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process cleanup could not be verified"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -85612,6 +85632,16 @@
               }
             },
             "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
           }
         },
         "summary": "Delete one session and remove it from persisted history",
@@ -90506,6 +90536,16 @@
             },
             "description": "Session not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process cleanup could not be verified"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -90524,7 +90564,7 @@
                 }
               }
             },
-            "description": "Stop manager unavailable"
+            "description": "Service unavailable - dependent service missing"
           }
         },
         "summary": "Stop a session without deleting persisted history",

@@ -64,8 +64,13 @@ func New(ctx context.Context, source Source, persistence Store, logger *slog.Log
 	}
 	// The initial scan re-verifies every saved identity before making it visible.
 	if _, err := s.Refresh(runCtx); err != nil {
-		cancel()
-		return nil, err
+		if runCtx.Err() != nil {
+			cancel()
+			return nil, err
+		}
+		// Inspection is optional at boot. Keep the empty unsupported snapshot until
+		// a demand-driven retry succeeds; never publish unverified persisted rows.
+		logger.Warn("Initial session process scan unavailable; will retry", "error", err)
 	}
 	go s.run(runCtx)
 	return s, nil
@@ -234,6 +239,8 @@ func summarize(s Snapshot) map[string]Summary {
 			summary.Background++
 		case "terminal":
 			summary.Terminals++
+		default:
+			continue
 		}
 		summary.Ports = append(summary.Ports, p.Ports...)
 		slices.Sort(summary.Ports)

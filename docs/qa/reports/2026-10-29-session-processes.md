@@ -124,3 +124,24 @@ assertion, timeout or production behavior was changed. Linux session/procutil li
 
 All four Web E2E shards and desktop E2E passed on CI head `5c51a2f33`. These results precede the
 final environment correction; required checks on the eventual PR head remain the delivery gate.
+
+## CodeRabbit remediation evidence
+
+The canonical suites reproduce and cover keep during inspection failure, rejection of
+unsupported lifecycle cleanup before mutation, cleanup after a disconnected delete or waited
+stop, CLI process-policy forwarding and unsupported exit status, audit failure across multiple
+targets, startup inspection recovery, and summary-port/count consistency. No standalone test
+file was added. The real-process suite verifies a process joining an inspected group is not
+signaled, while existing detached env and durable lineage/restart cases still pass.
+
+Focused race results: CLI 4.951 s, sessionprocess 5.197 s, procutil 1.862 s, native descriptors
+1.670 s, and HTTP handlers 2.099 s (after correcting the new fixture's explicit session lookup).
+Code generation and the OpenAPI owning suite passed (4.346 s); Windows cross-build passed.
+The native selector schema retains the provider-compatible top-level object contract. Shared
+handler validation rejects ambiguous selectors before signaling; the handler suite checks the
+forwarded selection as well as rejection behavior.
+
+The final HTTP race rerun passed (2.053 s), scoped Linux lint reported zero issues, and
+`make codegen-check` passed. The existing Goal runtime E2E function also passed locally
+(31.076 s). CI on a19d5c416 nevertheless reproduced the Goal pause/run-status mismatch;
+that Linux CI failure remains under investigation and is not covered by the local pass.

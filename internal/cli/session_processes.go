@@ -111,6 +111,9 @@ func newSessionProcessesCommand(deps commandDeps) *cobra.Command {
 			if err := writeCommandOutput(cmd, output); err != nil {
 				return err
 			}
+			if !result.Supported {
+				return errors.New("cli: process termination unsupported on this host")
+			}
 			for _, r := range result.Results {
 				if r.Outcome != "terminated" && r.Outcome != "already_exited" {
 					return fmt.Errorf("cli: process %d is %s", r.PID, r.Outcome)

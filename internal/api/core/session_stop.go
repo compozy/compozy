@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -59,6 +60,12 @@ func (h *BaseHandlers) stopSessionWithResult(
 			StopCause: session.CauseUserRequested.String(), Escalated: info.StopEscalated,
 		})
 		return
+	}
+	// Once stop is accepted, an explicit cleanup choice outlives the client.
+	if policy == contract.SessionProcessesTerminate {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
 	}
 	outcome, err := manager.AwaitStopped(ctx, info.ID)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {

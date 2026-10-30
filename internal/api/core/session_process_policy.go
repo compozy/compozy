@@ -1,9 +1,11 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -20,8 +22,19 @@ func (h *BaseHandlers) prepareProcessPolicy(c *gin.Context, policy contract.Sess
 	if h.SessionProcesses == nil {
 		return policy != contract.SessionProcessesTerminate || h.requireSessionProcesses(c)
 	}
-	if _, err := h.SessionProcesses.Refresh(c.Request.Context()); err != nil {
+	snapshot, err := h.SessionProcesses.Refresh(c.Request.Context())
+	if policy != contract.SessionProcessesTerminate {
+		if err != nil && h.Logger != nil {
+			h.Logger.Warn("Capture processes before keeping session descendants", "error", err)
+		}
+		return true
+	}
+	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
+		return false
+	}
+	if !snapshot.Supported {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("process termination unsupported on this host"))
 		return false
 	}
 	return true
@@ -35,8 +48,10 @@ func (h *BaseHandlers) finishProcessPolicy(
 	if policy != contract.SessionProcessesTerminate {
 		return true
 	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 2*time.Minute)
+	defer cancel()
 	results, err := h.SessionProcesses.Terminate(
-		c.Request.Context(),
+		ctx,
 		info.ID,
 		nil,
 		true,
