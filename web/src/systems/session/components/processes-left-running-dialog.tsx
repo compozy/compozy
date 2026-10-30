@@ -13,7 +13,7 @@ import type {
   SessionProcessGroupPayload,
   SessionProcessPayload,
 } from "../adapters/session-processes-api";
-import { processCountLabel, processIdentity, sortSessionProcesses } from "../lib/session-processes";
+import { processCountLabel, sortSessionProcesses } from "../lib/session-processes";
 import { ProcessListNote, SessionProcessList } from "./session-process-list";
 
 export interface ProcessesLeftRunningDialogProps {
@@ -25,7 +25,7 @@ export interface ProcessesLeftRunningDialogProps {
   failed?: boolean;
   onRetry?: () => void;
   onStop: (processes: readonly SessionProcessPayload[]) => void;
-  /** Identities whose stop is in flight. */
+  /** Identities whose stop is in flight; any stop in flight locks every Stop. */
   stopping?: ReadonlySet<string> | null;
 }
 
@@ -44,7 +44,7 @@ function LeftRunningGroup({
 }) {
   const processes = sortSessionProcesses(group.items);
   const name = group.session_name.trim();
-  const groupStopping = processes.some(process => stopping?.has(processIdentity(process)));
+  const locked = stopping !== null;
   return (
     <section
       aria-label={name || "Deleted session"}
@@ -66,7 +66,7 @@ function LeftRunningGroup({
             type="button"
             variant="quiet"
             size="xs"
-            disabled={groupStopping}
+            disabled={locked}
             onClick={() => onStop(processes)}
             aria-label={`Stop all processes from ${name || "this deleted session"}`}
           >
@@ -100,7 +100,7 @@ export function ProcessesLeftRunningDialog({
   stopping = null,
 }: ProcessesLeftRunningDialogProps) {
   const all = groups.flatMap(group => group.items);
-  const anyStopping = all.some(process => stopping?.has(processIdentity(process)));
+  const anyStopping = stopping !== null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

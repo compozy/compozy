@@ -70,7 +70,9 @@ describe("SessionProcessesComposerControl", () => {
     expect(onStopAll).toHaveBeenCalledOnce();
   });
 
-  it("Should lock the stopping row, and every row while Stop all runs", async () => {
+  // One stop at a time (PR #1049 review): a second stop while one is in flight would hide the
+  // first one's pending state and could re-enable its row before it settles.
+  it("Should lock every Stop while one stop is in flight, spinning only its own row", async () => {
     const user = userEvent.setup();
     const view = renderControl({
       processes: sessionProcessesFixture,
@@ -79,12 +81,16 @@ describe("SessionProcessesComposerControl", () => {
       stopping: new Set([processIdentity(sessionProcessesFixture[1]!)]),
     });
     await user.click(screen.getByRole("button", { name: "Processes, 3 running" }));
-    expect(
-      screen.getByRole("button", { name: "Stop process: tsc --watch --preserveWatchOutput" })
-    ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Stop process: bun run dev --port 5173" })
-    ).toBeEnabled();
+    for (const button of screen.getAllByRole("button", { name: /^Stop process:/ })) {
+      expect(button).toBeDisabled();
+    }
+    expect(screen.getByTestId("composer-processes-stop-all")).toBeDisabled();
+    const inFlight = screen.getByRole("button", {
+      name: "Stop process: tsc --watch --preserveWatchOutput",
+    });
+    expect(inFlight.querySelector(".lucide-circle-stop")).toBeNull();
+    const waiting = screen.getByRole("button", { name: "Stop process: bun run dev --port 5173" });
+    expect(waiting.querySelector(".lucide-circle-stop")).not.toBeNull();
 
     view.rerender(
       <UIProvider reducedMotion="always">
@@ -253,6 +259,25 @@ describe("ProcessesLeftRunningDialog", () => {
     expect(onStop).toHaveBeenLastCalledWith(
       processesLeftRunningFixture.flatMap(group => group.items)
     );
+  });
+
+  it("Should lock every Stop in the dialog while one stop is in flight", () => {
+    const [astro] = processesLeftRunningFixture[0]!.items;
+    render(
+      <UIProvider reducedMotion="always">
+        <ProcessesLeftRunningDialog
+          open
+          onOpenChange={vi.fn()}
+          groups={processesLeftRunningFixture}
+          onStop={vi.fn()}
+          stopping={new Set([processIdentity(astro!)])}
+        />
+      </UIProvider>
+    );
+    for (const button of screen.getAllByRole("button", { name: /^Stop (process|all)/ })) {
+      expect(button).toBeDisabled();
+    }
+    expect(screen.getByTestId("left-running-stop-all")).toBeDisabled();
   });
 
   it("Should say so when nothing was left running", () => {

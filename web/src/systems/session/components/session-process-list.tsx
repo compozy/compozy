@@ -24,7 +24,11 @@ export interface SessionProcessListProps {
   missing?: boolean;
   onRetry?: () => void;
   onStop?: (process: SessionProcessPayload) => void;
-  /** Identities whose stop is in flight; `"all"` locks every row. */
+  /**
+   * Identities whose stop is in flight (they show the spinner), or `"all"`. Any
+   * stop in flight locks every row: one stop at a time, so a second request can
+   * never hide the first one's pending state.
+   */
   stopping?: ReadonlySet<string> | "all" | null;
   /** How many rows the list expects before its first read (capped). */
   placeholderCount?: number;
@@ -168,7 +172,7 @@ export function SessionProcessList({
                 key={identity}
                 process={process}
                 stopping={stopping !== null && stopping !== "all" && stopping.has(identity)}
-                locked={stopping === "all"}
+                locked={stopping !== null}
                 onStop={onStop}
               />
             );

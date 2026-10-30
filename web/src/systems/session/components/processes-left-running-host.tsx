@@ -42,6 +42,8 @@ export function ProcessesLeftRunningHost({ open, onOpenChange }: ProcessesLeftRu
       onRetry={() => void query.refetch()}
       stopping={pending ? new Set(pending.map(processIdentity)) : null}
       onStop={processes => {
+        // One stop at a time; the dialog locks every Stop while one is in flight.
+        if (mutation.isPending) return;
         mutation
           .mutateAsync(processes)
           .then(response => reportProcessStop(response.results, processes))

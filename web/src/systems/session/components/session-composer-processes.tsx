@@ -32,6 +32,8 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
     open && count > 0
   );
   const stop = (request: SessionProcessStopRequest) => {
+    // One stop at a time; the popover locks every Stop while one is in flight.
+    if (model.stopping !== null) return;
     const listed: readonly SessionProcessPayload[] = model.processes;
     model
       .stop(request)
