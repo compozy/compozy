@@ -5,10 +5,15 @@ import {
   contractHome,
   expandHome,
   folderName,
+  isAbsolutePath,
   normalizeDirectoryPath,
   suggestionValue,
 } from "../directory-path";
-import { DIRECTORY_PATH_COPY, judgeDirectoryPath } from "../directory-path-field";
+import {
+  DIRECTORY_PATH_COPY,
+  directorySuggestions,
+  judgeDirectoryPath,
+} from "../directory-path-field";
 
 describe("directory path text", () => {
   it("Should expand only `~` and `~/…` against the daemon home", () => {
@@ -36,6 +41,8 @@ describe("directory path text", () => {
     expect(completionTarget("/c")).toEqual({ dir: "/", prefix: "c" });
     expect(completionTarget("C:\\Users\\a")).toEqual({ dir: "C:\\Users", prefix: "a" });
     expect(completionTarget("code")).toBeNull();
+    expect(isAbsolutePath("\\\\server\\share")).toBe(true);
+    expect(isAbsolutePath("\\\\server")).toBe(false);
   });
 
   it("Should keep the operator's spelling when a suggestion is chosen", () => {
@@ -62,5 +69,32 @@ describe("directory path text", () => {
       status: "invalid",
       message: DIRECTORY_PATH_COPY.homeUnavailable,
     });
+  });
+
+  it("Should offer case variants of a typed folder and judge `\\` by the home's platform", () => {
+    const entry = (name: string) => ({ name, path: `/home/ada/${name}`, is_dir: true });
+    expect(
+      directorySuggestions({
+        entries: [entry("code"), entry("Code"), entry("codex")],
+        prefix: "code",
+        typed: "~/code",
+        windows: false,
+        limit: 50,
+      }).map(item => item.label)
+    ).toEqual(["Code", "codex"]);
+
+    const judgeHome = (typed: string, home: string) =>
+      judgeDirectoryPath({
+        typed,
+        expanded: typed,
+        candidate: typed,
+        home,
+        homeUnavailable: false,
+        validation: { error: null, resolved: home },
+        isProject: () => false,
+      }).status;
+    expect(judgeHome("/home/ada/", "/home/ada")).toBe("incomplete");
+    expect(judgeHome("/home/ada\\", "/home/ada\\")).toBe("invalid");
+    expect(judgeHome("C:\\Users\\ada\\", "C:\\Users\\ada")).toBe("incomplete");
   });
 });

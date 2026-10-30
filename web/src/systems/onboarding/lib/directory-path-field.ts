@@ -1,6 +1,11 @@
 import { OnboardingApiError } from "../adapters/onboarding-api";
 import type { FSBrowseResponse } from "../types";
-import { isAbsolutePath, normalizeDirectoryPath, suggestionValue } from "./directory-path";
+import {
+  isAbsolutePath,
+  isWindowsPath,
+  normalizeDirectoryPath,
+  suggestionValue,
+} from "./directory-path";
 
 /** `incomplete`: the text is a place to browse from (`~/`), not yet a choice. */
 export type DirectoryPathStatus = "empty" | "incomplete" | "checking" | "invalid" | "valid";
@@ -38,7 +43,8 @@ export function directorySuggestions({
     .filter(entry => {
       const name = entry.name.toLowerCase();
       // The folder already typed in full is not a completion; `/` drills into it.
-      return entry.is_dir && name.startsWith(match) && name !== match;
+      // Case-sensitive filesystems can hold `Code` beside `code`, so only an exact name is excluded.
+      return entry.is_dir && name.startsWith(match) && entry.name !== prefix;
     })
     .slice(0, limit)
     .map(entry => ({ value: suggestionValue(typed, entry.name, windows), label: entry.name }));
@@ -64,7 +70,8 @@ function judgeListedFolder(
 ): { status: DirectoryPathStatus; message: string | null } {
   if (home !== null && (candidate === normalizeDirectoryPath(home) || resolved === home)) {
     // `~/` is where browsing starts; only `~` itself reads as choosing home.
-    return /[\\/]$/.test(typed)
+    const trailingSeparator = isWindowsPath(home) ? /[\\/]$/ : /\/$/;
+    return trailingSeparator.test(typed)
       ? { status: "incomplete", message: null }
       : { status: "invalid", message: DIRECTORY_PATH_COPY.home };
   }

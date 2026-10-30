@@ -21,9 +21,11 @@ function trailingSeparators(windows: boolean): RegExp {
   return windows ? /[\\/]+$/ : /\/+$/;
 }
 
-/** `/x`, `C:\x` or `C:/x`, and `\\server\share`. */
+/** `/x`, `C:\x` or `C:/x`, and `\\server\share` (a UNC path needs its share). */
 export function isAbsolutePath(path: string): boolean {
-  return path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+  return (
+    path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path) || /^\\\\[^\\/]+[\\/][^\\/]+/.test(path)
+  );
 }
 
 /** `~` and `~/x` expand against the daemon's home; anything else is returned as typed. */
