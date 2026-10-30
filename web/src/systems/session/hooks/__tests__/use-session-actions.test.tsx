@@ -19,9 +19,9 @@ import {
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
-  useSendSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
+import { useSendSessionPrompt } from "../use-session-prompt-actions";
 import { useSessionRewind } from "../use-session-rewind";
 import {
   useSessionInputs,

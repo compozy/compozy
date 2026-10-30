@@ -400,10 +400,6 @@ export {
   type SessionDeleteDialogProps,
 } from "./components/session-delete-dialog";
 export {
-  SessionProcessChoiceDialog,
-  type SessionProcessChoiceDialogProps,
-} from "./components/session-process-choice-dialog";
-export {
   SessionRenameDialog,
   type SessionRenameDialogProps,
 } from "./components/session-rename-dialog";
@@ -482,25 +478,11 @@ export * from "./quote";
 export * from "./mentions";
 export type { SessionSendAction } from "./lib/session-busy-input";
 export * from "./hooks";
+// Context surface — context meter, usage turns, and activity (./context).
+export * from "./context";
 
-export { useSessionContext, useSessionUsageTurns } from "./hooks/use-session-context";
-export { SessionContextControl } from "./components/session-context-control";
 export { SessionComposerSubagents } from "./components/session-composer-subagents";
 export { SessionComposerMonitors } from "./components/session-composer-monitors";
-export { SessionComposerProcesses } from "./components/session-composer-processes";
-export { ProcessesLeftRunningHost } from "./components/processes-left-running-host";
-export type {
-  SessionProcessGroupPayload,
-  SessionProcessPayload,
-  SessionProcessPolicy,
-} from "./adapters/session-processes-api";
-export type { SessionContextView } from "./lib/session-context";
-export type { SessionActivityView } from "./components/session-activity-section";
-
-export {
-  useSessionContextActivity,
-  type SessionContextActivitySource,
-} from "./hooks/use-session-context-activity";
 
 export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
 export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
@@ -509,3 +491,5 @@ export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runt
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
 export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
 export * from "./subagents";
+// Processes surface — what a session left running and the stop/keep choice (./processes).
+export * from "./processes";
