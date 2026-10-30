@@ -42,6 +42,7 @@ function column(
     loading: false,
     failure: null,
     retrying: false,
+    fetching: false,
     hasMore: COUNTS[id] > sessions.length,
     loadingMore: false,
     loadMore: handler(),
@@ -69,6 +70,7 @@ export function sessionsBoardViewFixture(
       loading: false,
       failure: null,
       retrying: false,
+      fetching: false,
       hasMore: true,
       loadingMore: false,
       loadMore: handler(),
@@ -77,6 +79,8 @@ export function sessionsBoardViewFixture(
       ...archive,
     },
     workspaceNameOf: () => null,
+    selectionKey: "board",
+    pair: null,
   };
 }
 

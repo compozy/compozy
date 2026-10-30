@@ -46,6 +46,15 @@ export const sessionSelectionLogic = createStoreLogic({
       ...context,
       selectedIds: [...new Set([...context.selectedIds, ...ids])],
     }),
+    /** Clears a group's checkbox: its sessions leave, the rest of the selection stays. */
+    deselect: (context, { ids }: { ids: readonly string[] }) => {
+      const leaving = new Set(ids);
+      const selectedIds = context.selectedIds.filter(id => !leaving.has(id));
+      if (selectedIds.length === context.selectedIds.length) return context;
+      const anchorId =
+        context.anchorId !== null && leaving.has(context.anchorId) ? null : context.anchorId;
+      return { selectedIds, anchorId };
+    },
     clear: (): SessionSelectionContext => ({ selectedIds: [], anchorId: null }),
     prune: (context, { ids }: { ids: readonly string[] }) => {
       const current = new Set(ids);
@@ -85,6 +94,8 @@ export function sessionSelectionCounts(
   };
 }
 
+export type SessionSelectionStore = ReturnType<typeof sessionSelectionLogic.createStore>;
+
 /** One transient selection per list identity; filters and folds do not change that identity. */
 export function useSessionSelection(
   scope: string,
@@ -104,6 +115,8 @@ export function useSessionSelection(
     : context.selectedIds;
   const anchorId = currentIds && !currentIds.has(context.anchorId ?? "") ? null : context.anchorId;
   return {
+    /** The store itself, for hosts whose items subscribe to their own membership. */
+    store,
     selectedIds,
     anchorId,
     mode: selectedIds.length > 0,
@@ -112,6 +125,7 @@ export function useSessionSelection(
       store.trigger.toggleRange({ toId, visibleOrder }),
     selectOnly: (id: string) => store.trigger.selectOnly({ id }),
     selectAll: (ids: readonly string[]) => store.trigger.selectAll({ ids }),
+    deselect: (ids: readonly string[]) => store.trigger.deselect({ ids }),
     clear: () => store.trigger.clear(),
     prune: (ids: readonly string[]) => store.trigger.prune({ ids }),
   };

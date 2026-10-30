@@ -39,6 +39,10 @@ import type { ProfileOwner } from "@/systems/profiles/lib/profile-scope";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 import type { WorkspaceBadgeIdentity } from "@/systems/workspace/lib/workspace-badge-identity";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
+import {
+  sessionCheckboxGesture,
+  sessionSelectionGesture,
+} from "../../lib/session-selection-gesture";
 
 export interface SessionListRowProps {
   session: SessionPayload;
@@ -339,9 +343,9 @@ function activateSessionRow(
   selection: SessionRowSelection | undefined,
   onSelect: () => void
 ) {
-  if (selection && event.shiftKey) selection.toggleRange(sessionId);
-  else if (selection && (selection.mode || event.metaKey || event.ctrlKey))
-    selection.toggle(sessionId);
+  const gesture = selection ? sessionSelectionGesture(event, selection.mode) : "open";
+  if (gesture === "range") selection?.toggleRange(sessionId);
+  else if (gesture === "toggle") selection?.toggle(sessionId);
   else onSelect();
 }
 
@@ -367,7 +371,7 @@ function SessionRowCheckbox({
           : "pointer-events-none opacity-0 group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 group-focus-within/session-row:pointer-events-auto group-focus-within/session-row:opacity-100"
       )}
       onCheckedChange={(_checked, details) => {
-        if ("shiftKey" in details.event && details.event.shiftKey) selection.toggleRange(sessionId);
+        if (sessionCheckboxGesture(details.event) === "range") selection.toggleRange(sessionId);
         else selection.toggle(sessionId);
       }}
     />

@@ -8,7 +8,7 @@ import {
   ListTree,
   type LucideIcon,
 } from "lucide-react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, MouseEvent } from "react";
 
 import {
   formatRelativeTime,
@@ -67,6 +67,13 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   /** The provider mark and model label shown beside the agent name. */
   runtime: SessionRuntimeLabel;
   onOpen: (session: SessionBoardPayload) => void;
+  /**
+   * The board selection (`SessionBoardCard`): the card can be selected, so the footer
+   * keeps a checkbox's place where the provider mark sits; `mode` while any card is.
+   */
+  selection?: { selected: boolean; mode: boolean };
+  /** Replaces the plain open: a selection gesture, or `onOpen` when the click is not one. */
+  onActivate?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
 /**
@@ -82,8 +89,11 @@ export function SessionBoardCardView({
   archived = false,
   runtime,
   onOpen,
+  selection,
+  onActivate,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
+  const selected = selection?.selected === true;
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
@@ -106,16 +116,21 @@ export function SessionBoardCardView({
     <button
       aria-current={current ? "true" : undefined}
       aria-label={label}
+      // While a selection is open, activating the card toggles its membership,
+      // so the card reads as a toggle button; otherwise it only opens.
+      aria-pressed={selection?.mode ? selected : undefined}
       className={cn(
         SESSION_BOARD_CARD_FRAME,
         "cursor-pointer text-left transition-colors duration-base ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring",
         current && "bg-selected shadow-inset-strong",
-        archived && "bg-transparent shadow-hairline-inset"
+        archived && "bg-transparent shadow-hairline-inset",
+        selected && "bg-selected shadow-inset-strong hover:bg-selected"
       )}
       data-archived={archived ? "true" : undefined}
       data-board-column={session.board_column}
+      data-selected={selected ? "true" : undefined}
       data-testid={`session-board-card-${session.id}`}
-      onClick={() => onOpen(session)}
+      onClick={event => (onActivate ? onActivate(event) : onOpen(session))}
       {...intentHandlers}
       type="button"
     >
@@ -142,6 +157,7 @@ export function SessionBoardCardView({
       <SessionBoardCardFooter
         rollup={rollup}
         runtime={runtime}
+        selection={selection}
         session={session}
         waiting={waiting}
       />
@@ -204,17 +220,34 @@ function SessionBoardCardFooter({
   runtime,
   rollup,
   waiting,
+  selection,
 }: {
   session: SessionBoardPayload;
   runtime: SessionRuntimeLabel;
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
+  selection: SessionBoardCardViewProps["selection"];
 }) {
   const parentTitle = session.parent_title?.trim();
+  const mark = <SessionListProviderMark runtime={runtime} sessionId={session.id} />;
   return (
     <span className={SESSION_BOARD_CARD_FOOTER_ROW}>
       <span className="flex max-w-28 min-w-0 shrink-0 items-center gap-1.25 overflow-hidden">
-        <SessionListProviderMark runtime={runtime} sessionId={session.id} />
+        {selection ? (
+          // The checkbox's place (`SESSION_BOARD_CARD_CHECKBOX`): the mark gives way to it on
+          // hover or focus, and while a selection is open, as a list row's badge does.
+          <span
+            className={cn(
+              "grid size-4 shrink-0 place-items-center transition-opacity duration-fast group-focus-within/session-card:opacity-0 group-hover/session-card:opacity-0 motion-reduce:transition-none",
+              selection.mode && "opacity-0"
+            )}
+            data-testid={`session-board-card-mark-slot-${session.id}`}
+          >
+            {mark}
+          </span>
+        ) : (
+          mark
+        )}
         <span className="min-w-0 truncate font-medium text-muted">{session.agent_name}</span>
       </span>
       {rollup ? <SessionBoardCardRollupMark rollup={rollup} sessionId={session.id} /> : null}

@@ -1,15 +1,19 @@
-import { use, useEffect } from "react";
+import { useEffect } from "react";
 
-import { SessionListGroupSelectionContext } from "../contexts/session-list-group-selection-context-value";
+import type { SessionListGroupRowsStore } from "../contexts/session-list-group-selection-context-value";
 import type { SessionListGroupRows } from "../lib/session-list-group-rows";
 
 /**
- * Publishes what one group has on screen to the grouped list's one selection,
- * and withdraws it when the group collapses or unmounts.
+ * Publishes what one group has on screen to the one selection that spans the
+ * groups (a grouped list, or the board's columns), and withdraws it when the
+ * group collapses or unmounts. Without a store there is no selection to join.
  */
-export function usePublishSessionListGroupRows(key: string, rows: SessionListGroupRows) {
-  const store = use(SessionListGroupSelectionContext)?.rows;
-  const { rank, sessions, visibleOrder, pair } = rows;
+export function usePublishSessionListGroupRows(
+  store: SessionListGroupRowsStore | undefined,
+  key: string,
+  rows: SessionListGroupRows
+) {
+  const { rank, sessions, visibleOrder, pair, fetching = false } = rows;
   const order = visibleOrder.join("\n");
   const workspaceId = pair?.workspaceId;
   const profile = pair?.profile;
@@ -21,8 +25,9 @@ export function usePublishSessionListGroupRows(key: string, rows: SessionListGro
         sessions,
         visibleOrder: order === "" ? [] : order.split("\n"),
         pair: workspaceId !== undefined && profile !== undefined ? { workspaceId, profile } : null,
+        fetching,
       },
     });
-  }, [store, key, rank, sessions, order, workspaceId, profile]);
+  }, [store, key, rank, sessions, order, workspaceId, profile, fetching]);
   useEffect(() => () => store?.trigger.removed({ key }), [store, key]);
 }

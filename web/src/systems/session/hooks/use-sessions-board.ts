@@ -14,7 +14,11 @@ import {
   sessionFacetsOptions,
 } from "../lib/session-catalog-options";
 import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
-import type { SessionListGroupSpec } from "../lib/session-list-groups";
+import {
+  sessionListPair,
+  type SessionListGroupSpec,
+  type SessionListPair,
+} from "../lib/session-list-groups";
 import {
   availableSessionListGroupBys,
   effectiveSessionListGroupBy,
@@ -39,6 +43,8 @@ export interface SessionsBoardPage {
   failure: SessionsBoardFailure | null;
   /** A retry of the failed read is in flight. */
   retrying: boolean;
+  /** Any read of the page is in flight, a background re-read included. */
+  fetching: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   loadMore: () => void;
@@ -78,6 +84,10 @@ export interface SessionsBoardView {
   archive: SessionsBoardPage & { count: number | undefined };
   /** All projects: each card's workspace name; `null` while one scope is listed. */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
+  /** The board's identity for its selection: breadth, profile lens and grouping. */
+  selectionKey: string;
+  /** The one (project, profile) pair the ungrouped board and Archive bar read; `null` for any aggregate. */
+  pair: SessionListPair | null;
 }
 
 function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): SessionsBoardPage {
@@ -94,6 +104,7 @@ function useSessionsBoardPage(filters: SessionListFilters, enabled: boolean): Se
     loading: page.isLoading,
     failure,
     retrying: failure !== null && page.isFetching,
+    fetching: page.isFetching,
     hasMore: page.hasNextPage,
     loadingMore: page.isFetchingNextPage,
     loadMore: () => {
@@ -204,5 +215,7 @@ export function useSessionsBoard({
     archive: { ...archive, count: archive.total },
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
+    selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),
+    pair: sessionListPair(scope, params),
   };
 }

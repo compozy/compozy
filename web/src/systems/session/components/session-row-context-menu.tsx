@@ -15,10 +15,8 @@ import {
 import { openContextMenuFromKeyboard } from "@/systems/os";
 
 import type { SessionLifecycleActionHandlers } from "../hooks/use-session-lifecycle-actions";
-import type { SessionSelectionVerbs } from "../hooks/use-session-list-bulk-selection";
 import { useSessionRowMenuItems } from "../hooks/use-session-row-menu-items";
 import type { SessionFolderPayload, SessionPayload } from "../types";
-import { SessionSelectionContextItems } from "./session-list/session-list-selection-menu";
 
 /** Folder and manual-order verbs a root session row adds to its context menu. */
 export interface SessionRowLayoutMenu {
@@ -40,10 +38,11 @@ export interface SessionRowContextMenuProps {
   /** Content for an empty `render` wrapper (a board card's button and `…`). */
   children?: React.ReactNode;
   /**
-   * The multi-selection this row belongs to: the menu then acts on all of it.
-   * One trigger serves both menus, so the row never remounts as the selection grows.
+   * The menu of the multi-selection this row belongs to (`SessionSelectionContextItems`),
+   * which then replaces the row's own verbs. One trigger serves both menus, so the row
+   * never remounts as the selection grows.
    */
-  selection?: { verbs: SessionSelectionVerbs; testId: string };
+  selectionMenu?: React.ReactNode;
 }
 
 /**
@@ -57,7 +56,7 @@ export function SessionRowContextMenu({
   layout,
   render,
   children,
-  selection,
+  selectionMenu,
 }: SessionRowContextMenuProps) {
   const items = useSessionRowMenuItems(session, actions);
   const disabled = actions.pendingAction !== null;
@@ -70,8 +69,8 @@ export function SessionRowContextMenu({
         {...(children === undefined ? {} : { children })}
       />
       <ContextMenuContent className="min-w-56">
-        {selection ? (
-          <SessionSelectionContextItems verbs={selection.verbs} testId={selection.testId} />
+        {selectionMenu !== undefined ? (
+          selectionMenu
         ) : (
           <SessionRowMenuContent
             session={session}

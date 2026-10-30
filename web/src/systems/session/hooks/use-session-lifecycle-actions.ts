@@ -83,20 +83,55 @@ function reportActionError(action: SessionLifecycleAction, error: unknown): void
 
 const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
 
+type BatchVerb = "stop" | "archive" | "unarchive";
+
+const CHILD_SKIP = "child";
+
+/** Why a selected session sits a verb out; `null` when the verb applies to it. */
+function batchSkipReason(action: BatchVerb, session: SessionPayload): string | null {
+  const archived = session.archived_at !== null;
+  if (action === "stop") {
+    return !archived && (session.state === "active" || session.state === "starting")
+      ? null
+      : "not running";
+  }
+  // Subagent sessions archive and unarchive with their parent (ADR-005), never on their own.
+  if (isSubagentSession(session)) return CHILD_SKIP;
+  if (action === "archive") return archived ? "already archived" : null;
+  return archived ? null : "not archived";
+}
+
+/** The selection a verb skipped, by reason: "2 skipped: 1 already archived, 1 not running". */
+function batchSkipNote(skipped: ReadonlyMap<string, number>): string | undefined {
+  const total = [...skipped.values()].reduce((sum, count) => sum + count, 0);
+  if (total === 0) return undefined;
+  const reasons = [...skipped]
+    .map(([reason, count]) =>
+      reason !== CHILD_SKIP
+        ? `${count} ${reason}`
+        : `${count} ${count === 1 ? "child session follows its parent" : "child sessions follow their parent"}`
+    )
+    .join(", ");
+  return `${total} skipped: ${reasons}.`;
+}
+
 /**
  * Non-delete batches have no result dialog, so one toast carries the outcome:
- * the success count, and each failed session by name with its own error.
+ * the success count, each failed session by name with its own error, and the
+ * selected sessions the verb does not apply to, by reason.
  */
 function reportBatch(
-  action: "stop" | "archive" | "unarchive",
+  action: BatchVerb,
   results: readonly SessionBatchResult[],
-  sessions: readonly SessionPayload[]
+  sessions: readonly SessionPayload[],
+  skipped: ReadonlyMap<string, number>
 ): void {
   const verb = action === "stop" ? "stopped" : `${action}d`;
   const done = results.filter(result => result.status === "done").length;
   const failures = results.filter(result => result.status === "failed");
+  const skipNote = batchSkipNote(skipped);
   if (failures.length === 0) {
-    toast.success(`${sessionCount(done)} ${verb}`);
+    toast.success(`${sessionCount(done)} ${verb}`, { description: skipNote });
     return;
   }
   const byId = new Map(sessions.map(session => [session.id, session]));
@@ -106,7 +141,8 @@ function reportBatch(
       const title = session ? getSessionDisplayTitle(session) : result.id;
       return `${title}: ${result.error ?? `Failed to ${action} session.`}`;
     })
-    .join("; ");
+    .join("; ")
+    .concat(skipNote ? ` ${skipNote}` : "");
   const title =
     done > 0
       ? `${sessionCount(done)} ${verb}, ${failures.length} failed`
@@ -204,22 +240,17 @@ export function useSessionLifecycleActions(
   };
 
   /** Apply each verb only to sessions eligible in the current host payload. */
-  const actOnMany = async (
-    action: "stop" | "archive" | "unarchive",
-    sessions: readonly SessionPayload[]
-  ) => {
-    // Subagent sessions archive with their parent (ADR-005), never on their own.
+  const actOnMany = async (action: BatchVerb, sessions: readonly SessionPayload[]) => {
     // Archive takes live and stopped sessions alike; the daemon stops live ones first.
-    const eligible = sessions.filter(session =>
-      action === "unarchive"
-        ? session.archived_at !== null && !isSubagentSession(session)
-        : session.archived_at === null &&
-          (action === "archive"
-            ? !isSubagentSession(session)
-            : session.state === "active" || session.state === "starting")
-    );
+    const eligible: SessionPayload[] = [];
+    const skipped = new Map<string, number>();
+    for (const session of sessions) {
+      const reason = batchSkipReason(action, session);
+      if (reason === null) eligible.push(session);
+      else skipped.set(reason, (skipped.get(reason) ?? 0) + 1);
+    }
     const results = await runBatch(action, eligible);
-    if (results) reportBatch(action, results, eligible);
+    if (results) reportBatch(action, results, eligible, skipped);
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */

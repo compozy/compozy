@@ -5,7 +5,11 @@ import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
+import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
+import { sessionListGroupRank } from "../../lib/session-list-group-rows";
+import type { SessionListPair } from "../../lib/session-list-groups";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
@@ -17,6 +21,8 @@ export interface SessionsBoardArchiveBarProps {
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
   actions?: SessionLifecycleActionHandlers;
+  /** The folder pair archived cards move within, when the board reads exactly one. */
+  pair?: SessionListPair | null;
 }
 
 /**
@@ -30,10 +36,21 @@ export function SessionsBoardArchiveBar({
   workspaceNameOf,
   onOpen,
   actions,
+  pair = null,
 }: SessionsBoardArchiveBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
   const [open, setOpen] = useState(false);
   const bodyId = useId();
+  // Archived cards join the selection only while the bar shows them: closing the bar
+  // drops them, as archiving a session drops its row from the List's selection.
+  const shown = open ? archive.sessions : [];
+  usePublishSessionListGroupRows(use(SessionsBoardRowsStoreContext) ?? undefined, "archive", {
+    rank: sessionListGroupRank([9999]),
+    sessions: shown,
+    visibleOrder: shown.map(session => session.id),
+    pair,
+    fetching: open && archive.fetching,
+  });
   if (archive.loading) {
     return (
       <SessionsBoardArchiveStatus>

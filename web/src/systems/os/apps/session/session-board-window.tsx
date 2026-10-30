@@ -1,12 +1,13 @@
 import { ListTree, Plus, SquareKanban } from "lucide-react";
 import { lazy, Suspense } from "react";
 
-import { Button, useTopbarSlot } from "@compozy/ui";
+import { Button, type TopbarSlotValue } from "@compozy/ui";
 
 import {
   SESSION_BOARD_SORTS,
   SessionGroupByMenu,
   SessionsBoard,
+  SessionsBoardSelection,
   SessionSortMenu,
   SessionViewToggle,
   sessionBoardSort,
@@ -32,7 +33,8 @@ const SessionRenameDialog = lazy(() =>
  * the workspace / All projects scope and publishes its own head — "Sessions",
  * the view toggle, Group by, Sort by, "Hide child sessions" and "New session".
  * A card switches the window back to List with that session open; its context
- * menu and `…` run the same verbs as a session list row.
+ * menu and `…` run the same verbs as a session list row. Cards select like list
+ * rows, and the selection bar takes the head's actions while any are selected.
  */
 export function SessionBoardWindow({
   windowId,
@@ -48,7 +50,7 @@ export function SessionBoardWindow({
     sessionId
   );
 
-  useTopbarSlot({
+  const topbar: TopbarSlotValue = {
     glyph: <SquareKanban />,
     crumb: "Sessions",
     overflow: <SessionViewToggle onValueChange={view.setView} value={view.view} />,
@@ -89,46 +91,52 @@ export function SessionBoardWindow({
         </Button>
       </>
     ),
-  });
+  };
 
   const { deleteDialog, renameDialog } = lifecycle;
   return (
-    <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
-      {() => (
-        <>
-          <SessionsBoard
-            actions={lifecycle.actions}
-            board={board}
-            currentSessionId={sessionId}
-            onOpen={onOpen}
-          />
-          {deleteDialog.open && deleteDialog.session ? (
-            <Suspense fallback={null}>
-              <SessionDeleteDialog
-                isDeleting={deleteDialog.isDeleting}
-                onConfirm={deleteDialog.onConfirm}
-                onOpenChange={deleteDialog.onOpenChange}
-                onRetry={deleteDialog.onRetry}
-                open
-                results={deleteDialog.results}
-                session={deleteDialog.session}
-                sessions={deleteDialog.sessions}
-              />
-            </Suspense>
-          ) : null}
-          {renameDialog.open && renameDialog.session ? (
-            <Suspense fallback={null}>
-              <SessionRenameDialog
-                isRenaming={renameDialog.isRenaming}
-                onConfirm={renameDialog.onConfirm}
-                onOpenChange={renameDialog.onOpenChange}
-                open
-                session={renameDialog.session}
-              />
-            </Suspense>
-          ) : null}
-        </>
-      )}
-    </OsSessionsDeriveHost>
+    <SessionsBoardSelection
+      selectionKey={board.selectionKey}
+      sessionActions={lifecycle.actions}
+      topbar={topbar}
+    >
+      <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
+        {() => (
+          <>
+            <SessionsBoard
+              actions={lifecycle.actions}
+              board={board}
+              currentSessionId={sessionId}
+              onOpen={onOpen}
+            />
+            {deleteDialog.open && deleteDialog.session ? (
+              <Suspense fallback={null}>
+                <SessionDeleteDialog
+                  isDeleting={deleteDialog.isDeleting}
+                  onConfirm={deleteDialog.onConfirm}
+                  onOpenChange={deleteDialog.onOpenChange}
+                  onRetry={deleteDialog.onRetry}
+                  open
+                  results={deleteDialog.results}
+                  session={deleteDialog.session}
+                  sessions={deleteDialog.sessions}
+                />
+              </Suspense>
+            ) : null}
+            {renameDialog.open && renameDialog.session ? (
+              <Suspense fallback={null}>
+                <SessionRenameDialog
+                  isRenaming={renameDialog.isRenaming}
+                  onConfirm={renameDialog.onConfirm}
+                  onOpenChange={renameDialog.onOpenChange}
+                  open
+                  session={renameDialog.session}
+                />
+              </Suspense>
+            ) : null}
+          </>
+        )}
+      </OsSessionsDeriveHost>
+    </SessionsBoardSelection>
   );
 }

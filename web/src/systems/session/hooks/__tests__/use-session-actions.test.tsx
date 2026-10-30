@@ -1632,7 +1632,10 @@ describe("session lifecycle batches", () => {
       })
     );
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledExactlyOnceWith("2 sessions stopped")
+      // The sessions the verb does not apply to are named with why, not dropped silently.
+      expect(toast.success).toHaveBeenCalledExactlyOnceWith("2 sessions stopped", {
+        description: "2 skipped: 2 not running.",
+      })
     );
     expect(vi.mocked(stopSession).mock.calls).toEqual([
       [WORKSPACE_ID, createdSession.id, "default", { wait: true }],
@@ -1667,8 +1670,27 @@ describe("session lifecycle batches", () => {
     vi.mocked(archiveSession).mockResolvedValue(archived);
     vi.mocked(unarchiveSession).mockResolvedValue(stopped);
     const { result } = lifecycle();
-    act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived]));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 sessions archived"));
+    const child = {
+      ...stopped,
+      id: "child",
+      lineage: {
+        kind: "spawn" as const,
+        spawn_role: "subagent" as const,
+        parent_session_id: "stopped",
+        root_session_id: "stopped",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived, child]));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("2 sessions archived", {
+        description: "2 skipped: 1 already archived, 1 child session follows its parent.",
+      })
+    );
     // Every row archives through the stop-first operation, so a stopped parent with a
     // still-live subagent session archives too.
     expect(archiveSession).toHaveBeenCalledTimes(2);
@@ -1689,7 +1711,11 @@ describe("session lifecycle batches", () => {
       true
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session unarchived"));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("1 session unarchived", {
+        description: "2 skipped: 2 not archived.",
+      })
+    );
     expect(unarchiveSession).toHaveBeenCalledExactlyOnceWith(
       WORKSPACE_ID,
       "archived",

@@ -23,6 +23,11 @@ interface SessionListBulkSelectionInput {
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
   folders: SessionBulkFolderSource;
+  /**
+   * Some read behind `sessions` is in flight. A session moving between reads (a
+   * board card changing column) is briefly in neither, so pruning waits for them to settle.
+   */
+  settling?: boolean;
 }
 
 /** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
@@ -64,8 +69,9 @@ export function useSessionListBulkSelection({
   visibleOrder,
   sessionActions,
   folders,
+  settling = false,
 }: SessionListBulkSelectionInput) {
-  const selection = useSessionSelection(selectionKey, archived, sessions);
+  const selection = useSessionSelection(selectionKey, archived, settling ? undefined : sessions);
   // Ranges read the order on screen when the operator clicks. Holding it outside
   // the row contract keeps a fold, which reorders nothing a row shows, from
   // handing every row a new selection object.
@@ -132,6 +138,8 @@ export function useSessionListBulkSelection({
   return {
     /** The selection bar replaces the toolbar while rows are selected. */
     active: selection.mode,
+    /** The selection store, for hosts whose items subscribe to their own membership. */
+    store: selection.store,
     rowSelection: {
       ...selection,
       selectedIds: selectedIdSet,
