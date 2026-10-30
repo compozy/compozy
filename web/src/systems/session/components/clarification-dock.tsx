@@ -55,7 +55,8 @@ function questionSummary(question: string): string {
  *
  * The question keeps the agent's line breaks and scrolls inside a dock bounded
  * to half the viewport; when the answers alone outgrow it, they scroll too while
- * the head keeps a readable minimum. The head chevron collapses the dock to the question's
+ * the head keeps a readable minimum. On viewports too short even for those
+ * floors, the dock itself scrolls rather than overlapping the composer. The head chevron collapses the dock to the question's
  * first line; it always mounts expanded, and the host keys it by request id,
  * so a collapse lasts only until that question resolves. Digit keys still
  * answer while collapsed.
@@ -92,7 +93,7 @@ export function ClarificationDock({
       data-expanded={expanded}
       role="region"
       aria-label="Clarification question"
-      className="@container max-h-[50dvh]"
+      className="@container max-h-[50dvh] overflow-y-auto"
     >
       <Collapsible className="contents" open={expanded} onOpenChange={setExpanded}>
         <Dock.Head
