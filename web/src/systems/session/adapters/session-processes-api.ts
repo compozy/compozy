@@ -114,6 +114,7 @@ export async function terminateProcesses(
   const settled: PromiseSettledResult<TerminateProcessesResponse>[] = [];
   for (const batch of batches) {
     try {
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one batch in flight at a time is the point: each batch signals, waits out the daemon's grace period, and re-verifies identities.
       settled.push({ status: "fulfilled", value: await terminateProcessesBatch(batch) });
     } catch (reason) {
       settled.push({ status: "rejected", reason });
