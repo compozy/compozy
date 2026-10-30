@@ -54,7 +54,8 @@ function questionSummary(question: string): string {
  * Submitting and retryable errors render as quiet dock status lines.
  *
  * The question keeps the agent's line breaks and scrolls inside a dock bounded
- * to half the viewport. The head chevron collapses the dock to the question's
+ * to half the viewport; when the answers alone outgrow it, they scroll too while
+ * the head keeps a readable minimum. The head chevron collapses the dock to the question's
  * first line; it always mounts expanded, and the host keys it by request id,
  * so a collapse lasts only until that question resolves. Digit keys still
  * answer while collapsed.
@@ -83,6 +84,7 @@ export function ClarificationDock({
   };
 
   const [expanded, setExpanded] = useState(true);
+  const hasMeta = Boolean(countLabel || deadlineHint);
 
   return (
     <Dock
@@ -95,8 +97,11 @@ export function ClarificationDock({
       <Collapsible className="contents" open={expanded} onOpenChange={setExpanded}>
         <Dock.Head
           className={cn(
-            "grid min-h-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1",
-            "@md:grid-cols-[auto_minmax(0,1fr)_auto_auto] @md:grid-rows-[minmax(0,1fr)]"
+            "grid min-h-6.5 shrink-[100] grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1",
+            "@md:grid-cols-[auto_minmax(0,1fr)_auto_auto] @md:grid-rows-[minmax(0,1fr)]",
+            // The question gives up height before the answers (shrink weight); its floor keeps
+            // the well row readable, plus the count/deadline row on narrow docks.
+            hasMeta && "min-h-[2.625rem] @md:min-h-6.5"
           )}
         >
           <KindIcon
@@ -121,7 +126,7 @@ export function ClarificationDock({
               {questionSummary(clarification.question)}
             </Dock.Title>
           )}
-          {countLabel || deadlineHint ? (
+          {hasMeta ? (
             <div className="col-start-2 row-start-2 flex items-center gap-2.5 @md:col-start-3 @md:row-start-1 @md:h-6.5">
               {countLabel ? <Dock.Count>{countLabel}</Dock.Count> : null}
               {deadlineHint ? (
@@ -141,7 +146,7 @@ export function ClarificationDock({
             </CollapsibleTrigger>
           </div>
         </Dock.Head>
-        <CollapsibleContent className="shrink-0">
+        <CollapsibleContent className="min-h-0 overflow-y-auto">
           {dock.hasChoices ? (
             <ChoiceList aria-label="Answer choices" data-testid="clarification-dock-choices">
               {indexedChoices(dock.choices).map(({ choice, index, key }) => (
