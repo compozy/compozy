@@ -13,6 +13,8 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import { cn } from "@/lib/utils";
+
 import type { SessionSelectionVerbs } from "../../hooks/use-session-list-bulk-selection";
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import { sessionCountLabel } from "../../lib/session-folders";
@@ -25,6 +27,8 @@ interface SessionListSelectionBarProps {
   onSelectAll: () => void;
   onClear: () => void;
   testIdPrefix: string;
+  /** The board's bar sits in the window head, so it drops the list strip's own padding. */
+  className?: string;
 }
 
 /** The selection owns these verbs in both session list hosts. */
@@ -35,6 +39,7 @@ export function SessionListSelectionBar({
   onSelectAll,
   onClear,
   testIdPrefix,
+  className,
 }: SessionListSelectionBarProps) {
   const { count, disabled, onDelete } = verbs;
   const allLabel = allSelected ? "Clear selection" : "Select all";
@@ -43,7 +48,7 @@ export function SessionListSelectionBar({
     <div
       role="toolbar"
       aria-label="Selected sessions"
-      className={SESSION_LIST_BAR_CLASS}
+      className={cn(SESSION_LIST_BAR_CLASS, className)}
       data-testid={`${testIdPrefix}-selection-bar`}
     >
       <Tooltip>

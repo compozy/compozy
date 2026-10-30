@@ -9,7 +9,7 @@ import {
   type LucideIcon,
   PencilLine,
 } from "lucide-react";
-import type { ComponentProps } from "react";
+import type { ComponentProps, MouseEvent } from "react";
 
 import {
   formatRelativeTime,
@@ -70,6 +70,44 @@ export interface SessionBoardCardViewProps extends CardIntentHandlers {
   /** The composer holds unsent text for this session (#1052). */
   draft?: boolean;
   onOpen: (session: SessionBoardPayload) => void;
+  /**
+   * The board selection (`SessionBoardCard`): the card can be selected, so the footer
+   * keeps a checkbox's place where the provider mark sits; `mode` while any card is.
+   */
+  selection?: { selected: boolean; mode: boolean };
+  /** Replaces the plain open: a selection gesture, or `onOpen` when the click is not one. */
+  onActivate?: (event: MouseEvent<HTMLButtonElement>) => void;
+}
+
+/** The card's accessible name: the title, then every fact its rows show, in reading order. */
+function sessionBoardCardLabel({
+  session,
+  title,
+  status,
+  waiting,
+  rollup,
+  draft,
+}: {
+  session: SessionBoardPayload;
+  title: string;
+  status: SessionBoardCardStatus | null;
+  waiting: ReturnType<typeof sessionBoardCardWaiting>;
+  rollup: SessionBoardCardRollup | null;
+  draft: boolean;
+}): string {
+  const parentTitle = session.parent_title?.trim();
+  return [
+    title,
+    status?.label,
+    waiting?.word,
+    parentTitle ? `Child of ${parentTitle}` : null,
+    rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
+    rollup?.needsYou ? "A child needs you" : null,
+    draft ? "Unsent draft" : null,
+    formatRelativeTime(session.updated_at),
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 /**
@@ -86,44 +124,40 @@ export function SessionBoardCardView({
   runtime,
   draft = false,
   onOpen,
+  selection,
+  onActivate,
   ...intentHandlers
 }: SessionBoardCardViewProps) {
+  const selected = selection?.selected === true;
   const title = getSessionDisplayTitle(session);
   const untitled = title === UNTITLED_SESSION_TITLE;
   const status = sessionBoardCardStatus(session);
   const meta = sessionBoardCardMeta(session, workspaceName);
   const waiting = sessionBoardCardWaiting(session);
   const rollup = sessionBoardCardRollup(session);
-  const parentTitle = session.parent_title?.trim();
-  const label = [
-    title,
-    status?.label,
-    waiting?.word,
-    parentTitle ? `Child of ${parentTitle}` : null,
-    rollup ? `${rollup.total} child ${rollup.total === 1 ? "session" : "sessions"}` : null,
-    rollup?.needsYou ? "A child needs you" : null,
-    draft ? "Unsent draft" : null,
-    formatRelativeTime(session.updated_at),
-  ]
-    .filter(Boolean)
-    .join(", ");
+  const label = sessionBoardCardLabel({ session, title, status, waiting, rollup, draft });
   return (
     <button
       aria-current={current ? "true" : undefined}
       aria-label={label}
+      // While a selection is open, activating the card toggles its membership,
+      // so the card reads as a toggle button; otherwise it only opens.
+      aria-pressed={selection?.mode ? selected : undefined}
       className={cn(
         SESSION_BOARD_CARD_FRAME,
         "cursor-pointer text-left transition-colors duration-base ease-out outline-none hover:bg-surface-2 focus-visible:shadow-focus-ring",
         current && "bg-selected shadow-inset-strong",
-        archived && "bg-transparent shadow-hairline-inset"
+        archived && "bg-transparent shadow-hairline-inset",
+        selected && "bg-selected shadow-inset-strong hover:bg-selected"
       )}
       data-archived={archived ? "true" : undefined}
       data-agent-name={session.agent_name}
       data-board-column={session.board_column}
+      data-selected={selected ? "true" : undefined}
       data-session-id={session.id}
       data-testid={`session-board-card-${session.id}`}
       data-workspace-id={session.workspace_id ?? ""}
-      onClick={() => onOpen(session)}
+      onClick={event => (onActivate ? onActivate(event) : onOpen(session))}
       {...intentHandlers}
       type="button"
     >
@@ -151,6 +185,7 @@ export function SessionBoardCardView({
         draft={draft}
         rollup={rollup}
         runtime={runtime}
+        selection={selection}
         session={session}
         waiting={waiting}
       />
@@ -213,6 +248,7 @@ function SessionBoardCardFooter({
   runtime,
   rollup,
   waiting,
+  selection,
   draft,
 }: {
   session: SessionBoardPayload;
@@ -220,12 +256,28 @@ function SessionBoardCardFooter({
   runtime: SessionRuntimeLabel;
   rollup: SessionBoardCardRollup | null;
   waiting: ReturnType<typeof sessionBoardCardWaiting>;
+  selection: SessionBoardCardViewProps["selection"];
 }) {
   const parentTitle = session.parent_title?.trim();
+  const mark = <SessionListProviderMark runtime={runtime} sessionId={session.id} />;
   return (
     <span className={SESSION_BOARD_CARD_FOOTER_ROW}>
       <span className="flex max-w-28 min-w-0 shrink-0 items-center gap-1.25 overflow-hidden">
-        <SessionListProviderMark runtime={runtime} sessionId={session.id} />
+        {selection ? (
+          // The checkbox's place (`SESSION_BOARD_CARD_CHECKBOX`): the mark gives way to it on
+          // hover or focus, and while a selection is open, as a list row's badge does.
+          <span
+            className={cn(
+              "grid size-4 shrink-0 place-items-center transition-opacity duration-fast group-focus-within/session-card:opacity-0 group-hover/session-card:opacity-0 motion-reduce:transition-none",
+              selection.mode && "opacity-0"
+            )}
+            data-testid={`session-board-card-mark-slot-${session.id}`}
+          >
+            {mark}
+          </span>
+        ) : (
+          mark
+        )}
         <span className="min-w-0 truncate font-medium text-muted">{session.agent_name}</span>
       </span>
       {rollup ? <SessionBoardCardRollupMark rollup={rollup} sessionId={session.id} /> : null}

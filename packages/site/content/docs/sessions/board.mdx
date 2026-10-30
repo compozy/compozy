@@ -127,6 +127,61 @@ A few things to know:
   A session that belongs to another profile opens read-only, with the option to switch to its
   profile, exactly as it does in **List**.
 
+## Select several cards and act on them at once
+
+The board selects cards the way the session list selects rows, and runs the same bulk actions.
+
+1. Hold <kbd>⌘</kbd> (<kbd>Ctrl</kbd> on Windows and Linux) and click a card, or hover a card and
+   tick the checkbox that takes the place of its provider mark.
+
+   **Expected:** the card turns selected, every card shows a checkbox, and the board header swaps
+   **Group by**, **Sort by**, **Hide child sessions**, and **New session** for the selection bar:
+   a select-all checkbox, `1 selected`, a delete button, **More actions**, and **Done**
+   (<kbd>Esc</kbd>). The board itself does not move.
+
+2. Click more cards. While a selection is open, a plain click toggles a card instead of opening it.
+   <kbd>Shift</kbd>-click selects the range from the last card you picked to the clicked one, inside
+   the clicked card's column.
+3. To take a whole column, hover its header and tick the checkbox that replaces its mark; tick it
+   again to deselect only that column's cards. Grouped by project or profile, each swimlane header
+   has the same checkbox for the whole lane. <kbd>⌘</kbd> <kbd>A</kbd> selects every card the board
+   shows.
+4. Open **More actions** in the selection bar, or right-click any selected card.
+
+   **Expected:** a menu titled with the selection's size (`5 sessions`) offers **Move to folder**
+   where it applies, **Stop** with how many are active, **Archive** (or **Stop and archive** when
+   some are live) with how many apply, **Unarchive** with how many are archived, **Copy session
+   IDs**, and **Delete 5 sessions**. Delete asks for confirmation first.
+
+5. Run an action.
+
+   **Expected:** one toast reports the outcome. When some selected sessions do not take the action,
+   it says how many were skipped and why, for example `2 skipped: 1 already archived, 1 child
+session follows its parent.`
+
+Rules worth knowing:
+
+- Selecting never opens the drawer: <kbd>⌘</kbd>/<kbd>Ctrl</kbd>-click, <kbd>Shift</kbd>-click,
+  and clicks while a selection is open only select. A plain click with nothing selected opens the
+  card in the drawer as usual. When a bulk archive or delete includes the session open in the
+  drawer, the drawer closes and focus moves to the nearest card that is not part of the batch.
+- Right-clicking a card outside the selection makes that card the selection and opens its own menu,
+  as Finder does.
+- A selected card that moves to another column (a session that finishes, for example) stays
+  selected. A card that disappears, because it was archived or deleted elsewhere, leaves the
+  selection.
+- Folding **Done** keeps its selected cards; the bar counts them as hidden (`6 selected · 4
+hidden`). Archived cards can be selected while the **Archive** bar is open; closing it drops
+  them from the selection.
+- Selections can span columns, projects (under **All projects**), and profiles (under **All
+  profiles**); each action runs against each session's own project and profile. **Move to
+  folder** needs every selected session in one project and profile, and says so otherwise.
+- **List** and **Kanban** keep separate selections. Switching views, the scope, the profile, or the
+  grouping starts with nothing selected.
+- From the keyboard, press <kbd>Tab</kbd> from a card to reach its checkbox, <kbd>Space</kbd> to
+  toggle it, and <kbd>Shift</kbd> <kbd>Space</kbd> for a range. Screen readers announce the
+  selection count as it changes.
+
 ## Group and sort the board
 
 Use **Group by** in the board header to split the board into one swimlane per project (under

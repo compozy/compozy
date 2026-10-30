@@ -5,6 +5,9 @@
 // empty board close it — the click never while the composer holds unsent input — and focus
 // returns to the session's card. Previous/Next step through the cards in board order, and
 // archiving the drawer's session closes it and lands focus on the next card in its column.
+// Selection gestures (#1053) — Cmd/Ctrl-click, Shift-click, any click while a selection is
+// open — never open the drawer; a plain click does. A bulk archive or delete holding the
+// drawer's session closes it and lands focus on a card outside the batch.
 // The drawer renders the session view's own head (published into a drawer-local slot) without
 // replacing the board window's.
 // Owning layer: the OS session app's board window. The drawer primitive's layout, resize and
@@ -49,6 +52,8 @@ const harness = vi.hoisted(() => ({
     onRemoved?: (session: { id: string }, action: "archive" | "delete") => void;
   },
   onArchive: vi.fn(),
+  onArchiveMany: vi.fn(),
+  onDeleteMany: vi.fn(),
   board: null as unknown,
 }));
 
@@ -82,6 +87,10 @@ vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
         onArchive: harness.onArchive,
         onUnarchive: vi.fn(),
         onDelete: vi.fn(),
+        onStopMany: vi.fn(),
+        onArchiveMany: harness.onArchiveMany,
+        onUnarchiveMany: vi.fn(),
+        onDeleteMany: harness.onDeleteMany,
       },
       batchResults: [],
       deleteDialog: { open: false },
@@ -189,6 +198,8 @@ const closedRoute = (id: string) => ({
 beforeEach(() => {
   harness.userRetarget.mockReset();
   harness.onArchive.mockReset();
+  harness.onArchiveMany.mockReset();
+  harness.onDeleteMany.mockReset();
   harness.setView.mockReset();
   harness.board = sessionsBoardViewFixture(
     {
@@ -413,6 +424,110 @@ describe("SessionBoardWindow drawer", () => {
     rerenderBoard();
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "delete"));
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
+  });
+
+  it("Should open the drawer from a plain click only, never from a selection gesture", async () => {
+    setRoute(null, false);
+    renderBoard();
+    const user = userEvent.setup();
+
+    await user.keyboard("{Control>}");
+    await user.click(screen.getByTestId("session-board-card-w1"));
+    await user.keyboard("{/Control}");
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByTestId("session-board-card-w3"));
+    await user.keyboard("{/Shift}");
+    // An open selection turns a plain click into a toggle as well.
+    await user.click(screen.getByTestId("session-board-card-d1"));
+    expect(screen.getByTestId("session-board-card-d1")).toHaveAttribute("aria-pressed", "true");
+    expect(harness.userRetarget).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-board-card-w2"));
+    expect(harness.userRetarget).toHaveBeenCalledExactlyOnceWith(WINDOW_ID, drawerRoute("w2"));
+  });
+
+  it("Should close on a bulk archive holding its session and land focus past the batch", async () => {
+    setRoute("w2", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("session-board-card-select-w2"));
+    await user.click(screen.getByTestId("session-board-card-w3"));
+
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId("session-board-card-w3"),
+    });
+    await user.click(await screen.findByTestId("sessions-board-selection-menu-archive"));
+    expect(harness.onArchiveMany).toHaveBeenCalledExactlyOnceWith([
+      expect.objectContaining({ id: "w2" }),
+      expect.objectContaining({ id: "w3" }),
+    ]);
+
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, closedRoute("w2"));
+    applyLastRetarget();
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    // w3 leaves with it, so focus lands on the card above.
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w1")).toHaveFocus());
+  });
+
+  it("Should land focus past the batch once a bulk delete retires the drawer", async () => {
+    setRoute("w2", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("session-board-card-select-w2"));
+    await user.click(screen.getByTestId("session-board-card-w3"));
+
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId("session-board-card-w2"),
+    });
+    await user.click(await screen.findByTestId("sessions-board-selection-menu-delete-item"));
+    expect(harness.onDeleteMany).toHaveBeenCalledExactlyOnceWith(
+      [expect.objectContaining({ id: "w2" }), expect.objectContaining({ id: "w3" })],
+      expect.any(Function)
+    );
+
+    // The delete retires the window's session (closing the drawer) before it confirms.
+    setRoute(null, false);
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "delete"));
+    await waitFor(() => expect(screen.getByTestId("session-board-card-w1")).toHaveFocus());
+  });
+
+  it("Should land on a batch member the archive skipped when no other card remains", async () => {
+    harness.board = sessionsBoardViewFixture(
+      {
+        needs_you: empty,
+        working: { sessions: [card("w2", "working"), card("w3", "working")] },
+        in_review: empty,
+        done: empty,
+      },
+      { sessions: [], count: 0, hasMore: false }
+    );
+    setRoute("w2", true);
+    const { rerenderBoard } = renderBoard();
+    await screen.findByRole("dialog", { name: "Session w2" });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("session-board-card-select-w2"));
+    await user.click(screen.getByTestId("session-board-card-w3"));
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getByTestId("session-board-card-w2"),
+    });
+    await user.click(await screen.findByTestId("sessions-board-selection-menu-archive"));
+
+    // w3 was skipped (or failed) and stays on the board: it is still the best landing.
+    act(() => harness.lifecycleOptions.onRemoved?.({ id: "w2" }, "archive"));
+    applyLastRetarget();
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(screen.getByTestId("session-board-card-w3")).toHaveFocus());
   });
 });

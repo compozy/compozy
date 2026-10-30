@@ -17,6 +17,14 @@
 // card-shaped placeholders under one busy status region — never a "Loading…"
 // sentence, never an empty-state claim — and loaded cards replace them. The
 // standalone board skeleton needs no query client.
+// #1053: inside `SessionsBoardSelection` the board reuses the list's bulk selection:
+// Cmd/Ctrl-click toggles, Shift-click ranges within a column, an open selection turns
+// every click into a toggle, column and lane checkboxes select what they show, Esc
+// clears; the selection bar replaces the head's actions with the list's verbs and
+// counts; a selected card's context menu acts on the selection, and a context click
+// outside it retargets; selected cards survive a column move and drop out once gone;
+// folded Done keeps them as hidden; the Archive bar's cards join only while it is open;
+// a toggle re-renders only the cards it changes.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -31,8 +39,18 @@ import type { SessionsBoardColumnView, SessionsBoardView } from "../../hooks/use
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { primarySessionFixture } from "../../testing";
 import type { SessionPayload } from "../../types";
+import { renderWithTopbar } from "@/test/render-with-topbar";
+
+import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionsBoard } from "../session-board/sessions-board";
+import { SessionsBoardSelection } from "../session-board/sessions-board-selection";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
+
+vi.mock("../../hooks/use-session-row-runtime-label", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../hooks/use-session-row-runtime-label")>();
+  // Wrapped so a test can count how often each card renders.
+  return { useSessionRowRuntimeLabel: vi.fn(actual.useSessionRowRuntimeLabel) };
+});
 
 vi.mock("../../adapters/session-catalog-api", () => ({
   fetchSessionCatalogPage: vi.fn(),
@@ -65,6 +83,7 @@ function page(sessions: SessionPayload[] = [], overrides: Partial<SessionsBoardC
     loading: false,
     failure: null,
     retrying: false,
+    fetching: false,
     hasMore: false,
     loadingMore: false,
     loadMore: vi.fn(),
@@ -92,6 +111,7 @@ function board(
     groupByOptions: ["none"],
     archive: { ...page(), count: 0, ...archive },
     workspaceNameOf: () => null,
+    selectionKey: "board",
   };
 }
 
@@ -577,5 +597,344 @@ describe("SessionsBoard loading", () => {
     expect(
       screen.getByRole("status").querySelectorAll('[data-slot="sessions-board-lane-skeleton"]')
     ).toHaveLength(2);
+  });
+});
+
+describe("SessionsBoard selection", () => {
+  function bulkActions(): SessionLifecycleActionHandlers {
+    return {
+      ...lifecycleActions(),
+      onStopMany: vi.fn(),
+      onArchiveMany: vi.fn(),
+      onUnarchiveMany: vi.fn(),
+      onDeleteMany: vi.fn(),
+    };
+  }
+
+  function renderSelectable(view: SessionsBoardView, actions = bulkActions()) {
+    const onOpen = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ui = (next: SessionsBoardView) => (
+      <QueryClientProvider client={client}>
+        <SessionsBoardSelection
+          selectionKey={next.selectionKey}
+          paused={next.lanesLoading}
+          sessionActions={actions}
+          topbar={{ actions: <button type="button">New session</button> }}
+        >
+          <SessionsBoard actions={actions} board={next} onOpen={onOpen} />
+        </SessionsBoardSelection>
+      </QueryClientProvider>
+    );
+    const result = renderWithTopbar(ui(view));
+    return { onOpen, actions, rerender: (next: SessionsBoardView) => result.rerender(ui(next)) };
+  }
+
+  const cardOf = (id: string) => screen.getByTestId(`session-board-card-${id}`);
+  const selectedCount = () => screen.getByTestId("sessions-board-selection-count");
+
+  it("Should toggle with Cmd/Ctrl, toggle every click while open, and clear on Esc", async () => {
+    const user = userEvent.setup();
+    const { onOpen } = renderSelectable(
+      board({ working: { sessions: [card("a"), card("b")], count: 2 } })
+    );
+
+    await user.keyboard("{Meta>}");
+    await user.click(cardOf("a"));
+    await user.keyboard("{/Meta}");
+    // The selection bar takes the head's actions, so the board itself never moves.
+    expect(screen.queryByRole("button", { name: "New session" })).not.toBeInTheDocument();
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(screen.getByTestId("sessions-board-selection-status")).toHaveTextContent(
+      "1 session selected"
+    );
+    expect(cardOf("a")).toHaveAttribute("aria-pressed", "true");
+    expect(cardOf("b")).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(cardOf("b"));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+    await user.click(cardOf("a"));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(onOpen).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("sessions-board-selection-bar")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New session" })).toBeInTheDocument();
+    expect(cardOf("b")).not.toHaveAttribute("aria-pressed");
+    await user.click(cardOf("b"));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: "b" }));
+  });
+
+  it("Should range with Shift inside the clicked card's column", async () => {
+    const user = userEvent.setup();
+    renderSelectable(
+      board({
+        working: { sessions: [card("w1"), card("w2"), card("w3")], count: 3 },
+        done: { sessions: [card("d1", { board_column: "done" })], count: 1 },
+      })
+    );
+
+    await user.click(screen.getByTestId("session-board-card-select-w1"));
+    await user.keyboard("{Shift>}");
+    await user.click(cardOf("w3"));
+    expect(selectedCount()).toHaveTextContent("3 selected");
+    // An anchor in another column starts a new range at the clicked card.
+    await user.click(cardOf("d1"));
+    await user.keyboard("{/Shift}");
+    expect(selectedCount()).toHaveTextContent("4 selected");
+    expect(cardOf("d1")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should select and clear a column, then a lane, through their header checkboxes", async () => {
+    const user = userEvent.setup();
+    renderSelectable(
+      board({
+        working: { sessions: [card("w1"), card("w2")], count: 2 },
+        done: { sessions: [card("d1", { board_column: "done" })], count: 1 },
+      })
+    );
+
+    const working = screen.getByTestId("sessions-board-column-select-working");
+    expect(working).toHaveAccessibleName("Select all in Working");
+    await user.click(working);
+    expect(selectedCount()).toHaveTextContent("2 selected");
+    await user.click(cardOf("d1"));
+    expect(screen.getByTestId("sessions-board-column-select-working")).toHaveAccessibleName(
+      "Deselect all in Working"
+    );
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    // Clearing a column removes only its cards.
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(cardOf("d1")).toHaveAttribute("aria-pressed", "true");
+
+    await user.keyboard("{Control>}a{/Control}");
+    expect(selectedCount()).toHaveTextContent("3 selected");
+  });
+
+  it("Should act on the whole selection from a selected card and retarget from outside it", async () => {
+    const user = userEvent.setup();
+    const live = card("live", { state: "active" });
+    const idle = card("idle", { state: "stopped", badge: "idle", board_column: "done" });
+    const other = card("other");
+    const { actions } = renderSelectable(
+      board({
+        working: { sessions: [live, other], count: 2 },
+        done: { sessions: [idle], count: 1 },
+      })
+    );
+    await user.click(screen.getByTestId("session-board-card-select-live"));
+    await user.click(cardOf("idle"));
+
+    await user.pointer({ keys: "[MouseRight]", target: cardOf("idle") });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByTestId("sessions-board-selection-menu-count")).toHaveTextContent(
+      "2 sessions"
+    );
+    expect(within(menu).getByTestId("sessions-board-selection-menu-stop")).toHaveTextContent(
+      "1 active"
+    );
+    expect(within(menu).getByTestId("sessions-board-selection-menu-archive")).toHaveTextContent(
+      "Stop and archive2 sessions"
+    );
+    await user.click(within(menu).getByTestId("sessions-board-selection-menu-stop"));
+    expect(actions.onStopMany).toHaveBeenCalledExactlyOnceWith([live, idle]);
+
+    // Finder's rule: a context click outside the selection makes that card the selection.
+    await user.pointer({ keys: "[MouseRight]", target: cardOf("other") });
+    expect(await screen.findByRole("menuitem", { name: "Rename session" })).toBeInTheDocument();
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(cardOf("other")).toHaveAttribute("aria-pressed", "true");
+
+    // Escape closes the menu onto its card, so the next Escape clears the selection.
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(cardOf("other")).toHaveFocus());
+    await user.keyboard("{Escape}");
+    expect(screen.queryByTestId("sessions-board-selection-bar")).not.toBeInTheDocument();
+  });
+
+  it("Should run the bar's verbs and confirm a delete through the list's dialog", async () => {
+    const user = userEvent.setup();
+    const a = card("a");
+    const archived = card("arch", { archived_at: "2026-10-01T00:00:00Z", state: "stopped" });
+    const { actions } = renderSelectable(
+      board({ working: { sessions: [a], count: 1 } }, { sessions: [archived], count: 1 })
+    );
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    await user.click(screen.getByTestId("session-board-card-select-a"));
+    await user.click(cardOf("arch"));
+
+    await user.click(screen.getByTestId("sessions-board-selection-more"));
+    expect(await screen.findByTestId("sessions-board-selection-unarchive")).toHaveTextContent(
+      "1 archived"
+    );
+    await user.click(screen.getByTestId("sessions-board-selection-unarchive"));
+    expect(actions.onUnarchiveMany).toHaveBeenCalledExactlyOnceWith([a, archived]);
+
+    await user.click(screen.getByTestId("sessions-board-selection-delete"));
+    expect(actions.onDeleteMany).toHaveBeenCalledExactlyOnceWith(
+      [a, archived],
+      expect.any(Function)
+    );
+  });
+
+  it("Should keep a selected card that moves column and drop one gone from every read", async () => {
+    const user = userEvent.setup();
+    const moving = card("moving");
+    const gone = card("gone");
+    const { rerender } = renderSelectable(
+      board({ working: { sessions: [moving, gone], count: 2 } })
+    );
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+
+    // Working re-read first: the card is in no column while Done is still reading. The bar
+    // counts what the verbs would act on, but the card keeps its place in the selection.
+    rerender(board({ working: { sessions: [gone], count: 1 }, done: { fetching: true } }));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    // Both reads settled without it (Done read before it finished): still held for a re-read.
+    rerender(board({ working: { sessions: [gone], count: 1 } }));
+    const moved = { ...moving, board_column: "done" as const, badge: "idle" as const };
+    rerender(board({ working: { sessions: [gone], count: 1 }, done: { sessions: [moved] } }));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+    expect(cardOf("moving")).toHaveAttribute("aria-pressed", "true");
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+
+    // Gone from every read after the confirming re-read: it leaves the selection.
+    rerender(board({ done: { sessions: [moved], count: 1 } }));
+    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    await user.keyboard("{Control>}a{/Control}");
+    expect(selectedCount()).toHaveTextContent("1 selected");
+  });
+
+  it("Should confirm a repeated absence with a fresh re-read, never an earlier one", async () => {
+    const user = userEvent.setup();
+    const flaky = card("flaky");
+    const stay = card("stay");
+    const present = board({ working: { sessions: [flaky, stay], count: 2 } });
+    const absent = board({ working: { sessions: [stay], count: 1 } });
+    const { rerender } = renderSelectable(present);
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+
+    // Missing after a confirming re-read: it leaves the selection.
+    rerender(absent);
+    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(present);
+    expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "false");
+
+    // Selected again and missing again: held until its own re-read, so a quick return keeps it.
+    await user.click(cardOf("flaky"));
+    rerender(absent);
+    rerender(present);
+    expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "true");
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+  });
+
+  it("Should hold a missing card while a board read has failed", async () => {
+    const user = userEvent.setup();
+    const kept = card("kept");
+    const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
+    await user.click(screen.getByTestId("session-board-card-select-kept"));
+
+    // The re-read returns, but a column failed: nothing confirms the card is gone.
+    rerender(board({ working: { failure: "refresh" } }));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(board({ working: { sessions: [kept], count: 1 } }));
+    expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should hold the selection while the lanes are off screen", async () => {
+    const user = userEvent.setup();
+    const kept = card("kept");
+    const { rerender } = renderSelectable(board({ working: { sessions: [kept], count: 1 } }));
+    await user.click(screen.getByTestId("session-board-card-select-kept"));
+
+    rerender({ ...board(), columns: [], lanes: [], lanesLoading: true, groupBy: "project" });
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(board({ working: { sessions: [kept], count: 1 } }));
+    expect(selectedCount()).toHaveTextContent("1 selected");
+    expect(cardOf("kept")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should move only a selection that sits in one project and profile", async () => {
+    const user = userEvent.setup();
+    renderSelectable(
+      board({
+        working: {
+          sessions: [
+            card("alpha", { workspace_id: "ws-alpha" }),
+            card("beta", { workspace_id: "ws-beta" }),
+          ],
+          count: 2,
+        },
+      })
+    );
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+    await user.click(screen.getByTestId("sessions-board-selection-more"));
+    await user.click(await screen.findByTestId("sessions-board-selection-move"));
+    expect(await screen.findByTestId("sessions-board-selection-move-blocked")).toHaveTextContent(
+      "Select sessions from one project and profile to move them."
+    );
+  });
+
+  it("Should keep folded Done cards as hidden and drop archived cards once the bar closes", async () => {
+    const user = userEvent.setup();
+    const archived = card("arch", { archived_at: "2026-10-01T00:00:00Z", state: "stopped" });
+    renderSelectable(
+      board(
+        { done: { sessions: [card("d1", { board_column: "done" })], count: 1 } },
+        { sessions: [archived], count: 1 }
+      )
+    );
+    await user.click(screen.getByTestId("session-board-card-select-d1"));
+    await user.click(screen.getByTestId("sessions-board-column-toggle-done"));
+    expect(selectedCount()).toHaveTextContent("1 selected· 1 hidden");
+
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    await user.click(cardOf("arch"));
+    expect(selectedCount()).toHaveTextContent("2 selected· 1 hidden");
+    // Closing the bar drops its cards at once: reopening it right away finds them unselected.
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    expect(selectedCount()).toHaveTextContent("1 selected· 1 hidden");
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    expect(cardOf("arch")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("Should keep a card's checkbox on a board that offers no verbs", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithTopbar(
+      <QueryClientProvider client={client}>
+        <SessionsBoardSelection selectionKey="board" sessionActions={bulkActions()} topbar={{}}>
+          <SessionsBoard
+            board={board({ working: { sessions: [card("bare")], count: 1 } })}
+            onOpen={vi.fn()}
+          />
+        </SessionsBoardSelection>
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByTestId("session-board-card-select-bare"));
+    expect(cardOf("bare")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should re-render only the cards a toggle changes", async () => {
+    const user = userEvent.setup();
+    const ids = ["a", "b", "c", "d", "e"];
+    renderSelectable(board({ working: { sessions: ids.map(id => card(id)), count: 5 } }));
+    const renders = (id: string) =>
+      vi.mocked(useSessionRowRuntimeLabel).mock.calls.filter(([session]) => session.id === id)
+        .length;
+    await user.click(screen.getByTestId("session-board-card-select-a"));
+    await user.click(cardOf("b"));
+    const before = Object.fromEntries(ids.map(id => [id, renders(id)]));
+
+    await user.click(cardOf("c"));
+    expect(selectedCount()).toHaveTextContent("3 selected");
+    expect(renders("c")).toBeGreaterThan(before.c!);
+    for (const id of ["a", "b", "d", "e"]) expect(renders(id)).toBe(before[id]);
   });
 });

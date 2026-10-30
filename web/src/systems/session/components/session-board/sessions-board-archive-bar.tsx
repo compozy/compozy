@@ -1,11 +1,12 @@
 import { Archive, ChevronRight, CircleSlash } from "lucide-react";
-import { use, useId, useState, type ReactNode } from "react";
+import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { useSessionsBoardArchiveSelection } from "../../hooks/use-sessions-board-selection";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
@@ -32,8 +33,12 @@ export function SessionsBoardArchiveBar({
   actions,
 }: SessionsBoardArchiveBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
-  const [open, setOpen] = useState(false);
   const bodyId = useId();
+  const { open, toggle } = useSessionsBoardArchiveSelection(
+    archive.sessions,
+    archive.fetching,
+    archive.failure !== null
+  );
   if (archive.loading) {
     return (
       <SessionsBoardArchiveStatus>
@@ -72,7 +77,7 @@ export function SessionsBoardArchiveBar({
           "outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-inset"
         )}
         data-testid="sessions-board-archive-toggle"
-        onClick={() => setOpen(value => !value)}
+        onClick={toggle}
         type="button"
       >
         <ChevronRight

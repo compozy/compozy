@@ -1,12 +1,13 @@
 import { ListTree, Plus, SquareKanban } from "lucide-react";
 import { lazy, Suspense, type ReactNode } from "react";
 
-import { Button, useTopbarSlot } from "@compozy/ui";
+import { Button, type TopbarSlotValue } from "@compozy/ui";
 
 import {
   SESSION_BOARD_SORTS,
   SessionGroupByMenu,
   SessionsBoard,
+  SessionsBoardSelection,
   SessionSortMenu,
   SessionViewToggle,
   sessionBoardSort,
@@ -35,7 +36,9 @@ const SessionRenameDialog = lazy(() =>
  * the view toggle, Group by, Sort by, "Hide child sessions" and "New session".
  * A card opens its session in the drawer beside the board (#1052): the window keeps
  * that session as its own, so List, a reload and a restore all show the same one. Its
- * context menu and `…` run the same verbs as a session list row.
+ * context menu and `…` run the same verbs as a session list row. Cards select like list
+ * rows (#1053): selection gestures never open the drawer, and the selection bar takes the
+ * head's actions while any are selected.
  */
 export function SessionBoardWindow({
   windowId,
@@ -62,7 +65,7 @@ export function SessionBoardWindow({
     drawer,
   } = useSessionBoardWindow(windowId, sessionId, drawerOpen);
 
-  useTopbarSlot({
+  const topbar: TopbarSlotValue = {
     glyph: <SquareKanban />,
     crumb: "Sessions",
     overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
@@ -103,7 +106,7 @@ export function SessionBoardWindow({
         </Button>
       </>
     ),
-  });
+  };
 
   const { deleteDialog, renameDialog } = lifecycle;
   return (
@@ -123,18 +126,25 @@ export function SessionBoardWindow({
             sessionId={sessionId}
             width={view.drawerWidth}
           >
-            <div
-              className="flex min-h-0 min-w-0 flex-1 flex-col"
-              ref={drawer.boardRef}
-              {...drawer.boardPointerHandlers}
+            <SessionsBoardSelection
+              paused={board.lanesLoading || board.lanesError !== undefined}
+              selectionKey={board.selectionKey}
+              sessionActions={actions}
+              topbar={topbar}
             >
-              <SessionsBoard
-                actions={actions}
-                board={board}
-                currentSessionId={sessionId}
-                onOpen={onOpen}
-              />
-            </div>
+              <div
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+                ref={drawer.boardRef}
+                {...drawer.boardPointerHandlers}
+              >
+                <SessionsBoard
+                  actions={actions}
+                  board={board}
+                  currentSessionId={sessionId}
+                  onOpen={onOpen}
+                />
+              </div>
+            </SessionsBoardSelection>
           </SessionBoardDrawer>
           {deleteDialog.open && deleteDialog.session ? (
             <Suspense fallback={null}>

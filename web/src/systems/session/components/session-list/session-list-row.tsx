@@ -3,6 +3,7 @@ import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-l
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
 import { SessionListRowView, type SessionListRowProps } from "./session-list-row-view";
+import { SessionSelectionContextItems } from "./session-list-selection-menu";
 
 export type { SessionListRowProps } from "./session-list-row-view";
 
@@ -28,7 +29,14 @@ export function SessionListRow(props: SessionListRowProps) {
           actions={sessionActions}
           layout={layoutMenu}
           render={row}
-          selection={verbs ? { verbs, testId: `${props.testIdPrefix}-selection-menu` } : undefined}
+          selectionMenu={
+            verbs ? (
+              <SessionSelectionContextItems
+                testId={`${props.testIdPrefix}-selection-menu`}
+                verbs={verbs}
+              />
+            ) : undefined
+          }
           session={session}
         />
       )}

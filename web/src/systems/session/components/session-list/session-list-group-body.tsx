@@ -190,7 +190,7 @@ function SessionListPairGroupBody({
     threads,
     props.filtering
   );
-  usePublishSessionListGroupRows(group.key, {
+  usePublishSessionListGroupRows(groupSelection?.rows, group.key, {
     rank: sessionListGroupRank(path),
     sessions: catalog.sessions,
     visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),

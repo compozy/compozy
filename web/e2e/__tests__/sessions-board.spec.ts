@@ -13,8 +13,10 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
 // Invariant: the session window switches between List and the Sessions board, whose
 // columns are the daemon's board_column reads with facets.board counts; cards open
 // their session in a drawer over the live board (#1052) that Escape closes back to the
-// card, Back reopens, a reload restores, and "Open full session" turns into List; columns page by 50; archived sessions live in the Archive
-// bar; child sessions link to their parent and can be hidden (E2E-005..E2E-007).
+// card, Back reopens, a reload restores, and "Open full session" turns into List; columns
+// page by 50; archived sessions live in the Archive bar; child sessions link to their
+// parent and can be hidden (E2E-005..E2E-007); cards multi-select and run the List's bulk
+// verbs against the daemon (E2E-008).
 // Owner: public session window + daemon catalog. Durable rows come from the store
 // seeder; mapping rules and rendering states are owned by the Vitest suites.
 // Use the blank page fixture: the seeder restarts the daemon, so loading the app
@@ -310,4 +312,39 @@ test("E2E-007: a parent shows its highlighted rollup and hiding child sessions d
   await expect(frame.getByTestId(`session-board-card-${parent}`)).toBeVisible();
   await expectColumnCounts(frame, await boardFacets(runtime, workspace.id, "exclude"));
   await browserArtifacts.captureScreenshot("sessions-board-children-hidden", appPage);
+});
+
+test("E2E-008: operator multi-selects board cards and stops and archives them in one batch", async ({
+  page: appPage,
+  browserArtifacts,
+  runtime,
+}) => {
+  const workspace = await resolveWorkspace(runtime);
+  const host = await createLiveSession(runtime, workspace.id, "Board host session");
+  const first = await createLiveSession(runtime, workspace.id, "Board bulk first");
+  const second = await createLiveSession(runtime, workspace.id, "Board bulk second");
+  const { frame } = await openBoardPage(appPage, runtime, host);
+  await switchToKanban(frame);
+
+  const firstCard = frame.getByTestId(`session-board-card-${first}`);
+  const secondCard = frame.getByTestId(`session-board-card-${second}`);
+  await firstCard.click({ modifiers: ["ControlOrMeta"] });
+  // An open selection turns a plain click into a toggle; nothing opens.
+  await secondCard.click();
+  await expect(frame.getByTestId("sessions-board-selection-count")).toHaveText("2 selected");
+  await expect(firstCard).toHaveAttribute("aria-pressed", "true");
+  await expect(frame.getByTestId("sessions-board-new-session")).toHaveCount(0);
+
+  await secondCard.click({ button: "right" });
+  const menu = appPage.getByTestId("sessions-board-selection-menu");
+  await expect(menu.getByTestId("sessions-board-selection-menu-count")).toHaveText("2 sessions");
+  await browserArtifacts.captureScreenshot("sessions-board-selection-menu", appPage);
+  await menu.getByTestId("sessions-board-selection-menu-archive").click();
+
+  // Both cards leave the columns for the Archive bar, and the selection empties with them.
+  await expect(firstCard).toHaveCount(0);
+  await expect(secondCard).toHaveCount(0);
+  await expect(frame.getByTestId("sessions-board-archive-toggle")).toHaveText(/Archive\s*2/);
+  await expect(frame.getByTestId("sessions-board-selection-bar")).toHaveCount(0);
+  await expect(frame.getByTestId("sessions-board-new-session")).toBeVisible();
 });
