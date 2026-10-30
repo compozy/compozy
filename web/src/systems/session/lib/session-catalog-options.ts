@@ -91,6 +91,16 @@ export function sessionBoardPageOptions(filters: SessionListFilters) {
   });
 }
 
+/** A board column or Archive bar read (`sessionBoardPageOptions`), in any scope. */
+export function isSessionBoardQueryKey(queryKey: readonly unknown[]): boolean {
+  const lists = sessionKeys.lists();
+  return (
+    queryKey.length > lists.length + 1 &&
+    lists.every((part, index) => queryKey[index] === part) &&
+    queryKey[lists.length + 1] === "board"
+  );
+}
+
 /** One profile's folders in one workspace, in the operator's manual order. */
 export function sessionFoldersOptions(scope: SessionLayoutScope) {
   return queryOptions({

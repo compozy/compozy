@@ -7,9 +7,12 @@ import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardFailure } from "../../hooks/use-sessions-board";
+import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
+import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardColumnGlyph } from "./sessions-board-column-glyph";
+import { SessionsBoardSelectAll } from "./sessions-board-select-all";
 import {
   SESSIONS_BOARD_COLUMN_BODY,
   SESSIONS_BOARD_COLUMN_COUNT,
@@ -46,6 +49,14 @@ export interface SessionsBoardColumnProps {
   /** Swimlanes repeat the columns: the lane names the region and prefixes test ids. */
   regionPrefix?: string;
   testIdPrefix?: string;
+  /** Where the column joins the board selection: its key and on-screen rank. */
+  selectionRows?: SessionsBoardSelectionRows;
+}
+
+/** One column's entry in the board selection's published rows. */
+export interface SessionsBoardSelectionRows {
+  key: string;
+  rank: string;
 }
 
 function sessionCountLabel(count: number): string {
@@ -84,11 +95,28 @@ export function SessionsBoardColumn({
   layout = "fill",
   regionPrefix,
   testIdPrefix = "sessions-board",
+  selectionRows,
 }: SessionsBoardColumnProps) {
   const bodyId = useId();
   const collapsed = collapsible?.collapsed === true;
   const count = column.count;
   const label = regionPrefix ? `${regionPrefix}, ${column.label}` : column.label;
+  // A folded column keeps its selected cards, counted as hidden: they leave only the order.
+  const shownIds = collapsed ? [] : column.sessions.map(session => session.id);
+  const rows = use(SessionsBoardRowsStoreContext);
+  usePublishSessionListGroupRows(
+    selectionRows && rows ? rows : undefined,
+    selectionRows?.key ?? column.id,
+    {
+      rank: selectionRows?.rank ?? "",
+      sessions: column.sessions,
+      visibleOrder: shownIds,
+      // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
+      pair: null,
+      fetching: column.fetching,
+      failed: column.failure !== null,
+    }
+  );
   const regionLabel = count === undefined ? label : `${label}, ${sessionCountLabel(count)}`;
   return (
     <section
@@ -97,38 +125,14 @@ export function SessionsBoardColumn({
       data-collapsed={collapsed ? "true" : undefined}
       data-testid={`${testIdPrefix}-column-${column.id}`}
     >
-      <header
-        className={cn(SESSIONS_BOARD_COLUMN_HEADER, collapsed && "flex-col gap-2.5 px-0 py-2.5")}
-      >
-        <SessionsBoardColumnGlyph id={column.id} />
-        <h2 className={cn(SESSIONS_BOARD_COLUMN_TITLE, collapsed && "[writing-mode:vertical-rl]")}>
-          {column.label}
-        </h2>
-        <SessionsBoardColumnCount
-          column={column}
-          testId={`${testIdPrefix}-column-count-${column.id}`}
-        />
-        {collapsible ? (
-          <Button
-            aria-controls={bodyId}
-            aria-expanded={!collapsed}
-            aria-label={`${collapsed ? "Expand" : "Collapse"} ${column.label}`}
-            className={cn("ml-auto aria-expanded:bg-transparent", collapsed && "order-first m-0")}
-            data-testid={`${testIdPrefix}-column-toggle-${column.id}`}
-            onClick={collapsible.onToggle}
-            size="icon-xs"
-            type="button"
-            variant="quiet"
-          >
-            <ChevronRight
-              className={cn(
-                "transition-transform duration-fast ease-out motion-reduce:transition-none",
-                !collapsed && "rotate-90"
-              )}
-            />
-          </Button>
-        ) : null}
-      </header>
+      <SessionsBoardColumnHeader
+        bodyId={bodyId}
+        collapsible={collapsible}
+        column={column}
+        label={label}
+        shownIds={shownIds}
+        testIdPrefix={testIdPrefix}
+      />
       <div
         className={cn(
           SESSIONS_BOARD_COLUMN_BODY,
@@ -148,6 +152,76 @@ export function SessionsBoardColumn({
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * The column's mark (or its select-all while cards can be selected), title, facet count,
+ * and Done's fold.
+ */
+function SessionsBoardColumnHeader({
+  column,
+  label,
+  collapsible,
+  bodyId,
+  shownIds,
+  testIdPrefix,
+}: {
+  column: SessionsBoardColumnView;
+  label: string;
+  collapsible: SessionsBoardColumnProps["collapsible"];
+  bodyId: string;
+  shownIds: readonly string[];
+  testIdPrefix: string;
+}) {
+  const collapsed = collapsible?.collapsed === true;
+  return (
+    <header
+      className={cn(
+        SESSIONS_BOARD_COLUMN_HEADER,
+        "group/board-select",
+        collapsed && "flex-col gap-2.5 px-0 py-2.5"
+      )}
+    >
+      {collapsed ? (
+        <SessionsBoardColumnGlyph id={column.id} />
+      ) : (
+        <SessionsBoardSelectAll
+          ids={shownIds}
+          label={label}
+          testId={`${testIdPrefix}-column-select-${column.id}`}
+        >
+          <SessionsBoardColumnGlyph id={column.id} />
+        </SessionsBoardSelectAll>
+      )}
+      <h2 className={cn(SESSIONS_BOARD_COLUMN_TITLE, collapsed && "[writing-mode:vertical-rl]")}>
+        {column.label}
+      </h2>
+      <SessionsBoardColumnCount
+        column={column}
+        testId={`${testIdPrefix}-column-count-${column.id}`}
+      />
+      {collapsible ? (
+        <Button
+          aria-controls={bodyId}
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? "Expand" : "Collapse"} ${column.label}`}
+          className={cn("ml-auto aria-expanded:bg-transparent", collapsed && "order-first m-0")}
+          data-testid={`${testIdPrefix}-column-toggle-${column.id}`}
+          onClick={collapsible.onToggle}
+          size="icon-xs"
+          type="button"
+          variant="quiet"
+        >
+          <ChevronRight
+            className={cn(
+              "transition-transform duration-fast ease-out motion-reduce:transition-none",
+              !collapsed && "rotate-90"
+            )}
+          />
+        </Button>
+      ) : null}
+    </header>
   );
 }
 

@@ -1,3 +1,10 @@
+import {
+  batchSkipReason,
+  batchSkipNote,
+  batchVerbPast,
+  reportBatch,
+  type BatchVerb,
+} from "../lib/session-batch-feedback";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,8 +15,6 @@ import {
   type SessionBatchResult,
 } from "../lib/session-batch";
 
-import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isSubagentSession } from "../lib/session-hierarchy";
 import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionPayload } from "../types";
@@ -100,59 +105,10 @@ function archiveTarget(session: SessionPayload, processes?: SessionProcessPolicy
   return { ...session, stop: true, ...(processes ? { processes } : {}) };
 }
 
-type BatchVerb = "stop" | "archive" | "unarchive";
-
-/** Apply each verb only to sessions eligible in the current host payload. */
-function eligibleSessions(action: BatchVerb, sessions: readonly SessionPayload[]) {
-  // Subagent sessions archive with their parent (ADR-005), never on their own.
-  // Archive takes live and stopped sessions alike; the daemon stops live ones first.
-  return sessions.filter(session =>
-    action === "unarchive"
-      ? session.archived_at !== null && !isSubagentSession(session)
-      : session.archived_at === null &&
-        (action === "archive"
-          ? !isSubagentSession(session)
-          : session.state === "active" || session.state === "starting")
-  );
-}
-
 /** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
-}
-
-const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
-
-/**
- * Non-delete batches have no result dialog, so one toast carries the outcome:
- * the success count, and each failed session by name with its own error.
- */
-function reportBatch(
-  action: "stop" | "archive" | "unarchive",
-  results: readonly SessionBatchResult[],
-  sessions: readonly SessionPayload[]
-): void {
-  const verb = action === "stop" ? "stopped" : `${action}d`;
-  const done = results.filter(result => result.status === "done").length;
-  const failures = results.filter(result => result.status === "failed");
-  if (failures.length === 0) {
-    toast.success(`${sessionCount(done)} ${verb}`);
-    return;
-  }
-  const byId = new Map(sessions.map(session => [session.id, session]));
-  const description = failures
-    .map(result => {
-      const session = byId.get(result.id);
-      const title = session ? getSessionDisplayTitle(session) : result.id;
-      return `${title}: ${result.error ?? `Failed to ${action} session.`}`;
-    })
-    .join("; ");
-  const title =
-    done > 0
-      ? `${sessionCount(done)} ${verb}, ${failures.length} failed`
-      : `Couldn't ${action} ${sessionCount(failures.length)}`;
-  toast.error(title, { description });
 }
 
 /** Report all successful deletes once, when the result dialog closes. */
@@ -261,14 +217,26 @@ export function useSessionLifecycleActions(
     });
   };
 
-  const actOnMany = async (
-    action: BatchVerb,
-    eligible: readonly SessionPayload[],
-    processes?: SessionProcessPolicy,
-    readErrors?: ReadonlyMap<string, unknown>
-  ) => {
-    const results = await runBatch(action, eligible, [], processes, readErrors);
-    if (results) reportBatch(action, results, eligible);
+  const actOnMany = (action: BatchVerb, sessions: readonly SessionPayload[]) => {
+    const eligible: SessionPayload[] = [];
+    const skipped = new Map<string, number>();
+    for (const session of sessions) {
+      const reason = batchSkipReason(action, session);
+      if (reason === null) eligible.push(session);
+      else skipped.set(reason, (skipped.get(reason) ?? 0) + 1);
+    }
+    if (eligible.length === 0) {
+      const skipNote = batchSkipNote(skipped);
+      if (skipNote) toast.info(`No sessions ${batchVerbPast(action)}`, { description: skipNote });
+      return;
+    }
+    const run = (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => {
+      void runBatch(action, eligible, [], processes, readErrors).then(results => {
+        if (results) reportBatch(action, results, eligible, skipped);
+      });
+    };
+    if (action === "unarchive") run();
+    else askAboutProcesses(action, eligible, run);
   };
 
   /**
@@ -402,21 +370,9 @@ export function useSessionLifecycleActions(
           setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
         }
       },
-      onStopMany: sessions => {
-        const eligible = eligibleSessions("stop", sessions);
-        askAboutProcesses("stop", eligible, (processes, readErrors) => {
-          void actOnMany("stop", eligible, processes, readErrors);
-        });
-      },
-      onArchiveMany: sessions => {
-        const eligible = eligibleSessions("archive", sessions);
-        askAboutProcesses("archive", eligible, (processes, readErrors) => {
-          void actOnMany("archive", eligible, processes, readErrors);
-        });
-      },
-      onUnarchiveMany: sessions => {
-        void actOnMany("unarchive", eligibleSessions("unarchive", sessions));
-      },
+      onStopMany: sessions => actOnMany("stop", sessions),
+      onArchiveMany: sessions => actOnMany("archive", sessions),
+      onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {

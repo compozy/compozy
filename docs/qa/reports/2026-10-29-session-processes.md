@@ -333,3 +333,11 @@ passed against the rebuilt daemon in 2.5 minutes, including the previously faili
 delegation scenario. Full scoped Linux lint for core, HTTP, sessionprocess and daemon passed
 with zero issues. The Windows cross-build passed, and the root Turbo Web build passed all five
 tasks. Current-head remote CI and review remain pending until this batch is pushed.
+
+## Kanban multi-select integration
+
+Integrated main at ab2a55309, preserving skipped-target feedback from Kanban bulk actions
+and process-policy confirmation for eligible targets. Existing lifecycle and drawer suites
+passed all 69 tests. Root Turbo lint/typecheck/build passed seven tasks; React Doctor scored
+100/100 with no issues. Seven real process and Kanban E2Es passed in 1.2 minutes, including
+bulk stop/archive and the stop/archive/delete process choices. Remote CI owns the heavy gate.

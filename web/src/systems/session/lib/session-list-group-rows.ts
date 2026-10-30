@@ -3,13 +3,20 @@ import { createStoreLogic } from "@xstate/store";
 import type { SessionPayload } from "../types";
 import type { SessionListPair } from "./session-list-groups";
 
-/** What one rendered group contributes to the list's selection: its rows, in order, and its pair. */
+/**
+ * What one rendered group contributes to the selection spanning the groups — a
+ * grouped list's group or one board column: its rows, in order, and its pair.
+ */
 export interface SessionListGroupRows {
   /** Position among the groups, as zero-padded dotted indexes ("0002.0001"); sorts as on screen. */
   rank: string;
   sessions: readonly SessionPayload[];
   visibleOrder: readonly string[];
   pair: SessionListPair | null;
+  /** A read behind these rows is in flight; a session may be between two groups' reads. */
+  fetching?: boolean;
+  /** The last read behind these rows failed, so a session missing from them may still exist. */
+  failed?: boolean;
 }
 
 interface SessionListGroupRowsContext {
@@ -22,6 +29,8 @@ function sameRows(left: SessionListGroupRows | undefined, right: SessionListGrou
     left.rank === right.rank &&
     left.pair?.workspaceId === right.pair?.workspaceId &&
     left.pair?.profile === right.pair?.profile &&
+    (left.fetching ?? false) === (right.fetching ?? false) &&
+    (left.failed ?? false) === (right.failed ?? false) &&
     sameItems(left.sessions, right.sessions) &&
     sameItems(left.visibleOrder, right.visibleOrder)
   );
@@ -63,6 +72,9 @@ export function sessionListGroupedRows(groups: Readonly<Record<string, SessionLi
     sessions: ordered.flatMap(group => group.sessions),
     visibleOrder: ordered.flatMap(group => group.visibleOrder),
     pairOf: (sessionId: string) => pairs.get(sessionId) ?? null,
+    /** Some group is re-reading; a session missing from every group may only be moving. */
+    fetching: ordered.some(group => group.fetching === true),
+    failed: ordered.some(group => group.failed === true),
   };
 }
 

@@ -58,7 +58,12 @@ export function SessionsBoardView({
     <div className={SESSIONS_BOARD_FRAME} data-testid="sessions-board">
       <div className={SESSIONS_BOARD_SCROLLER}>
         {board.lanes === null ? (
-          <SessionsBoardColumnsRow {...row} columns={board.columns} layout="fill" />
+          <SessionsBoardColumnsRow
+            {...row}
+            columns={board.columns}
+            layout="fill"
+            selectionRow={{ key: "board", rank: 0 }}
+          />
         ) : (
           <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
         )}
@@ -96,7 +101,12 @@ function SessionsBoardLanes({
   }
   return (
     <div className={SESSIONS_BOARD_LANES} data-testid="sessions-board-lanes">
-      {board.lanes.map(lane => renderLane?.(lane, row))}
+      {board.lanes.map((lane, index) =>
+        renderLane?.(lane, {
+          ...row,
+          selectionRow: { key: `lane:${lane.group.key}`, rank: index },
+        })
+      )}
     </div>
   );
 }

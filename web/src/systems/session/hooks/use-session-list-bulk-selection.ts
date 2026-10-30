@@ -23,6 +23,11 @@ interface SessionListBulkSelectionInput {
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
   folders: SessionBulkFolderSource;
+  /**
+   * Keeps selected sessions missing from `sessions` until their absence is confirmed. A
+   * session moving between reads (a board card changing column) is briefly in neither.
+   */
+  holdMissing?: (missingIds: readonly string[]) => boolean;
 }
 
 /** What the selection can do, shared by the selection bar's menu and a selected row's context menu. */
@@ -64,8 +69,9 @@ export function useSessionListBulkSelection({
   visibleOrder,
   sessionActions,
   folders,
+  holdMissing,
 }: SessionListBulkSelectionInput) {
-  const selection = useSessionSelection(selectionKey, archived, sessions);
+  const selection = useSessionSelection(selectionKey, archived, sessions, holdMissing);
   // Ranges read the order on screen when the operator clicks. Holding it outside
   // the row contract keeps a fold, which reorders nothing a row shows, from
   // handing every row a new selection object.
@@ -115,7 +121,8 @@ export function useSessionListBulkSelection({
 
   const counts = sessionSelectionCounts(selectedSessions, visibleOrder);
   const verbs: SessionSelectionVerbs = {
-    count: selection.selectedIds.length,
+    // Held sessions have no payload to act on, so the count names what the verbs receive.
+    count: selectedSessions.length,
     stoppable: counts.stoppable,
     archivable: counts.archivable,
     archivableLive: counts.archivableLive,
@@ -125,13 +132,16 @@ export function useSessionListBulkSelection({
     onStop: bindToSelection(sessionActions.onStopMany, selectedSessions),
     onArchive: bindToSelection(sessionActions.onArchiveMany, selectedSessions),
     onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
-    onCopyIds: () => void copySessionText(selection.selectedIds.join("\n"), "Session IDs"),
+    onCopyIds: () =>
+      void copySessionText(selectedSessions.map(session => session.id).join("\n"), "Session IDs"),
     folders: folderMove?.menu,
   };
 
   return {
     /** The selection bar replaces the toolbar while rows are selected. */
     active: selection.mode,
+    /** The selection store, for hosts whose items subscribe to their own membership. */
+    store: selection.store,
     rowSelection: {
       ...selection,
       selectedIds: selectedIdSet,

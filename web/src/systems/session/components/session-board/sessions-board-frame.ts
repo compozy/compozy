@@ -19,6 +19,12 @@ export const SESSION_BOARD_CARD_TITLE_TYPE = "text-small-body leading-snug font-
 export const SESSION_BOARD_CARD_FOOTER_ROW =
   "flex h-4.5 min-w-0 items-center gap-2 text-eyebrow tracking-eyebrow text-subtle";
 
+/**
+ * A selectable card's checkbox, over row 3's leading 16 px slot: the 12 px pad plus the
+ * 1 px that centres the 16 px box in the 18 px row.
+ */
+export const SESSION_BOARD_CARD_CHECKBOX = "absolute bottom-3.25 left-3 z-10";
+
 /** A flat `sunken` column panel; Done folds it into a 44 px rail. */
 export const SESSIONS_BOARD_COLUMN_FRAME =
   "flex min-h-0 w-74 shrink-0 flex-col overflow-hidden rounded-lg bg-sunken";
