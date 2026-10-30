@@ -101,6 +101,7 @@ const (
 	specAutomationTriggerNotFoundDescription        = "Automation trigger not found"
 
 	specConflictingSettingsChangeDescription              = "Conflicting settings change"
+	specSuccessDescription                                = "Success"
 	specCreatedDescription                                = "Created"
 	specUpdatedDescription                                = "Updated"
 	specExtensionNotFoundDescription                      = "Extension not found"

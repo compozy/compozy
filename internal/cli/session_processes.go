@@ -198,7 +198,7 @@ func processListBundle(result contract.SessionProcessesResponse, items []contrac
 		"Session processes",
 		[]string{"PID", "KIND", "COMMAND", "PORTS", "STARTED AT"},
 		"items",
-		[]string{"pid", "kind", "command", "ports", "started_at"},
+		[]string{"pid", cliKindKey, "command", "ports", "started_at"},
 		row,
 		row,
 	)

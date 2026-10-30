@@ -238,7 +238,7 @@ func sessionDeriveBundle(record *SessionDeriveRecord) outputBundle {
 		toon: func() (string, error) {
 			derived := record.Derived
 			return renderToonObject("session_derived", []string{
-				"child_session_id", "kind", "source_session_id", "seed", "first_prompt", "replayed",
+				"child_session_id", cliKindKey, "source_session_id", "seed", "first_prompt", "replayed",
 			}, []string{
 				derived.ChildSessionID, derived.Kind, derived.SourceSessionID, derived.Seed,
 				derived.FirstPrompt, strconv.FormatBool(derived.Replayed),

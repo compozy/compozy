@@ -76,7 +76,7 @@ func sessionProcessOperations() []OperationSpec {
 
 func sessionProcessResponses(body any) []ResponseSpec {
 	return []ResponseSpec{
-		{Status: 200, Description: "Success", Body: body},
+		{Status: 200, Description: specSuccessDescription, Body: body},
 		{Status: 400, Description: "Invalid process request", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: "Process scope denied", Body: contract.ErrorPayload{}},
 		{Status: 404, Description: "Session not found", Body: contract.ErrorPayload{}},

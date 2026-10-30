@@ -106,3 +106,10 @@ contract expectations were completed, frontend modules extracted, and the mirror
 its existing formatter owner (semantic generator check passes). Focused HTTP/UDS/toolmeta race
 checks passed. Sessionprocess race tests and lint passed; Linux procutil lint and cross-build passed.
 Current-head CI remains the final delivery gate.
+
+A subsequent CI pass found the new CLI command missing from authored navigation and the process
+observation table missing from the User-scope migration inventory. Both production inventories
+were completed without changing their existing test assertions. The navigation test and User-scope
+migration race suite passed. API route registration and catalog event streaming were split at
+their existing responsibilities to satisfy function limits; targeted API/CLI race tests passed,
+and Linux lint over core, HTTP, UDS, API spec and CLI reported zero issues.

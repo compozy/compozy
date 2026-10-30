@@ -63,6 +63,15 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		return
 	}
 
+	h.streamSessionCatalogEvents(c, writer, events, owners)
+}
+
+func (h *BaseHandlers) streamSessionCatalogEvents(
+	c *gin.Context,
+	writer FlushWriter,
+	events <-chan session.CatalogEvent,
+	owners map[string]profileOwnerIdentity,
+) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
@@ -75,6 +84,7 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 			}
 			owner, found := owners[event.ProfileID]
 			if !found {
+				var err error
 				owners, err = h.profileOwnerIdentities(c.Request.Context())
 				if err != nil {
 					h.logSSEWriteFailure(sessionCatalogChangedEvent, err)

@@ -4712,11 +4712,18 @@ func addSessionProcessPolicyParameters(t *testing.T, baseline map[string]any) {
 
 	stop := paths[prefix+"/stop"].(map[string]any)["post"].(map[string]any)
 	body := stop["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
-	body["schema"].(map[string]any)["properties"].(map[string]any)["processes"] = map[string]any{"type": "string", "enum": []any{"keep", "terminate"}}
+	body["schema"].(map[string]any)["properties"].(map[string]any)["processes"] = map[string]any{
+		"type": "string",
+		"enum": []any{"keep", "terminate"},
+	}
 	for _, target := range []struct{ path, method string }{{prefix, "delete"}, {prefix + "/archive", "post"}} {
 		operation := paths[target.path].(map[string]any)[target.method].(map[string]any)
-		operation["parameters"] = append([]any{map[string]any{
-			"name": "processes", "in": "query", "schema": map[string]any{"type": "string", "enum": []any{"keep", "terminate"}},
-		}}, operation["parameters"].([]any)...)
+		operation["parameters"] = append([]any{
+			map[string]any{
+				"name":   "processes",
+				"in":     "query",
+				"schema": map[string]any{"type": "string", "enum": []any{"keep", "terminate"}},
+			},
+		}, operation["parameters"].([]any)...)
 	}
 }

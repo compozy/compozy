@@ -28,7 +28,6 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
-	"github.com/compozy/compozy/internal/procutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/sessionprocess"
@@ -4387,7 +4386,7 @@ func (*handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot,
 		ScannedAt: time.Now(),
 		Processes: []sessionprocess.Process{
 			{
-				ScannedProcess: procutil.ScannedProcess{PID: 123, StartedAt: time.Now()},
+				PID: 123, StartedAt: time.Now(),
 				Owner: sessionprocess.Owner{
 					SessionID:   "sess-123",
 					WorkspaceID: "ws-workspace",
