@@ -4781,3 +4781,13 @@ selection and profile isolation remain. Native archive terminate completes under
 independent lifetime after cancellation precheck. No DTO, config, hook, schema, or extension
 contract changes; Web batches already carry the listed owner selector. QA: RT-session-processes
 and the 2026-10-29 session-processes report.
+
+
+PR #1049 latest review batch: process observations gain `kernel_token` through additive global
+migration 00158, preserving every existing row. Linux uses boot ID plus raw start ticks for retained
+ownership across daemon restarts and a cached wall-time projection within a daemon lifetime. Public
+process DTOs/native tool inputs remain unchanged; legacy observations keep exact-time matching.
+Web stop/archive consult fresh profile-scoped details and delete subscribes to current details;
+process stream reconciliation includes trailing reads. No hook, config, extension, or official skill
+contract changes. Isolation remains enforced by owning profile/session; no cross-profile fallback.
+Validation and scenario coverage: RT-session-processes and the 2026-10-29 session-processes report.

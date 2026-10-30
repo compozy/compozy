@@ -45,3 +45,29 @@ func TestProcessToken(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: scanner and durable token reads identify the same live kernel process.
+// Owner/canonical suite: procutil Linux identity.
+func TestScannedKernelToken(t *testing.T) {
+	t.Parallel()
+	clock, err := linuxProcessClock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := linuxProcess(os.Getpid(), clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := ProcessToken(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	clock.boot += 3600
+	shifted, err := linuxProcess(os.Getpid(), clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if original.KernelToken != token || shifted.KernelToken != token || original.StartedAt.Equal(shifted.StartedAt) {
+		t.Fatalf("original=%+v shifted=%+v token=%q", original, shifted, token)
+	}
+}

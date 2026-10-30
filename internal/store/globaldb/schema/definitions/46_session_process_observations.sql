@@ -2,6 +2,7 @@
 CREATE TABLE session_process_observations (
   pid INTEGER NOT NULL CHECK (pid > 1),
   started_at TEXT NOT NULL,
+  kernel_token TEXT NOT NULL DEFAULT '',
   session_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   profile_id TEXT NOT NULL,

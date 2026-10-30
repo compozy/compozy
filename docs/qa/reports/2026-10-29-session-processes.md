@@ -260,3 +260,24 @@ and React Doctor reports 100/100.
 
 Review follow-ups also preserve in-flight process reads during catalog invalidation and remove the
 invalid composer reference from delete's kept-process copy. No public wire or storage shape changes.
+
+
+## Latest-head review follow-ups
+
+Reviews of 901e59256 identified the opposite freshness ordering (old detail, newer list), a lost
+process notification during an in-flight read, and Linux boot-wall-time drift. Stop/archive now
+refresh the scoped detail before acting and report read failures without issuing a mutation.
+Delete actively observes scoped details while preserving its opening row until a newer read arrives.
+The existing session reconciler queues a trailing process-list read rather than canceling ongoing
+requests or dropping their notifications. Owning hook suites passed 50 action and 30 stream tests.
+Root Turbo lint/typecheck/build passed seven tasks. The isolated process E2Es passed all three
+scenarios in 38.4 seconds with independent keep/terminate liveness assertions unchanged.
+
+Linux scans cache their wall-time projection during one daemon lifetime and persist a kernel
+boot-ID/start-tick token with each observation. Migration 00158 adds the token with an empty default;
+legacy rows preserve their exact timestamp fence until a verified scan records a token. Matching
+tokens survive timestamp reprojection after restart, while reused PIDs and different boots fail
+closed. The migration, persistence and attribution race checks passed, including production stream
+integrity/schema equivalence. Full procutil and sessionprocess race suites passed (3.396/4.833 s).
+A static Linux procutil test binary also passed the live kernel-token and shifted-projection tests
+inside an isolated networkless Debian container. No host clock was changed.

@@ -51,3 +51,14 @@ Catalog freshness regression: open a process-bearing session while its sidebar r
 older zero-process summary. Delete and archive must offer the keep/terminate choice using current
 profile-scoped detail evidence. A delete confirmation already open must reflect a subsequent detail
 update. E2E-PROC-002 preserves the policy-response and independent process-liveness checks.
+
+Refresh the list after closing a session window whose cached detail still reports zero processes.
+Archive must fetch the current profile-scoped detail before selecting a policy; a failed read must
+not archive. An open delete dialog must preserve the supplied newer row until its active detail
+read settles. A process-change event arriving during an older process-list read must trigger a
+trailing read, even when no further events arrive.
+
+Linux clock continuity: retain lineage observations with the kernel boot-ID/start-tick token.
+After a wall-time correction and daemon restart, the same token preserves ownership while the
+current timestamp projection replaces the old one. A different token (PID reuse or another boot)
+must never retain ownership. Existing observations without a token keep the exact timestamp fence.

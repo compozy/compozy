@@ -30,6 +30,7 @@ type Observation struct {
 	FirstSeen       time.Time
 	GroupObservedAt time.Time
 	Attribution     string
+	KernelToken     string
 }
 
 type Process struct {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,7 +19,7 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 	if err != nil {
 		return nil, true, err
 	}
-	boot, ticks, err := linuxProcessClock()
+	clock, err := linuxProcessClock()
 	if err != nil {
 		return nil, true, err
 	}
@@ -31,7 +32,7 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 		if err != nil {
 			continue
 		}
-		p, err := linuxProcess(pid, boot, ticks)
+		p, err := linuxProcess(pid, clock)
 		if err != nil {
 			continue
 		}
@@ -47,7 +48,29 @@ func scanProcesses(ctx context.Context, environment bool) ([]ScannedProcess, boo
 	return rows, true, nil
 }
 
-func linuxProcessClock() (int64, int64, error) {
+type linuxClock struct {
+	boot, ticks int64
+	bootID      string
+}
+
+// Keep the wall-time projection stable for the daemon lifetime; kernel tokens
+// preserve identity when a later daemon starts after a wall-clock correction.
+var linuxProcessClock = sync.OnceValues(func() (linuxClock, error) {
+	boot, ticks, err := readLinuxProcessClock()
+	if err != nil {
+		return linuxClock{}, err
+	}
+	id, err := os.ReadFile("/proc/sys/kernel/random/boot_id")
+	if err != nil {
+		return linuxClock{}, err
+	}
+	if strings.TrimSpace(string(id)) == "" {
+		return linuxClock{}, errors.New("empty boot identity")
+	}
+	return linuxClock{boot: boot, ticks: ticks, bootID: strings.TrimSpace(string(id))}, nil
+})
+
+func readLinuxProcessClock() (int64, int64, error) {
 	data, err := os.ReadFile("/proc/stat")
 	if err != nil {
 		return 0, 0, err
@@ -84,7 +107,8 @@ func linuxProcessClock() (int64, int64, error) {
 	return 0, 0, errors.New("process clock unavailable")
 }
 
-func linuxProcess(pid int, boot, ticks int64) (ScannedProcess, error) {
+func linuxProcess(pid int, clock linuxClock) (ScannedProcess, error) {
+	boot, ticks := clock.boot, clock.ticks
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if errors.Is(err, os.ErrNotExist) {
 		return ScannedProcess{}, ErrProcessIdentityGone
@@ -113,21 +137,22 @@ func linuxProcess(pid int, boot, ticks int64) (ScannedProcess, error) {
 		return ScannedProcess{}, err
 	}
 	return ScannedProcess{
-		PID:       pid,
-		PPID:      ppid,
-		PGID:      pgid,
-		StartedAt: time.Unix(boot+start/ticks, (start%ticks)*int64(time.Second)/ticks).UTC(),
-		Zombie:    fields[0] == "Z",
-		Ports:     []int{},
+		PID:         pid,
+		KernelToken: clock.bootID + ":" + fields[19],
+		PPID:        ppid,
+		PGID:        pgid,
+		StartedAt:   time.Unix(boot+start/ticks, (start%ticks)*int64(time.Second)/ticks).UTC(),
+		Zombie:      fields[0] == "Z",
+		Ports:       []int{},
 	}, nil
 }
 
 func scanProcessIdentity(pid int) (ScannedProcess, error) {
-	boot, ticks, err := linuxProcessClock()
+	clock, err := linuxProcessClock()
 	if err != nil {
 		return ScannedProcess{}, err
 	}
-	return linuxProcess(pid, boot, ticks)
+	return linuxProcess(pid, clock)
 }
 
 func linuxListeners() map[string]int {

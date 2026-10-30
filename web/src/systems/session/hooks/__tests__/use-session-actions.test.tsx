@@ -65,6 +65,12 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   unarchiveSession: vi.fn(),
 }));
 
+vi.mock("../../adapters/session-owner-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-owner-api")>()),
+  fetchSessionById: vi.fn(),
+}));
+import { fetchSessionById } from "../../adapters/session-owner-api";
+
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: "ws_alpha",
@@ -210,6 +216,7 @@ describe("session actions", () => {
     vi.clearAllMocks();
     sessionStore.trigger.allDraftsDiscarded();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...createdSession, id }));
   });
 
   afterEach(() => {
@@ -914,6 +921,7 @@ describe("session actions", () => {
   // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.
   // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
   it("updates an open delete confirmation when the detail cache reports running processes", async () => {
+    vi.mocked(fetchSessionById).mockImplementation(() => new Promise(() => {}));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { result } = renderHook(() => useSessionLifecycleActions(), {
       wrapper: createWrapper(client),
@@ -933,6 +941,56 @@ describe("session actions", () => {
     expect(result.current.deleteDialog.sessions?.[0]?.process_summary).toEqual(
       current.process_summary
     );
+    client.clear();
+  });
+
+  // Invariant: old zero-process details cannot suppress choices from a newer list/read.
+  // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+  it("refreshes old details before archiving and preserves the newer delete row while reading", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionScopedDetailOptions(createdSession.id, {
+      profile: createdSession.profile_name,
+    }).queryKey;
+    const running = withSessionProcessSummary(createdSession);
+    client.setQueryData(key, createdSession, { updatedAt: 1 });
+    let resolveRead!: (session: SessionPayload) => void;
+    vi.mocked(fetchSessionById).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(running));
+    expect(result.current.deleteDialog.session?.process_summary).toEqual(running.process_summary);
+    await act(async () => resolveRead(running));
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    client.setQueryData(key, createdSession, { updatedAt: 1 });
+    act(() => {
+      void result.current.actions.onArchive(running);
+    });
+    expect(archiveSession).not.toHaveBeenCalled();
+    await act(async () => resolveRead(running));
+    await waitFor(() => expect(result.current.processDialog.processCount).toBe(3));
+    expect(archiveSession).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
+  it("does not archive when the current process detail cannot be read", async () => {
+    vi.mocked(fetchSessionById).mockRejectedValue(new Error("Detail unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    await act(async () => {
+      await result.current.actions.onArchive(createdSession);
+    });
+    expect(archiveSession).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Detail unavailable");
+    unmount();
     client.clear();
   });
 
@@ -979,6 +1037,7 @@ describe("session actions", () => {
       wrapper: createWrapper(queryClient),
     });
     const running = withSessionProcessSummary(createdSession);
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...running, id }));
 
     queryClient.setQueryData(
       sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
@@ -987,13 +1046,15 @@ describe("session actions", () => {
     );
     act(() => result.current.actions.onArchive(createdSession));
     expect(archiveSession).not.toHaveBeenCalled();
-    expect(result.current.processDialog).toMatchObject({
-      open: true,
-      action: "archive",
-      sessionCount: 1,
-      processCount: 3,
-      ports: [5173, 8080, 9090],
-    });
+    await waitFor(() =>
+      expect(result.current.processDialog).toMatchObject({
+        open: true,
+        action: "archive",
+        sessionCount: 1,
+        processCount: 3,
+        ports: [5173, 8080, 9090],
+      })
+    );
 
     act(() => result.current.processDialog.onChoose("terminate"));
     expect(result.current.processDialog.open).toBe(false);
@@ -1011,7 +1072,9 @@ describe("session actions", () => {
     vi.mocked(archiveSession).mockClear();
     const second = { ...running, id: "sess-second" };
     act(() => result.current.actions.onArchiveMany?.([running, second]));
-    expect(result.current.processDialog).toMatchObject({ sessionCount: 2, processCount: 6 });
+    await waitFor(() =>
+      expect(result.current.processDialog).toMatchObject({ sessionCount: 2, processCount: 6 })
+    );
     act(() => result.current.processDialog.onChoose("keep"));
     await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(2));
     for (const call of vi.mocked(archiveSession).mock.calls) expect(call[5]).toBe("keep");
@@ -1508,7 +1571,10 @@ describe("session actions", () => {
 // Batch invariant: the lifecycle owner serializes existing mutations, preserves per-id results,
 // and retries only failures. Adapter I/O remains this suite's existing mock boundary.
 describe("session lifecycle batches", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...createdSession, id }));
+  });
   function lifecycle(options: Parameters<typeof useSessionLifecycleActions>[0] = {}) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

@@ -1607,6 +1607,7 @@ type SessionPlacement struct {
 type SessionProcessObservation struct {
 	Pid             int64  `json:"pid"`
 	StartedAt       string `json:"started_at"`
+	KernelToken     string `json:"kernel_token"`
 	SessionID       string `json:"session_id"`
 	WorkspaceID     string `json:"workspace_id"`
 	ProfileID       string `json:"profile_id"`

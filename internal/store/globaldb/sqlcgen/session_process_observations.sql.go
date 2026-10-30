@@ -24,7 +24,7 @@ func (q *Queries) DeleteSessionProcessObservation(ctx context.Context, arg Delet
 }
 
 const listSessionProcessObservations = `-- name: ListSessionProcessObservations :many
-SELECT pid, started_at, session_id, workspace_id, profile_id, session_name, pgid, first_seen, group_observed_at, attribution FROM session_process_observations ORDER BY pid, started_at
+SELECT pid, started_at, kernel_token, session_id, workspace_id, profile_id, session_name, pgid, first_seen, group_observed_at, attribution FROM session_process_observations ORDER BY pid, started_at
 `
 
 func (q *Queries) ListSessionProcessObservations(ctx context.Context) ([]SessionProcessObservation, error) {
@@ -39,6 +39,7 @@ func (q *Queries) ListSessionProcessObservations(ctx context.Context) ([]Session
 		if err := rows.Scan(
 			&i.Pid,
 			&i.StartedAt,
+			&i.KernelToken,
 			&i.SessionID,
 			&i.WorkspaceID,
 			&i.ProfileID,
@@ -64,8 +65,8 @@ func (q *Queries) ListSessionProcessObservations(ctx context.Context) ([]Session
 const upsertSessionProcessObservation = `-- name: UpsertSessionProcessObservation :exec
 INSERT INTO session_process_observations (
   pid, started_at, session_id, workspace_id, profile_id, session_name,
-  pgid, first_seen, group_observed_at, attribution
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  pgid, first_seen, group_observed_at, attribution, kernel_token
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(pid, started_at) DO UPDATE SET
   session_id = excluded.session_id,
   workspace_id = excluded.workspace_id,
@@ -73,7 +74,8 @@ ON CONFLICT(pid, started_at) DO UPDATE SET
   session_name = excluded.session_name,
   pgid = excluded.pgid,
   group_observed_at = excluded.group_observed_at,
-  attribution = excluded.attribution
+  attribution = excluded.attribution,
+  kernel_token = excluded.kernel_token
 `
 
 type UpsertSessionProcessObservationParams struct {
@@ -87,6 +89,7 @@ type UpsertSessionProcessObservationParams struct {
 	FirstSeen       string `json:"first_seen"`
 	GroupObservedAt string `json:"group_observed_at"`
 	Attribution     string `json:"attribution"`
+	KernelToken     string `json:"kernel_token"`
 }
 
 func (q *Queries) UpsertSessionProcessObservation(ctx context.Context, arg UpsertSessionProcessObservationParams) error {
@@ -101,6 +104,7 @@ func (q *Queries) UpsertSessionProcessObservation(ctx context.Context, arg Upser
 		arg.FirstSeen,
 		arg.GroupObservedAt,
 		arg.Attribution,
+		arg.KernelToken,
 	)
 	return err
 }

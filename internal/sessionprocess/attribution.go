@@ -74,10 +74,18 @@ func newAttributionScan(snap procutil.ProcessSnapshot, owners []Owner) *attribut
 	return scan
 }
 
+// Legacy records without a kernel token retain the exact timestamp fence.
+func observationMatches(old Observation, p procutil.ScannedProcess) bool {
+	if old.KernelToken != "" {
+		return old.KernelToken == p.KernelToken
+	}
+	return p.StartedAt.Equal(old.StartedAt)
+}
+
 func (scan *attributionScan) retain(ctx context.Context, source Source, previous map[Identity]Observation) error {
 	for id, old := range previous {
 		p, ok := scan.byPID[id.PID]
-		if !ok || !p.StartedAt.Equal(id.StartedAt) {
+		if !ok || !observationMatches(old, p) {
 			continue
 		}
 		owner, known := scan.known[old.Owner.SessionID]
@@ -95,6 +103,12 @@ func (scan *attributionScan) retain(ctx context.Context, source Source, previous
 			}
 			scan.known[old.Owner.SessionID] = owner
 		}
+		if !old.GroupObservedAt.IsZero() {
+			old.GroupObservedAt = old.GroupObservedAt.Add(p.StartedAt.Sub(old.StartedAt))
+		}
+		id = identity(p)
+		old.Identity = id
+		old.KernelToken = p.KernelToken
 		old.Owner = owner
 		if old.PGID != p.PGID {
 			old.GroupObservedAt = time.Time{}
@@ -185,6 +199,7 @@ func (scan *attributionScan) recordObservation(
 	now time.Time,
 ) {
 	old.Identity, old.Owner, old.PGID, old.Attribution = id, owner, p.PGID, attribution
+	old.KernelToken = p.KernelToken
 	if old.FirstSeen.IsZero() {
 		old.FirstSeen = now
 	}

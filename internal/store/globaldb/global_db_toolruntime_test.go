@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -23,6 +24,7 @@ func TestGlobalDBSessionProcessObservations(t *testing.T) {
 			PID: 1234, StartedAt: start, FirstSeen: start.Add(time.Second),
 			Owner:       sessionprocess.Owner{SessionID: "sess-old", WorkspaceID: "ws-old", ProfileID: "profile-old"},
 			Attribution: "lineage",
+			KernelToken: "boot:123",
 		}
 		if err := db.SaveProcessObservations(ctx, []sessionprocess.Observation{observation}, nil); err != nil {
 			t.Fatal(err)
@@ -40,6 +42,42 @@ func TestGlobalDBSessionProcessObservations(t *testing.T) {
 		}
 		if len(rows) != 1 || rows[0] != observation {
 			t.Fatalf("reloaded observations = %+v, want %+v", rows, observation)
+		}
+	})
+	// Invariant: the additive token migration preserves legacy observations across reopen.
+	t.Run("Should preserve observations while adding kernel identity", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00158_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = prior.ExecContext(ctx, `INSERT INTO session_process_observations
+   (pid,started_at,session_id,workspace_id,profile_id,session_name,pgid,first_seen,group_observed_at,attribution)
+   VALUES (1234,'2026-10-29T10:00:00Z','retained','ws','profile','Kept',1234,'2026-10-29T10:00:01Z','2026-10-29T10:00:00Z','lineage')`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows, err := upgraded.LoadProcessObservations(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || rows[0].PID != 1234 || rows[0].Owner.Name != "Kept" || rows[0].KernelToken != "" ||
+				rows[0].Attribution != "lineage" {
+				t.Fatalf("preserved rows=%+v", rows)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
 		}
 	})
 }

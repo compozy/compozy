@@ -624,6 +624,48 @@ describe("useSessionCatalogStreams", () => {
     queryClient.clear();
   });
 
+  // Invariant: a process notification during a read gets one trailing authoritative read.
+  // Owner: catalog stream reconciliation; canonical suite: use-session-catalog-streams.
+  it("Should reconcile a process change received during an older process read", async () => {
+    const queryClient = createQueryClient();
+    const queryKey = sessionKeys.processes(WORKSPACE_ID, SESSION_ID);
+    let resolveRead!: (value: string[]) => void;
+    const read = vi.fn(
+      () =>
+        new Promise<string[]>(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    let source!: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({ queryKey, queryFn: read, staleTime: Infinity, retry: false });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    expect(read).toHaveBeenCalledTimes(1);
+    act(() =>
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: SESSION_ID,
+      })
+    );
+    await act(async () => {
+      resolveRead(["old"]);
+    });
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      resolveRead(["replacement"]);
+    });
+    await waitFor(() => expect(queryClient.getQueryData(queryKey)).toEqual(["replacement"]));
+    expect(read).toHaveBeenCalledTimes(2);
+    unmount();
+    queryClient.clear();
+  });
+
   it("Should preserve a final catalog wake after an in-flight snapshot finishes", async () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();

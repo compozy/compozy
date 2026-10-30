@@ -248,3 +248,45 @@ func TestProcessSummaryPorts(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: persisted kernel identity survives clock steps but never PID reuse or reboot.
+// Owner/canonical suite: sessionprocess attribution.
+func TestRetainedKernelIdentity(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name, token string
+		want        bool
+	}{
+		{"Should retain after a wall clock step", "boot:123", true},
+		{"Should reject PID reuse", "boot:456", false},
+		{"Should reject another boot", "other:123", false},
+		{"Should reject missing kernel evidence", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			old := Observation{PID: 501, StartedAt: start, KernelToken: "boot:123",
+				Owner: Owner{SessionID: "retained", ProfileID: "default"}, PGID: 500,
+				FirstSeen: start, GroupObservedAt: start, Attribution: "lineage"}
+			current := procutil.ScannedProcess{PID: 501, PPID: 1, PGID: 500,
+				StartedAt: start.Add(time.Hour), KernelToken: tc.token}
+			service := &Service{source: attributionSource{}, observations: map[Identity]Observation{old.Identity: old}}
+			next, rows, err := service.reconcile(t.Context(), procutil.ProcessSnapshot{
+				Supported: true, ScannedAt: start.Add(2 * time.Hour), Processes: []procutil.ScannedProcess{current},
+			}, nil, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(rows) == 1) != tc.want {
+				t.Fatalf("rows=%+v, want retained=%t", rows, tc.want)
+			}
+			if tc.want {
+				retained := next[identity(current)]
+				if retained.KernelToken != old.KernelToken || !retained.FirstSeen.Equal(old.FirstSeen) ||
+					!retained.GroupObservedAt.Equal(current.StartedAt) {
+					t.Fatalf("retained=%+v", retained)
+				}
+			}
+		})
+	}
+}

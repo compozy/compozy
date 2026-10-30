@@ -1,4 +1,4 @@
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -157,18 +157,39 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
   if (count > 0) toast.success(`${count} ${count === 1 ? "session" : "sessions"} deleted`);
 }
 
-function useCurrentDeleteSessions(sessions: readonly SessionPayload[] | undefined) {
+async function readCurrentSessions(queryClient: QueryClient, sessions: readonly SessionPayload[]) {
+  return Promise.all(
+    sessions.map(async session => {
+      const options = sessionScopedDetailOptions(session.id, { profile: session.profile_name });
+      // An already-running read may predate the click; let it settle before refreshing.
+      const existing = queryClient
+        .getQueryCache()
+        .find({ queryKey: options.queryKey, exact: true });
+      if (existing?.state.fetchStatus === "fetching") await existing.promise?.catch(() => {});
+      return queryClient.fetchQuery({ ...options, staleTime: 0 });
+    })
+  );
+}
+
+function useCurrentDeleteSessions(
+  sessions: readonly SessionPayload[] | undefined,
+  openedAt: number
+) {
   // Catalog rows may lag the detail stream; keep an open confirmation current.
   const deleteReads = useQueries({
-    queries: (sessions ?? []).map(session =>
-      sessionScopedDetailOptions(
+    queries: (sessions ?? []).map(session => ({
+      ...sessionScopedDetailOptions(
         session.id,
         { profile: session.profile_name },
-        { enabled: false, liveTail: false }
-      )
-    ),
+        { liveTail: false }
+      ),
+      refetchOnMount: "always" as const,
+    })),
   });
-  return sessions?.map((session, index) => deleteReads[index]?.data ?? session);
+  return sessions?.map((session, index) => {
+    const read = deleteReads[index];
+    return read && read.dataUpdatedAt >= openedAt ? (read.data ?? session) : session;
+  });
 }
 
 /**
@@ -188,12 +209,16 @@ export function useSessionLifecycleActions(
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
+    openedAt: number;
     onSelectionChange?: (ids: readonly string[]) => void;
   } | null>(null);
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useRef(false);
-  const deleteSessions = useCurrentDeleteSessions(deleteTarget?.sessions);
+  const deleteSessions = useCurrentDeleteSessions(
+    deleteTarget?.sessions,
+    deleteTarget?.openedAt ?? Infinity
+  );
   const deleteSession = deleteSessions?.[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
   const [processChoice, setProcessChoice] = useState<{
@@ -204,27 +229,20 @@ export function useSessionLifecycleActions(
   // The answer a delete got, so a retry of its failures repeats it.
   const deletePolicy = useRef<SessionProcessPolicy | undefined>(undefined);
 
-  let pendingAction: SessionLifecycleAction | null = null;
-  let pendingSessionId: string | null = null;
-  if (batchAction !== null) {
-    pendingAction = batchAction;
-    pendingSessionId = batchResults.find(result => result.status === "running")?.id ?? null;
-  } else if (rename.isPending) {
-    pendingAction = "rename";
-    pendingSessionId = rename.variables.id;
-  } else if (stop.isPending) {
-    pendingAction = "stop";
-    pendingSessionId = stop.variables.id;
-  } else if (archive.isPending) {
-    pendingAction = "archive";
-    pendingSessionId = archive.variables.id;
-  } else if (unarchive.isPending) {
-    pendingAction = "unarchive";
-    pendingSessionId = unarchive.variables.id;
-  } else if (remove.isPending) {
-    pendingAction = "delete";
-    pendingSessionId = remove.variables.id;
-  }
+  const pendingMutation = (
+    [
+      ["rename", rename],
+      ["stop", stop],
+      ["archive", archive],
+      ["unarchive", unarchive],
+      ["delete", remove],
+    ] as const
+  ).find(([, mutation]) => mutation.isPending);
+  const pendingAction = batchAction ?? pendingMutation?.[0] ?? null;
+  const pendingSessionId =
+    batchAction !== null
+      ? (batchResults.find(result => result.status === "running")?.id ?? null)
+      : (pendingMutation?.[1].variables?.id ?? null);
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (
@@ -284,24 +302,29 @@ export function useSessionLifecycleActions(
    * Stop and archive ask first while their targets have processes running;
    * at zero they run as they always did, with the daemon default (keep).
    */
+  const checkingProcesses = useRef(false);
   const askAboutProcesses = (
     action: "stop" | "archive",
     sessions: readonly SessionPayload[],
     run: (processes?: SessionProcessPolicy) => void
   ) => {
-    if (sessions.length === 0) return;
-    const currentSessions = sessions.map(
-      session =>
-        queryClient.getQueryData(
-          sessionScopedDetailOptions(session.id, { profile: session.profile_name }).queryKey
-        ) ?? session
-    );
-    if (sessionsRunningProcesses(currentSessions) === 0) {
-      run();
+    if (
+      sessions.length === 0 ||
+      checkingProcesses.current ||
+      pendingAction !== null ||
+      batchRunning.current
+    )
       return;
-    }
-    if (pendingAction !== null || batchRunning.current) return;
-    setProcessChoice({ action, sessions: currentSessions, run });
+    checkingProcesses.current = true;
+    void readCurrentSessions(queryClient, sessions)
+      .then(currentSessions => {
+        if (sessionsRunningProcesses(currentSessions) === 0) run();
+        else setProcessChoice({ action, sessions: currentSessions, run });
+      })
+      .catch(error => reportActionError(action, error))
+      .finally(() => {
+        checkingProcesses.current = false;
+      });
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
@@ -369,14 +392,14 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
-        askAboutProcesses("stop", [session], processes =>
+        void askAboutProcesses("stop", [session], processes =>
           stop.mutate(
             { ...session, ...(processes ? { processes } : {}) },
             { onError: error => reportActionError("stop", error) }
           )
         ),
       onArchive: session =>
-        askAboutProcesses("archive", [session], processes =>
+        void askAboutProcesses("archive", [session], processes =>
           archive.mutate(archiveTarget(session, processes), {
             onError: error => reportActionError("archive", error),
           })
@@ -387,7 +410,7 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) {
           deletePolicy.current = undefined;
           setBatchResults([]);
-          setDeleteTarget({ sessions: [session], bulk: false });
+          setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
         }
       },
       onStopMany: sessions => {
@@ -411,7 +434,12 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
           deletePolicy.current = undefined;
           setBatchResults([]);
-          setDeleteTarget({ sessions: [...sessions], bulk: true, onSelectionChange });
+          setDeleteTarget({
+            sessions: [...sessions],
+            bulk: true,
+            openedAt: Date.now(),
+            onSelectionChange,
+          });
         }
       },
     },

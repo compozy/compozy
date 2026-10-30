@@ -44,6 +44,7 @@ func (g *SessionProcessRepo) LoadProcessObservations(ctx context.Context) ([]ses
 			FirstSeen:       first,
 			GroupObservedAt: group,
 			Attribution:     row.Attribution,
+			KernelToken:     row.KernelToken,
 		})
 	}
 	return result, nil
@@ -95,6 +96,7 @@ func (g *SessionProcessRepo) SaveProcessObservations(
 				Format(time.RFC3339Nano),
 			GroupObservedAt: o.GroupObservedAt.UTC().Format(time.RFC3339Nano),
 			Attribution:     o.Attribution,
+			KernelToken:     o.KernelToken,
 		})
 		if err != nil {
 			return fmt.Errorf("store: save process observation: %w", err)

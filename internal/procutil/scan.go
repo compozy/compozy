@@ -10,6 +10,7 @@ import (
 type ScannedProcess struct {
 	PID, PPID, PGID                     int
 	StartedAt                           time.Time
+	KernelToken                         string
 	SessionID, Home, Profile, Workspace string
 	Argv0, Command, CWD                 string
 	Ports                               []int

@@ -332,11 +332,7 @@ function openSessionCatalogStream(
     // Only an open monitor popover observes this small read; elsewhere it is just
     // marked stale. An in-flight read may predate the change, so it is replaced.
     void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
-    // `process_summary` rides the same upsert; an open processes view rereads its list.
-    void queryClient.invalidateQueries(
-      { queryKey: sessionKeys.processes(payload.workspace_id, payload.session_id) },
-      { cancelRefetch: false }
-    );
+    // sessionReads also reconciles process lists, including wakes during an older scan.
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [
