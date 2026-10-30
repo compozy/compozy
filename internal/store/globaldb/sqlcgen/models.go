@@ -1604,6 +1604,19 @@ type SessionPlacement struct {
 	UpdatedAt   string         `json:"updated_at"`
 }
 
+type SessionProcessObservation struct {
+	Pid             int64  `json:"pid"`
+	StartedAt       string `json:"started_at"`
+	SessionID       string `json:"session_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
+	SessionName     string `json:"session_name"`
+	Pgid            int64  `json:"pgid"`
+	FirstSeen       string `json:"first_seen"`
+	GroupObservedAt string `json:"group_observed_at"`
+	Attribution     string `json:"attribution"`
+}
+
 type SessionPromptAdmission struct {
 	ID                     string         `json:"id"`
 	WorkspaceID            string         `json:"workspace_id"`

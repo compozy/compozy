@@ -381,6 +381,7 @@ func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsPa
 
 // ListProcessesParams carries the path, query, and header parameters.
 type ListProcessesParams struct {
+	WorkspaceID   *string `url:"workspace_id"`
 	AllWorkspaces *bool   `url:"all_workspaces"`
 	Orphaned      *bool   `url:"orphaned"`
 	Profile       *string `url:"profile"`
@@ -391,6 +392,9 @@ type ListProcessesParams struct {
 func (c *Client) ListProcesses(ctx context.Context, params ListProcessesParams) (*ProcessesResponse, error) {
 	path := "/api/processes"
 	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
 	if params.AllWorkspaces != nil {
 		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}

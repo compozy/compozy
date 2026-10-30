@@ -4,6 +4,15 @@ package client
 
 import "time"
 
+// SettingsMCPAuthConfigPayload is a daemon API value.
+type SettingsMCPAuthConfigPayload struct {
+	Registration    string   `json:"registration,omitempty"`
+	IssuerURL       string   `json:"issuer_url,omitempty"`
+	ClientID        string   `json:"client_id,omitempty"`
+	ClientSecretRef string   `json:"client_secret_ref,omitempty"`
+	Scopes          []string `json:"scopes,omitempty"`
+}
+
 // SettingsMCPAuthConfigViewPayload is a daemon API value.
 type SettingsMCPAuthConfigViewPayload struct {
 	Registration           string   `json:"registration,omitempty"`
@@ -435,11 +444,4 @@ type SettingsSectionName string
 type SettingsShellAppearancePayload struct {
 	UIFont   *string `json:"ui_font,omitempty"`
 	MonoFont *string `json:"mono_font,omitempty"`
-}
-
-// SettingsShellLegacyScopePayload is a daemon API value.
-type SettingsShellLegacyScopePayload struct {
-	Value    SettingsShellSessionScope `json:"value"`
-	Explicit bool                      `json:"explicit"`
-	Revision uint64                    `json:"revision"`
 }

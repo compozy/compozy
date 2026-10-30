@@ -108,7 +108,9 @@ const (
 	// ToolIDMonitorCreate registers one daemon-owned monitor that wakes the bound session.
 	ToolIDMonitorCreate ToolID = "compozy__monitor_create"
 	// ToolIDMonitorList lists the bound session's monitors.
-	ToolIDMonitorList ToolID = "compozy__monitor_list"
+	ToolIDMonitorList               ToolID = "compozy__monitor_list"
+	ToolIDSessionProcessesList      ToolID = "compozy__session_processes_list"
+	ToolIDSessionProcessesTerminate ToolID = "compozy__session_processes_terminate"
 	// ToolIDMonitorCancel cancels one active monitor of the bound session.
 	ToolIDMonitorCancel ToolID = "compozy__monitor_cancel"
 	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.

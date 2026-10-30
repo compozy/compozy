@@ -54,6 +54,9 @@ func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
 		return
 	}
 	defer closeStream()
+	if h.SessionProcesses != nil {
+		defer h.SessionProcesses.Acquire()()
+	}
 	defer cancel()
 	if err := WriteSSEComment(writer, "session catalog stream ready"); err != nil {
 		h.logSSEWriteFailure(sessionCatalogChangedEvent, err)

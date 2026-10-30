@@ -6822,6 +6822,7 @@ export type SessionProcessGroupPayload = {
 export type SessionProcessPayload = {
   age_seconds: number;
   argv0: string;
+  attribution: "env" | "lineage";
   command: string;
   cpu_percent?: number | null;
   cwd: string;
@@ -19598,6 +19599,10 @@ export type ListProcessesData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Workspace ID, or @user; mutually exclusive with all_workspaces
+     */
+    workspace_id?: string;
     /**
      * Include all projects and User sessions
      */

@@ -16,6 +16,7 @@ var baseRegistryEntries = []Metadata{
 	success(ACPDone, "session", ComponentSession),
 	failure(ACPError, "session", ComponentSession),
 	info(SessionStopped, "session", ComponentSession),
+	global(info(SessionProcessesTerminated, "session", ComponentSession)),
 	info(SessionTurnQuiesced, "session", ComponentSession),
 	info(SessionRestartInterrupted, "session", ComponentSession),
 	info(SessionRestartAttempt, "session", ComponentSession),

@@ -23,6 +23,9 @@ func (m *Manager) sessionStartOpts(
 		resolved.EnvPolicy,
 		strings.TrimSpace(s.reasoningEffort),
 	)
+	env = setSessionStartEnvValue(env, "COMPOZY_HOME", m.homePaths.HomeDir)
+	env = setSessionStartEnvValue(env, "COMPOZY_PROFILE", session.ProfileID)
+	env = setSessionStartEnvValue(env, "COMPOZY_WORKSPACE_ID", session.WorkspaceID)
 	providerID := strings.TrimSpace(resolved.RuntimeProvider)
 	if providerID == "" {
 		providerID = strings.TrimSpace(resolved.Provider)

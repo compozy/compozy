@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SessionWaitResponse is a daemon API value.
+type SessionWaitResponse struct {
+	SessionID string   `json:"session_id"`
+	Outcome   string   `json:"outcome"`
+	State     string   `json:"state,omitempty"`
+	WaitedMS  int64    `json:"waited_ms"`
+	Until     []string `json:"until,omitempty"`
+	Revision  int64    `json:"revision"`
+	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
 // SessionWorkTimePayload is a daemon API value.
 type SessionWorkTimePayload struct {
 	ActiveDurationMS    int64  `json:"active_duration_ms"`
@@ -435,13 +446,4 @@ type SettingsMCPAuthBeginResponse struct {
 	ExpiresAt        time.Time `json:"expires_at"`
 	CallbackURL      string    `json:"callback_url"`
 	ManualSupported  bool      `json:"manual_supported"`
-}
-
-// SettingsMCPAuthConfigPayload is a daemon API value.
-type SettingsMCPAuthConfigPayload struct {
-	Registration    string   `json:"registration,omitempty"`
-	IssuerURL       string   `json:"issuer_url,omitempty"`
-	ClientID        string   `json:"client_id,omitempty"`
-	ClientSecretRef string   `json:"client_secret_ref,omitempty"`
-	Scopes          []string `json:"scopes,omitempty"`
 }

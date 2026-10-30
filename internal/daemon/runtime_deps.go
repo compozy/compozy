@@ -26,6 +26,7 @@ import (
 type RuntimeDeps struct {
 	Subagents           session.SubagentService
 	SessionMonitors     core.SessionMonitorService
+	SessionProcesses    core.SessionProcessService
 	Config              compozyconfig.Config
 	AgentProbeConfig    *agentProbeConfigState
 	HomePaths           compozyconfig.HomePaths

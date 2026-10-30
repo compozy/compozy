@@ -87,7 +87,12 @@ func (c *daemonClient) RefreshSessionSoul(
 	return response, nil
 }
 
-func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
+func (c *daemonClient) StopSession(
+	ctx context.Context,
+	id string,
+	wait bool,
+	processes contract.SessionProcessPolicy,
+) (SessionStopRecord, error) {
 	path, err := c.sessionScopedPath(ctx, id, "/stop")
 	if err != nil {
 		return SessionStopRecord{}, err
@@ -102,7 +107,7 @@ func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (S
 		http.MethodPost,
 		path,
 		nil,
-		contract.StopSessionRequest{Wait: &wait},
+		contract.StopSessionRequest{Wait: &wait, Processes: processes},
 		&result,
 		client,
 	); err != nil {
@@ -112,10 +117,18 @@ func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (S
 }
 
 // ArchiveSession archives a stopped session, or stops and archives a live one when stop is set.
-func (c *daemonClient) ArchiveSession(ctx context.Context, id string, stop bool) (SessionRecord, error) {
-	var query url.Values
+func (c *daemonClient) ArchiveSession(
+	ctx context.Context,
+	id string,
+	stop bool,
+	processes contract.SessionProcessPolicy,
+) (SessionRecord, error) {
+	query := url.Values{}
+	if processes != "" {
+		query.Set("processes", string(processes))
+	}
 	if stop {
-		query = url.Values{"stop": []string{strconv.FormatBool(stop)}}
+		query.Set("stop", strconv.FormatBool(stop))
 	}
 	return c.setSessionArchived(ctx, id, "/archive", query)
 }
@@ -141,16 +154,20 @@ func (c *daemonClient) setSessionArchived(
 	return response.Session, nil
 }
 
-func (c *daemonClient) DeleteSession(ctx context.Context, id string) error {
+func (c *daemonClient) DeleteSession(ctx context.Context, id string, processes contract.SessionProcessPolicy) error {
 	path, err := c.sessionScopedPath(ctx, id, "")
 	if err != nil {
 		return err
+	}
+	query := url.Values{}
+	if processes != "" {
+		query.Set("processes", string(processes))
 	}
 	return c.doJSON(
 		ctx,
 		http.MethodDelete,
 		path,
-		nil,
+		query,
 		nil,
 		nil,
 	)

@@ -262,11 +262,18 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
+	policy := contract.SessionProcessPolicy(c.Query("processes"))
+	if !h.prepareProcessPolicy(c, policy) {
+		return
+	}
 	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
+	if !h.finishProcessPolicy(c, info, policy) {
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 
@@ -289,8 +296,11 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if !h.prepareProcessPolicy(c, req.Processes) {
+		return
+	}
 	if req.Wait != nil {
-		h.stopSessionWithResult(c, info, *req.Wait)
+		h.stopSessionWithResult(c, info, *req.Wait, req.Processes)
 		return
 	}
 	c.Header(
@@ -302,6 +312,9 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		return
 	}
 
+	if !h.finishProcessPolicy(c, info, req.Processes) {
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 

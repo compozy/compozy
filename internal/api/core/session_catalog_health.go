@@ -42,6 +42,7 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	}
 	h.decorateMissingSessionWorkspaces(ctx, payloads)
 	h.decorateMonitorSummaries(payloads)
+	h.decorateProcessSummaries(payloads)
 	return h.decorateSessionOwners(ctx, payloads)
 }
 

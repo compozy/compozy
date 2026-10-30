@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// SettingsShellLegacyScopePayload is a daemon API value.
+type SettingsShellLegacyScopePayload struct {
+	Value    SettingsShellSessionScope `json:"value"`
+	Explicit bool                      `json:"explicit"`
+	Revision uint64                    `json:"revision"`
+}
+
 // SettingsShellMutationResponse is a daemon API value.
 type SettingsShellMutationResponse struct {
 	Section          SettingsApplyTargetName         `json:"section,omitempty"`
@@ -436,14 +443,3 @@ type SettingsWindowManagerResponse struct {
 	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
 	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
 }
-
-// SettingsWindowManagerSnapPayload is a daemon API value.
-type SettingsWindowManagerSnapPayload struct {
-	EdgeBand     int       `json:"edge_band"`
-	CornerReach  int       `json:"corner_reach"`
-	ExitSlack    int       `json:"exit_slack"`
-	RepeatRatios []float64 `json:"repeat_ratios"`
-}
-
-// SettingsWindowNewPolicy is a daemon API value.
-type SettingsWindowNewPolicy string

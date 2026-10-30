@@ -3,6 +3,8 @@ package udsapi
 import "github.com/gin-gonic/gin"
 
 func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/processes", handlers.ListProcesses)
+	api.POST("/processes/terminate", handlers.TerminateProcesses)
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.ListSessions)
@@ -22,6 +24,8 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("", handlers.ListSessions)
 	{
 		workspaceSessions.GET("/:session_id/subagents", handlers.ListSessionSubagents)
+		workspaceSessions.GET("/:session_id/processes", handlers.ListSessionProcesses)
+		workspaceSessions.POST("/:session_id/processes/terminate", handlers.TerminateSessionProcesses)
 		workspaceSessions.GET("/:session_id/monitors", handlers.ListSessionMonitors)
 		workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
 		workspaceSessions.GET("/:session_id", handlers.GetSession)

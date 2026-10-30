@@ -17,8 +17,20 @@ type SessionStopManager interface {
 	AwaitStopped(context.Context, string) (session.StopOutcome, error)
 }
 
-func (h *BaseHandlers) stopSessionWithResult(c *gin.Context, info *session.Info, wait bool) {
+func (h *BaseHandlers) stopSessionWithResult(
+	c *gin.Context,
+	info *session.Info,
+	wait bool,
+	policies ...contract.SessionProcessPolicy,
+) {
+	policy := contract.SessionProcessesKeep
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
 	if info.State == session.StateStopped {
+		if !h.finishProcessPolicy(c, info, policy) {
+			return
+		}
 		c.JSON(http.StatusOK, contract.SessionStopPayload{
 			SessionID: info.ID, Status: "already-stopped", State: info.State,
 			Verified: true, Escalated: info.StopEscalated, StopCause: sessionStopCause(info),
@@ -36,6 +48,12 @@ func (h *BaseHandlers) stopSessionWithResult(c *gin.Context, info *session.Info,
 		return
 	}
 	if !wait {
+		if policy == contract.SessionProcessesTerminate {
+			h.SessionProcesses.AfterStop(
+				info.ID,
+				func(ctx context.Context) error { _, err := manager.AwaitStopped(ctx, info.ID); return err },
+			)
+		}
 		c.JSON(http.StatusAccepted, contract.SessionStopPayload{
 			SessionID: info.ID, Status: "stopping", State: session.StateStopping,
 			StopCause: session.CauseUserRequested.String(), Escalated: info.StopEscalated,
@@ -45,6 +63,9 @@ func (h *BaseHandlers) stopSessionWithResult(c *gin.Context, info *session.Info,
 	outcome, err := manager.AwaitStopped(ctx, info.ID)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {
 		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	if outcome.Verified && !h.finishProcessPolicy(c, info, policy) {
 		return
 	}
 	c.JSON(http.StatusOK, SessionStopOutcomePayload(info.ID, outcome))

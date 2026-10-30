@@ -14029,6 +14029,8 @@ export interface components {
       /** Format: double */
       age_seconds: number;
       argv0: string;
+      /** @enum {string} */
+      attribution: "env" | "lineage";
       command: string;
       /** Format: double */
       cpu_percent?: number | null;
@@ -29490,6 +29492,8 @@ export interface operations {
   listProcesses: {
     parameters: {
       query?: {
+        /** @description Workspace ID, or @user; mutually exclusive with all_workspaces */
+        workspace_id?: string;
         /** @description Include all projects and User sessions */
         all_workspaces?: boolean;
         /** @description Only processes of stopped, archived, deleted or unknown sessions */

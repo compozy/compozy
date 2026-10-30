@@ -190,7 +190,7 @@ const sessionSpawnOutputSchema = `{
 
 const sessionStopInputSchema = `{
  "type":"object","required":["session_id"],
- "properties":{"session_id":{"type":"string","minLength":1},"wait":{"type":"boolean"}},
+ "properties":{"session_id":{"type":"string","minLength":1},"wait":{"type":"boolean"},"processes":` + sessionProcessPolicySchema + `},
  "additionalProperties":false
 }`
 

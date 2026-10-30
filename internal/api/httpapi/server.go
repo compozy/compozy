@@ -48,6 +48,7 @@ type Server struct {
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
 	sessionMonitors       core.SessionMonitorService
+	sessionProcesses      core.SessionProcessService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository

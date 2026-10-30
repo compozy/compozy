@@ -3,9 +3,12 @@
 package procutil
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -170,7 +173,9 @@ func TestSetProcessGroupNiceness(t *testing.T) {
 
 func startNicenessProcessGroup(t *testing.T, script string) int {
 	t.Helper()
-	command := exec.CommandContext(t.Context(), "sh", "-c", script)
+	// This helper owns child cleanup. t.Context is canceled before Cleanup runs;
+	// racing that implicit kill with the group signal can return EPERM during exec on Darwin.
+	command := exec.CommandContext(context.WithoutCancel(t.Context()), "sh", "-c", script)
 	ConfigureCommandProcessGroup(command)
 	if err := command.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
@@ -206,4 +211,122 @@ func testCurrentNiceness(t *testing.T) int {
 		t.Fatalf("CurrentProcessNiceness() error = %v", err)
 	}
 	return niceness
+}
+
+func TestScannedProcessTermination(t *testing.T) {
+	if os.Getenv("COMPOZY_PROCSCAN_HELPER") == "1" {
+		timer := time.NewTimer(9999 * time.Second)
+		defer timer.Stop()
+		<-timer.C
+		return
+	}
+	t.Parallel()
+	t.Run("Should attribute a detached process and reject a stale identity before termination", func(t *testing.T) {
+		t.Parallel()
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		command := exec.CommandContext(t.Context(), executable, "-test.run=^TestScannedProcessTermination$")
+		command.Env = append(
+			os.Environ(),
+			"COMPOZY_SESSION_ID=sess-procscan-test",
+			"COMPOZY_PROCSCAN_HELPER=1",
+			"COMPOZY_HOME="+t.TempDir(),
+		)
+		ConfigureCommandSession(command)
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			if err := command.Wait(); err != nil {
+				if _, ok := errors.AsType[*exec.ExitError](err); !ok {
+					t.Errorf("wait: %v", err)
+				}
+			}
+		}()
+		t.Cleanup(func() {
+			if err := command.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+				t.Errorf("cleanup: %v", err)
+			}
+			<-done
+		})
+		snapshot, err := ScanProcesses(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !snapshot.Supported {
+			t.Skip("process scanning unsupported")
+		}
+		var target ScannedProcess
+		for _, p := range snapshot.Processes {
+			if p.PID == command.Process.Pid {
+				target = p
+				break
+			}
+		}
+		if target.SessionID != "sess-procscan-test" || target.PGID != target.PID || target.StartedAt.IsZero() {
+			t.Fatalf("process not attributed: %#v", target)
+		}
+		// The owning real-process suite also verifies readable command arguments survive discovery.
+		enriched := []ScannedProcess{target}
+		EnrichProcesses(t.Context(), enriched)
+		if !strings.Contains(enriched[0].Command, "-test.run=^TestScannedProcessTermination$") {
+			t.Fatalf("command arguments missing: %q", enriched[0].Command)
+		}
+		stale := target
+		stale.StartedAt = stale.StartedAt.Add(-time.Hour)
+		if result := TerminateScannedProcess(t.Context(), stale, time.Second); result.Outcome != "identity_mismatch" {
+			t.Fatalf("stale identity result: %#v", result)
+		}
+		if !Alive(target.PID) {
+			t.Fatal("stale identity signaled the process")
+		}
+		if result := TerminateScannedProcess(t.Context(), target, 3*time.Second); result.Outcome != "terminated" {
+			t.Fatalf("termination: %#v", result)
+		}
+		<-done
+		if result := TerminateScannedProcess(t.Context(), target, time.Second); result.Outcome != "already_exited" {
+			t.Fatalf("repeat termination: %#v", result)
+		}
+		t.Logf("scan duration=%s total processes=%d", snapshot.Duration, len(snapshot.Processes))
+	})
+}
+
+// Measures both cadences on the actual host table; no fake process enumeration.
+func BenchmarkProcessScan(b *testing.B) {
+	for _, full := range []bool{false, true} {
+		name := "tree"
+		if full {
+			name = "environment"
+		}
+		b.Run(name, func(b *testing.B) {
+			var before, after syscall.Rusage
+			if err := syscall.Getrusage(syscall.RUSAGE_SELF, &before); err != nil {
+				b.Fatal(err)
+			}
+			count := 0
+			for b.Loop() {
+				var snap ProcessSnapshot
+				var err error
+				if full {
+					snap, err = ScanProcesses(b.Context())
+				} else {
+					snap, err = ScanProcessTree(b.Context())
+				}
+				if err != nil {
+					b.Fatal(err)
+				}
+				count = len(snap.Processes)
+			}
+			if err := syscall.Getrusage(syscall.RUSAGE_SELF, &after); err != nil {
+				b.Fatal(err)
+			}
+			cpu := after.Utime.Nano() + after.Stime.Nano() - before.Utime.Nano() - before.Stime.Nano()
+			b.ReportMetric(float64(cpu)/float64(b.N), "cpu-ns/op")
+			b.ReportMetric(float64(count), "processes")
+		})
+	}
 }

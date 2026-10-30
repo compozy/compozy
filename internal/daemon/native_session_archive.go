@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -12,9 +13,10 @@ import (
 )
 
 type sessionArchiveInput struct {
-	Workspace string `json:"workspace,omitempty"`
-	SessionID string `json:"session_id"`
-	Stop      bool   `json:"stop,omitempty"`
+	Processes contract.SessionProcessPolicy `json:"processes"`
+	Workspace string                        `json:"workspace,omitempty"`
+	SessionID string                        `json:"session_id"`
+	Stop      bool                          `json:"stop,omitempty"`
 }
 
 func (n *daemonNativeTools) sessionArchive(
@@ -69,6 +71,11 @@ func (n *daemonNativeTools) setSessionArchived(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: session archive manager is required")
 	}
+	if archived {
+		if err := n.prepareSessionProcessPolicy(ctx, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+		}
+	}
 	var info *session.Info
 	switch {
 	case archived && input.Stop:
@@ -88,6 +95,11 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if archived {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)

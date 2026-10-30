@@ -76,6 +76,9 @@ func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdow
 	if targets.tasks != nil {
 		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
 	}
+	if targets.sessionProcesses != nil {
+		targets.sessionProcesses.Shutdown()
+	}
 	if targets.sessionMonitors != nil {
 		appendWrappedError(errs, "daemon: shutdown session monitors", targets.sessionMonitors.Shutdown(ctx))
 	}

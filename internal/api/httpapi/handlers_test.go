@@ -28,8 +28,10 @@ import (
 	"github.com/compozy/compozy/internal/mention"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
+	"github.com/compozy/compozy/internal/procutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -4282,3 +4284,128 @@ func TestSessionInputOriginContract(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: process reads/mutations retain session profile/workspace boundaries and reject ambiguous targets.
+// Owning layer: shared HTTP handlers; canonical suite: handlers_test.go (UDS reuses these handlers).
+func TestSessionProcessHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should list process metadata and reject conflicting or foreign targets before mutation", func(t *testing.T) {
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		engine := newTestRouter(t, handlers)
+		base := "/api/workspaces/ws-workspace/sessions/sess-123"
+		response := performRequest(t, engine, http.MethodGet, base+"/processes", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		var listed contract.SessionProcessesResponse
+		decodeJSONResponse(t, response, &listed)
+		if !listed.Supported || len(listed.Items) != 1 || listed.Items[0].Attribution != "lineage" {
+			t.Fatalf("list=%+v", listed)
+		}
+		for _, body := range []string{`{}`, `{"all":true,"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`, `{"targets":[{"pid":1,"started_at":"2026-01-01T00:00:00Z"}]}`} {
+			response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(body))
+			if response.Code != http.StatusBadRequest || processes.calls != 0 {
+				t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+			}
+		}
+		response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(`{"all":true}`))
+		if response.Code != http.StatusOK || processes.calls != 1 {
+			t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+		}
+		foreign := newTestHandlers(
+			t,
+			stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-workspace",
+					ProfileID:   "foreign",
+					State:       session.StateActive,
+				}, nil
+			}},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		foreign.SessionProcesses = processes
+		response = performRequest(
+			t,
+			newTestRouter(t, foreign),
+			http.MethodPost,
+			base+"/processes/terminate",
+			[]byte(`{"all":true}`),
+		)
+		if response.Code != http.StatusNotFound || processes.calls != 1 {
+			t.Fatalf("foreign status=%d calls=%d", response.Code, processes.calls)
+		}
+	})
+	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
+		for _, choice := range []string{"", "?processes=keep", "?processes=terminate"} {
+			processes := &handlerProcessService{}
+			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			response := performRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123"+choice,
+				nil,
+			)
+			want := 0
+			if choice == "?processes=terminate" {
+				want = 1
+			}
+			if response.Code != http.StatusNoContent || processes.calls != want {
+				t.Fatalf(
+					"choice=%s status=%d calls=%d body=%s",
+					choice,
+					response.Code,
+					processes.calls,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+}
+
+type handlerProcessService struct{ calls int }
+
+func (*handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+	return sessionprocess.Snapshot{
+		Supported: true,
+		ScannedAt: time.Now(),
+		Processes: []sessionprocess.Process{
+			{
+				ScannedProcess: procutil.ScannedProcess{PID: 123, StartedAt: time.Now()},
+				Owner: sessionprocess.Owner{
+					SessionID:   "sess-123",
+					WorkspaceID: "ws-workspace",
+					ProfileID:   store.DefaultProfileID,
+				},
+				Kind:        "background",
+				Attribution: "lineage",
+			},
+		},
+	}, nil
+}
+func (*handlerProcessService) Summary(string) sessionprocess.Summary {
+	return sessionprocess.Summary{Supported: true, Background: 1, Ports: []int{}}
+}
+func (*handlerProcessService) Acquire() func() { return func() {} }
+
+func (s *handlerProcessService) Terminate(
+	_ context.Context,
+	id string,
+	_ []sessionprocess.Identity,
+	_ bool,
+	allowed func(sessionprocess.Owner) bool,
+) ([]sessionprocess.Result, error) {
+	if !allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID}) ||
+		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}) ||
+		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: "foreign"}) {
+		return nil, errors.New("incorrect process mutation scope")
+	}
+	s.calls++
+	return []sessionprocess.Result{}, nil
+}
+func (*handlerProcessService) AfterStop(string, func(context.Context) error) {}

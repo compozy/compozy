@@ -27,6 +27,7 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/sessionprocess"
 
 	"github.com/compozy/compozy/internal/resources"
 
@@ -80,6 +81,7 @@ type bootState struct {
 	sessions              SessionManager
 	sessionWakeBridge     *sessionWakeBridge
 	sessionMonitors       *monitorpkg.Service
+	sessionProcesses      *sessionprocess.Service
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime

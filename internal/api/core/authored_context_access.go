@@ -152,6 +152,7 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 		return contract.SessionPayload{}, err
 	}
 	h.decorateMonitorSummaries(payloads)
+	h.decorateProcessSummaries(payloads)
 	payloads, err = h.decorateSessionOwners(ctx, payloads)
 	if err != nil {
 		return contract.SessionPayload{}, err

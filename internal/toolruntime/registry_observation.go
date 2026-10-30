@@ -17,11 +17,19 @@ type ProcessObservation struct {
 
 // Observations returns evidence without renewing it. ACP agent processes are not tools.
 func (r *Registry) Observations(sessionID string) []ProcessObservation {
+	return r.observations(sessionID, false)
+}
+
+// SessionProcessObservations includes stopped owners whose terminals remain live.
+func (r *Registry) SessionProcessObservations() []ProcessObservation { return r.observations("", true) }
+
+func (r *Registry) observations(sessionID string, all bool) []ProcessObservation {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]ProcessObservation, 0)
 	for _, active := range r.active {
-		if active.record.Owner.SessionID != sessionID || active.record.Source == ProcessSourceACPAgent {
+		if (!all && active.record.Owner.SessionID != sessionID) || active.record.Owner.SessionID == "" ||
+			active.record.Source == ProcessSourceACPAgent {
 			continue
 		}
 		if active.record.State != ProcessStateRunning && active.record.State != ProcessStateInterrupting {

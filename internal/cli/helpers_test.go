@@ -1305,14 +1305,24 @@ func (s *stubClient) RefreshSessionSoul(
 	return AgentSoulRecord{}, errors.New("unexpected RefreshSessionSoul call")
 }
 
-func (s *stubClient) StopSession(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
+func (s *stubClient) StopSession(
+	ctx context.Context,
+	id string,
+	wait bool,
+	_ contract.SessionProcessPolicy,
+) (SessionStopRecord, error) {
 	if s.stopSessionFn != nil {
 		return s.stopSessionFn(ctx, id, wait)
 	}
 	return SessionStopRecord{}, errors.New("unexpected StopSession call")
 }
 
-func (s *stubClient) ArchiveSession(ctx context.Context, id string, stop bool) (SessionRecord, error) {
+func (s *stubClient) ArchiveSession(
+	ctx context.Context,
+	id string,
+	stop bool,
+	_ contract.SessionProcessPolicy,
+) (SessionRecord, error) {
 	if s.archiveSessionFn != nil {
 		return s.archiveSessionFn(ctx, id, stop)
 	}
@@ -1355,7 +1365,7 @@ func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (Session
 	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
 }
 
-func (s *stubClient) DeleteSession(ctx context.Context, id string) error {
+func (s *stubClient) DeleteSession(ctx context.Context, id string, _ contract.SessionProcessPolicy) error {
 	if s.deleteSessionFn != nil {
 		return s.deleteSessionFn(ctx, id)
 	}

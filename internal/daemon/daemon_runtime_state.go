@@ -13,6 +13,7 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/sessionprocess"
 
 	"github.com/compozy/compozy/internal/situation"
 	"github.com/compozy/compozy/internal/skills"
@@ -37,6 +38,7 @@ type daemonRuntimeState struct {
 	sessions          SessionManager
 	sessionWakeBridge *sessionWakeBridge
 	sessionMonitors   *monitorpkg.Service
+	sessionProcesses  *sessionprocess.Service
 	tasks             *taskRuntime
 	coordinator       *coordinatorRuntime
 	spawnReaper       *spawnReaper

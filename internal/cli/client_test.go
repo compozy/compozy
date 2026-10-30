@@ -3122,7 +3122,13 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("ListSessionCommands() = %#v, %v", commands, err)
 	}
 
-	if result, err := client.StopSession(ctx, "sess-1", false); err != nil || result.State != session.StateStopping {
+	if result, err := client.StopSession(
+		ctx,
+		"sess-1",
+		false,
+		"",
+	); err != nil ||
+		result.State != session.StateStopping {
 		t.Fatalf("StopSession() = %#v, %v", result, err)
 	}
 	t.Run("Should rename a session through the workspace route", func(t *testing.T) {
@@ -3154,11 +3160,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 
-		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false)
+		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false, "")
 		if archiveErr != nil || archived.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession() = %#v, %v, want archived session", archived, archiveErr)
 		}
-		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true)
+		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true, "")
 		if stopArchiveErr != nil || stopped.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession(stop) = %#v, %v, want archived session", stopped, stopArchiveErr)
 		}
@@ -5488,5 +5494,75 @@ func TestSubagentClientRequests(t *testing.T) {
 				t.Fatalf("error=%v", err)
 			}
 		})
+	}
+}
+
+// Invariant: lifecycle process choices preserve omission and reach the owning wire field.
+// Owning layer/canonical suite: UnixSocketClient methods; mutation behavior belongs to the API suite.
+func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
+	t.Parallel()
+	for _, policy := range []contract.SessionProcessPolicy{"", "keep", "terminate"} {
+		for _, operation := range []string{"stop", "archive", "delete"} {
+			t.Run("Should encode "+operation+" with process policy "+string(policy), func(t *testing.T) {
+				t.Parallel()
+				mutated := false
+				client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock")}
+				client.httpClient = &http.Client{
+					Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+						if req.Method == http.MethodGet {
+							return newHTTPResponse(
+								http.StatusOK,
+								`{"session":{"id":"sess-1","workspace_id":"ws-1"}}`,
+							), nil
+						}
+						mutated = true
+						path, method := "/api/workspaces/ws-1/sessions/sess-1/"+operation, http.MethodPost
+						if operation == "delete" {
+							path, method = "/api/workspaces/ws-1/sessions/sess-1", http.MethodDelete
+						}
+						if req.URL.Path != path || req.Method != method {
+							t.Fatalf("unexpected mutation: %s %s", req.Method, req.URL)
+						}
+						if operation == "stop" {
+							var body map[string]any
+							if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+								t.Fatal(err)
+							}
+							actual, present := body["processes"]
+							if present != (policy != "") || (present && actual != string(policy)) {
+								t.Fatalf("stop process policy: %#v", body)
+							}
+							if body["wait"] != false || req.URL.Query().Has("processes") {
+								t.Fatalf("stop request: %#v %s", body, req.URL)
+							}
+						} else {
+							query := req.URL.Query()
+							if query.Has("processes") != (policy != "") || query.Get("processes") != string(policy) {
+								t.Fatalf("policy query: %s", req.URL)
+							}
+							if operation == "archive" && query.Get("stop") != "true" {
+								t.Fatalf("archive stop query: %s", req.URL)
+							}
+						}
+						if operation == "delete" {
+							return newHTTPResponse(http.StatusNoContent, ""), nil
+						}
+						return newHTTPResponse(http.StatusOK, `{"session":{"id":"sess-1"}}`), nil
+					}),
+				}
+				var err error
+				switch operation {
+				case "stop":
+					_, err = client.StopSession(t.Context(), "sess-1", false, policy)
+				case "archive":
+					_, err = client.ArchiveSession(t.Context(), "sess-1", true, policy)
+				case "delete":
+					err = client.DeleteSession(t.Context(), "sess-1", policy)
+				}
+				if err != nil || !mutated {
+					t.Fatalf("mutation: performed=%t error=%v", mutated, err)
+				}
+			})
+		}
 	}
 }

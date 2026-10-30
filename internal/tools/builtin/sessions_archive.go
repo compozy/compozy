@@ -46,7 +46,8 @@ const sessionArchiveInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
-		"stop":{
+		"processes":` + sessionProcessPolicySchema + `,
+ "stop":{
 			"type":"boolean",
 			"description":"Stop a live session first; a failed stop leaves it unarchived."
 		}

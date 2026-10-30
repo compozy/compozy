@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerSnapPayload is a daemon API value.
+type SettingsWindowManagerSnapPayload struct {
+	EdgeBand     int       `json:"edge_band"`
+	CornerReach  int       `json:"corner_reach"`
+	ExitSlack    int       `json:"exit_slack"`
+	RepeatRatios []float64 `json:"repeat_ratios"`
+}
+
+// SettingsWindowNewPolicy is a daemon API value.
+type SettingsWindowNewPolicy string
+
 // SettingsWindowSmallViewportPolicy is a daemon API value.
 type SettingsWindowSmallViewportPolicy string
 
@@ -431,19 +442,4 @@ type SubagentRuntimePayload struct {
 	Model           string `json:"model"`
 	ReasoningEffort string `json:"reasoning_effort"`
 	Speed           string `json:"speed"`
-}
-
-// SubagentSummaryPayload is a daemon API value.
-type SubagentSummaryPayload struct {
-	Live       int    `json:"live"`
-	Total      int    `json:"total"`
-	Failed     int    `json:"failed"`
-	Attention  int    `json:"attention"`
-	MostUrgent string `json:"most_urgent"`
-}
-
-// SubagentUpdatedEvent is a daemon API value.
-type SubagentUpdatedEvent struct {
-	SessionID string          `json:"session_id"`
-	Subagent  SubagentPayload `json:"subagent"`
 }

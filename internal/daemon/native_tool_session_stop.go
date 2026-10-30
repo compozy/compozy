@@ -12,8 +12,9 @@ import (
 )
 
 type nativeSessionStopInput struct {
-	SessionID string `json:"session_id"`
-	Wait      *bool  `json:"wait,omitzero"`
+	Processes contract.SessionProcessPolicy `json:"processes"`
+	SessionID string                        `json:"session_id"`
+	Wait      *bool                         `json:"wait,omitzero"`
 }
 
 type nativeSessionStopper interface {
@@ -32,11 +33,21 @@ func (n *daemonNativeTools) sessionStop(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := n.prepareSessionProcessPolicy(ctx, input.Processes); err != nil {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	}
 	detail := "native session_stop requested by " + strings.TrimSpace(scope.SessionID)
 	if input.Wait == nil {
-		return n.legacySessionStop(ctx, req.ToolID, target, info, detail)
+		result, err := n.legacySessionStop(ctx, req.ToolID, target, info, detail)
+		if err == nil {
+			err = n.finishSessionProcessPolicy(ctx, info, input.Processes)
+		}
+		return result, err
 	}
 	if info.State == session.StateStopped {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 		return structuredResult(contract.SessionStopPayload{
 			SessionID: target, Status: "already-stopped", State: info.State,
 			Verified: true, Escalated: info.StopEscalated,
@@ -50,6 +61,10 @@ func (n *daemonNativeTools) sessionStop(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	if !*input.Wait {
+		if input.Processes == contract.SessionProcessesTerminate {
+			n.sessionProcesses().
+				AfterStop(target, func(ctx context.Context) error { _, err := manager.AwaitStopped(ctx, target); return err })
+		}
 		return structuredResult(contract.SessionStopPayload{
 			SessionID: target, Status: "stopping", State: session.StateStopping,
 			StopCause: session.CauseUserRequested.String(), Escalated: info.StopEscalated,
@@ -58,6 +73,11 @@ func (n *daemonNativeTools) sessionStop(
 	outcome, err := manager.AwaitStopped(ctx, target)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
+	}
+	if outcome.Verified {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	payload := core.SessionStopOutcomePayload(target, outcome)
 	return structuredResult(payload, payload.Status)

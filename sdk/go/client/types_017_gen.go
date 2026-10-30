@@ -82,6 +82,9 @@ type SessionPresenceResponse struct {
 	LeaseID string `json:"lease_id"`
 }
 
+// SessionProcessAttribution is a daemon API value.
+type SessionProcessAttribution string
+
 // SessionProcessGroupPayload is a daemon API value.
 type SessionProcessGroupPayload struct {
 	SessionID   string                  `json:"session_id"`
@@ -100,19 +103,20 @@ type SessionProcessOutcome string
 
 // SessionProcessPayload is a daemon API value.
 type SessionProcessPayload struct {
-	PID         int                `json:"pid"`
-	PGID        int                `json:"pgid"`
-	StartedAt   time.Time          `json:"started_at"`
-	Kind        SessionProcessKind `json:"kind"`
-	Command     string             `json:"command"`
-	Argv0       string             `json:"argv0"`
-	CWD         string             `json:"cwd"`
-	Ports       []int              `json:"ports"`
-	AgeSeconds  float64            `json:"age_seconds"`
-	CPUPercent  *float64           `json:"cpu_percent,omitempty"`
-	RSSKB       *int64             `json:"rss_kb,omitempty"`
-	ParentAlive bool               `json:"parent_alive"`
-	TerminalID  string             `json:"terminal_id,omitempty"`
+	Attribution SessionProcessAttribution `json:"attribution"`
+	PID         int                       `json:"pid"`
+	PGID        int                       `json:"pgid"`
+	StartedAt   time.Time                 `json:"started_at"`
+	Kind        SessionProcessKind        `json:"kind"`
+	Command     string                    `json:"command"`
+	Argv0       string                    `json:"argv0"`
+	CWD         string                    `json:"cwd"`
+	Ports       []int                     `json:"ports"`
+	AgeSeconds  float64                   `json:"age_seconds"`
+	CPUPercent  *float64                  `json:"cpu_percent,omitempty"`
+	RSSKB       *int64                    `json:"rss_kb,omitempty"`
+	ParentAlive bool                      `json:"parent_alive"`
+	TerminalID  string                    `json:"terminal_id,omitempty"`
 }
 
 // SessionProcessPolicy is a daemon API value.
@@ -432,16 +436,5 @@ type SessionWaitRequest struct {
 	Until     []string `json:"until,omitempty"`
 	TimeoutMS int64    `json:"timeout_ms"`
 	Epoch     int64    `json:"epoch,omitzero"`
-	ResumeID  string   `json:"resume_id,omitempty"`
-}
-
-// SessionWaitResponse is a daemon API value.
-type SessionWaitResponse struct {
-	SessionID string   `json:"session_id"`
-	Outcome   string   `json:"outcome"`
-	State     string   `json:"state,omitempty"`
-	WaitedMS  int64    `json:"waited_ms"`
-	Until     []string `json:"until,omitempty"`
-	Revision  int64    `json:"revision"`
 	ResumeID  string   `json:"resume_id,omitempty"`
 }

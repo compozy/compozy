@@ -25065,6 +25065,13 @@
           "argv0": {
             "type": "string"
           },
+          "attribution": {
+            "enum": [
+              "env",
+              "lineage"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -25115,6 +25122,7 @@
         "required": [
           "age_seconds",
           "argv0",
+          "attribution",
           "command",
           "cwd",
           "kind",
@@ -59530,6 +59538,14 @@
       "get": {
         "operationId": "listProcesses",
         "parameters": [
+          {
+            "description": "Workspace ID, or @user; mutually exclusive with all_workspaces",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Include all projects and User sessions",
             "in": "query",

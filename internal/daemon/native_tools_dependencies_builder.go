@@ -5,6 +5,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -65,6 +66,7 @@ func (d *Daemon) nativeToolsDeps(
 		},
 		TerminalExecApprover: state.terminalPermissions,
 		Monitors:             func() *monitorpkg.Service { return state.sessionMonitors },
+		Processes:            func() *sessionprocess.Service { return state.sessionProcesses },
 		Terminals: func() terminalpkg.Manager {
 			if state.terminals == nil {
 				return nil
