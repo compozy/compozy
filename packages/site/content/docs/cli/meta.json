@@ -41,6 +41,7 @@
         "secret",
         "vault",
         "---Runtime & Diagnostics---",
+        "process",
         "terminal",
         "daemon",
         "status",
