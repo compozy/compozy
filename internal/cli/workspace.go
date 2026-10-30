@@ -45,6 +45,9 @@ func newWorkspaceCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newWorkspaceRemoveCommand(deps))
 	cmd.AddCommand(newWorkspaceArchiveCommand(deps, true))
 	cmd.AddCommand(newWorkspaceArchiveCommand(deps, false))
+	cmd.AddCommand(newWorkspaceFolderCommand(deps))
+	cmd.AddCommand(newWorkspaceMoveCommand(deps))
+	cmd.AddCommand(newWorkspaceReorderCommand(deps))
 	return cmd
 }
 

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// DuplicateAgentOverrides is a daemon API value.
+type DuplicateAgentOverrides struct {
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+	Model           string                              `json:"model,omitempty"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
+	Tools           []string                            `json:"tools,omitempty"`
+	Toolsets        []string                            `json:"toolsets,omitempty"`
+	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
+	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath    []string                            `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt          string                              `json:"prompt,omitempty"`
+}
+
 // DuplicateAgentRequest is a daemon API value.
 type DuplicateAgentRequest struct {
 	Name      string                   `json:"name"`
@@ -426,25 +447,3 @@ type FailureKind string
 
 // FailureReasonCode is a daemon API value.
 type FailureReasonCode string
-
-// FanOutTaskRunsRequest is a daemon API value.
-type FanOutTaskRunsRequest struct {
-	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
-	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
-	WorktreePerRun bool                              `json:"worktree_per_run,omitzero"`
-}
-
-// FanOutTaskRunsResponse is a daemon API value.
-type FanOutTaskRunsResponse struct {
-	DesignationGroupID string           `json:"designation_group_id"`
-	Runs               []TaskRunPayload `json:"runs"`
-}
-
-// FanoutRollup is a daemon API value.
-type FanoutRollup struct {
-	Generation int    `json:"generation"`
-	NodeID     NodeID `json:"node_id"`
-	Done       int    `json:"done"`
-	Total      int    `json:"total"`
-	Failed     int    `json:"failed"`
-}

@@ -170,6 +170,175 @@ func TestContextForSessionRuntimeIdentity(t *testing.T) {
 	})
 }
 
+func TestContextReportsEnforcedSpawnBudget(t *testing.T) {
+	t.Parallel()
+
+	sessionInfo := func(sessionType session.Type, lineage *store.SessionLineage) *session.Info {
+		return &session.Info{
+			ID: "sess-1", AgentName: "coder", Provider: "codex", Type: sessionType, Lineage: lineage,
+			State: session.StateActive, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+		}
+	}
+	tests := []struct {
+		name           string
+		info           *session.Info
+		wantChildren   int
+		wantActive     int
+		wantDepth      int
+		wantCanSpawn   bool
+		wantReasonPart string
+	}{
+		{
+			name: "Should resolve an unset provenance budget to the enforced defaults",
+			info: sessionInfo(session.SessionTypeUser, &store.SessionLineage{
+				ParentSessionID: "sess-parent", RootSessionID: "sess-root", SpawnDepth: 2,
+				Kind: store.LineageKindProvenance,
+			}),
+			wantChildren: store.DefaultSpawnMaxChildren,
+			wantCanSpawn: true,
+		},
+		{
+			name: "Should report a coordinator budget from its lineage",
+			info: sessionInfo(session.SessionTypeCoordinator, &store.SessionLineage{
+				SpawnRole:   string(session.SessionTypeCoordinator),
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 3, MaxActivePerWorkspace: 4},
+			}),
+			wantChildren: 3,
+			wantActive:   4,
+			wantCanSpawn: true,
+		},
+		{
+			name: "Should block governed spawns from a spawned child at the depth cap",
+			info: sessionInfo(session.SessionTypeSpawned, &store.SessionLineage{
+				ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1,
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1, TTLSeconds: 3600},
+			}),
+			wantChildren:   store.DefaultSpawnMaxChildren,
+			wantDepth:      1,
+			wantCanSpawn:   false,
+			wantReasonPart: "compozy__subagent_delegate",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := NewService(Deps{Now: fixedNow}).ContextForSession(t.Context(), tt.info)
+			if err != nil {
+				t.Fatalf("ContextForSession() error = %v", err)
+			}
+			limits := payload.Limits
+			if limits.GovernedSpawnDepth != tt.wantDepth {
+				t.Fatalf("Limits.GovernedSpawnDepth = %d, want %d", limits.GovernedSpawnDepth, tt.wantDepth)
+			}
+			if limits.MaxChildren != tt.wantChildren || limits.MaxSpawnDepth != store.DefaultSpawnMaxDepth ||
+				limits.MaxActivePerWorkspace != tt.wantActive || limits.CanSpawnChildren != tt.wantCanSpawn {
+				t.Fatalf("Limits = %#v, want max_children %d, depth %d, active %d, can_spawn %t",
+					limits, tt.wantChildren, store.DefaultSpawnMaxDepth, tt.wantActive, tt.wantCanSpawn)
+			}
+			if !strings.Contains(limits.SpawnBlockedReason, tt.wantReasonPart) ||
+				(tt.wantCanSpawn && limits.SpawnBlockedReason != "") {
+				t.Fatalf(
+					"Limits.SpawnBlockedReason = %q, want substring %q",
+					limits.SpawnBlockedReason,
+					tt.wantReasonPart,
+				)
+			}
+			budget := payload.Session.Lineage.SpawnBudget
+			if budget.MaxChildren != limits.MaxChildren || budget.MaxDepth != limits.MaxSpawnDepth {
+				t.Fatalf("Session.Lineage.SpawnBudget = %#v, want the enforced limits %#v", budget, limits)
+			}
+			rendered, err := RenderPrompt(&payload)
+			if err != nil {
+				t.Fatalf("RenderPrompt() error = %v", err)
+			}
+			for _, unenforced := range []string{`"max_children":0`, `"max_depth":0`} {
+				if strings.Contains(rendered, unenforced) {
+					t.Fatalf("RenderPrompt() = %s, must not expose unenforced %s", rendered, unenforced)
+				}
+			}
+		})
+	}
+
+	t.Run("Should prefer the engine's ancestor walk and never claim eligibility without it", func(t *testing.T) {
+		t.Parallel()
+
+		info := sessionInfo(session.SessionTypeSpawned, &store.SessionLineage{
+			ParentSessionID: "sess-parent", SpawnBudget: store.SessionSpawnBudget{MaxDepth: 3},
+		})
+		resolved := session.ChildSpawnAllowance{
+			Budget:        store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			GovernedDepth: 2,
+			Allowed:       true,
+		}
+		tests := []struct {
+			name        string
+			resolver    spawnAllowanceResolverFunc
+			wantDepth   int
+			wantBlocked bool
+			wantErr     error
+		}{
+			{
+				name: "resolved",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return resolved, nil
+				},
+				wantDepth: 2,
+			},
+			{
+				name: "fallback",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return session.ChildSpawnAllowance{}, errors.New("ancestor lookup failed")
+				},
+				wantDepth:   1,
+				wantBlocked: true,
+			},
+			{
+				name: "canceled",
+				resolver: func(context.Context, *session.Info) (session.ChildSpawnAllowance, error) {
+					return session.ChildSpawnAllowance{}, context.Canceled
+				},
+				wantErr: context.Canceled,
+			},
+		}
+		for _, tt := range tests {
+			payload, err := NewService(Deps{Now: fixedNow, SpawnAllowance: tt.resolver}).
+				ContextForSession(t.Context(), info)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("%s: ContextForSession() error = %v, want %v", tt.name, err, tt.wantErr)
+			}
+			if tt.wantErr == nil && (payload.Limits.GovernedSpawnDepth != tt.wantDepth ||
+				payload.Limits.CanSpawnChildren == tt.wantBlocked) {
+				t.Fatalf("%s: Limits = %#v, want governed depth %d and blocked %t",
+					tt.name, payload.Limits, tt.wantDepth, tt.wantBlocked)
+			}
+		}
+	})
+
+	t.Run("Should block governed spawns in a spawned child's startup context", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := NewService(Deps{Now: fixedNow}).ContextForStartup(
+			t.Context(),
+			session.StartupPromptContext{
+				SessionID: "sess-child", AgentName: "coder", Provider: "codex",
+				SessionType: session.SessionTypeSpawned,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-parent", SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1},
+				},
+			},
+			compozyconfig.AgentDef{Name: "coder", Provider: "codex"},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ContextForStartup() error = %v", err)
+		}
+		if payload.Limits.CanSpawnChildren || payload.Limits.SpawnBlockedReason == "" {
+			t.Fatalf("Limits = %#v, want a blocked spawn with a reason", payload.Limits)
+		}
+	})
+}
+
 func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 	t.Parallel()
 
@@ -229,12 +398,6 @@ func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 			tasks: map[string]taskpkg.Task{"task-1": taskRecord},
 			runs:  []taskpkg.Run{run},
 		},
-
-		CoordinatorRole: coordinatorResolverFunc(
-			func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error) {
-				return compozyconfig.ResolvedCoordinatorRole{MaxChildren: 3}, nil
-			},
-		),
 	})
 
 	payload, err := service.ContextForSession(t.Context(), &session.Info{
@@ -251,6 +414,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 			RootSessionID:   "sess-root",
 			SpawnDepth:      1,
 			SpawnRole:       "worker",
+			SpawnBudget:     store.SessionSpawnBudget{MaxChildren: 3},
 		},
 		State: session.StateActive,
 
@@ -288,6 +452,9 @@ func TestContextForSessionBoundsListsAndIncludesTaskProvenance(t *testing.T) {
 	}
 	if got, want := payload.Limits.MaxChildren, 3; got != want {
 		t.Fatalf("Limits.MaxChildren = %d, want %d", got, want)
+	}
+	if !payload.Limits.CanSpawnChildren {
+		t.Fatalf("Limits.CanSpawnChildren = false, want true for a provenance-linked user session")
 	}
 	if got, want := payload.Provenance.Source, ProvenanceSource; got != want {
 		t.Fatalf("Provenance.Source = %q, want %q", got, want)
@@ -1375,13 +1542,13 @@ func (fn skillRegistryFunc) ForAgent(
 	return fn(ctx, workspace)
 }
 
-type coordinatorResolverFunc func(context.Context, string) (compozyconfig.ResolvedCoordinatorRole, error)
+type spawnAllowanceResolverFunc func(context.Context, *session.Info) (session.ChildSpawnAllowance, error)
 
-func (fn coordinatorResolverFunc) ResolveCoordinatorRole(
+func (fn spawnAllowanceResolverFunc) ChildSpawnAllowance(
 	ctx context.Context,
-	workspaceID string,
-) (compozyconfig.ResolvedCoordinatorRole, error) {
-	return fn(ctx, workspaceID)
+	info *session.Info,
+) (session.ChildSpawnAllowance, error) {
+	return fn(ctx, info)
 }
 
 type taskStoreStub struct {

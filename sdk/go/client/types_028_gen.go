@@ -4,6 +4,80 @@ package client
 
 import "time"
 
+// WorkspaceResponse is a daemon API value.
+type WorkspaceResponse struct {
+	Workspace WorkspacePayload `json:"workspace"`
+}
+
+// WorkspaceSkillPayload is a daemon API value.
+type WorkspaceSkillPayload struct {
+	Name   string `json:"name"`
+	Dir    string `json:"dir"`
+	Source string `json:"source"`
+}
+
+// WorkspacesResponse is a daemon API value.
+type WorkspacesResponse struct {
+	Workspaces []WorkspacePayload `json:"workspaces"`
+}
+
+// WorktreeBindingAvailability is a daemon API value.
+type WorktreeBindingAvailability struct {
+	Available         bool   `json:"available"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
+}
+
+// WorktreeBindingsPayload is a daemon API value.
+type WorktreeBindingsPayload struct {
+	AgentActivity string `json:"agent_activity"`
+}
+
+// WorktreeBranchOutcomePayload is a daemon API value.
+type WorktreeBranchOutcomePayload struct {
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+	Reason  string `json:"reason,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// WorktreeCatalogEventPayload is a daemon API value.
+type WorktreeCatalogEventPayload struct {
+	Kind        string `json:"kind"`
+	WorkspaceID string `json:"workspace_id"`
+	WorktreeID  string `json:"worktree_id"`
+	Error       string `json:"error,omitempty"`
+}
+
+// WorktreeCleanupResponse is a daemon API value.
+type WorktreeCleanupResponse struct {
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
+}
+
+// WorktreeExitAction is a daemon API value.
+type WorktreeExitAction string
+
+// WorktreeExitActionPlan is a daemon API value.
+type WorktreeExitActionPlan struct {
+	Action        WorktreeExitAction `json:"action"`
+	Label         string             `json:"label"`
+	Enabled       bool               `json:"enabled"`
+	BlockedReason string             `json:"blocked_reason,omitempty"`
+	Publish       bool               `json:"publish,omitzero"`
+	URL           string             `json:"url,omitempty"`
+	PRNumber      int                `json:"pr_number,omitzero"`
+}
+
+// WorktreeExitCleanupEvidence is a daemon API value.
+type WorktreeExitCleanupEvidence struct {
+	ForgeState string `json:"forge_state,omitempty"`
+	Stale      bool   `json:"stale,omitzero"`
+	Safe       bool   `json:"safe"`
+	Source     string `json:"source,omitempty"`
+	Summary    string `json:"summary,omitempty"`
+	Blocker    string `json:"blocker,omitempty"`
+	Downgraded bool   `json:"downgraded,omitzero"`
+}
+
 // WorktreeExitCommitScope is a daemon API value.
 type WorktreeExitCommitScope struct {
 	IncludePaths       []string `json:"include_paths,omitempty"`

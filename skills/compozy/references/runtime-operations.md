@@ -408,6 +408,25 @@ rejected. `compozy__session_list` with `sort: "manual"` returns this order (fold
 root) and each catalog row carries `folder_id`. CLI fallbacks: `compozy session folder
 list|create|rename|delete|reorder`, `compozy session move`, and `compozy session reorder`.
 
+### Workspace Folders And Order
+
+Workspace (project) folders are one level of root folders that group workspaces in All projects.
+They and the manual workspace order belong to the caller's profile, are shared by every client, and
+hold workspaces only; a project's own sessions stay in that project. The User scope is addressed as
+`@user`. `compozy__workspace_folder_list` returns `{folders, placements}`: folders in order with
+`workspace_count`, then placements by container (folders first, root last). Workspaces without a
+placement follow the placed root workspaces in name order. `compozy__workspace_folder_create` adds a
+folder at the top; `_rename` and `_reorder` (every folder id exactly once) edit them;
+`compozy__workspace_folder_delete` returns its workspaces to the root and never touches a workspace or
+session. `compozy__workspace_move` moves one workspace (default: the caller's) to the end of a folder,
+or to the end of the root when `folder_id` is omitted (one already there keeps its position).
+`compozy__workspace_reorder` pins the listed
+`workspace_ids`, in order, at the head of a folder or of the root. These tools span every workspace,
+so they require the operator or an agent with the `workspace_access: unrestricted` grant; other agents
+get `denied`. HTTP/UDS: `/api/workspace-folders` and `/api/workspace-order/{folders,workspaces,move}`
+(app tokens are denied). CLI fallbacks: `compozy workspace folder list|create|rename|delete|reorder`,
+`compozy workspace move <ref> [--folder <id>]`, and `compozy workspace reorder <ref>... [--folder <id>]`.
+
 Workspace-scoped commands use one context chain: positional workspace ref, `--workspace`,
 `COMPOZY_WORKSPACE`, validated session identity, then cwd discovery. `--workspace` is an override,
 not a prerequisite, and accepts an ID, name, or path. Inside a workspace-bound session, omit the

@@ -73,10 +73,17 @@ task with a reply watch in the same call. Use tasks when the work needs daemon-o
 review verdicts, or a scheduler.
 
 The two delegation paths have different limits. A spawned child counts against the parent's
-`max_children` (5 by default) and spawn depth (1 by default), and has a TTL. Only live children
+`max_children` (5 by default) and spawn depth (1), and has a TTL. Only live children
 (starting, active, or stopping) hold a slot: a stopped or TTL-reaped child frees it, and subagents
-never count. An exhausted budget fails with reason `spawn_budget_exhausted`, whose cause names the
-cap, its value, and the live count; stop a finished child to free a slot. A subagent is bounded by
+never count. Read your own budget from the situation context `limits` section: `max_children`,
+`max_spawn_depth`, `governed_spawn_depth`, and `can_spawn_children` are the values the daemon
+enforces for you. Only spawned-type ancestors count toward depth, so a user session with a
+`--parent`, fork, or continue lineage has `governed_spawn_depth: 0` and can spawn even when its
+display `lineage.spawn_depth` is above 0; a spawned child cannot
+(`can_spawn_children: false`), so it delegates subagents instead. An exhausted budget fails with
+reason `spawn_budget_exhausted`, whose cause names the cap (`max_children`,
+`max_active_per_workspace`, or `max_depth`), its value, and the live count; stop a finished child
+to free a slot. Only coordinator sessions take their caps from `roles.coordinator.*` config. A subagent is bounded by
 the caller's active turn instead: no TTL, depth, or count cap. Pick spawn for a fleet of governed
 workers, and subagents for answers your current turn waits on.
 

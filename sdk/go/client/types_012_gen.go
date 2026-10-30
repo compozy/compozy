@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// OverviewUsagePayload is a daemon API value.
+type OverviewUsagePayload struct {
+	WindowDays    int                           `json:"window_days"`
+	RetentionDays int                           `json:"retention_days"`
+	Truncated     bool                          `json:"truncated"`
+	TotalTokens   int64                         `json:"total_tokens"`
+	EstimatedCost *float64                      `json:"estimated_cost,omitzero"`
+	CostCurrency  string                        `json:"cost_currency,omitempty"`
+	CostStatus    string                        `json:"cost_status,omitempty"`
+	Days          []OverviewUsageDayPayload     `json:"days"`
+	AgentShare    []OverviewAgentSharePayload   `json:"agent_share"`
+	Profiles      []OverviewProfileUsagePayload `json:"profiles"`
+}
+
+// OwnerKind is a daemon API value.
+type OwnerKind string
+
 // Ownership is a daemon API value.
 type Ownership struct {
 	Kind OwnerKind `json:"kind"`
@@ -428,23 +445,4 @@ type ProviderUsageAccount struct {
 type ProviderUsageAmount struct {
 	Value string `json:"value"`
 	Unit  string `json:"unit"`
-}
-
-// ProviderUsageBalance is a daemon API value.
-type ProviderUsageBalance struct {
-	ID        string              `json:"id"`
-	Label     string              `json:"label"`
-	Remaining ProviderUsageAmount `json:"remaining"`
-	ExpiresAt *time.Time          `json:"expires_at"`
-}
-
-// ProviderUsageEnvelope is a daemon API value.
-type ProviderUsageEnvelope struct {
-	KeychainSupported bool                     `json:"keychain_supported"`
-	ProfileID         string                   `json:"profile_id"`
-	Revision          uint64                   `json:"revision"`
-	GeneratedAt       time.Time                `json:"generated_at"`
-	Enabled           bool                     `json:"enabled"`
-	Tray              *ProviderUsageTraySignal `json:"tray"`
-	Targets           []ProviderUsageTarget    `json:"targets"`
 }

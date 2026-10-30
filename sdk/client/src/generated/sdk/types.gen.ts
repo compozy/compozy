@@ -185,10 +185,14 @@ export type AgentIdentityPayload = {
 };
 
 export type AgentLimitsPayload = {
+  can_spawn_children: boolean;
   context_section_limit: number;
+  governed_spawn_depth: number;
+  max_active_per_workspace?: number;
   max_active_task_leases: number;
   max_children: number;
   max_spawn_depth: number;
+  spawn_blocked_reason?: string;
 };
 
 export type AgentMCPServerJSON = {
@@ -1452,6 +1456,10 @@ export type CreateTriggerRequest = {
   webhook_id?: string;
   webhook_secret_value?: string;
   workspace_id?: string;
+};
+
+export type CreateWorkspaceFolderRequest = {
+  name: string;
 };
 
 export type CreateWorkspaceRequest = {
@@ -4513,6 +4521,11 @@ export type MoveSessionRequest = {
   folder_id?: string;
 };
 
+export type MoveWorkspaceRequest = {
+  folder_id?: string;
+  workspace_id: string;
+};
+
 export type NewSessionWorktreeRequest = {
   name?: string;
 };
@@ -5470,6 +5483,10 @@ export type RenameSessionRequest = {
   name: string;
 };
 
+export type RenameWorkspaceFolderRequest = {
+  name: string;
+};
+
 export type ReorderSessionFoldersRequest = {
   folder_ids: Array<string>;
 };
@@ -5477,6 +5494,15 @@ export type ReorderSessionFoldersRequest = {
 export type ReorderSessionsRequest = {
   folder_id?: string;
   session_ids: Array<string>;
+};
+
+export type ReorderWorkspaceFoldersRequest = {
+  folder_ids: Array<string>;
+};
+
+export type ReorderWorkspacesRequest = {
+  folder_id?: string;
+  workspace_ids: Array<string>;
 };
 
 export type ReplaceSessionInputRequest = {
@@ -11882,6 +11908,25 @@ export type WorkspaceDetailPayload = {
   workspace: WorkspacePayload;
 };
 
+export type WorkspaceFolderPayload = {
+  created_at: string;
+  id: string;
+  name: string;
+  position: number;
+  profile_id: string;
+  updated_at: string;
+  workspace_count: number;
+};
+
+export type WorkspaceFolderResponse = {
+  folder: WorkspaceFolderPayload;
+};
+
+export type WorkspaceLayoutResponse = {
+  folders: Array<WorkspaceFolderPayload>;
+  placements: Array<WorkspacePlacementPayload>;
+};
+
 export type WorkspacePayload = {
   add_dirs: Array<string>;
   archived_at?: string | null;
@@ -11892,6 +11937,12 @@ export type WorkspacePayload = {
   root_dir: string;
   root_missing?: boolean;
   updated_at: string;
+};
+
+export type WorkspacePlacementPayload = {
+  folder_id?: string;
+  position: number;
+  workspace_id: string;
 };
 
 export type WorkspaceProfileHintPayload = {
@@ -28933,6 +28984,387 @@ export type DeliverWorkspaceWebhookResponses = {
 
 export type DeliverWorkspaceWebhookResponse =
   DeliverWorkspaceWebhookResponses[keyof DeliverWorkspaceWebhookResponses];
+
+export type GetWorkspaceLayoutData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-folders";
+};
+
+export type GetWorkspaceLayoutErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetWorkspaceLayoutError = GetWorkspaceLayoutErrors[keyof GetWorkspaceLayoutErrors];
+
+export type GetWorkspaceLayoutResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceLayoutResponse;
+};
+
+export type GetWorkspaceLayoutResponse =
+  GetWorkspaceLayoutResponses[keyof GetWorkspaceLayoutResponses];
+
+export type CreateWorkspaceFolderData = {
+  /**
+   * JSON request body
+   */
+  body: CreateWorkspaceFolderRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-folders";
+};
+
+export type CreateWorkspaceFolderErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CreateWorkspaceFolderError =
+  CreateWorkspaceFolderErrors[keyof CreateWorkspaceFolderErrors];
+
+export type CreateWorkspaceFolderResponses = {
+  /**
+   * OK
+   */
+  201: WorkspaceFolderResponse;
+};
+
+export type CreateWorkspaceFolderResponse =
+  CreateWorkspaceFolderResponses[keyof CreateWorkspaceFolderResponses];
+
+export type DeleteWorkspaceFolderData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace folder id
+     */
+    folder_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-folders/{folder_id}";
+};
+
+export type DeleteWorkspaceFolderErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type DeleteWorkspaceFolderError =
+  DeleteWorkspaceFolderErrors[keyof DeleteWorkspaceFolderErrors];
+
+export type DeleteWorkspaceFolderResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceLayoutResponse;
+};
+
+export type DeleteWorkspaceFolderResponse =
+  DeleteWorkspaceFolderResponses[keyof DeleteWorkspaceFolderResponses];
+
+export type RenameWorkspaceFolderData = {
+  /**
+   * JSON request body
+   */
+  body: RenameWorkspaceFolderRequest;
+  path: {
+    /**
+     * Workspace folder id
+     */
+    folder_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-folders/{folder_id}";
+};
+
+export type RenameWorkspaceFolderErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RenameWorkspaceFolderError =
+  RenameWorkspaceFolderErrors[keyof RenameWorkspaceFolderErrors];
+
+export type RenameWorkspaceFolderResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceFolderResponse;
+};
+
+export type RenameWorkspaceFolderResponse =
+  RenameWorkspaceFolderResponses[keyof RenameWorkspaceFolderResponses];
+
+export type ReorderWorkspaceFoldersData = {
+  /**
+   * JSON request body
+   */
+  body: ReorderWorkspaceFoldersRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-order/folders";
+};
+
+export type ReorderWorkspaceFoldersErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ReorderWorkspaceFoldersError =
+  ReorderWorkspaceFoldersErrors[keyof ReorderWorkspaceFoldersErrors];
+
+export type ReorderWorkspaceFoldersResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceLayoutResponse;
+};
+
+export type ReorderWorkspaceFoldersResponse =
+  ReorderWorkspaceFoldersResponses[keyof ReorderWorkspaceFoldersResponses];
+
+export type MoveWorkspaceData = {
+  /**
+   * JSON request body
+   */
+  body: MoveWorkspaceRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-order/move";
+};
+
+export type MoveWorkspaceErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type MoveWorkspaceError = MoveWorkspaceErrors[keyof MoveWorkspaceErrors];
+
+export type MoveWorkspaceResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceLayoutResponse;
+};
+
+export type MoveWorkspaceResponse = MoveWorkspaceResponses[keyof MoveWorkspaceResponses];
+
+export type ReorderWorkspacesData = {
+  /**
+   * JSON request body
+   */
+  body: ReorderWorkspacesRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspace-order/workspaces";
+};
+
+export type ReorderWorkspacesErrors = {
+  /**
+   * Invalid layout request
+   */
+  400: ErrorPayload;
+  /**
+   * Operator or unrestricted agent required
+   */
+  403: ErrorPayload;
+  /**
+   * Workspace or workspace folder not found
+   */
+  404: ErrorPayload;
+  /**
+   * Layout conflict or folder limit
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace layout unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ReorderWorkspacesError = ReorderWorkspacesErrors[keyof ReorderWorkspacesErrors];
+
+export type ReorderWorkspacesResponses = {
+  /**
+   * OK
+   */
+  200: WorkspaceLayoutResponse;
+};
+
+export type ReorderWorkspacesResponse =
+  ReorderWorkspacesResponses[keyof ReorderWorkspacesResponses];
 
 export type ListWorkspacesData = {
   body?: never;

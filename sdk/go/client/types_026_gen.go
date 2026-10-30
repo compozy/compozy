@@ -7,6 +7,82 @@ import (
 	"time"
 )
 
+// ToolResult is a daemon API value.
+type ToolResult struct {
+	Content    []ToolContent              `json:"content,omitempty"`
+	Structured json.RawMessage            `json:"structured,omitempty"`
+	Preview    string                     `json:"preview,omitempty"`
+	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
+	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
+	Redactions []Redaction                `json:"redactions,omitempty"`
+	Truncated  bool                       `json:"truncated"`
+	Bytes      int64                      `json:"bytes"`
+	DurationMS int64                      `json:"duration_ms"`
+	Trust      ResultTrust                `json:"trust,omitempty"`
+}
+
+// ToolSearchRequest is a daemon API value.
+type ToolSearchRequest struct {
+	Query       string `json:"query"`
+	Limit       int    `json:"limit,omitzero"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+}
+
+// ToolSourceRefPayload is a daemon API value.
+type ToolSourceRefPayload struct {
+	Kind            SourceKind `json:"kind"`
+	Owner           string     `json:"owner"`
+	RawServerName   string     `json:"raw_server_name,omitempty"`
+	RawToolName     string     `json:"raw_tool_name,omitempty"`
+	ResourceID      string     `json:"resource_id,omitempty"`
+	ResourceVersion string     `json:"resource_version,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Scope           string     `json:"scope,omitempty"`
+}
+
+// ToolsResponse is a daemon API value.
+type ToolsResponse struct {
+	Tools []ToolPayload `json:"tools"`
+}
+
+// ToolsetID is a daemon API value.
+type ToolsetID string
+
+// ToolsetPayload is a daemon API value.
+type ToolsetPayload struct {
+	ID            ToolsetID    `json:"id"`
+	Tools         []string     `json:"tools,omitempty"`
+	Toolsets      []ToolsetID  `json:"toolsets,omitempty"`
+	ExpandedTools []ToolID     `json:"expanded_tools,omitempty"`
+	Status        string       `json:"status"`
+	ReasonCodes   []ReasonCode `json:"reason_codes,omitempty"`
+}
+
+// ToolsetResponse is a daemon API value.
+type ToolsetResponse struct {
+	Toolset ToolsetPayload `json:"toolset"`
+}
+
+// ToolsetsResponse is a daemon API value.
+type ToolsetsResponse struct {
+	Toolsets []ToolsetPayload `json:"toolsets"`
+}
+
+// TranscriptDeltaPayload is a daemon API value.
+type TranscriptDeltaPayload struct {
+	SessionID     string  `json:"session_id"`
+	WorkspaceID   string  `json:"workspace_id,omitempty"`
+	WorkspacePath string  `json:"workspace_path,omitempty"`
+	Epoch         int64   `json:"epoch"`
+	Generation    int64   `json:"generation"`
+	Entries       []Entry `json:"entries"`
+	Cursor        int64   `json:"cursor"`
+	MaxSequence   int64   `json:"max_sequence"`
+	HasMore       bool    `json:"has_more"`
+}
+
 // TranscriptMarkerPayload is a daemon API value.
 type TranscriptMarkerPayload struct {
 	Kind       string          `json:"kind"`
@@ -369,47 +445,3 @@ type ViewFrame struct {
 
 // ViewKind is a daemon API value.
 type ViewKind string
-
-// ViewPatch is a daemon API value.
-type ViewPatch struct {
-	ViewID string    `json:"view_id"`
-	From   string    `json:"from"`
-	To     string    `json:"to"`
-	Ops    []PatchOp `json:"ops"`
-}
-
-// ViewPayload is a daemon API value.
-type ViewPayload struct {
-	View     string      `json:"view"`
-	Chrome   *ViewChrome `json:"chrome,omitempty"`
-	Sections []Section   `json:"sections,omitempty"`
-	Chips    []Chip      `json:"chips,omitempty"`
-	Empty    *EmptyState `json:"empty,omitempty"`
-	Detail   *DetailBody `json:"detail,omitempty"`
-	Form     *FormBody   `json:"form,omitempty"`
-	Grid     *GridBody   `json:"grid,omitempty"`
-}
-
-// Visibility is a daemon API value.
-type Visibility string
-
-// WaitExpiry is a daemon API value.
-type WaitExpiry struct {
-	After    string       `json:"after"`
-	Escalate []EffectSpec `json:"escalate,omitempty"`
-	Route    NodeID       `json:"route,omitempty"`
-}
-
-// WaitingOn is a daemon API value.
-type WaitingOn string
-
-// WebhookDeliveryPayload is a daemon API value.
-type WebhookDeliveryPayload struct {
-	Matched int          `json:"matched"`
-	Runs    []RunPayload `json:"runs,omitempty"`
-}
-
-// WebhookDeliveryResponse is a daemon API value.
-type WebhookDeliveryResponse struct {
-	Result WebhookDeliveryPayload `json:"result"`
-}

@@ -7,6 +7,28 @@ import (
 	"time"
 )
 
+// FanOutTaskRunsRequest is a daemon API value.
+type FanOutTaskRunsRequest struct {
+	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
+	WorktreePerRun bool                              `json:"worktree_per_run,omitzero"`
+}
+
+// FanOutTaskRunsResponse is a daemon API value.
+type FanOutTaskRunsResponse struct {
+	DesignationGroupID string           `json:"designation_group_id"`
+	Runs               []TaskRunPayload `json:"runs"`
+}
+
+// FanoutRollup is a daemon API value.
+type FanoutRollup struct {
+	Generation int    `json:"generation"`
+	NodeID     NodeID `json:"node_id"`
+	Done       int    `json:"done"`
+	Total      int    `json:"total"`
+	Failed     int    `json:"failed"`
+}
+
 // FileParseKind is a daemon API value.
 type FileParseKind string
 
@@ -426,15 +448,3 @@ type GoalSnapshot struct {
 
 // GoalSnapshotChangeCause is a daemon API value.
 type GoalSnapshotChangeCause string
-
-// GoalSnapshotChangedPayload is a daemon API value.
-type GoalSnapshotChangedPayload struct {
-	SessionID      string                  `json:"session_id"`
-	RunID          *string                 `json:"run_id"`
-	BoundSessionID *string                 `json:"bound_session_id"`
-	Revision       int64                   `json:"revision"`
-	Cause          GoalSnapshotChangeCause `json:"cause"`
-}
-
-// GoalStatus is a daemon API value.
-type GoalStatus string

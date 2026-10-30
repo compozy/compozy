@@ -219,10 +219,14 @@ type AgentIdentityPayload struct {
 
 // AgentLimitsPayload is a daemon API value.
 type AgentLimitsPayload struct {
-	MaxChildren         int `json:"max_children"`
-	MaxSpawnDepth       int `json:"max_spawn_depth"`
-	MaxActiveTaskLeases int `json:"max_active_task_leases"`
-	ContextSectionLimit int `json:"context_section_limit"`
+	MaxChildren           int    `json:"max_children"`
+	MaxSpawnDepth         int    `json:"max_spawn_depth"`
+	MaxActivePerWorkspace int    `json:"max_active_per_workspace,omitempty"`
+	GovernedSpawnDepth    int    `json:"governed_spawn_depth"`
+	CanSpawnChildren      bool   `json:"can_spawn_children"`
+	SpawnBlockedReason    string `json:"spawn_blocked_reason,omitempty"`
+	MaxActiveTaskLeases   int    `json:"max_active_task_leases"`
+	ContextSectionLimit   int    `json:"context_section_limit"`
 }
 
 // AgentMCPServerJSON is a daemon API value.
@@ -427,23 +431,4 @@ type AgentSoulRollbackByPathRequest struct {
 	RevisionID     string `json:"revision_id"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// AgentSoulSectionPayload is a daemon API value.
-type AgentSoulSectionPayload struct {
-	Enabled          bool                     `json:"enabled"`
-	Present          bool                     `json:"present"`
-	Active           bool                     `json:"active"`
-	Valid            bool                     `json:"valid"`
-	ValidationStatus AuthoredValidationStatus `json:"validation_status,omitempty"`
-	SnapshotID       string                   `json:"snapshot_id,omitempty"`
-	Digest           string                   `json:"digest,omitempty"`
-	ConfigDigest     string                   `json:"config_digest,omitempty"`
-	SourcePath       string                   `json:"source_path,omitempty"`
-	Role             string                   `json:"role,omitempty"`
-	Tone             []string                 `json:"tone"`
-	Principles       []string                 `json:"principles"`
-	Truncated        bool                     `json:"truncated,omitempty"`
-	MaxBytes         int64                    `json:"max_bytes,omitempty"`
-	MaxBodyBytes     int64                    `json:"max_body_bytes,omitempty"`
 }

@@ -1,0 +1,47 @@
+---
+title: "compozy workspace folder"
+description: "Group workspaces into root folders"
+---
+
+## compozy workspace folder
+
+Group workspaces into root folders
+
+### Synopsis
+
+Manage the profile's root workspace folders shown in All projects. Folders are one level deep and hold workspaces only. Deleting a folder returns its workspaces to the root; no workspace or session is touched.
+
+### Options
+
+```
+  -h, --help   help for folder
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                | Description                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [compozy workspace folder create](/docs/cli/workspace/folder/create)   | Create a root workspace folder                               |
+| [compozy workspace folder delete](/docs/cli/workspace/folder/delete)   | Delete a workspace folder; its workspaces return to the root |
+| [compozy workspace folder list](/docs/cli/workspace/folder/list)       | List workspace folders and placements in manual order        |
+| [compozy workspace folder rename](/docs/cli/workspace/folder/rename)   | Rename a workspace folder                                    |
+| [compozy workspace folder reorder](/docs/cli/workspace/folder/reorder) | Set the complete workspace folder order                      |

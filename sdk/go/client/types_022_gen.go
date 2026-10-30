@@ -7,6 +7,54 @@ import (
 	"time"
 )
 
+// SubagentPayload is a daemon API value.
+type SubagentPayload struct {
+	Isolation          string                   `json:"isolation"`
+	Worktree           *SubagentWorktreePayload `json:"worktree,omitempty"`
+	SubagentID         string                   `json:"subagent_id"`
+	WorkspaceID        string                   `json:"workspace_id"`
+	ParentSessionID    string                   `json:"parent_session_id"`
+	ParentTurnID       string                   `json:"parent_turn_id"`
+	ChildSessionID     *string                  `json:"child_session_id"`
+	Origin             string                   `json:"origin"`
+	ProviderToolCallID *string                  `json:"provider_tool_call_id"`
+	Title              string                   `json:"title"`
+	Role               string                   `json:"role"`
+	Status             string                   `json:"status"`
+	WorkState          string                   `json:"work_state"`
+	ChildActivity      SubagentChildActivity    `json:"child_activity,omitempty"`
+	Runtime            SubagentRuntimePayload   `json:"runtime"`
+	Depth              int                      `json:"depth"`
+	Progress           string                   `json:"progress"`
+	Result             *string                  `json:"result"`
+	ResultPreview      string                   `json:"result_preview"`
+	ResultTruncated    bool                     `json:"result_truncated"`
+	Error              *string                  `json:"error"`
+	WaitTimedOut       bool                     `json:"wait_timed_out"`
+	Hint               string                   `json:"hint,omitempty"`
+	Delivery           string                   `json:"delivery"`
+	StartedAt          *time.Time               `json:"started_at"`
+	SettledAt          *time.Time               `json:"settled_at"`
+	CreatedAt          time.Time                `json:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at"`
+}
+
+// SubagentPullRequestPayload is a daemon API value.
+type SubagentPullRequestPayload struct {
+	URL    string `json:"url"`
+	Number int    `json:"number"`
+	State  string `json:"state"`
+}
+
+// SubagentRuntimePayload is a daemon API value.
+type SubagentRuntimePayload struct {
+	Agent           string `json:"agent"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoning_effort"`
+	Speed           string `json:"speed"`
+}
+
 // SubagentSummaryPayload is a daemon API value.
 type SubagentSummaryPayload struct {
 	Live       int    `json:"live"`
@@ -399,50 +447,4 @@ type TaskDependencyPayload struct {
 	DependsOnTaskID string         `json:"depends_on_task_id"`
 	Kind            DependencyKind `json:"kind"`
 	CreatedAt       time.Time      `json:"created_at"`
-}
-
-// TaskDependencyReferencePayload is a daemon API value.
-type TaskDependencyReferencePayload struct {
-	TaskID          string               `json:"task_id"`
-	DependsOnTaskID string               `json:"depends_on_task_id"`
-	Kind            DependencyKind       `json:"kind"`
-	CreatedAt       time.Time            `json:"created_at"`
-	DependsOn       TaskReferencePayload `json:"depends_on"`
-}
-
-// TaskDesignationRollupPayload is a daemon API value.
-type TaskDesignationRollupPayload struct {
-	DesignationGroupID string          `json:"designation_group_id"`
-	TaskID             string          `json:"task_id"`
-	Summary            json.RawMessage `json:"summary"`
-	CreatedAt          time.Time       `json:"created_at"`
-}
-
-// TaskDetailPayload is a daemon API value.
-type TaskDetailPayload struct {
-	Summary              TaskSummaryPayload               `json:"summary"`
-	Task                 TaskPayload                      `json:"task"`
-	Children             []TaskSummaryPayload             `json:"children,omitempty"`
-	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
-	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
-	Runs                 []TaskRunPayload                 `json:"runs,omitempty"`
-	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
-	Events               []TaskEventPayload               `json:"events,omitempty"`
-}
-
-// TaskDetailResponse is a daemon API value.
-type TaskDetailResponse struct {
-	Task TaskDetailPayload `json:"task"`
-}
-
-// TaskEventPayload is a daemon API value.
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
 }

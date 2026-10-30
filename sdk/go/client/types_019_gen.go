@@ -4,6 +4,37 @@ package client
 
 import "time"
 
+// SettingsLogTailCapabilityPayload is a daemon API value.
+type SettingsLogTailCapabilityPayload struct {
+	Available bool                    `json:"available"`
+	StreamURL string                  `json:"stream_url,omitempty"`
+	Transport SettingsStreamTransport `json:"transport,omitempty"`
+}
+
+// SettingsLogTailEventPayload is a daemon API value.
+type SettingsLogTailEventPayload struct {
+	Line string `json:"line"`
+}
+
+// SettingsMCPAuthBeginMode is a daemon API value.
+type SettingsMCPAuthBeginMode string
+
+// SettingsMCPAuthBeginRequest is a daemon API value.
+type SettingsMCPAuthBeginRequest struct {
+	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
+	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
+	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
+}
+
+// SettingsMCPAuthBeginResponse is a daemon API value.
+type SettingsMCPAuthBeginResponse struct {
+	AuthorizationURL string    `json:"authorization_url"`
+	State            string    `json:"state"`
+	ExpiresAt        time.Time `json:"expires_at"`
+	CallbackURL      string    `json:"callback_url"`
+	ManualSupported  bool      `json:"manual_supported"`
+}
+
 // SettingsMCPAuthConfigPayload is a daemon API value.
 type SettingsMCPAuthConfigPayload struct {
 	Registration    string   `json:"registration,omitempty"`
@@ -406,42 +437,4 @@ type SettingsRoleConfigPayload struct {
 	Speed           *Speed                        `json:"speed,omitzero"`
 	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
 	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
-}
-
-// SettingsRoleFallbackPayload is a daemon API value.
-type SettingsRoleFallbackPayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Provider        string                              `json:"provider"`
-	Model           string                              `json:"model"`
-	ReasoningEffort string                              `json:"reasoning_effort"`
-	Speed           *Speed                              `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection           `json:"acp_options"`
-	Command         string                              `json:"command"`
-}
-
-// SettingsRolesConfigPayload is a daemon API value.
-type SettingsRolesConfigPayload struct {
-	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
-	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
-}
-
-// SettingsRolesResponse is a daemon API value.
-type SettingsRolesResponse struct {
-	Section         SettingsSectionName          `json:"section"`
-	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
-	WorkspaceID     string                       `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
-	Config          SettingsRolesConfigPayload   `json:"config"`
-}
-
-// SettingsScopeKind is a daemon API value.
-type SettingsScopeKind string
-
-// SettingsSectionName is a daemon API value.
-type SettingsSectionName string
-
-// SettingsShellAppearancePayload is a daemon API value.
-type SettingsShellAppearancePayload struct {
-	UIFont   *string `json:"ui_font,omitempty"`
-	MonoFont *string `json:"mono_font,omitempty"`
 }

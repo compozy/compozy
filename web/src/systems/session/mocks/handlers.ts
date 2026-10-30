@@ -1,6 +1,7 @@
 import { createSessionCatalogStreamResponse } from "./catalog-stream-handler";
 import { sessionContextHandlers } from "./context-handlers";
 import { sessionFolderHandlers } from "./folder-handlers";
+import { workspaceLayoutHandlers } from "./workspace-layout-handlers";
 import { sessionFileSearchHandlers } from "./file-search-handlers";
 import { HttpResponse, type HttpHandler } from "msw";
 import { compozyApiMock } from "@/storybook/openapi-msw";
@@ -78,6 +79,7 @@ function mockAttachmentClassification(mimeType: string): {
 export const handlers: HttpHandler[] = [
   ...sessionContextHandlers(sessionById),
   ...sessionFolderHandlers(sessionById),
+  ...workspaceLayoutHandlers(),
   ...sessionFileSearchHandlers,
   compozyApiMock.get("/api/sessions", ({ request }) => {
     const url = new URL(request.url);

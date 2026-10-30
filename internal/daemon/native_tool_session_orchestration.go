@@ -231,6 +231,8 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 		errors.Is(err, session.ErrSpawnLimitExceeded),
 		errors.Is(err, session.ErrSpawnValidation):
 		return nativeSpawnRefusalError(id, err)
+	case errors.Is(err, session.ErrInvalidRuntimeOverride):
+		return nativeRuntimeOverrideError(id, err)
 	case errors.Is(err, session.ErrWaitValidation),
 		errors.Is(err, session.ErrWaitStateInvalid):
 		status = 422

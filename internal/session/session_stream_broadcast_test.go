@@ -233,6 +233,54 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should publish workspace layout changes only to aggregate subscribers of the owning profile",
+		func(t *testing.T) {
+			t.Parallel()
+			catalog := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionCatalog(catalog))
+			ctx := testutil.Context(t)
+			subscribe := func(scope CatalogScope) <-chan CatalogEvent {
+				t.Helper()
+				events, cancel, err := h.manager.SubscribeSessionCatalogEvents(ctx, scope)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(cancel)
+				return events
+			}
+			aggregate := subscribe(CatalogScope{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, AllWorkspaces: true,
+			})
+			focused := subscribe(CatalogScope{
+				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: h.workspaceID,
+			})
+			foreign := subscribe(
+				CatalogScope{ReadScope: store.ReadScope{ProfileID: "profile-other"}, AllWorkspaces: true},
+			)
+
+			folder, err := h.manager.CreateWorkspaceFolder(ctx, store.DefaultProfileID, "Clients")
+			if err != nil {
+				t.Fatalf("CreateWorkspaceFolder() error = %v", err)
+			}
+			if !strings.HasPrefix(folder.ID, workspaceFolderIDPrefix+"-") {
+				t.Fatalf("folder id = %q, want %s- prefix", folder.ID, workspaceFolderIDPrefix)
+			}
+			event := assertCatalogEventName(t, aggregate, CatalogEventNameChanged)
+			if event.Kind != CatalogEventWorkspaceLayout || event.WorkspaceID != "" || event.SessionID != "" ||
+				event.ProfileID != store.DefaultProfileID {
+				t.Fatalf("workspace layout event = %#v", event)
+			}
+			for name, events := range map[string]<-chan CatalogEvent{"focused": focused, "foreign": foreign} {
+				select {
+				case leaked := <-events:
+					t.Fatalf("%s subscriber received workspace layout event %#v", name, leaked)
+				default:
+				}
+			}
+		},
+	)
+
 	t.Run("Should preserve operator attention for actionable system sessions", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

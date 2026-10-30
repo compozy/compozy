@@ -25,6 +25,7 @@ var userScopeMigrationInventory = []string{
 	"session_prompt_reply_watches",
 	"session_folders",
 	"session_placements",
+	"workspace_placements",
 	"automation_job_catalog_entries",
 	"automation_jobs",
 	"automation_runs",

@@ -470,6 +470,13 @@
             "resource": "workspaces",
             "app_access": "denied"
         },
+        "createWorkspaceFolder": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.createWorkspaceFolder({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CreateWorkspaceFolder(ctx, client.CreateWorkspaceFolderParams{}, client.CreateWorkspaceFolderRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "createWorktree": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.worktrees.createWorktree({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CreateWorktree(ctx, client.CreateWorktreeParams{WorkspaceID: \"workspace_id\"}, client.CreateWorktreeRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -634,6 +641,13 @@
         "deleteWorkspace": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.deleteWorkspace({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.DeleteWorkspace(ctx, client.DeleteWorkspaceParams{ID: \"id\"})\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
+        "deleteWorkspaceFolder": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.deleteWorkspaceFolder({ path: { \"folder_id\": \"folder_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.DeleteWorkspaceFolder(ctx, client.DeleteWorkspaceFolderParams{FolderID: \"folder_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "workspaces",
             "app_access": "denied"
@@ -1597,6 +1611,13 @@
             "resource": "workspaces",
             "app_access": "allowed"
         },
+        "getWorkspaceLayout": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.getWorkspaceLayout();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetWorkspaceLayout(ctx, client.GetWorkspaceLayoutParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "getWorktreeExitPlan": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.worktrees.getWorktreeExitPlan({ path: { \"workspace_id\": \"workspace_id\", \"worktree_id\": \"worktree_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetWorktreeExitPlan(ctx, client.GetWorktreeExitPlanParams{WorkspaceID: \"workspace_id\", WorktreeID: \"worktree_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2255,6 +2276,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "moveWorkspace": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.moveWorkspace({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MoveWorkspace(ctx, client.MoveWorkspaceParams{}, client.MoveWorkspaceRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "mutateSessionGoal": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.mutateSessionGoal({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MutateSessionGoal(ctx, client.MutateSessionGoalParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionGoalCommandRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2703,6 +2731,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "renameWorkspaceFolder": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.renameWorkspaceFolder({ path: { \"folder_id\": \"folder_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RenameWorkspaceFolder(ctx, client.RenameWorkspaceFolderParams{FolderID: \"folder_id\"}, client.RenameWorkspaceFolderRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
         "reorderSessionFolders": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.reorderSessionFolders({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ReorderSessionFolders(ctx, client.ReorderSessionFoldersParams{WorkspaceID: \"workspace_id\"}, client.ReorderSessionFoldersRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2716,6 +2751,20 @@
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
+        },
+        "reorderWorkspaceFolders": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.reorderWorkspaceFolders({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ReorderWorkspaceFolders(ctx, client.ReorderWorkspaceFoldersParams{}, client.ReorderWorkspaceFoldersRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
+        },
+        "reorderWorkspaces": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.workspaces.reorderWorkspaces({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ReorderWorkspaces(ctx, client.ReorderWorkspacesParams{}, client.ReorderWorkspacesRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "workspaces",
+            "app_access": "denied"
         },
         "repairSession": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.repairSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",

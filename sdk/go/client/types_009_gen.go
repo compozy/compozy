@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// LoopGateCriterion is a daemon API value.
+type LoopGateCriterion struct {
+	ID       string          `json:"id"`
+	Type     string          `json:"type"`
+	Check    string          `json:"check,omitempty"`
+	Expect   string          `json:"expect,omitempty"`
+	Contains string          `json:"contains,omitempty"`
+	Agent    string          `json:"agent,omitempty"`
+	Runtime  LoopRuntimeSpec `json:"runtime,omitempty,omitzero"`
+	Rubric   string          `json:"rubric,omitempty"`
+	Prompt   string          `json:"prompt,omitempty"`
+	Tool     string          `json:"tool,omitempty"`
+	Inputs   map[string]any  `json:"inputs,omitempty"`
+	Metric   *LoopMetricSpec `json:"metric,omitzero"`
+}
+
 // LoopGateCriterionDetailPayload is a daemon API value.
 type LoopGateCriterionDetailPayload struct {
 	ID             string                         `json:"id"`
@@ -422,19 +438,4 @@ type LoopRequestsResponse struct {
 	Items      []LoopRequestPayload  `json:"items"`
 	Aggregates LoopRequestAggregates `json:"aggregates"`
 	NextCursor string                `json:"next_cursor"`
-}
-
-// LoopResolvedLifecycleConfig is a daemon API value.
-type LoopResolvedLifecycleConfig struct {
-	RetryMaxAttempts       int               `json:"retry_max_attempts"`
-	RetryBackoffBase       string            `json:"retry_backoff_base"`
-	RetryBackoffMax        string            `json:"retry_backoff_max"`
-	RetryNonRetryable      []string          `json:"retry_non_retryable"`
-	LivenessSilenceWindow  string            `json:"liveness_silence_window"`
-	ResumeDeathStreakLimit int               `json:"resume_death_streak_limit"`
-	PredicateCostLimit     uint64            `json:"predicate_cost_limit"`
-	WaitAdmissionAttempts  int               `json:"wait_admission_attempts"`
-	WaitAdmissionInterval  string            `json:"wait_admission_interval"`
-	AdmissionHorizon       string            `json:"admission_horizon"`
-	Sources                map[string]string `json:"sources"`
 }

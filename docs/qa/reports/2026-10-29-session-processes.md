@@ -2,7 +2,7 @@
 
 - **Scope:** process discovery, ownership, explicit cleanup, keep across restart, and deleted-owner cleanup.
 - **Cadence tier:** targeted. **Runtime verdict:** PASS.
-- **Build:** feat/session-processes; backend working tree plus frontend through c984a2688.
+- **Build:** feat/session-processes; runtime implementation in d8c9a7ca1, frontend through c984a2688; subsequent main integration is verified separately.
 - **Environment:** isolated lab `session-processes-20261029-234903-302882`, backend port 62890, Web port 62891.
 - **Walk:** 2026-10-30T00:08:01Z–00:27:29Z. Teardown reports `clean: true` with no survivors.
 - **Parity:** acpmock/launcher authorized by the accepted brief; OS processes, daemon, SQLite, CLI and API are real. This is not live-LLM provider proof. Broad gates and E2E belong to CI.
@@ -22,8 +22,15 @@ OS commands; discovery and termination use production code.
 | Orphan cleanup | PASS: aggregate returned both retained identities; explicit termination returned terminated; both PIDs exited and port 50701 refused connections | kept-processes-terminated.json |
 | Deleted owner | PASS: deleting sess-9f0384be435dbffb with keep retained sleep 3257 and Node 3270 in the aggregate; aggregate termination verified exit and closed port 50399 | deleted-owner-processes.json, deleted-owner-terminated.json |
 | Native terminal shutdown | PASS: public CLI created term-aa2a4f73557c; OS identity captured PID 52240, parent 32369; graceful lab daemon stop removed that PID | terminal-shutdown-verified.json |
-| Web | PASS for live chip, popover, port, lineage hint, and stop choices in both themes; no page errors reported by F | /tmp/session-processes-shots/live-chip-*.png, live-popover-*.png, live-stop-dialog-*.png |
+| Web | PASS for live chip, popover, port, lineage hint, and stop choices in both themes; no page errors reported by F | /tmp/session-processes-shots/final-live-chip-*.png, final-live-popover-*.png, final-live-stop-dialog-*.png |
 | Teardown | PASS: manifest-scoped cleanup, no surviving lab processes, no operator runtime mutation | teardown.json |
+
+Final live captures were repeated at 00:31Z using a fresh Vite process, session
+`sess-d2d92a80c85dc178`, real Node port 58474 and protected sleep. Both themes show the
+case-sensitive command display from c984a2688, without cache-busting or page errors. The dialog
+was canceled; API stop with terminate then verified both PIDs exited and port 58474 closed.
+A second exact-manifest teardown at 00:32Z reported clean. Its initial graceful stop did not
+complete, so the helper used its identity-verified signal sweep; no survivors remained.
 
 The live Web walk inspected the dialog and canceled it; API/CLI performed the destructive lifecycle
 legs. Archive/delete and left-running visual states were captured in Storybook. Full Web end-to-end
@@ -57,12 +64,29 @@ Review repaired empty-workspace User-scope queries and aggregate batches above 1
 Command display uses case-sensitive path matching for Linux and case-sensitive APFS safety.
 
 F observed an existing light-theme destructive Button contrast issue in Storybook. No tokens were
-changed. Initial live popovers predate the argv enhancement. Later argv captures predate removal
-of case-folding and must not be presented as the exact final row label; use the unchanged chip/stop
-dialog and Storybook row layout as delivery evidence. Vite did not pick up two module edits, so F
-explicitly refreshed those modules for the later captures.
+changed. Only the final-live captures are final UI evidence; earlier captures are retained as intermediate artifacts.
 
 ## Final status
 
 PASS for the bounded runtime walk. The strict evidence audit passed with zero blockers, and manifest-scoped teardown
 reported clean with no survivors. Both artifacts are recorded with the lab. PR readiness remains contingent on current-head CI and review completion.
+
+## Published live evidence
+
+- [final-live-chip-dark.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/01-final-live-chip-dark.png)
+- [final-live-chip-light.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/02-final-live-chip-light.png)
+- [final-live-popover-dark.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/03-final-live-popover-dark.png)
+- [final-live-popover-light.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/04-final-live-popover-light.png)
+- [final-live-stop-dialog-dark.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/05-final-live-stop-dialog-dark.png)
+- [final-live-stop-dialog-light.png](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/session-processes/d8c9a7ca1/06-final-live-stop-dialog-light.png)
+
+## Integration with main
+
+Merged main e6457afe0 (#1047 project folders, #1048 spawn budgets). Its migration 00156 is
+preserved byte-for-byte; the canonical generator emits process observations as 00157. Regenerated
+SDKs, `make codegen-check`, race tests for sessionprocess/builtin/spec, migration equivalence and
+focused HTTP/daemon wiring checks passed. The merged Web typecheck passed (4/4 Turbo tasks).
+F ran 2,182 passing tests across 160 files; one additional palette suite failed during import because
+its fixture path resolves outside this worktree. That known path issue is not a passing test and
+remains subject to CI's normal checkout. The stream merge preserves both workspace-layout refresh
+and process-query invalidation.

@@ -9,6 +9,94 @@ import (
 	"strings"
 )
 
+// GetTaskDashboardParams carries the path, query, and header parameters.
+type GetTaskDashboardParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	Worktree      *string   `url:"worktree"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	OriginKind    *string   `url:"origin_kind"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// GetTaskDashboard Get the observer-backed task dashboard
+func (c *Client) GetTaskDashboard(ctx context.Context, params GetTaskDashboardParams) (*TaskDashboardResponse, error) {
+	path := "/api/observe/tasks/dashboard"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerRef != nil {
+		query.Set("owner_ref", *params.OwnerRef)
+	}
+	if params.OriginKind != nil {
+		query.Set("origin_kind", *params.OriginKind)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskDashboardResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTaskExecutionProfileParams carries the path, query, and header parameters.
+type GetTaskExecutionProfileParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetTaskExecutionProfile Get one task execution profile
+func (c *Client) GetTaskExecutionProfile(ctx context.Context, params GetTaskExecutionProfileParams) (*TaskExecutionProfileResponse, error) {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionProfileResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTaskInboxParams carries the path, query, and header parameters.
 type GetTaskInboxParams struct {
 	Scope         *string   `url:"scope"`
@@ -343,103 +431,4 @@ func (c *Client) GetVaultSecretMetadata(ctx context.Context, params GetVaultSecr
 type GetWindowManagerSnapshotParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// GetWindowManagerSnapshot Read one workspace window-manager snapshot
-func (c *Client) GetWindowManagerSnapshot(ctx context.Context, params GetWindowManagerSnapshotParams) (*WindowManagerSnapshot, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerSnapshot
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorkspaceParams carries the path, query, and header parameters.
-type GetWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// GetWorkspace Get one resolved workspace with related data
-func (c *Client) GetWorkspace(ctx context.Context, params GetWorkspaceParams) (*WorkspaceDetailPayload, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceDetailPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorktreeExitPlanParams carries the path, query, and header parameters.
-type GetWorktreeExitPlanParams struct {
-	WorkspaceID string    `url:"workspace_id"`
-	WorktreeID  string    `url:"worktree_id"`
-	Include     *[]string `url:"include"`
-}
-
-// GetWorktreeExitPlan Read the worktree exit plan
-func (c *Client) GetWorktreeExitPlan(ctx context.Context, params GetWorktreeExitPlanParams) (*WorktreeExitPlanResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Include != nil {
-		for _, value := range *params.Include {
-			query.Add("include", value)
-		}
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeExitPlanResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetWorktreeStatusParams carries the path, query, and header parameters.
-type GetWorktreeStatusParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	WorktreeID  string `url:"worktree_id"`
-	Refresh     *bool  `url:"refresh"`
-	Forge       *bool  `url:"forge"`
-}
-
-// GetWorktreeStatus Read or refresh worktree status
-func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if params.Forge != nil {
-		query.Set("forge", strconv.FormatBool(*params.Forge))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
-type HeartbeatAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
 }

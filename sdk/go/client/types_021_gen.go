@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerMutationResponse is a daemon API value.
+type SettingsWindowManagerMutationResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+	Apply              SettingsApplyResponse                    `json:"apply"`
+}
+
+// SettingsWindowManagerResponse is a daemon API value.
+type SettingsWindowManagerResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+}
+
 // SettingsWindowManagerSnapPayload is a daemon API value.
 type SettingsWindowManagerSnapPayload struct {
 	EdgeBand     int       `json:"edge_band"`
@@ -394,52 +427,4 @@ type SubagentChildActivity string
 type SubagentListPayload struct {
 	Subagents  []SubagentPayload `json:"subagents"`
 	NextCursor *string           `json:"next_cursor"`
-}
-
-// SubagentPayload is a daemon API value.
-type SubagentPayload struct {
-	Isolation          string                   `json:"isolation"`
-	Worktree           *SubagentWorktreePayload `json:"worktree,omitempty"`
-	SubagentID         string                   `json:"subagent_id"`
-	WorkspaceID        string                   `json:"workspace_id"`
-	ParentSessionID    string                   `json:"parent_session_id"`
-	ParentTurnID       string                   `json:"parent_turn_id"`
-	ChildSessionID     *string                  `json:"child_session_id"`
-	Origin             string                   `json:"origin"`
-	ProviderToolCallID *string                  `json:"provider_tool_call_id"`
-	Title              string                   `json:"title"`
-	Role               string                   `json:"role"`
-	Status             string                   `json:"status"`
-	WorkState          string                   `json:"work_state"`
-	ChildActivity      SubagentChildActivity    `json:"child_activity,omitempty"`
-	Runtime            SubagentRuntimePayload   `json:"runtime"`
-	Depth              int                      `json:"depth"`
-	Progress           string                   `json:"progress"`
-	Result             *string                  `json:"result"`
-	ResultPreview      string                   `json:"result_preview"`
-	ResultTruncated    bool                     `json:"result_truncated"`
-	Error              *string                  `json:"error"`
-	WaitTimedOut       bool                     `json:"wait_timed_out"`
-	Hint               string                   `json:"hint,omitempty"`
-	Delivery           string                   `json:"delivery"`
-	StartedAt          *time.Time               `json:"started_at"`
-	SettledAt          *time.Time               `json:"settled_at"`
-	CreatedAt          time.Time                `json:"created_at"`
-	UpdatedAt          time.Time                `json:"updated_at"`
-}
-
-// SubagentPullRequestPayload is a daemon API value.
-type SubagentPullRequestPayload struct {
-	URL    string `json:"url"`
-	Number int    `json:"number"`
-	State  string `json:"state"`
-}
-
-// SubagentRuntimePayload is a daemon API value.
-type SubagentRuntimePayload struct {
-	Agent           string `json:"agent"`
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	ReasoningEffort string `json:"reasoning_effort"`
-	Speed           string `json:"speed"`
 }

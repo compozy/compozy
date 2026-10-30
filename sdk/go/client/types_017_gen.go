@@ -4,6 +4,41 @@ package client
 
 import "time"
 
+// SessionMentionKind is a daemon API value.
+type SessionMentionKind string
+
+// SessionMonitorPayload is a daemon API value.
+type SessionMonitorPayload struct {
+	MonitorID   string     `json:"monitor_id"`
+	SessionID   string     `json:"session_id"`
+	Kind        string     `json:"kind"`
+	Description string     `json:"description"`
+	TerminalID  string     `json:"terminal_id,omitempty"`
+	Until       string     `json:"until,omitempty"`
+	Pattern     string     `json:"pattern,omitempty"`
+	Status      string     `json:"status"`
+	CreatedAt   time.Time  `json:"created_at"`
+	DeadlineAt  time.Time  `json:"deadline_at"`
+	FiredAt     *time.Time `json:"fired_at,omitempty"`
+	Reason      string     `json:"reason,omitempty"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
+}
+
+// SessionMonitorResponse is a daemon API value.
+type SessionMonitorResponse struct {
+	Monitor SessionMonitorPayload `json:"monitor"`
+}
+
+// SessionMonitorSummaryPayload is a daemon API value.
+type SessionMonitorSummaryPayload struct {
+	Active int `json:"active"`
+}
+
+// SessionMonitorsResponse is a daemon API value.
+type SessionMonitorsResponse struct {
+	Monitors []SessionMonitorPayload `json:"monitors"`
+}
+
 // SessionOwner is a daemon API value.
 type SessionOwner struct {
 	SessionID     string `json:"session_id"`
@@ -410,31 +445,4 @@ type SessionUsagePayload struct {
 	CostStatus       CostStatus              `json:"cost_status,omitempty"`
 	CostSource       CostSource              `json:"cost_source,omitempty"`
 	TurnCount        int64                   `json:"turn_count"`
-}
-
-// SessionUsageResponse is a daemon API value.
-type SessionUsageResponse struct {
-	Usage SessionUsagePayload `json:"usage"`
-}
-
-// SessionUsageTurnPayload is a daemon API value.
-type SessionUsageTurnPayload struct {
-	TurnID   string                      `json:"turn_id"`
-	Sequence int64                       `json:"sequence"`
-	Usage    *TokenUsagePayload          `json:"usage,omitzero"`
-	Injected *SessionTurnInjectedPayload `json:"injected,omitzero"`
-}
-
-// SessionUsageTurnsResponse is a daemon API value.
-type SessionUsageTurnsResponse struct {
-	Turns       []SessionUsageTurnPayload  `json:"turns"`
-	Compactions []SessionCompactionPayload `json:"compactions"`
-}
-
-// SessionWaitRequest is a daemon API value.
-type SessionWaitRequest struct {
-	Until     []string `json:"until,omitempty"`
-	TimeoutMS int64    `json:"timeout_ms"`
-	Epoch     int64    `json:"epoch,omitzero"`
-	ResumeID  string   `json:"resume_id,omitempty"`
 }

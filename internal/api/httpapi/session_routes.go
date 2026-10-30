@@ -86,6 +86,15 @@ func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
 	order := api.Group("/workspaces/:workspace_id/session-order")
 	order.PUT("/folders", handlers.ReorderSessionFolders)
 	order.PUT("/sessions", handlers.ReorderSessions)
+	workspaceFolders := api.Group("/workspace-folders")
+	workspaceFolders.GET("", handlers.GetWorkspaceLayout)
+	workspaceFolders.POST("", handlers.CreateWorkspaceFolder)
+	workspaceFolders.PATCH("/:folder_id", handlers.RenameWorkspaceFolder)
+	workspaceFolders.DELETE("/:folder_id", handlers.DeleteWorkspaceFolder)
+	workspaceOrder := api.Group("/workspace-order")
+	workspaceOrder.PUT("/folders", handlers.ReorderWorkspaceFolders)
+	workspaceOrder.PUT("/workspaces", handlers.ReorderWorkspaces)
+	workspaceOrder.POST("/move", handlers.MoveWorkspace)
 }
 
 func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {

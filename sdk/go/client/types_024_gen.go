@@ -7,6 +7,78 @@ import (
 	"time"
 )
 
+// TaskRunReviewPayload is a daemon API value.
+type TaskRunReviewPayload struct {
+	ReviewID          string           `json:"review_id"`
+	TaskID            string           `json:"task_id"`
+	RunID             string           `json:"run_id"`
+	ParentReviewID    string           `json:"parent_review_id,omitempty"`
+	Policy            ReviewPolicy     `json:"policy"`
+	ReviewRound       int              `json:"review_round"`
+	Attempt           int              `json:"attempt"`
+	Status            RunReviewStatus  `json:"status"`
+	Outcome           RunReviewOutcome `json:"outcome,omitempty"`
+	Confidence        *float64         `json:"confidence,omitzero"`
+	Reason            string           `json:"reason,omitempty"`
+	DeliveryID        string           `json:"delivery_id,omitempty"`
+	MissingWork       json.RawMessage  `json:"missing_work,omitempty"`
+	NextRoundGuidance string           `json:"next_round_guidance,omitempty"`
+	ReviewText        string           `json:"review_text,omitempty"`
+	ReviewerSessionID string           `json:"reviewer_session_id,omitempty"`
+	ReviewerAgentName string           `json:"reviewer_agent_name,omitempty"`
+	ReviewedBy        *ActorIdentity   `json:"reviewed_by,omitempty"`
+	RequestedAt       time.Time        `json:"requested_at"`
+	RoutedAt          time.Time        `json:"routed_at"`
+	StartedAt         time.Time        `json:"started_at"`
+	ReviewedAt        time.Time        `json:"reviewed_at"`
+	DeadlineAt        time.Time        `json:"deadline_at"`
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
+	ProfileID         string           `json:"profile_id"`
+	ProfileName       string           `json:"profile_name"`
+	ProfileColor      string           `json:"profile_color,omitempty"`
+	ProfileIcon       string           `json:"profile_icon,omitempty"`
+	ProfileEmoji      string           `json:"profile_emoji,omitempty"`
+	ProfileArchived   bool             `json:"profile_archived,omitzero"`
+}
+
+// TaskRunReviewRequestResponse is a daemon API value.
+type TaskRunReviewRequestResponse struct {
+	Review  TaskRunReviewPayload `json:"review"`
+	Created bool                 `json:"created"`
+}
+
+// TaskRunReviewResponse is a daemon API value.
+type TaskRunReviewResponse struct {
+	Review TaskRunReviewPayload `json:"review"`
+}
+
+// TaskRunReviewVerdictResponse is a daemon API value.
+type TaskRunReviewVerdictResponse struct {
+	Review          TaskRunReviewPayload `json:"review"`
+	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitzero"`
+	CircuitOpened   bool                 `json:"circuit_opened,omitzero"`
+}
+
+// TaskRunReviewsResponse is a daemon API value.
+type TaskRunReviewsResponse struct {
+	Reviews []TaskRunReviewPayload `json:"reviews"`
+}
+
+// TaskRunSessionPayload is a daemon API value.
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TaskRunStatus is a daemon API value.
+type TaskRunStatus string
+
 // TaskRunSummaryPayload is a daemon API value.
 type TaskRunSummaryPayload struct {
 	ID                   string                 `json:"id"`
@@ -372,79 +444,4 @@ type TerminalOutputShape struct {
 	MaxBytes int    `json:"max_bytes,omitzero"`
 	Strategy string `json:"strategy,omitempty"`
 	Grep     string `json:"grep,omitempty"`
-}
-
-// TerminalPendingInputRequest is a daemon API value.
-type TerminalPendingInputRequest struct {
-	ID            string                    `json:"id"`
-	TerminalID    TerminalID                `json:"terminal_id"`
-	WorkspaceID   string                    `json:"workspace_id,omitempty"`
-	ProfileID     string                    `json:"profile_id"`
-	ProfileName   string                    `json:"profile_name"`
-	Reason        string                    `json:"reason"`
-	PromptExcerpt string                    `json:"prompt_excerpt"`
-	Redacted      bool                      `json:"redacted"`
-	RequestedAt   time.Time                 `json:"requested_at"`
-	Requester     TerminalInputActorPayload `json:"requester"`
-}
-
-// TerminalReadResponse is a daemon API value.
-type TerminalReadResponse struct {
-	Content   string                `json:"content"`
-	Seq       TerminalSequence      `json:"seq"`
-	Truncated bool                  `json:"truncated"`
-	Busy      bool                  `json:"busy"`
-	Untrusted bool                  `json:"untrusted"`
-	Spill     *TerminalSpillPayload `json:"spill,omitzero"`
-}
-
-// TerminalRecordingAction is a daemon API value.
-type TerminalRecordingAction string
-
-// TerminalRecordingPayload is a daemon API value.
-type TerminalRecordingPayload struct {
-	ID         string                 `json:"id"`
-	State      TerminalRecordingState `json:"state"`
-	TerminalID TerminalID             `json:"terminal_id"`
-	ProfileID  string                 `json:"profile_id"`
-	Digest     string                 `json:"digest"`
-	StartedAt  time.Time              `json:"started_at"`
-	StoppedAt  *time.Time             `json:"stopped_at,omitempty"`
-	Bytes      int64                  `json:"bytes"`
-	ExpiresAt  time.Time              `json:"expires_at"`
-}
-
-// TerminalRecordingRequest is a daemon API value.
-type TerminalRecordingRequest struct {
-	Action TerminalRecordingAction `json:"action"`
-}
-
-// TerminalRecordingResponse is a daemon API value.
-type TerminalRecordingResponse struct {
-	Recording TerminalRecordingPayload `json:"recording"`
-}
-
-// TerminalRecordingState is a daemon API value.
-type TerminalRecordingState string
-
-// TerminalRejectInputRequest is a daemon API value.
-type TerminalRejectInputRequest struct {
-	Reason string `json:"reason"`
-}
-
-// TerminalResolvedInputRequest is a daemon API value.
-type TerminalResolvedInputRequest struct {
-	ID          string                         `json:"id"`
-	TerminalID  TerminalID                     `json:"terminal_id"`
-	WorkspaceID string                         `json:"workspace_id,omitempty"`
-	ProfileID   string                         `json:"profile_id"`
-	ProfileName string                         `json:"profile_name"`
-	Requester   TerminalInputActorPayload      `json:"requester"`
-	Outcome     TerminalInputResolutionOutcome `json:"outcome"`
-	ResolvedBy  TerminalInputActorPayload      `json:"resolved_by"`
-	Reason      string                         `json:"reason,omitempty"`
-	Redacted    bool                           `json:"redacted"`
-	Length      int                            `json:"length"`
-	RequestedAt time.Time                      `json:"requested_at"`
-	ResolvedAt  time.Time                      `json:"resolved_at"`
 }

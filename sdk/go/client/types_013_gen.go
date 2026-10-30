@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// ProviderUsageBalance is a daemon API value.
+type ProviderUsageBalance struct {
+	ID        string              `json:"id"`
+	Label     string              `json:"label"`
+	Remaining ProviderUsageAmount `json:"remaining"`
+	ExpiresAt *time.Time          `json:"expires_at"`
+}
+
+// ProviderUsageEnvelope is a daemon API value.
+type ProviderUsageEnvelope struct {
+	KeychainSupported bool                     `json:"keychain_supported"`
+	ProfileID         string                   `json:"profile_id"`
+	Revision          uint64                   `json:"revision"`
+	GeneratedAt       time.Time                `json:"generated_at"`
+	Enabled           bool                     `json:"enabled"`
+	Tray              *ProviderUsageTraySignal `json:"tray"`
+	Targets           []ProviderUsageTarget    `json:"targets"`
+}
+
 // ProviderUsageError is a daemon API value.
 type ProviderUsageError struct {
 	Code       string     `json:"code"`
@@ -273,6 +292,11 @@ type RenameSessionRequest struct {
 	Name string `json:"name"`
 }
 
+// RenameWorkspaceFolderRequest is a daemon API value.
+type RenameWorkspaceFolderRequest struct {
+	Name string `json:"name"`
+}
+
 // ReorderSessionFoldersRequest is a daemon API value.
 type ReorderSessionFoldersRequest struct {
 	FolderIDs []string `json:"folder_ids"`
@@ -282,6 +306,17 @@ type ReorderSessionFoldersRequest struct {
 type ReorderSessionsRequest struct {
 	FolderID   string   `json:"folder_id,omitempty"`
 	SessionIDs []string `json:"session_ids"`
+}
+
+// ReorderWorkspaceFoldersRequest is a daemon API value.
+type ReorderWorkspaceFoldersRequest struct {
+	FolderIDs []string `json:"folder_ids"`
+}
+
+// ReorderWorkspacesRequest is a daemon API value.
+type ReorderWorkspacesRequest struct {
+	FolderID     string   `json:"folder_id,omitempty"`
+	WorkspaceIDs []string `json:"workspace_ids"`
 }
 
 // ReplaceSessionInputRequest is a daemon API value.
@@ -410,30 +445,4 @@ type RespondLoopRequest struct {
 	Decision   string          `json:"decision,omitempty"`
 	Payload    json.RawMessage `json:"payload"`
 	Note       string          `json:"note,omitempty"`
-}
-
-// RespondLoopRequestResponse is a daemon API value.
-type RespondLoopRequestResponse struct {
-	OK         bool                  `json:"ok"`
-	RunID      string                `json:"run_id"`
-	NodeID     string                `json:"node_id"`
-	Decision   string                `json:"decision"`
-	State      string                `json:"state"`
-	Provenance LoopRequestProvenance `json:"provenance"`
-}
-
-// ResponderAgentPolicy is a daemon API value.
-type ResponderAgentPolicy string
-
-// ResponderSpec is a daemon API value.
-type ResponderSpec struct {
-	Agents ResponderAgentPolicy `json:"agents,omitempty"`
-}
-
-// RestartActionResponse is a daemon API value.
-type RestartActionResponse struct {
-	OperationID        string                 `json:"operation_id"`
-	Status             RestartOperationStatus `json:"status"`
-	StatusURL          string                 `json:"status_url"`
-	ActiveSessionCount int                    `json:"active_session_count"`
 }

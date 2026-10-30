@@ -84,6 +84,16 @@ function parseSessionCatalogEvent(event: Event): SessionCatalogEventPayload | un
   }
 }
 
+/** A project-folder change names its profile but no workspace or session. */
+function isWorkspaceLayoutEvent(event: Event): boolean {
+  if (!(event instanceof MessageEvent) || typeof event.data !== "string") return false;
+  try {
+    return (JSON.parse(event.data) as { kind?: unknown }).kind === "workspace_layout";
+  } catch {
+    return false;
+  }
+}
+
 function parseNamedEvent<T extends object>(
   event: Event,
   required: readonly (keyof T & string)[]
@@ -275,6 +285,8 @@ function openSessionCatalogStream(
     void queryClient.invalidateQueries({ predicate: isSessionMonitorsQuery });
     // A process list is a scan, so every (re)connect rereads an open processes view too.
     void queryClient.invalidateQueries({ predicate: isSessionProcessesQuery });
+    // So can a workspace_layout change: project folders reread on every (re)connect.
+    void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
     // A location-change event can fall outside the bounded replay window.
     const files = {
       predicate: ({ queryKey: key }: { queryKey: QueryKey }) =>
@@ -286,6 +298,12 @@ function openSessionCatalogStream(
     void queryClient.cancelQueries(files).then(() => queryClient.invalidateQueries(files));
   };
   const handleCatalogChange: EventListener = event => {
+    if (isWorkspaceLayoutEvent(event)) {
+      // Project folders changed (issue #1044): no session moved, the layout rereads.
+      markLive();
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
+      return;
+    }
     const payload = parseSessionCatalogEvent(event);
     if (!payload) return;
     markLive();

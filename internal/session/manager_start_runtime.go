@@ -166,13 +166,13 @@ func (s *sessionStartSpec) validateRuntimeOverrides() error {
 	modelOverride := strings.TrimSpace(s.model)
 	reasoningEffort := strings.TrimSpace(s.reasoningEffort)
 	if modelOverride != "" && providerOverride == "" {
-		return fmt.Errorf("%w: provider is required when model is set", ErrInvalidRuntimeOverride)
+		return fmt.Errorf("%w when model is set", ErrRuntimeOverrideProviderRequired)
 	}
 	if reasoningEffort == "" {
 		return nil
 	}
 	if providerOverride == "" {
-		return fmt.Errorf("%w: provider is required when reasoning_effort is set", ErrInvalidRuntimeOverride)
+		return fmt.Errorf("%w when reasoning_effort is set", ErrRuntimeOverrideProviderRequired)
 	}
 	return ValidateReasoningEffort(reasoningEffort)
 }

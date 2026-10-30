@@ -10,6 +10,73 @@ import (
 	"strings"
 )
 
+// ExportWindowManagerLayout Export one declarative window layout
+func (c *Client) ExportWindowManagerLayout(ctx context.Context, params ExportWindowManagerLayoutParams) (*WindowManagerLayoutDocument, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerLayoutDocument
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ExposeSkillParams carries the path, query, and header parameters.
+type ExposeSkillParams struct {
+	Name     string  `url:"name"`
+	Profile  *string `url:"profile"`
+	ForAgent *string `url:"for_agent"`
+}
+
+// ExposeSkill Expose one user- or workspace-owned skill to provider roots
+func (c *Client) ExposeSkill(ctx context.Context, params ExposeSkillParams, body SkillExposureRequest) (*SkillExposeResponse, error) {
+	path := "/api/skills/{name}/expose"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.ForAgent != nil {
+		query.Set("for_agent", *params.ForAgent)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SkillExposeResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FailAgentTaskRunParams carries the path, query, and header parameters.
+type FailAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
+// FailAgentTaskRun Fail a claimed task run for the calling agent
+func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunParams, body AgentTaskFailRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/fail"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // FailTaskRunParams carries the path, query, and header parameters.
 type FailTaskRunParams struct {
 	ID      string  `url:"id"`
@@ -374,67 +441,4 @@ func (c *Client) GetAgentSoul(ctx context.Context, params GetAgentSoulParams) (*
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetAutomationJobParams carries the path, query, and header parameters.
-type GetAutomationJobParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationJob Get one automation job
-func (c *Client) GetAutomationJob(ctx context.Context, params GetAutomationJobParams) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAutomationRunParams carries the path, query, and header parameters.
-type GetAutomationRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAutomationRun Get one automation run
-func (c *Client) GetAutomationRun(ctx context.Context, params GetAutomationRunParams) (*RunResponse, error) {
-	path := "/api/automation/runs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAutomationTriggerParams carries the path, query, and header parameters.
-type GetAutomationTriggerParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

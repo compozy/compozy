@@ -1,5 +1,7 @@
 import { emptyForScope } from "@/systems/profiles";
 
+import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
+import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
 import {
@@ -7,7 +9,8 @@ import {
   SessionListGroupBody,
   type GroupRowProps,
 } from "./session-list-group-body";
-import { SessionListGroupHeader } from "./session-list-group-header";
+import { SessionListGroupHeader, type SessionListGroupArrange } from "./session-list-group-header";
+import { SessionListProjectFolders } from "./session-list-project-folders";
 import { SessionGroupsSkeleton } from "./session-list-skeleton";
 
 /**
@@ -19,12 +22,15 @@ function SessionListGroupSection({
   group,
   path,
   nested = false,
+  arrange,
   ...props
 }: GroupRowProps & {
   group: SessionListGroupSpec;
   path: readonly number[];
   /** A split subgroup: its header and its parent's together name both axes. */
   nested?: boolean;
+  /** The header's part in project folders, where they apply. */
+  arrange?: SessionListGroupArrange;
 }) {
   const { view, testIdPrefix } = props;
   const collapsed = view.collapsedGroupKeys.has(group.key);
@@ -36,6 +42,7 @@ function SessionListGroupSection({
         onToggle={() => view.toggleGroup(group.key)}
         onNewSession={props.onNewSession}
         testIdPrefix={testIdPrefix}
+        arrange={arrange}
       />
       {collapsed ? null : (
         <SessionListBadgeContext
@@ -62,6 +69,11 @@ function SessionListGroupSection({
   );
 }
 
+/** What a list hosting project folders hands them: where their dialogs open. */
+export interface SessionListProjectFoldersHost {
+  onProjectFolderDialog: (state: SessionFolderDialogState<WorkspaceFolderPayload>) => void;
+}
+
 /**
  * Group-by groups (ADR-004): membership, counts, and the collapsed needs-you or
  * working dot come from server facets, so an off-page group is never missing.
@@ -69,7 +81,7 @@ function SessionListGroupSection({
  * place. Inside a project group rows omit the project badge; inside a profile
  * group they omit the profile tag.
  */
-export function SessionListGroups(props: GroupRowProps) {
+export function SessionListGroups(props: GroupRowProps & SessionListProjectFoldersHost) {
   const { view, testIdPrefix } = props;
   if (view.groupsError) {
     return (
@@ -80,6 +92,26 @@ export function SessionListGroups(props: GroupRowProps) {
     );
   }
   if (view.groupsLoading) return <SessionGroupsSkeleton />;
+  if (view.projectFolders) {
+    const { onProjectFolderDialog, ...rows } = props;
+    return (
+      <SessionListProjectFolders
+        projectFolders={view.projectFolders}
+        onFolderDialog={onProjectFolderDialog}
+        renderGroup={(group, path, arrange) => (
+          <SessionListGroupSection
+            key={group.key}
+            {...rows}
+            group={group}
+            path={path}
+            arrange={arrange}
+          />
+        )}
+        emptyMessage={`${emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel)}.`}
+        testIdPrefix={testIdPrefix}
+      />
+    );
+  }
   if (view.groups.length === 0) {
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted">

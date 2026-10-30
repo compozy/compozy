@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// SessionCompactionPayload is a daemon API value.
+type SessionCompactionPayload struct {
+	ContextAfter *SessionCompactionContextAfterPayload `json:"context_after,omitzero"`
+	TurnID       string                                `json:"turn_id"`
+	Sequence     int64                                 `json:"sequence"`
+	At           time.Time                             `json:"at"`
+	CompactionID string                                `json:"compaction_id"`
+	Trigger      string                                `json:"trigger"`
+	Status       string                                `json:"status"`
+	ContextUsed  *int64                                `json:"context_used,omitzero"`
+	ContextSize  *int64                                `json:"context_size,omitzero"`
+}
+
+// SessionConfigOptionPayload is a daemon API value.
+type SessionConfigOptionPayload struct {
+	ID             string                            `json:"id"`
+	Label          string                            `json:"label,omitempty"`
+	Description    string                            `json:"description,omitempty"`
+	Category       string                            `json:"category,omitempty"`
+	Kind           string                            `json:"kind"`
+	CurrentValueID string                            `json:"current_value_id,omitempty"`
+	CurrentBool    *bool                             `json:"current_bool,omitempty"`
+	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
+}
+
+// SessionConfigOptionValuePayload is a daemon API value.
+type SessionConfigOptionValuePayload struct {
+	Value       string `json:"value"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
+}
+
 // SessionConsumerDegradedPayload is a daemon API value.
 type SessionConsumerDegradedPayload struct {
 	SessionID       string `json:"session_id"`
@@ -412,39 +446,4 @@ type SessionLineagePayload struct {
 	NotifyCreator    bool                         `json:"notify_creator"`
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
-}
-
-// SessionMentionKind is a daemon API value.
-type SessionMentionKind string
-
-// SessionMonitorPayload is a daemon API value.
-type SessionMonitorPayload struct {
-	MonitorID   string     `json:"monitor_id"`
-	SessionID   string     `json:"session_id"`
-	Kind        string     `json:"kind"`
-	Description string     `json:"description"`
-	TerminalID  string     `json:"terminal_id,omitempty"`
-	Until       string     `json:"until,omitempty"`
-	Pattern     string     `json:"pattern,omitempty"`
-	Status      string     `json:"status"`
-	CreatedAt   time.Time  `json:"created_at"`
-	DeadlineAt  time.Time  `json:"deadline_at"`
-	FiredAt     *time.Time `json:"fired_at,omitempty"`
-	Reason      string     `json:"reason,omitempty"`
-	ExitCode    *int       `json:"exit_code,omitempty"`
-}
-
-// SessionMonitorResponse is a daemon API value.
-type SessionMonitorResponse struct {
-	Monitor SessionMonitorPayload `json:"monitor"`
-}
-
-// SessionMonitorSummaryPayload is a daemon API value.
-type SessionMonitorSummaryPayload struct {
-	Active int `json:"active"`
-}
-
-// SessionMonitorsResponse is a daemon API value.
-type SessionMonitorsResponse struct {
-	Monitors []SessionMonitorPayload `json:"monitors"`
 }

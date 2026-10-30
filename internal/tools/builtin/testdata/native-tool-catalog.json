@@ -3305,6 +3305,71 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__workspace_folder_create",
+    "native_name": "workspace_folder_create",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "ea4982ee1c39101c469a15aced3304b5cc1faef14a916c2d0f979447f78aa756",
+    "output_schema_digest": "c8c766cbff71241249b69e45dea765034adcbe104b65757c8ec1b0c3f387ceee"
+  },
+  {
+    "tool_id": "compozy__workspace_folder_delete",
+    "native_name": "workspace_folder_delete",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "a96d2ebe4d7f4409a91a53beb0ebaea54f2e30ec46b32d7e39b2da126105f2e7",
+    "output_schema_digest": "c3f318568b9a742466330f4f561fd0f2cef9d2f3b01435d7f18439f19a1b2caf"
+  },
+  {
+    "tool_id": "compozy__workspace_folder_list",
+    "native_name": "workspace_folder_list",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "99334726611ccf58a148b0814696bfa6fe08c1b2d027e946beccf5a74331c9aa",
+    "output_schema_digest": "c3f318568b9a742466330f4f561fd0f2cef9d2f3b01435d7f18439f19a1b2caf"
+  },
+  {
+    "tool_id": "compozy__workspace_folder_rename",
+    "native_name": "workspace_folder_rename",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2c7728b026a1341b5e78c0ef7032a1be9e4bc8b60917f1dbbefac698b8069802",
+    "output_schema_digest": "c8c766cbff71241249b69e45dea765034adcbe104b65757c8ec1b0c3f387ceee"
+  },
+  {
+    "tool_id": "compozy__workspace_folder_reorder",
+    "native_name": "workspace_folder_reorder",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "204f184b99acf4f1b3ea4789806a7257957acdcb519778147ecc8ac1e2ac554f",
+    "output_schema_digest": "c3f318568b9a742466330f4f561fd0f2cef9d2f3b01435d7f18439f19a1b2caf"
+  },
+  {
     "tool_id": "compozy__workspace_info",
     "native_name": "workspace_info",
     "toolsets": [
@@ -3329,6 +3394,32 @@
     "open_world": false,
     "input_schema_digest": "d39394a40610ab97dc4955dca15950294b51053726defbdaea5a8b636b37c0bf",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__workspace_move",
+    "native_name": "workspace_move",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "499b9f46f131cb2bef77c67c1e38c7b05efe8162162e7158695d530bcf89e2f6",
+    "output_schema_digest": "c3f318568b9a742466330f4f561fd0f2cef9d2f3b01435d7f18439f19a1b2caf"
+  },
+  {
+    "tool_id": "compozy__workspace_reorder",
+    "native_name": "workspace_reorder",
+    "toolsets": [
+      "compozy__workspace"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1bb932cdbcd5c90e5966eca7e965210c1e4ce4ea71e6d93aad9c0384ebbc83f8",
+    "output_schema_digest": "c3f318568b9a742466330f4f561fd0f2cef9d2f3b01435d7f18439f19a1b2caf"
   },
   {
     "tool_id": "compozy__workspace_unarchive",

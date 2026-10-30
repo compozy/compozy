@@ -266,7 +266,10 @@ returns the child ID, role, depth, TTL expiry, effective `permissions`, and opti
 child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
 (`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
 live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
-children and subagents hold no slot.
+children and subagents hold no slot. A depth refusal uses the same reason with cause `max_depth`:
+a spawned child cannot spawn governed children, so delegate a subagent instead. A `model` override
+needs `provider` too; the refusal says so. Check `limits.can_spawn_children` in your situation
+context before spawning.
 
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a

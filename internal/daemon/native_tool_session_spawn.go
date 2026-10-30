@@ -192,9 +192,7 @@ func nativeSpawnRefusalError(id toolspkg.ToolID, err error) error {
 		return toolspkg.NewOperatorToolError(
 			toolspkg.ErrorCodeConflict, id, cause,
 			fmt.Errorf("%w: %w", toolspkg.ErrToolConflict, err),
-			cause, "Stop a live child (compozy__session_stop) or wait for one to stop, then retry; "+
-				"use compozy__subagent_delegate for answers your current turn waits on.",
-			toolspkg.ReasonSpawnBudgetExhausted,
+			cause, nativeSpawnLimitRecovery(err), toolspkg.ReasonSpawnBudgetExhausted,
 		)
 	default:
 		return toolspkg.NewToolError(
@@ -203,4 +201,33 @@ func nativeSpawnRefusalError(id toolspkg.ToolID, err error) error {
 			toolspkg.ReasonConfigValidationFailed,
 		)
 	}
+}
+
+// nativeSpawnLimitRecovery names the next step for the cap that refused the spawn.
+func nativeSpawnLimitRecovery(err error) string {
+	if depthErr, ok := errors.AsType[*session.SpawnDepthError](err); ok {
+		return depthErr.Recovery()
+	}
+	if limitErr, ok := errors.AsType[*session.SpawnLimitError](err); ok {
+		return limitErr.Recovery()
+	}
+	return "Stop a live child (compozy__session_stop) or wait for one to stop, then retry; " +
+		"use compozy__subagent_delegate for answers your current turn waits on."
+}
+
+// nativeRuntimeOverrideError keeps the runtime-override rule in the tool error; the
+// generic invalid-input mask otherwise hides why a model-only override was refused.
+func nativeRuntimeOverrideError(id toolspkg.ToolID, err error) error {
+	cause := diagnostics.RedactAndBound(err.Error(), nativeSpawnRefusalMaxBytes)
+	recovery := "Correct the runtime field named in the cause; " +
+		"compozy__provider_models_list lists each provider's models, reasoning efforts, and options."
+	if errors.Is(err, session.ErrRuntimeOverrideProviderRequired) {
+		recovery = "Pass provider together with model or reasoning_effort; " +
+			"compozy__provider_models_list lists the models of each provider."
+	}
+	return toolspkg.NewOperatorToolError(
+		toolspkg.ErrorCodeInvalidRequest, id, cause,
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		cause, recovery, toolspkg.ReasonConfigValidationFailed,
+	)
 }

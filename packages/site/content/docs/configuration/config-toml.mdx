@@ -1237,7 +1237,7 @@ enqueued, the role must be enabled, and no healthy workspace coordinator may alr
 | Field                               | Type     | Default | Valid values       | Description                                                   |
 | ----------------------------------- | -------- | ------- | ------------------ | ------------------------------------------------------------- |
 | `ttl`                               | duration | `2h`    | `1m` through `24h` | Managed coordinator session lifetime.                         |
-| `max_children`                      | integer  | `5`     | `1` through `5`    | Maximum concurrently held safe-spawn children.                |
+| `max_children`                      | integer  | `5`     | `1` through `5`    | Live safe-spawn children a coordinator session may hold.      |
 | `max_active_sessions_per_workspace` | integer  | `5`     | Positive integer   | Active coordinator and spawned-session cap for one workspace. |
 
 Role changes are classified `live` and affect later invocations without a daemon restart. Inspect the resolved roster and per-field provenance with:
