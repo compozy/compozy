@@ -4,6 +4,7 @@ package terminal
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,8 +92,8 @@ func TestManagerProcessIdentity(t *testing.T) {
 					identity.PID,
 					identity.StartedAt,
 					"different-token",
-				); err == nil {
-					t.Fatal("mismatched kernel token closed terminal")
+				); err == nil || !strings.Contains(err.Error(), "process identity changed") {
+					t.Fatalf("mismatched kernel token error = %v, want process identity change", err)
 				}
 				identity.StartedAt = identity.StartedAt.Add(time.Hour)
 			}
