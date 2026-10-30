@@ -309,6 +309,30 @@ describe("SessionBoardWindow drawer", () => {
     expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w1"));
   });
 
+  it("Should step from the board's ends and return focus to the fold when the session is out of sight", async () => {
+    setRoute("d1", true);
+    const { rerenderBoard } = renderBoard();
+    const drawer = await screen.findByRole("dialog", { name: "Session w2" });
+    await userEvent.click(screen.getByRole("button", { name: "Collapse Done" }));
+
+    await userEvent.click(within(drawer).getByRole("button", { name: "Next session" }));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w1"));
+    await userEvent.click(within(drawer).getByRole("button", { name: "Previous session" }));
+    expect(harness.userRetarget).toHaveBeenLastCalledWith(WINDOW_ID, drawerRoute("w3"));
+
+    within(drawer).getByLabelText("Composer").focus();
+    await userEvent.keyboard("{Escape}");
+    harness.desktop.windows[WINDOW_ID] = {
+      id: WINDOW_ID,
+      app: "session",
+      instanceKey: "d1",
+      route: { pathname: "/agents/claude/sessions/d1", search: {} },
+    };
+    rerenderBoard();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Expand Done" })).toHaveFocus());
+  });
+
   it("Should close when its session is archived and land focus on the next card in the column", async () => {
     setRoute("w2", true);
     const { rerenderBoard } = renderBoard();

@@ -2,8 +2,8 @@
 // Invariants: the infinite transcript cache owns cursor/fences, preserves loaded history, and
 // retains readonly array identity while the exact message sequence is unchanged; burst intake is
 // bounded and reconciles from an authoritative cursor; Goal snapshot frames invalidate only their
-// exact read models without mutating transcript pages. Over the Kanban board (#1052) a delta
-// burst rereads the session's own reads but leaves the catalogs the board lists to the catalog stream.
+// exact read models without mutating transcript pages. Over the Kanban board (#1052) delta bursts
+// reread the session's own reads every time but the catalogs the board lists at most every 5 s.
 // Owning layer: session live-tail query orchestration.
 // Canonical suite: this hook's existing live-tail test suite.
 // Boundary IN: REST transcript pages, transcript SSE frames, Goal/command frames, and terminal frames.
@@ -1209,8 +1209,8 @@ describe("useSessionLiveTail", () => {
     ["window", true],
     ["board-drawer", false],
   ] as const)(
-    "Should reread the catalogs after a delta burst only when shown in a %s",
-    async (presentation, catalogRefreshed) => {
+    "Should reread the catalogs after every delta burst only when shown in a %s",
+    async (presentation, everyBurst) => {
       vi.mocked(fetchSessionTranscript).mockResolvedValue(
         transcriptResponse([textMessage("m1", "hi")])
       );
@@ -1218,15 +1218,34 @@ describe("useSessionLiveTail", () => {
       await waitFor(() => expect(result.current.messages).toHaveLength(1));
       const inputKey = sessionKeys.inputQueue(WORKSPACE_ID, SESSION_ID);
       const boardKey = [...sessionKeys.workspaceLists(WORKSPACE_ID), "board", {}];
-      queryClient.setQueryData(inputKey, { inputs: [] });
-      queryClient.setQueryData(boardKey, { pages: [] });
+      const burst = async (sequence: number) => {
+        queryClient.setQueryData(inputKey, { inputs: [] });
+        queryClient.setQueryData(boardKey, { pages: [] });
+        act(() => {
+          sources[0]?.emit(
+            "transcript_delta",
+            {
+              ...clarifyDeltaFrame(textMessage(`m${sequence}`, "more")),
+              cursor: sequence,
+              entries: [
+                {
+                  message: textMessage(`m${sequence}`, "more"),
+                  sequence,
+                  start_sequence: sequence,
+                },
+              ],
+              max_sequence: sequence,
+            },
+            String(sequence)
+          );
+        });
+        await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
+        return queryClient.getQueryState(boardKey)?.isInvalidated;
+      };
 
-      act(() => {
-        sources[0]?.emit("transcript_delta", clarifyDeltaFrame(textMessage("m2", "more")), "2");
-      });
-
-      await waitFor(() => expect(queryClient.getQueryState(inputKey)?.isInvalidated).toBe(true));
-      expect(queryClient.getQueryState(boardKey)?.isInvalidated).toBe(catalogRefreshed);
+      // The first burst always repairs the catalogs; over the board, later ones are spaced out.
+      expect(await burst(2)).toBe(true);
+      expect(await burst(3)).toBe(everyBurst);
     }
   );
 

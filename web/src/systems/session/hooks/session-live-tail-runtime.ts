@@ -65,12 +65,16 @@ interface CreateSessionLiveTailRuntimeOptions {
   sessionId: string;
   workspaceId: string;
   /**
-   * Whether a burst of transcript deltas also rereads the session catalogs. A session shown
-   * over its own board (#1052) leaves that to the catalog stream: rereading every column per
-   * streamed burst would re-render the board under the drawer.
+   * The shortest gap between catalog rereads caused by transcript delta bursts (`0`: every
+   * burst). A session shown over its own board (#1052) spaces them out: rereading every column
+   * per streamed burst would re-render the board under the drawer, yet a periodic reread still
+   * repairs a catalog event the board missed, well before its own 60 s reread.
    */
-  catalogRefreshOnDelta?: boolean;
+  catalogDeltaRefreshMs?: number;
 }
+
+/** The catalog-stream wake's own throttle: the drawer's board rereads no more often than it. */
+export const SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS = 5_000;
 
 function normalizeEntries(
   entries: TranscriptSnapshotPayload["entries"] | TranscriptDeltaPayload["entries"]
@@ -144,8 +148,9 @@ export function createSessionLiveTailRuntime({
   queryClient,
   sessionId,
   workspaceId,
-  catalogRefreshOnDelta = true,
+  catalogDeltaRefreshMs = 0,
 }: CreateSessionLiveTailRuntimeOptions): SessionLiveTailRuntime {
+  let catalogRefreshedAt = Number.NEGATIVE_INFINITY;
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);
   const readTranscript = () => queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
   const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
@@ -157,10 +162,12 @@ export function createSessionLiveTailRuntime({
   };
 
   const invalidateSessionSurfaces = (reason?: "delta") => {
-    const invalidation =
-      reason === "delta" && !catalogRefreshOnDelta
-        ? invalidateSessionOwnLiveQueries(queryClient, workspaceId, sessionId)
-        : invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
+    const now = Date.now();
+    const catalogs = reason !== "delta" || now - catalogRefreshedAt >= catalogDeltaRefreshMs;
+    if (catalogs) catalogRefreshedAt = now;
+    const invalidation = catalogs
+      ? invalidateSessionLiveQueries(queryClient, workspaceId, sessionId)
+      : invalidateSessionOwnLiveQueries(queryClient, workspaceId, sessionId);
     void invalidation.catch(error => reportInvalidationFailure("session live queries", error));
   };
 

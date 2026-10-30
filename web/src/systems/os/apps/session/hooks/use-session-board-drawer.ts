@@ -37,11 +37,12 @@ const INTERACTIVE_SELECTOR = [
 /** A press that moves farther than this is a drag (a scroll, a selection), not a click. */
 const CLICK_SLOP_PX = 4;
 
-function boardCards(board: HTMLElement | null): BoardCard[] {
+/** The cards on the board in visual order; `visible` drops those of a folded column. */
+function boardCards(board: HTMLElement | null, { visible = true } = {}): BoardCard[] {
   if (!board) return [];
   return Array.from(board.querySelectorAll<HTMLElement>(CARD_SELECTOR)).flatMap(element => {
     const id = element.dataset.sessionId ?? "";
-    if (!id || element.closest(FOLDED_COLUMN_SELECTOR)) return [];
+    if (!id || (visible && element.closest(FOLDED_COLUMN_SELECTOR))) return [];
     return [
       {
         id,
@@ -68,6 +69,34 @@ function successorCard(board: HTMLElement | null, sessionId: string): BoardCard 
   const neighbour = siblings[index + 1] ?? siblings[index - 1];
   if (neighbour) return neighbour;
   return cards.length > 1 ? adjacentShortcutItem(cards, sessionId, "next") : null;
+}
+
+/**
+ * Where keyboard focus can land for a session: its card, or — while the card sits in a folded
+ * column — that column's expand toggle, the nearest control on screen.
+ */
+function cardFocusTarget(board: HTMLElement | null, sessionId: string | null): HTMLElement | null {
+  if (sessionId === null) return null;
+  const card = boardCards(board, { visible: false }).find(item => item.id === sessionId)?.element;
+  const folded = card?.closest(FOLDED_COLUMN_SELECTOR);
+  if (!folded) return card ?? null;
+  return folded.querySelector<HTMLElement>("button[aria-expanded]");
+}
+
+/**
+ * The card Previous/Next lands on. A drawer session that is not on screen (a hidden child,
+ * a folded column) starts from the board's ends, so no card is skipped.
+ */
+function steppedCard(
+  board: HTMLElement | null,
+  sessionId: string | null,
+  direction: SessionBoardDrawerCycleDirection
+): BoardCard | null {
+  const cards = boardCards(board);
+  if (cards.some(card => card.id === sessionId)) {
+    return adjacentShortcutItem(cards, sessionId, direction);
+  }
+  return (direction === "next" ? cards[0] : cards.at(-1)) ?? null;
 }
 
 /** A press on a scrollbar lands on the scroller itself, past its client box. */
@@ -115,10 +144,7 @@ export function useSessionBoardDrawer({
   /** Whether the drawer is open now; a removal confirms asynchronously, after renders moved on. */
   const openRef = useRef(open);
 
-  const cardElement = (id: string | null) =>
-    id === null
-      ? null
-      : (boardCards(boardRef.current).find(card => card.id === id)?.element ?? null);
+  const cardElement = (id: string | null) => cardFocusTarget(boardRef.current, id);
 
   const setOpen = (next: boolean) => {
     const win = manager.getState().windows[windowId];
@@ -141,7 +167,7 @@ export function useSessionBoardDrawer({
   const close = () => setOpen(false);
 
   const step = (direction: SessionBoardDrawerCycleDirection) => {
-    const target = adjacentShortcutItem(boardCards(boardRef.current), sessionId, direction);
+    const target = steppedCard(boardRef.current, sessionId, direction);
     if (!target) {
       notifyUser({ message: "No other visible session.", tone: "info" });
       return;

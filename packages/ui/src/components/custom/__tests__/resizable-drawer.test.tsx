@@ -150,4 +150,23 @@ describe("ResizableDrawer", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "Landing card" })).toHaveFocus());
   });
+
+  // Invariant: a host that loses its layout box (a hidden window) keeps the drawer where it
+  // was instead of remounting it into the overlay, and stays quiet until first measured.
+  it("Should keep the inline layout while its host has no layout box", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    );
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1200);
+    const user = userEvent.setup();
+    const { rerender } = render(<Harness basis="container" />);
+    await user.click(screen.getByRole("button", { name: "Open child" }));
+    const dialog = await screen.findByRole("dialog", { name: "Child session" });
+    expect(dialog).toHaveAttribute("data-mode", "inline");
+
+    width.mockReturnValue(0);
+    rerender(<Harness basis="container" />);
+    expect(screen.getByRole("dialog", { name: "Child session" })).toBe(dialog);
+  });
 });

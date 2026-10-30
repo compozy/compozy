@@ -17,7 +17,10 @@ import {
 } from "../lib/session-stream-liveness";
 import type { SessionTransportSnapshot } from "../lib/session-transport";
 import { useSessionWindowPresentation } from "./use-session-window-presentation";
-import { createSessionLiveTailRuntime } from "./session-live-tail-runtime";
+import {
+  createSessionLiveTailRuntime,
+  SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS,
+} from "./session-live-tail-runtime";
 import { sessionLiveTailLogic } from "./session-live-tail-store";
 import {
   defaultEventSourceFactory,
@@ -41,7 +44,8 @@ export function useSessionLiveTail({
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
   const store = useStore(sessionLiveTailLogic);
-  const catalogRefreshOnDelta = useSessionWindowPresentation() === "window";
+  const catalogDeltaRefreshMs =
+    useSessionWindowPresentation() === "window" ? 0 : SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS;
   const queryEnabled = sessionId.trim() !== "";
   const projectLiveEnabled = enabled && workspaceId.trim() !== "";
   const sessionState = useQuery({
@@ -67,13 +71,13 @@ export function useSessionLiveTail({
       queryClient,
       sessionId,
       workspaceId,
-      catalogRefreshOnDelta,
+      catalogDeltaRefreshMs,
     });
     store.trigger.configured({ at: Date.now(), enabled: canOpenStream, runtime });
     return () => store.trigger.disposed();
   }, [
     canOpenStream,
-    catalogRefreshOnDelta,
+    catalogDeltaRefreshMs,
     eventSourceFactory,
     queryClient,
     resetGeneration,
