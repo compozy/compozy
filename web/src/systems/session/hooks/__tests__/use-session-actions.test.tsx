@@ -19,9 +19,9 @@ import {
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
-  useSendSessionPrompt,
   useUnarchiveSession,
 } from "../use-session-actions";
+import { useSendSessionPrompt } from "../use-session-prompt-actions";
 import { useSessionRewind } from "../use-session-rewind";
 import {
   useSessionInputs,
@@ -30,6 +30,7 @@ import {
   usePromoteSessionInput,
   useReplaceSessionInput,
 } from "../use-session-inputs";
+import { sessionScopedDetailOptions } from "../../lib/query-options";
 import { sessionKeys } from "../../lib/query-keys";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
@@ -63,6 +64,12 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   sendSessionPrompt: vi.fn(),
   unarchiveSession: vi.fn(),
 }));
+
+vi.mock("../../adapters/session-owner-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("../../adapters/session-owner-api")>()),
+  fetchSessionById: vi.fn(),
+}));
+import { fetchSessionById } from "../../adapters/session-owner-api";
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
@@ -99,6 +106,7 @@ import {
 import { SessionApiError, SessionGoalCommandError } from "../../adapters/session-api-errors";
 import { toast } from "sonner";
 import { notifyUser } from "@/lib/user-feedback";
+import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
 const WORKSPACE_ID = "ws_alpha";
 
@@ -208,6 +216,7 @@ describe("session actions", () => {
     vi.clearAllMocks();
     sessionStore.trigger.allDraftsDiscarded();
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...createdSession, id }));
   });
 
   afterEach(() => {
@@ -909,6 +918,82 @@ describe("session actions", () => {
     await expect(mutation).rejects.toThrow("Aborted");
   });
 
+  // Invariant: deletion choices follow newer detail evidence, not a frozen catalog row.
+  // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+  it("updates an open delete confirmation when the detail cache reports running processes", async () => {
+    vi.mocked(fetchSessionById).mockImplementation(() => new Promise(() => {}));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(createdSession));
+    const current = withSessionProcessSummary(createdSession);
+    act(() =>
+      client.setQueryData(
+        sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
+          .queryKey,
+        current
+      )
+    );
+    await waitFor(() =>
+      expect(result.current.deleteDialog.session?.process_summary).toEqual(current.process_summary)
+    );
+    expect(result.current.deleteDialog.sessions?.[0]?.process_summary).toEqual(
+      current.process_summary
+    );
+    client.clear();
+  });
+
+  // Invariant: old zero-process details cannot suppress choices from a newer list/read.
+  // Owner: lifecycle confirmation hook; canonical suite: use-session-actions.
+  it("refreshes old details before archiving and preserves the newer delete row while reading", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = sessionScopedDetailOptions(createdSession.id, {
+      profile: createdSession.profile_name,
+    }).queryKey;
+    const running = withSessionProcessSummary(createdSession);
+    client.setQueryData(key, createdSession, { updatedAt: 1 });
+    let resolveRead!: (session: SessionPayload) => void;
+    vi.mocked(fetchSessionById).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveRead = resolve;
+        })
+    );
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(running));
+    expect(result.current.deleteDialog.session?.process_summary).toEqual(running.process_summary);
+    await act(async () => resolveRead(running));
+    act(() => result.current.deleteDialog.onOpenChange(false));
+    client.setQueryData(key, createdSession, { updatedAt: 1 });
+    act(() => {
+      void result.current.actions.onArchive(running);
+    });
+    expect(archiveSession).not.toHaveBeenCalled();
+    await act(async () => resolveRead(running));
+    await waitFor(() => expect(result.current.processDialog.processCount).toBe(3));
+    expect(archiveSession).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
+  it("does not archive when the current process detail cannot be read", async () => {
+    vi.mocked(fetchSessionById).mockRejectedValue(new Error("Detail unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    await act(async () => {
+      await result.current.actions.onArchive(createdSession);
+    });
+    expect(archiveSession).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith("Detail unavailable");
+    unmount();
+    client.clear();
+  });
+
   it("archives a live session in one action by asking the daemon to stop it first", async () => {
     vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
       ...createdSession,
@@ -934,6 +1019,71 @@ describe("session actions", () => {
         true
       )
     );
+  });
+
+  // Invariant: archive asks what happens to running processes only while some run, and sends
+  // the answer; a single choice covers every session of a bulk archive.
+  it("asks before archiving sessions that left processes running and sends the answer", async () => {
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    }));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const running = withSessionProcessSummary(createdSession);
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...running, id }));
+
+    queryClient.setQueryData(
+      sessionScopedDetailOptions(createdSession.id, { profile: createdSession.profile_name })
+        .queryKey,
+      running
+    );
+    act(() => result.current.actions.onArchive(createdSession));
+    expect(archiveSession).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(result.current.processDialog).toMatchObject({
+        open: true,
+        action: "archive",
+        sessionCount: 1,
+        processCount: 3,
+        ports: [5173, 8080, 9090],
+      })
+    );
+
+    const readsBeforeSecondAction = vi.mocked(fetchSessionById).mock.calls.length;
+    await act(async () => {
+      result.current.actions.onArchive({ ...running, id: "sess_other" });
+    });
+    expect(fetchSessionById).toHaveBeenCalledTimes(readsBeforeSecondAction);
+    expect(archiveSession).not.toHaveBeenCalled();
+    act(() => result.current.processDialog.onChoose("terminate"));
+    expect(result.current.processDialog.open).toBe(false);
+    await waitFor(() =>
+      expect(archiveSession).toHaveBeenCalledWith(
+        createdSession.workspace_id,
+        createdSession.id,
+        createdSession.profile_name,
+        expect.any(AbortSignal),
+        true,
+        "terminate"
+      )
+    );
+
+    vi.mocked(archiveSession).mockClear();
+    const second = { ...running, id: "sess-second" };
+    act(() => result.current.actions.onArchiveMany?.([running, second]));
+    await waitFor(() =>
+      expect(result.current.processDialog).toMatchObject({ sessionCount: 2, processCount: 6 })
+    );
+    act(() => result.current.processDialog.onChoose("keep"));
+    await waitFor(() => expect(archiveSession).toHaveBeenCalledTimes(2));
+    for (const call of vi.mocked(archiveSession).mock.calls) expect(call[5]).toBe("keep");
   });
 
   // Invariant (#1052): a host hears every archive the daemon confirmed — single and batched —
@@ -980,6 +1130,54 @@ describe("session actions", () => {
       expect(toast.error).toHaveBeenCalledWith("Archive is unavailable");
     });
   });
+
+  // Invariant: an unreadable detail cannot authorize deletion from a stale catalog row.
+  // Owning layer: lifecycle actions; canonical suite: this shared action-hook suite.
+  it("Should keep deletion blocked when the current detail cannot be read", async () => {
+    vi.mocked(fetchSessionById).mockRejectedValue(new Error("Detail unavailable"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(client),
+    });
+    act(() => result.current.actions.onDelete(createdSession));
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Detail unavailable"));
+    expect(deleteSession).not.toHaveBeenCalled();
+    expect(result.current.deleteDialog.open).toBe(true);
+    unmount();
+    client.clear();
+  });
+
+  // Invariant: dismissal or replacement revokes an in-flight delete confirmation.
+  // Owning layer/canonical suite: lifecycle actions; only detail adapter I/O is deferred.
+  it.each([false, true])(
+    "Should discard a pending delete read after dismissal with replacement=%s",
+    async replace => {
+      let resolveDetail!: (session: SessionPayload) => void;
+      const detail = new Promise<SessionPayload>(resolve => {
+        resolveDetail = resolve;
+      });
+      vi.mocked(fetchSessionById).mockReturnValue(detail);
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const { result, unmount } = renderHook(() => useSessionLifecycleActions(), {
+        wrapper: createWrapper(client),
+      });
+      act(() => result.current.actions.onDelete(createdSession));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() => expect(fetchSessionById).toHaveBeenCalled());
+      act(() => result.current.deleteDialog.onOpenChange(false));
+      if (replace)
+        act(() => result.current.actions.onDelete({ ...createdSession, id: "replacement" }));
+      await act(async () => {
+        resolveDetail(createdSession);
+        await detail;
+      });
+      expect(deleteSession).not.toHaveBeenCalled();
+      expect(result.current.deleteDialog.open).toBe(replace);
+      unmount();
+      client.clear();
+    }
+  );
 
   it("keeps the delete confirmation open until deletion succeeds", async () => {
     let resolveDelete!: () => void;
@@ -1454,7 +1652,10 @@ describe("session actions", () => {
 // Batch invariant: the lifecycle owner serializes existing mutations, preserves per-id results,
 // and retries only failures. Adapter I/O remains this suite's existing mock boundary.
 describe("session lifecycle batches", () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(fetchSessionById).mockImplementation(async id => ({ ...createdSession, id }));
+  });
   function lifecycle(options: Parameters<typeof useSessionLifecycleActions>[0] = {}) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -1463,6 +1664,40 @@ describe("session lifecycle batches", () => {
       wrapper: createWrapper(client),
     });
   }
+
+  // Invariant: a failed current-detail read fails only its own target, without mutating stale data.
+  // Owner/canonical suite: session lifecycle batches, mocked only at adapter I/O.
+  it.each([false, true])(
+    "archives readable targets and reports unreadable targets with dialog=%s",
+    async dialog => {
+      const unavailable = { ...createdSession, id: "unavailable" };
+      vi.mocked(fetchSessionById).mockImplementation(async id => {
+        if (id === unavailable.id) throw new Error("Detail unavailable");
+        return { ...(dialog ? withSessionProcessSummary(createdSession) : createdSession), id };
+      });
+      vi.mocked(archiveSession).mockResolvedValue({ ...createdSession, archived_at: "2026-10-30" });
+      const { result } = lifecycle();
+      act(() => result.current.actions.onArchiveMany?.([unavailable, createdSession]));
+      if (dialog) {
+        await waitFor(() => expect(result.current.processDialog.open).toBe(true));
+        expect(archiveSession).not.toHaveBeenCalled();
+        act(() => result.current.processDialog.onChoose("keep"));
+      }
+      await waitFor(() =>
+        expect(result.current.batchResults).toEqual([
+          { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+          { id: createdSession.id, status: "done" },
+        ])
+      );
+      expect(archiveSession).toHaveBeenCalledTimes(1);
+      if (dialog) expect(vi.mocked(archiveSession).mock.calls[0]?.[5]).toBe("keep");
+      expect(vi.mocked(archiveSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+      expect(toast.error).toHaveBeenCalledWith(
+        "1 session archived, 1 failed",
+        expect.objectContaining({ description: expect.stringContaining("Detail unavailable") })
+      );
+    }
+  );
 
   // Invariant: both list flows notify their host only after successful owner-scoped deletion.
   // Owner: session lifecycle mutation; canonical suite: session lifecycle batches.
@@ -1503,6 +1738,63 @@ describe("session lifecycle batches", () => {
       ["ws_personal", "personal-session", "personal"],
     ]);
   });
+
+  // Invariant: unreadable bulk targets fail individually while readable targets proceed.
+  // Owner/canonical suite: session lifecycle batches, adapter I/O boundary only.
+  it.each(["keep", "terminate"] as const)(
+    "Should recover unreadable delete targets with a %s process choice",
+    async processes => {
+      const unavailable = { ...createdSession, id: "unavailable" };
+      vi.mocked(fetchSessionById).mockImplementation(async id => {
+        if (id === unavailable.id) throw new Error("Detail unavailable");
+        return { ...createdSession, id };
+      });
+      vi.mocked(deleteSession).mockResolvedValue(undefined);
+      const { result } = lifecycle();
+      act(() => result.current.actions.onDeleteMany?.([unavailable, createdSession]));
+      act(() => result.current.deleteDialog.onConfirm());
+      await waitFor(() =>
+        expect(result.current.batchResults).toEqual([
+          { id: unavailable.id, status: "failed", error: "Detail unavailable" },
+          { id: createdSession.id, status: "done" },
+        ])
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(deleteSession).mock.calls[0]?.[1]).toBe(createdSession.id);
+      const readsBeforeRetry = vi
+        .mocked(fetchSessionById)
+        .mock.calls.filter(([id]) => id === unavailable.id).length;
+      act(() => result.current.deleteDialog.onRetry?.());
+      await waitFor(() =>
+        expect(
+          vi.mocked(fetchSessionById).mock.calls.filter(([id]) => id === unavailable.id).length
+        ).toBeGreaterThan(readsBeforeRetry)
+      );
+      await waitFor(() =>
+        expect(result.current.batchResults[0]).toEqual({
+          id: unavailable.id,
+          status: "failed",
+          error: "Detail unavailable",
+        })
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      const recovered = withSessionProcessSummary(unavailable);
+      vi.mocked(fetchSessionById).mockResolvedValue(recovered);
+      act(() => result.current.deleteDialog.onRetry?.());
+      await waitFor(() => expect(result.current.batchResults).toEqual([]));
+      expect(result.current.deleteDialog.sessions?.map(session => session.id)).toEqual([
+        unavailable.id,
+      ]);
+      expect(result.current.deleteDialog.session?.process_summary).toEqual(
+        recovered.process_summary
+      );
+      expect(deleteSession).toHaveBeenCalledTimes(1);
+      act(() => result.current.deleteDialog.onConfirm(processes));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(2));
+      expect(vi.mocked(deleteSession).mock.calls[1]?.[1]).toBe(unavailable.id);
+      expect(vi.mocked(deleteSession).mock.calls[1]?.[4]).toBe(processes);
+    }
+  );
 
   it("deletes sequentially, keeps failures selected, and retries only their ids", async () => {
     const targets = [
@@ -1553,6 +1845,11 @@ describe("session lifecycle batches", () => {
     expect(selectionChanged).toHaveBeenLastCalledWith(["second"]);
     expect(toast.success).not.toHaveBeenCalled();
     expect(toast.error).not.toHaveBeenCalled();
+    // Completed targets are gone: retry must read only the remaining failed ID.
+    vi.mocked(fetchSessionById).mockImplementation(async id => {
+      if (id !== "second") throw new Error("Session not found");
+      return { ...createdSession, id };
+    });
     act(() => result.current.deleteDialog.onRetry?.());
     await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
     expect(vi.mocked(deleteSession).mock.calls.map(call => call[1])).toEqual([

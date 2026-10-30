@@ -345,7 +345,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionArchive],
-				[]string{"profile", "session_id", "stop", "workspace"},
+				[]string{"processes", "profile", "session_id", "stop", "workspace"},
 			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
@@ -1479,6 +1479,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__monitor_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: toolspkg.ToolIDSessionProcessesList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDSessionProcessesTerminate, risk: toolspkg.RiskDestructive, destructive: true},
 		{id: "compozy__monitor_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__notify", risk: toolspkg.RiskMutating,

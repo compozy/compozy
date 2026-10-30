@@ -1833,7 +1833,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "4bed864856915afd043e5c53b3c7a2efb6d87bc70006c73c3d94fc735d3f2432",
+    "input_schema_digest": "c4baf77afdadbde043217816723b4ef355056df4667de7ff12349ce1da92b957",
     "output_schema_digest": "e24aa20ba2d0202ec58874624afd51dd4e6e09908134f948b0d2c8c312eefa77"
   },
   {
@@ -2124,6 +2124,32 @@
     "output_schema_digest": "b3ca0e20ca4da958e5278c1086f08bffb0af88a28f17f5c915285a146e86f39a"
   },
   {
+    "tool_id": "compozy__session_processes_list",
+    "native_name": "session_processes_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "2112db438274f73efa1f0953de21a7d76059c5455e042d003b77a065bff20cef",
+    "output_schema_digest": "de5f3932e670c19ff23a48ecfa3c76479b860a318e8a160445068d36eb6d3c16"
+  },
+  {
+    "tool_id": "compozy__session_processes_terminate",
+    "native_name": "session_processes_terminate",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "5a77f853b18dc46e0f73c76e120feb4d656f87b5be65fcfc06d5ef41cbf2cb91",
+    "output_schema_digest": "dea23842d0060e7b6db380746004dc9f1adbedc23718b0d4b2d2cbb7ce6ed7e8"
+  },
+  {
     "tool_id": "compozy__session_prompt",
     "native_name": "session_prompt",
     "toolsets": [
@@ -2276,7 +2302,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "aa60655cd45f95d675c42017fdc358b46e6debdc6d7884d61c1de8dd29f22481",
+    "input_schema_digest": "64cf5272f3212d150188d4402c8c7953261fb69889a28cccb6a61b831a5d5242",
     "output_schema_digest": "dfc8f3e620ef944a549a4f7c6305dc36bb863f96e89f65b280de27cc774d8f5f"
   },
   {

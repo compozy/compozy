@@ -43,7 +43,12 @@ import {
   AgentSessionsTabSkeleton,
   useAgentInstructionsTab,
 } from "@/systems/agent";
-import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
+import {
+  SessionDeleteDialog,
+  SessionProcessChoiceDialog,
+  SessionRenameDialog,
+  type SessionPayload,
+} from "@/systems/session";
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
 import { useAgentWindowScope } from "@/systems/agent";
 
@@ -208,7 +213,11 @@ function AgentDiagnosticsSlot({ agent }: { agent: AgentPayload }) {
 }
 
 function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
-  const { sessionDeleteDialog: deleteDialog, sessionRenameDialog: renameDialog } = page;
+  const {
+    sessionDeleteDialog: deleteDialog,
+    sessionProcessDialog: processDialog,
+    sessionRenameDialog: renameDialog,
+  } = page;
   return (
     <>
       {deleteDialog.session ? (
@@ -223,6 +232,7 @@ function AgentSessionDialogs({ page }: { page: UseAgentDetailResult }) {
           onConfirm={deleteDialog.onConfirm}
         />
       ) : null}
+      {processDialog.open ? <SessionProcessChoiceDialog {...processDialog} /> : null}
       {renameDialog.session ? (
         <SessionRenameDialog
           open={renameDialog.open}

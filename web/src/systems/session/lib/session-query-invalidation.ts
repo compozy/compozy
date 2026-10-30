@@ -94,6 +94,19 @@ export function invalidateSessionMonitorsQueries(
   return invalidateSessionReads(queryClient, [], [sessionKeys.monitors(workspaceId, sessionId)]);
 }
 
+/** The session's process list and the operator's left-running aggregate it feeds. */
+export function invalidateSessionProcessesQueries(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+): Promise<void> {
+  return invalidateSessionReads(
+    queryClient,
+    [sessionKeys.processes(workspaceId, sessionId), sessionKeys.byIdRoot(sessionId)],
+    [sessionKeys.processesLeftRunning()]
+  );
+}
+
 function invalidateSessionReads(
   queryClient: QueryClient,
   prefixes: readonly QueryKey[],

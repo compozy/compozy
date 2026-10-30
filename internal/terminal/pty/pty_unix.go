@@ -26,6 +26,7 @@ type unixProc struct {
 	command     *exec.Cmd
 	waiter      processWaiter
 	startedAt   time.Time
+	kernelToken string
 	mu          sync.RWMutex
 	inputMu     sync.Mutex
 	signalMu    sync.Mutex
@@ -101,9 +102,14 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 			cleanupErr, setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 		)
 	}
+	identity, identityErr := procutil.InspectProcess(command.Process.Pid)
+	if identityErr != nil {
+		cleanupErr := terminateStartedCommand(command)
+		return nil, errors.Join(identityErr, cleanupErr, setup.cleanup(), closeUnixFiles(writer, reader.File, device))
+	}
 	proc := &unixProc{
 		device: device, reader: reader, writer: writer, command: command, waiter: newProcessWaiter(),
-		startedAt: time.Now().UTC(), shimCleanup: setup.cleanup,
+		startedAt: identity.StartedAt, kernelToken: identity.KernelToken, shimCleanup: setup.cleanup,
 	}
 	proc.waiter.start(func() waitResult {
 		err := command.Wait()
@@ -156,6 +162,7 @@ func (p *unixProc) PID() int {
 func (p *unixProc) ProcessGroupID() int { return p.PID() }
 
 func (p *unixProc) StartedAt() time.Time { return p.startedAt }
+func (p *unixProc) KernelToken() string  { return p.kernelToken }
 
 func (p *unixProc) Reader() io.Reader { return p.reader }
 

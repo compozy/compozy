@@ -95,3 +95,7 @@ func WithSubagentService(service session.SubagentService) Option {
 func WithSessionMonitorService(service core.SessionMonitorService) Option {
 	return func(server *Server) { server.sessionMonitors = service }
 }
+
+func WithSessionProcessService(service core.SessionProcessService) Option {
+	return func(server *Server) { server.sessionProcesses = service }
+}

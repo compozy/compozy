@@ -43,3 +43,9 @@ export {
   writeToolMessageFixture,
 } from "./fixtures";
 export { sessionListCatalogFixture, sessionListViewFixture } from "./session-list-view-fixtures";
+export {
+  processesLeftRunningFixture,
+  sessionProcessFixture,
+  sessionProcessesFixture,
+  withSessionProcessSummary,
+} from "./process-fixtures";

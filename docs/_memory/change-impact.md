@@ -4701,6 +4701,56 @@ isolation are unchanged. No generated contract or official skill changes.
   change. Affected QA scenarios and the dated overlay focus report track evidence
   and limits; no public site change is needed.
 
+## 2026-10-29 — Session processes
+
+Owner: accepted session-processes plan; branch `feat/session-processes`.
+The additive public contract exposes attributed OS processes and a session summary,
+identity-fenced termination, and explicit keep/terminate lifecycle choices. Omitted
+policy keeps processes. The operator aggregate includes retained and missing owners;
+its separate termination route does not bypass session-scoped authorization.
+
+- Native tools: session process list and approval-gated terminate; stop/archive gain
+  the same optional policy. CLI and shared HTTP/UDS handlers own matching operations.
+- Web: process popover, lifecycle choices and the `processes.left_running` palette
+  command; the frontend executor owns consumers and browser evidence.
+- Hooks/events: `session.processes.terminated` audits explicit cleanup. No automatic
+  orphan cleanup, turn-cancel cleanup or shutdown policy change.
+- Workspace data/isolation: environment markers plus durable lineage observations.
+  Additive migration 00157 creates `session_process_observations`; observations have
+  no session foreign key so deletion preserves cleanup ownership. Boot revalidates
+  exact PID/start identities; scans prune dead rows. Group inference requires live
+  identity continuity. Unknown owners require matching daemon-home and profile
+  markers. Process attribution uses `COMPOZY_PROFILE_ID`; `COMPOZY_PROFILE` retains
+  its existing CLI profile-name semantics. Runtime/API scopes continue to enforce workspace and profile ownership.
+  QA uses a separate daemon home. No existing schema history or user rows change.
+- Official skill/site/QA: process inspection and cleanup guidance and a real-process
+  lifecycle scenario co-ship with the implementation. No new configuration is needed;
+  scan demand and shared snapshots bound background work.
+
+Review hardening keeps ownership capture before lifecycle transitions, but makes scan failure
+non-blocking for keep. Explicit cleanup rejects unsupported inspection before mutation and
+outlives request cancellation with a bounded deadline. Native stop/archive enforce the same
+policy and error classifications; the native response remains caller-bound while accepted
+termination and its waited stop use an independent lifetime. Initial inspection failure logs and
+retries without publishing retained rows; loading persisted observations still fails explicitly.
+Group members receive individual identity-verified signals to exclude later joiners. Audit
+failure does not skip remaining selected targets, and summary ports match the counted rows.
+Observation updates persist current session/workspace/profile ownership across reloads.
+Aggregate termination now enforces the selected mutation profile and retained-owner status.
+Session process caches include the profile while invalidation reaches every profile variant.
+Terminal cleanup treats a vanished or replaced identity after graceful close as completed,
+without signaling a replacement process.
+Runtime CI also exposed Stop racing an in-flight Goal prompt setup: the Manager now orders
+durable Goal pause before that setup can settle as ambiguous. This preserves session Stop's
+existing resumable-pause contract without new public surfaces or schema changes.
+
+Contract checkpoint: DTOs, OpenAPI and generated SDKs land first to unblock the
+parallel frontend. Runtime, API, native tools and CLI passed focused validation. The isolated lab verified
+terminate, keep/restart, deleted-owner cleanup and native-terminal shutdown; its teardown
+is clean. See `docs/qa/reports/2026-10-29-session-processes.md`. Current-head CI remains
+the delivery gate. Frozen dependency installation also reconciles generated linter
+and emoji data with the pinned toolchain; no dependency versions change.
+
 ## Workspace folders and totals footer — 2026-10-29
 
 Issue #1044 adds root workspace (project) folders and a manual workspace order for All projects, plus
@@ -4724,6 +4774,32 @@ and extension SDKs are unchanged. Official skill `references/runtime-operations.
 `docs/sessions/index.mdx`, generated CLI docs, and QA scenario
 `ET-web-session-folders-manual-order` record the contract.
 
+Session-process review follow-up: operator aggregate cleanup resolves retained owners even when
+profile selection rejects an archived/deleted profile. Archived labels map to stable IDs; deleted
+owners use the ID already returned by the process list. Explicit identity fencing, retained-only
+selection and profile isolation remain. Native archive terminate completes under a bounded
+independent lifetime after cancellation precheck. No DTO, config, hook, schema, or extension
+contract changes; Web batches already carry the listed owner selector. QA: RT-session-processes
+and the 2026-10-29 session-processes report.
+
+
+PR #1049 latest review batch: process observations gain `kernel_token` through additive global
+migration 00158, preserving every existing row. Linux uses boot ID plus raw start ticks for retained
+ownership across daemon restarts and a cached wall-time projection within a daemon lifetime. Public
+process DTOs/native tool inputs remain unchanged; legacy observations keep exact-time matching.
+Web stop/archive consult fresh profile-scoped details and delete subscribes to current details;
+process stream reconciliation includes trailing reads. No hook, config, extension, or official skill
+contract changes. Isolation remains enforced by owning profile/session; no cross-profile fallback.
+Validation and scenario coverage: RT-session-processes and the 2026-10-29 session-processes report.
+
+PR #1049 follow-up: ACP captures a kernel token at launch and passes it through internal session
+snapshots to process attribution; the snapshot field is excluded from JSON. Public timestamps,
+DTOs, storage, native tools, hooks, config and official skill contracts remain unchanged. Unknown
+leader identity protects its group without authorizing ancestry. Linux clock initialization retries
+failed reads. Legacy HTTP terminate cleanup survives client disconnect under a two-minute bound.
+Web bulk detail failures become per-target failures without blocking readable targets or mutating
+stale data; owner/profile scoping remains unchanged. QA: RT-session-processes.
+
 ## Kanban session drawer (#1052) — 2026-10-30
 
 Owner: `feat/issue-1052-kanban-session-drawer`. A board card opens the window's own session in a
@@ -4739,3 +4815,34 @@ written before it read the default width, so no migration or schema bump is need
 `returnFocus` (internal regime; its one other consumer keeps the defaults). Official skill: not
 affected (no agent-facing surface). Site `docs/sessions/board.mdx` and QA scenarios
 `ET-web-sessions-board-drawer` and `ET-web-sessions-board-toggle` record the behavior.
+
+PR #1049 integration with #1055 preserves the board drawer's archive-success notification and
+presentation-specific panel controls alongside process-policy choices. Slow-stop deadline handling
+retains explicit terminate cleanup across HTTP and native legacy/waited paths; the background wait
+uses the configured session termination budget with a bounded settlement allowance and a separate
+cleanup deadline. No new wire, storage, config key, extension/hook or official skill contract.
+Existing profile/workspace ownership checks remain unchanged. QA: RT-session-processes.
+
+### Session process review and restart readiness follow-up
+
+HTTP archive/delete retain requested process cleanup across disconnect. Native and HTTP deferred
+cleanup share a captured identity set, excluding resumed work. Unauthorized PID outcomes reveal
+no host state. Web confirmation and detail invalidation preserve profile ownership. No migration,
+config, hook or extension SDK shape changes. The existing official skill contract remains valid.
+Restart operation readiness additionally requires open admission on the responding daemon; this
+prevents a ready receipt from admitting work during boot/drain. QA evidence is in the session
+process report and scenarios.
+
+PR #1049 retry/cancellation follow-up: HTTP/native keep capture is bounded and cancellable;
+native archive retains slow-stop cleanup, and delete requires an accepted-stop receipt while
+preserving the shared subagent stop path. Deferred cleanup retries waits with frozen identities
+and checks terminal PID/start on the actual handle before signaling. Web bulk delete retries
+failed targets only and ignores stale dialog callbacks. No public DTO, config, hook, schema or
+official-skill surface changes; existing owner/profile/workspace isolation remains in force.
+QA scenarios and evidence: RT-session-processes and the 2026-10-29 session-processes report.
+
+PR #1049 kernel-identity follow-up: terminal launch captures kernel start time/token for
+native process cleanup; the token stays internal and existing public timestamp fields retain
+their meaning. Web Retry restores process choices after a failed detail read recovers.
+No schema, config, hook, extension SDK or official-skill changes; authorization and workspace
+isolation remain unchanged. Evidence is recorded in the same QA report and scenarios.

@@ -17679,6 +17679,29 @@
         ],
         "type": "object"
       },
+      "ProcessesResponse": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessGroupPayload"
+            },
+            "type": "array"
+          },
+          "scanned_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "groups",
+          "scanned_at",
+          "supported"
+        ],
+        "type": "object"
+      },
       "Profile": {
         "properties": {
           "archived_at": {
@@ -24842,6 +24865,19 @@
             },
             "type": "array"
           },
+          "process_summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionProcessSummaryPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "profile_archived": {
             "type": "boolean"
           },
@@ -25064,6 +25100,217 @@
         },
         "required": [
           "lease_id"
+        ],
+        "type": "object"
+      },
+      "SessionProcessGroupPayload": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessPayload"
+            },
+            "type": "array"
+          },
+          "orphaned": {
+            "type": "boolean"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "session_name": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "orphaned",
+          "profile",
+          "session_id",
+          "session_name",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "SessionProcessPayload": {
+        "properties": {
+          "age_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "argv0": {
+            "type": "string"
+          },
+          "attribution": {
+            "enum": [
+              "env",
+              "lineage"
+            ],
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "cpu_percent": {
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "background",
+              "tool",
+              "terminal"
+            ],
+            "type": "string"
+          },
+          "parent_alive": {
+            "type": "boolean"
+          },
+          "pgid": {
+            "type": "integer"
+          },
+          "pid": {
+            "type": "integer"
+          },
+          "ports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "rss_kb": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "terminal_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "age_seconds",
+          "argv0",
+          "attribution",
+          "command",
+          "cwd",
+          "kind",
+          "parent_alive",
+          "pgid",
+          "pid",
+          "ports",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "SessionProcessResult": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "terminated",
+              "already_exited",
+              "identity_mismatch",
+              "failed",
+              "unproven"
+            ],
+            "type": "string"
+          },
+          "pid": {
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "pid",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "SessionProcessSummaryPayload": {
+        "properties": {
+          "background": {
+            "type": "integer"
+          },
+          "ports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "supported": {
+            "type": "boolean"
+          },
+          "terminals": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "background",
+          "ports",
+          "supported",
+          "terminals",
+          "total"
+        ],
+        "type": "object"
+      },
+      "SessionProcessTarget": {
+        "properties": {
+          "pid": {
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pid",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "SessionProcessesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessPayload"
+            },
+            "type": "array"
+          },
+          "scanned_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "items",
+          "scanned_at",
+          "supported"
         ],
         "type": "object"
       },
@@ -32351,6 +32598,13 @@
       },
       "StopSessionRequest": {
         "properties": {
+          "processes": {
+            "enum": [
+              "keep",
+              "terminate"
+            ],
+            "type": "string"
+          },
           "wait": {
             "nullable": true,
             "type": "boolean"
@@ -37635,6 +37889,52 @@
           "reason",
           "screen",
           "untrusted"
+        ],
+        "type": "object"
+      },
+      "TerminateProcessesRequest": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "targets"
+        ],
+        "type": "object"
+      },
+      "TerminateSessionProcessesRequest": {
+        "properties": {
+          "all": {
+            "type": "boolean"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTarget"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TerminateSessionProcessesResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessResult"
+            },
+            "type": "array"
+          },
+          "supported": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "results",
+          "supported"
         ],
         "type": "object"
       },
@@ -59396,6 +59696,221 @@
           "diagnostics"
         ],
         "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/processes": {
+      "get": {
+        "operationId": "listProcesses",
+        "parameters": [
+          {
+            "description": "Workspace ID, or @user; mutually exclusive with all_workspaces",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include all projects and User sessions",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Only processes of stopped, archived, deleted or unknown sessions",
+            "in": "query",
+            "name": "orphaned",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scope denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scanner unavailable"
+          }
+        },
+        "summary": "List processes grouped by session, including left-running processes",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/processes/terminate": {
+      "post": {
+        "operationId": "terminateProcesses",
+        "parameters": [
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateProcessesRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateSessionProcessesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scope denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scanner unavailable"
+          }
+        },
+        "summary": "Terminate identity-verified processes with missing or retained session owners",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "denied",
         "x-compozy-transports": [
           "http",
           "uds"
@@ -85036,6 +85551,18 @@
         "operationId": "deleteSession",
         "parameters": [
           {
+            "description": "Keep (default) or terminate attributed session processes",
+            "in": "query",
+            "name": "processes",
+            "schema": {
+              "enum": [
+                "keep",
+                "terminate"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Workspace id",
             "in": "path",
             "name": "workspace_id",
@@ -85066,6 +85593,16 @@
           "204": {
             "description": "No Content"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process policy"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -85076,6 +85613,16 @@
             },
             "description": "Session not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process cleanup could not be verified"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -85085,6 +85632,16 @@
               }
             },
             "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
           }
         },
         "summary": "Delete one session and remove it from persisted history",
@@ -85380,6 +85937,18 @@
       "post": {
         "operationId": "archiveSession",
         "parameters": [
+          {
+            "description": "Keep (default) or terminate attributed session processes",
+            "in": "query",
+            "name": "processes",
+            "schema": {
+              "enum": [
+                "keep",
+                "terminate"
+              ],
+              "type": "string"
+            }
+          },
           {
             "description": "Workspace id",
             "in": "path",
@@ -88236,6 +88805,233 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/processes": {
+      "get": {
+        "operationId": "listSessionProcesses",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionProcessesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scope denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scanner unavailable"
+          }
+        },
+        "summary": "List attributed session processes",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate": {
+      "post": {
+        "operationId": "terminateSessionProcesses",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateSessionProcessesRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminateSessionProcessesResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid process request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scope denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process scanner unavailable"
+          }
+        },
+        "summary": "Terminate identity-verified session processes",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt": {
       "post": {
         "operationId": "sendSessionPrompt",
@@ -89740,6 +90536,16 @@
             },
             "description": "Session not found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Process cleanup could not be verified"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -89758,7 +90564,7 @@
                 }
               }
             },
-            "description": "Stop manager unavailable"
+            "description": "Service unavailable - dependent service missing"
           }
         },
         "summary": "Stop a session without deleting persisted history",

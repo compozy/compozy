@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -61,6 +63,10 @@ func assertRegisteredRouteContract(t *testing.T) {
 	want := []string{
 		"DELETE /api/app-tokens/:app_token_id",
 		"GET /api/app-tokens",
+		"GET /api/processes",
+		"POST /api/processes/terminate",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/processes",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/processes/terminate",
 		"GET /api/openapi.json",
 		"PATCH /api/app-tokens/:app_token_id",
 		"POST /api/app-tokens",
@@ -4063,6 +4069,27 @@ func (marketingProfileService) Resolve(_ context.Context, in profilepkg.ResolveI
 	}}, nil
 }
 
+type retainedProcessProfileService struct {
+	core.ProfileService
+	archived bool
+}
+
+func (s retainedProcessProfileService) Resolve(
+	context.Context, profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if s.archived {
+		return profilepkg.Resolution{}, profilepkg.ErrArchived
+	}
+	return profilepkg.Resolution{}, profilepkg.ErrNotFound
+}
+
+func (s retainedProcessProfileService) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	if s.archived {
+		return []profilepkg.Profile{{ID: "profile-retained", Name: "retained", State: profilepkg.StateArchived}}, nil
+	}
+	return nil, nil
+}
+
 // Session monitors are operator-visible: the session payload reports active
 // monitors, and the operator lists and cancels them without waking the session.
 func TestSessionMonitorHandlers(t *testing.T) {
@@ -4288,4 +4315,502 @@ func TestSessionInputOriginContract(t *testing.T) {
 			}
 		}
 	})
+}
+
+// Invariant: process reads/mutations retain session profile/workspace boundaries and reject ambiguous targets.
+// Owning layer: shared HTTP handlers; canonical suite: handlers_test.go (UDS reuses these handlers).
+func TestSessionProcessHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should restrict aggregate termination to retained owners in the selected profile", func(t *testing.T) {
+		t.Parallel()
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		response := performRequest(t, newTestRouter(t, handlers), http.MethodPost,
+			"/api/processes/terminate",
+			[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`))
+		if response.Code != http.StatusOK || processes.calls != 1 ||
+			!strings.Contains(response.Body.String(), `"results"`) {
+			t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+		}
+	})
+	t.Run("Should clean retained owners after their profile is archived or deleted", func(t *testing.T) {
+		t.Parallel()
+		for _, archived := range []bool{false, true} {
+			processes := &handlerProcessService{aggregateProfile: "profile-retained"}
+			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers.Profiles = retainedProcessProfileService{archived: archived}
+			handlers.SessionProcesses = processes
+			selector := "profile-retained"
+			if archived {
+				selector = "retained"
+			}
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodPost,
+				"/api/processes/terminate?profile="+selector,
+				[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`))
+			if response.Code != http.StatusOK || processes.calls != 1 {
+				t.Fatalf(
+					"archived=%t status=%d calls=%d body=%s",
+					archived,
+					response.Code,
+					processes.calls,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+	t.Run("Should list process metadata and reject conflicting or foreign targets before mutation", func(t *testing.T) {
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		engine := newTestRouter(t, handlers)
+		base := "/api/workspaces/ws-workspace/sessions/sess-123"
+		response := performRequest(t, engine, http.MethodGet, base+"/processes", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		var listed contract.SessionProcessesResponse
+		decodeJSONResponse(t, response, &listed)
+		if !listed.Supported || len(listed.Items) != 1 || listed.Items[0].Attribution != "lineage" {
+			t.Fatalf("list=%+v", listed)
+		}
+		for _, body := range []string{`{}`, `{"all":true,"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`, `{"targets":[{"pid":1,"started_at":"2026-01-01T00:00:00Z"}]}`} {
+			response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(body))
+			if response.Code != http.StatusBadRequest || processes.calls != 0 {
+				t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
+			}
+		}
+		response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(`{"all":true}`))
+		if response.Code != http.StatusOK || processes.calls != 1 || !processes.all || len(processes.targets) != 0 {
+			t.Fatalf(
+				"status=%d calls=%d all=%t targets=%v body=%s",
+				response.Code,
+				processes.calls,
+				processes.all,
+				processes.targets,
+				response.Body.String(),
+			)
+		}
+		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+		response = performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			base+"/processes/terminate",
+			[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`),
+		)
+		if response.Code != http.StatusOK || processes.calls != 2 || processes.all || len(processes.targets) != 1 ||
+			processes.targets[0].PID != 123 ||
+			!processes.targets[0].StartedAt.Equal(stamp) {
+			t.Fatalf(
+				"status=%d calls=%d all=%t targets=%v",
+				response.Code,
+				processes.calls,
+				processes.all,
+				processes.targets,
+			)
+		}
+		foreign := newTestHandlers(
+			t,
+			stubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID:          id,
+					WorkspaceID: "ws-workspace",
+					ProfileID:   "foreign",
+					State:       session.StateActive,
+				}, nil
+			}},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		foreign.SessionProcesses = processes
+		response = performRequest(
+			t,
+			newTestRouter(t, foreign),
+			http.MethodPost,
+			base+"/processes/terminate",
+			[]byte(`{"all":true}`),
+		)
+		if response.Code != http.StatusNotFound || processes.calls != 2 {
+			t.Fatalf("foreign status=%d calls=%d", response.Code, processes.calls)
+		}
+	})
+	// Invariants: keep tolerates scanner failure; unsupported terminate never mutates;
+	// committed lifecycle cleanup survives request cancellation with a bounded lifetime.
+	t.Run("Should retain keep lifecycle behavior when process inspection fails", func(t *testing.T) {
+		for _, policy := range []string{"", "keep", "terminate"} {
+			processes := &handlerProcessService{refreshErr: errors.New("process table unavailable")}
+			deleted := false
+			manager := stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }}
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			response := performRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123?processes="+policy,
+				nil,
+			)
+			want := http.StatusNoContent
+			if policy == "terminate" {
+				want = http.StatusInternalServerError
+			}
+			if response.Code != want || deleted != (policy != "terminate") {
+				t.Fatalf(
+					"policy=%q status=%d deleted=%t body=%s",
+					policy,
+					response.Code,
+					deleted,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+	// Invariant: unsuccessful cleanup outcomes remain a lifecycle conflict with an actionable body.
+	// Owner/canonical suite: HTTP TestSessionProcessHandlers; process service is the I/O boundary.
+	for _, outcome := range []string{"unproven", "failed"} {
+		t.Run("Should report deletion cleanup conflict for "+outcome, func(t *testing.T) {
+			handlers := newTestHandlers(
+				t,
+				stubSessionManager{DeleteFn: func(context.Context, string) error { return nil }},
+				stubObserver{},
+				newTestHomePaths(t),
+			)
+			handlers.SessionProcesses = &handlerProcessService{
+				results: []sessionprocess.Result{{PID: 123, Outcome: outcome}},
+			}
+			response := performRequest(t, newTestRouter(t, handlers), http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate", nil)
+			if response.Code != http.StatusConflict ||
+				!strings.Contains(response.Body.String(), "process 123 termination is "+outcome) {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+
+	t.Run("Should reject unsupported termination before deleting the session", func(t *testing.T) {
+		deleted := false
+		handlers := newTestHandlers(
+			t,
+			stubSessionManager{DeleteFn: func(context.Context, string) error { deleted = true; return nil }},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		handlers.SessionProcesses = &handlerProcessService{unsupported: true}
+		response := performRequest(
+			t,
+			newTestRouter(t, handlers),
+			http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate",
+			nil,
+		)
+		if response.Code != http.StatusServiceUnavailable || deleted ||
+			!strings.Contains(response.Body.String(), http.StatusText(http.StatusServiceUnavailable)) {
+			t.Fatalf("status=%d deleted=%t body=%s", response.Code, deleted, response.Body.String())
+		}
+	})
+
+	// Invariant: accepted stop cleanup survives caller cancellation during archive/delete.
+	// Owning layer: HTTP lifecycle handlers; canonical suite: TestSessionProcessHandlers.
+	for _, verb := range []string{"archive", "delete"} {
+		t.Run("Should retain cleanup after disconnected "+verb, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			processes := &handlerProcessService{}
+			manager := &disconnectedProcessStopManager{cancel: cancel}
+			manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID,
+					State: session.StateActive}, nil
+			}
+			manager.DeleteFn = func(ctx context.Context, _ string) error {
+				cancel()
+				return errors.Join(session.ErrDeleteStopAccepted, ctx.Err())
+			}
+			manager.ArchiveWithStopFn = func(ctx context.Context, _, _ string) (*session.Info, error) { cancel(); return nil, ctx.Err() }
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			method, path := http.MethodDelete, "/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate"
+			if verb == "archive" {
+				method, path = http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/archive?stop=true&processes=terminate"
+			}
+			request := httptest.NewRequestWithContext(ctx, method, path, http.NoBody)
+			response := httptest.NewRecorder()
+			newTestRouter(t, handlers).ServeHTTP(response, request)
+			if response.Code < 400 || processes.afterStop == nil || processes.calls != 0 {
+				t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+			}
+			if err := processes.afterStop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	t.Run("Should not clean up a canceled delete that never accepted a stop", func(t *testing.T) {
+		processes := &handlerProcessService{}
+		manager := &disconnectedProcessStopManager{}
+		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID:          id,
+				WorkspaceID: "ws-workspace",
+				ProfileID:   store.DefaultProfileID,
+				State:       session.StateStopped,
+			}, nil
+		}
+		manager.DeleteFn = func(context.Context, string) error { return context.Canceled }
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.SessionProcesses = processes
+		response := performRequest(t, newTestRouter(t, handlers), http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate", nil)
+		if response.Code < 400 || processes.afterStop != nil || processes.calls != 0 {
+			t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+		}
+	})
+
+	t.Run("Should finish cleanup after deletion cancels the caller context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		processes := &handlerProcessService{}
+		handlers := newTestHandlers(
+			t,
+			stubSessionManager{DeleteFn: func(context.Context, string) error { cancel(); return nil }},
+			stubObserver{},
+			newTestHomePaths(t),
+		)
+		handlers.SessionProcesses = processes
+		request := httptest.NewRequestWithContext(
+			ctx,
+			http.MethodDelete,
+			"/api/workspaces/ws-workspace/sessions/sess-123?processes=terminate",
+			http.NoBody,
+		)
+		response := httptest.NewRecorder()
+		newTestRouter(t, handlers).ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent || processes.calls != 1 || processes.terminateContextErr != nil ||
+			!processes.terminateHasDeadline {
+			t.Fatalf(
+				"status=%d calls=%d ctxErr=%v bounded=%t",
+				response.Code,
+				processes.calls,
+				processes.terminateContextErr,
+				processes.terminateHasDeadline,
+			)
+		}
+	})
+	t.Run("Should finish stop and cleanup after the caller disconnects", func(t *testing.T) {
+		for _, tc := range []struct {
+			name, body string
+			status     int
+		}{
+			{"Should finish a waited stop", `{"wait":true,"processes":"terminate"}`, http.StatusOK},
+			{"Should finish a legacy stop", `{"processes":"terminate"}`, http.StatusNoContent},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				processes := &handlerProcessService{}
+				manager := &disconnectedProcessStopManager{
+					cancel: cancel,
+					StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+						return &session.Info{
+							ID:          id,
+							WorkspaceID: "ws-workspace",
+							ProfileID:   store.DefaultProfileID,
+							State:       session.StateActive,
+						}, nil
+					},
+				}
+				handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+				handlers.SessionProcesses = processes
+				request := httptest.NewRequestWithContext(
+					ctx,
+					http.MethodPost,
+					"/api/workspaces/ws-workspace/sessions/sess-123/stop",
+					strings.NewReader(tc.body),
+				)
+				request.Header.Set("Content-Type", "application/json")
+				response := httptest.NewRecorder()
+				newTestRouter(t, handlers).ServeHTTP(response, request)
+				if response.Code != tc.status || processes.calls != 1 || manager.awaitErr != nil ||
+					processes.terminateContextErr != nil {
+					t.Fatalf(
+						"status=%d calls=%d wait=%v cleanup=%v body=%s",
+						response.Code,
+						processes.calls,
+						manager.awaitErr,
+						processes.terminateContextErr,
+						response.Body.String(),
+					)
+				}
+			})
+		}
+	})
+	// Invariant: only a timed-out stop schedules deferred cleanup; the original error response is preserved.
+	// Owner/canonical suite: HTTP session process policies.
+	for _, wait := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve cleanup after stop deadline with wait=%t", wait), func(t *testing.T) {
+			processes := &handlerProcessService{}
+			manager := &disconnectedProcessStopManager{cancel: func() {}, stopErr: context.DeadlineExceeded,
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID:          id,
+						WorkspaceID: "ws-workspace",
+						ProfileID:   store.DefaultProfileID,
+						State:       session.StateActive,
+					}, nil
+				},
+			}
+			handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			body := `{"processes":"terminate"}`
+			if wait {
+				body = `{"wait":true,"processes":"terminate"}`
+			}
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/workspaces/ws-workspace/sessions/sess-123/stop",
+				strings.NewReader(body),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			newTestRouter(t, handlers).ServeHTTP(response, request)
+			if response.Code < 400 || processes.afterStop == nil || processes.calls != 0 {
+				t.Fatalf("status=%d callback=%t cleanup=%d", response.Code, processes.afterStop != nil, processes.calls)
+			}
+			manager.afterDeadline = true
+			if err := processes.afterStop(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+	t.Run("Should keep by default and only terminate on an explicit lifecycle choice", func(t *testing.T) {
+		for _, choice := range []string{"", "?processes=keep", "?processes=terminate"} {
+			processes := &handlerProcessService{}
+			handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+			handlers.SessionProcesses = processes
+			response := performRequest(
+				t,
+				newTestRouter(t, handlers),
+				http.MethodDelete,
+				"/api/workspaces/ws-workspace/sessions/sess-123"+choice,
+				nil,
+			)
+			want := 0
+			if choice == "?processes=terminate" {
+				want = 1
+			}
+			if response.Code != http.StatusNoContent || processes.calls != want {
+				t.Fatalf(
+					"choice=%s status=%d calls=%d body=%s",
+					choice,
+					response.Code,
+					processes.calls,
+					response.Body.String(),
+				)
+			}
+		}
+	})
+}
+
+type handlerProcessService struct {
+	results              []sessionprocess.Result
+	aggregateProfile     string
+	calls                int
+	refreshErr           error
+	unsupported          bool
+	targets              []sessionprocess.Identity
+	all                  bool
+	terminateContextErr  error
+	terminateHasDeadline bool
+	afterStop            func(context.Context) error
+}
+
+func (s *handlerProcessService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+	if s.refreshErr != nil {
+		return sessionprocess.Snapshot{}, s.refreshErr
+	}
+	if s.unsupported {
+		return sessionprocess.Snapshot{}, nil
+	}
+	return sessionprocess.Snapshot{
+		Supported: true,
+		ScannedAt: time.Now(),
+		Processes: []sessionprocess.Process{
+			{
+				PID: 123, StartedAt: time.Now(),
+				Owner: sessionprocess.Owner{
+					SessionID:   "sess-123",
+					WorkspaceID: "ws-workspace",
+					ProfileID:   store.DefaultProfileID,
+				},
+				Kind:        "background",
+				Attribution: "lineage",
+			},
+		},
+	}, nil
+}
+func (*handlerProcessService) Summary(string) sessionprocess.Summary {
+	return sessionprocess.Summary{Supported: true, Background: 1, Ports: []int{}}
+}
+func (*handlerProcessService) Acquire() func() { return func() {} }
+
+func (s *handlerProcessService) Terminate(
+	ctx context.Context,
+	id string,
+	targets []sessionprocess.Identity,
+	all bool,
+	allowed func(sessionprocess.Owner) bool,
+) ([]sessionprocess.Result, error) {
+	if id == "" {
+		profileID := s.aggregateProfile
+		if profileID == "" {
+			profileID = store.DefaultProfileID
+		}
+		if !allowed(sessionprocess.Owner{WorkspaceID: "foreign", ProfileID: profileID}) ||
+			allowed(sessionprocess.Owner{ProfileID: profileID, Live: true}) ||
+			allowed(sessionprocess.Owner{ProfileID: "foreign"}) {
+			return nil, errors.New("incorrect aggregate process mutation scope")
+		}
+	} else if !allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: store.DefaultProfileID}) ||
+		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "foreign", ProfileID: store.DefaultProfileID}) ||
+		allowed(sessionprocess.Owner{SessionID: id, WorkspaceID: "ws-workspace", ProfileID: "foreign"}) {
+		return nil, errors.New("incorrect process mutation scope")
+	}
+	s.calls++
+	s.targets, s.all = targets, all
+	s.terminateContextErr = ctx.Err()
+	_, s.terminateHasDeadline = ctx.Deadline()
+	return s.results, nil
+}
+func (s *handlerProcessService) AfterStop(_ string, await func(context.Context) error) {
+	s.afterStop = await
+}
+
+type disconnectedProcessStopManager struct {
+	stubSessionManager
+	cancel        context.CancelFunc
+	awaitErr      error
+	stopErr       error
+	afterDeadline bool
+}
+
+func (s *disconnectedProcessStopManager) RequestStop(context.Context, string, session.StopCause) error {
+	s.cancel()
+	return nil
+}
+func (s *disconnectedProcessStopManager) AwaitStopped(ctx context.Context, _ string) (session.StopOutcome, error) {
+	if s.stopErr != nil && !s.afterDeadline {
+		s.afterDeadline = true
+		return session.StopOutcome{}, s.stopErr
+	}
+	s.awaitErr = ctx.Err()
+	return session.StopOutcome{FinalState: session.StateStopped, Verified: s.awaitErr == nil}, s.awaitErr
+}
+
+func (s *disconnectedProcessStopManager) Stop(ctx context.Context, _ string) error {
+	s.cancel()
+	if s.stopErr != nil {
+		return s.stopErr
+	}
+	s.awaitErr = ctx.Err()
+	return s.awaitErr
 }

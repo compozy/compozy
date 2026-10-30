@@ -24,8 +24,10 @@ compozy session stop <id> [flags]
 ### Options
 
 ```
-  -h, --help   help for stop
-      --wait   Wait for verified termination or a verification failure
+  -h, --help                  help for stop
+      --keep-processes        Keep session-owned processes running (default)
+      --terminate-processes   Terminate session-owned background processes and terminals
+      --wait                  Wait for verified termination or a verification failure
 ```
 
 ### Options inherited from parent commands

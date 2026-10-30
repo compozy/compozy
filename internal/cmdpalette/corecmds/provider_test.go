@@ -104,9 +104,10 @@ func TestProviderAbsorption(t *testing.T) {
 		// could never bind. They are client operations, so each carries the
 		// verbatim reason its context predicate reports when unavailable.
 		expected := map[cmdpalette.CommandID]string{
-			"shell.sessions.toggle": "",
-			"window.merge_all":      "needs two windows on this desktop",
-			"window.tab.detach":     "needs a tab in a stack",
+			"shell.sessions.toggle":  "",
+			"processes.left_running": "",
+			"window.merge_all":       "needs two windows on this desktop",
+			"window.tab.detach":      "needs a tab in a stack",
 		}
 		for id, reason := range expected {
 			command, ok := byID[id]

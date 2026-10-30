@@ -190,6 +190,24 @@ export const DestructiveSolidConfirm: Story = {
   ),
 };
 
+/** Three ways out: cancel, the outline alternate, and the tinted destructive confirm. */
+export const AlternateAction: Story = {
+  args: {},
+  render: () => (
+    <ConfirmDialog
+      alternateAction={{ label: "Keep processes running", onSelect: () => undefined }}
+      cancelLabel="Cancel"
+      confirmLabel="Stop session and 2 processes"
+      defaultOpen
+      description="The current work will be interrupted."
+      icon={Ban}
+      onConfirm={() => undefined}
+      title="Stop this session?"
+      tone="warning"
+    />
+  ),
+};
+
 export const Triggered: Story = {
   args: {},
   render: () => (

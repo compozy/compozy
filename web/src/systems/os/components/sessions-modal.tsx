@@ -20,6 +20,7 @@ import {
   useSessionSidebarState,
   type SessionListViewModel,
   SessionDeleteDialog,
+  SessionProcessChoiceDialog,
   SessionRenameDialog,
   type useSessionLifecycleActions,
   type SessionCreateOpenOptions,
@@ -66,7 +67,10 @@ export function OsSessionsDialogHost({
             open={open}
             onOpenChange={onOpenChange}
             dismissalBlocked={
-              lifecycle.deleteDialog.open || lifecycle.renameDialog.open || deriveOpen
+              lifecycle.deleteDialog.open ||
+              lifecycle.processDialog.open ||
+              lifecycle.renameDialog.open ||
+              deriveOpen
             }
             sessions={view.catalog?.sessions ?? []}
             disconnected={disconnected}
@@ -87,6 +91,9 @@ export function OsSessionsDialogHost({
           isDeleting={lifecycle.deleteDialog.isDeleting}
           onConfirm={lifecycle.deleteDialog.onConfirm}
         />
+      ) : null}
+      {lifecycle.processDialog.open ? (
+        <SessionProcessChoiceDialog {...lifecycle.processDialog} />
       ) : null}
       {lifecycle.renameDialog.session ? (
         <SessionRenameDialog

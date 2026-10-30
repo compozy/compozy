@@ -103,23 +103,25 @@ export {
 export {
   useClearSessionConversation,
   useArchiveSession,
-  useCancelQueuedSessionPrompt,
   useCreateSession,
   useDeleteSession,
   useSessionDeletedByOperator,
   useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
-  useSendSessionPrompt,
   useStopSession,
   useUnarchiveSession,
-  type CancelQueuedSessionPromptParams,
   type StopSessionParams,
   type RepairSessionParams,
   type RenameSessionParams,
+} from "./use-session-actions";
+export {
+  useCancelQueuedSessionPrompt,
+  useSendSessionPrompt,
+  type CancelQueuedSessionPromptParams,
   type SendSessionPromptParams,
   type SessionPromptActionParams,
-} from "./use-session-actions";
+} from "./use-session-prompt-actions";
 export { useCompactSession } from "./use-compact-session";
 export { useSessionRewind, type SessionRewindVariables } from "./use-session-rewind";
 export {

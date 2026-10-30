@@ -1060,7 +1060,7 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		archivedAt := fixedTestNow.Add(time.Minute)
 		var stopRequests []bool
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			archiveSessionFn: func(_ context.Context, id string, stop bool) (SessionRecord, error) {
+			archiveSessionFn: func(_ context.Context, id string, stop bool, _ contract.SessionProcessPolicy) (SessionRecord, error) {
 				stopRequests = append(stopRequests, stop)
 				return SessionRecord{
 					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
@@ -2415,7 +2415,7 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 
 		client := &profileTestDaemonClient{
 			DaemonClient: withWorkspaceResolution(&stubClient{
-				stopSessionFn: func(ctx context.Context, id string, wait bool) (SessionStopRecord, error) {
+				stopSessionFn: func(ctx context.Context, id string, wait bool, _ contract.SessionProcessPolicy) (SessionStopRecord, error) {
 					if got := profileQueryValues(ctx, nil).Get(profileFlagName); got != "research" {
 						t.Fatalf("StopSession() profile query = %q, want research", got)
 					}
@@ -2485,7 +2485,7 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 					want.Verified, want.State, want.Status, want.Attention = true, session.StateStopped, "stopped", ""
 				}
 				client := withWorkspaceResolution(&stubClient{
-					stopSessionFn: func(_ context.Context, id string, wait bool) (SessionStopRecord, error) {
+					stopSessionFn: func(_ context.Context, id string, wait bool, _ contract.SessionProcessPolicy) (SessionStopRecord, error) {
 						if id != "sess-1" || !wait {
 							t.Fatalf("stop request = %s, wait=%t", id, wait)
 						}
@@ -2537,7 +2537,7 @@ func TestSessionRemoveDeletesSession(t *testing.T) {
 					UpdatedAt:     fixedTestNow,
 				}, nil
 			},
-			deleteSessionFn: func(_ context.Context, id string) error {
+			deleteSessionFn: func(_ context.Context, id string, _ contract.SessionProcessPolicy) error {
 				deletedID = id
 				return nil
 			},
@@ -5372,4 +5372,81 @@ func TestSessionWorktreeCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: lifecycle CLI choices reach the daemon without changing the default keep policy.
+// Owning layer/canonical suite: CLI session commands; transport encoding has separate client coverage.
+func TestSessionLifecycleProcessPolicy(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"stop", "archive", "remove"} {
+		for _, policy := range []contract.SessionProcessPolicy{"", "keep", "terminate"} {
+			t.Run("Should forward "+operation+" process policy "+string(policy), func(t *testing.T) {
+				t.Parallel()
+				var got contract.SessionProcessPolicy
+				called := false
+				record := SessionRecord{ID: "sess-1", State: session.StateStopped}
+				client := &stubClient{
+					getSessionFn: func(context.Context, string) (SessionRecord, error) { return record, nil },
+					stopSessionFn: func(_ context.Context, _ string, _ bool, p contract.SessionProcessPolicy) (SessionStopRecord, error) {
+						got, called = p, true
+						return SessionStopRecord{Verified: true, State: session.StateStopped}, nil
+					},
+					archiveSessionFn: func(_ context.Context, _ string, _ bool, p contract.SessionProcessPolicy) (SessionRecord, error) {
+						got, called = p, true
+						return record, nil
+					},
+					deleteSessionFn: func(_ context.Context, _ string, p contract.SessionProcessPolicy) error {
+						got, called = p, true
+						return nil
+					},
+				}
+				args := []string{"session", operation, "sess-1", "-o", "json"}
+				if policy != "" {
+					args = append(args, "--"+string(policy)+"-processes")
+				}
+				_, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+				if err != nil || !called || got != policy {
+					t.Fatalf("policy=%q called=%t error=%v, want %q", got, called, err, policy)
+				}
+			})
+		}
+	}
+}
+
+// Invariant: an unsupported host cannot report successful CLI termination.
+// Owning layer/canonical suite: CLI session command exit status.
+func TestSessionProcessStopUnsupported(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report unsupported termination with a failing exit status", func(t *testing.T) {
+		t.Parallel()
+		client := &unsupportedProcessClient{DaemonClient: withWorkspaceResolution(&stubClient{})}
+		output, _, err := executeRootCommand(
+			t,
+			newWorkspaceTestDeps(t, client),
+			"session",
+			"processes",
+			"stop",
+			"sess-1",
+			"--all",
+			"-o",
+			"json",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unsupported") ||
+			!strings.Contains(output, `"supported": false`) {
+			t.Fatalf("output=%s error=%v", output, err)
+		}
+	})
+}
+
+type unsupportedProcessClient struct {
+	DaemonClient
+	sessionProcessesClient
+}
+
+func (*unsupportedProcessClient) TerminateSessionProcesses(
+	context.Context,
+	string,
+	contract.TerminateSessionProcessesRequest,
+) (contract.TerminateSessionProcessesResponse, error) {
+	return contract.TerminateSessionProcessesResponse{Supported: false, Results: []contract.SessionProcessResult{}}, nil
 }

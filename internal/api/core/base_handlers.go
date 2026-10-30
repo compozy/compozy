@@ -33,6 +33,7 @@ type BaseHandlerConfig struct {
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
 	SessionMonitors              SessionMonitorService
+	SessionProcesses             SessionProcessService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -122,6 +123,7 @@ type BaseHandlers struct {
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
 	SessionMonitors              SessionMonitorService
+	SessionProcesses             SessionProcessService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -237,6 +239,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Subagents:                    cfg.Subagents,
 		SessionMonitors:              cfg.SessionMonitors,
+		SessionProcesses:             cfg.SessionProcesses,
 		Sessions:                     cfg.Sessions,
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,

@@ -102,6 +102,13 @@ type PredicateOperator string
 // Priority is a daemon API value.
 type Priority string
 
+// ProcessesResponse is a daemon API value.
+type ProcessesResponse struct {
+	Supported bool                         `json:"supported"`
+	ScannedAt time.Time                    `json:"scanned_at"`
+	Groups    []SessionProcessGroupPayload `json:"groups"`
+}
+
 // Profile is a daemon API value.
 type Profile struct {
 	ID                     string                         `json:"id"`
@@ -438,12 +445,4 @@ type ProviderUsageAccount struct {
 type ProviderUsageAmount struct {
 	Value string `json:"value"`
 	Unit  string `json:"unit"`
-}
-
-// ProviderUsageBalance is a daemon API value.
-type ProviderUsageBalance struct {
-	ID        string              `json:"id"`
-	Label     string              `json:"label"`
-	Remaining ProviderUsageAmount `json:"remaining"`
-	ExpiresAt *time.Time          `json:"expires_at"`
 }

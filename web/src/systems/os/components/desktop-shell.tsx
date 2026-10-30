@@ -23,6 +23,8 @@ import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { DesktopSessionDialogs, WorkspaceSetupDialogBoundary } from "./desktop-shell-dialogs";
+import { ProcessesLeftRunningHost } from "@/systems/session";
+
 import { OsAboutDialog } from "./os-about-dialog";
 import { OsAppPreloader } from "./os-app-preloader";
 import { OsCommandPalette } from "./os-command-palette";
@@ -375,6 +377,10 @@ function DesktopShellScopedBody({
       <OsShortcutsDialog
         open={overlays.activeOverlay === "shortcuts"}
         onOpenChange={open => overlays.setOverlayOpen("shortcuts", open)}
+      />
+      <ProcessesLeftRunningHost
+        open={overlays.activeOverlay === "left-running"}
+        onOpenChange={open => overlays.setOverlayOpen("left-running", open)}
       />
       <OsAboutDialog
         open={overlays.activeOverlay === "about"}

@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listSessionProcesses", "terminateSessionProcesses",
 			"listProviderUsage", "getProviderUsage", "streamProviderUsage",
 			"acceptAutomationSuggestion",
 			"acknowledgeAttentionNotifications",
@@ -203,6 +204,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"listProcesses", "terminateProcesses",
 			"listTerminalsAggregate",
 			"streamTerminalsAggregate",
 			"listWorktreesAggregate",

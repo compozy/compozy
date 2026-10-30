@@ -27,6 +27,7 @@ type GlobalDB struct {
 	*NotificationRepo
 	*AttentionRepo
 	*ToolRuntimeRepo
+	*SessionProcessRepo
 	*VaultRepo
 	*ExtensionEnvRepo
 	ExtensionInputs *ExtensionInputRepo

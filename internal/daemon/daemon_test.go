@@ -54,6 +54,7 @@ import (
 	registrygithub "github.com/compozy/compozy/internal/registry/github"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -10883,4 +10884,17 @@ func (f *fakeSessionManager) ContextEvents(context.Context, string) (session.Con
 
 func (r *recordingRegistry) SetWorkspaceArchived(context.Context, string, bool) (workspacepkg.Workspace, error) {
 	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+// Recording registry is the existing boot-suite persistence I/O boundary.
+func (r *recordingRegistry) LoadProcessObservations(context.Context) ([]sessionprocess.Observation, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) SaveProcessObservations(
+	context.Context,
+	[]sessionprocess.Observation,
+	[]sessionprocess.Identity,
+) error {
+	return nil
 }

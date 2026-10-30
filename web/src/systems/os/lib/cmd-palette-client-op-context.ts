@@ -13,6 +13,8 @@ export interface PaletteShellHandlers {
   openPalette(): void;
   openPaletteView(viewId: string): void;
   openCheatsheet(): void;
+  /** Opens "Processes left running" (processes of sessions that are no longer running). */
+  openLeftRunning(): void;
   openDesktops(): void;
   openWorkspaces(): void;
   openNewSession(): void;

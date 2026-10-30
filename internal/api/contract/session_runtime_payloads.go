@@ -90,6 +90,7 @@ type SessionPayload struct {
 	Scope                    string                               `json:"scope"`
 	ReplyWatches             []ReplyWatchPayload                  `json:"reply_watches,omitempty"`
 	SubagentSummary          *SubagentSummaryPayload              `json:"subagent_summary,omitzero"`
+	ProcessSummary           *SessionProcessSummaryPayload        `json:"process_summary,omitzero"`
 	MonitorSummary           *SessionMonitorSummaryPayload        `json:"monitor_summary,omitzero"`
 	Queue                    *SessionQueueSummaryPayload          `json:"queue,omitzero"`
 	Supervision              *session.SupervisionState            `json:"supervision"`

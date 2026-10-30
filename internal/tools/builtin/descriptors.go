@@ -40,6 +40,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		subagentDescriptors(),
 		sessionAttentionDescriptors(),
 		sessionMonitorDescriptors(),
+		sessionProcessDescriptors(),
 		sessionOrchestrationDescriptors(),
 		authoredContextDescriptors(),
 		workspaceDescriptors(),

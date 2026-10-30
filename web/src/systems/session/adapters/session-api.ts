@@ -20,6 +20,7 @@ import {
   SessionNotFoundError,
   throwSessionRequestError,
 } from "./session-api-errors";
+import type { SessionProcessPolicy } from "./session-processes-api";
 
 export { fetchSessions } from "./session-catalog-api";
 export { archiveSession, unarchiveSession } from "./session-archive-api";
@@ -114,14 +115,15 @@ export async function deleteSession(
   workspaceId: string,
   id: string,
   profile: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  processes?: SessionProcessPolicy
 ): Promise<void> {
   const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
-        query: { profile },
+        query: processes ? { profile, processes } : { profile },
       },
       signal,
     }
@@ -212,6 +214,8 @@ export interface StopSessionOptions {
    * session read model owns the settled state.
    */
   wait?: boolean;
+  /** Stop or keep the processes the session left running; omitted keeps them. */
+  processes?: SessionProcessPolicy;
 }
 
 /**
@@ -234,7 +238,10 @@ export async function stopSession(
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: { profile },
       },
-      body: { wait: options.wait === true },
+      body: {
+        wait: options.wait === true,
+        ...(options.processes ? { processes: options.processes } : {}),
+      },
       signal: options.signal,
     }
   );

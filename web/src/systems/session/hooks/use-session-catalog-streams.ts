@@ -133,7 +133,11 @@ function createCatalogReconciler(queryClient: QueryClient) {
     const prefixes = [
       ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
       ...(workspaces.size > 0
-        ? [sessionKeys.attentionSummary(), notificationKeys.attentionRoot()]
+        ? [
+            sessionKeys.attentionSummary(),
+            notificationKeys.attentionRoot(),
+            sessionKeys.processesLeftRunning(),
+          ]
         : []),
     ];
     workspaces.clear();
@@ -239,6 +243,15 @@ function isSessionMonitorsQuery(query: { queryKey: QueryKey }): boolean {
   return key[0] === sessionKeys.all[0] && key.at(-1) === "monitors" && key.includes("detail");
 }
 
+function isSessionProcessesQuery(query: { queryKey: QueryKey }): boolean {
+  const key = query.queryKey;
+  return (
+    key[0] === sessionKeys.all[0] &&
+    ((key[3] === "detail" && key[5] === "processes") ||
+      key[1] === sessionKeys.processesLeftRunning()[1])
+  );
+}
+
 function openSessionCatalogStream(
   queryClient: QueryClient,
   eventSourceFactory: SessionCatalogEventSourceFactory,
@@ -271,6 +284,8 @@ function openSessionCatalogStream(
     // Monitor changes missed while disconnected can fall outside the replay
     // window, so an open monitor popover re-reads on every (re)connect.
     void queryClient.invalidateQueries({ predicate: isSessionMonitorsQuery });
+    // A process list is a scan, so every (re)connect rereads an open processes view too.
+    void queryClient.invalidateQueries({ predicate: isSessionProcessesQuery });
     // So can a workspace_layout change: project folders reread on every (re)connect.
     void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLayouts() });
     // A location-change event can fall outside the bounded replay window.
@@ -317,6 +332,7 @@ function openSessionCatalogStream(
     // Only an open monitor popover observes this small read; elsewhere it is just
     // marked stale. An in-flight read may predate the change, so it is replaced.
     void invalidateSessionMonitorsQueries(queryClient, payload.workspace_id, payload.session_id);
+    // sessionReads also reconciles process lists, including wakes during an older scan.
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

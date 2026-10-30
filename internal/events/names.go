@@ -20,6 +20,7 @@ const (
 	SessionSupervisionStopped         = "session.supervision_stopped"
 	SessionSupervisionSourceError     = "session.supervision_source_error"
 	SessionStopped                    = "session_stopped"
+	SessionProcessesTerminated        = "session.processes.terminated"
 	SessionTurnQuiesced               = "session.turn_quiesced"
 	SessionRestartInterrupted         = "session.restart_interrupted"
 	SessionRestartAttempt             = "session.restart_attempt"

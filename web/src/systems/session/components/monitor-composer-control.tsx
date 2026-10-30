@@ -7,12 +7,8 @@ import {
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
-  Skeleton,
-  SkeletonRegion,
-  SkeletonText,
   StateGlyph,
   Time,
-  cn,
 } from "@compozy/ui";
 
 import type { SessionMonitorPayload } from "../adapters/session-monitor-api";
@@ -21,6 +17,7 @@ import {
   monitorIsWaking,
   monitorWatchLabel,
 } from "../lib/session-monitor-format";
+import { ComposerPopoverRowsSkeleton } from "./composer-popover-rows-skeleton";
 
 export interface MonitorComposerControlProps {
   /** Active monitors the session reports; the trigger shows only while it is positive. */
@@ -41,51 +38,8 @@ export interface MonitorComposerControlProps {
 const MONITOR_ROW_FRAME = "group/monitor-row flex items-start gap-2 rounded-md px-0.5 py-1";
 const MONITOR_ROW_TEXT_FRAME = "flex min-w-0 flex-1 flex-col gap-0.5";
 
-/** The most placeholder rows the popover holds for a list it has not read yet. */
-const PLACEHOLDER_ROW_POSITIONS = [0, 1, 2, 3] as const;
 const DESCRIPTION_WIDTHS = ["w-48", "w-40", "w-52"] as const;
 const WATCH_WIDTHS = ["w-32", "w-28", "w-36"] as const;
-
-/**
- * The monitor rows before the list arrives, in the live row's own frame: the state glyph, the
- * description over its watch line, and the cancel control's place. One row per active monitor the
- * session's summary reports (capped), and the one status region of the area.
- */
-function MonitorRowsSkeleton({ count }: { count: number }) {
-  const rows = PLACEHOLDER_ROW_POSITIONS.slice(0, Math.max(1, count));
-  return (
-    <SkeletonRegion
-      label="Loading monitors"
-      data-testid="composer-monitors-loading"
-      className="flex flex-col gap-1"
-    >
-      <ul aria-hidden="true" className="flex flex-col gap-0.5">
-        {rows.map(position => (
-          <li key={position} className={MONITOR_ROW_FRAME}>
-            <Skeleton className="mt-0.75 size-3 shrink-0 rounded-full" />
-            <span className={MONITOR_ROW_TEXT_FRAME}>
-              <SkeletonText
-                className={cn(
-                  "text-transcript-meta",
-                  DESCRIPTION_WIDTHS[position % DESCRIPTION_WIDTHS.length]
-                )}
-              />
-              <SkeletonText
-                className={cn(
-                  "text-transcript-caption",
-                  WATCH_WIDTHS[position % WATCH_WIDTHS.length]
-                )}
-              />
-            </span>
-            <span className="flex size-button-icon-xs shrink-0 items-center justify-center">
-              <Skeleton className="size-3 rounded-sm" />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </SkeletonRegion>
-  );
-}
 
 function MonitorRow({
   monitor,
@@ -187,8 +141,20 @@ function MonitorComposerBody({
   if (failed) {
     return <MonitorLoadError message="Couldn't load monitors." onRetry={onRetry} />;
   }
-  if (loading)
-    return <MonitorRowsSkeleton count={Math.min(active, PLACEHOLDER_ROW_POSITIONS.length)} />;
+  if (loading) {
+    // One placeholder row per active monitor the session's summary reports (capped).
+    return (
+      <ComposerPopoverRowsSkeleton
+        label="Loading monitors"
+        data-testid="composer-monitors-loading"
+        count={active}
+        rowClassName={MONITOR_ROW_FRAME}
+        textClassName={MONITOR_ROW_TEXT_FRAME}
+        titleWidths={DESCRIPTION_WIDTHS}
+        metaWidths={WATCH_WIDTHS}
+      />
+    );
+  }
   return <p className="px-0.5 text-transcript-caption text-muted">Nothing is being monitored.</p>;
 }
 

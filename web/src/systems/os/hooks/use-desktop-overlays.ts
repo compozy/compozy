@@ -25,6 +25,7 @@ export type DesktopOverlay =
   | "desktops"
   | "sessions"
   | "shortcuts"
+  | "left-running"
   | "about";
 
 type LocalDesktopOverlay = Exclude<DesktopOverlay, "desktops">;

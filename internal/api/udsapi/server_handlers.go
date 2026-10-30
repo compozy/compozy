@@ -31,6 +31,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		DrainController:              cfg.drainController,
 		Subagents:                    cfg.subagents,
 		SessionMonitors:              cfg.sessionMonitors,
+		SessionProcesses:             cfg.sessionProcesses,
 		SessionCatalog:               cfg.sessionCatalog,
 		TaskDesignations:             cfg.taskDesignations,
 		Tasks:                        cfg.tasks,

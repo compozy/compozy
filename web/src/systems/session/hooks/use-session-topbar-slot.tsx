@@ -1,7 +1,9 @@
 import { StateGlyph, useTopbarSlot } from "@compozy/ui";
 
 import { SessionPullRequestChip } from "../components/session-pull-request-chip";
+import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { SessionPrimaryAction } from "../components/session-primary-action";
+import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
 
 import type { WorktreePayload } from "@/systems/workspace";
@@ -62,7 +64,7 @@ interface UseSessionTopbarSlotInput {
   transportChip?: React.ReactNode;
   onInspectorToggle: () => void;
   onSidebarToggle: () => void;
-  onStop: () => void;
+  onStop: (processes?: SessionProcessPolicy) => void;
   onUnarchive: () => void;
   /** Continued/forked origin shown as the status-line pill. */
   origin?: SessionOriginView | null;
@@ -146,7 +148,13 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     // The run verbs lead; the two panel toggles trail as quiet icons.
     actions: (
       <>
-        <SessionPrimaryAction key={session.id} {...input} {...actions} />
+        <SessionPrimaryAction
+          key={session.id}
+          {...input}
+          {...actions}
+          runningProcesses={sessionRunningProcesses(session)}
+          processPorts={sessionProcessPorts(session)}
+        />
         {inWindow ? (
           <SessionPanelToggle
             panel="sidebar"

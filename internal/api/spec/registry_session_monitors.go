@@ -42,7 +42,7 @@ func sessionMonitorOperations() []OperationSpec {
 
 func sessionMonitorResponses(body any) []ResponseSpec {
 	return []ResponseSpec{
-		{Status: 200, Description: "Success", Body: body},
+		{Status: 200, Description: specSuccessDescription, Body: body},
 		{Status: 400, Description: "Invalid profile selection", Body: contract.ProfileErrorPayload{}},
 		{Status: 404, Description: "Session or monitor not found", Body: contract.ErrorPayload{}},
 		{Status: 503, Description: "Session monitors unavailable", Body: contract.ErrorPayload{}},

@@ -901,6 +901,54 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: Stop's durable Goal pause precedes settlement of a prompt setup it interrupts.
+	// Owner/canonical suite: Manager stop lifecycle, with the Goal persistence I/O boundary held.
+	t.Run("Should settle managed setup ambiguity only after the Goal pause is persisted", func(t *testing.T) {
+		h := newHarness(t)
+		active := createSession(t, h)
+		entered, release := make(chan struct{}), make(chan struct{})
+		enter := sync.OnceFunc(func() { close(entered) })
+		unblock := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(unblock)
+		h.manager.SetGoalCommandHandler(&stopGoalHandler{stop: func(context.Context, *Info) error {
+			enter()
+			<-release
+			return nil
+		}})
+		stopped := make(chan error, 1)
+		go func() { stopped <- h.manager.Stop(t.Context(), active.ID) }()
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("Stop did not reach Goal persistence")
+		}
+		lifecycle := newRecordingManagedInputLifecycle()
+		settled := make(chan struct{})
+		go func() {
+			defer close(settled)
+			h.manager.recordManagedInputAmbiguous(lifecycle, ManagedInputSubmission{
+				Owner: ManagedInputOwner{SessionID: active.ID},
+			}, managedInputReasonRecoveryAmbiguous, ErrSessionNotActive)
+		}()
+		select {
+		case <-lifecycle.ambiguous:
+			t.Error("prompt setup settled before Stop persisted its Goal pause")
+		case <-time.After(50 * time.Millisecond):
+		}
+		unblock()
+		if err := <-stopped; err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-settled:
+		case <-time.After(time.Second):
+			t.Fatal("prompt setup did not settle after Goal pause persistence")
+		}
+		receipt := lifecycle.waitAmbiguous(t)
+		if receipt.Owner.SessionID != active.ID || receipt.ReasonCode != managedInputReasonRecoveryAmbiguous {
+			t.Fatalf("unexpected ambiguity receipt: %#v", receipt)
+		}
+	})
 	// Invariant: verified exit remains terminal during storage loss; retained receipts settle before reuse or deletion.
 	for _, tc := range []struct {
 		action string

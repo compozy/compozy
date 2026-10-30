@@ -24,6 +24,7 @@ func buildOperationRegistry() []OperationSpec {
 		registryWorkspaceLayoutOperations(),
 		registrySubagentOperations(),
 		sessionMonitorOperations(),
+		sessionProcessOperations(),
 		registryTaskManagementOperations(),
 		registryTaskLifecycleOperations(),
 		registryTaskRunOperations(),

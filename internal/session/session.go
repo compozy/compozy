@@ -53,6 +53,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	LeaderKernelToken        string `json:"-"`
 	BoardColumn              BoardColumn
 	ParentTitle              string
 	Children                 *store.SessionBoardCounts
@@ -148,6 +149,7 @@ type Session struct {
 	steerDelivery              store.SteerDeliveryMode
 	mu                         sync.RWMutex
 	persistMu                  sync.Mutex
+	goalStopMu                 sync.Mutex // Orders Goal pause persistence before interrupted setup recovery.
 	conversationRewindReserved bool
 
 	ID                        string

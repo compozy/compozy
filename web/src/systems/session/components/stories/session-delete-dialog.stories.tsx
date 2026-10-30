@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
+import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionDeleteDialog } from "../session-delete-dialog";
 import { BULK_SELECTED_SESSIONS } from "./session-bulk-fixtures";
 
@@ -51,5 +52,17 @@ export const LargePartialFailure: Story = {
       status: "failed",
       error: "The session is locked by another operation. Retry when that operation completes.",
     })),
+  },
+};
+
+/** A session that left processes running: keep them, or delete and stop them. */
+export const SingleWithProcesses: Story = {
+  args: { session: withSessionProcessSummary(BULK_SELECTED_SESSIONS[0]!) },
+};
+export const SetWithProcesses: Story = {
+  args: {
+    sessions: BULK_SELECTED_SESSIONS.map((session, index) =>
+      index === 0 ? withSessionProcessSummary(session) : session
+    ),
   },
 };

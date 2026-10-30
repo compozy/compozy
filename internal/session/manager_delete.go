@@ -9,6 +9,10 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// ErrDeleteStopAccepted marks a delete failure after its stop request was accepted.
+// Callers may retain cleanup only when this marker accompanies a canceled wait.
+var ErrDeleteStopAccepted = errors.New("session: delete stop accepted")
+
 // Delete removes one session from active runtime state and persisted history.
 func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 	if m == nil {
@@ -110,7 +114,7 @@ func (m *Manager) prepareSessionDelete(ctx context.Context, target string) (*Inf
 	}
 	_, active := m.Get(target)
 	if active || m.hasPendingStopSettlement(target) {
-		if err := stopSessionBeforeDelete(ctx, target, m.StopWithCause); err != nil {
+		if err := stopSessionBeforeDelete(ctx, target, m.stopWithDeleteReceipt); err != nil {
 			return nil, fmt.Errorf("session: stop %q before delete: %w", target, err)
 		}
 		info, err = m.Status(ctx, target)
@@ -153,6 +157,14 @@ func stopSessionBeforeDelete(
 	err := stop(ctx, target, CauseUserRequested, "session deleted")
 	if err == nil || errors.Is(err, ErrSessionNotFound) {
 		return nil
+	}
+	return err
+}
+
+func (m *Manager) stopWithDeleteReceipt(ctx context.Context, id string, cause StopCause, detail string) error {
+	accepted, err := m.stopWithCauseReceipt(ctx, id, cause, detail)
+	if accepted && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		return errors.Join(ErrDeleteStopAccepted, err)
 	}
 	return err
 }

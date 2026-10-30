@@ -12,6 +12,11 @@ import {
   useSessionWindowViewState,
 } from "@/systems/session";
 
+const SessionProcessChoiceDialog = lazy(() =>
+  import("@/systems/session/components/session-process-choice-dialog").then(module => ({
+    default: module.SessionProcessChoiceDialog,
+  }))
+);
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
     default: module.SessionDeleteDialog,
@@ -86,6 +91,11 @@ export function SessionWindowEmpty({ windowId }: { windowId: string }) {
             isDeleting={sidebar.rowDeleteDialog.isDeleting}
             onConfirm={sidebar.rowDeleteDialog.onConfirm}
           />
+        </Suspense>
+      ) : null}
+      {sidebar.rowProcessDialog.open ? (
+        <Suspense fallback={null}>
+          <SessionProcessChoiceDialog {...sidebar.rowProcessDialog} />
         </Suspense>
       ) : null}
       {sidebar.rowRenameDialog.open && sidebar.rowRenameDialog.session ? (

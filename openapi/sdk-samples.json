@@ -1926,6 +1926,13 @@
             "resource": "openai",
             "app_access": "denied"
         },
+        "listProcesses": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listProcesses();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListProcesses(ctx, client.ListProcessesParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
         "listProfileOperations": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.profiles.listProfileOperations();",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListProfileOperations(ctx)\nif err != nil { return err }\nfmt.Println(result)",
@@ -2034,6 +2041,13 @@
         "listSessionMonitors": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionMonitors({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionMonitors(ctx, client.ListSessionMonitorsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
+        "listSessionProcesses": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionProcesses({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionProcesses(ctx, client.ListSessionProcessesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"
@@ -3198,6 +3212,20 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SubmitTaskRunReviewVerdict(ctx, client.SubmitTaskRunReviewVerdictParams{ID: \"id\"}, client.SubmitTaskRunReviewVerdictRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "tasks",
+            "app_access": "allowed"
+        },
+        "terminateProcesses": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.terminateProcesses({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.TerminateProcesses(ctx, client.TerminateProcessesParams{}, client.TerminateProcessesRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "denied"
+        },
+        "terminateSessionProcesses": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.terminateSessionProcesses({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.TerminateSessionProcesses(ctx, client.TerminateSessionProcessesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.TerminateSessionProcessesRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
             "app_access": "allowed"
         },
         "triggerAutomationJob": {

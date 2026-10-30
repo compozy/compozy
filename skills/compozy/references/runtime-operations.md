@@ -1687,3 +1687,47 @@ cwd, and file mentions use the current binding, not the immutable creation profi
 is preferred; bounded replay preserves conversation context when native load is unavailable.
 The first accepted normal turn receives a daemon directory-change note. Busy self-binding is
 refused immediately with `session_busy`; it is never deferred.
+
+## Session Processes
+
+Use `compozy__session_processes_list` with `session_id` (omitted selects the caller) to inspect
+session-owned background commands, active tools, and native terminals. Rows carry exact `pid` and
+`started_at`, `kind`, `attribution` (`env` or `lineage`), command, CWD, age, and listening ports.
+Raw environments are never exposed. The session's `process_summary` counts background processes
+and native terminals, with ports from that same population; foreground tools remain in the detailed list. Catalog changes invalidate it.
+
+`compozy__session_processes_terminate` accepts either `all: true` or a nonempty `targets` array of
+`{pid, started_at}` copied from the list. Never terminate by PID alone. It is a destructive tool,
+subject to the current permission/approval policy and session workspace/profile boundaries. Agent
+leaders and the daemon remain protected. Verified group members are signaled individually to
+exclude later group joiners. Native terminals close through the terminal manager.
+Inspect every result: only `terminated` and `already_exited` confirm completion;
+`identity_mismatch`, `failed`, and `unproven` require inspection. Audit event:
+`session.processes.terminated`.
+
+Stop and archive native tools accept `processes: keep|terminate`; omission means keep. HTTP/UDS stop
+places it in the JSON body with `wait`; archive and DELETE place it in the query. CLI stop, archive,
+and remove accept mutually exclusive `--keep-processes` / `--terminate-processes`. A failed
+ownership refresh does not block keep. Explicit termination rejects unsupported inspection before
+the lifecycle mutation, and accepted cleanup survives client disconnect with a bounded lifetime.
+CLI process termination reports an error on unsupported hosts. Read through
+`compozy session processes <id> -o json`; terminate with `processes stop <id> --all` or the paired
+`--pid` and `--started-at`. Canceling a turn and idle release do not request cleanup.
+
+The operator's **Processes left running** palette view spans stopped/archived/deleted/unknown
+sessions. Its operator-only API is `GET /api/processes?all_workspaces=true&all_profiles=true&orphaned=true`;
+`POST /api/processes/terminate` accepts exact `targets`, never `all`, including deleted owners.
+`compozy process list --orphaned --all-workspaces --all-profiles -o json` reads the same inventory.
+
+Environment markers are primary; durable exact-identity ancestry observations survive reparenting
+and daemon restart. Boot re-verifies saved identities and prunes dead rows. Shared scans normally
+run every five seconds on demand, with 250 ms tree observations during active tool calls. Windows
+returns `supported:false`. macOS protected binaries that detach and change PGID before their first
+observation cannot be attributed because XNU restricts environment reads
+(https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sysctl.c, `sysctl_procargsx`).
+A bare legacy marker for a missing session cannot establish profile ownership without a retained
+observation; unknown owners need this daemon's home and profile markers.
+
+Shutdown keeps detached session descendants. The daemon still closes native terminals during
+shutdown; PTY survival across restart is outside this feature. Keeping never prevents a process
+from exiting or receiving its parent's or terminal lifecycle's signals.

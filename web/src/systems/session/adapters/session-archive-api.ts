@@ -1,26 +1,33 @@
 import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 
 import type { SessionPayload } from "../types";
+import type { SessionProcessPolicy } from "./session-processes-api";
 import { throwSessionRequestError } from "./session-api-errors";
 import { sessionWorkspacePath } from "./session-workspace-path";
 
 /**
  * Archives a session using its explicit owner profile. `stop` lets the daemon
- * stop a live session through the normal stop path before archiving it.
+ * stop a live session through the normal stop path before archiving it;
+ * `processes` decides whether the processes it left running stop with it.
  */
 export async function archiveSession(
   workspaceId: string,
   id: string,
   profile: string,
   signal?: AbortSignal,
-  stop = false
+  stop = false,
+  processes?: SessionProcessPolicy
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
       params: {
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
-        query: stop ? { profile, stop: true } : { profile },
+        query: {
+          profile,
+          ...(stop ? { stop: true } : {}),
+          ...(processes ? { processes } : {}),
+        },
       },
       signal,
     }

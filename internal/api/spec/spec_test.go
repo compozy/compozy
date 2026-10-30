@@ -3620,6 +3620,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// Session monitors: optional additive `monitor_summary` on session payloads; no
 	// required/type/removal change.
 	addSessionMonitorSummary(t, baseline)
+	addSessionProcessSummary(t, baseline)
+	addSessionProcessPolicyParameters(t, baseline)
 	addSessionsKanbanSchemas(t, baseline)
 
 	// Composer mentions: optional additive `mentions` on queued-input payloads; no
@@ -4267,6 +4269,52 @@ func addSessionMonitorSummary(t *testing.T, baseline map[string]any) {
 	}
 }
 
+func addSessionProcessSummary(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	if _, exists := components["SessionProcessSummaryPayload"]; exists {
+		t.Fatal("approved session process addition: summary schema already exists in the historical baseline")
+	}
+	components["SessionProcessSummaryPayload"] = map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"supported":  map[string]any{"type": "boolean"},
+			"background": map[string]any{"type": "integer"},
+			"terminals":  map[string]any{"type": "integer"},
+			"total":      map[string]any{"type": "integer"},
+			"ports":      map[string]any{"type": "array", "items": map[string]any{"type": "integer"}},
+		},
+		"required": []any{"background", "ports", "supported", "terminals", "total"},
+	}
+	var walk func(any) int
+	walk = func(value any) int {
+		count := 0
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				count += walk(child)
+			}
+		case map[string]any:
+			for child := range maps.Values(node) {
+				count += walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok || properties["subagent_summary"] == nil || properties["badge"] == nil {
+				return count
+			}
+			properties["process_summary"] = map[string]any{"oneOf": []any{
+				map[string]any{"$ref": "#/components/schemas/SessionProcessSummaryPayload"},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+		return count
+	}
+	if walk(baseline) == 0 {
+		t.Fatal("approved session process addition: no historical session payload schemas found")
+	}
+}
+
 // addQueuedInputMentions adds the approved `mentions` array to every historical
 // queued-input payload schema (identified by skill_invocations + queue_generation).
 func addQueuedInputMentions(t *testing.T, baseline map[string]any) {
@@ -4654,5 +4702,28 @@ func addMissingWorkspaceDiagnosticsSchemas(t *testing.T, baseline map[string]any
 	}
 	if walk(baseline) == 0 {
 		t.Fatal("no historical missing-workspace read schemas found")
+	}
+}
+
+func addSessionProcessPolicyParameters(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+
+	stop := paths[prefix+"/stop"].(map[string]any)["post"].(map[string]any)
+	body := stop["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)
+	body["schema"].(map[string]any)["properties"].(map[string]any)["processes"] = map[string]any{
+		"type": "string",
+		"enum": []any{"keep", "terminate"},
+	}
+	for _, target := range []struct{ path, method string }{{prefix, "delete"}, {prefix + "/archive", "post"}} {
+		operation := paths[target.path].(map[string]any)[target.method].(map[string]any)
+		operation["parameters"] = append([]any{
+			map[string]any{
+				"name":   "processes",
+				"in":     "query",
+				"schema": map[string]any{"type": "string", "enum": []any{"keep", "terminate"}},
+			},
+		}, operation["parameters"].([]any)...)
 	}
 }

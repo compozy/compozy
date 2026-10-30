@@ -1,10 +1,22 @@
+import {
+  batchSkipReason,
+  batchSkipNote,
+  batchVerbPast,
+  reportBatch,
+  type BatchVerb,
+} from "../lib/session-batch-feedback";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
+import {
+  readCurrentSessions,
+  runSessionBatch,
+  type SessionBatchResult,
+} from "../lib/session-batch";
 
-import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isSubagentSession } from "../lib/session-hierarchy";
+import { sessionProcessPorts, sessionsRunningProcesses } from "../lib/session-processes";
+import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionPayload } from "../types";
 import {
   useArchiveSession,
@@ -13,6 +25,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
+import { useCurrentDeleteSessions } from "./use-current-delete-sessions";
 import { useSessionReparent } from "./use-session-reparent";
 
 export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
@@ -48,7 +61,23 @@ export interface SessionDeleteConfirmation {
   session: SessionPayload | null;
   isDeleting: boolean;
   onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
+  /** `processes` answers what happens to running processes; absent when none run. */
+  onConfirm: (processes?: SessionProcessPolicy) => void;
+}
+
+/**
+ * The stop/archive question a list asks while its targets have processes
+ * running: stop them too, keep them, or cancel. Hosts render it with
+ * `SessionProcessChoiceDialog`.
+ */
+export interface SessionProcessChoiceConfirmation {
+  open: boolean;
+  action: "stop" | "archive";
+  sessionCount: number;
+  processCount: number;
+  ports: readonly number[];
+  onOpenChange: (open: boolean) => void;
+  onChoose: (processes: SessionProcessPolicy) => void;
 }
 
 export interface SessionRenameConfirmation {
@@ -63,6 +92,7 @@ export interface UseSessionLifecycleActionsResult {
   actions: SessionLifecycleActionHandlers;
   batchResults: readonly SessionBatchResult[];
   deleteDialog: SessionDeleteConfirmation;
+  processDialog: SessionProcessChoiceConfirmation;
   renameDialog: SessionRenameConfirmation;
 }
 
@@ -71,86 +101,14 @@ export interface UseSessionLifecycleActionsResult {
  * first, and a stopped parent whose subagent session is still live (until the
  * reaper stops it) archives too. A fully stopped family archives as before.
  */
-function archiveTarget(session: SessionPayload) {
-  return { ...session, stop: true };
+function archiveTarget(session: SessionPayload, processes?: SessionProcessPolicy) {
+  return { ...session, stop: true, ...(processes ? { processes } : {}) };
 }
 
 /** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
   toast.error(error instanceof Error && error.message ? error.message : fallback);
-}
-
-const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
-
-type BatchVerb = "stop" | "archive" | "unarchive";
-
-const CHILD_SKIP = "child";
-
-/** Why a selected session sits a verb out; `null` when the verb applies to it. */
-function batchSkipReason(action: BatchVerb, session: SessionPayload): string | null {
-  const archived = session.archived_at !== null;
-  if (action === "stop") {
-    if (session.state !== "active" && session.state !== "starting") return "not running";
-    return archived ? "archived" : null;
-  }
-  // Subagent sessions archive and unarchive with their parent (ADR-005), never on their own.
-  if (isSubagentSession(session)) return CHILD_SKIP;
-  if (action === "archive") return archived ? "already archived" : null;
-  return archived ? null : "not archived";
-}
-
-function batchVerbPast(action: BatchVerb): string {
-  return action === "stop" ? "stopped" : `${action}d`;
-}
-
-/** The selection a verb skipped, by reason: "2 skipped: 1 already archived, 1 not running". */
-function batchSkipNote(skipped: ReadonlyMap<string, number>): string | undefined {
-  const total = [...skipped.values()].reduce((sum, count) => sum + count, 0);
-  if (total === 0) return undefined;
-  const reasons = [...skipped]
-    .map(([reason, count]) =>
-      reason !== CHILD_SKIP
-        ? `${count} ${reason}`
-        : `${count} ${count === 1 ? "child session follows its parent" : "child sessions follow their parent"}`
-    )
-    .join(", ");
-  return `${total} skipped: ${reasons}.`;
-}
-
-/**
- * Non-delete batches have no result dialog, so one toast carries the outcome:
- * the success count, each failed session by name with its own error, and the
- * selected sessions the verb does not apply to, by reason.
- */
-function reportBatch(
-  action: BatchVerb,
-  results: readonly SessionBatchResult[],
-  sessions: readonly SessionPayload[],
-  skipped: ReadonlyMap<string, number>
-): void {
-  const verb = batchVerbPast(action);
-  const done = results.filter(result => result.status === "done").length;
-  const failures = results.filter(result => result.status === "failed");
-  const skipNote = batchSkipNote(skipped);
-  if (failures.length === 0) {
-    toast.success(`${sessionCount(done)} ${verb}`, { description: skipNote });
-    return;
-  }
-  const byId = new Map(sessions.map(session => [session.id, session]));
-  const description = failures
-    .map(result => {
-      const session = byId.get(result.id);
-      const title = session ? getSessionDisplayTitle(session) : result.id;
-      return `${title}: ${result.error ?? `Failed to ${action} session.`}`;
-    })
-    .join("; ")
-    .concat(skipNote ? ` ${skipNote}` : "");
-  const title =
-    done > 0
-      ? `${sessionCount(done)} ${verb}, ${failures.length} failed`
-      : `Couldn't ${action} ${sessionCount(failures.length)}`;
-  toast.error(title, { description });
 }
 
 /** Report all successful deletes once, when the result dialog closes. */
@@ -169,6 +127,7 @@ export function useSessionLifecycleActions(
     onArchiveSuccess?: (session: SessionPayload) => void;
   } = {}
 ): UseSessionLifecycleActionsResult {
+  const queryClient = useQueryClient();
   const { onArchiveSuccess, ...deleteOptions } = options;
   const stop = useStopSession();
   const archive = useArchiveSession();
@@ -179,42 +138,51 @@ export function useSessionLifecycleActions(
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
+    openedAt: number;
     onSelectionChange?: (ids: readonly string[]) => void;
   } | null>(null);
   const [batchAction, setBatchAction] = useState<SessionLifecycleAction | null>(null);
   const [batchResults, setBatchResults] = useState<readonly SessionBatchResult[]>([]);
   const batchRunning = useRef(false);
-  const deleteSession = deleteTarget?.sessions[0] ?? null;
+  const deleteConfirmation = useRef(0);
+  const deleteSessions = useCurrentDeleteSessions(
+    deleteTarget?.sessions,
+    deleteTarget?.openedAt ?? Infinity
+  );
+  const deleteSession = deleteSessions?.[0] ?? null;
   const [renameTarget, setRenameTarget] = useState<SessionPayload | null>(null);
+  const [processChoice, setProcessChoice] = useState<{
+    action: "stop" | "archive";
+    sessions: readonly SessionPayload[];
+    run: (processes: SessionProcessPolicy) => void;
+  } | null>(null);
+  // The answer a delete got, so a retry of its failures repeats it.
+  const deletePolicy = useRef<SessionProcessPolicy | undefined>(undefined);
 
-  let pendingAction: SessionLifecycleAction | null = null;
-  let pendingSessionId: string | null = null;
-  if (batchAction !== null) {
-    pendingAction = batchAction;
-    pendingSessionId = batchResults.find(result => result.status === "running")?.id ?? null;
-  } else if (rename.isPending) {
-    pendingAction = "rename";
-    pendingSessionId = rename.variables.id;
-  } else if (stop.isPending) {
-    pendingAction = "stop";
-    pendingSessionId = stop.variables.id;
-  } else if (archive.isPending) {
-    pendingAction = "archive";
-    pendingSessionId = archive.variables.id;
-  } else if (unarchive.isPending) {
-    pendingAction = "unarchive";
-    pendingSessionId = unarchive.variables.id;
-  } else if (remove.isPending) {
-    pendingAction = "delete";
-    pendingSessionId = remove.variables.id;
-  }
+  const pendingMutation = (
+    [
+      ["rename", rename],
+      ["stop", stop],
+      ["archive", archive],
+      ["unarchive", unarchive],
+      ["delete", remove],
+    ] as const
+  ).find(([, mutation]) => mutation.isPending);
+  const pendingAction = batchAction ?? pendingMutation?.[0] ?? null;
+  const pendingSessionId =
+    batchAction !== null
+      ? (batchResults.find(result => result.status === "running")?.id ?? null)
+      : (pendingMutation?.[1].variables?.id ?? null);
 
   /** Lock lifecycle controls until the sequential batch has settled every target. */
   const runBatch = async (
     action: "stop" | "archive" | "unarchive" | "delete",
     sessions: readonly SessionPayload[],
-    previous: readonly SessionBatchResult[] = []
+    previous: readonly SessionBatchResult[] = [],
+    processes?: SessionProcessPolicy,
+    readErrors: ReadonlyMap<string, unknown> = new Map()
   ): Promise<SessionBatchResult[] | null> => {
+    const policy = processes ? { processes } : {};
     if (batchRunning.current || pendingAction !== null || sessions.length === 0) return null;
     batchRunning.current = true;
     setBatchAction(action);
@@ -224,11 +192,12 @@ export function useSessionLifecycleActions(
       previous,
       onProgress: setBatchResults,
       execute: async id => {
+        if (readErrors.has(id)) throw readErrors.get(id);
         if (action === "delete")
-          await remove.mutateAsync(sessions.find(session => session.id === id)!);
+          await remove.mutateAsync({ ...sessions.find(session => session.id === id)!, ...policy });
         else if (action === "archive") {
           const session = sessions.find(candidate => candidate.id === id)!;
-          await archive.mutateAsync(archiveTarget(session));
+          await archive.mutateAsync(archiveTarget(session, processes));
           onArchiveSuccess?.(session);
         } else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
@@ -236,6 +205,7 @@ export function useSessionLifecycleActions(
           const outcome = await stop.mutateAsync({
             ...sessions.find(session => session.id === id)!,
             wait: true,
+            ...policy,
           });
           if (!outcome.verified || outcome.state !== "stopped") {
             throw new Error(outcome.attention || "Session stop could not be verified.");
@@ -248,9 +218,7 @@ export function useSessionLifecycleActions(
     });
   };
 
-  /** Apply each verb only to sessions eligible in the current host payload. */
-  const actOnMany = async (action: BatchVerb, sessions: readonly SessionPayload[]) => {
-    // Archive takes live and stopped sessions alike; the daemon stops live ones first.
+  const actOnMany = (action: BatchVerb, sessions: readonly SessionPayload[]) => {
     const eligible: SessionPayload[] = [];
     const skipped = new Map<string, number>();
     for (const session of sessions) {
@@ -259,17 +227,53 @@ export function useSessionLifecycleActions(
       else skipped.set(reason, (skipped.get(reason) ?? 0) + 1);
     }
     if (eligible.length === 0) {
-      // Nothing to run, but the operator still learns why the selection sat it out.
       const skipNote = batchSkipNote(skipped);
       if (skipNote) toast.info(`No sessions ${batchVerbPast(action)}`, { description: skipNote });
       return;
     }
-    const results = await runBatch(action, eligible);
-    if (results) reportBatch(action, results, eligible, skipped);
+    const run = (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => {
+      void runBatch(action, eligible, [], processes, readErrors).then(results => {
+        if (results) reportBatch(action, results, eligible, skipped);
+      });
+    };
+    if (action === "unarchive") run();
+    else askAboutProcesses(action, eligible, run);
+  };
+
+  /**
+   * Stop and archive ask first while their targets have processes running;
+   * at zero they run as they always did, with the daemon default (keep).
+   */
+  const checkingProcesses = useRef(false);
+  const askAboutProcesses = (
+    action: "stop" | "archive",
+    sessions: readonly SessionPayload[],
+    run: (processes?: SessionProcessPolicy, readErrors?: ReadonlyMap<string, unknown>) => void
+  ) => {
+    if (
+      sessions.length === 0 ||
+      checkingProcesses.current ||
+      processChoice !== null ||
+      pendingAction !== null ||
+      batchRunning.current
+    )
+      return;
+    checkingProcesses.current = true;
+    void readCurrentSessions(queryClient, sessions)
+      .then(currentSessions => {
+        const runChecked = (processes?: SessionProcessPolicy) =>
+          run(processes, currentSessions.errors);
+        if (sessionsRunningProcesses(currentSessions.sessions) === 0) runChecked();
+        else setProcessChoice({ action, sessions: currentSessions.sessions, run: runChecked });
+      })
+      .catch(error => reportActionError(action, error))
+      .finally(() => {
+        checkingProcesses.current = false;
+      });
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
-  const confirmDeleteMany = async () => {
+  const confirmDeleteMany = async (readErrors?: ReadonlyMap<string, unknown>) => {
     if (!deleteTarget) return;
     const failedIds = new Set(
       batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
@@ -278,7 +282,13 @@ export function useSessionLifecycleActions(
       failedIds.size > 0
         ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
         : deleteTarget.sessions;
-    const results = await runBatch("delete", targets, batchResults);
+    const results = await runBatch(
+      "delete",
+      targets,
+      batchResults,
+      deletePolicy.current,
+      readErrors
+    );
     if (!results) return;
     const failures = results.filter(result => result.status === "failed");
     deleteTarget.onSelectionChange?.(failures.map(result => result.id));
@@ -289,21 +299,59 @@ export function useSessionLifecycleActions(
   };
 
   /** Keep single-row deletion behavior while routing selection batches through result tracking. */
-  const confirmDelete = () => {
+  const performDelete = (
+    processes?: SessionProcessPolicy,
+    readErrors?: ReadonlyMap<string, unknown>
+  ) => {
     if (!deleteSession || remove.isPending || batchRunning.current) return;
+    if (processes) deletePolicy.current = processes;
     if (deleteTarget?.bulk) {
-      void confirmDeleteMany();
+      void confirmDeleteMany(readErrors);
       return;
     }
     const { id } = deleteSession;
-    remove.mutate(deleteSession, {
-      onError: error => reportActionError("delete", error),
-      onSuccess: () => {
-        setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));
-      },
-    });
+    const policy = deletePolicy.current ? { processes: deletePolicy.current } : {};
+    remove.mutate(
+      { ...deleteSession, ...policy },
+      {
+        onError: error => reportActionError("delete", error),
+        onSuccess: () => {
+          setDeleteTarget(current => (current?.sessions[0]?.id === id ? null : current));
+        },
+      }
+    );
   };
 
+  const confirmDelete = (processes?: SessionProcessPolicy) => {
+    if (!deleteTarget) return;
+    const confirmation = ++deleteConfirmation.current;
+    const failedIds = new Set<string>();
+    for (const result of batchResults) {
+      if (result.status === "failed") failedIds.add(result.id);
+    }
+    const targets =
+      deleteTarget.bulk && failedIds.size > 0
+        ? deleteTarget.sessions.filter(session => failedIds.has(session.id))
+        : deleteTarget.sessions;
+    void readCurrentSessions(queryClient, targets, deleteTarget.bulk)
+      .then(current => {
+        if (confirmation !== deleteConfirmation.current) return;
+        if (!deleteTarget.bulk && current.errors.size) throw current.errors.values().next().value;
+        // A fresh nonzero count must be answered in the now-updated dialog.
+        if (!processes && !deletePolicy.current && sessionsRunningProcesses(current.sessions) > 0) {
+          if (failedIds.size > 0) {
+            reportDeletedSessions(batchResults);
+            setDeleteTarget(target => (target ? { ...target, sessions: targets } : null));
+            setBatchResults([]);
+          }
+          return;
+        }
+        performDelete(processes, current.errors);
+      })
+      .catch(error => {
+        if (confirmation === deleteConfirmation.current) reportActionError("delete", error);
+      });
+  };
   /** Dismiss only the rename target whose mutation succeeded. */
   const confirmRename = (name: string) => {
     if (!renameTarget || rename.isPending) return;
@@ -328,46 +376,57 @@ export function useSessionLifecycleActions(
         if (pendingAction === null && !batchRunning.current) setRenameTarget(session);
       },
       onStop: session =>
-        stop.mutate(session, { onError: error => reportActionError("stop", error) }),
+        void askAboutProcesses("stop", [session], processes =>
+          stop.mutate(
+            { ...session, ...(processes ? { processes } : {}) },
+            { onError: error => reportActionError("stop", error) }
+          )
+        ),
       onArchive: session =>
-        archive.mutate(archiveTarget(session), {
-          onError: error => reportActionError("archive", error),
-          onSuccess: () => onArchiveSuccess?.(session),
-        }),
+        void askAboutProcesses("archive", [session], processes =>
+          archive.mutate(archiveTarget(session, processes), {
+            onError: error => reportActionError("archive", error),
+            onSuccess: () => onArchiveSuccess?.(session),
+          })
+        ),
       onUnarchive: session =>
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {
         if (pendingAction === null && !batchRunning.current) {
+          deleteConfirmation.current++;
+          deletePolicy.current = undefined;
           setBatchResults([]);
-          setDeleteTarget({ sessions: [session], bulk: false });
+          setDeleteTarget({ sessions: [session], bulk: false, openedAt: Date.now() });
         }
       },
-      onStopMany: sessions => {
-        void actOnMany("stop", sessions);
-      },
-      onArchiveMany: sessions => {
-        void actOnMany("archive", sessions);
-      },
-      onUnarchiveMany: sessions => {
-        void actOnMany("unarchive", sessions);
-      },
+      onStopMany: sessions => actOnMany("stop", sessions),
+      onArchiveMany: sessions => actOnMany("archive", sessions),
+      onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
+          deleteConfirmation.current++;
+          deletePolicy.current = undefined;
           setBatchResults([]);
-          setDeleteTarget({ sessions: [...sessions], bulk: true, onSelectionChange });
+          setDeleteTarget({
+            sessions: [...sessions],
+            bulk: true,
+            openedAt: Date.now(),
+            onSelectionChange,
+          });
         }
       },
     },
     deleteDialog: {
       open: deleteSession !== null,
       session: deleteSession,
-      sessions: deleteTarget?.sessions,
+      sessions: deleteSessions,
       results: deleteTarget?.bulk ? batchResults : undefined,
       isDeleting: remove.isPending || batchAction === "delete",
       onOpenChange: open => {
         if (!open && deleteTarget && !remove.isPending && !batchRunning.current) {
+          deleteConfirmation.current++;
           if (batchResults.some(result => result.status === "failed")) {
             deleteTarget?.onSelectionChange?.(
               batchResults.flatMap(result => (result.status === "failed" ? [result.id] : []))
@@ -378,7 +437,22 @@ export function useSessionLifecycleActions(
         }
       },
       onConfirm: confirmDelete,
-      onRetry: confirmDelete,
+      onRetry: () => confirmDelete(),
+    },
+    processDialog: {
+      open: processChoice !== null,
+      action: processChoice?.action ?? "stop",
+      sessionCount: processChoice?.sessions.length ?? 0,
+      processCount: sessionsRunningProcesses(processChoice?.sessions ?? []),
+      ports: (processChoice?.sessions ?? []).flatMap(session => sessionProcessPorts(session)),
+      onOpenChange: open => {
+        if (!open) setProcessChoice(null);
+      },
+      onChoose: processes => {
+        const choice = processChoice;
+        setProcessChoice(null);
+        choice?.run(processes);
+      },
     },
     renameDialog: {
       open: renameTarget !== null,

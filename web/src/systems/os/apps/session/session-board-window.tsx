@@ -19,6 +19,11 @@ import { useSessionBoardWindow } from "./hooks/use-session-board-window";
 import { useSessionWindowRuntime } from "./hooks/use-session-window-runtime";
 import { SessionBoardDrawer } from "./session-board-drawer";
 
+const SessionProcessChoiceDialog = lazy(() =>
+  import("@/systems/session").then(module => ({
+    default: module.SessionProcessChoiceDialog,
+  }))
+);
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
     default: module.SessionDeleteDialog,
@@ -108,7 +113,7 @@ export function SessionBoardWindow({
     ),
   };
 
-  const { deleteDialog, renameDialog } = lifecycle;
+  const { deleteDialog, processDialog, renameDialog } = lifecycle;
   return (
     <OsSessionsDeriveHost workspaceId={scope?.kind === "project" ? scope.workspaceId : null}>
       {() => (
@@ -158,6 +163,11 @@ export function SessionBoardWindow({
                 session={deleteDialog.session}
                 sessions={deleteDialog.sessions}
               />
+            </Suspense>
+          ) : null}
+          {processDialog.open ? (
+            <Suspense fallback={null}>
+              <SessionProcessChoiceDialog {...processDialog} />
             </Suspense>
           ) : null}
           {renameDialog.open && renameDialog.session ? (

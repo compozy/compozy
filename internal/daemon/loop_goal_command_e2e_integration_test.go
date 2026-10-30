@@ -1048,7 +1048,7 @@ func goalSnapshotValue(response compozycontract.SessionGoalResponse) any {
 	if response.Goal == nil {
 		return nil
 	}
-	return *response.Goal
+	return map[string]any{"snapshot": *response.Goal, "cause": goalReasonValue(response.Goal.Cause)}
 }
 
 func goalReasonValue(reason *compozycontract.GoalReasonCode) any {

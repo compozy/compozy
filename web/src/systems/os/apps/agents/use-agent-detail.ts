@@ -67,6 +67,7 @@ export interface UseAgentDetailResult {
   deleteDialog: ReturnType<typeof useAgentDeleteFlow>["confirmDialog"];
   sessionActions: ReturnType<typeof useSessionListLifecycleActions>["actions"];
   sessionDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
+  sessionProcessDialog: ReturnType<typeof useSessionListLifecycleActions>["processDialog"];
   sessionRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
 }
 
@@ -200,6 +201,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     deleteDialog: deleteFlow.confirmDialog,
     sessionActions: sessionLifecycle.actions,
     sessionDeleteDialog: sessionLifecycle.deleteDialog,
+    sessionProcessDialog: sessionLifecycle.processDialog,
     sessionRenameDialog: sessionLifecycle.renameDialog,
   };
 }

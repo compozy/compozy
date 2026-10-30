@@ -18,6 +18,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 		short = "Restore an archived session"
 	}
 	var stop bool
+	flags := processPolicyFlags{}
 	command := &cobra.Command{
 		Use:   action + " <id>",
 		Short: short,
@@ -29,7 +30,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			}
 			var record SessionRecord
 			if archived {
-				record, err = client.ArchiveSession(cmd.Context(), args[0], stop)
+				record, err = client.ArchiveSession(cmd.Context(), args[0], stop, flags.policy())
 			} else {
 				record, err = client.UnarchiveSession(cmd.Context(), args[0])
 			}
@@ -40,6 +41,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 		},
 	}
 	if archived {
+		flags.bind(command)
 		command.Flags().BoolVar(
 			&stop,
 			"stop",

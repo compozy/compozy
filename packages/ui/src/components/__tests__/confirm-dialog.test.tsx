@@ -197,4 +197,86 @@ describe("ConfirmDialog", () => {
     expect(screen.getByRole("heading", { name: "Kill this run?" })).toBeInTheDocument();
     expect(screen.getByText("Run")).toBeInTheDocument();
   });
+
+  it("Should offer an alternate choice between cancel and confirm, locked while pending", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const onSelect = vi.fn();
+    const view = renderDialog({
+      title: "Stop this session?",
+      confirmLabel: "Stop session and 2 processes",
+      cancelLabel: "Cancel",
+      onConfirm,
+      alternateAction: { label: "Keep processes running", onSelect },
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    // Opens on cancel, so a reflexive Enter picks neither way of proceeding.
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    const labels = screen.getAllByRole("button").map(button => button.textContent);
+    expect(labels).toEqual(["Cancel", "Keep processes running", "Stop session and 2 processes"]);
+
+    await user.click(screen.getByRole("button", { name: "Keep processes running" }));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    view.rerender(
+      <UIProvider reducedMotion="always">
+        <ConfirmDialog
+          open
+          title="Stop this session?"
+          confirmLabel="Stop session and 2 processes"
+          cancelLabel="Cancel"
+          onConfirm={onConfirm}
+          isPending
+          alternateAction={{ label: "Keep processes running", onSelect }}
+        />
+      </UIProvider>
+    );
+    expect(screen.getByRole("button", { name: "Keep processes running" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop session and 2 processes" })).toBeDisabled();
+  });
+
+  it("Should keep the alternate locked while pending even when its props enable it", async () => {
+    renderDialog({
+      isPending: true,
+      alternateAction: {
+        label: "Keep processes running",
+        onSelect: vi.fn(),
+        buttonProps: { disabled: false },
+      },
+    });
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Keep processes running" })).toBeDisabled();
+  });
+
+  it("Should report a rejected confirm or alternate handler instead of leaving it unhandled", async () => {
+    const user = userEvent.setup();
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failure = new Error("stop failed");
+      renderDialog({
+        onConfirm: () => Promise.reject(failure),
+        alternateAction: {
+          label: "Keep processes running",
+          onSelect: () => Promise.reject(failure),
+        },
+      });
+
+      await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+      await user.click(screen.getByRole("button", { name: "Keep processes running" }));
+      await user.click(screen.getByRole("button", { name: "Delete" }));
+
+      await waitFor(() => expect(consoleError).toHaveBeenCalledTimes(2));
+      expect(consoleError).toHaveBeenCalledWith("Confirm dialog action failed", failure);
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      consoleError.mockRestore();
+    }
+  });
 });

@@ -834,6 +834,9 @@ import type {
   ListOpenAIModelsData,
   ListOpenAIModelsErrors,
   ListOpenAIModelsResponses,
+  ListProcessesData,
+  ListProcessesErrors,
+  ListProcessesResponses,
   ListProfileOperationsData,
   ListProfileOperationsErrors,
   ListProfileOperationsResponses,
@@ -882,6 +885,9 @@ import type {
   ListSessionMonitorsData,
   ListSessionMonitorsErrors,
   ListSessionMonitorsResponses,
+  ListSessionProcessesData,
+  ListSessionProcessesErrors,
+  ListSessionProcessesResponses,
   ListSessionsData,
   ListSessionsErrors,
   ListSessionsResponses,
@@ -1326,6 +1332,12 @@ import type {
   SubmitTaskRunReviewVerdictData,
   SubmitTaskRunReviewVerdictErrors,
   SubmitTaskRunReviewVerdictResponses,
+  TerminateProcessesData,
+  TerminateProcessesErrors,
+  TerminateProcessesResponses,
+  TerminateSessionProcessesData,
+  TerminateSessionProcessesErrors,
+  TerminateSessionProcessesResponses,
   TriggerAutomationJobData,
   TriggerAutomationJobErrors,
   TriggerAutomationJobResponses,
@@ -6765,6 +6777,1780 @@ export class openai extends HeyApiClient {
   }
 }
 
+export class sessions extends HeyApiClient {
+  /**
+   * List processes grouped by session, including left-running processes
+   */
+  public listProcesses<ThrowOnError extends boolean = true>(
+    options?: Options<ListProcessesData, ThrowOnError>
+  ): RequestResult<ListProcessesResponses, ListProcessesErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListProcessesResponses,
+      ListProcessesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/processes",
+      ...options,
+    });
+  }
+
+  /**
+   * Terminate identity-verified processes with missing or retained session owners
+   */
+  public terminateProcesses<ThrowOnError extends boolean = true>(
+    options: Options<TerminateProcessesData, ThrowOnError>
+  ): RequestResult<TerminateProcessesResponses, TerminateProcessesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      TerminateProcessesResponses,
+      TerminateProcessesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/processes/terminate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List sessions
+   */
+  public listSessions<ThrowOnError extends boolean = true>(
+    options?: Options<ListSessionsData, ThrowOnError>
+  ): RequestResult<ListSessionsResponses, ListSessionsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListSessionsResponses,
+      ListSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a session
+   */
+  public createSession<ThrowOnError extends boolean = true>(
+    options: Options<CreateSessionData, ThrowOnError>
+  ): RequestResult<CreateSessionResponses, CreateSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateSessionResponses,
+      CreateSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get exact session attention counts
+   */
+  public getSessionAttentionSummary<ThrowOnError extends boolean = true>(
+    options?: Options<GetSessionAttentionSummaryData, ThrowOnError>
+  ): RequestResult<
+    GetSessionAttentionSummaryResponses,
+    GetSessionAttentionSummaryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetSessionAttentionSummaryResponses,
+      GetSessionAttentionSummaryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/attention-summary",
+      ...options,
+    });
+  }
+
+  /**
+   * Count session catalog facets
+   */
+  public listSessionFacets<ThrowOnError extends boolean = true>(
+    options?: Options<ListSessionFacetsData, ThrowOnError>
+  ): RequestResult<ListSessionFacetsResponses, ListSessionFacetsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListSessionFacetsResponses,
+      ListSessionFacetsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/facets",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one session snapshot by id
+   */
+  public getSessionByID<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionByIDData, ThrowOnError>
+  ): RequestResult<GetSessionByIDResponses, GetSessionByIDErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionByIDResponses,
+      GetSessionByIDErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * List persisted session events for a Global session
+   */
+  public listGlobalSessionEvents<ThrowOnError extends boolean = true>(
+    options: Options<ListGlobalSessionEventsData, ThrowOnError>
+  ): RequestResult<
+    ListGlobalSessionEventsResponses,
+    ListGlobalSessionEventsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListGlobalSessionEventsResponses,
+      ListGlobalSessionEventsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/events",
+      ...options,
+    });
+  }
+
+  /**
+   * List grouped session turn history for a Global session
+   */
+  public getGlobalSessionHistory<ThrowOnError extends boolean = true>(
+    options: Options<GetGlobalSessionHistoryData, ThrowOnError>
+  ): RequestResult<
+    GetGlobalSessionHistoryResponses,
+    GetGlobalSessionHistoryErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetGlobalSessionHistoryResponses,
+      GetGlobalSessionHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Get a session owner; Global history has an empty workspace id
+   */
+  public getSessionOwner<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionOwnerData, ThrowOnError>
+  ): RequestResult<GetSessionOwnerResponses, GetSessionOwnerErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionOwnerResponses,
+      GetSessionOwnerErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/owner",
+      ...options,
+    });
+  }
+
+  /**
+   * Refresh a session pull request
+   */
+  public refreshSessionPullRequest<ThrowOnError extends boolean = true>(
+    options: Options<RefreshSessionPullRequestData, ThrowOnError>
+  ): RequestResult<
+    RefreshSessionPullRequestResponses,
+    RefreshSessionPullRequestErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RefreshSessionPullRequestResponses,
+      RefreshSessionPullRequestErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/pull-request/refresh",
+      ...options,
+    });
+  }
+
+  /**
+   * Read compact session status and wake eligibility for a Global session
+   */
+  public getGlobalSessionStatus<ThrowOnError extends boolean = true>(
+    options: Options<GetGlobalSessionStatusData, ThrowOnError>
+  ): RequestResult<
+    GetGlobalSessionStatusResponses,
+    GetGlobalSessionStatusErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetGlobalSessionStatusResponses,
+      GetGlobalSessionStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Get a bounded materialized transcript page for a Global session
+   */
+  public getGlobalSessionTranscript<ThrowOnError extends boolean = true>(
+    options: Options<GetGlobalSessionTranscriptData, ThrowOnError>
+  ): RequestResult<
+    GetGlobalSessionTranscriptResponses,
+    GetGlobalSessionTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetGlobalSessionTranscriptResponses,
+      GetGlobalSessionTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/transcript",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the full retained operator-message trail with reply previews for a Global session
+   */
+  public getGlobalSessionTranscriptOutline<ThrowOnError extends boolean = true>(
+    options: Options<GetGlobalSessionTranscriptOutlineData, ThrowOnError>
+  ): RequestResult<
+    GetGlobalSessionTranscriptOutlineResponses,
+    GetGlobalSessionTranscriptOutlineErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetGlobalSessionTranscriptOutlineResponses,
+      GetGlobalSessionTranscriptOutlineErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/transcript/outline",
+      ...options,
+    });
+  }
+
+  /**
+   * Search retained transcript messages with bounded literal matches for a Global session
+   */
+  public searchGlobalSessionTranscript<ThrowOnError extends boolean = true>(
+    options: Options<SearchGlobalSessionTranscriptData, ThrowOnError>
+  ): RequestResult<
+    SearchGlobalSessionTranscriptResponses,
+    SearchGlobalSessionTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchGlobalSessionTranscriptResponses,
+      SearchGlobalSessionTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/transcript/search",
+      ...options,
+    });
+  }
+
+  /**
+   * List session folders in manual order
+   */
+  public listSessionFolders<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionFoldersData, ThrowOnError>
+  ): RequestResult<ListSessionFoldersResponses, ListSessionFoldersErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionFoldersResponses,
+      ListSessionFoldersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-folders",
+      ...options,
+    });
+  }
+
+  /**
+   * Create a session folder
+   */
+  public createSessionFolder<ThrowOnError extends boolean = true>(
+    options: Options<CreateSessionFolderData, ThrowOnError>
+  ): RequestResult<CreateSessionFolderResponses, CreateSessionFolderErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateSessionFolderResponses,
+      CreateSessionFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-folders",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete a session folder; its sessions return to the workspace root
+   */
+  public deleteSessionFolder<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSessionFolderData, ThrowOnError>
+  ): RequestResult<DeleteSessionFolderResponses, DeleteSessionFolderErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteSessionFolderResponses,
+      DeleteSessionFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Rename a session folder
+   */
+  public renameSessionFolder<ThrowOnError extends boolean = true>(
+    options: Options<RenameSessionFolderData, ThrowOnError>
+  ): RequestResult<RenameSessionFolderResponses, RenameSessionFolderErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      RenameSessionFolderResponses,
+      RenameSessionFolderErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Set the complete session folder order
+   */
+  public reorderSessionFolders<ThrowOnError extends boolean = true>(
+    options: Options<ReorderSessionFoldersData, ThrowOnError>
+  ): RequestResult<
+    ReorderSessionFoldersResponses,
+    ReorderSessionFoldersErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      ReorderSessionFoldersResponses,
+      ReorderSessionFoldersErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-order/folders",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Set the manual session order in a folder or the workspace root
+   */
+  public reorderSessions<ThrowOnError extends boolean = true>(
+    options: Options<ReorderSessionsData, ThrowOnError>
+  ): RequestResult<ReorderSessionsResponses, ReorderSessionsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      ReorderSessionsResponses,
+      ReorderSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/session-order/sessions",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List sessions
+   */
+  public listWorkspaceSessions<ThrowOnError extends boolean = true>(
+    options: Options<ListWorkspaceSessionsData, ThrowOnError>
+  ): RequestResult<
+    ListWorkspaceSessionsResponses,
+    ListWorkspaceSessionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListWorkspaceSessionsResponses,
+      ListWorkspaceSessionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions",
+      ...options,
+    });
+  }
+
+  /**
+   * Delete one session and remove it from persisted history
+   */
+  public deleteSession<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSessionData, ThrowOnError>
+  ): RequestResult<DeleteSessionResponses, DeleteSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteSessionResponses,
+      DeleteSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one session snapshot
+   */
+  public getSession<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionData, ThrowOnError>
+  ): RequestResult<GetSessionResponses, GetSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionResponses,
+      GetSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Rename one user session
+   */
+  public renameSession<ThrowOnError extends boolean = true>(
+    options: Options<RenameSessionData, ThrowOnError>
+  ): RequestResult<RenameSessionResponses, RenameSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      RenameSessionResponses,
+      RenameSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Approve or deny an interactive permission request
+   */
+  public approveSession<ThrowOnError extends boolean = true>(
+    options: Options<ApproveSessionData, ThrowOnError>
+  ): RequestResult<ApproveSessionResponses, ApproveSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ApproveSessionResponses,
+      ApproveSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Archive a stopped session, or stop and archive a live session with stop=true
+   */
+  public archiveSession<ThrowOnError extends boolean = true>(
+    options: Options<ArchiveSessionData, ThrowOnError>
+  ): RequestResult<ArchiveSessionResponses, ArchiveSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ArchiveSessionResponses,
+      ArchiveSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
+      ...options,
+    });
+  }
+
+  /**
+   * Attach to a resumable live session
+   */
+  public attachSession<ThrowOnError extends boolean = true>(
+    options: Options<AttachSessionData, ThrowOnError>
+  ): RequestResult<AttachSessionResponses, AttachSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AttachSessionResponses,
+      AttachSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Upload a session attachment
+   */
+  public uploadSessionAttachment<ThrowOnError extends boolean = true>(
+    options: Options<UploadSessionAttachmentData, ThrowOnError>
+  ): RequestResult<
+    UploadSessionAttachmentResponses,
+    UploadSessionAttachmentErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      UploadSessionAttachmentResponses,
+      UploadSessionAttachmentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      ...formDataBodySerializer,
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
+      ...options,
+      headers: {
+        "Content-Type": null,
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete a session attachment
+   */
+  public deleteSessionAttachment<ThrowOnError extends boolean = true>(
+    options: Options<DeleteSessionAttachmentData, ThrowOnError>
+  ): RequestResult<
+    DeleteSessionAttachmentResponses,
+    DeleteSessionAttachmentErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteSessionAttachmentResponses,
+      DeleteSessionAttachmentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Read session attachment bytes
+   */
+  public readSessionAttachmentBytes<ThrowOnError extends boolean = true>(
+    options: Options<ReadSessionAttachmentBytesData, ThrowOnError>
+  ): RequestResult<
+    ReadSessionAttachmentBytesResponses,
+    ReadSessionAttachmentBytesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ReadSessionAttachmentBytesResponses,
+      ReadSessionAttachmentBytesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
+      ...options,
+    });
+  }
+
+  /**
+   * List the live pending clarification for a session
+   */
+  public listSessionClarifications<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionClarificationsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionClarificationsResponses,
+    ListSessionClarificationsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionClarificationsResponses,
+      ListSessionClarificationsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
+      ...options,
+    });
+  }
+
+  /**
+   * Answer a live session clarification
+   */
+  public answerSessionClarification<ThrowOnError extends boolean = true>(
+    options: Options<AnswerSessionClarificationData, ThrowOnError>
+  ): RequestResult<
+    AnswerSessionClarificationResponses,
+    AnswerSessionClarificationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      AnswerSessionClarificationResponses,
+      AnswerSessionClarificationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Clear conversation history and restart the session context
+   */
+  public clearSessionConversation<ThrowOnError extends boolean = true>(
+    options: Options<ClearSessionConversationData, ThrowOnError>
+  ): RequestResult<
+    ClearSessionConversationResponses,
+    ClearSessionConversationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ClearSessionConversationResponses,
+      ClearSessionConversationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clear",
+      ...options,
+    });
+  }
+
+  /**
+   * List commands available to a session
+   */
+  public getSessionCommands<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionCommandsData, ThrowOnError>
+  ): RequestResult<GetSessionCommandsResponses, GetSessionCommandsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionCommandsResponses,
+      GetSessionCommandsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
+      ...options,
+    });
+  }
+
+  /**
+   * Request advertised native agent compaction (experimental)
+   *
+   * @stability experimental
+   */
+  public compactSession<ThrowOnError extends boolean = true>(
+    options: Options<CompactSessionData, ThrowOnError>
+  ): RequestResult<CompactSessionResponses, CompactSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CompactSessionResponses,
+      CompactSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/compact",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Continue a session with another agent, runtime, or declared route
+   */
+  public continueSession<ThrowOnError extends boolean = true>(
+    options: Options<ContinueSessionData, ThrowOnError>
+  ): RequestResult<ContinueSessionResponses, ContinueSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ContinueSessionResponses,
+      ContinueSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Preview what a continue or fork of a session would carry
+   */
+  public previewSessionDerive<ThrowOnError extends boolean = true>(
+    options: Options<PreviewSessionDeriveData, ThrowOnError>
+  ): RequestResult<
+    PreviewSessionDeriveResponses,
+    PreviewSessionDeriveErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      PreviewSessionDeriveResponses,
+      PreviewSessionDeriveErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
+      ...options,
+    });
+  }
+
+  /**
+   * List persisted session events
+   */
+  public listSessionEvents<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionEventsData, ThrowOnError>
+  ): RequestResult<ListSessionEventsResponses, ListSessionEventsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionEventsResponses,
+      ListSessionEventsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
+      ...options,
+    });
+  }
+
+  /**
+   * Search files and folders under a session's working directory
+   */
+  public searchSessionFiles<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionFilesData, ThrowOnError>
+  ): RequestResult<SearchSessionFilesResponses, SearchSessionFilesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      SearchSessionFilesResponses,
+      SearchSessionFilesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files",
+      ...options,
+    });
+  }
+
+  /**
+   * Fork a session with the same agent, whole or through one user message and its turn
+   */
+  public forkSession<ThrowOnError extends boolean = true>(
+    options: Options<ForkSessionData, ThrowOnError>
+  ): RequestResult<ForkSessionResponses, ForkSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ForkSessionResponses,
+      ForkSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read metadata-only session health and wake eligibility
+   */
+  public getSessionHealth<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionHealthData, ThrowOnError>
+  ): RequestResult<GetSessionHealthResponses, GetSessionHealthErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionHealthResponses,
+      GetSessionHealthErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
+      ...options,
+    });
+  }
+
+  /**
+   * List grouped session turn history
+   */
+  public getSessionHistory<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionHistoryData, ThrowOnError>
+  ): RequestResult<GetSessionHistoryResponses, GetSessionHistoryErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionHistoryResponses,
+      GetSessionHistoryErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect session health, wake audit, and policy correlation metadata
+   */
+  public inspectSession<ThrowOnError extends boolean = true>(
+    options: Options<InspectSessionData, ThrowOnError>
+  ): RequestResult<InspectSessionResponses, InspectSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      InspectSessionResponses,
+      InspectSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect",
+      ...options,
+    });
+  }
+
+  /**
+   * List pending session interactions
+   */
+  public listSessionInteractions<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionInteractionsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionInteractionsResponses,
+    ListSessionInteractionsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionInteractionsResponses,
+      ListSessionInteractionsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+      ...options,
+    });
+  }
+
+  /**
+   * List a session's monitors
+   */
+  public listSessionMonitors<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionMonitorsData, ThrowOnError>
+  ): RequestResult<ListSessionMonitorsResponses, ListSessionMonitorsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionMonitorsResponses,
+      ListSessionMonitorsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel a session monitor without waking the session
+   */
+  public cancelSessionMonitor<ThrowOnError extends boolean = true>(
+    options: Options<CancelSessionMonitorData, ThrowOnError>
+  ): RequestResult<
+    CancelSessionMonitorResponses,
+    CancelSessionMonitorErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CancelSessionMonitorResponses,
+      CancelSessionMonitorErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Move a session into a folder or back to the workspace root
+   */
+  public moveSession<ThrowOnError extends boolean = true>(
+    options: Options<MoveSessionData, ThrowOnError>
+  ): RequestResult<MoveSessionResponses, MoveSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      MoveSessionResponses,
+      MoveSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Make an adopted child session top-level again
+   */
+  public clearSessionParent<ThrowOnError extends boolean = true>(
+    options: Options<ClearSessionParentData, ThrowOnError>
+  ): RequestResult<ClearSessionParentResponses, ClearSessionParentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      ClearSessionParentResponses,
+      ClearSessionParentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
+      ...options,
+    });
+  }
+
+  /**
+   * Adopt a parentless user session as a child of another session
+   */
+  public setSessionParent<ThrowOnError extends boolean = true>(
+    options: Options<SetSessionParentData, ThrowOnError>
+  ): RequestResult<SetSessionParentResponses, SetSessionParentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      SetSessionParentResponses,
+      SetSessionParentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Update operator session presence
+   */
+  public updateSessionPresence<ThrowOnError extends boolean = true>(
+    options: Options<UpdateSessionPresenceData, ThrowOnError>
+  ): RequestResult<
+    UpdateSessionPresenceResponses,
+    UpdateSessionPresenceErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      UpdateSessionPresenceResponses,
+      UpdateSessionPresenceErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List attributed session processes
+   */
+  public listSessionProcesses<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionProcessesData, ThrowOnError>
+  ): RequestResult<
+    ListSessionProcessesResponses,
+    ListSessionProcessesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionProcessesResponses,
+      ListSessionProcessesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/processes",
+      ...options,
+    });
+  }
+
+  /**
+   * Terminate identity-verified session processes
+   */
+  public terminateSessionProcesses<ThrowOnError extends boolean = true>(
+    options: Options<TerminateSessionProcessesData, ThrowOnError>
+  ): RequestResult<
+    TerminateSessionProcessesResponses,
+    TerminateSessionProcessesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      TerminateSessionProcessesResponses,
+      TerminateSessionProcessesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel the active session prompt
+   */
+  public cancelSessionPrompt<ThrowOnError extends boolean = true>(
+    options: Options<CancelSessionPromptData, ThrowOnError>
+  ): RequestResult<CancelSessionPromptResponses, CancelSessionPromptErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelSessionPromptResponses,
+      CancelSessionPromptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Clear queued input with attributed per-entry traces
+   */
+  public clearSessionInputs<ThrowOnError extends boolean = true>(
+    options: Options<ClearSessionInputsData, ThrowOnError>
+  ): RequestResult<ClearSessionInputsResponses, ClearSessionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      ClearSessionInputsResponses,
+      ClearSessionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+      ...options,
+    });
+  }
+
+  /**
+   * List pending session input
+   */
+  public listSessionInputs<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionInputsData, ThrowOnError>
+  ): RequestResult<ListSessionInputsResponses, ListSessionInputsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionInputsResponses,
+      ListSessionInputsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel a queued session prompt entry
+   */
+  public cancelQueuedSessionPrompt<ThrowOnError extends boolean = true>(
+    options: Options<CancelQueuedSessionPromptData, ThrowOnError>
+  ): RequestResult<
+    CancelQueuedSessionPromptResponses,
+    CancelQueuedSessionPromptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      CancelQueuedSessionPromptResponses,
+      CancelQueuedSessionPromptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace queued session input atomically
+   */
+  public replaceSessionInput<ThrowOnError extends boolean = true>(
+    options: Options<ReplaceSessionInputData, ThrowOnError>
+  ): RequestResult<ReplaceSessionInputResponses, ReplaceSessionInputErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      ReplaceSessionInputResponses,
+      ReplaceSessionInputErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Promote queued session input to steering
+   */
+  public promoteSessionInput<ThrowOnError extends boolean = true>(
+    options: Options<PromoteSessionInputData, ThrowOnError>
+  ): RequestResult<PromoteSessionInputResponses, PromoteSessionInputErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PromoteSessionInputResponses,
+      PromoteSessionInputErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get a deterministic session recap
+   */
+  public getSessionRecap<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionRecapData, ThrowOnError>
+  ): RequestResult<GetSessionRecapResponses, GetSessionRecapErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionRecapResponses,
+      GetSessionRecapErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect and repair an interrupted session transcript
+   */
+  public repairSession<ThrowOnError extends boolean = true>(
+    options: Options<RepairSessionData, ThrowOnError>
+  ): RequestResult<RepairSessionResponses, RepairSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RepairSessionResponses,
+      RepairSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
+      ...options,
+    });
+  }
+
+  /**
+   * Rewind a conversation before one durable user message
+   */
+  public rewindSessionConversation<ThrowOnError extends boolean = true>(
+    options: Options<RewindSessionConversationData, ThrowOnError>
+  ): RequestResult<
+    RewindSessionConversationResponses,
+    RewindSessionConversationErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RewindSessionConversationResponses,
+      RewindSessionConversationErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Clear the default runtime for future prompts
+   */
+  public clearSessionRuntime<ThrowOnError extends boolean = true>(
+    options: Options<ClearSessionRuntimeData, ThrowOnError>
+  ): RequestResult<ClearSessionRuntimeResponses, ClearSessionRuntimeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      ClearSessionRuntimeResponses,
+      ClearSessionRuntimeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+      ...options,
+    });
+  }
+
+  /**
+   * Select the default runtime for future prompts
+   */
+  public setSessionRuntime<ThrowOnError extends boolean = true>(
+    options: Options<SetSessionRuntimeData, ThrowOnError>
+  ): RequestResult<SetSessionRuntimeResponses, SetSessionRuntimeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      SetSessionRuntimeResponses,
+      SetSessionRuntimeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Refresh an idle session's Soul snapshot through body-level CAS
+   */
+  public refreshSessionSoul<ThrowOnError extends boolean = true>(
+    options: Options<RefreshSessionSoulData, ThrowOnError>
+  ): RequestResult<RefreshSessionSoulResponses, RefreshSessionSoulErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RefreshSessionSoulResponses,
+      RefreshSessionSoulErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read compact session status and wake eligibility
+   */
+  public getSessionStatus<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionStatusData, ThrowOnError>
+  ): RequestResult<GetSessionStatusResponses, GetSessionStatusErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionStatusResponses,
+      GetSessionStatusErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/status",
+      ...options,
+    });
+  }
+
+  /**
+   * Stage steering input for the active session turn
+   */
+  public steerSessionPrompt<ThrowOnError extends boolean = true>(
+    options: Options<SteerSessionPromptData, ThrowOnError>
+  ): RequestResult<SteerSessionPromptResponses, SteerSessionPromptErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SteerSessionPromptResponses,
+      SteerSessionPromptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Stop a session without deleting persisted history
+   */
+  public stopSession<ThrowOnError extends boolean = true>(
+    options: Options<StopSessionData, ThrowOnError>
+  ): RequestResult<StopSessionResponses, StopSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      StopSessionResponses,
+      StopSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List a session's subagents
+   */
+  public listSessionSubagents<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionSubagentsData, ThrowOnError>
+  ): RequestResult<
+    ListSessionSubagentsResponses,
+    ListSessionSubagentsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListSessionSubagentsResponses,
+      ListSessionSubagentsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
+      ...options,
+    });
+  }
+
+  /**
+   * List session-callable registry tools
+   */
+  public listSessionTools<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionToolsData, ThrowOnError>
+  ): RequestResult<ListSessionToolsResponses, ListSessionToolsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionToolsResponses,
+      ListSessionToolsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
+      ...options,
+    });
+  }
+
+  /**
+   * Search session-callable registry tools
+   */
+  public searchSessionTools<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionToolsData, ThrowOnError>
+  ): RequestResult<SearchSessionToolsResponses, SearchSessionToolsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SearchSessionToolsResponses,
+      SearchSessionToolsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get a bounded materialized transcript page
+   */
+  public getSessionTranscript<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionTranscriptData, ThrowOnError>
+  ): RequestResult<
+    GetSessionTranscriptResponses,
+    GetSessionTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionTranscriptResponses,
+      GetSessionTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
+      ...options,
+    });
+  }
+
+  /**
+   * Get the full retained operator-message trail with reply previews
+   */
+  public getSessionTranscriptOutline<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionTranscriptOutlineData, ThrowOnError>
+  ): RequestResult<
+    GetSessionTranscriptOutlineResponses,
+    GetSessionTranscriptOutlineErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionTranscriptOutlineResponses,
+      GetSessionTranscriptOutlineErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
+      ...options,
+    });
+  }
+
+  /**
+   * Search retained transcript messages with bounded literal matches
+   */
+  public searchSessionTranscript<ThrowOnError extends boolean = true>(
+    options: Options<SearchSessionTranscriptData, ThrowOnError>
+  ): RequestResult<
+    SearchSessionTranscriptResponses,
+    SearchSessionTranscriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      SearchSessionTranscriptResponses,
+      SearchSessionTranscriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
+      ...options,
+    });
+  }
+
+  /**
+   * Restore an archived session
+   */
+  public unarchiveSession<ThrowOnError extends boolean = true>(
+    options: Options<UnarchiveSessionData, ThrowOnError>
+  ): RequestResult<UnarchiveSessionResponses, UnarchiveSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      UnarchiveSessionResponses,
+      UnarchiveSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
+      ...options,
+    });
+  }
+
+  /**
+   * Get aggregated token usage for a session
+   */
+  public getSessionUsage<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionUsageData, ThrowOnError>
+  ): RequestResult<GetSessionUsageResponses, GetSessionUsageErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionUsageResponses,
+      GetSessionUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
+      ...options,
+    });
+  }
+
+  /**
+   * Get per-turn session usage and native compaction markers
+   */
+  public getSessionUsageTurns<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionUsageTurnsData, ThrowOnError>
+  ): RequestResult<
+    GetSessionUsageTurnsResponses,
+    GetSessionUsageTurnsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetSessionUsageTurnsResponses,
+      GetSessionUsageTurnsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
+      ...options,
+    });
+  }
+
+  /**
+   * Wait for a session state
+   */
+  public waitForSession<ThrowOnError extends boolean = true>(
+    options: Options<WaitForSessionData, ThrowOnError>
+  ): RequestResult<WaitForSessionResponses, WaitForSessionErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      WaitForSessionResponses,
+      WaitForSessionErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Return an idle session to the workspace root in place
+   */
+  public unbindSessionWorktree<ThrowOnError extends boolean = true>(
+    options: Options<UnbindSessionWorktreeData, ThrowOnError>
+  ): RequestResult<
+    UnbindSessionWorktreeResponses,
+    UnbindSessionWorktreeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      UnbindSessionWorktreeResponses,
+      UnbindSessionWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
+      ...options,
+    });
+  }
+
+  /**
+   * Bind an idle existing session to a ready worktree in place
+   */
+  public bindSessionWorktree<ThrowOnError extends boolean = true>(
+    options: Options<BindSessionWorktreeData, ThrowOnError>
+  ): RequestResult<BindSessionWorktreeResponses, BindSessionWorktreeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      BindSessionWorktreeResponses,
+      BindSessionWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Fork a live session into a worktree
+   */
+  public forkSessionToWorktree<ThrowOnError extends boolean = true>(
+    options: Options<ForkSessionToWorktreeData, ThrowOnError>
+  ): RequestResult<
+    ForkSessionToWorktreeResponses,
+    ForkSessionToWorktreeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ForkSessionToWorktreeResponses,
+      ForkSessionToWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read one subagent
+   */
+  public getSubagent<ThrowOnError extends boolean = true>(
+    options: Options<GetSubagentData, ThrowOnError>
+  ): RequestResult<GetSubagentResponses, GetSubagentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSubagentResponses,
+      GetSubagentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel a delegated subagent
+   */
+  public cancelSubagent<ThrowOnError extends boolean = true>(
+    options: Options<CancelSubagentData, ThrowOnError>
+  ): RequestResult<CancelSubagentResponses, CancelSubagentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelSubagentResponses,
+      CancelSubagentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+}
+
 export class profiles extends HeyApiClient {
   /**
    * List profiles
@@ -8417,1690 +10203,6 @@ export class tasks extends HeyApiClient {
       responseStyle: "data",
       url: "/api/tasks/{id}/triage/read",
       ...options,
-    });
-  }
-}
-
-export class sessions extends HeyApiClient {
-  /**
-   * List sessions
-   */
-  public listSessions<ThrowOnError extends boolean = true>(
-    options?: Options<ListSessionsData, ThrowOnError>
-  ): RequestResult<ListSessionsResponses, ListSessionsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListSessionsResponses,
-      ListSessionsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions",
-      ...options,
-    });
-  }
-
-  /**
-   * Create a session
-   */
-  public createSession<ThrowOnError extends boolean = true>(
-    options: Options<CreateSessionData, ThrowOnError>
-  ): RequestResult<CreateSessionResponses, CreateSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CreateSessionResponses,
-      CreateSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get exact session attention counts
-   */
-  public getSessionAttentionSummary<ThrowOnError extends boolean = true>(
-    options?: Options<GetSessionAttentionSummaryData, ThrowOnError>
-  ): RequestResult<
-    GetSessionAttentionSummaryResponses,
-    GetSessionAttentionSummaryErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options?.client ?? this.client).get<
-      GetSessionAttentionSummaryResponses,
-      GetSessionAttentionSummaryErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/attention-summary",
-      ...options,
-    });
-  }
-
-  /**
-   * Count session catalog facets
-   */
-  public listSessionFacets<ThrowOnError extends boolean = true>(
-    options?: Options<ListSessionFacetsData, ThrowOnError>
-  ): RequestResult<ListSessionFacetsResponses, ListSessionFacetsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListSessionFacetsResponses,
-      ListSessionFacetsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/facets",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one session snapshot by id
-   */
-  public getSessionByID<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionByIDData, ThrowOnError>
-  ): RequestResult<GetSessionByIDResponses, GetSessionByIDErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionByIDResponses,
-      GetSessionByIDErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * List persisted session events for a Global session
-   */
-  public listGlobalSessionEvents<ThrowOnError extends boolean = true>(
-    options: Options<ListGlobalSessionEventsData, ThrowOnError>
-  ): RequestResult<
-    ListGlobalSessionEventsResponses,
-    ListGlobalSessionEventsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListGlobalSessionEventsResponses,
-      ListGlobalSessionEventsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/events",
-      ...options,
-    });
-  }
-
-  /**
-   * List grouped session turn history for a Global session
-   */
-  public getGlobalSessionHistory<ThrowOnError extends boolean = true>(
-    options: Options<GetGlobalSessionHistoryData, ThrowOnError>
-  ): RequestResult<
-    GetGlobalSessionHistoryResponses,
-    GetGlobalSessionHistoryErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetGlobalSessionHistoryResponses,
-      GetGlobalSessionHistoryErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/history",
-      ...options,
-    });
-  }
-
-  /**
-   * Get a session owner; Global history has an empty workspace id
-   */
-  public getSessionOwner<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionOwnerData, ThrowOnError>
-  ): RequestResult<GetSessionOwnerResponses, GetSessionOwnerErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionOwnerResponses,
-      GetSessionOwnerErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/owner",
-      ...options,
-    });
-  }
-
-  /**
-   * Refresh a session pull request
-   */
-  public refreshSessionPullRequest<ThrowOnError extends boolean = true>(
-    options: Options<RefreshSessionPullRequestData, ThrowOnError>
-  ): RequestResult<
-    RefreshSessionPullRequestResponses,
-    RefreshSessionPullRequestErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      RefreshSessionPullRequestResponses,
-      RefreshSessionPullRequestErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/pull-request/refresh",
-      ...options,
-    });
-  }
-
-  /**
-   * Read compact session status and wake eligibility for a Global session
-   */
-  public getGlobalSessionStatus<ThrowOnError extends boolean = true>(
-    options: Options<GetGlobalSessionStatusData, ThrowOnError>
-  ): RequestResult<
-    GetGlobalSessionStatusResponses,
-    GetGlobalSessionStatusErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetGlobalSessionStatusResponses,
-      GetGlobalSessionStatusErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/status",
-      ...options,
-    });
-  }
-
-  /**
-   * Get a bounded materialized transcript page for a Global session
-   */
-  public getGlobalSessionTranscript<ThrowOnError extends boolean = true>(
-    options: Options<GetGlobalSessionTranscriptData, ThrowOnError>
-  ): RequestResult<
-    GetGlobalSessionTranscriptResponses,
-    GetGlobalSessionTranscriptErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetGlobalSessionTranscriptResponses,
-      GetGlobalSessionTranscriptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/transcript",
-      ...options,
-    });
-  }
-
-  /**
-   * Get the full retained operator-message trail with reply previews for a Global session
-   */
-  public getGlobalSessionTranscriptOutline<ThrowOnError extends boolean = true>(
-    options: Options<GetGlobalSessionTranscriptOutlineData, ThrowOnError>
-  ): RequestResult<
-    GetGlobalSessionTranscriptOutlineResponses,
-    GetGlobalSessionTranscriptOutlineErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetGlobalSessionTranscriptOutlineResponses,
-      GetGlobalSessionTranscriptOutlineErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/transcript/outline",
-      ...options,
-    });
-  }
-
-  /**
-   * Search retained transcript messages with bounded literal matches for a Global session
-   */
-  public searchGlobalSessionTranscript<ThrowOnError extends boolean = true>(
-    options: Options<SearchGlobalSessionTranscriptData, ThrowOnError>
-  ): RequestResult<
-    SearchGlobalSessionTranscriptResponses,
-    SearchGlobalSessionTranscriptErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      SearchGlobalSessionTranscriptResponses,
-      SearchGlobalSessionTranscriptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/sessions/{session_id}/transcript/search",
-      ...options,
-    });
-  }
-
-  /**
-   * List session folders in manual order
-   */
-  public listSessionFolders<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionFoldersData, ThrowOnError>
-  ): RequestResult<ListSessionFoldersResponses, ListSessionFoldersErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListSessionFoldersResponses,
-      ListSessionFoldersErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-folders",
-      ...options,
-    });
-  }
-
-  /**
-   * Create a session folder
-   */
-  public createSessionFolder<ThrowOnError extends boolean = true>(
-    options: Options<CreateSessionFolderData, ThrowOnError>
-  ): RequestResult<CreateSessionFolderResponses, CreateSessionFolderErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CreateSessionFolderResponses,
-      CreateSessionFolderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-folders",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete a session folder; its sessions return to the workspace root
-   */
-  public deleteSessionFolder<ThrowOnError extends boolean = true>(
-    options: Options<DeleteSessionFolderData, ThrowOnError>
-  ): RequestResult<DeleteSessionFolderResponses, DeleteSessionFolderErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteSessionFolderResponses,
-      DeleteSessionFolderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Rename a session folder
-   */
-  public renameSessionFolder<ThrowOnError extends boolean = true>(
-    options: Options<RenameSessionFolderData, ThrowOnError>
-  ): RequestResult<RenameSessionFolderResponses, RenameSessionFolderErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).patch<
-      RenameSessionFolderResponses,
-      RenameSessionFolderErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-folders/{folder_id}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Set the complete session folder order
-   */
-  public reorderSessionFolders<ThrowOnError extends boolean = true>(
-    options: Options<ReorderSessionFoldersData, ThrowOnError>
-  ): RequestResult<
-    ReorderSessionFoldersResponses,
-    ReorderSessionFoldersErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).put<
-      ReorderSessionFoldersResponses,
-      ReorderSessionFoldersErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-order/folders",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Set the manual session order in a folder or the workspace root
-   */
-  public reorderSessions<ThrowOnError extends boolean = true>(
-    options: Options<ReorderSessionsData, ThrowOnError>
-  ): RequestResult<ReorderSessionsResponses, ReorderSessionsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      ReorderSessionsResponses,
-      ReorderSessionsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/session-order/sessions",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * List sessions
-   */
-  public listWorkspaceSessions<ThrowOnError extends boolean = true>(
-    options: Options<ListWorkspaceSessionsData, ThrowOnError>
-  ): RequestResult<
-    ListWorkspaceSessionsResponses,
-    ListWorkspaceSessionsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListWorkspaceSessionsResponses,
-      ListWorkspaceSessionsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions",
-      ...options,
-    });
-  }
-
-  /**
-   * Delete one session and remove it from persisted history
-   */
-  public deleteSession<ThrowOnError extends boolean = true>(
-    options: Options<DeleteSessionData, ThrowOnError>
-  ): RequestResult<DeleteSessionResponses, DeleteSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteSessionResponses,
-      DeleteSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one session snapshot
-   */
-  public getSession<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionData, ThrowOnError>
-  ): RequestResult<GetSessionResponses, GetSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionResponses,
-      GetSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Rename one user session
-   */
-  public renameSession<ThrowOnError extends boolean = true>(
-    options: Options<RenameSessionData, ThrowOnError>
-  ): RequestResult<RenameSessionResponses, RenameSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).patch<
-      RenameSessionResponses,
-      RenameSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Approve or deny an interactive permission request
-   */
-  public approveSession<ThrowOnError extends boolean = true>(
-    options: Options<ApproveSessionData, ThrowOnError>
-  ): RequestResult<ApproveSessionResponses, ApproveSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ApproveSessionResponses,
-      ApproveSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Archive a stopped session, or stop and archive a live session with stop=true
-   */
-  public archiveSession<ThrowOnError extends boolean = true>(
-    options: Options<ArchiveSessionData, ThrowOnError>
-  ): RequestResult<ArchiveSessionResponses, ArchiveSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ArchiveSessionResponses,
-      ArchiveSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
-      ...options,
-    });
-  }
-
-  /**
-   * Attach to a resumable live session
-   */
-  public attachSession<ThrowOnError extends boolean = true>(
-    options: Options<AttachSessionData, ThrowOnError>
-  ): RequestResult<AttachSessionResponses, AttachSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      AttachSessionResponses,
-      AttachSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Upload a session attachment
-   */
-  public uploadSessionAttachment<ThrowOnError extends boolean = true>(
-    options: Options<UploadSessionAttachmentData, ThrowOnError>
-  ): RequestResult<
-    UploadSessionAttachmentResponses,
-    UploadSessionAttachmentErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      UploadSessionAttachmentResponses,
-      UploadSessionAttachmentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      ...formDataBodySerializer,
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
-      ...options,
-      headers: {
-        "Content-Type": null,
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete a session attachment
-   */
-  public deleteSessionAttachment<ThrowOnError extends boolean = true>(
-    options: Options<DeleteSessionAttachmentData, ThrowOnError>
-  ): RequestResult<
-    DeleteSessionAttachmentResponses,
-    DeleteSessionAttachmentErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      DeleteSessionAttachmentResponses,
-      DeleteSessionAttachmentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Read session attachment bytes
-   */
-  public readSessionAttachmentBytes<ThrowOnError extends boolean = true>(
-    options: Options<ReadSessionAttachmentBytesData, ThrowOnError>
-  ): RequestResult<
-    ReadSessionAttachmentBytesResponses,
-    ReadSessionAttachmentBytesErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ReadSessionAttachmentBytesResponses,
-      ReadSessionAttachmentBytesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes",
-      ...options,
-    });
-  }
-
-  /**
-   * List the live pending clarification for a session
-   */
-  public listSessionClarifications<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionClarificationsData, ThrowOnError>
-  ): RequestResult<
-    ListSessionClarificationsResponses,
-    ListSessionClarificationsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListSessionClarificationsResponses,
-      ListSessionClarificationsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
-      ...options,
-    });
-  }
-
-  /**
-   * Answer a live session clarification
-   */
-  public answerSessionClarification<ThrowOnError extends boolean = true>(
-    options: Options<AnswerSessionClarificationData, ThrowOnError>
-  ): RequestResult<
-    AnswerSessionClarificationResponses,
-    AnswerSessionClarificationErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      AnswerSessionClarificationResponses,
-      AnswerSessionClarificationErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Clear conversation history and restart the session context
-   */
-  public clearSessionConversation<ThrowOnError extends boolean = true>(
-    options: Options<ClearSessionConversationData, ThrowOnError>
-  ): RequestResult<
-    ClearSessionConversationResponses,
-    ClearSessionConversationErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      ClearSessionConversationResponses,
-      ClearSessionConversationErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clear",
-      ...options,
-    });
-  }
-
-  /**
-   * List commands available to a session
-   */
-  public getSessionCommands<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionCommandsData, ThrowOnError>
-  ): RequestResult<GetSessionCommandsResponses, GetSessionCommandsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionCommandsResponses,
-      GetSessionCommandsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
-      ...options,
-    });
-  }
-
-  /**
-   * Request advertised native agent compaction (experimental)
-   *
-   * @stability experimental
-   */
-  public compactSession<ThrowOnError extends boolean = true>(
-    options: Options<CompactSessionData, ThrowOnError>
-  ): RequestResult<CompactSessionResponses, CompactSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CompactSessionResponses,
-      CompactSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/compact",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Continue a session with another agent, runtime, or declared route
-   */
-  public continueSession<ThrowOnError extends boolean = true>(
-    options: Options<ContinueSessionData, ThrowOnError>
-  ): RequestResult<ContinueSessionResponses, ContinueSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ContinueSessionResponses,
-      ContinueSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Preview what a continue or fork of a session would carry
-   */
-  public previewSessionDerive<ThrowOnError extends boolean = true>(
-    options: Options<PreviewSessionDeriveData, ThrowOnError>
-  ): RequestResult<
-    PreviewSessionDeriveResponses,
-    PreviewSessionDeriveErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      PreviewSessionDeriveResponses,
-      PreviewSessionDeriveErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
-      ...options,
-    });
-  }
-
-  /**
-   * List persisted session events
-   */
-  public listSessionEvents<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionEventsData, ThrowOnError>
-  ): RequestResult<ListSessionEventsResponses, ListSessionEventsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListSessionEventsResponses,
-      ListSessionEventsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/events",
-      ...options,
-    });
-  }
-
-  /**
-   * Search files and folders under a session's working directory
-   */
-  public searchSessionFiles<ThrowOnError extends boolean = true>(
-    options: Options<SearchSessionFilesData, ThrowOnError>
-  ): RequestResult<SearchSessionFilesResponses, SearchSessionFilesErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      SearchSessionFilesResponses,
-      SearchSessionFilesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files",
-      ...options,
-    });
-  }
-
-  /**
-   * Fork a session with the same agent, whole or through one user message and its turn
-   */
-  public forkSession<ThrowOnError extends boolean = true>(
-    options: Options<ForkSessionData, ThrowOnError>
-  ): RequestResult<ForkSessionResponses, ForkSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ForkSessionResponses,
-      ForkSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read metadata-only session health and wake eligibility
-   */
-  public getSessionHealth<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionHealthData, ThrowOnError>
-  ): RequestResult<GetSessionHealthResponses, GetSessionHealthErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionHealthResponses,
-      GetSessionHealthErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
-      ...options,
-    });
-  }
-
-  /**
-   * List grouped session turn history
-   */
-  public getSessionHistory<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionHistoryData, ThrowOnError>
-  ): RequestResult<GetSessionHistoryResponses, GetSessionHistoryErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionHistoryResponses,
-      GetSessionHistoryErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/history",
-      ...options,
-    });
-  }
-
-  /**
-   * Inspect session health, wake audit, and policy correlation metadata
-   */
-  public inspectSession<ThrowOnError extends boolean = true>(
-    options: Options<InspectSessionData, ThrowOnError>
-  ): RequestResult<InspectSessionResponses, InspectSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      InspectSessionResponses,
-      InspectSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect",
-      ...options,
-    });
-  }
-
-  /**
-   * List pending session interactions
-   */
-  public listSessionInteractions<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionInteractionsData, ThrowOnError>
-  ): RequestResult<
-    ListSessionInteractionsResponses,
-    ListSessionInteractionsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListSessionInteractionsResponses,
-      ListSessionInteractionsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
-      ...options,
-    });
-  }
-
-  /**
-   * List a session's monitors
-   */
-  public listSessionMonitors<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionMonitorsData, ThrowOnError>
-  ): RequestResult<ListSessionMonitorsResponses, ListSessionMonitorsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListSessionMonitorsResponses,
-      ListSessionMonitorsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
-      ...options,
-    });
-  }
-
-  /**
-   * Cancel a session monitor without waking the session
-   */
-  public cancelSessionMonitor<ThrowOnError extends boolean = true>(
-    options: Options<CancelSessionMonitorData, ThrowOnError>
-  ): RequestResult<
-    CancelSessionMonitorResponses,
-    CancelSessionMonitorErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      CancelSessionMonitorResponses,
-      CancelSessionMonitorErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel",
-      ...options,
-    });
-  }
-
-  /**
-   * Move a session into a folder or back to the workspace root
-   */
-  public moveSession<ThrowOnError extends boolean = true>(
-    options: Options<MoveSessionData, ThrowOnError>
-  ): RequestResult<MoveSessionResponses, MoveSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      MoveSessionResponses,
-      MoveSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Make an adopted child session top-level again
-   */
-  public clearSessionParent<ThrowOnError extends boolean = true>(
-    options: Options<ClearSessionParentData, ThrowOnError>
-  ): RequestResult<ClearSessionParentResponses, ClearSessionParentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      ClearSessionParentResponses,
-      ClearSessionParentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
-      ...options,
-    });
-  }
-
-  /**
-   * Adopt a parentless user session as a child of another session
-   */
-  public setSessionParent<ThrowOnError extends boolean = true>(
-    options: Options<SetSessionParentData, ThrowOnError>
-  ): RequestResult<SetSessionParentResponses, SetSessionParentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      SetSessionParentResponses,
-      SetSessionParentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Update operator session presence
-   */
-  public updateSessionPresence<ThrowOnError extends boolean = true>(
-    options: Options<UpdateSessionPresenceData, ThrowOnError>
-  ): RequestResult<
-    UpdateSessionPresenceResponses,
-    UpdateSessionPresenceErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      UpdateSessionPresenceResponses,
-      UpdateSessionPresenceErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/presence",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Cancel the active session prompt
-   */
-  public cancelSessionPrompt<ThrowOnError extends boolean = true>(
-    options: Options<CancelSessionPromptData, ThrowOnError>
-  ): RequestResult<CancelSessionPromptResponses, CancelSessionPromptErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CancelSessionPromptResponses,
-      CancelSessionPromptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel",
-      ...options,
-    });
-  }
-
-  /**
-   * Clear queued input with attributed per-entry traces
-   */
-  public clearSessionInputs<ThrowOnError extends boolean = true>(
-    options: Options<ClearSessionInputsData, ThrowOnError>
-  ): RequestResult<ClearSessionInputsResponses, ClearSessionInputsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      ClearSessionInputsResponses,
-      ClearSessionInputsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
-      ...options,
-    });
-  }
-
-  /**
-   * List pending session input
-   */
-  public listSessionInputs<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionInputsData, ThrowOnError>
-  ): RequestResult<ListSessionInputsResponses, ListSessionInputsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListSessionInputsResponses,
-      ListSessionInputsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
-      ...options,
-    });
-  }
-
-  /**
-   * Cancel a queued session prompt entry
-   */
-  public cancelQueuedSessionPrompt<ThrowOnError extends boolean = true>(
-    options: Options<CancelQueuedSessionPromptData, ThrowOnError>
-  ): RequestResult<
-    CancelQueuedSessionPromptResponses,
-    CancelQueuedSessionPromptErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      CancelQueuedSessionPromptResponses,
-      CancelQueuedSessionPromptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Replace queued session input atomically
-   */
-  public replaceSessionInput<ThrowOnError extends boolean = true>(
-    options: Options<ReplaceSessionInputData, ThrowOnError>
-  ): RequestResult<ReplaceSessionInputResponses, ReplaceSessionInputErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      ReplaceSessionInputResponses,
-      ReplaceSessionInputErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Promote queued session input to steering
-   */
-  public promoteSessionInput<ThrowOnError extends boolean = true>(
-    options: Options<PromoteSessionInputData, ThrowOnError>
-  ): RequestResult<PromoteSessionInputResponses, PromoteSessionInputErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      PromoteSessionInputResponses,
-      PromoteSessionInputErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get a deterministic session recap
-   */
-  public getSessionRecap<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionRecapData, ThrowOnError>
-  ): RequestResult<GetSessionRecapResponses, GetSessionRecapErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionRecapResponses,
-      GetSessionRecapErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
-      ...options,
-    });
-  }
-
-  /**
-   * Inspect and repair an interrupted session transcript
-   */
-  public repairSession<ThrowOnError extends boolean = true>(
-    options: Options<RepairSessionData, ThrowOnError>
-  ): RequestResult<RepairSessionResponses, RepairSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RepairSessionResponses,
-      RepairSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
-      ...options,
-    });
-  }
-
-  /**
-   * Rewind a conversation before one durable user message
-   */
-  public rewindSessionConversation<ThrowOnError extends boolean = true>(
-    options: Options<RewindSessionConversationData, ThrowOnError>
-  ): RequestResult<
-    RewindSessionConversationResponses,
-    RewindSessionConversationErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      RewindSessionConversationResponses,
-      RewindSessionConversationErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/rewind",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Clear the default runtime for future prompts
-   */
-  public clearSessionRuntime<ThrowOnError extends boolean = true>(
-    options: Options<ClearSessionRuntimeData, ThrowOnError>
-  ): RequestResult<ClearSessionRuntimeResponses, ClearSessionRuntimeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      ClearSessionRuntimeResponses,
-      ClearSessionRuntimeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
-      ...options,
-    });
-  }
-
-  /**
-   * Select the default runtime for future prompts
-   */
-  public setSessionRuntime<ThrowOnError extends boolean = true>(
-    options: Options<SetSessionRuntimeData, ThrowOnError>
-  ): RequestResult<SetSessionRuntimeResponses, SetSessionRuntimeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      SetSessionRuntimeResponses,
-      SetSessionRuntimeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Refresh an idle session's Soul snapshot through body-level CAS
-   */
-  public refreshSessionSoul<ThrowOnError extends boolean = true>(
-    options: Options<RefreshSessionSoulData, ThrowOnError>
-  ): RequestResult<RefreshSessionSoulResponses, RefreshSessionSoulErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RefreshSessionSoulResponses,
-      RefreshSessionSoulErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read compact session status and wake eligibility
-   */
-  public getSessionStatus<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionStatusData, ThrowOnError>
-  ): RequestResult<GetSessionStatusResponses, GetSessionStatusErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionStatusResponses,
-      GetSessionStatusErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/status",
-      ...options,
-    });
-  }
-
-  /**
-   * Stage steering input for the active session turn
-   */
-  public steerSessionPrompt<ThrowOnError extends boolean = true>(
-    options: Options<SteerSessionPromptData, ThrowOnError>
-  ): RequestResult<SteerSessionPromptResponses, SteerSessionPromptErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SteerSessionPromptResponses,
-      SteerSessionPromptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Stop a session without deleting persisted history
-   */
-  public stopSession<ThrowOnError extends boolean = true>(
-    options: Options<StopSessionData, ThrowOnError>
-  ): RequestResult<StopSessionResponses, StopSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      StopSessionResponses,
-      StopSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * List a session's subagents
-   */
-  public listSessionSubagents<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionSubagentsData, ThrowOnError>
-  ): RequestResult<
-    ListSessionSubagentsResponses,
-    ListSessionSubagentsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListSessionSubagentsResponses,
-      ListSessionSubagentsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
-      ...options,
-    });
-  }
-
-  /**
-   * List session-callable registry tools
-   */
-  public listSessionTools<ThrowOnError extends boolean = true>(
-    options: Options<ListSessionToolsData, ThrowOnError>
-  ): RequestResult<ListSessionToolsResponses, ListSessionToolsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListSessionToolsResponses,
-      ListSessionToolsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
-      ...options,
-    });
-  }
-
-  /**
-   * Search session-callable registry tools
-   */
-  public searchSessionTools<ThrowOnError extends boolean = true>(
-    options: Options<SearchSessionToolsData, ThrowOnError>
-  ): RequestResult<SearchSessionToolsResponses, SearchSessionToolsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SearchSessionToolsResponses,
-      SearchSessionToolsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get a bounded materialized transcript page
-   */
-  public getSessionTranscript<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionTranscriptData, ThrowOnError>
-  ): RequestResult<
-    GetSessionTranscriptResponses,
-    GetSessionTranscriptErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetSessionTranscriptResponses,
-      GetSessionTranscriptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript",
-      ...options,
-    });
-  }
-
-  /**
-   * Get the full retained operator-message trail with reply previews
-   */
-  public getSessionTranscriptOutline<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionTranscriptOutlineData, ThrowOnError>
-  ): RequestResult<
-    GetSessionTranscriptOutlineResponses,
-    GetSessionTranscriptOutlineErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetSessionTranscriptOutlineResponses,
-      GetSessionTranscriptOutlineErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
-      ...options,
-    });
-  }
-
-  /**
-   * Search retained transcript messages with bounded literal matches
-   */
-  public searchSessionTranscript<ThrowOnError extends boolean = true>(
-    options: Options<SearchSessionTranscriptData, ThrowOnError>
-  ): RequestResult<
-    SearchSessionTranscriptResponses,
-    SearchSessionTranscriptErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      SearchSessionTranscriptResponses,
-      SearchSessionTranscriptErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
-      ...options,
-    });
-  }
-
-  /**
-   * Restore an archived session
-   */
-  public unarchiveSession<ThrowOnError extends boolean = true>(
-    options: Options<UnarchiveSessionData, ThrowOnError>
-  ): RequestResult<UnarchiveSessionResponses, UnarchiveSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      UnarchiveSessionResponses,
-      UnarchiveSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
-      ...options,
-    });
-  }
-
-  /**
-   * Get aggregated token usage for a session
-   */
-  public getSessionUsage<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionUsageData, ThrowOnError>
-  ): RequestResult<GetSessionUsageResponses, GetSessionUsageErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionUsageResponses,
-      GetSessionUsageErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage",
-      ...options,
-    });
-  }
-
-  /**
-   * Get per-turn session usage and native compaction markers
-   */
-  public getSessionUsageTurns<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionUsageTurnsData, ThrowOnError>
-  ): RequestResult<
-    GetSessionUsageTurnsResponses,
-    GetSessionUsageTurnsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetSessionUsageTurnsResponses,
-      GetSessionUsageTurnsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns",
-      ...options,
-    });
-  }
-
-  /**
-   * Wait for a session state
-   */
-  public waitForSession<ThrowOnError extends boolean = true>(
-    options: Options<WaitForSessionData, ThrowOnError>
-  ): RequestResult<WaitForSessionResponses, WaitForSessionErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      WaitForSessionResponses,
-      WaitForSessionErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/wait",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Return an idle session to the workspace root in place
-   */
-  public unbindSessionWorktree<ThrowOnError extends boolean = true>(
-    options: Options<UnbindSessionWorktreeData, ThrowOnError>
-  ): RequestResult<
-    UnbindSessionWorktreeResponses,
-    UnbindSessionWorktreeErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      UnbindSessionWorktreeResponses,
-      UnbindSessionWorktreeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
-      ...options,
-    });
-  }
-
-  /**
-   * Bind an idle existing session to a ready worktree in place
-   */
-  public bindSessionWorktree<ThrowOnError extends boolean = true>(
-    options: Options<BindSessionWorktreeData, ThrowOnError>
-  ): RequestResult<BindSessionWorktreeResponses, BindSessionWorktreeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      BindSessionWorktreeResponses,
-      BindSessionWorktreeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Fork a live session into a worktree
-   */
-  public forkSessionToWorktree<ThrowOnError extends boolean = true>(
-    options: Options<ForkSessionToWorktreeData, ThrowOnError>
-  ): RequestResult<
-    ForkSessionToWorktreeResponses,
-    ForkSessionToWorktreeErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      ForkSessionToWorktreeResponses,
-      ForkSessionToWorktreeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read one subagent
-   */
-  public getSubagent<ThrowOnError extends boolean = true>(
-    options: Options<GetSubagentData, ThrowOnError>
-  ): RequestResult<GetSubagentResponses, GetSubagentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSubagentResponses,
-      GetSubagentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Cancel a delegated subagent
-   */
-  public cancelSubagent<ThrowOnError extends boolean = true>(
-    options: Options<CancelSubagentData, ThrowOnError>
-  ): RequestResult<CancelSubagentResponses, CancelSubagentErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CancelSubagentResponses,
-      CancelSubagentErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
     });
   }
 }
@@ -12135,6 +12237,11 @@ export class Compozy extends HeyApiClient {
     return (this._openai ??= new openai({ client: this.client }));
   }
 
+  private _sessions?: sessions;
+  get sessions(): sessions {
+    return (this._sessions ??= new sessions({ client: this.client }));
+  }
+
   private _profiles?: profiles;
   get profiles(): profiles {
     return (this._profiles ??= new profiles({ client: this.client }));
@@ -12153,11 +12260,6 @@ export class Compozy extends HeyApiClient {
   private _tasks?: tasks;
   get tasks(): tasks {
     return (this._tasks ??= new tasks({ client: this.client }));
-  }
-
-  private _sessions?: sessions;
-  get sessions(): sessions {
-    return (this._sessions ??= new sessions({ client: this.client }));
   }
 
   private _skills?: skills;

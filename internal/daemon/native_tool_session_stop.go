@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -12,8 +13,9 @@ import (
 )
 
 type nativeSessionStopInput struct {
-	SessionID string `json:"session_id"`
-	Wait      *bool  `json:"wait,omitzero"`
+	Processes contract.SessionProcessPolicy `json:"processes"`
+	SessionID string                        `json:"session_id"`
+	Wait      *bool                         `json:"wait,omitzero"`
 }
 
 type nativeSessionStopper interface {
@@ -32,11 +34,29 @@ func (n *daemonNativeTools) sessionStop(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := n.prepareSessionProcessPolicy(ctx, req.ToolID, input.Processes); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	detail := "native session_stop requested by " + strings.TrimSpace(scope.SessionID)
 	if input.Wait == nil {
-		return n.legacySessionStop(ctx, req.ToolID, target, info, detail)
+		if input.Processes == contract.SessionProcessesTerminate {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+			defer cancel()
+		}
+		result, err := n.legacySessionStop(ctx, req.ToolID, target, info, detail)
+		if err != nil {
+			n.continueSessionProcessCleanup(target, input.Processes, err)
+		}
+		if err == nil {
+			err = n.finishSessionProcessPolicy(ctx, info, input.Processes)
+		}
+		return result, err
 	}
 	if info.State == session.StateStopped {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 		return structuredResult(contract.SessionStopPayload{
 			SessionID: target, Status: "already-stopped", State: info.State,
 			Verified: true, Escalated: info.StopEscalated,
@@ -50,14 +70,30 @@ func (n *daemonNativeTools) sessionStop(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	if !*input.Wait {
+		if input.Processes == contract.SessionProcessesTerminate {
+			n.sessionProcesses().
+				AfterStop(target, func(ctx context.Context) error { _, err := manager.AwaitStopped(ctx, target); return err })
+		}
 		return structuredResult(contract.SessionStopPayload{
 			SessionID: target, Status: "stopping", State: session.StateStopping,
 			StopCause: session.CauseUserRequested.String(), Escalated: info.StopEscalated,
 		}, "stopping")
 	}
+	// Accepted stop and explicit cleanup outlive cancellation of the calling turn.
+	if input.Processes == contract.SessionProcessesTerminate {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
 	outcome, err := manager.AwaitStopped(ctx, target)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {
+		n.continueSessionProcessCleanup(target, input.Processes, err)
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
+	}
+	if outcome.Verified {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	payload := core.SessionStopOutcomePayload(target, outcome)
 	return structuredResult(payload, payload.Status)
@@ -78,4 +114,16 @@ func (n *daemonNativeTools) legacySessionStop(
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(toolID, err)
 	}
 	return structuredResult(payload, "stopped")
+}
+
+func (n *daemonNativeTools) continueSessionProcessCleanup(id string, policy contract.SessionProcessPolicy, err error) {
+	if policy != contract.SessionProcessesTerminate || !errors.Is(err, context.DeadlineExceeded) {
+		return
+	}
+	if manager, ok := n.deps.Sessions.(nativeSessionStopper); ok {
+		n.sessionProcesses().AfterStop(id, func(ctx context.Context) error {
+			_, err := manager.AwaitStopped(ctx, id)
+			return err
+		})
+	}
 }

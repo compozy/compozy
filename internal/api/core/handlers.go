@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -262,11 +263,21 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
+	policy := contract.SessionProcessPolicy(c.Query("processes"))
+	if !h.prepareProcessPolicy(c, policy) {
+		return
+	}
 	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
+		if errors.Is(err, session.ErrDeleteStopAccepted) {
+			h.continueProcessCleanup(sessionID, policy, err)
+		}
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
+	if !h.finishProcessPolicy(c, info, policy) {
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 
@@ -289,19 +300,32 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if !h.prepareProcessPolicy(c, req.Processes) {
+		return
+	}
 	if req.Wait != nil {
-		h.stopSessionWithResult(c, info, *req.Wait)
+		h.stopSessionWithResult(c, info, *req.Wait, req.Processes)
 		return
 	}
 	c.Header(
 		"Warning",
 		`299 compozy "Bodyless stop is deprecated; send {wait:false} or {wait:true}; removed in v0.5.0"`,
 	)
-	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
+	ctx := c.Request.Context()
+	if req.Processes == contract.SessionProcessesTerminate {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
+	if err := h.Sessions.Stop(ctx, sessionID); err != nil {
+		h.continueProcessCleanup(sessionID, req.Processes, err)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
+	if !h.finishProcessPolicy(c, info, req.Processes) {
+		return
+	}
 	c.Status(http.StatusNoContent)
 }
 

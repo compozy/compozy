@@ -47,6 +47,10 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		)
 		return
 	}
+	policy := contract.SessionProcessPolicy(c.Query("processes"))
+	if archived && !h.prepareProcessPolicy(c, policy) {
+		return
+	}
 	var info *session.Info
 	if archived {
 		var stop bool
@@ -64,7 +68,13 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		info, err = archiver.Unarchive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	}
 	if err != nil {
+		if archived {
+			h.continueProcessCleanup(sessionID, policy, err)
+		}
 		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	if archived && !h.finishProcessPolicy(c, existing, policy) {
 		return
 	}
 	payload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), info, false)

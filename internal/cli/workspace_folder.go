@@ -267,7 +267,7 @@ func workspaceLayoutBundle(layout contract.WorkspaceLayoutResponse) outputBundle
 		"Workspace Layout",
 		[]string{"Kind", "ID", automationNameValue, "Container", sessionFolderPositionLabel},
 		"workspace_layout",
-		[]string{"kind", "id", automationNameKey, "container", workspaceLayoutPositionKey},
+		[]string{cliKindKey, "id", automationNameKey, "container", workspaceLayoutPositionKey},
 		render,
 		render,
 	)

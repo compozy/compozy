@@ -944,6 +944,60 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}
 	})
 
+	// Invariant: stale process identities cannot close a replacement terminal.
+	// Owner/canonical suite: terminal registry admission and scope.
+	t.Run("Should close only the captured terminal process identity", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		actor := Actor{Kind: ActorKindSystem, ID: "session-processes", ProfileID: "profile-a"}
+		handle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: actor, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := receiveStartedProc(t, starter)
+		for _, identity := range []struct {
+			pid     int
+			started time.Time
+		}{
+			{proc.PID() + 1, proc.StartedAt()}, {proc.PID(), proc.StartedAt().Add(time.Second)},
+		} {
+			if _, err := manager.CloseProcess(
+				t.Context(),
+				"workspace-a",
+				handle.Info().ID,
+				actor,
+				SignalTERM,
+				identity.pid,
+				identity.started, "",
+			); err == nil {
+				t.Fatal("stale identity accepted")
+			}
+			select {
+			case <-proc.done:
+				t.Fatal("mismatched identity signaled the terminal")
+			default:
+			}
+		}
+		if _, err := manager.CloseProcess(
+			t.Context(),
+			"workspace-a",
+			handle.Info().ID,
+			actor,
+			SignalTERM,
+			proc.PID(),
+			proc.StartedAt(), "",
+		); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-proc.done:
+		default:
+			t.Fatal("matching identity did not signal the terminal")
+		}
+	})
+
 	t.Run("Should let a different authorized agent signal and close a terminal [IT-028][IT-034]", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())

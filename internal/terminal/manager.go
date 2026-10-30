@@ -231,6 +231,29 @@ func (m *Service) Close(
 	return session.close(ctx, signal, "operator_close", actor)
 }
 
+// CloseProcess closes only the exact process captured by a session-process snapshot.
+// Lookup binds the operation to one terminal object, even if its registry ID is later reused.
+func (m *Service) CloseProcess(
+	ctx context.Context, workspaceID string, id ID, actor Actor, signal Signal,
+	pid int, startedAt time.Time, kernelToken string,
+) (*Exit, error) {
+	target, err := m.lookup(terminalKey{workspaceID: workspaceID, profileID: actor.ProfileID, id: id})
+	if err != nil {
+		return nil, err
+	}
+	if err := target.authorizeClose(actor); err != nil {
+		return nil, err
+	}
+	matches := target.proc.StartedAt().Equal(startedAt)
+	if captured, ok := target.proc.(interface{ KernelToken() string }); ok && captured.KernelToken() != "" {
+		matches = kernelToken != "" && captured.KernelToken() == kernelToken
+	}
+	if target.proc.PID() != pid || !matches {
+		return nil, errors.New("terminal: process identity changed")
+	}
+	return target.close(ctx, signal, "operator_close", actor)
+}
+
 func (m *Service) Journal() Journal { return m.journal }
 
 func (m *Service) Observe(fn func(context.Context, Event)) { m.events.Observe(fn) }

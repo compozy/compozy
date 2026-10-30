@@ -52,6 +52,9 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
         pending.delete(sessionId);
         const byIdKey = sessionKeys.byIdRoot(sessionId);
         const detailKey = payload ? sessionKeys.detail(payload.workspace_id, sessionId) : undefined;
+        const processKey = payload
+          ? sessionKeys.processes(payload.workspace_id, sessionId)
+          : undefined;
         // A read already in progress can predate this wake. Joining it is safe
         // only if one trailing read observes the change after that read settles.
         const cache = queryClient.getQueryCache();
@@ -59,6 +62,7 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
           .findAll({
             predicate: ({ queryKey }) =>
               queryKeyHasScope(queryKey, byIdKey) ||
+              (processKey !== undefined && queryKeyHasScope(queryKey, processKey)) ||
               (detailKey !== undefined &&
                 queryKey.length === detailKey.length &&
                 queryKeyHasScope(queryKey, detailKey)),
@@ -73,6 +77,9 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
         }
         await Promise.all([
           ...(payload ? [refreshSessionDetail(queryClient, payload, () => !closed)] : []),
+          ...(processKey
+            ? [queryClient.invalidateQueries({ queryKey: processKey }, { cancelRefetch: false })]
+            : []),
           queryClient.invalidateQueries({ queryKey: byIdKey }, { cancelRefetch: false }),
         ]);
       }

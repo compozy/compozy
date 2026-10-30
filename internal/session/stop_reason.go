@@ -89,10 +89,15 @@ func (m *Manager) RequestStopWithCause(ctx context.Context, id string, cause Sto
 
 // StopWithCause waits for the same operation used by asynchronous stop requests.
 func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause, detail string) error {
+	_, err := m.stopWithCauseReceipt(ctx, id, cause, detail)
+	return err
+}
+
+func (m *Manager) stopWithCauseReceipt(ctx context.Context, id string, cause StopCause, detail string) (bool, error) {
 	previousRun := m.finalizedStopRun(id)
 	run, err := m.requestSessionStop(ctx, id, cause, detail)
 	if err != nil || run == nil {
-		return err
+		return false, err
 	}
 	if service := m.subagentService(); service != nil && cause != CauseShutdown && cause != CauseProcessExited {
 		if cascadeErr := service.OnParentStopped(ctx, id); cascadeErr != nil {
@@ -108,7 +113,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 			err = service.OnChildSettled(ctx, id)
 		}
 	}
-	return err
+	return true, err
 }
 
 func (m *Manager) finalizedStopRun(id string) *sessionStopRun {
@@ -190,22 +195,9 @@ func (m *Manager) prepareStopWithCauseMode(
 		}
 	}
 
-	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), appliedCause, appliedDetail)
+	promptSetupDone, err := m.prepareStopStateAndGoals(ctx, session, appliedCause, appliedDetail)
 	if err != nil {
-		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop state sync for %q: %w", id, err)
-	}
-	if writeMeta {
-		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
-			return nil, nil, false, false, false, fmt.Errorf(
-				"session: prepare stop lifecycle write for %q: %w",
-				id,
-				err,
-			)
-		}
-	}
-	if err := m.stopSessionGoals(ctx, session.Info()); err != nil {
-		// Verified stop finalization retries this durable intent before releasing its receipt.
-		m.sessionLogger(session).Warn("session: prepare Goal pause failed", "error", err)
+		return nil, nil, false, false, false, err
 	}
 	if err := waitForPromptSetup(ctx, session, promptSetupDone); err != nil {
 		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop prompt setup wait for %q: %w", id, err)
@@ -216,6 +208,34 @@ func (m *Manager) prepareStopWithCauseMode(
 	}
 	process = session.processHandle()
 	return session, process, false, stopWasAlreadyRequested, observedProcessExit, nil
+}
+
+func (m *Manager) prepareStopStateAndGoals(
+	ctx context.Context, session *Session, cause StopCause, detail string,
+) (<-chan struct{}, error) {
+	// An in-flight setup can observe stopping before the durable pause reaches its
+	// Goal. Keep its ambiguity settlement behind that intent, then unlock before
+	// waiting for setup to drain so neither side waits on the other.
+	session.goalStopMu.Lock()
+	defer session.goalStopMu.Unlock()
+	writeMeta, promptSetupDone, err := session.prepareStop(m.now(), cause, detail)
+	if err != nil {
+		return nil, fmt.Errorf("session: prepare stop state sync for %q: %w", session.ID, err)
+	}
+	if writeMeta {
+		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
+			return nil, fmt.Errorf(
+				"session: prepare stop lifecycle write for %q: %w",
+				session.ID,
+				err,
+			)
+		}
+	}
+	if err := m.stopSessionGoals(ctx, session.Info()); err != nil {
+		// Verified stop finalization retries this durable intent before releasing its receipt.
+		m.sessionLogger(session).Warn("session: prepare Goal pause failed", "error", err)
+	}
+	return promptSetupDone, nil
 }
 
 func reconcileObservedTerminalStop(session *Session, stopWasAlreadyRequested bool, waitErr error) {

@@ -3,6 +3,7 @@ package udsapi
 import "github.com/gin-gonic/gin"
 
 func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
+	registerSessionProcessRoutes(api, handlers)
 	sessions := api.Group("/sessions")
 	{
 		sessions.GET("", handlers.ListSessions)
@@ -64,6 +65,14 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/clarifications", handlers.ListSessionClarifications)
 		workspaceSessions.POST("/:session_id/clarifications/:request_id/answer", handlers.AnswerSessionClarification)
 	}
+}
+
+func registerSessionProcessRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/processes", handlers.ListProcesses)
+	api.POST("/processes/terminate", handlers.TerminateProcesses)
+	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	workspaceSessions.GET("/:session_id/processes", handlers.ListSessionProcesses)
+	workspaceSessions.POST("/:session_id/processes/terminate", handlers.TerminateSessionProcesses)
 }
 
 func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {

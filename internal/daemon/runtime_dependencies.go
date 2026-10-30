@@ -33,6 +33,7 @@ func (d *Daemon) runtimeDeps(
 		Sessions:           sessions,
 		Subagents:          state.subagents,
 		SessionMonitors:    sessionMonitorService(state),
+		SessionProcesses:   sessionProcessService(state),
 		SessionAttachments: state.sessionAttachments,
 		SessionFiles:       newSessionFileIndex(state.logger),
 		DrainController:    d,
@@ -89,4 +90,11 @@ func sessionMonitorService(state *bootState) core.SessionMonitorService {
 		return nil
 	}
 	return state.sessionMonitors
+}
+
+func sessionProcessService(state *bootState) core.SessionProcessService {
+	if state.sessionProcesses == nil {
+		return nil
+	}
+	return state.sessionProcesses
 }

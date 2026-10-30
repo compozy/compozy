@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -12,9 +14,10 @@ import (
 )
 
 type sessionArchiveInput struct {
-	Workspace string `json:"workspace,omitempty"`
-	SessionID string `json:"session_id"`
-	Stop      bool   `json:"stop,omitempty"`
+	Processes contract.SessionProcessPolicy `json:"processes"`
+	Workspace string                        `json:"workspace,omitempty"`
+	SessionID string                        `json:"session_id"`
+	Stop      bool                          `json:"stop,omitempty"`
 }
 
 func (n *daemonNativeTools) sessionArchive(
@@ -69,14 +72,14 @@ func (n *daemonNativeTools) setSessionArchived(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: session archive manager is required")
 	}
-	var info *session.Info
-	switch {
-	case archived && input.Stop:
-		info, err = manager.ArchiveWithStop(ctx, workspaceID, input.SessionID)
-	case archived:
-		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
-	default:
-		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
+	if archived {
+		if err := n.prepareSessionProcessPolicy(ctx, req.ToolID, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
+	info, err := executeSessionArchive(ctx, manager, workspaceID, input, archived)
+	if archived && input.Stop && err != nil {
+		n.continueSessionProcessCleanup(input.SessionID, input.Processes, err)
 	}
 	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -89,8 +92,39 @@ func (n *daemonNativeTools) setSessionArchived(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if archived {
+		if err := n.finishSessionProcessPolicy(ctx, info, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+func executeSessionArchive(
+	ctx context.Context, manager core.SessionArchiveManager, workspaceID string,
+	input sessionArchiveInput, archived bool,
+) (*session.Info, error) {
+	if archived && input.Processes == contract.SessionProcessesTerminate {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		// Keep the accepted archive stop and cleanup in one bounded lifetime.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
+	}
+	var info *session.Info
+	var err error
+	switch {
+	case archived && input.Stop:
+		info, err = manager.ArchiveWithStop(ctx, workspaceID, input.SessionID)
+	case archived:
+		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
+	default:
+		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
+	}
+	return info, err
 }
 
 // nativeCallerWithinSession reports whether stopping target would stop the

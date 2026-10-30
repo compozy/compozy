@@ -180,6 +180,12 @@ describe("cmd-palette client-op table — absorbed palette rows", () => {
     void run("shell.sessions.toggle", context);
     expect(context.shell.toggleSessions).toHaveBeenCalledOnce();
   });
+
+  it("Should open Processes left running through its shell owner", () => {
+    const context = opContext(null, null);
+    void run("processes.left_running", context);
+    expect(context.shell.openLeftRunning).toHaveBeenCalledOnce();
+  });
 });
 
 describe("cmd-palette client-op table — daemon view/navigate/url", () => {

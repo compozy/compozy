@@ -42,6 +42,12 @@ func (d *Daemon) bootSessionRuntime(
 		return err
 	}
 	state.sessionMonitors = monitors
+	processes, err := newSessionProcessService(ctx, state, d.homePaths.HomeDir)
+	if err != nil {
+		return err
+	}
+	state.sessionProcesses = processes
+	cleanup.add(func(context.Context) error { processes.Shutdown(); return nil })
 	cleanup.add(monitors.Shutdown)
 	if err := registerTerminalPromptRunEnd(sessions, state.terminals); err != nil {
 		return err

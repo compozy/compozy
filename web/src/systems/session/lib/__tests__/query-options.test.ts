@@ -19,8 +19,10 @@ import {
   sessionUsageTurnsOptions,
 } from "../query-options";
 import { sessionKeys } from "../query-keys";
+import { sessionProcessesOptions } from "../session-processes-query-options";
 import {
   invalidateSessionLiveQueries,
+  invalidateSessionProcessesQueries,
   invalidateSessionMutationQueries,
   invalidateSessionUsageQueries,
   invalidateWorkspaceSessionCatalog,
@@ -95,6 +97,41 @@ describe("sessionDetailOptions", () => {
       // The interval pauses with the document (TanStack's background default).
       expect(options.refetchIntervalInBackground).not.toBe(true);
     }
+  });
+});
+
+describe("sessionProcessesOptions", () => {
+  it("Should isolate profile process data and invalidate every profile after a process change", async () => {
+    const client = new QueryClient();
+    const first = sessionProcessesOptions("ws_alpha", "sess_1", "default");
+    const second = sessionProcessesOptions("ws_alpha", "sess_1", "design");
+    client.setQueryData(first.queryKey, {
+      supported: true,
+      items: [],
+      scanned_at: "2026-01-01T00:00:00Z",
+    });
+    expect(client.getQueryData(second.queryKey)).toBeUndefined();
+    client.setQueryData(second.queryKey, {
+      supported: false,
+      items: [],
+      scanned_at: "2026-01-01T00:00:00Z",
+    });
+    const details = [sessionKeys.byId("sess_1", "default"), sessionKeys.byId("sess_1", "design")];
+    for (const key of details) client.setQueryData(key, {});
+    const unrelated = sessionKeys.byId("sess_other", "default");
+    client.setQueryData(unrelated, {});
+    await invalidateSessionProcessesQueries(client, "ws_alpha", "sess_1");
+    for (const key of details) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+    expect(client.getQueryState(first.queryKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(second.queryKey)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
+  it("Should read a User session's processes, whose workspace id is empty", () => {
+    expect(sessionProcessesOptions("", "sess_1", "default").enabled).toBe(true);
+    expect(sessionProcessesOptions("ws_alpha", "sess_1", "default").enabled).toBe(true);
+    expect(sessionProcessesOptions("", "", "default").enabled).toBe(false);
   });
 });
 

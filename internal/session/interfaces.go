@@ -125,13 +125,14 @@ func normalizeTurnSource(source TurnSource) TurnSource {
 
 // AgentProcess is the session-owned handle for a running agent process.
 type AgentProcess struct {
-	PID       int
-	AgentName string
-	Command   string
-	Args      []string
-	Cwd       string
-	SessionID string
-	StartedAt time.Time
+	PID         int
+	AgentName   string
+	Command     string
+	Args        []string
+	Cwd         string
+	SessionID   string
+	StartedAt   time.Time
+	KernelToken string
 
 	capsMu              sync.RWMutex
 	caps                acp.Caps
@@ -161,6 +162,7 @@ type AgentProcessOptions struct {
 	SessionID         string
 	Caps              acp.Caps
 	StartedAt         time.Time
+	KernelToken       string
 	Done              <-chan struct{}
 	Wait              func() error
 	Stderr            func() string
@@ -204,6 +206,7 @@ func NewAgentProcess(opts AgentProcessOptions) *AgentProcess {
 		SessionID:           opts.SessionID,
 		caps:                acp.CloneCaps(opts.Caps),
 		StartedAt:           opts.StartedAt,
+		KernelToken:         opts.KernelToken,
 		done:                done,
 		waitFn:              waitFn,
 		stderrFn:            stderrFn,
@@ -335,6 +338,7 @@ func wrapACPProcess(proc *acp.AgentProcess) *AgentProcess {
 		SessionID:           proc.SessionID,
 		caps:                proc.CapsSnapshot(),
 		StartedAt:           proc.StartedAt,
+		KernelToken:         proc.KernelToken,
 		done:                proc.Done(),
 		waitFn:              proc.Wait,
 		stderrFn:            proc.Stderr,

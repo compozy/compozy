@@ -9,6 +9,7 @@
         "orchestration",
         "subagents",
         "monitors",
+        "processes",
         "isolated-subagents",
         "health",
         "resume",

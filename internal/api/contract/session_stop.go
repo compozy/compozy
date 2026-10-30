@@ -4,7 +4,8 @@ import "github.com/compozy/compozy/internal/session"
 
 // StopSessionRequest selects asynchronous acceptance or a verified stop result.
 type StopSessionRequest struct {
-	Wait *bool `json:"wait,omitzero"`
+	Processes SessionProcessPolicy `json:"processes,omitempty"`
+	Wait      *bool                `json:"wait,omitzero"`
 }
 
 // SessionStopPayload reports acceptance or the settled termination outcome.

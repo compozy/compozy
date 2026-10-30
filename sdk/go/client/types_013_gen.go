@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// ProviderUsageBalance is a daemon API value.
+type ProviderUsageBalance struct {
+	ID        string              `json:"id"`
+	Label     string              `json:"label"`
+	Remaining ProviderUsageAmount `json:"remaining"`
+	ExpiresAt *time.Time          `json:"expires_at"`
+}
+
 // ProviderUsageEnvelope is a daemon API value.
 type ProviderUsageEnvelope struct {
 	KeychainSupported bool                     `json:"keychain_supported"`
@@ -437,14 +445,4 @@ type RespondLoopRequest struct {
 	Decision   string          `json:"decision,omitempty"`
 	Payload    json.RawMessage `json:"payload"`
 	Note       string          `json:"note,omitempty"`
-}
-
-// RespondLoopRequestResponse is a daemon API value.
-type RespondLoopRequestResponse struct {
-	OK         bool                  `json:"ok"`
-	RunID      string                `json:"run_id"`
-	NodeID     string                `json:"node_id"`
-	Decision   string                `json:"decision"`
-	State      string                `json:"state"`
-	Provenance LoopRequestProvenance `json:"provenance"`
 }

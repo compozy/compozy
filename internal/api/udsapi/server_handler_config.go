@@ -6,6 +6,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		drainController:       s.drainController,
 		subagents:             s.subagents,
 		sessionMonitors:       s.sessionMonitors,
+		sessionProcesses:      s.sessionProcesses,
 		sessionCatalog:        s.sessionCatalog,
 		taskDesignations:      s.taskDesignations,
 		skillExposureStore:    s.skillExposureStore,

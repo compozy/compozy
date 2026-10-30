@@ -88,6 +88,8 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDSessionWait.String(),
 			toolspkg.ToolIDMonitorCreate.String(),
 			toolspkg.ToolIDMonitorList.String(),
+			toolspkg.ToolIDSessionProcessesList.String(),
+			toolspkg.ToolIDSessionProcessesTerminate.String(),
 			toolspkg.ToolIDMonitorCancel.String(),
 			toolspkg.ToolIDSessionSpawn.String(),
 			toolspkg.ToolIDSubagentCapabilities.String(),

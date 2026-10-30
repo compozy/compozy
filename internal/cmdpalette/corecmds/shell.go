@@ -33,6 +33,10 @@ var arrangeWhen = []cmdpalette.Predicate{
 
 var fixedShellCommands = []shellCommandDefinition{
 	{
+		id: "processes.left_running", title: "Processes left running",
+		section: coreSectionSessions, icon: "cpu", availabilityExempt: true,
+	},
+	{
 		id:                 "palette.open",
 		title:              "Command palette",
 		section:            coreSectionShell,

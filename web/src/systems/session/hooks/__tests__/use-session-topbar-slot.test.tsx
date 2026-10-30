@@ -16,6 +16,7 @@ import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { SessionPayload } from "../../types";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
+import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionWindowPresentationContext } from "../../contexts/session-window-presentation-context";
 import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 import { SessionTransportChip } from "../../components/session-transport-chip";
@@ -40,7 +41,7 @@ function SessionPublisher({
   onSendPrompt?: (text: string) => void;
   onRefresh?: () => void;
   hasLiveGoal?: boolean;
-  onStop: () => void;
+  onStop: (processes?: string) => void;
   session?: SessionPayload;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
@@ -168,6 +169,37 @@ describe("useSessionTopbarSlot", () => {
     expect(onStop).not.toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Keep working" }));
     expect(onStop).not.toHaveBeenCalled();
+  });
+
+  // Invariant: a stop asks what happens to the processes the session left running, even
+  // without a Goal, and answers keep or terminate; at zero it stays a one-click stop.
+  // Owner: session lifecycle header; canonical suite: use-session-topbar-slot.
+  it("Should ask whether a stop also ends the processes the session left running", () => {
+    const onStop = vi.fn();
+    const session = withSessionProcessSummary(primarySessionFixture);
+    const { rerender } = renderWithTopbar(<SessionPublisher onStop={onStop} session={session} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    const dialog = screen.getByRole("dialog", { name: "Stop this session?" });
+    expect(dialog).toHaveTextContent("This session started 3 processes that are still running.");
+    expect(dialog).toHaveTextContent(
+      "Listening on localhost:5173, localhost:8080 and localhost:9090."
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep processes running" }));
+    expect(onStop).toHaveBeenLastCalledWith("keep");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Stop this session?" })).getByRole("button", {
+        name: "Stop session and 3 processes",
+      })
+    );
+    expect(onStop).toHaveBeenLastCalledWith("terminate");
+
+    rerender(<SessionPublisher onStop={onStop} session={primarySessionFixture} />);
+    fireEvent.click(screen.getByRole("button", { name: "Stop session" }));
+    expect(screen.queryByRole("dialog", { name: "Stop this session?" })).not.toBeInTheDocument();
+    expect(onStop).toHaveBeenCalledTimes(3);
+    expect(onStop).toHaveBeenLastCalledWith();
   });
 
   it("Should publish the complete document head through one slot owner", () => {

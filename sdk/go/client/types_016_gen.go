@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// SessionCompactionPayload is a daemon API value.
+type SessionCompactionPayload struct {
+	ContextAfter *SessionCompactionContextAfterPayload `json:"context_after,omitzero"`
+	TurnID       string                                `json:"turn_id"`
+	Sequence     int64                                 `json:"sequence"`
+	At           time.Time                             `json:"at"`
+	CompactionID string                                `json:"compaction_id"`
+	Trigger      string                                `json:"trigger"`
+	Status       string                                `json:"status"`
+	ContextUsed  *int64                                `json:"context_used,omitzero"`
+	ContextSize  *int64                                `json:"context_size,omitzero"`
+}
+
 // SessionConfigOptionPayload is a daemon API value.
 type SessionConfigOptionPayload struct {
 	ID             string                            `json:"id"`
@@ -434,6 +447,3 @@ type SessionLineagePayload struct {
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }
-
-// SessionMentionKind is a daemon API value.
-type SessionMentionKind string

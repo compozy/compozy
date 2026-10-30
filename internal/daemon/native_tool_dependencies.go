@@ -117,6 +117,7 @@ type daemonNativeToolsDeps struct {
 	Terminals             func() terminalpkg.Manager
 	TerminalExecApprover  terminalExecApprover
 	Monitors              func() *monitorpkg.Service
+	Processes             func() core.SessionProcessService
 
 	// ProjectionEpoch reports the daemon tool projection epoch that invalidates cached Goal availability.
 	ProjectionEpoch func() uint64

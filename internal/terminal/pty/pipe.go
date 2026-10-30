@@ -19,21 +19,22 @@ import (
 )
 
 type pipeProc struct {
-	reader     *os.File
-	input      *os.File
-	cancel     context.CancelFunc
-	waiter     processWaiter
-	mu         sync.RWMutex
-	command    *exec.Cmd
-	pid        int
-	startedAt  time.Time
-	exit       *Exit
-	ready      chan struct{}
-	readyOnce  sync.Once
-	startErr   error
-	killSignal Signal
-	closeOnce  sync.Once
-	closeErr   error
+	reader      *os.File
+	input       *os.File
+	cancel      context.CancelFunc
+	waiter      processWaiter
+	mu          sync.RWMutex
+	command     *exec.Cmd
+	pid         int
+	startedAt   time.Time
+	kernelToken string
+	exit        *Exit
+	ready       chan struct{}
+	readyOnce   sync.Once
+	startErr    error
+	killSignal  Signal
+	closeOnce   sync.Once
+	closeErr    error
 }
 
 func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
@@ -148,11 +149,7 @@ func (p *pipeProc) execHandler(env map[string]string, unset []string) interp.Exe
 				normalizeExecWaitError(waitErr),
 			)
 		}
-		p.mu.Lock()
-		p.command = command
-		p.pid = command.Process.Pid
-		p.startedAt = startedAt
-		p.mu.Unlock()
+		p.recordCommand(command, startedAt)
 		p.signalReady(nil)
 		cancellationDone := make(chan struct{})
 		var cancellationErr error
@@ -194,6 +191,20 @@ func (p *pipeProc) execHandler(env map[string]string, unset []string) interp.Exe
 	}
 }
 
+func (p *pipeProc) recordCommand(command *exec.Cmd, startedAt time.Time) {
+	kernelToken := procutil.CreationProcessToken(command.Process.Pid)
+	if identity, err := procutil.InspectProcess(command.Process.Pid); err == nil {
+		startedAt = identity.StartedAt
+		kernelToken = identity.KernelToken
+	}
+	p.mu.Lock()
+	p.command = command
+	p.pid = command.Process.Pid
+	p.startedAt = startedAt
+	p.kernelToken = kernelToken
+	p.mu.Unlock()
+}
+
 func (p *pipeProc) Reader() io.Reader { return p.reader }
 
 func (p *pipeProc) PID() int {
@@ -208,6 +219,12 @@ func (p *pipeProc) StartedAt() time.Time {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.startedAt
+}
+
+func (p *pipeProc) KernelToken() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.kernelToken
 }
 
 func (p *pipeProc) Write(input []byte) (int, error) {

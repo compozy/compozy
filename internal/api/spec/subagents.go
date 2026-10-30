@@ -63,7 +63,7 @@ func registrySubagentOperations() []OperationSpec {
 
 func subagentResponses(status int, body any) []ResponseSpec {
 	return []ResponseSpec{
-		{Status: status, Description: "Success", Body: body},
+		{Status: status, Description: specSuccessDescription, Body: body},
 		{Status: 400, Description: "Invalid request", Body: contract.ErrorPayload{}},
 		{Status: 403, Description: "Capability denied", Body: contract.ErrorPayload{}},
 		{Status: 404, Description: "Session or subagent not found", Body: contract.ErrorPayload{}},

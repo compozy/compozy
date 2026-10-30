@@ -65,6 +65,7 @@ func (d *Daemon) nativeToolsDeps(
 		},
 		TerminalExecApprover: state.terminalPermissions,
 		Monitors:             func() *monitorpkg.Service { return state.sessionMonitors },
+		Processes:            func() core.SessionProcessService { return sessionProcessService(state) },
 		Terminals: func() terminalpkg.Manager {
 			if state.terminals == nil {
 				return nil

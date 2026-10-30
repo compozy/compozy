@@ -49,6 +49,7 @@ const (
 )
 
 func newSessionStopCommand(deps commandDeps) *cobra.Command {
+	flags := processPolicyFlags{}
 	var wait bool
 	cmd := &cobra.Command{
 		Use:   "stop <id>",
@@ -64,7 +65,7 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.StopSession(cmd.Context(), args[0], wait)
+			result, err := client.StopSession(cmd.Context(), args[0], wait, flags.policy())
 			if err != nil {
 				return err
 			}
@@ -79,12 +80,14 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
+	flags.bind(cmd)
 	cmd.Flags().BoolVar(&wait, "wait", false, "Wait for verified termination or a verification failure")
 	return cmd
 }
 
 func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	flags := processPolicyFlags{}
+	cmd := &cobra.Command{
 		Use:   "remove <id>",
 		Short: "Remove a session and its persisted history",
 		Example: `  # Remove a stopped session
@@ -99,12 +102,14 @@ func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.DeleteSession(cmd.Context(), args[0]); err != nil {
+			if err := client.DeleteSession(cmd.Context(), args[0], flags.policy()); err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
+	flags.bind(cmd)
+	return cmd
 }
 
 func newSessionStatusCommand(deps commandDeps) *cobra.Command {

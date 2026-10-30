@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1026,6 +1027,29 @@ func TestMarkRestartReadyRequiresFreshDaemonInfo(t *testing.T) {
 	if got, want := ready.NewPID, 9393; got != want {
 		t.Fatalf("ready.NewPID = %d, want %d", got, want)
 	}
+	t.Run("Should withhold ready while booting", func(t *testing.T) {
+		d.admission.BeginBoot(t.Context())
+		if _, err := d.GetRestartOperation(t.Context(), operation.OperationID); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("booting responder reported ready: %v", err)
+		}
+	})
+	t.Run("Should withhold ready while draining", func(t *testing.T) {
+		d.admission.FinishBoot()
+		d.admission.Drain()
+		if _, err := d.GetRestartOperation(t.Context(), operation.OperationID); !errors.Is(err, admission.ErrDraining) {
+			t.Fatalf("draining responder reported ready: %v", err)
+		}
+	})
+	t.Run("Should report ready while accepting work", func(t *testing.T) {
+		d.admission.Undrain()
+		if got, err := d.GetRestartOperation(
+			t.Context(),
+			operation.OperationID,
+		); err != nil ||
+			got.Status != RestartStatusReady {
+			t.Fatalf("active responder readiness=%+v err=%v", got, err)
+		}
+	})
 }
 
 func TestWaitForReadyReturnsFailureContextWhenPollingReadBreaks(t *testing.T) {
