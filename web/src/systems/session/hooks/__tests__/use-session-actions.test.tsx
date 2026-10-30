@@ -566,6 +566,8 @@ describe("session actions", () => {
       const client = new QueryClient();
       const userKey = sessionKeys.detail("@user", target.id);
       const projectKey = sessionKeys.detail(WORKSPACE_ID, target.id);
+      const projectListKey = sessionKeys.workspaceLists(WORKSPACE_ID);
+      client.setQueryData(projectListKey, { sessions: [createdSession] });
       client.setQueryData(userKey, target);
       client.setQueryData(projectKey, createdSession);
       const { result } = renderHook(() => useDeleteSession(), { wrapper: createWrapper(client) });
@@ -576,6 +578,7 @@ describe("session actions", () => {
       expect(client.getQueryData(userKey)).toBeUndefined();
       expect(client.getQueryData(projectKey)).toEqual(createdSession);
       expect(client.getQueryState(projectKey)?.isInvalidated).toBe(false);
+      expect(client.getQueryState(projectListKey)?.isInvalidated).toBe(false);
     }
   );
 
@@ -595,6 +598,7 @@ describe("session actions", () => {
       vi.mocked(unarchiveSession).mockResolvedValue(target);
       const client = new QueryClient();
       const userKey = sessionKeys.workspaceLists("@user");
+      const aggregateKey = sessionKeys.workspaceLists("");
       const otherKey = sessionKeys.workspaceLists(WORKSPACE_ID);
       const { result } = renderHook(
         () => ({
@@ -607,11 +611,13 @@ describe("session actions", () => {
       );
       for (const action of ["rename", "stop", "archive", "restore"] as const) {
         client.setQueryData(userKey, { sessions: [target] });
+        client.setQueryData(aggregateKey, { sessions: [target] });
         client.setQueryData(otherKey, { sessions: [createdSession] });
         await act(async () => {
           await result.current[action].mutateAsync({ ...target, name: "Updated" });
         });
         expect(client.getQueryState(userKey)?.isInvalidated).toBe(true);
+        expect(client.getQueryState(aggregateKey)?.isInvalidated).toBe(true);
         expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
       }
       for (const adapter of [renameSession, stopSession, archiveSession, unarchiveSession]) {
