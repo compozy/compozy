@@ -62,6 +62,8 @@ filter_unconventional = true
 split_commits = false
 
 commit_preprocessors = [
+  # Preserve the product name when regenerating the historical Pi integration entry.
+  { pattern = 'expose Compozy native tools in Pi sessions', replace = "expose CompozyOS native tools in Pi sessions" },
   # GitHub squash messages can append later conventional commit titles after a
   # BREAKING CHANGE footer. Remove that generated tail before it is parsed as
   # part of the breaking description and leaked into release surfaces.
