@@ -80,8 +80,10 @@ export async function fetchLeftRunningProcesses(signal?: AbortSignal): Promise<P
   return requireResponseData(data, response, "Failed to fetch processes left running");
 }
 
-/** Stops processes by identity whatever their session's state; the operator aggregate's cleanup. */
-export async function terminateProcesses(
+/** The most targets the operator route accepts in one request. */
+export const TERMINATE_PROCESSES_MAX_TARGETS = 100;
+
+async function terminateProcessesBatch(
   targets: readonly SessionProcessTarget[]
 ): Promise<TerminateProcessesResponse> {
   const { data, error, response } = await apiClient.POST("/api/processes/terminate", {
@@ -91,4 +93,47 @@ export async function terminateProcesses(
     throwSessionRequestError(response, error, "Failed to stop processes");
   }
   return requireResponseData(data, response, "Failed to stop processes");
+}
+
+/**
+ * Stops processes by identity whatever their session's state; the operator
+ * aggregate's cleanup. Targets go in batches the route accepts and the per-target
+ * results come back as one answer. A batch the daemon refuses reads as `failed`
+ * for each of its targets, so the rest still report; only when every batch is
+ * refused does the first refusal reject.
+ */
+export async function terminateProcesses(
+  targets: readonly SessionProcessTarget[]
+): Promise<TerminateProcessesResponse> {
+  const batches: SessionProcessTarget[][] = [];
+  for (let start = 0; start < targets.length; start += TERMINATE_PROCESSES_MAX_TARGETS) {
+    batches.push(targets.slice(start, start + TERMINATE_PROCESSES_MAX_TARGETS));
+  }
+  const settled = await Promise.allSettled(batches.map(terminateProcessesBatch));
+  const firstRefusal = settled.find(outcome => outcome.status === "rejected");
+  if (firstRefusal && settled.every(outcome => outcome.status === "rejected")) {
+    throw firstRefusal.reason;
+  }
+  return settled.reduce<TerminateProcessesResponse>(
+    (combined, outcome, index) => {
+      if (outcome.status === "fulfilled") {
+        return {
+          supported: combined.supported && outcome.value.supported,
+          results: [...combined.results, ...outcome.value.results],
+        };
+      }
+      const reason =
+        outcome.reason instanceof Error && outcome.reason.message
+          ? outcome.reason.message
+          : "Failed to stop processes";
+      const refused = batches[index]!.map(({ pid, started_at }) => ({
+        pid,
+        started_at,
+        outcome: "failed" as const,
+        error: reason,
+      }));
+      return { ...combined, results: [...combined.results, ...refused] };
+    },
+    { supported: true, results: [] }
+  );
 }

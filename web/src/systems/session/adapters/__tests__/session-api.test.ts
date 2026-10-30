@@ -38,6 +38,11 @@ import {
 } from "../session-api";
 import { fetchSessionCommands } from "../session-command-api";
 import { cancelSessionMonitor, fetchSessionMonitors } from "../session-monitor-api";
+import {
+  fetchSessionProcesses,
+  terminateProcesses,
+  terminateSessionProcesses,
+} from "../session-processes-api";
 import { searchSessionFiles } from "../session-files-api";
 import { createMswFetch } from "@/test/msw-fetch";
 import { sessionContextHandlers } from "../../mocks/context-handlers";
@@ -1379,6 +1384,72 @@ describe("profile-bound session monitors", () => {
     const canceled = cancelSessionMonitor(WORKSPACE_ID, "sess-001", "design", "mon-1");
     await expect(canceled).rejects.toBeInstanceOf(SessionApiError);
     await expect(canceled).rejects.not.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("session processes", () => {
+  // A User session reports an empty workspace_id; its process routes live under @user.
+  it("reads and stops a User session's processes under @user in its owner's profile", async () => {
+    mockJsonResponse({ supported: true, scanned_at: "2026-10-29T12:00:00Z", items: [] });
+    await fetchSessionProcesses("", "sess-001", "design");
+    await expectFetchRequest({
+      path: "/api/workspaces/%40user/sessions/sess-001/processes?profile=design",
+    });
+    mockJsonResponse({ supported: true, results: [] });
+    await terminateSessionProcesses("", "sess-001", "design", { all: true });
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/%40user/sessions/sess-001/processes/terminate?profile=design",
+      callIndex: 1,
+      body: { all: true },
+    });
+  });
+
+  // The operator route takes at most 100 targets; Stop all over more must still stop every one.
+  it("stops left-running processes in batches the route accepts and answers once per target", async () => {
+    const targets = Array.from({ length: 250 }, (_, index) => ({
+      pid: 1000 + index,
+      started_at: "2026-10-29T12:00:00Z",
+    }));
+    vi.mocked(globalThis.fetch).mockImplementation(async input => {
+      const body = (await (input as Request).clone().json()) as { targets: typeof targets };
+      if (body.targets[0]!.pid === 1100) {
+        return new Response(JSON.stringify({ error: "scan unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          supported: true,
+          results: body.targets.map(target => ({ ...target, outcome: "terminated" })),
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    });
+
+    const response = await terminateProcesses(targets);
+
+    const sizes = await Promise.all(
+      vi.mocked(globalThis.fetch).mock.calls.map(async ([input]) => {
+        const request = input as Request;
+        expect(new URL(request.url).pathname).toBe("/api/processes/terminate");
+        return ((await request.clone().json()) as { targets: unknown[] }).targets.length;
+      })
+    );
+    expect(sizes).toEqual([100, 100, 50]);
+    expect(response.results.map(result => result.pid)).toEqual(targets.map(target => target.pid));
+    const refused = response.results.filter(result => result.outcome === "failed");
+    expect(refused).toHaveLength(100);
+    expect(refused[0]).toMatchObject({ pid: 1100, error: "scan unavailable" });
+    expect(response.results.filter(result => result.outcome === "terminated")).toHaveLength(150);
+  });
+
+  it("rejects with the daemon's refusal when no batch is accepted", async () => {
+    mockJsonResponse({ error: "operator scope required" }, { status: 403 });
+    await expect(
+      terminateProcesses([{ pid: 1, started_at: "2026-10-29T12:00:00Z" }])
+    ).rejects.toThrow("operator scope required");
   });
 });
 

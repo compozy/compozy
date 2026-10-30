@@ -8,13 +8,15 @@ import { sessionKeys } from "./query-keys";
 
 /**
  * The session's running processes. A change to the session's `process_summary`
- * upserts it on the catalog stream, which invalidates this read.
+ * upserts it on the catalog stream, which invalidates this read. A User session
+ * reports an empty `workspace_id`; the adapter routes it under `@user`, so only
+ * the session id gates the read.
  */
 export function sessionProcessesOptions(workspaceId: string, sessionId: string, profile: string) {
   return queryOptions({
     queryKey: sessionKeys.processes(workspaceId, sessionId),
     queryFn: ({ signal }) => fetchSessionProcesses(workspaceId, sessionId, profile, signal),
-    enabled: workspaceId !== "" && sessionId !== "",
+    enabled: sessionId !== "",
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     retry: false,

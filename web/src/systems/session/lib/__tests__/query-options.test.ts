@@ -19,6 +19,7 @@ import {
   sessionUsageTurnsOptions,
 } from "../query-options";
 import { sessionKeys } from "../query-keys";
+import { sessionProcessesOptions } from "../session-processes-query-options";
 import {
   invalidateSessionLiveQueries,
   invalidateSessionMutationQueries,
@@ -95,6 +96,14 @@ describe("sessionDetailOptions", () => {
       // The interval pauses with the document (TanStack's background default).
       expect(options.refetchIntervalInBackground).not.toBe(true);
     }
+  });
+});
+
+describe("sessionProcessesOptions", () => {
+  it("Should read a User session's processes, whose workspace id is empty", () => {
+    expect(sessionProcessesOptions("", "sess_1", "default").enabled).toBe(true);
+    expect(sessionProcessesOptions("ws_alpha", "sess_1", "default").enabled).toBe(true);
+    expect(sessionProcessesOptions("", "", "default").enabled).toBe(false);
   });
 });
 
