@@ -72,8 +72,8 @@ func (n *daemonNativeTools) setSessionArchived(
 		return toolspkg.ToolResult{}, errors.New("daemon: session archive manager is required")
 	}
 	if archived {
-		if err := n.prepareSessionProcessPolicy(ctx, input.Processes); err != nil {
-			return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+		if err := n.prepareSessionProcessPolicy(ctx, req.ToolID, input.Processes); err != nil {
+			return toolspkg.ToolResult{}, err
 		}
 	}
 	var info *session.Info

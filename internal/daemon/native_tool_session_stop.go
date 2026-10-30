@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -33,8 +34,8 @@ func (n *daemonNativeTools) sessionStop(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := n.prepareSessionProcessPolicy(ctx, input.Processes); err != nil {
-		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	if err := n.prepareSessionProcessPolicy(ctx, req.ToolID, input.Processes); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	detail := "native session_stop requested by " + strings.TrimSpace(scope.SessionID)
 	if input.Wait == nil {
@@ -69,6 +70,12 @@ func (n *daemonNativeTools) sessionStop(
 			SessionID: target, Status: "stopping", State: session.StateStopping,
 			StopCause: session.CauseUserRequested.String(), Escalated: info.StopEscalated,
 		}, "stopping")
+	}
+	// Accepted stop and explicit cleanup outlive cancellation of the calling turn.
+	if input.Processes == contract.SessionProcessesTerminate {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+		defer cancel()
 	}
 	outcome, err := manager.AwaitStopped(ctx, target)
 	if err != nil && !errors.Is(err, session.ErrStopVerificationFailed) {

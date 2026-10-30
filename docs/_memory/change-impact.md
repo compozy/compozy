@@ -4729,7 +4729,9 @@ its separate termination route does not bypass session-scoped authorization.
 
 Review hardening keeps ownership capture before lifecycle transitions, but makes scan failure
 non-blocking for keep. Explicit cleanup rejects unsupported inspection before mutation and
-outlives request cancellation with a bounded deadline. Initial inspection failure logs and
+outlives request cancellation with a bounded deadline. Native stop/archive enforce the same
+policy and error classifications; the native response remains caller-bound while accepted
+termination and its waited stop use an independent lifetime. Initial inspection failure logs and
 retries without publishing retained rows; loading persisted observations still fails explicitly.
 Group members receive individual identity-verified signals to exclude later joiners. Audit
 failure does not skip remaining selected targets, and summary ports match the counted rows.

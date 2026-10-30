@@ -43,6 +43,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/sessionprocess"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -15585,4 +15586,150 @@ func TestNativeArchiveRefusals(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: native lifecycle policy preserves keep on scan failure, rejects unsupported
+// terminate before mutation, and owns bounded cleanup after an accepted lifecycle change.
+// Owning layer and canonical suite: daemon native registry, native_tools_test.go.
+func TestNativeSessionProcessPolicies(t *testing.T) {
+	t.Parallel()
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDSessionStop, toolspkg.ToolIDSessionArchive} {
+		t.Run("Should preserve process policy for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				name        string
+				policy      string
+				scanFailure bool
+				unsupported bool
+				cancel      bool
+				wait        bool
+				wantCode    toolspkg.ErrorCode
+			}{
+				{name: "Should keep omitted policy despite scan failure", scanFailure: true},
+				{name: "Should keep explicit policy despite scan failure", policy: "keep", scanFailure: true},
+				{name: "Should report terminate scan failure as backend failure", policy: "terminate", scanFailure: true, wantCode: toolspkg.ErrorCodeBackendFailed},
+				{name: "Should refuse unsupported termination before mutation", policy: "terminate", unsupported: true, wantCode: toolspkg.ErrorCodeUnavailable},
+				{name: "Should finish cleanup after lifecycle cancels the caller", policy: "terminate", cancel: true},
+				{name: "Should finish waited stop cleanup after admission cancels the caller", policy: "terminate", cancel: true, wait: true},
+				{name: "Should reject invalid policy before mutation", policy: "invalid", wantCode: toolspkg.ErrorCodeInvalidInput},
+			} {
+				if tc.wait && toolID != toolspkg.ToolIDSessionStop {
+					continue
+				}
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+					ctx, cancel := context.WithCancel(t.Context())
+					defer cancel()
+					processes := &nativeProcessPolicyService{supported: !tc.unsupported, alive: true}
+					if tc.scanFailure {
+						processes.refreshErr = errors.New("process table unavailable")
+					}
+					info := &session.Info{
+						ID: "sess-target", WorkspaceID: "ws-1", ProfileID: store.DefaultProfileID,
+						State: session.StateActive, Type: session.SessionTypeUser,
+					}
+					mutated := false
+					commit := func() {
+						mutated = true
+						if tc.cancel {
+							cancel()
+						}
+					}
+					manager := &nativeOrchestrationSessionManager{
+						StatusFn:          func(context.Context, string) (*session.Info, error) { return info, nil },
+						StopWithCauseFn:   func(context.Context, string, session.StopCause, string) error { commit(); return nil },
+						ArchiveWithStopFn: func(context.Context, string, string) (*session.Info, error) { commit(); return info, nil },
+						requestStopFn:     func(context.Context, string, session.StopCause, string) error { commit(); return nil },
+						awaitStoppedFn: func(waitCtx context.Context, _ string) (session.StopOutcome, error) {
+							if _, bounded := waitCtx.Deadline(); !bounded {
+								t.Error("committed terminate wait has no deadline")
+							}
+							return session.StopOutcome{Verified: true, FinalState: session.StateStopped}, waitCtx.Err()
+						},
+					}
+					registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+						Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+						Processes: func() core.SessionProcessService { return processes },
+					}, nativeApproveAllPolicyInputs())
+					input := map[string]any{"session_id": info.ID}
+					if tc.policy != "" {
+						input["processes"] = tc.policy
+					}
+					if toolID == toolspkg.ToolIDSessionArchive {
+						input["stop"] = true
+					} else if tc.wait {
+						input["wait"] = true
+					}
+					encoded, err := json.Marshal(input)
+					if err != nil {
+						t.Fatal(err)
+					}
+					result, err := registry.Call(
+						ctx,
+						toolspkg.Scope{Operator: true, WorkspaceID: "ws-1"},
+						toolspkg.CallRequest{
+							ToolID: toolID, Input: encoded,
+						},
+					)
+					if tc.wantCode != "" {
+						if mutated || !processes.alive {
+							t.Fatalf("refused policy mutated lifecycle=%t alive=%t", mutated, processes.alive)
+						}
+						requireToolCode(t, err, tc.wantCode)
+						return
+					}
+					// The registry response remains caller-bound (tools/dispatch.go); only
+					// the committed cleanup must survive that caller's cancellation.
+					if tc.cancel {
+						requireToolCode(t, err, toolspkg.ErrorCodeCanceled)
+					} else if err != nil || len(result.Structured) == 0 {
+						t.Fatalf("lifecycle result=%s error=%v", result.Structured, err)
+					}
+					if !mutated {
+						t.Fatal("successful preparation did not commit the lifecycle change")
+					}
+					if processes.alive != (tc.policy != "terminate") {
+						t.Fatalf("policy=%q process alive=%t", tc.policy, processes.alive)
+					}
+				})
+			}
+		})
+	}
+}
+
+type nativeProcessPolicyService struct {
+	supported  bool
+	refreshErr error
+	alive      bool
+}
+
+func (s *nativeProcessPolicyService) Refresh(context.Context) (sessionprocess.Snapshot, error) {
+	return sessionprocess.Snapshot{Supported: s.supported}, s.refreshErr
+}
+func (s *nativeProcessPolicyService) Summary(string) sessionprocess.Summary {
+	return sessionprocess.Summary{Supported: s.supported}
+}
+func (*nativeProcessPolicyService) Acquire() func()                               { return func() {} }
+func (*nativeProcessPolicyService) AfterStop(string, func(context.Context) error) {}
+func (s *nativeProcessPolicyService) Terminate(
+	ctx context.Context,
+	id string,
+	targets []sessionprocess.Identity,
+	all bool,
+	allowed func(sessionprocess.Owner) bool,
+) ([]sessionprocess.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if _, bounded := ctx.Deadline(); !bounded {
+		return nil, errors.New("cleanup has no deadline")
+	}
+	if id != "sess-target" || !all || len(targets) != 0 ||
+		!allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"}) ||
+		allowed(sessionprocess.Owner{ProfileID: "foreign", WorkspaceID: "ws-1"}) ||
+		allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, WorkspaceID: "foreign"}) {
+		return nil, errors.New("cleanup escaped the target owner")
+	}
+	s.alive = false
+	return []sessionprocess.Result{{Outcome: "terminated"}}, nil
 }

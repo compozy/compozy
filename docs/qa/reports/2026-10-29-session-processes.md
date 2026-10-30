@@ -144,7 +144,8 @@ forwarded selection as well as rejection behavior.
 The final HTTP race rerun passed (2.053 s), scoped Linux lint reported zero issues, and
 `make codegen-check` passed. The existing Goal runtime E2E function also passed locally
 (31.076 s). CI on a19d5c416 nevertheless reproduced the Goal pause/run-status mismatch;
-that Linux CI failure remains under investigation and is not covered by the local pass.
+that local pass did not explain the Linux failure. The confirmed cause and subsequent Linux
+verification are recorded below under Goal stop ordering regression.
 
 The follow-up ownership regression failed against the original observation upsert: a second
 save changed the in-memory owner but a durable read retained the old session, workspace and
@@ -184,3 +185,15 @@ The later source-size check found the session registry at 504 lines after docume
 errors. The Stop operation definition was moved unchanged into its own registry file, matching
 the neighboring session-operation files. The source-size check, API-spec race suite (28.401 s),
 and codegen-check passed; the generated public contract did not change.
+
+## Native process policy parity
+
+The native registry regressions reproduced scan failures blocking omitted/keep policies, internal
+scan errors classified as invalid input, unsupported termination mutating the session, and caller
+cancellation leaving accepted cleanup unfinished. Native stop/archive now retain keep behavior,
+reject unsupported termination before mutation, and classify operational errors separately from
+invalid policy. Accepted waited termination and cleanup use bounded independent contexts. The
+registry still reports cancellation to the caller; the cleanup outcome is checked independently.
+The existing native suite also asserts workspace/profile fencing at the process service boundary.
+The focused native policy, archive-refusal, and session-orchestration race suites passed (5.163 s).
+Scoped Linux daemon lint reported zero issues, and the production source-size check passed.

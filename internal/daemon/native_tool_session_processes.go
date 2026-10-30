@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -19,7 +21,7 @@ type nativeSessionProcessesInput struct {
 	All       bool                            `json:"all"`
 }
 
-func (n *daemonNativeTools) sessionProcesses() *sessionprocess.Service {
+func (n *daemonNativeTools) sessionProcesses() core.SessionProcessService {
 	if n == nil || n.deps == nil || n.deps.Processes == nil {
 		return nil
 	}
@@ -111,20 +113,41 @@ func (n *daemonNativeTools) sessionProcessTarget(
 
 func (n *daemonNativeTools) prepareSessionProcessPolicy(
 	ctx context.Context,
+	id toolspkg.ToolID,
 	policy contract.SessionProcessPolicy,
 ) error {
 	if policy != "" && policy != contract.SessionProcessesKeep && policy != contract.SessionProcessesTerminate {
-		return errors.New("processes must be keep or terminate")
+		return nativeInputError(id, errors.New("processes must be keep or terminate"))
 	}
 	service := n.sessionProcesses()
 	if service == nil {
 		if policy == contract.SessionProcessesTerminate {
-			return errors.New("session processes unavailable")
+			return nativeHTTPStatusToolError(
+				id,
+				errors.New("session processes unavailable"),
+				http.StatusServiceUnavailable,
+			)
 		}
 		return nil
 	}
-	_, err := service.Refresh(ctx)
-	return err
+	snapshot, err := service.Refresh(ctx)
+	if policy != contract.SessionProcessesTerminate {
+		if err != nil && n.deps.Logger != nil {
+			n.deps.Logger.Warn("Capture processes before keeping session descendants", "error", err)
+		}
+		return nil
+	}
+	if err != nil {
+		return nativeHTTPStatusToolError(id, err, http.StatusInternalServerError)
+	}
+	if !snapshot.Supported {
+		return nativeHTTPStatusToolError(
+			id,
+			errors.New("process termination unsupported on this host"),
+			http.StatusServiceUnavailable,
+		)
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) finishSessionProcessPolicy(
@@ -135,7 +158,9 @@ func (n *daemonNativeTools) finishSessionProcessPolicy(
 	if policy != contract.SessionProcessesTerminate {
 		return nil
 	}
-	results, err := n.sessionProcesses().Terminate(ctx, info.ID, nil, true, func(o sessionprocess.Owner) bool {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
+	defer cancel()
+	results, err := n.sessionProcesses().Terminate(cleanupCtx, info.ID, nil, true, func(o sessionprocess.Owner) bool {
 		return o.ProfileID == info.ProfileID && o.WorkspaceID == info.WorkspaceID
 	})
 	if err != nil {

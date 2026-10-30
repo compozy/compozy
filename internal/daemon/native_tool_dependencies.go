@@ -12,7 +12,6 @@ import (
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	sessionpkg "github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/sessionprocess"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -118,7 +117,7 @@ type daemonNativeToolsDeps struct {
 	Terminals             func() terminalpkg.Manager
 	TerminalExecApprover  terminalExecApprover
 	Monitors              func() *monitorpkg.Service
-	Processes             func() *sessionprocess.Service
+	Processes             func() core.SessionProcessService
 
 	// ProjectionEpoch reports the daemon tool projection epoch that invalidates cached Goal availability.
 	ProjectionEpoch func() uint64
