@@ -338,6 +338,12 @@
                     },
                     "steps": [
                         {
+                            "kind": "native_tool_call",
+                            "tool_id": "compozy__subagent_capabilities",
+                            "tool_call_id": "native-journey-capabilities",
+                            "raw_input": {}
+                        },
+                        {
                             "kind": "driver_control",
                             "driver_control": {
                                 "action": "write_raw_jsonrpc",

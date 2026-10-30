@@ -64,3 +64,11 @@ real native tool calls, using the existing projection stream as acknowledgment.
 Lab teardown completed with `clean: true`. The strict evidence audit's local-gate
 requirement remains intentionally unsatisfied under the session instruction that CI
 owns broad gates; focused checks and real execution are recorded above.
+
+CI also exposed a fixture startup mismatch in the native subagent browser journey:
+the mock was named `claude-agent-acp`, but its notification-only script never
+connected the injected MCP server. The existing fixture now discovers real
+subagent capabilities before replaying the adapter frames, which activates its
+existing startup connection behavior. The browser assertions and production
+readiness gate are unchanged. Focused mock-driver native-call and fixture-loading
+tests pass with the race detector; CI owns the browser re-walk.
