@@ -1,14 +1,12 @@
 import { Archive, ChevronRight, CircleSlash } from "lucide-react";
-import { use, useId, useState, type ReactNode } from "react";
+import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { SessionsBoardRowsStoreContext } from "../../contexts/sessions-board-selection-context-value";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import { usePublishSessionListGroupRows } from "../../hooks/use-session-list-group-rows";
-import { sessionListGroupRank } from "../../lib/session-list-group-rows";
+import { useSessionsBoardArchiveSelection } from "../../hooks/use-sessions-board-selection";
 import type { SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
@@ -35,19 +33,8 @@ export function SessionsBoardArchiveBar({
   actions,
 }: SessionsBoardArchiveBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
-  const [open, setOpen] = useState(false);
   const bodyId = useId();
-  // Archived cards join the selection only while the bar shows them: closing the bar
-  // drops them, as archiving a session drops its row from the List's selection.
-  const shown = open ? archive.sessions : [];
-  usePublishSessionListGroupRows(use(SessionsBoardRowsStoreContext) ?? undefined, "archive", {
-    rank: sessionListGroupRank([9999]),
-    sessions: shown,
-    visibleOrder: shown.map(session => session.id),
-    // Folder moves resolve each selected session's own pair (`useSessionsBoardSelection`).
-    pair: null,
-    fetching: open && archive.fetching,
-  });
+  const { open, toggle } = useSessionsBoardArchiveSelection(archive.sessions, archive.fetching);
   if (archive.loading) {
     return (
       <SessionsBoardArchiveStatus>
@@ -86,7 +73,7 @@ export function SessionsBoardArchiveBar({
           "outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-inset"
         )}
         data-testid="sessions-board-archive-toggle"
-        onClick={() => setOpen(value => !value)}
+        onClick={toggle}
         type="button"
       >
         <ChevronRight

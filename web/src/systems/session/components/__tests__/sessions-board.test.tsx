@@ -809,6 +809,31 @@ describe("SessionsBoard selection", () => {
     expect(selectedCount()).toHaveTextContent("1 selected");
   });
 
+  it("Should confirm a repeated absence with a fresh re-read, never an earlier one", async () => {
+    const user = userEvent.setup();
+    const flaky = card("flaky");
+    const stay = card("stay");
+    const present = board({ working: { sessions: [flaky, stay], count: 2 } });
+    const absent = board({ working: { sessions: [stay], count: 1 } });
+    const { rerender } = renderSelectable(present);
+    await user.click(screen.getByTestId("sessions-board-column-select-working"));
+
+    // Missing after a confirming re-read: it leaves the selection.
+    rerender(absent);
+    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected"));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    rerender(present);
+    expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "false");
+
+    // Selected again and missing again: held until its own re-read, so a quick return keeps it.
+    await user.click(cardOf("flaky"));
+    rerender(absent);
+    rerender(present);
+    expect(cardOf("flaky")).toHaveAttribute("aria-pressed", "true");
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(selectedCount()).toHaveTextContent("2 selected");
+  });
+
   it("Should hold the selection while the lanes are off screen", async () => {
     const user = userEvent.setup();
     const kept = card("kept");
@@ -859,8 +884,11 @@ describe("SessionsBoard selection", () => {
     await user.click(screen.getByTestId("sessions-board-archive-toggle"));
     await user.click(cardOf("arch"));
     expect(selectedCount()).toHaveTextContent("2 selected· 1 hidden");
+    // Closing the bar drops its cards at once: reopening it right away finds them unselected.
     await user.click(screen.getByTestId("sessions-board-archive-toggle"));
-    await waitFor(() => expect(selectedCount()).toHaveTextContent("1 selected· 1 hidden"));
+    expect(selectedCount()).toHaveTextContent("1 selected· 1 hidden");
+    await user.click(screen.getByTestId("sessions-board-archive-toggle"));
+    expect(cardOf("arch")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("Should re-render only the cards a toggle changes", async () => {
