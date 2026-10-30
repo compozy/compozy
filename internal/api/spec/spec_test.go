@@ -3220,6 +3220,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		baseline := readSchemaBaseline(t)
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
+		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		doc, err := Document()
@@ -3249,6 +3250,37 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			)
 		}
 	})
+}
+
+func addAttentionTerminalApprovalSchema(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	properties := baseline
+	for _, key := range []string{
+		"paths", "/api/sessions/attention-summary", "get", "responses", "200", "content",
+		"application/json", "schema", "properties",
+	} {
+		next, ok := properties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved attention summary addition: missing object %q", key)
+		}
+		properties = next
+	}
+	if _, exists := properties["terminal_approvals"]; exists {
+		t.Fatal("terminal_approvals already exists in the historical summary baseline")
+	}
+	// Optional exact workspace/profile groups; existing fields and required sets remain unchanged.
+	properties["terminal_approvals"] = map[string]any{
+		"type": "array",
+		"items": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"workspace_id": map[string]any{"type": "string"},
+				"profile_id":   map[string]any{"type": "string"},
+				"count":        map[string]any{"type": "integer"},
+			},
+			"required": []any{"count", "profile_id", "workspace_id"},
+		},
+	}
 }
 
 func readSchemaBaseline(t *testing.T) map[string]any {
