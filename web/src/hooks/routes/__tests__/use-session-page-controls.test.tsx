@@ -511,6 +511,82 @@ describe("useSessionPageControls", () => {
     });
   });
 
+  // Invariant: `stopped` is definitive evidence that the stop completed, so the saved answer
+  // clears even when that read lands before the stop request itself settles.
+  it("Should drop the process answer when stopped evidence arrives before the stop settles", async () => {
+    const accepted = createDeferredPromise<undefined>();
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValueOnce(accepted.promise);
+    const { result, rerender } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active"), wrapper: createWrapper() }
+    );
+
+    act(() => result.current.handleStop("terminate"));
+    rerender({ ...makeSession("stopped"), updated_at: "2026-09-05T10:00:00Z" });
+    await act(async () => {
+      accepted.resolve(undefined);
+      await accepted.promise;
+    });
+
+    // A later stop, started elsewhere, reads unverified; its Retry carries no old answer.
+    routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
+    rerender({
+      ...makeSession("stopping"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      updated_at: "2026-09-05T10:06:00Z",
+    });
+    expect(result.current.canRetryStop).toBe(true);
+    await act(async () => {
+      result.current.handleStop();
+    });
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledTimes(2);
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
+      id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
+      wait: true,
+    });
+  });
+
+  // A stale `active` read while the stop is still on the wire is not completion evidence:
+  // the answer stays for that stop's unverified Retry.
+  it("Should keep the process answer across a stale active read while the stop is pending", async () => {
+    const accepted = createDeferredPromise<undefined>();
+    routeHookMocks.stopMutation.mutateAsync.mockReturnValueOnce(accepted.promise);
+    const { result, rerender } = renderHook(
+      (session: SessionPayload) =>
+        useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }),
+      { initialProps: makeSession("active", "turn-1"), wrapper: createWrapper() }
+    );
+
+    act(() => result.current.handleStop("terminate"));
+    rerender({ ...makeSession("active"), updated_at: "2026-09-05T10:00:00Z" });
+    await act(async () => {
+      accepted.resolve(undefined);
+      await accepted.promise;
+    });
+
+    routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
+    rerender({
+      ...makeSession("stopping"),
+      attention: "stop_verification_failed",
+      badge: "needs-attention",
+      updated_at: "2026-09-05T10:00:05Z",
+    });
+    await act(async () => {
+      result.current.handleStop();
+    });
+    expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenLastCalledWith({
+      id: "sess-1",
+      workspace_id: WORKSPACE_ID,
+      profile_name: "default",
+      wait: true,
+      processes: "terminate",
+    });
+  });
+
   it("Should read an unverified stop on a managed session without offering the user-only retry", () => {
     const { result } = renderControls({
       ...makeSession("stopping", undefined, "system"),

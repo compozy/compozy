@@ -250,8 +250,12 @@ export function createSessionPageControlsLogic() {
         // The saved process answer belongs to the stop it was given with: it lives
         // while that stop is in flight or reads unverified (`stopping`), and ends
         // once the session leaves `stopping`, so a later stop never inherits it.
+        // `stopped` is definitive and clears it even before the request settles;
+        // any other read (a stale `active`) waits for the request, keeping Retry's answer.
         const stopProcesses =
-          stop.phase === "idle" && lifecycle.state !== "stopping" ? null : context.stopProcesses;
+          lifecycle.state === "stopped" || (stop.phase === "idle" && lifecycle.state !== "stopping")
+            ? null
+            : context.stopProcesses;
         return { ...context, lifecycle, stop, stopProcesses };
       },
       stopFailed: (context, event, enqueue) => {
