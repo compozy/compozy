@@ -11,6 +11,11 @@ export interface ReceiptProps extends React.ComponentProps<"div"> {
   tone?: ReceiptTone;
   /** 12px leading glyph (lucide icon element). */
   icon?: React.ReactNode;
+  /**
+   * Wrap the sentence and keep its line breaks instead of truncating to one
+   * line — for records that quote agent-written multi-line prose.
+   */
+  wrap?: boolean;
   children: React.ReactNode;
 }
 
@@ -26,13 +31,22 @@ const TONE_ICON: Record<ReceiptTone, string> = {
  * the composer. Same quiet grammar as a marker: glyph + one sentence; `<b>`
  * carries the subject, `<code>` the tool or command in mono.
  */
-function Receipt({ tone = "neutral", icon, children, className, ...props }: ReceiptProps) {
+function Receipt({
+  tone = "neutral",
+  icon,
+  wrap = false,
+  children,
+  className,
+  ...props
+}: ReceiptProps) {
   return (
     <div
       data-slot="receipt"
       data-tone={tone}
+      data-wrap={wrap || undefined}
       className={cn(
-        "flex min-h-transcript-row min-w-0 items-center gap-transcript-inline-gap px-1 py-0.5",
+        "flex min-h-transcript-row min-w-0 gap-transcript-inline-gap px-1 py-0.5",
+        wrap ? "items-start" : "items-center",
         "text-transcript-body text-subtle",
         className
       )}
@@ -42,7 +56,11 @@ function Receipt({ tone = "neutral", icon, children, className, ...props }: Rece
         <span
           aria-hidden="true"
           data-slot="receipt-icon"
-          className={cn("shrink-0 *:[svg]:size-3", TONE_ICON[tone])}
+          className={cn(
+            "shrink-0 *:[svg]:size-3",
+            wrap && "flex h-lh items-center",
+            TONE_ICON[tone]
+          )}
         >
           {icon}
         </span>
@@ -50,7 +68,8 @@ function Receipt({ tone = "neutral", icon, children, className, ...props }: Rece
       <span
         data-slot="receipt-body"
         className={cn(
-          "min-w-0 truncate",
+          "min-w-0",
+          wrap ? "break-words whitespace-pre-line" : "truncate",
           "[&_b]:font-medium [&_b]:text-muted [&_strong]:font-medium [&_strong]:text-muted",
           "[&_code]:font-mono [&_code]:text-transcript-body [&_code]:text-muted"
         )}

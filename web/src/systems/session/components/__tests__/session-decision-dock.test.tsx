@@ -532,6 +532,49 @@ describe("SessionDecisionDock", () => {
     });
   });
 
+  // Invariant: the dock keeps the agent's line breaks, collapses to the first line on demand
+  // while digit keys still answer, and the next pending question docks expanded again.
+  it("Should keep question line breaks and answer on digit keys while collapsed", async () => {
+    const user = userEvent.setup();
+    renderDock({
+      clarifications: [
+        clarification({ question: "Create the repo?\n- Name: payments-api\n\nConfirm?" }),
+        clarification({ request_id: "clarify-2", question: "Which branch?" }),
+      ],
+    });
+
+    const question = await screen.findByTestId("clarification-dock-question");
+    expect(question.textContent).toBe("Create the repo?\n- Name: payments-api\n\nConfirm?");
+    const toggle = screen.getByRole("button", { name: "Collapse question" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(toggle);
+    expect(screen.getByRole("button", { name: "Expand question" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.getByTestId("clarification-dock-question").textContent).toBe("Create the repo?");
+    expect(screen.queryByTestId("clarification-dock-choices")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "1" });
+    await waitFor(() => {
+      expect(answerSessionClarification).toHaveBeenCalledWith(
+        WORKSPACE_ID,
+        SESSION_ID,
+        "clarify-1",
+        { choice_index: 0 }
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("clarification-dock-question")).toHaveTextContent("Which branch?");
+    });
+    expect(screen.getByRole("button", { name: "Collapse question" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByTestId("clarification-dock-choices")).toBeInTheDocument();
+  });
+
   it("Should render duplicate clarification labels as distinct indexed choices", async () => {
     renderDock({ clarifications: [clarification({ choices: ["Same answer", "Same answer"] })] });
 

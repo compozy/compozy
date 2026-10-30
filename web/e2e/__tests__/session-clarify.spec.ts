@@ -23,6 +23,10 @@ const FIXTURE_AGENT = "tool-approval-grants";
 const CLARIFY_TOOL = "compozy__clarify";
 const CLARIFY_CHOICES = ["Staging", "Production"];
 const CHOSEN_INDEX = 1;
+// Multi-line on purpose: the daemon keeps the agent's line breaks and the dock and receipt render them.
+const CLARIFY_QUESTION =
+  "Which environment should deploy first?\n- Staging: canary for 1h\n- Production: all regions";
+const CLARIFY_LINES = CLARIFY_QUESTION.split("\n");
 
 function repoFixture(name: string): string {
   return path.resolve(
@@ -144,14 +148,17 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     // the call blocks until the operator answers in the browser.
     const pendingCall = client.callTool({
       name: CLARIFY_TOOL,
-      arguments: { question: "Which environment should deploy first?", choices: CLARIFY_CHOICES },
+      arguments: { question: CLARIFY_QUESTION, choices: CLARIFY_CHOICES },
       _meta: { toolCallId: "e2e-clarify-1" },
     });
     toolCall = pendingCall;
 
     // The clarify SSE event wakes the live pending query and the question card renders.
     await expect(clarifyUI.card).toBeVisible({ timeout: 30_000 });
-    await expect(clarifyUI.question).toContainText("Which environment should deploy first?");
+    // innerText follows the rendered layout, so each line break must survive as its own line.
+    await expect
+      .poll(async () => (await clarifyUI.question.innerText()).split("\n"))
+      .toEqual(CLARIFY_LINES);
     await expect(clarifyUI.choice(CHOSEN_INDEX)).toBeVisible();
     await expect(sessionUI.permissionPrompt).toBeHidden();
 
@@ -170,6 +177,9 @@ test("operator answers a running clarification and unblocks the hosted-MCP call"
     await expect(clarifyUI.receipt).toBeVisible({ timeout: 20_000 });
     expect(await clarifyUI.receipt.getAttribute("data-status")).toBe("resolved");
     await expect(clarifyUI.receiptAnswer).toHaveText(`"${CLARIFY_CHOICES[CHOSEN_INDEX]!}"`);
+    expect((await clarifyUI.receipt.innerText()).split("\n").slice(1)).toEqual(
+      CLARIFY_LINES.slice(1)
+    );
 
     // The original callTool promise resolves with the exact frozen structured answer.
     const callResult = await pendingCall;

@@ -68,3 +68,18 @@ export const Canceled: Story = {
 export const ExpiredByRestart: Story = {
   args: { view: view("canceled", null), cause: "restart" },
 };
+
+/** A multi-line question keeps its line breaks in the receipt. */
+export const MultiLineQuestion: Story = {
+  args: {
+    view: {
+      ...view("resolved", { choice: 0, text: "", fallback: false }),
+      request: {
+        ...request,
+        question:
+          "Create the repository with these settings?\n- Name: payments-api\n- Teams: platform, billing\nConfirm?",
+        choices: ["Yes, create it", "Cancel"],
+      },
+    },
+  },
+};

@@ -48,4 +48,16 @@ describe("Receipt", () => {
     expect(body?.querySelector("code")?.textContent).toBe("Bash");
     expect(body?.className).toContain("[&_code]:font-mono");
   });
+
+  it("Should wrap and keep line breaks only when asked", () => {
+    const { container, rerender } = render(<Receipt>Answered — Confirm?</Receipt>);
+    let body = container.querySelector<HTMLElement>('[data-slot="receipt-body"]');
+    expect(body?.className).toContain("truncate");
+
+    rerender(<Receipt wrap>{"Answered — Create the repo?\n- Name: api"}</Receipt>);
+    body = container.querySelector<HTMLElement>('[data-slot="receipt-body"]');
+    expect(container.querySelector('[data-slot="receipt"]')).toHaveAttribute("data-wrap", "true");
+    expect(body?.className).not.toContain("truncate");
+    expect(body?.className).toContain("whitespace-pre-line");
+  });
 });

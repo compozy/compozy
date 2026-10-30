@@ -15,8 +15,9 @@ export interface ClarificationReceiptProps {
 }
 
 /**
- * One-line truthful receipt for a terminal clarification, from durable
- * historical evidence — never invents an answer for a timeout or cancel.
+ * Truthful receipt for a terminal clarification, from durable historical
+ * evidence — never invents an answer for a timeout or cancel. It wraps and
+ * keeps the question's line breaks so a multi-line ask stays reviewable.
  * Static timeline entry, not a live region: bulk-loading a transcript full of
  * receipts must not fire a burst of announcements.
  */
@@ -30,6 +31,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
+        wrap
         icon={<RotateCcw />}
         data-status={view.status}
         data-cause={cause}
@@ -45,6 +47,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
+        wrap
         icon={<MessageCircleQuestion />}
         data-status={view.status}
         data-testid="clarification-receipt"
@@ -64,6 +67,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
     return (
       <Receipt
         tone="neutral"
+        wrap
         icon={<Clock />}
         data-status={view.status}
         data-testid="clarification-receipt"
@@ -76,6 +80,7 @@ export function ClarificationReceipt({ view, cause }: ClarificationReceiptProps)
   return (
     <Receipt
       tone="neutral"
+      wrap
       icon={<X />}
       data-status={view.status}
       data-testid="clarification-receipt"

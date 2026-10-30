@@ -85,3 +85,17 @@ Unbounded-wait and keepalive evidence expectations (all cite timestamp, exact co
 - Answer/cancel/stop races resolve exactly once with deterministic loser errors; a second
   same-session ask conflicts naming the live request; extension-asked questions share the same wait
   and ping with no separate vocabulary; pings never cross sessions.
+
+QA impact 2026-10-30 (#1045, web only): the composer clarification dock keeps the question's line
+breaks, is bounded to half the viewport with the question scrolling inside, and has a head chevron
+(`aria-expanded`, "Collapse question"/"Expand question") that collapses it to the question's first
+line plus count/deadline. Every pending question docks expanded; a collapse lasts until that
+question resolves; digit keys 1–9 still answer while collapsed. Below a 28rem dock width the
+count/deadline move under the question. Terminal receipts wrap and keep the question's line breaks.
+Walk additions: ask a multi-line question (blank lines, `- ` bullets, 15+ lines) on desktop and a
+390px-wide viewport; confirm line breaks in the dock and receipt, the 50% height bound with the
+choices still visible, collapse/expand, a digit-key answer while collapsed, and that the next
+queued question opens expanded. Verified 2026-10-30: `web/e2e/__tests__/session-clarify.spec.ts`
+(real daemon + hosted MCP `compozy__clarify` with a multi-line question) passed locally, with dock
+and receipt screenshots at 1280×720 and 390×844 in the PR; Storybook geometry probes measured the
+dock at exactly 50% of an 800px and 844px viewport with the question scrolling and choices visible.

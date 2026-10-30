@@ -137,3 +137,28 @@ export const StatusLines: Story = {
     </div>
   ),
 };
+
+export const MultilineTitle: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`multiline` keeps the author's line breaks and wraps long words — for agent-written questions. Permission titles stay single-line.",
+      },
+    },
+  },
+  render: () => (
+    <div className="max-w-xl">
+      <Dock>
+        <Dock.Head>
+          <Dock.Eyebrow>Question</Dock.Eyebrow>
+          <Dock.Title multiline>
+            {
+              "Create the repository with these settings?\n- Name: payments-api\n- Teams: platform, billing\n\nConfirm?"
+            }
+          </Dock.Title>
+        </Dock.Head>
+      </Dock>
+    </div>
+  ),
+};
