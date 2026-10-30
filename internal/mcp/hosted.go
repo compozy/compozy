@@ -35,6 +35,7 @@ var (
 	ErrHostedNonceInvalid      = errors.New("mcp: hosted MCP bind nonce is invalid")
 	ErrHostedNonceExpired      = errors.New("mcp: hosted MCP bind nonce expired")
 	ErrHostedBindRequired      = errors.New("mcp: hosted MCP bind id is required")
+	ErrHostedBindTimeout       = errors.New("mcp: hosted MCP bind did not establish before the launch deadline")
 	ErrHostedBindNotFound      = errors.New("mcp: hosted MCP bind not found")
 	ErrHostedRunRequired       = errors.New("mcp: hosted MCP active run identity is required")
 	ErrHostedPeerInvalid       = errors.New("mcp: hosted MCP peer validation failed")
@@ -144,6 +145,8 @@ type HostedReleaseRequest struct {
 }
 
 type hostedLaunchRecord struct {
+	readiness     changeSignal
+	readyBindID   string
 	sessionID     string
 	profileID     string
 	workspaceID   string

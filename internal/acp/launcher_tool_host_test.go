@@ -1069,6 +1069,33 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should describe MCP wire shape without exposing launch secrets", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))))
+		servers := toSDKMCPServers(
+			[]compozyconfig.MCPServer{
+				{
+					Name:    "hosted",
+					Command: "/private-seat/compozy",
+					Args:    []string{"--bind-nonce", "private-nonce"},
+					Env:     map[string]string{"TOKEN": "private-token"},
+				},
+			},
+		)
+		driver.logMCPServerShape("session/new", servers)
+		for _, secret := range []string{"private-seat", "private-nonce", "private-token"} {
+			if strings.Contains(logs.String(), secret) {
+				t.Fatalf("MCP diagnostic exposes %q", secret)
+			}
+		}
+		for _, field := range []string{"method=session/new", "command_basename=compozy", "type_field_present=false", "arg_count=2", "env_count=1"} {
+			if !strings.Contains(logs.String(), field) {
+				t.Fatalf("MCP diagnostic is missing %q", field)
+			}
+		}
+	})
+
 	t.Run("Should keep a route's private assignment and arguments out of errors and logs", func(t *testing.T) {
 		t.Parallel()
 

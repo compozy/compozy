@@ -21,6 +21,32 @@ import (
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject an unbound launch after its deadline", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		if _, err := service.Launch(
+			t.Context(),
+			HostedLaunchRequest{SessionID: "sess-unbound", WorkspaceID: "ws-1", AgentName: "claude"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-unbound"); err != nil {
+			t.Fatal(err)
+		}
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.WaitForBind(canceled, "sess-unbound"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("WaitForBind() = %v, want cancellation", err)
+		}
+		now = now.Add(time.Hour)
+		if err := service.WaitForBind(t.Context(), "sess-unbound"); !errors.Is(err, ErrHostedBindTimeout) {
+			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
+		}
+	})
+
 	t.Run("Should rearm a released proxy without replacing the provider session", func(t *testing.T) {
 		t.Parallel()
 
@@ -42,6 +68,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		first, err := service.Bind(t.Context(), request, peer)
 		if err != nil {
 			t.Fatalf("Bind(first proxy) error = %v", err)
+		}
+		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
+			t.Fatalf("WaitForBind() = %v", err)
 		}
 		if err := service.BindRun(t.Context(), request.SessionID, "run-reconnect", 7); err != nil {
 			t.Fatalf("BindRun() error = %v", err)
@@ -69,6 +98,9 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		reconnected, err := service.Bind(t.Context(), request, peer)
 		if err != nil {
 			t.Fatalf("Bind(restarted proxy) error = %v", err)
+		}
+		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
+			t.Fatalf("WaitForBind(reconnected) = %v", err)
 		}
 		if reconnected.BindID == first.BindID || reconnected.Scope.ProfileID != "profile-a" ||
 			reconnected.Scope.WorkspaceID != "ws-1" || reconnected.Scope.SessionID != request.SessionID ||

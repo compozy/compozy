@@ -41,6 +41,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		McpServers: toSDKMCPServers(normalized.MCPServers),
 		SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
 	}
+	d.logMCPServerShape(string(method), loadRequest.McpServers)
 	loadWireRequest := wireLoadSessionRequest{
 		Meta:           claudeCodeSessionMeta(normalized),
 		Cwd:            loadRequest.Cwd,
@@ -86,6 +87,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		Cwd:        normalized.Cwd,
 		McpServers: toSDKMCPServers(normalized.MCPServers),
 	}
+	d.logMCPServerShape(string(acpsdk.AgentMethodSessionNew), newRequest.McpServers)
 	newWireRequest := wireNewSessionRequest{
 		Meta:           claudeCodeSessionMeta(normalized),
 		Cwd:            newRequest.Cwd,

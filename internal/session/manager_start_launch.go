@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 
@@ -47,6 +49,21 @@ func (m *Manager) prepareSessionLaunch(
 	}
 	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
+	if m.hostedMCP != nil && len(startOpts.MCPServers) > 0 && providerexec.IsClaudeAgentBridge(startOpts.Command) {
+		prompt, manifest := startOpts.SystemPrompt, startOpts.StartupManifest
+		startOpts.FinalizeStartup = func(ctx context.Context) (string, acp.StartupManifest, error) {
+			started := time.Now()
+			err := m.hostedMCP.WaitForBind(ctx, session.ID)
+			outcome := "succeeded"
+			if err != nil {
+				outcome = "failed"
+			}
+			m.sessionLogger(session).
+				Info("acp.start.stage", "stage", "mcp_bind", "outcome", outcome, "duration_ms", time.Since(started).Milliseconds())
+			return prompt, manifest, err
+		}
+	}
+
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
 			return acp.StartOpts{}, err

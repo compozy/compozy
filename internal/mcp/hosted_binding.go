@@ -52,6 +52,12 @@ func (s *HostedService) Bind(
 		s.ReleaseBind(bindID)
 		return HostedBindResponse{}, err
 	}
+	s.mu.Lock()
+	if launch := s.launches[sessionID]; launch != nil && launch.bindID == bindID {
+		launch.readyBindID = bindID
+		launch.readiness.notify(nil)
+	}
+	s.mu.Unlock()
 	return HostedBindResponse{
 		BindID: bindID,
 		Scope:  record.scope(),
@@ -229,6 +235,8 @@ func (s *HostedService) ReleaseBind(bindID string) {
 		if launch := s.launches[record.sessionID]; launch != nil && launch.bindID == bindID {
 			// Providers may replace their stdio proxy while retaining the same ACP session.
 			launch.established = false
+			launch.readyBindID = ""
+			launch.readiness.notify(nil)
 			launch.bindID = ""
 			launch.expiresAt = s.now().UTC().Add(s.bindNonceTTL)
 		}

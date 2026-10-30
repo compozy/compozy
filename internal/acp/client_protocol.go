@@ -3,7 +3,9 @@ package acp
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 
 	"strings"
@@ -107,5 +109,23 @@ func (d *Driver) waitForPromptQuiescence(active *activePromptState) {
 		case <-maxTimer.C:
 			return
 		}
+	}
+}
+
+func (d *Driver) logMCPServerShape(method string, servers []acpsdk.McpServer) {
+	logger := d.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	for _, server := range servers {
+		if server.Stdio == nil {
+			continue
+		}
+		stdio := server.Stdio
+		logger.Debug("acp.session.mcp_server", "method", method,
+			"transport", "stdio", "type_field_present", false,
+			"command_basename", filepath.Base(stdio.Command),
+			"command_fingerprint", compozyconfig.CommandFingerprint(stdio.Command),
+			"arg_count", len(stdio.Args), "env_count", len(stdio.Env))
 	}
 }

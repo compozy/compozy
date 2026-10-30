@@ -98,6 +98,7 @@ type IDGenerator func() (string, error)
 type HostedMCPLauncher interface {
 	Launch(ctx context.Context, req HostedMCPLaunchRequest) (compozyconfig.MCPServer, error)
 	ArmLaunch(ctx context.Context, sessionID string) error
+	WaitForBind(ctx context.Context, sessionID string) error
 	BindRun(ctx context.Context, sessionID, runID string, generation int64) error
 	ReleaseRun(sessionID, runID string, generation int64)
 	CancelLaunch(sessionID string)

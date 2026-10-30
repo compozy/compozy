@@ -73,3 +73,15 @@ remains forbidden. Static instruction review is not a model-compliance score. Se
 Native error parity (#1012): exercise archive/worktree refusals through both the CLI and native gateway. Registered domain codes must survive generic adapter wrapping, existing specialized reasons/partial results must remain compatible, and backend failures must retain a bounded sanitized cause. Do not infer a transport outage from `tool_backend_failed` alone.
 
 The [targeted report](../reports/2026-10-28-native-tool-errors.md) records the real isolated-daemon re-walk, automated evidence, and limits. Broader scenario status is unchanged.
+
+
+QA impact 2026-10-30 (Claude hosted MCP startup): verify both a fresh Claude ACP
+session and a resumed session. Capture only redacted `mcpServers` shape: stdio has
+no `type` discriminator and preserves the executable, arguments, and environment.
+Require an established hosted bind and a successful native tool invocation on each
+runtime. A controlled missing executable must fail the later `mcp_bind` startup
+stage before native-tool guidance is delivered; `mcp_activation` alone only arms
+the launch. Never restart the operator daemon for this walk. WSL2 ENOENT behavior
+requires separate platform evidence when the local lab is macOS.
+
+The [targeted report](../reports/2026-10-30-claude-hosted-mcp-startup.md) records fresh/load payload evidence, a controlled bind failure, and the unreproduced WSL2 limit.
