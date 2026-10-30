@@ -56,3 +56,11 @@ verb unique to the head menu, is now a row verb offered only on the row of the s
 window has open (disabled while a turn runs or nothing is left to clear). Sessions Kanban cards
 carry the same row menu on right-click and behind a hover/focus `…`. The list toolbar splits
 Sort and Group by into two icons. Walked in ET-web-sessions-board-card-actions-group-sort.
+
+QA impact 2026-10-30 (#1051): verify User-owned rows whose `workspace_id` is null,
+absent, or empty. From User and All projects, rename, stop, archive, restore, and
+delete them through the catalog. Keep a delete confirmation open while switching
+to a project; confirmation must still target `@user` with the captured profile.
+Project-owned targets must retain their own workspace. Check mixed User/project
+bulk delete and archive, and ensure unrelated project detail caches remain intact.
+Focused hook coverage passes; browser verification is pending.

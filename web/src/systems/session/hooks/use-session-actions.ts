@@ -37,6 +37,11 @@ import {
 } from "./session-action-workspace";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 
+/** A captured session without a project belongs to User, unlike an absent UI selection. */
+function sessionOwnerWorkspace(workspaceId: string | null | undefined): string {
+  return requireWorkspace(workspaceId ?? "");
+}
+
 export type SessionActionTarget = Pick<SessionPayload, "id" | "workspace_id" | "profile_name">;
 
 export interface RenameSessionParams extends SessionActionTarget {
@@ -51,16 +56,18 @@ export function useRenameSession() {
   return useMutation({
     mutationFn: ({ id, workspace_id, profile_name, name }: RenameSessionParams) =>
       request(signal =>
-        renameSession(requireWorkspace(workspace_id), id, profile_name, { name }, signal)
+        renameSession(sessionOwnerWorkspace(workspace_id), id, profile_name, { name }, signal)
       ),
     onSuccess: session => {
-      const successWorkspaceId = requireWorkspace(session.workspace_id);
+      const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(successWorkspaceId, session.id), session);
     },
     onSettled: (_data, _error, variables) => {
-      if (variables.workspace_id) {
-        void invalidateSessionMutationQueries(queryClient, variables.workspace_id, variables.id);
-      }
+      void invalidateSessionMutationQueries(
+        queryClient,
+        sessionOwnerWorkspace(variables.workspace_id),
+        variables.id
+      );
     },
   });
 }
@@ -116,12 +123,12 @@ export function useStopSession() {
 
   return useMutation({
     mutationFn: ({ id, workspace_id, profile_name, wait, processes }: StopSessionParams) =>
-      stopSession(requireWorkspace(workspace_id), id, profile_name, {
+      stopSession(sessionOwnerWorkspace(workspace_id), id, profile_name, {
         wait,
         ...(processes ? { processes } : {}),
       }),
     onSettled: (_data, _error, { id, workspace_id }) => {
-      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
+      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
     },
   });
 }
@@ -186,14 +193,14 @@ export function useDeleteSession(
   return useMutation({
     mutationKey: sessionKeys.deletions(),
     mutationFn: ({ processes, ...session }: DeleteSessionParams) => {
-      const workspaceId = requireWorkspace(session.workspace_id);
+      const workspaceId = sessionOwnerWorkspace(session.workspace_id);
       // Omitted keeps the processes, the daemon default, so only an answer is sent.
       return processes
         ? deleteSession(workspaceId, session.id, session.profile_name, undefined, processes)
         : deleteSession(workspaceId, session.id, session.profile_name);
     },
     onMutate: async ({ id, workspace_id }) => {
-      const deleteWorkspaceId = requireWorkspace(workspace_id);
+      const deleteWorkspaceId = sessionOwnerWorkspace(workspace_id);
       sessionStore.trigger.sessionLiveTailSuspended({ sessionId: id });
       await Promise.all([
         queryClient.cancelQueries({ queryKey: sessionKeys.detail(deleteWorkspaceId, id) }),
@@ -202,7 +209,7 @@ export function useDeleteSession(
     },
     onSuccess: async (_data, session) => {
       const { id, workspace_id } = session;
-      const successWorkspaceId = requireWorkspace(workspace_id);
+      const successWorkspaceId = sessionOwnerWorkspace(workspace_id);
       await options.onDeleteSuccess?.(session);
       discardComposerDraftAttachments(id);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
@@ -214,8 +221,8 @@ export function useDeleteSession(
     },
     onSettled: (_data, error, { id, workspace_id }) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
-      if (error && workspace_id) {
-        void invalidateSessionMutationQueries(queryClient, workspace_id, id);
+      if (error) {
+        void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
       }
     },
   });
@@ -238,17 +245,23 @@ export function useArchiveSession() {
       request(signal =>
         processes
           ? archiveSession(
-              requireWorkspace(workspace_id),
+              sessionOwnerWorkspace(workspace_id),
               id,
               profile_name,
               signal,
               stop ?? false,
               processes
             )
-          : archiveSession(requireWorkspace(workspace_id), id, profile_name, signal, stop ?? false)
+          : archiveSession(
+              sessionOwnerWorkspace(workspace_id),
+              id,
+              profile_name,
+              signal,
+              stop ?? false
+            )
       ),
     onSettled: (_data, _error, { id, workspace_id }) => {
-      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
+      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
     },
   });
 }
@@ -260,9 +273,11 @@ export function useUnarchiveSession() {
 
   return useMutation({
     mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
-      request(signal => unarchiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+      request(signal =>
+        unarchiveSession(sessionOwnerWorkspace(workspace_id), id, profile_name, signal)
+      ),
     onSettled: (_data, _error, { id, workspace_id }) => {
-      if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
+      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
     },
   });
 }
