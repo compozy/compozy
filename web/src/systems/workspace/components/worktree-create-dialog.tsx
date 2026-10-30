@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronDown, FolderGit2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 
 import {
   Button,
@@ -35,6 +35,7 @@ export interface WorktreeCreateDialogProps {
   onOpenChange: (open: boolean) => void;
   workspaceName: string;
   model: WorktreeCreateDialogModel;
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"];
   /** Jump to the worktree already holding a refused branch (US-002 EC-2). */
   onSelectHoldingWorktree?: (worktreeId: string) => void;
 }
@@ -44,6 +45,7 @@ export function WorktreeCreateDialog({
   onOpenChange,
   workspaceName,
   model,
+  finalFocus,
   onSelectHoldingWorktree,
 }: WorktreeCreateDialogProps) {
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
@@ -52,6 +54,7 @@ export function WorktreeCreateDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        finalFocus={finalFocus}
         className={`grid-rows-[auto_minmax(0,1fr)_auto] ${dialogShellClass("sm")}`}
         data-testid="worktree-create-dialog"
         showCloseButton={false}

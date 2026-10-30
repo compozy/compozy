@@ -63,6 +63,7 @@ export function WorktreeCreateDialogBoundary({
   return (
     <WorktreeCreateDialog
       open
+      finalFocus={() => document.querySelector<HTMLElement>('[data-slot="os-menubar-workspace"]')}
       onOpenChange={onOpenChange}
       workspaceName={workspaceName}
       model={model}

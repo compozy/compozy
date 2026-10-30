@@ -70,3 +70,8 @@ visible hint to a HelpTip beside the Name label. Reset to untested.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-10-30 release validation: cancelling New worktree after opening it from the overview
+returns keyboard focus to the persistent workspace menubar button. Reopen the overview
+with a normal pointer click and continue mixed worktree selection. The canonical worktrees
+E2E covers this handoff at a narrow viewport; no forced clicks or timeout changes are allowed.

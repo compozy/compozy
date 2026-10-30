@@ -1020,6 +1020,7 @@ for (const surface of ["menubar", "overview"] as const) {
       await expect(creation).toBeVisible();
       await creation.getByRole("button", { name: "Cancel", exact: true }).click();
       await expect(creation).toBeHidden();
+      await expect(appPage.locator('[data-slot="os-menubar-workspace"]')).toBeFocused();
       await openOverviewMenu(appPage, workspace.id);
     }
     const start = appPage.getByText("Select worktrees…", { exact: true });

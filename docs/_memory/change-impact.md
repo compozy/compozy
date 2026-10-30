@@ -4868,3 +4868,10 @@ native process cleanup; the token stays internal and existing public timestamp f
 their meaning. Web Retry restores process choices after a failed detail read recovers.
 No schema, config, hook, extension SDK or official-skill changes; authorization and workspace
 isolation remain unchanged. Evidence is recorded in the same QA report and scenarios.
+
+Release 0.4.6 worktree dialog focus repair: the desktop creation boundary supplies the
+persistent workspace menubar button as its final focus target after its opening menu unmounts.
+The shared worktree dialog accepts the existing UI primitive finalFocus policy. Native tools,
+HTTP/UDS, hooks, extensions, config, persisted data, workspace isolation and the official
+CompozyOS skill are unchanged. Web QA: RT-worktree-web-create-adopt and the existing
+real-Git mixed-removal E2E on menubar/overview surfaces.
