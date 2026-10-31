@@ -91,7 +91,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	cmd.Flags().StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|in_review|done)")
 	cmd.Flags().
-		BoolVar(&flags.hideChildren, "hide-children", false, "Exclude child sessions; forked and continued sessions stay listed")
+		BoolVar(&flags.hideChildren, "hide-children", false, "Exclude child sessions; forks and continuations stay")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
