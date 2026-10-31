@@ -720,8 +720,8 @@ type mcpDeclarationWorkspaceStub struct {
 
 func (s mcpDeclarationWorkspaceStub) ListWorkspaces(context.Context) ([]workspacepkg.Workspace, error) {
 	workspaces := make([]workspacepkg.Workspace, 0, len(s.resolved))
-	for _, resolved := range s.resolved {
-		workspaces = append(workspaces, resolved.Workspace)
+	for id := range s.resolved {
+		workspaces = append(workspaces, s.resolved[id].Workspace)
 	}
 	return workspaces, nil
 }
@@ -778,7 +778,8 @@ func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T)
 			t.Fatalf("provider() error = %v", err)
 		}
 		got := make(map[string]string, len(desired.mcpServers))
-		for _, server := range desired.mcpServers {
+		for i := range desired.mcpServers {
+			server := &desired.mcpServers[i]
 			got[server.sourceKey] = string(server.scope.Kind) + "/" + server.scope.ID + " " + server.spec.URL
 		}
 		want := map[string]string{

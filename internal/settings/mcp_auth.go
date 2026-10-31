@@ -48,7 +48,11 @@ func (s *service) GetMCPAuthStatus(
 	}
 	status, err := s.mcpAuth.MCPAuthStatus(ctx, resolved.target, resolved.server)
 	if err != nil {
-		return mcpauth.Status{}, fmt.Errorf("settings: load MCP auth status for %q: %w", resolved.target.ServerName, err)
+		return mcpauth.Status{}, fmt.Errorf(
+			"settings: load MCP auth status for %q: %w",
+			resolved.target.ServerName,
+			err,
+		)
 	}
 	status.Inherited = resolved.inherited
 	return status, nil

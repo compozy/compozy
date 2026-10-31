@@ -3546,6 +3546,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addTerminalCreateWorktree(baseline) == 0 {
 		t.Fatal("approved worktree terminal create: no historical terminal create schemas found")
 	}
+	// #1072: optional inherited marker on MCP auth status; existing fields and required sets stay unchanged.
+	if addMCPAuthStatusInherited(baseline) == 0 {
+		t.Fatal("approved MCP auth inherited addition: no historical MCP auth status schemas found")
+	}
 	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
 	automationProperties := baseline
 	for _, key := range []string{
@@ -4682,6 +4686,27 @@ func addWorkspaceArchiveSchemas(value any) int {
 }
 
 // The additive field is optional. The historical required fields remain intact.
+func addMCPAuthStatusInherited(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addMCPAuthStatusInherited(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addMCPAuthStatusInherited(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["token_present"] != nil && properties["refreshable"] != nil &&
+			properties["server_name"] != nil && properties["owner"] != nil {
+			properties["inherited"] = map[string]any{"type": "boolean"}
+			count++
+		}
+	}
+	return count
+}
+
 func addSessionWorktreeBindingSchemas(value any) int {
 	count := 0
 	switch node := value.(type) {
