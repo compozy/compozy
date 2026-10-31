@@ -10,7 +10,7 @@ const meta: Meta<typeof Sparkline> = {
     docs: {
       description: {
         component:
-          "Tiny bar sparkline tracking a single signal series. Bars fill the container by default; max defaults to the largest value (or 1). Bar color is `--accent-tint-strong` so the sparkline reads as the operator-orange brand without screaming. Pair with `Metric` for inline trend visualisation.",
+          "Tiny bar sparkline tracking a single signal series. Bars fill the container by default; max defaults to the largest value (or 1). Bar color is `--color-brand-tint-strong` so the sparkline reads as the operator-orange brand without screaming. Pair with `Metric` for inline trend visualisation.",
       },
     },
   },

@@ -558,12 +558,9 @@
   /* Table cell width ladder — recurring max-width cells across detail panels. */
   --width-table-cell-sm: 224px;
   --width-table-cell-md: 288px;
-  --width-table-cell-lg: 360px;
 
   /* Layout ladder. */
   --container-content-max: 1320px;
-  --width-right-rail-default: 468px;
-  --width-message-bubble-max: 640px;
   /* Search field: its resting width, and the floor a toolbar search shrinks to in
      a narrow pane before the strip scrolls. Namespaced per utility (min-w-*, basis-*). */
   --min-width-search-input: 220px;

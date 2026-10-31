@@ -81,7 +81,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
   },
   {
     id: "brand",
-    label: "Accent",
+    label: "Brand",
     caption: "The brand orange marks highlights and needs-you (attn), never the default action.",
     swatches: colors([
       ["--color-brand", "Highlight / needs you"],

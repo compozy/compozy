@@ -399,10 +399,7 @@ tokens:
       width-kv-label: "140px"
       width-table-cell-sm: "224px"
       width-table-cell-md: "288px"
-      width-table-cell-lg: "360px"
       container-content-max: "1320px"
-      width-right-rail-default: "468px"
-      width-message-bubble-max: "640px"
       min-width-search-input: "220px"
       min-width-search-input-floor: "140px"
       width-filters-menu-default: "200px"
@@ -655,7 +652,7 @@ acceptable only in the token source, static generated artifacts, or documented
 asset work that cannot consume CSS variables.
 
 Accessibility floor: body text and labels must meet WCAG AA contrast against
-their owning surface, in both themes (`muted`, `subtle`, and `faint` all carry
+their owning surface, in both themes (`muted-foreground`, `subtle`, and `faint` all carry
 text, so each clears 4.5:1). Non-text indicators such as dots, bars, and rails must
 meet the 3:1 non-text floor. If a token retune drops below those floors, fix the
 token or component at the source; do not locally override one callsite.
@@ -826,9 +823,9 @@ terminal chrome uses generated utilities (`bg-terminal-bg`,
 `text-terminal-ansi-8`) like any other colour in the system. The values live in
 exactly one place.
 
-Indices 1, 2, 3 ride the danger, success and warning lanes (their bright
+Indices 1, 2, 3 ride the destructive, success and warning lanes (their bright
 pairs 9, 10, 11 are the matching lighter or deeper step) so a red test failure
-in the grid reads as the same red as a danger chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
+in the grid reads as the same red as a destructive chip. Indices 4, 5, 6 are desaturated hues at matched OKLCH lightness
 (~0.68–0.72) so no ANSI color outshouts the signal palette. Index 8 is
 dim-by-design (~3.5:1) — that is terminal convention for dim text, and it is
 never a legal color for UI copy.
@@ -1003,7 +1000,7 @@ The runtime shell is a desktop with flat chrome on `--color-rail`:
   tab bar takes over.
 - Gutterless tiling on `--color-desk`. Tiled windows are flat panes on
   `--color-canvas` with no radius, border or shadow; the 1px `line` seam is the
-  only divider, with a `--size-seam-hit` (9px) hit area that turns accent on
+  only divider, with a `--size-seam-hit` (9px) hit area that turns brand on
   hover and drag. Floating windows keep a 1px hairline and `shadow-elevated`.
 - Browser-style tabs. A window with several tabs shows the deck
   (`--height-deck`, 40px): a recessed `sunken` strip where the active tab is a
@@ -1075,8 +1072,7 @@ widths come from `--site-*` tokens.
 | `--size-status-dot`                  | `7px`                            | `--size-status-dot-sm`                  | `6px`                                                       | `--size-avatar-sm`                         | `20px`    |
 | `--size-avatar-default`              | `24px`                           | `--size-avatar-lg`                      | `32px`                                                      | `--height-editor-footer`                   | `52px`    |
 | `--width-detail-inspector-inline`    | `320px`                          | `--width-kv-label`                      | `140px`                                                     | `--width-table-cell-sm`                    | `224px`   |
-| `--width-table-cell-md`              | `288px`                          | `--width-table-cell-lg`                 | `360px`                                                     | `--container-content-max`                  | `1320px`  |
-| `--width-right-rail-default`         | `468px`                          | `--width-message-bubble-max`            | `640px`                                                     | `--min-width-search-input`                 | `220px`   |
+| `--width-table-cell-md`              | `288px`                          | `--container-content-max`               | `1320px`                                                    | `--min-width-search-input`                 | `220px`   |
 | `--min-width-search-input-floor`     | `140px`                          | `--width-filters-menu-default`          | `200px`                                                     | `--width-filters-menu-stack`               | `220px`   |
 | `--width-settings-nav`               | `264px`                          | `--container-settings-takeover`         | `56rem`                                                     | `--container-task-detail-rail`             | `64rem`   |
 | `--width-settings-sheet`             | `640px`                          | `--width-task-properties-rail`          | `320px`                                                     | `--spacing-settings-sheet-viewport-gutter` | `24px`    |
@@ -1275,18 +1271,18 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   window heads use `secondary` `sm` instead. `secondary` (surface-2 fill) is
   the normal action; `ghost` / `quiet` are icon buttons and low-emphasis
   actions; text links ("Edit ›", "View all ›") are `link` or `quiet` at `sm`,
-  `muted` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
+  `muted-foreground` ink stepping to `fg` on hover. A pressed toggle (`aria-pressed`) is
   the `surface-2` plate, never a ring. New callsites should not use outline as
   the default secondary choice.
 - `<Pill>`: compact status/category chip. Neutral pills are tint-only.
   Status indicators ("Idle", "Running") use `form="plain"` — dot + 12px
-  `muted` text, no plate — so a state never reads as a button. Identifier
+  `muted-foreground` text, no plate — so a state never reads as a button. Identifier
   chips should use `<MonoId>` unless the product specifically needs pill
   chrome.
 - `<PillGroup>`: segmented selector. The active segment takes the `surface-2`
-  plate with full ink — never a ring, never solid accent.
+  plate with full ink — never a ring, never solid brand.
 - `<Tabs>`: route/content navigation. Line tabs use the foreground underline;
-  accent is not the tab indicator.
+  brand is not the tab indicator.
 - `<Empty>` and `<RouteState>`: state surfaces, not marketing cards. Use when a
   list, detail pane, or route has no data, is loading, or has failed.
 - `<Metric>` and `<KpiCard>`: numeric summaries. Labels are sentence-case
@@ -1295,19 +1291,19 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
 - `<Dialog>` and sheets: overlay surfaces with the overlay shadow/scrim
   contract. They own modal header/body/footer rhythm.
 - `<RadioCard>` and `<CatalogCard>`: selectable cards use ring/glaze selected
-  state. They do not use accent borders.
+  state. They do not use brand borders.
 - `<Section>`: body grouping inside route content. `<FormSection>` is the form
   and modal variant. Neither is a page-title primitive.
 - `<DetailHeader>`: the only body-side detail title surface. It owns crumbs,
   pre-title, title, pill stack, metadata, and actions.
 - `<RunCard>`: active run and run-detail summary. It renders live work state
-  without decorative accent rails.
+  without decorative brand rails.
 - `<DescriptionCard>`: markdown rendering with the safe Streamdown config. Do
   not relax sanitization without a security review.
 - `<Markdown>` and `<StreamMarkdown>`: the prose grammar for every rendered
   Markdown surface. H1–H3 ride the `--text-prose-*` ladder and stay larger
   than the body; H4 matches the body and separates by weight; H5–H6 are a
-  muted label tier. Links are the sanctioned accent in running text:
+  muted label tier. Links are the sanctioned brand color in running text:
   `brand-strong` with a same-color underline, so color is never the only
   cue. `compact` keeps the small heading tier, cell padding, and indents for
   dense surfaces such as tool panels; `compact="relaxed"` pairs that tier
@@ -1334,8 +1330,8 @@ The following patterns are load-bearing because they prevent drift between the
 spec, token source, and visible UI. Where a repo lint rule exists, the rule name
 is listed.
 
-- Side-stripe accent rails on cards or rows. Pattern:
-  `border-l-*` plus accent color for active/selected surfaces. Replace with the
+- Side-stripe brand rails on cards or rows. Pattern:
+  `border-l-*` plus brand color for active/selected surfaces. Replace with the
   foreground selected rail or the component's selected state. Policy name:
   `no-side-stripe-brand`. Existing task-card tests cover this invariant; add a
   lint rule before claiming global static enforcement.
@@ -1361,8 +1357,8 @@ is listed.
 - Arbitrary token utility drift. Pattern: `bg-(--color-token)` when a bare
   Tailwind v4 utility exists. Replace with the bare utility. Rule:
   `compozy-design-system/prefer-bare-token-utility`.
-- Accent overload. Pattern: accent CTA, accent pill, accent tab, accent hover,
-  and accent rail in the same viewport. Preserve a single accent target and use
+- Brand overload. Pattern: brand CTA, brand pill, brand tab, brand hover,
+  and brand rail in the same viewport. Preserve a single brand target and use
   foreground, neutral, or signal tokens for the rest.
 - Signal overload. Pattern: colored pills, badges, and dots on most rows at
   rest — the control-room look. Signal tokens mark live state only; taxonomy

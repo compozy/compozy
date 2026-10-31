@@ -6,6 +6,7 @@
 - Toasts come from `toast` in `@compozy/ui`; only `src/components/sonner.tsx` and `src/components/sonner-toast.ts` import `sonner`.
 - Consumers import from `@compozy/ui`, never package internals. Internal renames update all consumers together without compatibility re-exports.
 - Icons come from `@compozy/ui/icons` (inside this package, a relative import of `src/icons.ts`), never from `lucide-react`; add a missing name to that module.
+- Token vocabulary: `brand*` is the orange, `destructive*` is the error tone, and `text-muted-foreground` is the gray secondary ink. `accent` and `muted` are reserved for their BnUI contract meanings (hover wash and surface), so do not use them for orange or for text.
 - Consumers do not keep a prefixed or restyled copy of a primitive that exists here; a near-miss extends the primitive with a variant, slot, or tone. Promoting a composite into this package migrates or domain-renames every existing callsite in the same change; dormant promoted code beside live local copies fails `compozy-ui-reuse/no-shadow-ui-primitive`.
 - A new exported behavior ships a colocated story and coverage in the nearest suitable `__tests__/` suite. Reuse existing coverage for re-exports or editorial changes; do not add file-existence tests.
 - Prototype-only marks do not become brand variants. `Logo` changes require an explicit design-system decision; actual brand assets remain authoritative.
