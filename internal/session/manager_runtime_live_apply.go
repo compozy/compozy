@@ -66,7 +66,8 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 		m.recordLiveRuntimeFailure(ctx, session, &snapshot, failed)
 		return
 	}
-	if !session.commitLiveRuntimeSelection(snapshot.process, plan.selection, holdRunningTurn(plan, &previous), m.now()) {
+	held := holdRunningTurn(plan, &previous)
+	if !session.commitLiveRuntimeSelection(snapshot.process, plan.selection, held, m.now()) {
 		return
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
