@@ -56,6 +56,8 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		AttentionChangedAt:       cloneTimePointer(attention.AttentionChangedAt),
 		EndedEarlyTurnID:         attention.EndedEarlyTurnID,
 		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
+		Later:                    store.CloneSessionLater(info.Later),
+		LaterReturnedAt:          cloneTimePointer(info.LaterReturnedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

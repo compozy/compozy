@@ -29,6 +29,8 @@ var sessionTools = []toolspkg.Descriptor{
 	commandListDescriptor(),
 	sessionArchiveDescriptor(true),
 	sessionArchiveDescriptor(false),
+	sessionLaterDescriptor(),
+	sessionResumeLaterDescriptor(),
 	sessionRenameDescriptor(),
 	sessionReparentDescriptor(),
 	sessionFolderListDescriptor(),
@@ -155,7 +157,8 @@ func sessionPromptDescriptor() toolspkg.Descriptor {
 			"pair has a rate budget (message_rate_limited when exceeded). Without notify_on_complete nobody "+
 			"is woken when the receiver finishes; set it to get the receiver's final answer back as a reply "+
 			"wake. To answer a message you received, pass its message id as in_reply_to. notify_on_complete "+
-			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request.",
+			"and in_reply_to require an agent session; operator-scoped calls are refused with invalid_request. "+
+			"A message to a session parked in Later is queued with disposition later and does not resume it.",
 		sessionPromptInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -359,7 +362,7 @@ const sessionPromptOutputSchema = `{
 			"required":["status","delivery","message_id","idempotency_key","replayed"],
 			"properties":{
 				"status":{"type":"string"},
-				"disposition":{"type":"string","enum":["direct","steering","queued","interrupting"]},
+				"disposition":{"type":"string","enum":["direct","steering","queued","interrupting","later"]},
 				"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
 				"turn_id":{"type":"string"},
 				"entry_id":{"type":"string"},

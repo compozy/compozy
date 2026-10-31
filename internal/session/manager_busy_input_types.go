@@ -109,6 +109,8 @@ type SendPromptResult struct {
 	NewTurnID             string
 	CanceledQueuedEntries int
 	Goal                  *GoalCommandResult
+	// TargetInLater marks an agent message queued for a session parked in Later.
+	TargetInLater bool
 }
 
 // SteerPromptOpts carries one explicitly identified steering command.

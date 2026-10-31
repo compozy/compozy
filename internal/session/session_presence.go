@@ -60,6 +60,10 @@ func (m *Manager) SessionPresence(
 	if commit != nil {
 		m.publishAttentionCommit(ctx, target, *commit)
 	}
+	if visible {
+		// Seeing a session that came back from Later acknowledges the reminder.
+		m.clearLaterReturn(ctx, target)
+	}
 	return resultID, nil
 }
 

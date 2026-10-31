@@ -4,6 +4,12 @@ package client
 
 import "time"
 
+// RunsResponse is a daemon API value.
+type RunsResponse struct {
+	Page *CursorPagePayload `json:"page,omitempty"`
+	Runs []RunPayload       `json:"runs"`
+}
+
 // RuntimeActivityPayload is a daemon API value.
 type RuntimeActivityPayload struct {
 	TurnID             string     `json:"turn_id,omitempty"`

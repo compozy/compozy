@@ -407,6 +407,7 @@ const (
 	DispositionSteering     Disposition = "steering"
 	DispositionQueued       Disposition = "queued"
 	DispositionInterrupting Disposition = "interrupting"
+	DispositionLater        Disposition = "later"
 )
 
 // DoctorPayload is a daemon API value.

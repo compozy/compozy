@@ -9,6 +9,9 @@ const (
 	DispositionSteering     Disposition = "steering"
 	DispositionQueued       Disposition = "queued"
 	DispositionInterrupting Disposition = "interrupting"
+	// DispositionLater reports an agent message queued for a session parked in
+	// Later; it waits until the operator resumes the target.
+	DispositionLater Disposition = "later"
 )
 
 func DispositionValues() []string {
@@ -17,6 +20,7 @@ func DispositionValues() []string {
 		string(DispositionSteering),
 		string(DispositionQueued),
 		string(DispositionInterrupting),
+		string(DispositionLater),
 	}
 }
 
@@ -50,6 +54,9 @@ func (r SendPromptResult) Outcome() SendOutcome {
 		outcome.Disposition = DispositionQueued
 	case store.SessionPromptResultStatusInterrupting:
 		outcome.Disposition = DispositionInterrupting
+	}
+	if r.TargetInLater {
+		outcome.Disposition = DispositionLater
 	}
 	return outcome
 }

@@ -181,6 +181,10 @@ CREATE TABLE sessions (
 				CHECK (creation_profile_ref IS NULL OR length(trim(creation_profile_ref)) > 0), lineage_kind TEXT NOT NULL DEFAULT ''
 				CHECK (lineage_kind IN ('', 'provenance', 'spawn', 'continue', 'fork', 'recovery')), origin_message_id TEXT, origin_agent_name TEXT NOT NULL DEFAULT '',
 		ended_early_turn_id TEXT NOT NULL DEFAULT '',
+		parked_at TEXT,
+		park_reason TEXT NOT NULL DEFAULT '',
+		park_until TEXT,
+		later_returned_at TEXT,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
@@ -429,6 +433,23 @@ CREATE TRIGGER trg_sessions_archive_update_guard
 			BEGIN
 				SELECT RAISE(ABORT, 'session is archived');
 			END;
+
+CREATE TRIGGER trg_sessions_later_insert_guard
+			BEFORE INSERT ON sessions
+			WHEN NEW.parked_at IS NOT NULL AND (NEW.state != 'stopped' OR NEW.archived_at IS NOT NULL)
+			BEGIN
+				SELECT RAISE(ABORT, 'session is in later');
+			END;
+
+CREATE TRIGGER trg_sessions_later_update_guard
+			BEFORE UPDATE OF state, archived_at, parked_at ON sessions
+			WHEN NEW.parked_at IS NOT NULL AND (NEW.state != 'stopped' OR NEW.archived_at IS NOT NULL)
+			BEGIN
+				SELECT RAISE(ABORT, 'session is in later');
+			END;
+
+CREATE INDEX idx_sessions_later_due ON sessions(park_until)
+ WHERE parked_at IS NOT NULL AND park_until IS NOT NULL;
 
 CREATE INDEX idx_token_stats_session ON token_stats(session_id);
 

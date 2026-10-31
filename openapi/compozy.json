@@ -16421,6 +16421,19 @@
         },
         "type": "object"
       },
+      "MoveSessionToLaterRequest": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "return_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MoveWorkspaceRequest": {
         "properties": {
           "folder_id": {
@@ -20346,6 +20359,14 @@
         ],
         "type": "object"
       },
+      "ResumeSessionFromLaterRequest": {
+        "properties": {
+          "with_children": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ResumeTaskRequest": {
         "properties": {
           "metadata": {}
@@ -22183,7 +22204,8 @@
               "direct",
               "steering",
               "queued",
-              "interrupting"
+              "interrupting",
+              "later"
             ],
             "type": "string"
           },
@@ -24508,6 +24530,30 @@
         ],
         "type": "object"
       },
+      "SessionLaterPayload": {
+        "properties": {
+          "parked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pending_messages": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "return_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "parked_at",
+          "pending_messages"
+        ],
+        "type": "object"
+      },
       "SessionLineagePayload": {
         "properties": {
           "auto_stop_on_parent": {
@@ -24845,6 +24891,19 @@
           "id": {
             "type": "string"
           },
+          "later": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionLaterPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "lineage": {
             "oneOf": [
               {
@@ -24958,6 +25017,11 @@
               "$ref": "#/components/schemas/ReplyWatchPayload"
             },
             "type": "array"
+          },
+          "returned_from_later_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
           },
           "runtime": {
             "$ref": "#/components/schemas/SessionRuntimePayload"
@@ -64010,6 +64074,19 @@
             }
           },
           {
+            "description": "Visibility of sessions parked in Later; excluded by default",
+            "in": "query",
+            "name": "later",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Stable session ordering",
             "in": "query",
             "name": "sort",
@@ -64521,6 +64598,19 @@
             "description": "Archived session visibility",
             "in": "query",
             "name": "archive",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Visibility of sessions parked in Later; excluded by default",
+            "in": "query",
+            "name": "later",
             "schema": {
               "enum": [
                 "exclude",
@@ -85484,6 +85574,19 @@
             }
           },
           {
+            "description": "Visibility of sessions parked in Later; excluded by default",
+            "in": "query",
+            "name": "later",
+            "schema": {
+              "enum": [
+                "exclude",
+                "only",
+                "include"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "description": "Stable session ordering",
             "in": "query",
             "name": "sort",
@@ -88209,6 +88312,120 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/later": {
+      "post": {
+        "operationId": "moveSessionToLater",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveSessionToLaterRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid Move to Later request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Subagents move with their parent, or the session tree could not be stopped"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Stop a session and its children and park them in Later, with an optional reason and return time",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
       "get": {
         "operationId": "listSessionMonitors",
@@ -89920,6 +90137,120 @@
           "sessions"
         ],
         "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later": {
+      "post": {
+        "operationId": "resumeSessionFromLater",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResumeSessionFromLaterRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid Back from Later request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "The session could not leave Later"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Return a parked session, and optionally its parked children, to the normal flow",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
           "http",
           "uds"

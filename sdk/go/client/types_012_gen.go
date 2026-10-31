@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// OverviewUsageDayPayload is a daemon API value.
+type OverviewUsageDayPayload struct {
+	Date   string `json:"date"`
+	Tokens int64  `json:"tokens"`
+}
+
 // OverviewUsagePayload is a daemon API value.
 type OverviewUsagePayload struct {
 	WindowDays    int                           `json:"window_days"`
@@ -439,10 +445,4 @@ type ProviderSummaryPayload struct {
 type ProviderUsageAccount struct {
 	Label string `json:"label"`
 	Plan  string `json:"plan"`
-}
-
-// ProviderUsageAmount is a daemon API value.
-type ProviderUsageAmount struct {
-	Value string `json:"value"`
-	Unit  string `json:"unit"`
 }

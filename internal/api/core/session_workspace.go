@@ -171,6 +171,9 @@ func statusForSessionError(err error) int {
 		// The wrapped stop cause must not reclassify the unarchived session.
 		return http.StatusConflict
 	}
+	if status, ok := statusForSessionLaterError(err); ok {
+		return status
+	}
 	if status, ok := statusForDeriveError(err); ok {
 		return status
 	}

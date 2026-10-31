@@ -474,6 +474,120 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park stopped sessions in Later, hide them by default, and return due ones once", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-later",
+			filepath.Join(t.TempDir(), "workspace-session-later"),
+		)
+		baseAt := time.Date(2026, 10, 30, 9, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return baseAt.Add(time.Minute) }
+		parked := sessionInfoForWorkspaceStateIndexTest("sess-later", workspaceID, globalDBSessionStateStopped, baseAt)
+		active := sessionInfoForWorkspaceStateIndexTest("sess-live", workspaceID, globalDBSessionStateActive, baseAt)
+		for _, info := range []store.SessionInfo{parked, active} {
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+			}
+		}
+		returnAt := baseAt.Add(time.Hour)
+		info, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: parked.ID, Reason: "revisit after billing", ReturnAt: &returnAt,
+		})
+		if err != nil {
+			t.Fatalf("ParkSession() error = %v", err)
+		}
+		if info.Later == nil || info.Later.Reason != "revisit after billing" || info.Later.ReturnAt == nil ||
+			!info.Later.ReturnAt.Equal(returnAt) || info.Later.PendingMessages != 0 {
+			t.Fatalf("ParkSession() later = %#v, want reason and return time", info.Later)
+		}
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: active.ID,
+		}); !errors.Is(err, store.ErrSessionLaterRequiresStopped) {
+			t.Fatalf("ParkSession(active) error = %v, want ErrSessionLaterRequiresStopped", err)
+		}
+		if err := globalDB.UpdateSessionState(ctx, store.SessionStateUpdate{
+			ID: parked.ID, State: globalDBSessionStateActive, UpdatedAt: baseAt.Add(2 * time.Minute),
+		}); !errors.Is(err, store.ErrSessionInLater) {
+			t.Fatalf("UpdateSessionState(parked) error = %v, want ErrSessionInLater", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO session_input_queue
+			(id, session_id, status, mode, text, origin_class, enqueued_at, updated_at)
+			VALUES ('inq-later', ?, 'queued', 'queue', 'ping', 'agent', ?, ?)`,
+			parked.ID, formatTimestamp(baseAt), formatTimestamp(baseAt)); err != nil {
+			t.Fatalf("insert queued agent message error = %v", err)
+		}
+
+		for _, testCase := range []struct {
+			name  string
+			later store.SessionLaterFilter
+			want  []string
+		}{
+			{name: "exclude", later: store.SessionLaterExclude, want: []string{active.ID}},
+			{name: "only", later: store.SessionLaterOnly, want: []string{parked.ID}},
+			{name: "include", later: store.SessionLaterInclude, want: []string{parked.ID, active.ID}},
+		} {
+			page, pageErr := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceID,
+				Later:       testCase.later,
+				Sort:        sessionCatalogSortRecent,
+				Limit:       10,
+			})
+			if pageErr != nil {
+				t.Fatalf("PageSessions(%s) error = %v", testCase.name, pageErr)
+			}
+			got := sessionIDsForWorkspaceStateIndexTest(page.Sessions)
+			if !slices.Equal(got, testCase.want) || page.Total != len(testCase.want) {
+				t.Fatalf("PageSessions(%s) = %#v total=%d, want %#v", testCase.name, got, page.Total, testCase.want)
+			}
+			if testCase.later == store.SessionLaterOnly && page.Sessions[0].Later.PendingMessages != 1 {
+				t.Fatalf("PageSessions(only) pending = %d, want 1", page.Sessions[0].Later.PendingMessages)
+			}
+		}
+
+		returned, err := globalDB.ReturnDueLaterSessions(ctx, baseAt.Add(30*time.Minute), 10)
+		if err != nil || len(returned) != 0 {
+			t.Fatalf("ReturnDueLaterSessions(before return) = %#v, %v, want none", returned, err)
+		}
+		returned, err = globalDB.ReturnDueLaterSessions(ctx, returnAt, 10)
+		if err != nil || len(returned) != 1 || returned[0].SessionID != parked.ID ||
+			returned[0].Reason != "revisit after billing" {
+			t.Fatalf("ReturnDueLaterSessions(at return) = %#v, %v, want the parked session", returned, err)
+		}
+		again, err := globalDB.ReturnDueLaterSessions(ctx, returnAt.Add(time.Hour), 10)
+		if err != nil || len(again) != 0 {
+			t.Fatalf("ReturnDueLaterSessions(repeat) = %#v, %v, want no second return", again, err)
+		}
+		later, returnedAt, err := globalDB.SessionLaterState(ctx, workspaceID, parked.ID)
+		if err != nil || later != nil || returnedAt == nil || !returnedAt.Equal(returnAt) {
+			t.Fatalf("SessionLaterState(returned) = %#v, %v, %v, want unparked with return mark", later, returnedAt, err)
+		}
+		cleared, err := globalDB.ClearLaterReturn(ctx, parked.ID)
+		if err != nil || !cleared {
+			t.Fatalf("ClearLaterReturn() = %v, %v, want cleared", cleared, err)
+		}
+
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: parked.ID,
+		}); err != nil {
+			t.Fatalf("ParkSession(again) error = %v", err)
+		}
+		archived, err := globalDB.SetSessionArchived(ctx, workspaceID, parked.ID, true)
+		if err != nil || archived.ArchivedAt == nil || archived.Later != nil {
+			t.Fatalf("SetSessionArchived(parked) = %#v, %v, want archived without Later", archived, err)
+		}
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: parked.ID,
+		}); !errors.Is(err, store.ErrSessionArchived) {
+			t.Fatalf("ParkSession(archived) error = %v, want ErrSessionArchived", err)
+		}
+	})
+
 	t.Run("Should preserve normal sessions with null spawn roles", func(t *testing.T) {
 		t.Parallel()
 

@@ -105,6 +105,8 @@ type SessionPayload struct {
 	AttentionChangedAt       *time.Time                       `json:"attention_changed_at,omitempty"`
 	PendingInteractions      []PendingInteractionPayload      `json:"pending_interactions"`
 	ArchivedAt               *time.Time                       `json:"archived_at"`
+	Later                    *SessionLaterPayload             `json:"later,omitempty"`
+	ReturnedFromLaterAt      *time.Time                       `json:"returned_from_later_at,omitempty"`
 	StopReason               StopReason                       `json:"stop_reason,omitempty"`
 	StopCause                string                           `json:"stop_cause,omitempty"`
 	Attention                string                           `json:"attention,omitempty"`

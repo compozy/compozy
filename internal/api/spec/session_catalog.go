@@ -124,6 +124,11 @@ func sessionCatalogListOperation() OperationSpec {
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 			enumQueryParam(
+				"later",
+				"Visibility of sessions parked in Later; excluded by default",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
+			enumQueryParam(
 				"sort",
 				"Stable session ordering",
 				[]string{"recent", "created", "name", "last_activity", "attention", "navigator", "manual"},
@@ -295,6 +300,11 @@ func sessionCatalogFacetsOperation() OperationSpec {
 			enumQueryParam(
 				"archive",
 				"Archived session visibility",
+				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
+			),
+			enumQueryParam(
+				"later",
+				"Visibility of sessions parked in Later; excluded by default",
 				[]string{specExcludeKey, specOnlyKey, specIncludeKey},
 			),
 		),

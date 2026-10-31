@@ -265,7 +265,7 @@ func (m *Manager) reparentResultInfo(ctx context.Context, node *reparentNode, in
 		return info
 	}
 	result := m.sessionInfoFromMeta(ctx, &node.meta)
-	if err := m.populateArchiveMetadata(ctx, result); err != nil {
+	if err := m.populateCatalogMetadata(ctx, result); err != nil {
 		m.logger.WarnContext(ctx, "session: read archive metadata after reparent failed",
 			"session_id", node.id, "error", err)
 	}

@@ -151,7 +151,8 @@ func (m *Manager) setSessionArchivedWithResumeGuard(
 	return archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, true)
 }
 
-func (m *Manager) populateArchiveMetadata(ctx context.Context, info *Info) error {
+// populateCatalogMetadata fills the archive and Later state of a stopped session.
+func (m *Manager) populateCatalogMetadata(ctx context.Context, info *Info) error {
 	if info == nil || info.State != StateStopped {
 		return nil
 	}
@@ -164,7 +165,7 @@ func (m *Manager) populateArchiveMetadata(ctx context.Context, info *Info) error
 		return fmt.Errorf("session: read archive metadata for %q: %w", info.ID, err)
 	}
 	info.ArchivedAt = cloneTimePointer(archivedAt)
-	return nil
+	return m.populateLaterMetadata(ctx, info)
 }
 
 func (m *Manager) requireSessionUnarchived(ctx context.Context, workspaceID string, sessionID string) error {

@@ -4521,6 +4521,11 @@ export type MoveSessionRequest = {
   folder_id?: string;
 };
 
+export type MoveSessionToLaterRequest = {
+  reason?: string;
+  return_at?: string | null;
+};
+
 export type MoveWorkspaceRequest = {
   folder_id?: string;
   workspace_id: string;
@@ -5630,6 +5635,10 @@ export type RestartActionStatus = {
   updated_at: string;
 };
 
+export type ResumeSessionFromLaterRequest = {
+  with_children?: boolean;
+};
+
 export type ResumeTaskRequest = {
   metadata?: unknown;
 };
@@ -6120,7 +6129,7 @@ export type Selection = {
 export type SendPromptResultPayload = {
   canceled_queued_entries?: number;
   delivery: string;
-  disposition?: "direct" | "steering" | "queued" | "interrupting";
+  disposition?: "direct" | "steering" | "queued" | "interrupting" | "later";
   entry_id?: string;
   estimated_send_at?: string | null;
   goal?: GoalCommandResult | null;
@@ -6702,6 +6711,13 @@ export type SessionInteractionsResponse = {
   interactions: Array<PendingInteractionPayload>;
 };
 
+export type SessionLaterPayload = {
+  parked_at: string;
+  pending_messages: number;
+  reason?: string;
+  return_at?: string | null;
+};
+
 export type SessionLineagePayload = {
   auto_stop_on_parent: boolean;
   kind?: "" | "provenance" | "spawn" | "continue" | "fork" | "recovery";
@@ -6787,6 +6803,7 @@ export type SessionPayload = {
   folder_id?: string;
   health?: SessionHealthPayload | null;
   id: string;
+  later?: SessionLaterPayload | null;
   lineage?: SessionLineagePayload | null;
   monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
@@ -6803,6 +6820,7 @@ export type SessionPayload = {
   pull_request_lookup: SessionPullRequestLookupPayload | null;
   queue?: SessionQueueSummaryPayload | null;
   reply_watches?: Array<ReplyWatchPayload>;
+  returned_from_later_at?: string | null;
   runtime: SessionRuntimePayload;
   scope: string;
   state: "starting" | "active" | "stopping" | "stopped";
@@ -21815,6 +21833,10 @@ export type ListSessionsData = {
      */
     archive?: "exclude" | "only" | "include";
     /**
+     * Visibility of sessions parked in Later; excluded by default
+     */
+    later?: "exclude" | "only" | "include";
+    /**
      * Stable session ordering
      */
     sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
@@ -22012,6 +22034,10 @@ export type ListSessionFacetsData = {
      * Archived session visibility
      */
     archive?: "exclude" | "only" | "include";
+    /**
+     * Visibility of sessions parked in Later; excluded by default
+     */
+    later?: "exclude" | "only" | "include";
     /**
      * Read one profile's rows by name
      */
@@ -32866,6 +32892,10 @@ export type ListWorkspaceSessionsData = {
      */
     archive?: "exclude" | "only" | "include";
     /**
+     * Visibility of sessions parked in Later; excluded by default
+     */
+    later?: "exclude" | "only" | "include";
+    /**
      * Stable session ordering
      */
     sort?: "recent" | "created" | "name" | "last_activity" | "attention" | "navigator" | "manual";
@@ -34291,6 +34321,65 @@ export type ListSessionInteractionsResponses = {
 export type ListSessionInteractionsResponse =
   ListSessionInteractionsResponses[keyof ListSessionInteractionsResponses];
 
+export type MoveSessionToLaterData = {
+  /**
+   * JSON request body
+   */
+  body?: MoveSessionToLaterRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/later";
+};
+
+export type MoveSessionToLaterErrors = {
+  /**
+   * Invalid Move to Later request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Subagents move with their parent, or the session tree could not be stopped
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type MoveSessionToLaterError = MoveSessionToLaterErrors[keyof MoveSessionToLaterErrors];
+
+export type MoveSessionToLaterResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type MoveSessionToLaterResponse =
+  MoveSessionToLaterResponses[keyof MoveSessionToLaterResponses];
+
 export type ListSessionMonitorsData = {
   body?: never;
   path: {
@@ -35126,6 +35215,66 @@ export type RepairSessionResponses = {
 };
 
 export type RepairSessionResponse = RepairSessionResponses[keyof RepairSessionResponses];
+
+export type ResumeSessionFromLaterData = {
+  /**
+   * JSON request body
+   */
+  body?: ResumeSessionFromLaterRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later";
+};
+
+export type ResumeSessionFromLaterErrors = {
+  /**
+   * Invalid Back from Later request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * The session could not leave Later
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ResumeSessionFromLaterError =
+  ResumeSessionFromLaterErrors[keyof ResumeSessionFromLaterErrors];
+
+export type ResumeSessionFromLaterResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type ResumeSessionFromLaterResponse =
+  ResumeSessionFromLaterResponses[keyof ResumeSessionFromLaterResponses];
 
 export type RewindSessionConversationData = {
   /**

@@ -2030,7 +2030,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "7a8fb691dd32b65d58d2ff9474037c6762d7d65b7ae1a46605f560ab5f5cdfa0",
-    "output_schema_digest": "858fd69f67ed228a7a2568938ebfe98523a30f5a0fca49824a0251b3561990eb"
+    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
   },
   {
     "tool_id": "compozy__session_input_promote",
@@ -2043,7 +2043,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "acfd42b7914c4d6e4cf8a6558403f7134335cae77a780d2ff2def791afd52d8a",
-    "output_schema_digest": "858fd69f67ed228a7a2568938ebfe98523a30f5a0fca49824a0251b3561990eb"
+    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
   },
   {
     "tool_id": "compozy__session_input_replace",
@@ -2083,6 +2083,19 @@
     "open_world": false,
     "input_schema_digest": "8d3442e06589a14f92423308d8691a87b12d700a75f598b118600ec224f6cc3e",
     "output_schema_digest": "6e52b19b418ddd78f81164d59b30fda8afea3076ebe79eb47d3684e5844cee43"
+  },
+  {
+    "tool_id": "compozy__session_later",
+    "native_name": "session_later",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "destructive",
+    "read_only": false,
+    "destructive": true,
+    "open_world": false,
+    "input_schema_digest": "d98ba8c0d95fd0eeaedf9f475e717d324d6e584aa4c42f069786e932fe4b593c",
+    "output_schema_digest": "e24aa20ba2d0202ec58874624afd51dd4e6e09908134f948b0d2c8c312eefa77"
   },
   {
     "tool_id": "compozy__session_list",
@@ -2160,7 +2173,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "148cc0e9bc6617605f55ee93106e6645316e6111c109e1a99d3753a40660f69d",
-    "output_schema_digest": "858fd69f67ed228a7a2568938ebfe98523a30f5a0fca49824a0251b3561990eb"
+    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
   },
   {
     "tool_id": "compozy__session_prompt_cancel",
@@ -2213,6 +2226,19 @@
     "open_world": false,
     "input_schema_digest": "d1826bda253da0c5781236e179f997a18bd6be3ebf432d2365462a90ea74b41e",
     "output_schema_digest": "2d5d1fd161998e466ee627b8bb67d61f103ba5af8ecba76fccae5d0bac8a8f00"
+  },
+  {
+    "tool_id": "compozy__session_resume_later",
+    "native_name": "session_resume_later",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "d1acf5a9e9545860444ef9c762ae29d147e913054f0e023df80dcc28142247c5",
+    "output_schema_digest": "e24aa20ba2d0202ec58874624afd51dd4e6e09908134f948b0d2c8c312eefa77"
   },
   {
     "tool_id": "compozy__session_rewind",

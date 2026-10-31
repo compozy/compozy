@@ -1972,7 +1972,11 @@ func (q *Queries) RewriteSubagentWakeInput(ctx context.Context, arg RewriteSubag
 }
 
 const setSubagentFamilyArchived = `-- name: SetSubagentFamilyArchived :exec
-UPDATE sessions SET archived_at = ?1,updated_at = ?2
+UPDATE sessions SET archived_at = ?1,updated_at = ?2,
+ parked_at = CASE WHEN ?1 IS NULL THEN parked_at END,
+ park_reason = CASE WHEN ?1 IS NULL THEN park_reason ELSE '' END,
+ park_until = CASE WHEN ?1 IS NULL THEN park_until END,
+ later_returned_at = CASE WHEN ?1 IS NULL THEN later_returned_at END
 WHERE workspace_id = ?3 AND id IN (SELECT value FROM json_each(?4))
  AND ((?1 IS NULL AND archived_at IS NOT NULL) OR (?1 IS NOT NULL AND archived_at IS NULL))
 `

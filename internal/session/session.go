@@ -118,8 +118,12 @@ type Info struct {
 	EndedEarlyTurnID    string
 	PendingInteractions []store.PendingInteraction
 	ArchivedAt          *time.Time
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// Later is the parked state of a stopped session; nil when it is not parked.
+	Later *store.SessionLater
+	// LaterReturnedAt marks a session brought back from Later until the operator sees or resumes it.
+	LaterReturnedAt *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.

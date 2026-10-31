@@ -47,6 +47,9 @@ func (d *Daemon) bootSessionRuntime(
 		return err
 	}
 	state.sessionProcesses = processes
+	if later, ok := sessions.(laterProcessReleaserSetter); ok {
+		later.SetLaterProcessReleaser(&sessionLaterProcessReleaser{processes: processes})
+	}
 	cleanup.add(func(context.Context) error { processes.Shutdown(); return nil })
 	cleanup.add(monitors.Shutdown)
 	if err := registerTerminalPromptRunEnd(sessions, state.terminals); err != nil {

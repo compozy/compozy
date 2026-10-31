@@ -63,6 +63,11 @@ type sessionInfoRow struct {
 	soulSnapshotID         sql.NullString
 	soulDigest             string
 	parentSoulDigest       string
+	parkedAt               sql.NullString
+	parkReason             string
+	parkUntil              sql.NullString
+	laterReturnedAt        sql.NullString
+	laterPendingMessages   int
 	createdAtRaw           string
 	updatedAtRaw           string
 }
@@ -222,6 +227,9 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		}
 		session.ArchivedAt = &archivedAt
 	}
+	if err := populateSessionLaterScanParts(session, row); err != nil {
+		return err
+	}
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -300,6 +308,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,
+		&row.parkedAt, &row.parkReason, &row.parkUntil, &row.laterReturnedAt, &row.laterPendingMessages,
 		&row.createdAtRaw, &row.updatedAtRaw, &row.session.VerdictOnly,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)

@@ -36,6 +36,7 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 	defer func() {
 		unlockConversation()
 		if err == nil && resumed != nil && dispatch {
+			m.clearLaterReturn(ctx, target)
 			if service := m.ReplyWatches(); service != nil {
 				service.OnSessionResumed(ctx, target)
 			}
@@ -67,6 +68,9 @@ func (m *Manager) resume(ctx context.Context, id string, dispatch bool) (resumed
 		return nil, err
 	}
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, target); err != nil {
+		return nil, err
+	}
+	if err := m.requireSessionNotInLater(ctx, meta.WorkspaceID, target); err != nil {
 		return nil, err
 	}
 	if err := m.rejectDeadSessionAttachment(ctx, target, &meta); err != nil {

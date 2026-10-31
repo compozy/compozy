@@ -131,7 +131,7 @@ func (m *Manager) renameInactiveSession(
 		return nil, err
 	}
 	info := m.sessionInfoFromMeta(ctx, &meta)
-	if err := m.populateArchiveMetadata(ctx, info); err != nil {
+	if err := m.populateCatalogMetadata(ctx, info); err != nil {
 		return nil, err
 	}
 	if meta.Name == name {

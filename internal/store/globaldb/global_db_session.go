@@ -92,7 +92,7 @@ func (g *SessionRepo) UpdateSessionState(ctx context.Context, update store.Sessi
 		return fmt.Errorf(
 			"store: update session state %q: %w",
 			update.ID,
-			mapSessionArchivedConstraint(update.ID, err),
+			mapSessionLaterConstraint(update.ID, mapSessionArchivedConstraint(update.ID, err)),
 		)
 	}
 	affected, err := result.RowsAffected()
@@ -366,7 +366,10 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	queries := sqlcgen.New(exec)
 	affected, err := queries.UpsertSession(ctx, params)
 	if err != nil {
-		return mapProfileAdmissionConstraint(session.ProfileID, mapSessionArchivedConstraint(session.ID, err))
+		return mapProfileAdmissionConstraint(
+			session.ProfileID,
+			mapSessionLaterConstraint(session.ID, mapSessionArchivedConstraint(session.ID, err)),
+		)
 	}
 	if affected == 0 {
 		if availabilityErr := sessionWorktreeAvailabilityError(ctx, queries, session); availabilityErr != nil {

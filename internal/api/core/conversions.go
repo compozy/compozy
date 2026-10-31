@@ -68,6 +68,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		AttentionChangedAt:  cloneTimePtr(info.AttentionChangedAt),
 		PendingInteractions: PendingInteractionPayloadsFromStore(info.PendingInteractions),
 		ArchivedAt:          cloneTimePtr(info.ArchivedAt),
+		Later:               sessionLaterPayload(info.Later),
+		ReturnedFromLaterAt: cloneTimePtr(info.LaterReturnedAt),
 		StopReason:          info.StopReason,
 		StopCause:           sessionStopCause(info),
 		Verified:            new(info.State == session.StateStopped),
@@ -166,6 +168,8 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
 		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
+		Later:                    store.CloneSessionLater(info.Later),
+		LaterReturnedAt:          cloneTimePtr(info.LaterReturnedAt),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

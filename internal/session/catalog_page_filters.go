@@ -71,6 +71,13 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	if err := query.Archive.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
 	}
+	query.Later = store.SessionLaterFilter(strings.TrimSpace(string(query.Later)))
+	if query.Later == "" {
+		query.Later = LaterExclude
+	}
+	if err := query.Later.Validate(); err != nil {
+		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
+	}
 	if query.Limit == 0 {
 		query.Limit = DefaultListLimit
 	}
@@ -112,7 +119,8 @@ func normalizeListSearch(query *ListQuery) error {
 
 func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if !sessionMatchesIdentityFilters(info, query) || !sessionMatchesLineageFilters(info, query) ||
-		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) {
+		query.Resumable && !AttachableForInfo(info, now) || !sessionMatchesArchiveFilter(info, query.Archive) ||
+		!sessionMatchesLaterFilter(info, query.Later) {
 		return false
 	}
 	badge := BadgeForInfo(info)
@@ -194,6 +202,25 @@ func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
 		return false
 	}
 	return true
+}
+
+func sessionMatchesLaterFilter(info *Info, filter store.SessionLaterFilter) bool {
+	parked := info != nil && info.Later != nil
+	switch filter {
+	case LaterExclude:
+		return !parked
+	case LaterOnly:
+		return parked
+	default:
+		return true
+	}
+}
+
+func laterFingerprint(filter store.SessionLaterFilter) store.SessionLaterFilter {
+	if filter == LaterExclude {
+		return ""
+	}
+	return filter
 }
 
 func sessionMatchesArchiveFilter(info *Info, filter store.SessionArchiveFilter) bool {

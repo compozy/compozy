@@ -1,0 +1,60 @@
+---
+title: "compozy session later"
+description: "Move a session and its children to Later"
+---
+
+## compozy session later
+
+Move a session and its children to Later
+
+### Synopsis
+
+Move a session to Later. Its active turn and runtime stop, its monitors and pending wakes are canceled, its processes and terminals are terminated, and its child sessions are parked with it. History, transcript, and worktree stay. With --return-at the session comes back into Needs you with a notification at that time.
+
+```
+compozy session later <id> [flags]
+```
+
+### Examples
+
+```
+  # Park a session with a note
+  compozy session later sess-123 --reason "revisit after the billing spec"
+
+  # Park it until a date (local midnight) or for a duration
+  compozy session later sess-123 --return-at 2026-11-03
+  compozy session later sess-123 --return-at 72h
+```
+
+### Options
+
+```
+  -h, --help               help for later
+      --reason string      One-line note shown on the Later card
+      --return-at string   When the session returns to Needs you: RFC 3339 time, YYYY-MM-DD (local midnight), or a duration like 72h
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session later <id> -o json
+```

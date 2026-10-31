@@ -1,0 +1,44 @@
+---
+title: "compozy session resume-later"
+description: "Bring a session back from Later without starting it"
+---
+
+## compozy session resume-later
+
+Bring a session back from Later without starting it
+
+```
+compozy session resume-later <id> [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for resume-later
+      --with-children   Also bring back parked child sessions
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session resume-later <id> -o json
+```
