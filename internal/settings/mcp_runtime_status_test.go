@@ -611,6 +611,128 @@ func TestMCPAuthOperationsResolveExactWorkspaceSidecarTarget(t *testing.T) {
 	})
 }
 
+func TestMCPAuthCredentialResolutionOrder(t *testing.T) {
+	t.Parallel()
+	// Invariant: the OAuth credential owner is the scope that declares the effective definition;
+	// reads report the inherited owner labeled, and mutations never retarget a broader scope.
+	// Owner: Settings auth target resolution; canonical suite: mcp_runtime_status_test.go.
+	userServer := strings.Join([]string{
+		"[[mcp_servers]]",
+		"name = \"newrelic\"",
+		"transport = \"http\"",
+		"url = \"https://user.newrelic.example/mcp\"",
+		"",
+		"[mcp_servers.auth]",
+		"registration = \"pre_registered\"",
+		"issuer_url = \"https://user.newrelic.example\"",
+		"client_id = \"user-client\"",
+	}, "\n")
+	newService := func(t *testing.T, workspaceMCPJSON string) (Service, *recordingMCPAuthRuntime) {
+		t.Helper()
+		homePaths := testHomePaths(t)
+		workspaceRoot := t.TempDir()
+		writeFile(t, homePaths.ConfigFile, userServer)
+		if workspaceMCPJSON != "" {
+			writeFile(t, filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.MCPJSONName), workspaceMCPJSON)
+		}
+		runtime := &recordingMCPAuthRuntime{}
+		return testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"workspace-a": {ID: "workspace-a", RootDir: workspaceRoot},
+			}},
+			MCPAuth: runtime,
+		}), runtime
+	}
+	workspaceRequest := MCPAuthTargetRequest{Scope: ScopeWorkspace, WorkspaceID: "workspace-a", Name: "newrelic"}
+	userTarget := mcpauth.Target{Owner: "manual", Scope: mcpauth.ScopeUser, ServerName: "newrelic"}
+
+	t.Run("Should report the inherited user credential for a workspace query of a user-declared server", func(t *testing.T) {
+		t.Parallel()
+		service, runtime := newService(t, "")
+		status, err := service.GetMCPAuthStatus(t.Context(), workspaceRequest)
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(workspace) error = %v", err)
+		}
+		if runtime.statusTarget != userTarget || runtime.statusServer.URL != "https://user.newrelic.example/mcp" {
+			t.Fatalf("status target = %#v server = %q, want user declaration", runtime.statusTarget, runtime.statusServer.URL)
+		}
+		if status.Scope != mcpauth.ScopeUser || status.WorkspaceID != "" || !status.Inherited ||
+			status.Status != mcpauth.StatusAuthenticated {
+			t.Fatalf("GetMCPAuthStatus(workspace) = %#v, want inherited authenticated user record", status)
+		}
+		direct, err := service.GetMCPAuthStatus(t.Context(), MCPAuthTargetRequest{Scope: ScopeUser, Name: "newrelic"})
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(user) error = %v", err)
+		}
+		if direct.Inherited {
+			t.Fatalf("GetMCPAuthStatus(user) = %#v, want the declaring scope unlabeled", direct)
+		}
+	})
+
+	t.Run("Should reject workspace auth mutations for a user-declared server", func(t *testing.T) {
+		t.Parallel()
+		service, runtime := newService(t, "")
+		_, beginErr := service.BeginMCPAuth(t.Context(), MCPAuthBeginRequest{
+			MCPAuthTargetRequest: workspaceRequest,
+			CallbackURL:          "http://127.0.0.1:2123/api/mcp/oauth/callback",
+		})
+		_, exchangeErr := service.ExchangeMCPAuth(t.Context(), MCPAuthExchangeRequest{
+			MCPAuthTargetRequest: workspaceRequest,
+			RedirectURL:          "https://callback.example/?code=opaque&state=public",
+		})
+		_, logoutErr := service.LogoutMCPAuth(t.Context(), workspaceRequest)
+		for name, err := range map[string]error{"begin": beginErr, "exchange": exchangeErr, "logout": logoutErr} {
+			if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "declared at user scope") ||
+				!strings.Contains(err.Error(), "authorize it at user scope") {
+				t.Fatalf("%s error = %v, want validation error naming the declaring user scope", name, err)
+			}
+		}
+		if runtime.beginTarget != (mcpauth.Target{}) || runtime.exchangeTarget != (mcpauth.Target{}) ||
+			runtime.logoutTarget != (mcpauth.Target{}) {
+			t.Fatal("rejected workspace mutation reached the user credential")
+		}
+	})
+
+	t.Run("Should own the credential at workspace scope when the workspace declares the server", func(t *testing.T) {
+		t.Parallel()
+		service, runtime := newService(t, `{"mcpServers":{"newrelic":{"transport":"http",`+
+			`"url":"https://workspace.newrelic.example/mcp","auth":{"registration":"pre_registered",`+
+			`"issuer_url":"https://workspace.newrelic.example","client_id":"workspace-client"}}}}`)
+		status, err := service.GetMCPAuthStatus(t.Context(), workspaceRequest)
+		if err != nil {
+			t.Fatalf("GetMCPAuthStatus(workspace) error = %v", err)
+		}
+		want := mcpauth.Target{
+			Owner: "manual", Scope: mcpauth.ScopeWorkspace, WorkspaceID: "workspace-a", ServerName: "newrelic",
+		}
+		if runtime.statusTarget != want || status.Inherited || status.Scope != mcpauth.ScopeWorkspace {
+			t.Fatalf("workspace status = %#v target = %#v, want own workspace record", status, runtime.statusTarget)
+		}
+		if _, err := service.BeginMCPAuth(t.Context(), MCPAuthBeginRequest{
+			MCPAuthTargetRequest: workspaceRequest,
+			CallbackURL:          "http://127.0.0.1:2123/api/mcp/oauth/callback",
+		}); err != nil {
+			t.Fatalf("BeginMCPAuth(workspace) error = %v", err)
+		}
+		if runtime.beginTarget != want {
+			t.Fatalf("begin target = %#v, want %#v", runtime.beginTarget, want)
+		}
+	})
+
+	t.Run("Should report not found when no layer declares the server", func(t *testing.T) {
+		t.Parallel()
+		service, _ := newService(t, "")
+		request := workspaceRequest
+		request.Name = "missing"
+		if _, err := service.GetMCPAuthStatus(t.Context(), request); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("GetMCPAuthStatus(missing) error = %v, want ErrNotFound", err)
+		}
+		if _, err := service.LogoutMCPAuth(t.Context(), request); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("LogoutMCPAuth(missing) error = %v, want ErrNotFound", err)
+		}
+	})
+}
+
 type extensionMCPDefinitionStub struct{}
 
 func (extensionMCPDefinitionStub) ResolveMCPExtensionDefinition(

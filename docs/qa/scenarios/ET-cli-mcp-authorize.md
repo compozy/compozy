@@ -43,3 +43,14 @@ Focused auth and real Settings/Vault tests passed; the targeted public retest is
 PR636 recovery follow-up: BUG-20260914-mcp-invalid-definition-repair is verified on 71fb14665. Steps 145–153 replace the previously invalid credential, read Settings and CLI auth status, restart and read again. Steps 155–161 accept shared/environment refs without deleting shared metadata. These are configuration/ownership observations, not completed external OAuth.
 
 PR636 targeted owner-reference retest passed: rejected foreign/managed replacements preserve the existing secret; invalid definitions remain repairable; own/shared/environment references are accepted. Both 2026-09-14 bugs are verified. The historical qa_status and JSON-parity blocker remain unchanged because the full authorization journey was not rerun.
+
+QA impact 2026-10-31 (#1072): OAuth credentials belong to the scope that declares the effective
+definition (workspace profile → workspace → profile → user). With a remote OAuth server declared
+only in `~/.compozy/config.toml`: `mcp auth status <name> --scope workspace --workspace <id>` must
+show the user record labeled `user (inherited)` (`inherited: true` in JSON);
+`mcp auth login|logout <name> --scope workspace --workspace <id>` must fail with a validation error
+naming the declaring user scope and must not change the user credential; `compozy__mcp_status` and
+`compozy__mcp_auth_status` from a workspace session must report the user record with
+`inherited: true`, agree with a ready runtime, and point `repair_paths.login_cli` at the user login.
+Declaring the same server in the workspace `.compozy/mcp.json` must switch status and login to an
+own workspace record.

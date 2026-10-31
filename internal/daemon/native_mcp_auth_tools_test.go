@@ -153,6 +153,58 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		})
 	}
 
+	// Invariant: a workspace session inheriting a user-declared server reports the effective user
+	// credential labeled inherited and repairs the user scope that satisfies the runtime (#1072).
+	// Owner: native tool adapter; canonical suite: TestDaemonNativeMCPAuthStatusTool.
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDMCPStatus, toolspkg.ToolIDMCPAuthStatus} {
+		t.Run("Should label the inherited user credential for "+string(toolID), func(t *testing.T) {
+			t.Parallel()
+			provider := &nativeMCPAuthStatusProvider{status: toolspkg.MCPAuthStatus{
+				ServerName: "newrelic", Owner: "manual", Scope: "user", Status: "authenticated",
+				TokenPresent: true, Refreshable: true,
+			}}
+			settingsService := &nativeMCPSettingsService{servers: []settingspkg.MCPServerItem{{
+				Name: "newrelic", Owner: "manual",
+				RuntimeStatus: &settingspkg.MCPServerRuntimeStatus{State: settingspkg.MCPServerRuntimeStateReady},
+			}}}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions: nativeTestSessionManager("ws-inherit"),
+				MCPAuth:  func() toolspkg.MCPAuthStatusProvider { return provider },
+				Settings: func() core.SettingsService { return settingsService },
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-inherit"},
+				toolspkg.CallRequest{ToolID: toolID, Input: json.RawMessage(`{"server_name":"newrelic"}`)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload struct {
+				Auth        *toolspkg.MCPAuthStatus `json:"auth"`
+				Status      *toolspkg.MCPAuthStatus `json:"status"`
+				State       string                  `json:"state"`
+				RepairPaths mcpAuthRepairPaths      `json:"repair_paths"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatal(err)
+			}
+			status := payload.Status
+			if toolID == toolspkg.ToolIDMCPStatus {
+				status = payload.Auth
+				if payload.State != nativeMCPStateHealthy {
+					t.Fatalf("state = %q, want healthy", payload.State)
+				}
+			}
+			if status == nil || status.Scope != "user" || status.Status != "authenticated" || !status.Inherited {
+				t.Fatalf("auth status = %#v, want inherited authenticated user record", status)
+			}
+			if payload.RepairPaths.LoginCLI != `compozy mcp auth login "newrelic" --owner "manual"` {
+				t.Fatalf("login repair = %q, want the user scope", payload.RepairPaths.LoginCLI)
+			}
+		})
+	}
+
 	t.Run("Should expose workspace-scoped dead runtime state and reason", func(t *testing.T) {
 		t.Parallel()
 

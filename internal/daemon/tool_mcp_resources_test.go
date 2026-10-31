@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 var (
@@ -707,5 +711,93 @@ func assertToolMCPStoreCounts(
 	}
 	if got := len(mcpServers); got != wantMCPServers {
 		t.Fatalf("len(mcpStore.List()) = %d, want %d", got, wantMCPServers)
+	}
+}
+
+type mcpDeclarationWorkspaceStub struct {
+	resolved map[string]workspacepkg.ResolvedWorkspace
+}
+
+func (s mcpDeclarationWorkspaceStub) ListWorkspaces(context.Context) ([]workspacepkg.Workspace, error) {
+	workspaces := make([]workspacepkg.Workspace, 0, len(s.resolved))
+	for _, resolved := range s.resolved {
+		workspaces = append(workspaces, resolved.Workspace)
+	}
+	return workspaces, nil
+}
+
+func (s mcpDeclarationWorkspaceStub) Resolve(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
+	return s.resolved[id], nil
+}
+
+func (s mcpDeclarationWorkspaceStub) ResolveOrRegister(
+	ctx context.Context,
+	id string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return s.Resolve(ctx, id)
+}
+
+func TestDaemonConfigMCPDeclarationProviderPublishesDeclaringScope(t *testing.T) {
+	t.Parallel()
+	// Invariant: a workspace MCP record exists only for servers the workspace layer declares, so
+	// inherited user servers keep the user scope as their OAuth credential owner (#1072).
+	// Owner: daemon config MCP publication; canonical suite: tool_mcp_resources_test.go.
+	t.Run("Should publish inherited user servers only at user scope", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		userServer := compozyconfig.MCPServer{
+			Name: "newrelic", Transport: compozyconfig.MCPServerTransportHTTP, URL: "https://user.example/mcp",
+		}
+		inheritingRoot, overridingRoot := t.TempDir(), t.TempDir()
+		writeMCPDeclarationFile(t, filepath.Join(inheritingRoot, compozyconfig.DirName, compozyconfig.MCPJSONName),
+			`{"mcpServers":{"local":{"command":"local-server"}}}`)
+		writeMCPDeclarationFile(t, filepath.Join(overridingRoot, compozyconfig.DirName, compozyconfig.ConfigName),
+			"[[mcp_servers]]\nname = \"newrelic\"\ntransport = \"http\"\nurl = \"https://workspace.example/mcp\"\n")
+		overridden := userServer
+		overridden.URL = "https://workspace.example/mcp"
+		workspaces := mcpDeclarationWorkspaceStub{resolved: map[string]workspacepkg.ResolvedWorkspace{
+			"ws-inherit": {
+				Workspace: workspacepkg.Workspace{ID: "ws-inherit", RootDir: inheritingRoot},
+				Config: compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{
+					userServer, {Name: "local", Command: "local-server"},
+				}},
+			},
+			"ws-override": {
+				Workspace: workspacepkg.Workspace{ID: "ws-override", RootDir: overridingRoot},
+				Config:    compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{overridden}},
+			},
+		}}
+		cfg := compozyconfig.Config{MCPServers: []compozyconfig.MCPServer{userServer}}
+		provider := daemonConfigMCPDeclarationProvider(&cfg, homePaths, workspaces, workspaces, discardLogger())
+
+		desired, err := provider(t.Context(), nil)
+		if err != nil {
+			t.Fatalf("provider() error = %v", err)
+		}
+		got := make(map[string]string, len(desired.mcpServers))
+		for _, server := range desired.mcpServers {
+			got[server.sourceKey] = string(server.scope.Kind) + "/" + server.scope.ID + " " + server.spec.URL
+		}
+		want := map[string]string{
+			"config/global/newrelic":                "user/ https://user.example/mcp",
+			"config/workspace/ws-inherit/local":     "workspace/ws-inherit ",
+			"config/workspace/ws-override/newrelic": "workspace/ws-override https://workspace.example/mcp",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("published MCP servers = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func writeMCPDeclarationFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
 	}
 }

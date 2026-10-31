@@ -43,7 +43,7 @@ func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundl
 		func(item SettingsMCPAuthStatusRecord) []string {
 			return []string{
 				stringOrDash(item.ServerName),
-				stringOrDash(item.Scope),
+				stringOrDash(mcpAuthScopeLabel(item)),
 				stringOrDash(item.Status),
 				stringOrDash(item.ClientID),
 				stringOrDash(timePtrString(item.ExpiresAt)),
@@ -70,7 +70,7 @@ func mcpAuthStatusListBundle(statuses []SettingsMCPAuthStatusRecord) outputBundl
 func mcpAuthStatusRows(status SettingsMCPAuthStatusRecord) []keyValue {
 	return []keyValue{
 		{Label: "Server", Value: stringOrDash(status.ServerName)},
-		{Label: mcpScopeValue, Value: stringOrDash(status.Scope)},
+		{Label: mcpScopeValue, Value: stringOrDash(mcpAuthScopeLabel(status))},
 		{Label: configWorkspaceValue, Value: stringOrDash(status.WorkspaceID)},
 		{Label: automationStatusValue, Value: stringOrDash(status.Status)},
 		{Label: "Remote URL", Value: stringOrDash(status.RemoteURL)},
@@ -80,8 +80,18 @@ func mcpAuthStatusRows(status SettingsMCPAuthStatusRecord) []keyValue {
 		{Label: mcpAuthExpiresValue, Value: stringOrDash(timePtrString(status.ExpiresAt))},
 		{Label: "Token Present", Value: boolString(status.TokenPresent)},
 		{Label: "Refreshable", Value: boolString(status.Refreshable)},
+		{Label: "Inherited", Value: boolString(status.Inherited)},
 		{Label: "Diagnostic", Value: stringOrDash(status.Diagnostic)},
 	}
+}
+
+// mcpAuthScopeLabel marks records that belong to the broader scope declaring the server.
+func mcpAuthScopeLabel(status SettingsMCPAuthStatusRecord) string {
+	scope := strings.TrimSpace(status.Scope)
+	if status.Inherited && scope != "" {
+		return scope + " (inherited)"
+	}
+	return scope
 }
 
 func mcpAuthStatusFields(status SettingsMCPAuthStatusRecord) ([]string, []string) {
@@ -98,6 +108,7 @@ func mcpAuthStatusFields(status SettingsMCPAuthStatusRecord) ([]string, []string
 		"token_present",
 		"refreshable",
 		"diagnostic",
+		"inherited",
 	}
 	values := []string{
 		status.ServerName,
@@ -112,6 +123,7 @@ func mcpAuthStatusFields(status SettingsMCPAuthStatusRecord) ([]string, []string
 		boolString(status.TokenPresent),
 		boolString(status.Refreshable),
 		status.Diagnostic,
+		boolString(status.Inherited),
 	}
 	return fields, values
 }

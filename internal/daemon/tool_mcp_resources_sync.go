@@ -183,7 +183,7 @@ func (d *Daemon) newToolMCPPublisher(
 			}
 			return state.resourceReconcile.WaitForIdle(ctx, ticket)
 		},
-		daemonConfigMCPDeclarationProvider(&state.cfg, state.registry, state.workspaceResolver, state.logger),
+		daemonConfigMCPDeclarationProvider(&state.cfg, d.homePaths, state.registry, state.workspaceResolver, state.logger),
 		extensionManifestToolMCPDeclarationProvider(
 			registry,
 			state.currentExtensionRuntime,

@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// TaskDependencyPayload is a daemon API value.
+type TaskDependencyPayload struct {
+	TaskID          string         `json:"task_id"`
+	DependsOnTaskID string         `json:"depends_on_task_id"`
+	Kind            DependencyKind `json:"kind"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
 // TaskDependencyReferencePayload is a daemon API value.
 type TaskDependencyReferencePayload struct {
 	TaskID          string               `json:"task_id"`

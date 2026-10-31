@@ -42,14 +42,15 @@ func (s *service) GetMCPAuthStatus(
 	if s.mcpAuth == nil {
 		return mcpauth.Status{}, unavailableError(errors.New("settings: MCP auth runtime is unavailable"))
 	}
-	target, server, err := s.resolveMCPAuthTarget(ctx, req)
+	resolved, err := s.resolveMCPAuthDefinition(ctx, req)
 	if err != nil {
 		return mcpauth.Status{}, err
 	}
-	status, err := s.mcpAuth.MCPAuthStatus(ctx, target, server)
+	status, err := s.mcpAuth.MCPAuthStatus(ctx, resolved.target, resolved.server)
 	if err != nil {
-		return mcpauth.Status{}, fmt.Errorf("settings: load MCP auth status for %q: %w", target.ServerName, err)
+		return mcpauth.Status{}, fmt.Errorf("settings: load MCP auth status for %q: %w", resolved.target.ServerName, err)
 	}
+	status.Inherited = resolved.inherited
 	return status, nil
 }
 
@@ -181,16 +182,50 @@ func (s *service) LogoutMCPAuth(
 	return status, nil
 }
 
+// mcpAuthDefinition is the MCP definition whose declaring scope owns the OAuth credential.
+type mcpAuthDefinition struct {
+	target    mcpauth.Target
+	server    compozyconfig.MCPServer
+	inherited bool
+}
+
+// resolveMCPAuthTarget resolves the exact credential owner for an auth mutation. A request for a
+// scope that only inherits the server from a broader layer fails instead of mutating the broader
+// layer's credential, because the runtime always uses the declaring scope's credential.
 func (s *service) resolveMCPAuthTarget(
 	ctx context.Context,
 	req MCPAuthTargetRequest,
 ) (mcpauth.Target, compozyconfig.MCPServer, error) {
-	target, err := normalizeMCPAuthTarget(req)
+	resolved, err := s.resolveMCPAuthDefinition(ctx, req)
 	if err != nil {
 		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
 	}
+	if resolved.inherited {
+		return mcpauth.Target{}, compozyconfig.MCPServer{}, validationError(fmt.Errorf(
+			"settings: MCP server %q is declared at %s scope and only inherited by the requested %s scope; "+
+				"OAuth credentials belong to the declaring scope, so authorize it at %s",
+			resolved.target.ServerName, publicMCPAuthScope(resolved.target), req.Scope,
+			describeMCPAuthTarget(resolved.target),
+		))
+	}
+	return resolved.target, resolved.server, nil
+}
+
+// resolveMCPAuthDefinition applies the documented OAuth credential resolution order: the
+// credential owner is the scope that declares the effective definition (workspace profile,
+// workspace, profile, then user). When the requested scope has no own definition, the effective
+// inherited definition is returned and marked inherited.
+func (s *service) resolveMCPAuthDefinition(
+	ctx context.Context,
+	req MCPAuthTargetRequest,
+) (mcpAuthDefinition, error) {
+	target, err := normalizeMCPAuthTarget(req)
+	if err != nil {
+		return mcpAuthDefinition{}, err
+	}
 	if target.Owner != "manual" {
-		return s.resolveExtensionMCPAuthTarget(ctx, req)
+		target, server, err := s.resolveExtensionMCPAuthTarget(ctx, req)
+		return mcpAuthDefinition{target: target, server: server}, err
 	}
 	_, sources, err := s.resolveMCPTargetContext(
 		ctx,
@@ -199,7 +234,7 @@ func (s *service) resolveMCPAuthTarget(
 		req.ProfileName,
 	)
 	if err != nil {
-		return mcpauth.Target{}, compozyconfig.MCPServer{}, err
+		return mcpAuthDefinition{}, err
 	}
 	targetKind, ok := preferredMCPAuthTarget(req, target.ServerName, sources)
 	if !ok {
@@ -207,19 +242,43 @@ func (s *service) resolveMCPAuthTarget(
 		if len(entries) > 0 {
 			effective := entries[len(entries)-1]
 			inherited, err := mcpAuthTargetForSource(effective)
-			return inherited, effective.Server, err
+			if err != nil {
+				return mcpAuthDefinition{}, err
+			}
+			return mcpAuthDefinition{target: inherited.Normalize(), server: effective.Server, inherited: true}, nil
 		}
-		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
+		return mcpAuthDefinition{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
 	}
 	entry, ok := mcpSourceForTarget(target.ServerName, targetKind, sources)
 	if !ok {
-		return mcpauth.Target{}, compozyconfig.MCPServer{}, notFoundError(
+		return mcpAuthDefinition{}, notFoundError(
 			fmt.Errorf("settings: MCP server %q has no definition in %s scope", target.ServerName, target.Scope),
 		)
 	}
-	return target, entry.Server, nil
+	return mcpAuthDefinition{target: target, server: entry.Server}, nil
+}
+
+func publicMCPAuthScope(target mcpauth.Target) string {
+	if target.Scope == mcpauth.ScopeWorkspaceProfile {
+		return string(ScopeProfile)
+	}
+	return string(target.Scope)
+}
+
+func describeMCPAuthTarget(target mcpauth.Target) string {
+	switch target.Scope {
+	case mcpauth.ScopeWorkspace:
+		return fmt.Sprintf("workspace scope (workspace %q)", target.WorkspaceID)
+	case mcpauth.ScopeProfile:
+		return fmt.Sprintf("profile scope (profile %q)", target.WorkspaceID)
+	case mcpauth.ScopeWorkspaceProfile:
+		workspaceID, profileName, _ := strings.Cut(target.WorkspaceID, "@pf:")
+		return fmt.Sprintf("profile scope (profile %q, workspace %q)", profileName, workspaceID)
+	default:
+		return "user scope"
+	}
 }
 
 func preferredMCPAuthTarget(

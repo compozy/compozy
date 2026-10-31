@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// SubagentListPayload is a daemon API value.
+type SubagentListPayload struct {
+	Subagents  []SubagentPayload `json:"subagents"`
+	NextCursor *string           `json:"next_cursor"`
+}
+
 // SubagentPayload is a daemon API value.
 type SubagentPayload struct {
 	Isolation          string                   `json:"isolation"`
@@ -439,12 +445,4 @@ type TaskDashboardTotalsPayload struct {
 	FailedRuns             int `json:"failed_runs"`
 	CanceledRuns           int `json:"canceled_runs"`
 	ActiveRuns             int `json:"active_runs"`
-}
-
-// TaskDependencyPayload is a daemon API value.
-type TaskDependencyPayload struct {
-	TaskID          string         `json:"task_id"`
-	DependsOnTaskID string         `json:"depends_on_task_id"`
-	Kind            DependencyKind `json:"kind"`
-	CreatedAt       time.Time      `json:"created_at"`
 }

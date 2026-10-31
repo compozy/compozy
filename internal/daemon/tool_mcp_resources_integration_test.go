@@ -167,7 +167,7 @@ binding = { type = "url_query", name = "workspace" }
 				}
 				return driver.WaitForIdle(ctx, ticket)
 			},
-			daemonConfigMCPDeclarationProvider(&publishedConfig, nil, nil, discardLogger()),
+			daemonConfigMCPDeclarationProvider(&publishedConfig, compozyconfig.HomePaths{}, nil, nil, discardLogger()),
 			extensionManifestToolMCPDeclarationProvider(
 				registry,
 				func() extensionRuntime { return runtime },

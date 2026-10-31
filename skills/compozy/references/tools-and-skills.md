@@ -179,6 +179,15 @@ profile layer, `--scope workspace --workspace <id>` for a workspace layer, and c
 `authenticated` with `token_present=true`. `--timeout` bounds the whole attempt, including manual
 input and exchange, and the active PKCE session expiry may shorten it.
 
+OAuth credentials belong to the scope that declares the effective server definition. Resolution
+order, narrowest first: workspace-profile, workspace, profile, user. A workspace or profile that
+only inherits a server declared at a broader scope uses that scope's credential at runtime. Status
+reads for the narrower scope (`mcp auth status --scope workspace`, `compozy__mcp_status`,
+`compozy__mcp_auth_status`) report that effective record with `inherited: true` (CLI shows
+`user (inherited)`), and `repair_paths` name the declaring scope. Login, exchange, and logout for a
+scope without its own definition fail with a validation error naming the declaring scope; authorize
+at that scope, or declare the server in the narrower layer to give it its own credential.
+
 For remote MCPs configured with `method: oauth` and `registration: auto`, the daemon resolves
 protected-resource metadata, then the client metadata document, then makes one Dynamic Client
 Registration fallback attempt.

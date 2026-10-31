@@ -158,6 +158,9 @@ type SettingsMCPAuthStatusPayload struct {
 	Refreshable  bool       `json:"refreshable"`
 	TokenPresent bool       `json:"token_present"`
 	Diagnostic   string     `json:"diagnostic,omitempty"`
+	// Inherited is true when the requested scope has no own definition and this record belongs
+	// to the broader scope that declares the effective definition and owns its credential.
+	Inherited bool `json:"inherited,omitempty"`
 }
 
 type SettingsMCPServerRuntimeStatusPayload struct {

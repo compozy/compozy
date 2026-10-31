@@ -108,6 +108,7 @@ func (n *daemonNativeTools) mcpStatus(
 	if strings.TrimSpace(status.ServerName) == "" {
 		status.ServerName = serverName
 	}
+	status.Inherited = mcpAuthStatusInherited(status, scope.ProfileID, workspaceID)
 	envelope, err := n.mcpStatusCollection(ctx, scope, req.ToolID, workspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -224,13 +225,14 @@ func (n *daemonNativeTools) mcpAuthStatus(
 			toolspkg.ReasonDependencyMissing,
 		)
 	}
+	workspaceID := strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID))
 	status, err := provider.Status(ctx, toolspkg.SourceRef{
 
 		ProfileID:     scope.ProfileID,
 		Kind:          toolspkg.SourceMCP,
 		Owner:         serverName,
 		RawServerName: serverName,
-		WorkspaceID:   strings.TrimSpace(firstNonEmpty(scope.WorkspaceID, req.WorkspaceID)),
+		WorkspaceID:   workspaceID,
 	}, strings.TrimSpace(input.Owner),
 	)
 	if err != nil {
@@ -239,6 +241,7 @@ func (n *daemonNativeTools) mcpAuthStatus(
 	if strings.TrimSpace(status.ServerName) == "" {
 		status.ServerName = serverName
 	}
+	status.Inherited = mcpAuthStatusInherited(status, scope.ProfileID, workspaceID)
 	payload := mcpAuthStatusPayload{
 		Status:      status,
 		RepairPaths: mcpAuthRepairPathsFor(status),
@@ -268,6 +271,20 @@ func mcpAuthRepairPathsFor(status toolspkg.MCPAuthStatus) mcpAuthRepairPaths {
 		SettingsHTTP: nativeMCPAuthToolsAPISettingsMCPServersPath,
 		SettingsUDS:  nativeMCPAuthToolsAPISettingsMCPServersPath,
 		Note:         "Login and logout remain management-only and are not exposed as tool calls.",
+	}
+}
+
+// mcpAuthStatusInherited reports whether the effective credential owner is broader than the
+// caller's workspace or profile context, meaning the caller inherits the declaring scope's token.
+func mcpAuthStatusInherited(status toolspkg.MCPAuthStatus, profileID string, workspaceID string) bool {
+	switch mcpauth.Scope(status.Scope) {
+	case mcpauth.ScopeUser:
+		profileID = strings.TrimSpace(profileID)
+		return workspaceID != "" || (profileID != "" && profileID != store.DefaultProfileID)
+	case mcpauth.ScopeProfile:
+		return workspaceID != ""
+	default:
+		return false
 	}
 }
 
