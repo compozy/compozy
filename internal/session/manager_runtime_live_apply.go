@@ -72,6 +72,9 @@ func (m *Manager) applyRuntimeSelectionLive(session *Session) {
 	}
 	held := holdRunningTurn(plan, turnID, &previous)
 	if !session.commitLiveRuntimeSelection(snapshot.process, plan.selection, held, m.now()) {
+		// A concurrent idle release owns the process now, so rolling it back here could race
+		// its stop. If the release fails and reattaches it, admission reconfigures first.
+		session.markRuntimeConfigUnverified()
 		return
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {

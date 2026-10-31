@@ -1898,6 +1898,33 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reconfigure a reattached process after a release rejected the live commit", func(t *testing.T) {
+		t.Parallel()
+		var active *Session
+		var detached *AgentProcess
+		detachOnMedium := func(config acp.RuntimeConfig) error {
+			if config.ReasoningEffort == "medium" {
+				active.mu.Lock()
+				detached, active.process = active.process, nil
+				active.mu.Unlock()
+			}
+			return nil
+		}
+		h, _, session := newLiveRuntimeHarness(t, runtimeProviderClaude, detachOnMedium)
+		active = session
+		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
+		if err != nil {
+			t.Fatalf("SetRuntimeSelection() error = %v", err)
+		}
+		active.mu.Lock()
+		active.process = detached
+		active.mu.Unlock()
+		snapshot := active.runtimeBindingSnapshot()
+		if updated.ReasoningEffort != "xhigh" || !snapshot.configUnverified || !runtimeControlsDrifted(&snapshot) {
+			t.Fatalf("rejected commit info = %#v, want effective xhigh with a required reconfigure", updated)
+		}
+	})
+
 	t.Run("Should apply a selection saved under a provider alias", func(t *testing.T) {
 		t.Parallel()
 		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, nil)

@@ -102,6 +102,14 @@ func (s *Session) recordLiveRuntimeFailure(
 	return true
 }
 
+// markRuntimeConfigUnverified records that the provider config may differ from the
+// effective selection. Any later bind or successful configure clears it.
+func (s *Session) markRuntimeConfigUnverified() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runtimeConfigUnverified = true
+}
+
 // selectedRuntimeWithRevision reads the stored selection and its revision together.
 func (s *Session) selectedRuntimeWithRevision() (*RuntimeSelection, int64) {
 	s.mu.RLock()

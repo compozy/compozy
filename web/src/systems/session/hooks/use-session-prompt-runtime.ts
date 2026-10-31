@@ -1,4 +1,4 @@
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
@@ -6,17 +6,12 @@ import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import {
-  SessionPromptRuntimeActivityContext,
   SessionPromptRuntimeCapabilitiesContext,
   SessionPromptRuntimePersistenceContext,
 } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeSelection, SessionRuntimePayload } from "../types";
-import {
-  currentRuntimeApplyNotice,
-  runtimeApplyTargetSettled,
-  type RuntimeApplyTarget,
-} from "../lib/runtime-apply-notice";
+import { useRuntimeApplyNotice } from "./use-runtime-apply-notice";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
 import {
   normalizeRuntimeSpeed,
@@ -104,7 +99,6 @@ function runtimeProviderOptions(
  */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
-  const liveBadge = use(SessionPromptRuntimeActivityContext);
   const persistDraft = use(SessionPromptRuntimePersistenceContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
@@ -112,10 +106,7 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeSelection = useSetSessionRuntime(input.workspaceId);
   const runtimeSelectionController = useRef<AbortController | null>(null);
   const queuedSelection = useRef<{ value: RuntimeSelectorValue; speed: RuntimeSpeed } | null>(null);
-  const [applyTarget, setApplyTarget] = useState<RuntimeApplyTarget | null>(null);
-  const liveSession = { badge: liveBadge, runtime: runtimeCapabilities };
-  const applyNotice = applyTarget ? currentRuntimeApplyNotice(applyTarget, liveSession) : null;
-  if (applyTarget && runtimeApplyTargetSettled(applyTarget, liveSession)) setApplyTarget(null);
+  const { applyNotice, setApplyTarget } = useRuntimeApplyNotice();
   const workspace = useWorkspace(input.workspaceId, { enabled: input.canPrompt });
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
