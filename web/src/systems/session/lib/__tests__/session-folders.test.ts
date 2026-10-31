@@ -91,7 +91,7 @@ describe("buildSessionListSections", () => {
     );
     const sections = buildSessionListSections(threads, [folder("a"), folder("b"), folder("c")], {
       filtering: false,
-      archived: false,
+      shelved: false,
     });
     expect(sections.folders.map(section => section.folder.id)).toEqual(["a", "b", "c"]);
     expect(ids(sections.folders[0]!.threads)).toEqual(["in-a"]);
@@ -104,8 +104,8 @@ describe("buildSessionListSections", () => {
   });
 
   it.each([
-    { filtering: true, archived: false },
-    { filtering: false, archived: true },
+    { filtering: true, shelved: false },
+    { filtering: false, shelved: true },
   ])("Should hide empty folders while narrowed (%o)", options => {
     const threads = buildSessionListThreads([session("in-a", "a")], "");
     const sections = buildSessionListSections(threads, [folder("a"), folder("empty")], options);
@@ -114,7 +114,7 @@ describe("buildSessionListSections", () => {
 
   it("Should leave a session in the root when its folder is not loaded", () => {
     const threads = buildSessionListThreads([session("stray", "gone")], "");
-    const sections = buildSessionListSections(threads, [], { filtering: false, archived: false });
+    const sections = buildSessionListSections(threads, [], { filtering: false, shelved: false });
     expect(ids(sections.root)).toEqual(["stray"]);
   });
 });
@@ -127,7 +127,7 @@ describe("sectionsVisibleOrder", () => {
     );
     const sections = buildSessionListSections(threads, [folder("a"), folder("b")], {
       filtering: false,
-      archived: false,
+      shelved: false,
     });
     expect(sectionsVisibleOrder(sections, new Set(), new Set(["a"]), false)).toEqual([
       "in-b",

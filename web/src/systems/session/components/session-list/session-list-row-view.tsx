@@ -23,6 +23,7 @@ import { SessionListProviderMark } from "./session-list-provider-mark";
 import {
   SESSION_ROW_END_SLOT_FRAME,
   SESSION_ROW_FRAME,
+  SESSION_ROW_LATER_FRAME,
   SESSION_ROW_META_FRAME,
   SESSION_ROW_TARGET_FRAME,
   SESSION_ROW_TRAILING_FRAME,
@@ -30,6 +31,7 @@ import {
 } from "./session-list-row-frame";
 import { SessionListRowWho } from "./session-list-row-meta";
 import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
+import { SessionLaterDetails } from "../session-later-details";
 import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
@@ -186,6 +188,7 @@ function SessionListRowBody({
           trailing={hasTrailing ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null}
         />
       ) : null}
+      <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
     </>
   );
 }

@@ -98,6 +98,7 @@ export const handlers: HttpHandler[] = [
         .filter(Boolean)
     );
     const archive = url.searchParams.get("archive");
+    const later = url.searchParams.get("later");
     const limit = Math.max(1, Number(url.searchParams.get("limit") ?? 50));
     const sessions = [...sessionById.values()].filter(session => {
       if (!allProfiles && session.profile_name !== profile) return false;
@@ -119,6 +120,9 @@ export const handlers: HttpHandler[] = [
       if (badges.size > 0 && !badges.has(session.badge)) return false;
       if (archive === "only" && session.archived_at === null) return false;
       if (archive !== "include" && archive !== "only" && session.archived_at !== null) return false;
+      // Parked sessions are hidden unless the read asks for Later (`only`) or for both (`include`).
+      if (later === "only" && session.later == null) return false;
+      if (later !== "include" && later !== "only" && session.later != null) return false;
       return true;
     });
     const pageSessions = sessions.slice(0, limit);
@@ -308,6 +312,43 @@ export const handlers: HttpHandler[] = [
       const unarchivedSession = { ...session, archived_at: null };
       sessionById.set(id, unarchivedSession);
       return HttpResponse.json({ session: unarchivedSession });
+    }
+  ),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/later",
+    async ({ params, request }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const body: { reason?: string; return_at?: string | null } =
+        (await request.json().catch(() => undefined)) ?? {};
+      const parkedSession = {
+        ...session,
+        state: "stopped" as const,
+        later: {
+          parked_at: new Date().toISOString(),
+          ...(body.reason ? { reason: body.reason } : {}),
+          return_at: body.return_at ?? null,
+          pending_messages: 0,
+        },
+      };
+      sessionById.set(id, parkedSession);
+      return HttpResponse.json({ session: parkedSession });
+    }
+  ),
+  compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/resume-later",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const resumedSession = { ...session, later: null, returned_from_later_at: null };
+      sessionById.set(id, resumedSession);
+      return HttpResponse.json({ session: resumedSession });
     }
   ),
   compozyApiMock.post(

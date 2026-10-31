@@ -85,6 +85,7 @@ vi.mock("@/systems/session", async () => ({
     actions: {},
     deleteDialog: { open: false },
     renameDialog: { open: false },
+    laterDialog: { open: false },
   }),
   setSessionWindowView,
   useSessionsBoard: () => ({}),

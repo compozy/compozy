@@ -1,4 +1,4 @@
-import { Archive, ChevronRight, CircleSlash } from "lucide-react";
+import { Archive, ChevronRight, CircleSlash, Clock, type LucideIcon } from "lucide-react";
 import { use, useId, type ReactNode } from "react";
 
 import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
@@ -6,77 +6,110 @@ import { Button, SkeletonRegion, SkeletonText } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
-import { useSessionsBoardArchiveSelection } from "../../hooks/use-sessions-board-selection";
-import type { SessionsBoardView } from "../../hooks/use-sessions-board";
+import {
+  useSessionsBoardShelfSelection,
+  type SessionsBoardShelfId,
+} from "../../hooks/use-sessions-board-selection";
+import type { SessionsBoardShelf } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { SessionBoardCardSlot, slottedCard } from "./session-board-card-slot";
 import { SessionsBoardLoadMore, SessionsBoardReadError } from "./sessions-board-column";
-import { SESSIONS_BOARD_ARCHIVE_BAR, SESSIONS_BOARD_ARCHIVE_FRAME } from "./sessions-board-frame";
+import { SESSIONS_BOARD_SHELF_BAR, SESSIONS_BOARD_SHELF_FRAME } from "./sessions-board-frame";
 
-export interface SessionsBoardArchiveBarProps {
-  archive: SessionsBoardView["archive"];
+interface ShelfCopy {
+  icon: LucideIcon;
+  label: string;
+  loading: string;
+  failed: string;
+}
+
+const SHELF_COPY: Record<SessionsBoardShelfId, ShelfCopy> = {
+  archive: {
+    icon: Archive,
+    label: "Archive",
+    loading: "Loading archived sessions",
+    failed: "Couldn't load archived sessions.",
+  },
+  later: {
+    icon: Clock,
+    label: "Later",
+    loading: "Loading sessions in Later",
+    failed: "Couldn't load sessions in Later.",
+  },
+};
+
+export interface SessionsBoardShelfBarProps {
+  /** Which bar: archived sessions, or the sessions parked in Later. */
+  shelf: SessionsBoardShelfId;
+  page: SessionsBoardShelf;
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   onOpen: (session: SessionBoardPayload) => void;
   actions?: SessionLifecycleActionHandlers;
 }
 
 /**
- * Archived sessions stay out of the columns but reachable (US-016): a bottom
- * disclosure bar, collapsed by default and absent only once a read confirms
- * nothing is archived. A pending or failed first read keeps the bar, so
- * archived sessions never silently disappear.
+ * Archived and parked sessions stay out of the columns but reachable (US-016):
+ * a bottom disclosure bar each, collapsed by default and absent only once a
+ * read confirms the bar is empty. A pending or failed first read keeps the bar,
+ * so those sessions never silently disappear. Test ids read
+ * `sessions-board-<shelf>-…`.
  */
-export function SessionsBoardArchiveBar({
-  archive,
+export function SessionsBoardShelfBar({
+  shelf,
+  page,
   workspaceNameOf,
   onOpen,
   actions,
-}: SessionsBoardArchiveBarProps) {
+}: SessionsBoardShelfBarProps) {
   const BoardCard = slottedCard(use(SessionBoardCardSlot));
   const bodyId = useId();
-  const { open, toggle } = useSessionsBoardArchiveSelection(
-    archive.sessions,
-    archive.fetching,
-    archive.failure !== null
+  const copy = SHELF_COPY[shelf];
+  const testId = `sessions-board-${shelf}`;
+  const { open, toggle } = useSessionsBoardShelfSelection(
+    shelf,
+    page.sessions,
+    page.fetching,
+    page.failure !== null
   );
-  if (archive.loading) {
+  if (page.loading) {
     return (
-      <SessionsBoardArchiveStatus>
-        <SkeletonRegion label="Loading archived sessions">
+      <SessionsBoardShelfStatus copy={copy} testId={testId}>
+        <SkeletonRegion label={copy.loading}>
           <SkeletonText className="w-4" />
         </SkeletonRegion>
-      </SessionsBoardArchiveStatus>
+      </SessionsBoardShelfStatus>
     );
   }
-  if (archive.failure === "initial") {
+  if (page.failure === "initial") {
     return (
-      <SessionsBoardArchiveStatus alert>
+      <SessionsBoardShelfStatus alert copy={copy} testId={testId}>
         <CircleSlash aria-hidden="true" className="size-3.5 text-subtle" />
-        <span>Couldn't load archived sessions.</span>
+        <span>{copy.failed}</span>
         <Button
           className="ml-auto"
-          data-testid="sessions-board-archive-retry"
-          onClick={archive.retry}
+          data-testid={`${testId}-retry`}
+          onClick={page.retry}
           size="sm"
           type="button"
           variant="quiet"
         >
           Retry
         </Button>
-      </SessionsBoardArchiveStatus>
+      </SessionsBoardShelfStatus>
     );
   }
-  if (!archive.count) return null;
+  if (!page.count) return null;
+  const ShelfIcon = copy.icon;
   return (
-    <div className={SESSIONS_BOARD_ARCHIVE_FRAME} data-testid="sessions-board-archive">
+    <div className={SESSIONS_BOARD_SHELF_FRAME} data-testid={testId}>
       <button
         aria-controls={bodyId}
         aria-expanded={open}
         className={cn(
-          SESSIONS_BOARD_ARCHIVE_BAR,
+          SESSIONS_BOARD_SHELF_BAR,
           "outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-inset"
         )}
-        data-testid="sessions-board-archive-toggle"
+        data-testid={`${testId}-toggle`}
         onClick={toggle}
         type="button"
       >
@@ -87,51 +120,51 @@ export function SessionsBoardArchiveBar({
             open && "rotate-90"
           )}
         />
-        <Archive aria-hidden="true" className="size-3.5 text-subtle" />
-        <span>Archive</span>
-        <span className="text-subtle tabular-nums">{archive.count}</span>
+        <ShelfIcon aria-hidden="true" className="size-3.5 text-subtle" />
+        <span>{copy.label}</span>
+        <span className="text-subtle tabular-nums">{page.count}</span>
       </button>
       {open ? (
         <div
           className="flex items-start gap-2 overflow-x-auto px-4 pb-4"
-          data-testid="sessions-board-archive-body"
+          data-testid={`${testId}-body`}
           id={bodyId}
         >
-          {archive.failure === "refresh" ? (
+          {page.failure === "refresh" ? (
             <SessionsBoardReadError
               className="w-66"
               failure="refresh"
-              onRetry={archive.retry}
-              retrying={archive.retrying}
-              testId="sessions-board-read-error-archive"
+              onRetry={page.retry}
+              retrying={page.retrying}
+              testId={`sessions-board-read-error-${shelf}`}
             />
           ) : null}
-          {archive.sessions.map(session => (
+          {page.sessions.map(session => (
             <div className="w-66 shrink-0" key={session.id}>
               <BoardCard
                 actions={actions}
-                archived
+                archived={shelf === "archive"}
                 onOpen={onOpen}
                 session={session}
                 workspaceName={workspaceNameOf(session)}
               />
             </div>
           ))}
-          {archive.failure === "more" ? (
+          {page.failure === "more" ? (
             <SessionsBoardReadError
               className="w-66"
               failure="more"
-              onRetry={archive.retry}
-              retrying={archive.retrying}
-              testId="sessions-board-read-error-archive"
+              onRetry={page.retry}
+              retrying={page.retrying}
+              testId={`sessions-board-read-error-${shelf}`}
             />
-          ) : archive.hasMore ? (
+          ) : page.hasMore ? (
             <SessionsBoardLoadMore
-              count={archive.count}
-              loaded={archive.sessions.length}
-              loadingMore={archive.loadingMore}
-              onLoadMore={archive.loadMore}
-              testId="sessions-board-load-more-archive"
+              count={page.count}
+              loaded={page.sessions.length}
+              loadingMore={page.loadingMore}
+              onLoadMore={page.loadMore}
+              testId={`sessions-board-load-more-${shelf}`}
             />
           ) : null}
         </div>
@@ -144,23 +177,28 @@ export function SessionsBoardArchiveBar({
  * The bar while its first read is pending or failed: no disclosure yet. A spacer holds the
  * chevron's place so the label does not move when the count arrives.
  */
-function SessionsBoardArchiveStatus({
+function SessionsBoardShelfStatus({
   alert = false,
+  copy,
+  testId,
   children,
 }: {
   alert?: boolean;
+  copy: ShelfCopy;
+  testId: string;
   children: ReactNode;
 }) {
+  const ShelfIcon = copy.icon;
   return (
-    <div className={SESSIONS_BOARD_ARCHIVE_FRAME} data-testid="sessions-board-archive">
+    <div className={SESSIONS_BOARD_SHELF_FRAME} data-testid={testId}>
       <div
-        className={SESSIONS_BOARD_ARCHIVE_BAR}
-        data-testid="sessions-board-archive-status"
+        className={SESSIONS_BOARD_SHELF_BAR}
+        data-testid={`${testId}-status`}
         role={alert ? "alert" : undefined}
       >
         <span aria-hidden="true" className="size-3.5 shrink-0" />
-        <Archive aria-hidden="true" className="size-3.5 text-subtle" />
-        <span>Archive</span>
+        <ShelfIcon aria-hidden="true" className="size-3.5 text-subtle" />
+        <span>{copy.label}</span>
         {children}
       </div>
     </div>

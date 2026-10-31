@@ -6,7 +6,11 @@
 import type { SessionRuntimeLabel } from "../hooks/use-session-runtime-label";
 import type { SessionsBoardColumnView, SessionsBoardView } from "../hooks/use-sessions-board";
 import type { SessionBoardColumnId, SessionBoardPayload } from "../lib/session-board-contract";
-import { SESSIONS_BOARD_ARCHIVED, SESSIONS_BOARD_SESSIONS } from "./sessions-board-fixtures";
+import {
+  SESSIONS_BOARD_ARCHIVED,
+  SESSIONS_BOARD_LATER,
+  SESSIONS_BOARD_SESSIONS,
+} from "./sessions-board-fixtures";
 
 type Handler = () => () => void;
 
@@ -58,7 +62,8 @@ function column(
 export function sessionsBoardViewFixture(
   overrides: Partial<Record<SessionBoardColumnId, Partial<SessionsBoardColumnView>>> = {},
   archive: Partial<SessionsBoardView["archive"]> = {},
-  handler: Handler = inert
+  handler: Handler = inert,
+  later: Partial<SessionsBoardView["later"]> = {}
 ): SessionsBoardView {
   return {
     columns: SESSIONS_BOARD_COLUMN_IDS.map(id => column(id, overrides[id] ?? {}, handler)),
@@ -79,6 +84,20 @@ export function sessionsBoardViewFixture(
       retry: handler(),
       total: 37,
       ...archive,
+    },
+    later: {
+      sessions: SESSIONS_BOARD_LATER,
+      count: SESSIONS_BOARD_LATER.length,
+      loading: false,
+      failure: null,
+      retrying: false,
+      fetching: false,
+      hasMore: false,
+      loadingMore: false,
+      loadMore: handler(),
+      retry: handler(),
+      total: SESSIONS_BOARD_LATER.length,
+      ...later,
     },
     workspaceNameOf: () => null,
     selectionKey: "board",

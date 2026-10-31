@@ -1,6 +1,7 @@
 import {
   Archive,
   ArrowRightLeft,
+  Clock,
   Copy,
   CornerLeftUp,
   CornerDownRight,
@@ -11,6 +12,7 @@ import {
   RotateCcw,
   Square,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { use } from "react";
@@ -22,6 +24,7 @@ import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-act
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
+import { sessionIsInLater } from "../lib/session-later";
 import { sessionAdoptRefusal, sessionCanMakeTopLevel } from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
@@ -39,6 +42,8 @@ export interface SessionRowMenuItem {
     | "nest"
     | "stop"
     | "unarchive"
+    | "later"
+    | "back-from-later"
     | "archive"
     | "clear"
     | "delete";
@@ -76,6 +81,32 @@ function sessionArchiveMenuItem(
     icon: Archive,
     onSelect: () => actions.onArchive(session),
   };
+}
+
+/**
+ * Move to Later or Back from Later. A subagent session follows its parent, and
+ * an archived session has left the flow already: neither gets a verb. Hosts
+ * without a Later dialog leave the handlers out, and the verbs with them.
+ */
+function sessionLaterMenuItem(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem | null {
+  if (isSubagentSession(session) || session.archived_at !== null) return null;
+  const { onMoveToLater, onBackFromLater } = actions;
+  if (sessionIsInLater(session)) {
+    return onBackFromLater
+      ? {
+          id: "back-from-later",
+          label: "Back from Later",
+          icon: Undo2,
+          onSelect: () => onBackFromLater(session),
+        }
+      : null;
+  }
+  return onMoveToLater
+    ? { id: "later", label: "Move to Later…", icon: Clock, onSelect: () => onMoveToLater(session) }
+    : null;
 }
 
 /** State-gated lifecycle verbs for one session row, in menu order. */
@@ -145,6 +176,8 @@ export function useSessionRowMenuItems(
       onSelect: () => actions.onStop(session),
     });
   }
+  const laterItem = sessionLaterMenuItem(session, actions);
+  if (laterItem) items.push(laterItem);
   const archiveItem = sessionArchiveMenuItem(session, actions);
   if (archiveItem) items.push(archiveItem);
   if (userSession && clear?.sessionId === session.id) {

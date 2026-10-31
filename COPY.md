@@ -288,6 +288,18 @@ Project folders group projects in All projects (grouped by project) for one prof
 - New folder unavailable under All profiles: "Project folders belong to one profile. Choose a profile to add one."
 - Totals footer (aria "Session totals"): "{n} needs you · {n} working · {n} idle", each beside its state glyph; only non-zero states show, and nothing renders when all are zero. It never filters.
 
+### Session Later Terms
+
+**Later** parks a session the operator will come back to: it stops, leaves the normal lists and the board columns, and comes back on its own on an optional return date. The noun is always capitalized "Later"; never "snooze", "park", "shelve", "defer", or "backlog" in UI copy ("Parked {relative}" is the only use of "park", as a timestamp).
+
+- Verbs: "Move to Later…" (row menu, selection menu with "{N} session(s)"), "Back from Later" (row menu, selection menu with "{n} in Later"). Subagent sessions follow their parent and get neither verb; a skipped selection says "{n} child session(s) follow(s) their parent", "{n} already in Later", "{n} not in Later", or "{n} archived".
+- Dialog: title "Move to Later" or "Move {N} sessions to Later"; body "“{title}” stops, with everything it runs, and stays out of your lists until you bring it back." (plural: "These sessions stop, with everything they run, and stay out of your lists until you bring them back."); fields "Reason" (placeholder "Optional", one line, "Use 200 characters or fewer.") and "Remind me on" ("Optional. On this date it comes back to Needs you.", errors "Enter a date and time." · "Choose a time in the future."); confirm "Move to Later", pending "Moving to Later".
+- Sidebar toggle beside Archive: name and tooltip "Later" (", {n}" in the name when counted), "Showing sessions in Later" while on; live region "Sessions in Later" / "Active sessions". Empty view: "No sessions in Later in {profile} yet." Kanban bar: "Later {n}", "Loading sessions in Later", "Couldn't load sessions in Later."
+- Parked row and card: the reason on its own line, then "Back {Nov 3, 09:00} · Parked {relative}" and, when agent messages are queued, a message mark with the count (hover "{n} message(s) waiting"); spoken as "In Later, {reason}, Back {date}, {n} messages waiting".
+- Needs you reason when the return date brought it back: "Back from Later".
+- Toasts: "{N} session(s) moved to Later", "{N} session(s) back from Later", "Couldn't move {N} session(s) to Later", "Couldn't bring {N} session(s) back from Later", per-session fallbacks "Failed to move session to Later." · "Failed to bring session back from Later."
+- Composer, an agent message for a parked session: "Queued — this session is in Later".
+
 ### Model List Issue Terms
 
 The runtime selector reports provider model list problems behind one warning mark in its search header, placed before the refresh control. Nothing appears while every model list is healthy.

@@ -22,14 +22,14 @@ export interface SessionListSections {
  * Groups threads by their root session's folder, keeping the served order inside
  * each container. Children follow their parent; they are never foldered alone.
  *
- * While filtering, folders without a matching thread disappear. The archive view
- * shows only folders that hold an archived session, so an empty folder never
- * reads as archived content.
+ * While filtering, folders without a matching thread disappear. The archive and
+ * Later views show only folders that hold one of their sessions, so an empty
+ * folder never reads as archived or parked content.
  */
 export function buildSessionListSections(
   threads: readonly SessionThreadModel[],
   folders: readonly SessionFolderPayload[],
-  options: { filtering: boolean; archived: boolean }
+  options: { filtering: boolean; shelved: boolean }
 ): SessionListSections {
   const byFolder = new Map<string, SessionThreadModel[]>(folders.map(folder => [folder.id, []]));
   const root: SessionThreadModel[] = [];
@@ -39,7 +39,7 @@ export function buildSessionListSections(
     if (members) members.push(thread);
     else root.push(thread);
   }
-  const hideEmpty = options.filtering || options.archived;
+  const hideEmpty = options.filtering || options.shelved;
   const sections = folders.flatMap(folder => {
     const members = byFolder.get(folder.id) ?? [];
     return hideEmpty && members.length === 0 ? [] : [{ folder, threads: members }];
@@ -100,7 +100,8 @@ export interface VisibleSessionOrderOptions {
   }>;
   collapsedGroupKeys?: ReadonlySet<string>;
   collapsedFolderIds?: ReadonlySet<string>;
-  archived?: boolean;
+  /** The list shows the archive or Later rather than the active catalog. */
+  shelved?: boolean;
   /** A search is narrowing the list, which opens every folder holding a match. */
   filtering?: boolean;
 }
@@ -125,7 +126,7 @@ export function visibleSessionOrder(
       ? sectionsVisibleThreads(
           buildSessionListSections(threads, folders, {
             filtering,
-            archived: options.archived ?? false,
+            shelved: options.shelved ?? false,
           }),
           options.collapsedFolderIds ?? new Set(),
           filtering

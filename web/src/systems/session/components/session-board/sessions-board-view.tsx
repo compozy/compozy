@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
 import type { SessionBoardPayload } from "../../lib/session-board-contract";
-import { SessionsBoardArchiveBar } from "./sessions-board-archive-bar";
+import { SessionsBoardShelfBar } from "./sessions-board-shelf-bar";
 import {
   SessionsBoardColumnsRow,
   SessionsBoardLanesFailure,
@@ -37,7 +37,7 @@ export interface SessionsBoardViewProps {
 
 /**
  * The Sessions board's presentation (`_uiux.md` S4): the derived columns in a horizontally
- * scrolling row on the canvas, plus the Archive bar, or one swimlane per group through
+ * scrolling row on the canvas, plus the Later and Archive bars, or one swimlane per group through
  * `renderLane`. Cards come from `SessionBoardCardSlot`, so this view reads no query itself.
  */
 export function SessionsBoardView({
@@ -71,10 +71,18 @@ export function SessionsBoardView({
           <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
         )}
       </div>
-      <SessionsBoardArchiveBar
+      <SessionsBoardShelfBar
         actions={actions}
-        archive={board.archive}
         onOpen={onOpen}
+        page={board.later}
+        shelf="later"
+        workspaceNameOf={board.workspaceNameOf}
+      />
+      <SessionsBoardShelfBar
+        actions={actions}
+        onOpen={onOpen}
+        page={board.archive}
+        shelf="archive"
         workspaceNameOf={board.workspaceNameOf}
       />
     </div>

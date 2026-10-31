@@ -2,16 +2,20 @@ import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import type { SessionListGroupBy, SessionListSort } from "../../lib/session-list-preferences";
 import { SessionGroupByMenu, SessionSortMenu } from "../session-order-menus";
 import { SessionListCreateMenu } from "./session-list-create-menu";
-import { SessionArchivedToggle } from "./session-toolbar-toggles";
+import type { SessionListShelf } from "../../lib/session-list-shelf";
+import { SessionArchivedToggle, SessionLaterToggle } from "./session-toolbar-toggles";
 
 export interface SessionListToolbarProps {
-  archived: boolean;
+  /** Active, the archive, or Later: the two toggles switch between them. */
+  shelf: SessionListShelf;
+  /** Sessions parked in Later across the list's scope; `undefined` until counted. */
+  laterCount?: number;
   sort: SessionListSort;
   /** The grouping that renders (an inapplicable stored value renders as `none`). */
   groupBy: SessionListGroupBy;
   /** Groupings available now; with only `none` the Group by control is hidden. */
   groupByOptions: readonly SessionListGroupBy[];
-  onArchivedChange: (archived: boolean) => void;
+  onShelfChange: (shelf: SessionListShelf) => void;
   onSortChange: (sort: SessionListSort) => void;
   onGroupByChange: (groupBy: SessionListGroupBy) => void;
   onNewSession: () => void;
@@ -27,18 +31,20 @@ export interface SessionListToolbarProps {
  * is the topbar globe's (ADR-004); this toolbar has no breadth control.
  *
  * Order and grouping are two explicit controls. They persist per window and are
- * shared with that window's Kanban; the archive is a way of looking right now,
- * so it resets when the list is reopened.
+ * shared with that window's Kanban; the archive and Later are ways of looking
+ * right now, so they reset when the list is reopened. Turning one on turns the
+ * other off; turning it off returns to the active list.
  *
  * Creation order keeps rows still while agents work; activity and attention
  * remain explicit choices.
  */
 export function SessionListToolbar({
-  archived,
+  shelf,
+  laterCount,
   sort,
   groupBy,
   groupByOptions,
-  onArchivedChange,
+  onShelfChange,
   onSortChange,
   onGroupByChange,
   onNewSession,
@@ -49,9 +55,15 @@ export function SessionListToolbar({
   return (
     <div className={SESSION_LIST_BAR_CLASS}>
       <SessionArchivedToggle
-        archived={archived}
-        onArchivedChange={onArchivedChange}
+        archived={shelf === "archive"}
+        onArchivedChange={on => onShelfChange(on ? "archive" : "active")}
         testId={`${testIdPrefix}-archived`}
+      />
+      <SessionLaterToggle
+        count={laterCount}
+        later={shelf === "later"}
+        onLaterChange={on => onShelfChange(on ? "later" : "active")}
+        testId={`${testIdPrefix}-later`}
       />
       <SessionSortMenu
         className="ml-auto"

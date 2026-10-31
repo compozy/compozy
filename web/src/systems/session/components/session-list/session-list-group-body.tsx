@@ -20,6 +20,7 @@ import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank, sessionListPairKey } from "../../lib/session-list-group-rows";
 import { sessionListGroupFilters, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
+import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections } from "./session-list-sections";
@@ -118,7 +119,7 @@ function SessionListGroupSplit({
     scope: group.scope,
     lens: group.lens,
     workspaces,
-    archived: view.archived,
+    shelf: view.shelf,
     search: view.groupFilters.q,
     enabled: true,
   });
@@ -148,7 +149,7 @@ function SessionListGroupSplit({
     );
   }
   if (subgroups.length === 0) {
-    const empty = emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel);
+    const empty = emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel);
     return <GroupNote>{`${empty}.`}</GroupNote>;
   }
   return (
@@ -183,7 +184,7 @@ function SessionListPairGroupBody({
     {
       layout: group.pair ? folders.layout : undefined,
       sort: view.sort,
-      archived: view.archived,
+      shelf: view.shelf,
       worktreeId: view.worktreeId,
       catalog,
     },
@@ -207,7 +208,7 @@ function SessionListPairGroupBody({
   const drag = groupSelection?.drag;
   // A dragged selection moves inside one pair's layout; other groups never take its drop.
   const selectionDrag = selectionDragForPair(drag, pair);
-  const empty = emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel);
+  const empty = emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel);
   // The grouped dimension is the header: a profile group repeats no owner tag.
   // A split subgroup's own header and its parent's name both axes already.
   const ownerOf = !nested && group.kind === "project" && view.aggregate ? view.ownerOf : undefined;

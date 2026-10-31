@@ -9,6 +9,7 @@ import {
 } from "@/systems/session";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
+import type { SessionListRemoval } from "../../../hooks/use-session-list-lifecycle-actions";
 import { adjacentShortcutItem } from "../../../lib/adjacent-shortcut-item";
 import {
   claimSessionBoardDrawerCycle,
@@ -223,8 +224,8 @@ export function useSessionBoardDrawer({
     step,
     /** Focus on close: the card a lifecycle close chose, else the card of the drawer's session. */
     returnFocus: () => cardElement(landingRef.current ?? sessionId),
-    /** Archive or delete of the drawer's session, from the drawer or a card: close and land below. */
-    onSessionRemoved: (session: { id: string }, action: "archive" | "delete") => {
+    /** Archive, Later or delete of the drawer's session, from the drawer or a card: close and land below. */
+    onSessionRemoved: (session: { id: string }, action: SessionListRemoval) => {
       if (session.id !== shownRef.current) return;
       const requested = requestedLandingRef.current;
       requestedLandingRef.current = null;
@@ -234,10 +235,10 @@ export function useSessionBoardDrawer({
           ? requested.candidates
           : successorCandidates(boardRef.current, session.id)
       );
-      // Archive closes the drawer here; a delete retires this window's session, which closes
+      // Archive and Later close the drawer here; a delete retires this window's session, which closes
       // the drawer with it — possibly already, in which case focus moves now.
       if (!openRef.current) landFocus();
-      else if (action === "archive") close();
+      else if (action !== "delete") close();
     },
     /** The card verbs, remembering where focus lands should they remove the drawer's session. */
     withLanding: (actions: SessionLifecycleActionHandlers): SessionLifecycleActionHandlers => {
@@ -257,7 +258,7 @@ export function useSessionBoardDrawer({
       const rememberBatch = (sessions: readonly { id: string }[]) => {
         if (actions.pendingAction === null) remember(sessions);
       };
-      const { onArchiveMany, onDeleteMany } = actions;
+      const { onArchiveMany, onDeleteMany, onMoveToLater, onMoveToLaterMany } = actions;
       return {
         ...actions,
         onArchive: session => {
@@ -268,6 +269,18 @@ export function useSessionBoardDrawer({
           remember([session]);
           actions.onDelete(session);
         },
+        onMoveToLater: onMoveToLater
+          ? session => {
+              remember([session]);
+              onMoveToLater(session);
+            }
+          : undefined,
+        onMoveToLaterMany: onMoveToLaterMany
+          ? sessions => {
+              rememberBatch(sessions);
+              onMoveToLaterMany(sessions);
+            }
+          : undefined,
         onArchiveMany: onArchiveMany
           ? sessions => {
               rememberBatch(sessions);

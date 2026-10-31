@@ -100,7 +100,7 @@ function ProfileScopeComposition({ aggregate }: { aggregate: boolean }) {
   const view: SessionListViewModel = sessionListViewFixture({
     sort: "last_activity",
     setSort: fn(),
-    setArchived: fn(),
+    setShelf: fn(),
     aggregate,
     scopeLabel: aggregate ? null : "marketing",
     ownerOf: ownerFromRow,

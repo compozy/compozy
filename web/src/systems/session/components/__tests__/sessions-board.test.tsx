@@ -7,7 +7,9 @@
 // a column, while a failed next page or background re-read keeps the loaded
 // cards with a local retry; the Archive bar is absent only after a read
 // confirms zero archived sessions — a pending or failed read keeps the bar with
-// its state and a retry — and lists archived cards once expanded.
+// its state and a retry — and lists archived cards once expanded. The Later bar
+// (#1076) is the same bar over the parked sessions: absent at zero, labelled
+// Later with its count, and its cards say why they wait.
 // Owning layer: component (systems/session/components). Card mapping rules live
 // in lib/__tests__/session-board-card.test.ts; queries and toggle in E2E-005..007.
 // #952: with the session list's lifecycle verbs, every card offers them on
@@ -27,7 +29,7 @@
 // a folded column keeps them as hidden; the Archive bar's cards join only while it is open;
 // a toggle re-renders only the cards it changes.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -97,7 +99,8 @@ function page(sessions: SessionPayload[] = [], overrides: Partial<SessionsBoardC
 
 function board(
   columns: Partial<Record<SessionBoardColumnId, Partial<SessionsBoardColumnView>>> = {},
-  archive: Partial<SessionsBoardView["archive"]> = {}
+  archive: Partial<SessionsBoardView["archive"]> = {},
+  later: Partial<SessionsBoardView["later"]> = {}
 ): SessionsBoardView {
   return {
     columns: (Object.keys(LABELS) as SessionBoardColumnId[]).map(id => ({
@@ -112,6 +115,7 @@ function board(
     groupBy: "none",
     groupByOptions: ["none"],
     archive: { ...page(), count: 0, ...archive },
+    later: { ...page(), count: 0, ...later },
     workspaceNameOf: () => null,
     selectionKey: "board",
   };
@@ -376,6 +380,45 @@ describe("SessionsBoard", () => {
     await user.click(toggle);
     const body = screen.getByTestId("sessions-board-archive-body");
     expect(within(body).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("Should hide the Later bar until a read finds parked sessions", () => {
+    renderBoard(board({}, {}, { count: undefined, failure: "initial" }));
+    expect(screen.getByTestId("sessions-board-later-status")).toHaveTextContent(
+      "Couldn't load sessions in Later."
+    );
+    cleanup();
+    renderBoard(board());
+    expect(screen.queryByTestId("sessions-board-later")).not.toBeInTheDocument();
+  });
+
+  it("Should list parked cards with their reason and waiting messages in the Later bar", async () => {
+    const user = userEvent.setup();
+    const parked = card("l1", {
+      board_column: "done",
+      state: "stopped",
+      later: {
+        parked_at: "2026-10-30T09:00:00Z",
+        reason: "Waiting on the vendor",
+        return_at: "2026-11-04T09:00:00Z",
+        pending_messages: 1,
+      },
+    });
+    renderBoard(board({}, {}, { sessions: [parked], count: 1 }));
+    const toggle = screen.getByTestId("sessions-board-later-toggle");
+    expect(toggle).toHaveTextContent("Later1");
+    expect(screen.queryByTestId("sessions-board-archive")).not.toBeInTheDocument();
+    await user.click(toggle);
+    const body = screen.getByTestId("sessions-board-later-body");
+    const parkedCard = within(body).getByTestId("session-board-card-l1");
+    expect(parkedCard).not.toHaveAttribute("data-archived");
+    expect(parkedCard).toHaveAccessibleName(
+      /In Later, Waiting on the vendor, Back .*, 1 message waiting/
+    );
+    expect(within(body).getByTestId("session-later-pending-l1")).toHaveAttribute(
+      "title",
+      "1 message waiting"
+    );
   });
 });
 

@@ -88,7 +88,7 @@ function groupsInput(overrides: Partial<SessionListGroupsInput> = {}): SessionLi
       { id: "ws-beta", name: "Beta" },
       { id: "ws-alpha", name: "Alpha" },
     ],
-    archived: false,
+    shelf: "active",
     enabled: true,
     ...overrides,
   };
@@ -221,7 +221,7 @@ describe("useSessionListGroups", () => {
 
   it("Should scope archived group counts before requesting pages", async () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue(facetsResponse());
-    const { result } = renderHook(() => useSessionListGroups(groupsInput({ archived: true })), {
+    const { result } = renderHook(() => useSessionListGroups(groupsInput({ shelf: "archive" })), {
       wrapper,
     });
     await waitFor(() => expect(result.current.loading).toBe(false));

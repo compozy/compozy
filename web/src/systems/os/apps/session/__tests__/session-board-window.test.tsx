@@ -95,6 +95,7 @@ vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
       batchResults: [],
       deleteDialog: { open: false },
       renameDialog: { open: false },
+      laterDialog: { open: false },
       processDialog: { open: false },
     };
   },

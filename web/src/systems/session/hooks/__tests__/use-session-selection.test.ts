@@ -3,13 +3,14 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
+import type { SessionListShelf } from "../../lib/session-list-shelf";
 import { sessionSelectionCounts, useSessionSelection } from "../use-session-selection";
 
 // Invariant: selection belongs to one list identity and ranges use only rendered order.
 // Owner: useSessionSelection; no existing hook suite owns this interaction state.
 describe("useSessionSelection", () => {
   it("toggles an ordered set and leaves selection mode on the last uncheck", () => {
-    const { result } = renderHook(() => useSessionSelection("workspace", false));
+    const { result } = renderHook(() => useSessionSelection("workspace", "active"));
     act(() => result.current.toggle("b"));
     act(() => result.current.toggle("a"));
     expect(result.current.selectedIds).toEqual(["b", "a"]);
@@ -19,7 +20,7 @@ describe("useSessionSelection", () => {
   });
 
   it("extends from the anchor across visible roots and children in either direction", () => {
-    const { result } = renderHook(() => useSessionSelection("workspace", false));
+    const { result } = renderHook(() => useSessionSelection("workspace", "active"));
     act(() => result.current.toggle("root-2"));
     act(() => result.current.toggleRange("child", ["root-1", "child", "root-2"]));
     expect(result.current.selectedIds).toEqual(["root-2", "child"]);
@@ -31,7 +32,7 @@ describe("useSessionSelection", () => {
   });
 
   it("selects visible rows without losing hidden selection, prunes removed ids, and clears", () => {
-    const { result } = renderHook(() => useSessionSelection("workspace", false));
+    const { result } = renderHook(() => useSessionSelection("workspace", "active"));
     act(() => result.current.toggle("hidden"));
     act(() => result.current.selectAll(["a", "b", "a"]));
     expect(result.current.selectedIds).toEqual(["hidden", "a", "b"]);
@@ -47,7 +48,7 @@ describe("useSessionSelection", () => {
     const sessions = [{ ...primarySessionFixture, id: "a" }];
     const { result, rerender } = renderHook(
       ({ catalog }) => {
-        const selection = useSessionSelection("workspace", false, catalog);
+        const selection = useSessionSelection("workspace", "active", catalog);
         useLayoutEffect(() => {
           onCommit({
             selectedIds: selection.selectedIds,
@@ -69,20 +70,23 @@ describe("useSessionSelection", () => {
     }
   });
 
-  it("clears on scope or archive changes and isolates list instances", () => {
+  it("clears on scope or shelf (archive, Later) changes and isolates list instances", () => {
     const { result, rerender } = renderHook(
-      ({ scope, archived }) => useSessionSelection(scope, archived),
-      { initialProps: { scope: "workspace", archived: false } }
+      ({ scope, shelf }) => useSessionSelection(scope, shelf),
+      { initialProps: { scope: "workspace", shelf: "active" as SessionListShelf } }
     );
-    const other = renderHook(() => useSessionSelection("workspace", false));
+    const other = renderHook(() => useSessionSelection("workspace", "active"));
     act(() => result.current.toggle("a"));
-    rerender({ scope: "workspace", archived: false });
+    rerender({ scope: "workspace", shelf: "active" as SessionListShelf });
     expect(result.current.mode).toBe(true);
     expect(other.result.current.mode).toBe(false);
-    rerender({ scope: "all-workspaces", archived: false });
+    rerender({ scope: "all-workspaces", shelf: "active" });
     expect(result.current.mode).toBe(false);
     act(() => result.current.toggle("a"));
-    rerender({ scope: "all-workspaces", archived: true });
+    rerender({ scope: "all-workspaces", shelf: "archive" });
+    expect(result.current.mode).toBe(false);
+    act(() => result.current.toggle("a"));
+    rerender({ scope: "all-workspaces", shelf: "later" });
     expect(result.current.mode).toBe(false);
   });
 
@@ -97,14 +101,24 @@ describe("useSessionSelection", () => {
         state: "stopped" as const,
         archived_at: "2026-09-11",
       },
+      {
+        ...primarySessionFixture,
+        id: "parked",
+        state: "stopped" as const,
+        archived_at: null,
+        later: { parked_at: "2026-09-10T10:00:00Z", pending_messages: 0 },
+      },
     ];
     expect(sessionSelectionCounts(sessions, ["active", "stopped"])).toEqual({
       stoppable: 2,
       // Live sessions archive too: the daemon stops them first.
-      archivable: 3,
+      archivable: 4,
       archivableLive: 2,
       unarchivable: 1,
-      hiddenByFilter: 2,
+      // A parked session is already in Later; an archived one has left the flow.
+      laterable: 3,
+      backFromLaterable: 1,
+      hiddenByFilter: 3,
     });
   });
 });

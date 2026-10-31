@@ -22,6 +22,7 @@ import {
   type SessionListGroupBy,
   type SessionListSort,
 } from "../lib/session-list-preferences";
+import { sessionListShelfFilters } from "../lib/session-list-shelf";
 import type { SessionListFilters } from "../types";
 import { useSessionListGroups } from "./use-session-list-groups";
 
@@ -32,7 +33,7 @@ import { useSessionListGroups } from "./use-session-list-groups";
  */
 export type SessionsBoardFailure = "initial" | "more" | "refresh";
 
-/** One paged catalog read: a board column or the Archive bar. */
+/** One paged catalog read: a board column, the Archive bar or the Later bar. */
 export interface SessionsBoardPage {
   sessions: SessionBoardPayload[];
   loading: boolean;
@@ -48,6 +49,12 @@ export interface SessionsBoardPage {
   /** The page's population total, when the read asked for one. */
   total: number | undefined;
 }
+
+/**
+ * A bottom bar's read (Archive, Later). `count` is the page total, `undefined`
+ * until a read succeeds, so a failed or pending read is never mistaken for zero.
+ */
+export type SessionsBoardShelf = SessionsBoardPage & { count: number | undefined };
 
 export interface SessionsBoardColumnView extends SessionsBoardPage {
   id: SessionBoardColumnId;
@@ -73,11 +80,10 @@ export interface SessionsBoardView {
   groupBy: SessionListGroupBy;
   /** Groupings available in the current breadth and profile lens. */
   groupByOptions: readonly SessionListGroupBy[];
-  /**
-   * `count` is the archive's total, `undefined` until a read succeeds, so a
-   * failed or pending read is never mistaken for zero archived sessions.
-   */
-  archive: SessionsBoardPage & { count: number | undefined };
+  /** The archived sessions, outside the columns. */
+  archive: SessionsBoardShelf;
+  /** The sessions parked in Later, read and counted the same way as the archive. */
+  later: SessionsBoardShelf;
   /** All projects: each card's workspace name; `null` while one scope is listed. */
   workspaceNameOf: (session: SessionBoardPayload) => string | null;
   /** The board's identity for its selection: breadth, profile lens and grouping. */
@@ -154,7 +160,8 @@ export function useSessionsBoardColumns(
  * in the window's sort (a List-only `manual` reads `last_activity`). Grouped by
  * project or profile, the board becomes swimlanes: membership comes from the
  * same facets the List groups use, and each lane reads its own columns. Archived
- * sessions appear only in the Archive bar, which stays ungrouped. All reads live
+ * sessions appear only in the Archive bar and parked ones only in the Later
+ * bar; both stay ungrouped. All reads live
  * under the catalog list family, so stream wakes and the 60 s visible re-read
  * keep them current.
  */
@@ -186,12 +193,13 @@ export function useSessionsBoard({
     scope,
     lens: params,
     workspaces: registeredWorkspaces,
-    archived: false,
+    shelf: "active",
     enabled: active,
     // Lane membership and totals count the rows the lane's columns read.
     population,
   });
-  const archive = useSessionsBoardPage({ ...base, archive: "only" }, active);
+  const archive = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("archive") }, active);
+  const later = useSessionsBoardPage({ ...base, ...sessionListShelfFilters("later") }, active);
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const allProjects = scope?.kind === "all";
 
@@ -208,6 +216,7 @@ export function useSessionsBoard({
     groupBy: effectiveGroupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
     archive: { ...archive, count: archive.total },
+    later: { ...later, count: later.total },
     workspaceNameOf: session =>
       allProjects ? workspaceBadgeIdentity(session.workspace_id, names).name : null,
     selectionKey: JSON.stringify([scope, params, effectiveGroupBy]),

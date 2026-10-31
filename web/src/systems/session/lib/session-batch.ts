@@ -8,8 +8,23 @@ export interface SessionBatchResult {
   error?: string;
 }
 
+export type SessionBatchAction =
+  | "stop"
+  | "archive"
+  | "unarchive"
+  | "delete"
+  | "later"
+  | "back-from-later";
+
+/** The per-session failure line when the daemon's error carries no text. */
+export function sessionBatchFailureMessage(action: SessionBatchAction): string {
+  if (action === "later") return "Failed to move session to Later.";
+  if (action === "back-from-later") return "Failed to bring session back from Later.";
+  return `Failed to ${action} session.`;
+}
+
 interface SessionBatchOptions {
-  action: "stop" | "archive" | "unarchive" | "delete";
+  action: SessionBatchAction;
   ids: readonly string[];
   previous: readonly SessionBatchResult[];
   execute: (id: string) => Promise<unknown>;
@@ -48,7 +63,9 @@ export async function runSessionBatch({
         id,
         status: "failed",
         error:
-          error instanceof Error && error.message ? error.message : `Failed to ${action} session.`,
+          error instanceof Error && error.message
+            ? error.message
+            : sessionBatchFailureMessage(action),
       });
     }
   }

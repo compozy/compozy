@@ -6,6 +6,7 @@ import { visibleSessionOrder } from "./session-folders";
 import { sessionListGroupFilters, type SessionListGroupSpec } from "./session-list-groups";
 import { sessionCatalogScopedFilters } from "./session-catalog-scope";
 import type { SessionListSort } from "./session-list-preferences";
+import type { SessionListShelf } from "./session-list-shelf";
 
 /** What the list renders right now, as the session view model reports it. */
 export interface SessionListOrderSource {
@@ -16,7 +17,7 @@ export interface SessionListOrderSource {
   groupFilters: SessionListFilters;
   sort: SessionListSort;
   collapsedGroupKeys: ReadonlySet<string>;
-  archived: boolean;
+  shelf: SessionListShelf;
   search?: string;
 }
 
@@ -41,7 +42,7 @@ export function sessionListVisibleOrder(
     collapsedThreadIds: input.collapsedThreadIds,
     collapsedFolderIds: input.collapsedFolderIds,
     folders: view.layout?.folders,
-    archived: view.archived,
+    shelved: view.shelf !== "active",
     filtering: (view.search ?? "").trim() !== "",
     collapsedGroupKeys: view.collapsedGroupKeys,
     groups: grouped

@@ -11,6 +11,7 @@ import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-
 import { ENDED_EARLY_ATTENTION } from "./session-attention-reason";
 import { sessionBadgeSignal } from "./session-badge";
 import { type SessionOriginKind, sessionOriginView } from "./session-origin";
+import { BACK_FROM_LATER_REASON } from "./session-attention-reason";
 import { pendingPermissionCount } from "./session-pending-interactions";
 
 export interface SessionBoardCardStatus {
@@ -53,6 +54,8 @@ export interface SessionBoardCardWaiting {
 }
 
 function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | null {
+  // The daemon brought it back on its return date: that is why it needs you now.
+  if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "accent" };
   switch (session.badge) {
     case "failed":
       return { label: "Failed", tone: "danger" };

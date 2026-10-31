@@ -4,6 +4,7 @@ import type { SessionFolderDialogState } from "../../hooks/use-session-list-fold
 import type { WorkspaceFolderPayload } from "../../types";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 import type { SessionListGroupSpec } from "../../lib/session-list-groups";
+import { sessionListShelfNoun } from "../../lib/session-list-shelf";
 import {
   GroupLoadFailure,
   SessionListGroupBody,
@@ -107,7 +108,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
             arrange={arrange}
           />
         )}
-        emptyMessage={`${emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel)}.`}
+        emptyMessage={`${emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.`}
         testIdPrefix={testIdPrefix}
       />
     );
@@ -115,7 +116,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
   if (view.groups.length === 0) {
     return (
       <p className="px-3 py-8 text-center text-small-body text-muted">
-        {emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel)}.
+        {emptyForScope(sessionListShelfNoun(view.shelf), view.scopeLabel)}.
       </p>
     );
   }

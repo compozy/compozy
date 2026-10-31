@@ -11,7 +11,10 @@ import type { SessionsBoardLane } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
-import { SESSIONS_BOARD_SESSIONS } from "../../mocks/sessions-board-fixtures";
+import {
+  SESSIONS_BOARD_BACK_FROM_LATER,
+  SESSIONS_BOARD_SESSIONS,
+} from "../../mocks/sessions-board-fixtures";
 import { resetSessionBoardColumnFolds } from "../../testing";
 import { sessionsBoardView } from "./sessions-board-fixtures";
 
@@ -23,7 +26,7 @@ const meta: Meta<typeof SessionsBoard> = {
     docs: {
       description: {
         component:
-          "The session window's Kanban view: five daemon-derived columns (Needs you, Working, Waiting, In review, Done) with facet counts, three-row cards, columns that fold into rails, and the Archive bar.",
+          "The session window's Kanban view: five daemon-derived columns (Needs you, Working, Waiting, In review, Done) with facet counts, three-row cards, columns that fold into rails, and the Later and Archive bars.",
       },
     },
   },
@@ -173,6 +176,47 @@ export const ColumnsFolded: Story = {
   },
 };
 
+/** The Later bar open: parked cards say why they wait, when they come back and what is waiting. */
+export const LaterOpen: Story = {
+  tags: ["play-fn"],
+  args: { board: sessionsBoardView() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Collapse Done" }));
+    await userEvent.click(canvas.getByTestId("sessions-board-later-toggle"));
+    await expect(canvas.getByTestId("sessions-board-later-body")).toBeVisible();
+    await expect(canvas.getByTestId("session-later-pending-l2")).toHaveAttribute(
+      "title",
+      "2 messages waiting"
+    );
+  },
+};
+
+export const LaterReadError: Story = {
+  args: {
+    board: sessionsBoardView({}, {}, { count: undefined, sessions: [], failure: "initial" }),
+  },
+};
+
+/** A session its return date brought back sits in Needs you and says so. */
+export const BackFromLater: Story = {
+  tags: ["play-fn"],
+  args: {
+    board: sessionsBoardView({
+      needs_you: {
+        sessions: [SESSIONS_BOARD_BACK_FROM_LATER, ...SESSIONS_BOARD_SESSIONS.needs_you],
+        count: SESSIONS_BOARD_SESSIONS.needs_you.length + 1,
+      },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByTestId(`session-board-card-status-${SESSIONS_BOARD_BACK_FROM_LATER.id}`)
+    ).toHaveTextContent("Back from Later");
+  },
+};
+
 const CARD_ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
   pendingSessionId: null,
@@ -180,6 +224,8 @@ const CARD_ACTIONS: SessionLifecycleActionHandlers = {
   onRename: fn(),
   onArchive: fn(),
   onUnarchive: fn(),
+  onMoveToLater: fn(),
+  onBackFromLater: fn(),
   onDelete: fn(),
 };
 

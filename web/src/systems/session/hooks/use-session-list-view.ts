@@ -12,6 +12,7 @@ import {
 
 import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import { sessionListPair } from "../lib/session-list-groups";
+import { sessionListShelfFilters, type SessionListShelf } from "../lib/session-list-shelf";
 import type { ProjectGroupTree } from "../lib/workspace-folders";
 import {
   availableSessionListGroupBys,
@@ -27,6 +28,7 @@ import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import {
   useSessionListGroups,
+  useSessionListLaterCount,
   useSessionListTotals,
   type SessionListTotals,
 } from "./use-session-list-groups";
@@ -63,11 +65,13 @@ export interface SessionListViewModel {
    * one pair's session folders, or the project folders of All projects by project.
    */
   newFolderUnavailable: string | null;
-  /** True while the list shows the archive instead of the active catalog. */
-  archived: boolean;
+  /** What the list shows: the active catalog, the archive, or the sessions in Later. */
+  shelf: SessionListShelf;
+  /** Sessions parked in Later across the list's scope; `undefined` until counted. */
+  laterCount?: number;
   setSort: (sort: SessionListSort) => void;
   setGroupBy: (groupBy: SessionListGroupBy) => void;
-  setArchived: (archived: boolean) => void;
+  setShelf: (shelf: SessionListShelf) => void;
   /** Group-by groups from server facets; empty while flat. */
   groups: SessionListGroupSpec[];
   groupsLoading: boolean;
@@ -119,8 +123,8 @@ export interface SessionListViewModel {
  * session remounts the window's content, so state held here would reset; held
  * in the rail, a selection, a focus change, or a reload never reopens a group
  * the operator closed. Only the operator's toggle opens or closes one.
- * The archive stays deliberately transient — a way of looking at the list
- * right now, not a preference worth keeping.
+ * The archive and Later stay deliberately transient — ways of looking at the
+ * list right now, not preferences worth keeping.
  */
 export function useSessionListView(
   options: {
@@ -144,7 +148,7 @@ export function useSessionListView(
     committedValue: remoteSearch,
     setDraftValue: setSearch,
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
-  const [archived, setArchived] = useState(false);
+  const [shelf, setShelf] = useState<SessionListShelf>("active");
   const enabled = options.enabled ?? true;
   const searchSettled = search === remoteSearch;
   const scope = options.scope === undefined ? dataScope : options.scope;
@@ -153,7 +157,7 @@ export function useSessionListView(
   const flat = groupBy === "none";
   const pair = sessionListPair(scope, profile.params);
 
-  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, archived);
+  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, shelf);
   const catalog = useSessionCatalog(
     scope,
     { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
@@ -164,7 +168,7 @@ export function useSessionListView(
     scope,
     lens: profile.params,
     workspaces,
-    archived,
+    shelf,
     search: remoteSearch,
     worktreeId: options.worktreeId,
     enabled,
@@ -188,7 +192,13 @@ export function useSessionListView(
     lens: profile.params,
     search: remoteSearch,
     worktreeId: options.worktreeId,
-    archived,
+    shelf,
+    enabled,
+  });
+  const laterCount = useSessionListLaterCount({
+    scope,
+    lens: profile.params,
+    worktreeId: options.worktreeId,
     enabled,
   });
   const awaiting = awaitingReads(
@@ -226,10 +236,11 @@ export function useSessionListView(
     groupByOptions: availableSessionListGroupBys(breadth),
     sortNote: manualSortNote(preferences.sort, manualBlocked),
     newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth, groupBy),
-    archived,
+    shelf,
+    laterCount,
     setSort: preferences.setSort,
     setGroupBy: preferences.setGroupBy,
-    setArchived,
+    setShelf,
     groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
@@ -263,7 +274,7 @@ function hiddenProjectGroupKeys(
 function sessionListGroupFiltersFor(
   search: string,
   worktreeId: string | undefined,
-  archived: boolean
+  shelf: SessionListShelf
 ): SessionListFilters {
   return {
     include_health: true,
@@ -272,7 +283,7 @@ function sessionListGroupFiltersFor(
     search_fields: "title_agent",
     subagents: sessionListSubagentsParam(search),
     worktree: worktreeId,
-    ...(archived ? { archive: "only" as const } : {}),
+    ...sessionListShelfFilters(shelf),
   };
 }
 

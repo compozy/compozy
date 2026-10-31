@@ -66,6 +66,12 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   unarchiveSession: vi.fn(),
 }));
 
+vi.mock("../../adapters/session-later-api", () => ({
+  moveSessionToLater: vi.fn(),
+  resumeSessionFromLater: vi.fn(),
+}));
+import { moveSessionToLater, resumeSessionFromLater } from "../../adapters/session-later-api";
+
 vi.mock("../../adapters/session-owner-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-owner-api")>()),
   fetchSessionById: vi.fn(),
@@ -1184,6 +1190,103 @@ describe("session actions", () => {
     await act(async () => result.current.actions.onArchiveMany?.(batch));
     await waitFor(() => expect(onArchiveSuccess).toHaveBeenCalledTimes(2));
     expect(onArchiveSuccess).toHaveBeenLastCalledWith(batch[0]);
+  });
+
+  // Invariant: Move to Later always asks first and sends only what the operator typed; the
+  // confirmed move is reported like an archive. Owning layer: lifecycle actions (this suite).
+  it("moves a session to Later through its dialog and reports each confirmed move", async () => {
+    vi.mocked(moveSessionToLater).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      later: { parked_at: "2026-08-04T12:00:00Z", pending_messages: 0 },
+    }));
+    const onLaterSuccess = vi.fn();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions({ onLaterSuccess }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onMoveToLater?.(createdSession));
+    expect(moveSessionToLater).not.toHaveBeenCalled();
+    expect(result.current.laterDialog).toMatchObject({ open: true, sessions: [createdSession] });
+
+    act(() =>
+      result.current.laterDialog.onConfirm({
+        reason: "After the release",
+        return_at: "2026-08-10T09:00:00Z",
+      })
+    );
+    await waitFor(() => expect(onLaterSuccess).toHaveBeenCalledExactlyOnceWith(createdSession));
+    expect(moveSessionToLater).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      createdSession.id,
+      "default",
+      { reason: "After the release", return_at: "2026-08-10T09:00:00Z" },
+      expect.any(AbortSignal)
+    );
+    expect(result.current.laterDialog.open).toBe(false);
+  });
+
+  it("skips parked and subagent sessions in a bulk Move to Later and reports the batch once", async () => {
+    vi.mocked(moveSessionToLater).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      later: { parked_at: "2026-08-04T12:00:00Z", pending_messages: 0 },
+    }));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const parked = {
+      ...createdSession,
+      id: "sess-parked",
+      later: { parked_at: "2026-08-01T12:00:00Z", pending_messages: 1 },
+    };
+
+    act(() => result.current.actions.onMoveToLaterMany?.([createdSession, parked]));
+    expect(result.current.laterDialog.sessions).toEqual([createdSession]);
+    act(() => result.current.laterDialog.onConfirm({}));
+
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("1 session moved to Later", {
+        description: "1 skipped: 1 already in Later.",
+      })
+    );
+    expect(moveSessionToLater).toHaveBeenCalledTimes(1);
+    expect(result.current.laterDialog.open).toBe(false);
+  });
+
+  it("brings a parked session back from Later at once, without a dialog", async () => {
+    const parked = {
+      ...createdSession,
+      state: "stopped" as const,
+      later: { parked_at: "2026-08-01T12:00:00Z", pending_messages: 0 },
+    };
+    vi.mocked(resumeSessionFromLater).mockResolvedValue({ ...parked, later: null });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onBackFromLater?.(parked));
+    await waitFor(() =>
+      expect(resumeSessionFromLater).toHaveBeenCalledWith(
+        WORKSPACE_ID,
+        parked.id,
+        "default",
+        {},
+        expect.any(AbortSignal)
+      )
+    );
+    expect(result.current.laterDialog.open).toBe(false);
   });
 
   it("reports a lifecycle action failure without showing a success notification", async () => {

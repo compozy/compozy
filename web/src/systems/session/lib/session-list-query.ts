@@ -44,6 +44,8 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
   const badge = normalizedText(filters.badge);
   if (badge) normalized.badge = badge;
   if (filters.archive !== undefined) normalized.archive = filters.archive;
+  // Later visibility is a population filter too: `only` and the default are two catalogs.
+  if (filters.later !== undefined) normalized.later = filters.later;
   // Subagent visibility (ADR-005) is a server-side population filter, so it is
   // part of the request and the key: `exclude` and `include` are two catalogs.
   if (filters.subagents !== undefined) normalized.subagents = filters.subagents;

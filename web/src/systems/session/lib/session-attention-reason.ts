@@ -9,7 +9,11 @@
 import type { SessionPayload, SessionWorkSignalKind } from "../types";
 import { sessionStopAttention } from "./session-stop-attention";
 
-type AttentionSource = Pick<SessionPayload, "attention" | "state" | "supervision">;
+type AttentionSource = Pick<SessionPayload, "attention" | "state" | "supervision"> &
+  Partial<Pick<SessionPayload, "returned_from_later_at">>;
+
+/** A session the daemon brought back from Later on its return date (issue #1076). */
+export const BACK_FROM_LATER_REASON = "Back from Later";
 
 export interface SessionAttentionReason {
   /** One short phrase for the row's secondary line. */
@@ -65,13 +69,17 @@ function sourceDetail(source: SourceState): string {
 const SOURCE_RANK: Record<string, number> = { attention: 0, stale: 1, unknown: 2 };
 
 /**
- * The cause behind a `needs-attention` badge, or `null` for every other badge
- * and for a payload that names no cause.
+ * Why a session needs you: back from Later on its return date (whatever the
+ * badge), else the cause behind a `needs-attention` badge; `null` for every
+ * other badge and for a payload that names no cause.
  */
 export function sessionAttentionReason(
   session: AttentionSource,
   badge: string
 ): SessionAttentionReason | null {
+  if (session.returned_from_later_at) {
+    return { summary: BACK_FROM_LATER_REASON, detail: BACK_FROM_LATER_REASON };
+  }
   if (badge !== "needs-attention") return null;
   const lines: string[] = [];
   const summaries: string[] = [];

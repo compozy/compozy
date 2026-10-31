@@ -210,4 +210,15 @@ describe("needs-attention reason (#760)", () => {
     );
     expect(sessionAttentionReason(early, "running")).toBeNull();
   });
+
+  it("Should say a session is back from Later on its return date, whatever the badge (#1076)", () => {
+    const back = {
+      state: "stopped" as const,
+      supervision: null,
+      returned_from_later_at: "2026-10-30T09:00:00Z",
+    };
+    expect(sessionAttentionReason(back, "needs-attention")?.summary).toBe("Back from Later");
+    expect(sessionAttentionReason(back, "idle")?.summary).toBe("Back from Later");
+    expect(sessionAttentionReason({ ...back, returned_from_later_at: null }, "idle")).toBeNull();
+  });
 });
