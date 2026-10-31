@@ -2690,7 +2690,9 @@ func TestSessionCatalogBoard(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		for _, id := range []string{"parent", "needs", "working-1", "working-2", "working-3", "archived", "grandchild", "foreign"} {
+		for _, id := range []string{
+			"parent", "needs", "working-1", "working-2", "working-3", "archived", "parked", "grandchild", "foreign",
+		} {
 			state := globalDBSessionStateStopped
 			if strings.HasPrefix(id, "working") {
 				state = "starting"
@@ -2727,6 +2729,12 @@ func TestSessionCatalogBoard(t *testing.T) {
 		if _, err := db.db.ExecContext(
 			ctx,
 			"UPDATE sessions SET state='active', pending_clarify_count=1 WHERE id='needs'",
+		); err != nil {
+			t.Fatal(err)
+		}
+		// A child in Later is hidden from the board, so the parent must not count it.
+		if _, err := db.db.ExecContext(
+			ctx, "UPDATE sessions SET parked_at=? WHERE id='parked'", store.FormatTimestamp(base),
 		); err != nil {
 			t.Fatal(err)
 		}

@@ -77,6 +77,7 @@ func sessionCatalogRelationsSQL(query store.SessionCatalogRelationsQuery, now st
 		WorkspaceID:       query.WorkspaceID,
 		WorkspaceIDs:      query.WorkspaceIDs,
 		Archive:           store.SessionArchiveExclude,
+		Later:             store.SessionLaterExclude,
 		ExcludeIDs:        query.ActiveIDs,
 		ExcludeSpawnRoles: []string{"auto-title"},
 	}, now)

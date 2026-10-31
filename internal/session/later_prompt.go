@@ -45,6 +45,9 @@ func (m *Manager) enqueueAdmittedLaterPrompt(
 	}
 	result.TargetInLater = true
 	result.Replayed = !created
+	// The operator may have resumed the target since the Later check; the
+	// selector delivers the message then, and does nothing while it is stopped.
+	m.startNextQueuedInputPrompt(sessionID)
 	if created {
 		if _, err := m.publishLaterCatalogUpsert(ctx, sessionID); err != nil {
 			m.logger.Warn("session: publish later pending message", "session_id", sessionID, "error", err)
