@@ -22,8 +22,8 @@ export function RailSection({
       className={cn("border-t border-line-soft px-4 py-3.5 first:border-t-0", className)}
       {...props}
     >
-      <h3 className="mb-2 flex items-center gap-1.5 text-eyebrow text-muted">
-        <Icon aria-hidden="true" className="size-3 text-muted" />
+      <h3 className="mb-2 flex items-center gap-1.5 text-eyebrow text-muted-foreground">
+        <Icon aria-hidden="true" className="size-3 text-muted-foreground" />
         {title}
       </h3>
       {children}

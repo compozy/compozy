@@ -101,7 +101,7 @@ export function TaskFanOutRunResults({
               </ItemDescription>
               {run.error ? (
                 <p
-                  className="mt-px block text-badge leading-normal text-danger"
+                  className="mt-px block text-badge leading-normal text-destructive"
                   data-slot="task-fan-out-run-error"
                 >
                   {run.error}

@@ -102,7 +102,7 @@ export function ListingRowSection() {
             </ListingRow.Main>
           </ListingRow.Link>
           <ListingRow.Trail>
-            <span className="text-eyebrow text-muted">2h</span>
+            <span className="text-eyebrow text-muted-foreground">2h</span>
           </ListingRow.Trail>
         </ListingRow>
         <ListingRow>

@@ -63,7 +63,7 @@ function ToolCallRowPreview({
       className={cn(
         "min-w-0 truncate",
         variant === "chip"
-          ? "rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted transition-colors duration-base group-hover/tool-row:text-fg"
+          ? "rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted-foreground transition-colors duration-base group-hover/tool-row:text-fg"
           : variant === "code"
             ? "font-mono text-transcript-body text-subtle"
             : "text-subtle"
@@ -106,7 +106,7 @@ export function ToolCallRowLine({
         <span
           id={toolNameId}
           data-slot="tool-call-row-tool"
-          className="shrink-0 whitespace-nowrap text-subtle transition-colors duration-base group-hover/tool-row:text-muted"
+          className="shrink-0 whitespace-nowrap text-subtle transition-colors duration-base group-hover/tool-row:text-muted-foreground"
           title={nativeTitle(toolName)}
         >
           {toolName}
@@ -139,7 +139,7 @@ export function ToolCallRowLine({
             data-slot="tool-call-row-chevron"
             className={cn(
               "size-3 shrink-0 text-subtle transition-[transform,opacity] duration-base ease-out motion-reduce:transition-none",
-              isExpanded ? "rotate-90 text-muted opacity-100" : REVEAL_CLASS
+              isExpanded ? "rotate-90 text-muted-foreground opacity-100" : REVEAL_CLASS
             )}
           />
         ) : null}
@@ -224,7 +224,7 @@ export function ToolCallRowBody({
       data-slot="tool-call-row-body"
       data-variant={variant}
       className={cn(
-        "mt-1 mb-1.5 ml-7 flex min-w-0 cursor-default flex-col gap-2.5 text-small-body text-muted select-text",
+        "mt-1 mb-1.5 ml-7 flex min-w-0 cursor-default flex-col gap-2.5 text-small-body text-muted-foreground select-text",
         variant === "card"
           ? "max-h-80 overflow-auto rounded-lg border border-line-soft bg-chat-fill-code p-2.5"
           : null
@@ -239,7 +239,7 @@ export function ToolCallRowBody({
             "font-mono text-transcript-caption leading-prose break-words whitespace-pre-wrap",
             // Danger only for the failure that ended the turn (ADR-009); an
             // absorbed failure's detail reads in the settled ink.
-            status === "failed" ? "text-danger" : "text-muted"
+            status === "failed" ? "text-destructive" : "text-muted-foreground"
           )}
         >
           {errorMessage}

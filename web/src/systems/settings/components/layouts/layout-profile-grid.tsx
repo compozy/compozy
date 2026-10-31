@@ -44,7 +44,7 @@ export function LayoutProfileGrid({ editor, document }: LayoutProfileGridProps) 
         <button
           className={cn(
             "flex min-h-50 flex-col items-center justify-center gap-2 rounded-lg",
-            "border border-dashed border-line-strong bg-card text-small-body font-medium text-muted",
+            "border border-dashed border-line-strong bg-card text-small-body font-medium text-muted-foreground",
             "transition-colors duration-base ease-out hover:bg-surface-2 hover:text-fg",
             "focus-visible:outline-none focus-visible:shadow-focus-ring"
           )}

@@ -185,7 +185,7 @@ function DeleteDesktop({
   return (
     <form
       aria-label={`Delete ${desktop.name}`}
-      className="flex flex-col gap-3 rounded-md border border-line bg-danger-tint p-3"
+      className="flex flex-col gap-3 rounded-md border border-line bg-destructive-tint p-3"
       onSubmit={event => {
         event.preventDefault();
         if (canDelete) onDelete(needsTransfer ? destinationId : null);
@@ -193,14 +193,14 @@ function DeleteDesktop({
     >
       <div className="flex flex-col gap-1">
         <p className="text-small-body font-medium text-fg-strong">Delete {desktop.name}?</p>
-        <p className="text-form-hint text-muted">
+        <p className="text-form-hint text-muted-foreground">
           {needsTransfer
             ? `Move ${desktop.windows.length} window${desktop.windows.length === 1 ? "" : "s"} before deleting this desktop.`
             : "This desktop has no windows."}
         </p>
       </div>
       {needsTransfer ? (
-        <label className="flex flex-col gap-1.5 text-form-label text-muted">
+        <label className="flex flex-col gap-1.5 text-form-label text-muted-foreground">
           Move windows to
           <NativeSelect
             className="w-full [&>select]:h-11"
@@ -336,10 +336,10 @@ export function DesktopsOverviewGrid({
               </span>
               <span className="flex min-w-0 items-center gap-2 px-1 pr-9">
                 <span className="truncate font-medium text-fg">{desktop.name}</span>
-                <span className="shrink-0 text-meta text-muted">
+                <span className="shrink-0 text-meta text-muted-foreground">
                   {windowCount} window{windowCount === 1 ? "" : "s"}
                 </span>
-                {needsYou ? <StatusDot tone="accent" size="sm" label="Needs you" /> : null}
+                {needsYou ? <StatusDot tone="brand" size="sm" label="Needs you" /> : null}
                 {desktop.switchShortcut ? (
                   <Kbd className="ml-auto">{desktop.switchShortcut}</Kbd>
                 ) : null}
@@ -401,7 +401,7 @@ export function DesktopsOverviewGrid({
         >
           <span
             aria-hidden="true"
-            className="grid w-full place-items-center rounded-lg border border-dashed border-line-strong text-muted transition-colors duration-fast group-hover/oc:text-fg"
+            className="grid w-full place-items-center rounded-lg border border-dashed border-line-strong text-muted-foreground transition-colors duration-fast group-hover/oc:text-fg"
             style={{ aspectRatio }}
           >
             <Plus className="size-4" />

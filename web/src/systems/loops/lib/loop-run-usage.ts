@@ -3,7 +3,7 @@ import type { LoopApprovalFact } from "./loop-events";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { formatTokenCount } from "./loop-runs-view";
 
-export type LoopUsageTone = "neutral" | "warn" | "danger";
+export type LoopUsageTone = "neutral" | "warn" | "destructive";
 
 export type LoopUsageKey = "time" | "tokens" | "cost" | "rounds";
 
@@ -26,7 +26,7 @@ export function deriveCostEstimate(tokensUsed: number): string {
 
 /** Warn at 90% of a ceiling, danger at/over it. */
 function ratioTone(ratio: number): LoopUsageTone {
-  if (ratio >= 1) return "danger";
+  if (ratio >= 1) return "destructive";
   if (ratio >= 0.9) return "warn";
   return "neutral";
 }

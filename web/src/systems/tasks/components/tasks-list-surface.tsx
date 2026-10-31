@@ -95,7 +95,7 @@ export function TasksListSurface({
         />
         {errorMessage ? (
           <div
-            className="flex items-center justify-between gap-3 px-4 pt-3 text-small-body text-danger"
+            className="flex items-center justify-between gap-3 px-4 pt-3 text-small-body text-destructive"
             data-testid="tasks-list-surface-pagination-error"
             role="alert"
           >

@@ -104,7 +104,7 @@ export function AttentionSettingsPage() {
       slug="attention"
     >
       {page.saveError ? (
-        <Alert data-testid="settings-attention-save-error" role="alert" variant="danger">
+        <Alert data-testid="settings-attention-save-error" role="alert" variant="destructive">
           <AlertDescription>{page.saveError}</AlertDescription>
         </Alert>
       ) : null}

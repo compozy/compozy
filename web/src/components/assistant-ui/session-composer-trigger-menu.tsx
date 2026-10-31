@@ -77,7 +77,7 @@ export function TriggerMenuRow({
       <span
         className={cn(
           TRIGGER_MENU_ROW_ICON_WELL,
-          "text-muted",
+          "text-muted-foreground",
           "group-data-[highlighted]/trigger-row:text-fg"
         )}
       >
@@ -103,7 +103,7 @@ export function TriggerMenuGroupHeader({
   ...props
 }: { label: string } & Omit<ComponentProps<"div">, "children">) {
   return (
-    <div role="presentation" className="eyebrow px-2 pt-2 pb-1 text-muted" {...props}>
+    <div role="presentation" className="eyebrow px-2 pt-2 pb-1 text-muted-foreground" {...props}>
       {label}
     </div>
   );
@@ -116,7 +116,10 @@ export function TriggerMenuDivider() {
 /** The empty / error / loading row; one element and one tone for every state. */
 export function TriggerMenuMessage({ className, ...props }: ComponentProps<"p">) {
   return (
-    <p className={cn("px-2 py-4 text-center text-small-body text-muted", className)} {...props} />
+    <p
+      className={cn("px-2 py-4 text-center text-small-body text-muted-foreground", className)}
+      {...props}
+    />
   );
 }
 
@@ -157,7 +160,7 @@ export function TriggerMenuFooter({ className, ...props }: ComponentProps<"p">) 
   return (
     <p
       className={cn(
-        "mt-0.5 border-t border-line-soft px-2 pt-1.5 pb-1 text-transcript-caption text-muted",
+        "mt-0.5 border-t border-line-soft px-2 pt-1.5 pb-1 text-transcript-caption text-muted-foreground",
         className
       )}
       {...props}

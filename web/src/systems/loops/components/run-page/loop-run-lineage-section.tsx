@@ -40,7 +40,7 @@ function LineageRow({ generation, lead, runId, testId }: LineageRowProps) {
       >
         {runId}
       </Link>
-      <span className="text-small-body text-muted">{`· round ${generation}`}</span>
+      <span className="text-small-body text-muted-foreground">{`· round ${generation}`}</span>
     </li>
   );
 }

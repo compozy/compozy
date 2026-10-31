@@ -38,7 +38,7 @@ interface SessionWorktreeForkDialogProps {
 function Fact({ children, icon, slot }: { children: ReactNode; icon: ReactNode; slot: string }) {
   return (
     <li
-      className="flex items-start gap-2 text-small-body leading-normal text-muted [&+&]:mt-2 [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-subtle"
+      className="flex items-start gap-2 text-small-body leading-normal text-muted-foreground [&+&]:mt-2 [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-subtle"
       data-fact={slot}
     >
       {icon}
@@ -143,7 +143,7 @@ export function SessionWorktreeForkDialog({
       onOpenChange={onOpenChange}
       open={open}
       title={`Fork “${sessionTitle}” to a worktree?`}
-      tone={blocked ? "neutral" : "accent"}
+      tone={blocked ? "neutral" : "brand"}
     />
   );
 }

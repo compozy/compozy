@@ -25,7 +25,7 @@
 }
 
 .site-doc-masthead__product {
-  color: var(--color-accent);
+  color: var(--color-brand);
 }
 
 .site-doc-masthead__crumb-sep {
@@ -36,7 +36,7 @@
 }
 
 .site-doc-masthead__crumbs a {
-  color: var(--color-muted);
+  color: var(--color-muted-foreground);
   text-decoration: none;
   transition: color var(--duration-base) var(--ease-out);
 }
@@ -72,7 +72,7 @@
   max-width: var(--site-doc-masthead-lead-width);
   font-size: var(--text-site-doc-lead);
   line-height: var(--text-site-doc-lead--line-height);
-  color: var(--color-muted);
+  color: var(--color-muted-foreground);
 }
 
 .site-doc-masthead__meta {
@@ -101,7 +101,7 @@
 }
 
 .site-doc-masthead__meta-item strong {
-  color: var(--color-muted);
+  color: var(--color-muted-foreground);
   font-weight: 500;
 }
 
@@ -113,7 +113,7 @@
   background: var(--color-canvas-soft);
   font-size: var(--text-form-label);
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-muted-foreground);
 }
 
 .site-doc-page-action:hover:not(:disabled) {
@@ -129,7 +129,7 @@
 }
 
 .site-doc-page-action[data-copy-state="failed"] {
-  color: var(--color-danger);
+  color: var(--color-destructive);
 }
 
 .site-doc-page-action--icon {
@@ -144,7 +144,7 @@
 }
 
 .site-doc-body {
-  color: var(--color-muted);
+  color: var(--color-muted-foreground);
   font-size: var(--text-site-doc-prose);
   line-height: var(--text-site-doc-prose--line-height);
 }
@@ -192,7 +192,7 @@
 }
 
 .site-doc-body li::marker {
-  color: var(--color-accent);
+  color: var(--color-brand);
 }
 
 .site-doc-body strong {
@@ -223,7 +223,7 @@
 }
 
 .site-doc-body :is(p, li, td, th, blockquote) a:hover {
-  color: var(--color-accent);
+  color: var(--color-brand);
 }
 
 .site-doc-body :is(h1, h2, h3, h4, h5, h6) a {

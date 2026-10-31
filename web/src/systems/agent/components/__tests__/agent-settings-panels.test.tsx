@@ -227,7 +227,7 @@ describe("AgentSettingsPanels", () => {
         })}
       />
     );
-    expect(screen.getByTestId("agent-settings-danger")).toHaveTextContent("from all projects");
+    expect(screen.getByTestId("agent-settings-destructive")).toHaveTextContent("from all projects");
     await user.click(screen.getByTestId("agent-settings-delete"));
     expect(onDelete).toHaveBeenCalledTimes(1);
   });

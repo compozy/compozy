@@ -29,8 +29,10 @@ function MetadataTile({
       {...props}
     >
       <div data-slot="metadata-tile-head" className="flex min-w-0 items-center gap-1.5">
-        {Icon ? <Icon aria-hidden="true" className="size-3 shrink-0 text-muted" /> : null}
-        <Eyebrow data-slot="metadata-tile-label" className="min-w-0 truncate text-muted">
+        {Icon ? (
+          <Icon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+        ) : null}
+        <Eyebrow data-slot="metadata-tile-label" className="min-w-0 truncate text-muted-foreground">
           {label}
         </Eyebrow>
       </div>

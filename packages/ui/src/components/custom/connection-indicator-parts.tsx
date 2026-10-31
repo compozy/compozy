@@ -24,8 +24,8 @@ interface StatusConfig {
 const STATUS_CONFIG: Record<ConnectionStatus, StatusConfig> = {
   connected: { tone: "success", label: "Connected", pulse: false },
   connecting: { tone: "warning", label: "Connecting", pulse: true },
-  disconnected: { tone: "danger", label: "Disconnected", pulse: false },
-  error: { tone: "danger", label: "Connection error", pulse: false },
+  disconnected: { tone: "destructive", label: "Disconnected", pulse: false },
+  error: { tone: "destructive", label: "Connection error", pulse: false },
 };
 
 export function ConnectionIndicatorDot({
@@ -63,8 +63,8 @@ export function ConnectionIndicatorLabel({
     <span
       className={cn(
         context.variant === "inline"
-          ? "font-sans text-form-label tracking-eyebrow text-muted"
-          : "eyebrow text-muted",
+          ? "font-sans text-form-label tracking-eyebrow text-muted-foreground"
+          : "eyebrow text-muted-foreground",
         className
       )}
       data-slot="connection-indicator-label"

@@ -58,7 +58,7 @@ export function HooksSection({
     >
       {hookError ? (
         <span
-          className="text-form-hint text-danger"
+          className="text-form-hint text-destructive"
           data-testid="settings-page-hooks-error-message"
         >
           {hookError}
@@ -89,7 +89,7 @@ export function HooksSection({
             data-testid="settings-page-hooks-listbar"
           >
             <span className="text-small-body text-subtle">
-              Registered <span className="font-medium text-muted">{hooks.length}</span>
+              Registered <span className="font-medium text-muted-foreground">{hooks.length}</span>
             </span>
             <SearchInput
               aria-label="Search hooks & events"
@@ -176,7 +176,7 @@ function HookRow({
           <Pill mono size="xs" tone="neutral">
             {declaration.event}
           </Pill>
-          <span className="font-mono text-mono-id text-muted">{mode}</span>
+          <span className="font-mono text-mono-id text-muted-foreground">{mode}</span>
           {matcherSummary ? (
             <span
               className="truncate font-mono text-mono-id text-subtle"

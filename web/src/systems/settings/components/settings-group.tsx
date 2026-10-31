@@ -72,7 +72,7 @@ function SettingsGroupHeader({
       <div className="flex min-w-0 flex-col gap-0.5">
         <SettingsGroupTitle help={help} title={title} />
         {description ? (
-          <p className="max-w-settings-page-description text-small-body text-muted">
+          <p className="max-w-settings-page-description text-small-body text-muted-foreground">
             {description}
           </p>
         ) : null}

@@ -93,7 +93,7 @@ function DegradedNotice({
       data-cause={cause}
       data-testid="loop-runs-degraded"
       role="status"
-      variant={failed ? "danger" : "neutral"}
+      variant={failed ? "destructive" : "neutral"}
     >
       {failed ? <TriangleAlert aria-hidden="true" /> : <PlugZap aria-hidden="true" />}
       <AlertDescription>{body}</AlertDescription>

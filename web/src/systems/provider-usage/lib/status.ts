@@ -8,7 +8,7 @@ import { formatAgo, formatWaitUntil } from "./format";
  */
 export type ProviderUsageRowAction = "allow_keychain" | "retry" | "refresh" | "configure";
 
-export type ProviderUsageStatusTone = "warning" | "danger" | "faint";
+export type ProviderUsageStatusTone = "warning" | "destructive" | "faint";
 
 export interface ProviderUsageStatusAction {
   kind: ProviderUsageRowAction;
@@ -142,7 +142,7 @@ export function describeProviderUsageStatus(
     case "rate_limited":
       return describeRateLimited(target, options.now);
     case "error":
-      return presentation("danger", "Couldn't load", "Couldn't load usage", RETRY);
+      return presentation("destructive", "Couldn't load", "Couldn't load usage", RETRY);
     case "unsupported":
       return presentation(
         null,

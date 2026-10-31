@@ -135,7 +135,7 @@ export function ProfileGlyph({
       className={cn(
         "relative inline-grid shrink-0 place-items-center leading-none",
         SIZE_CLASS[size],
-        aggregate && "border border-line-strong bg-surface-2 text-muted",
+        aggregate && "border border-line-strong bg-surface-2 text-muted-foreground",
         current && !aggregate && "ring-[length:var(--ring-width-profile-current)]",
         className
       )}

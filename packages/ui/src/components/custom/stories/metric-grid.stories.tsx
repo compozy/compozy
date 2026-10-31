@@ -24,7 +24,7 @@ const metrics = [
   <Metric key="sessions" label="Sessions" value="12" subtext="4 active" />,
   <Metric key="providers" label="Providers" value="08" tone="success" subtext="All installed" />,
   <Metric key="queued" label="Queued" value="03" tone="warning" subtext="2 waiting" />,
-  <Metric key="failures" label="Failures" value="00" tone="danger" subtext="Last 24h" />,
+  <Metric key="failures" label="Failures" value="00" tone="destructive" subtext="Last 24h" />,
 ];
 
 export const FourColumns: Story = {

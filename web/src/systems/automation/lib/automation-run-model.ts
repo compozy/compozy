@@ -46,7 +46,7 @@ export interface AutomationRunLink {
 export interface AutomationRunDrawerLine {
   id: "summary" | "error" | "delivery-error" | "attempt" | "retries";
   text: string;
-  tone: "default" | "danger";
+  tone: "default" | "destructive";
 }
 
 export interface AutomationRunView {
@@ -147,15 +147,19 @@ function runLink(
 
 function failedLines(run: AutomationRun, noRetries: boolean): AutomationRunDrawerLine[] {
   const lines: AutomationRunDrawerLine[] = [];
-  if (run.error?.trim()) lines.push({ id: "error", text: run.error, tone: "danger" });
+  if (run.error?.trim()) lines.push({ id: "error", text: run.error, tone: "destructive" });
   if (run.delivery_error?.trim()) {
-    lines.push({ id: "delivery-error", text: `Delivery: ${run.delivery_error}`, tone: "danger" });
+    lines.push({
+      id: "delivery-error",
+      text: `Delivery: ${run.delivery_error}`,
+      tone: "destructive",
+    });
   }
   if (lines.length === 0) {
     lines.push({
       id: "error",
       text: "The run failed before any detail was recorded.",
-      tone: "danger",
+      tone: "destructive",
     });
   }
   if (run.attempt > 1) {

@@ -292,7 +292,7 @@ function MarketplaceContinuation({ page }: { page: MarketplacePageModel }) {
     const restarting = isMarketplaceCursorStale(page.catalogError);
     return (
       <div className="flex items-center justify-center gap-3 py-3" role="alert">
-        <span className="text-small-body text-danger">
+        <span className="text-small-body text-destructive">
           {restarting
             ? "The catalog changed while loading; showing the last complete catalog."
             : "The catalog could not be refreshed."}

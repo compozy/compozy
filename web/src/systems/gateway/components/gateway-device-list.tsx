@@ -46,7 +46,7 @@ export function GatewayDeviceList({
     >
       {error ? (
         <div className="px-4 py-3">
-          <Alert variant="danger">
+          <Alert variant="destructive">
             <AlertTitle>That device change was not applied</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>

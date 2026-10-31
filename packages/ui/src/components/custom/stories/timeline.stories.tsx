@@ -40,7 +40,7 @@ export const Activity: Story = {
         title="Run started"
         description="Anthropic Claude received the orchestration plan."
         time="04:21:15"
-        tone="accent"
+        tone="brand"
         icon={GitCommitIcon}
       />
       <TimelineEvent

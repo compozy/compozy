@@ -121,7 +121,7 @@ export function ToolApprovalGrantsSection() {
         }}
         open={revoke.isOpen}
         title="Revoke this decision?"
-        tone="danger"
+        tone="destructive"
       />
     </Section>
   );

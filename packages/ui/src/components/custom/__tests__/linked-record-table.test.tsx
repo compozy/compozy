@@ -62,7 +62,7 @@ describe("LinkedRecordTable", () => {
         <LinkedRecordTable.Body>
           <LinkedRecordTable.Row>
             <LinkedRecordTable.Cell className="w-8 pl-4">
-              <Pill.Dot tone="accent" />
+              <Pill.Dot tone="brand" />
             </LinkedRecordTable.Cell>
             <LinkedRecordTable.Cell>
               <LinkedRecordTable.Title>run_01</LinkedRecordTable.Title>

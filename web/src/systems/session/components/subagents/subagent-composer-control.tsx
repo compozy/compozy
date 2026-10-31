@@ -73,7 +73,7 @@ function SubagentComposerGlyph({
 function SubagentComposerFailure({ onRetry }: { onRetry?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2 px-0.5">
-      <p className="text-transcript-caption text-muted">Couldn't load subagents.</p>
+      <p className="text-transcript-caption text-muted-foreground">Couldn't load subagents.</p>
       {onRetry ? (
         <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
           Try again
@@ -90,7 +90,7 @@ function SubagentComposerPlaceholder({ loading, count }: { loading: boolean; cou
   return (
     <div className="flex flex-col gap-0.5 px-0.5 pb-0.5">
       <p className="text-small-body text-fg">Nothing delegated yet.</p>
-      <p className="text-transcript-caption text-pretty text-muted">
+      <p className="text-transcript-caption text-pretty text-muted-foreground">
         When the agent hands work to a subagent, it shows up here.
       </p>
     </div>

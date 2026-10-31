@@ -69,9 +69,9 @@ export function LayoutCanvasSeam({ seam, desktop, canvasRef, onChange }: LayoutC
         aria-hidden="true"
         className={cn(
           "rounded-pill bg-line-strong transition-colors duration-base ease-out",
-          "group-hover:bg-accent group-focus-visible:bg-accent",
+          "group-hover:bg-brand group-focus-visible:bg-brand",
           vertical ? "h-[34%] w-0.5" : "h-0.5 w-[34%]",
-          model.dragging && "bg-accent"
+          model.dragging && "bg-brand"
         )}
       />
       {model.dragging ? (
@@ -79,7 +79,7 @@ export function LayoutCanvasSeam({ seam, desktop, canvasRef, onChange }: LayoutC
           className={cn(
             "pointer-events-none absolute z-6 rounded-xs border px-1.5 py-0.5",
             "bg-surface-2 font-mono text-badge whitespace-nowrap shadow-overlay",
-            model.snapped ? "border-accent-dim text-accent-strong" : "border-line-strong text-fg"
+            model.snapped ? "border-brand-dim text-brand-strong" : "border-line-strong text-fg"
           )}
           role="status"
         >

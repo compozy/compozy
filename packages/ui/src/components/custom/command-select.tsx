@@ -128,7 +128,7 @@ function CommandSelectChip({
       data-slot="command-select-chip"
       type={type}
       className={cn(
-        "eyebrow inline-flex max-w-full items-center gap-1 rounded-pill bg-surface-2 px-2 py-0.5 text-muted",
+        "eyebrow inline-flex max-w-full items-center gap-1 rounded-pill bg-surface-2 px-2 py-0.5 text-muted-foreground",
         className
       )}
       onClick={event => {

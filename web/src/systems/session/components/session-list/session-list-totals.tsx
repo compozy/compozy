@@ -37,7 +37,7 @@ export function SessionListTotals({
         >
           <StateGlyph size="sm" state={item.glyph} still />
           <span>
-            <span className="font-mono text-muted tabular-nums">{totals[item.key]}</span>{" "}
+            <span className="font-mono text-muted-foreground tabular-nums">{totals[item.key]}</span>{" "}
             {item.label}
           </span>
         </span>

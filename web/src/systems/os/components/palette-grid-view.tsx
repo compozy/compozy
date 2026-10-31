@@ -62,7 +62,9 @@ export function PaletteGridView({
     return (
       <div className="px-3 py-8 text-center" data-testid="palette-grid-empty">
         <p className="text-card-title text-fg">{empty?.title ?? "No items yet"}</p>
-        {empty?.hint ? <p className="mt-1 text-small-body text-muted">{empty.hint}</p> : null}
+        {empty?.hint ? (
+          <p className="mt-1 text-small-body text-muted-foreground">{empty.hint}</p>
+        ) : null}
       </div>
     );
   }
@@ -127,7 +129,9 @@ export function PaletteGridView({
     <GridViewport ref={viewportRef} onKeyDown={keyDown}>
       {sections.map(section => (
         <section key={section.key} className="mb-4 last:mb-0">
-          {section.title ? <h3 className="eyebrow mb-2 text-muted">{section.title}</h3> : null}
+          {section.title ? (
+            <h3 className="eyebrow mb-2 text-muted-foreground">{section.title}</h3>
+          ) : null}
           <div
             className="grid gap-2"
             style={{ gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))` }}
@@ -202,7 +206,9 @@ function VirtualGrid({
               data-row-key={row.key}
               style={{ transform: `translateY(${item.start}px)` }}
             >
-              {row.title ? <h3 className="eyebrow mb-2 text-muted">{row.title}</h3> : null}
+              {row.title ? (
+                <h3 className="eyebrow mb-2 text-muted-foreground">{row.title}</h3>
+              ) : null}
               <div
                 className="grid gap-2"
                 style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}

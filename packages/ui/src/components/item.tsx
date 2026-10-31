@@ -67,7 +67,7 @@ const itemVariants = cva(
 );
 
 type ItemIndicator = "rail" | "dot" | "none";
-type ItemIndicatorTone = "white" | "accent";
+type ItemIndicatorTone = "white" | "brand";
 type ItemAs = "div" | "button";
 
 interface ItemOwnProps extends VariantProps<typeof itemVariants> {
@@ -250,7 +250,7 @@ function ItemSelectionIndicator({
 }: ItemSelectionIndicatorProps) {
   if (kind === "none") return null;
 
-  const toneClass = tone === "accent" ? "bg-accent" : "bg-fg-strong";
+  const toneClass = tone === "brand" ? "bg-brand" : "bg-fg-strong";
 
   return (
     <span
@@ -260,7 +260,7 @@ function ItemSelectionIndicator({
       data-tone={tone}
       className={cn(
         kind === "rail"
-          ? "absolute top-2 bottom-2 left-0 w-0.5 rounded-r"
+          ? "absolute top-2 bottom-2 left-0 w-0.5 rounded-r-md"
           : "size-1.5 shrink-0 rounded-full",
         toneClass,
         className
@@ -333,7 +333,7 @@ function ItemDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="item-description"
       className={cn(
-        "line-clamp-2 text-left text-small-body leading-normal font-normal text-muted group-data-[size=xs]/item:text-form-label [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-fg",
+        "line-clamp-2 text-left text-small-body leading-normal font-normal text-muted-foreground group-data-[size=xs]/item:text-form-label [&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-fg",
         className
       )}
       {...props}

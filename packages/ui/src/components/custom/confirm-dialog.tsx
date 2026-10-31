@@ -23,7 +23,7 @@ import { KindIcon } from "./kind-icon";
 
 type ConfirmDialogTone = DialogTone;
 type ConfirmDialogIconTone = DialogTone;
-type ConfirmDialogNoteTone = "info" | "warning" | "accent" | "neutral";
+type ConfirmDialogNoteTone = "info" | "warning" | "brand" | "neutral";
 type ConfirmDialogIcon = React.ComponentType<{ className?: string }>;
 type DataAttributes = {
   [key: `data-${string}`]: string | number | boolean | undefined;
@@ -90,9 +90,9 @@ function resolveIconTone(
   tone: ConfirmDialogTone
 ): ConfirmDialogIconTone {
   if (iconTone) return iconTone;
-  if (tone === "danger") return "danger";
+  if (tone === "destructive") return "destructive";
   if (tone === "warning") return "warning";
-  if (tone === "accent") return "accent";
+  if (tone === "brand") return "brand";
   return "neutral";
 }
 
@@ -216,7 +216,11 @@ function ConfirmDialogError({
   const { className: errorClassName, ...restErrorProps } = errorProps ?? {};
   return (
     <div className="border-t border-line px-5 py-3">
-      <Alert variant="danger" {...restErrorProps} className={cn("text-eyebrow", errorClassName)}>
+      <Alert
+        variant="destructive"
+        {...restErrorProps}
+        className={cn("text-eyebrow", errorClassName)}
+      >
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     </div>
@@ -262,7 +266,7 @@ function ConfirmDialogFooter({
       {footNote ? (
         <div
           data-slot="confirm-dialog-footnote"
-          className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-mono-id text-muted [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint"
+          className="flex min-w-0 flex-1 items-center gap-1.5 font-mono text-mono-id text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-faint"
         >
           {footNote}
         </div>
@@ -346,7 +350,7 @@ function ConfirmDialog({
   description,
   confirmLabel,
   cancelLabel,
-  tone = "danger",
+  tone = "destructive",
   confirmTyping,
   onConfirm,
   isPending = false,
@@ -459,7 +463,7 @@ function ConfirmDialog({
           confirmButtonProps={confirmButtonProps}
           confirmIcon={confirmIcon}
           confirmLabel={confirmLabel}
-          confirmVariant={tone === "danger" || tone === "warning" ? "destructive" : "default"}
+          confirmVariant={tone === "destructive" || tone === "warning" ? "destructive" : "default"}
           footNote={footNote}
           onConfirm={onConfirm}
           alternateAction={alternateAction}

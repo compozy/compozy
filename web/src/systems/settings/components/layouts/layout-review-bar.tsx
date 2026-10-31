@@ -6,7 +6,7 @@ interface LayoutReviewBarProps {
   editor: WindowManagerLayoutEditorModel;
 }
 
-type ReviewTone = "neutral" | "warning" | "success" | "danger";
+type ReviewTone = "neutral" | "warning" | "success" | "destructive";
 
 /**
  * The gate between an edit and the workspace. It is docked inside the stage
@@ -27,14 +27,14 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
   return (
     <div className="border-t border-line" data-testid="layout-review-bar">
       {diagnostics.length > 0 ? (
-        <div className="flex flex-col gap-1 bg-danger-tint px-3.5 py-2.5" role="status">
-          <p className="text-form-label text-danger">CompozyOS refused this layout</p>
+        <div className="flex flex-col gap-1 bg-destructive-tint px-3.5 py-2.5" role="status">
+          <p className="text-form-label text-destructive">CompozyOS refused this layout</p>
           {diagnostics.map(diagnostic => (
             <p
-              className="font-mono text-form-hint leading-normal text-muted"
+              className="font-mono text-form-hint leading-normal text-muted-foreground"
               key={`${diagnostic.code}:${diagnostic.path ?? ""}`}
             >
-              <span className="text-danger">{diagnostic.code}</span>{" "}
+              <span className="text-destructive">{diagnostic.code}</span>{" "}
               {diagnostic.path ? `${diagnostic.path} — ` : ""}
               {diagnostic.message}
             </p>
@@ -45,7 +45,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
       <div className="flex flex-wrap items-center gap-2.5 px-3.5 py-2.5">
         <span
           aria-live="polite"
-          className="flex min-w-0 items-center gap-2 text-small-body text-muted"
+          className="flex min-w-0 items-center gap-2 text-small-body text-muted-foreground"
           data-state={status.tone}
           data-testid="layout-review-status"
         >
@@ -58,7 +58,7 @@ export function LayoutReviewBar({ editor }: LayoutReviewBarProps) {
         </span>
         <span className="flex-1" />
         {error ? (
-          <span className="truncate text-form-hint text-danger" role="alert">
+          <span className="truncate text-form-hint text-destructive" role="alert">
             {error}
           </span>
         ) : null}
@@ -108,7 +108,7 @@ function describe(
   if (state.problems > 0) {
     return {
       message: `${state.problems} problem${state.problems === 1 ? "" : "s"} to fix before this can apply`,
-      tone: "danger",
+      tone: "destructive",
     };
   }
   const preview = editor.reviewCurrent ? editor.reviewed?.preview : null;

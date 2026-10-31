@@ -170,7 +170,7 @@ function LoopConfigureForm({
           </SkeletonRegion>
         ) : worktrees.error ? (
           <FormSection title="Environment default">
-            <Alert variant="danger">
+            <Alert variant="destructive">
               <AlertDescription>
                 {worktrees.error instanceof Error
                   ? worktrees.error.message

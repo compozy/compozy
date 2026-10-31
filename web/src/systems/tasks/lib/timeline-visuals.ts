@@ -47,12 +47,12 @@ const EVENT_VISUALS: Record<string, EventVisualMeta> = {
   "task.run_progress": { tone: "info", icon: Hourglass },
   "task.run_completed": { tone: "success", icon: CheckCircle2 },
   "task.completed": { tone: "success", icon: CheckCircle2 },
-  "task.run_failed": { tone: "danger", icon: XCircle },
-  "task.failed": { tone: "danger", icon: XCircle },
+  "task.run_failed": { tone: "destructive", icon: XCircle },
+  "task.failed": { tone: "destructive", icon: XCircle },
   "task.run_canceled": { tone: "warning", icon: Pause },
   "task.canceled": { tone: "warning", icon: Pause },
   "task.run_blocked": { tone: "warning", icon: AlertTriangle },
-  "task.run_operator_forced_fail": { tone: "danger", icon: XCircle },
+  "task.run_operator_forced_fail": { tone: "destructive", icon: XCircle },
   "task.run_operator_retry": { tone: "info", icon: RotateCw },
   "task.run_recovered_from_attention": { tone: "info", icon: RotateCw },
   "task.run_starved": { tone: "warning", icon: Hourglass },
@@ -82,7 +82,7 @@ export function isSuccessEvent(eventType: string): boolean {
  * top-level kind (failure / success) and the live state of the activity row.
  */
 export function resolveEventTone(eventType: string, isLive: boolean): PillTone {
-  if (isFailureEvent(eventType)) return "danger";
+  if (isFailureEvent(eventType)) return "destructive";
   if (isSuccessEvent(eventType)) return "success";
   if (isLive && isLiveEvent(eventType)) return "info";
   return visualFor(eventType).tone;

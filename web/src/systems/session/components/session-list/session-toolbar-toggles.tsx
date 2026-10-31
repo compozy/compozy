@@ -63,12 +63,12 @@ function ToolbarToggle({
               aria-disabled={busy || undefined}
               aria-label={shownCount ? `${copy.controlName}, ${shownCount}` : copy.controlName}
               className={cn(
-                "size-7 min-w-7 p-0 text-muted hover:bg-surface-2 hover:text-fg",
+                "size-7 min-w-7 p-0 text-muted-foreground hover:bg-surface-2 hover:text-fg",
                 shownCount && "w-auto gap-1 px-1.5",
                 // Pressed is a quiet surface-2 plate with fg ink — never a ring, never accent.
                 "aria-pressed:bg-surface-2 aria-pressed:text-fg",
                 "data-[state=on]:bg-surface-2 data-[state=on]:text-fg",
-                "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
+                "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground",
                 "aria-disabled:aria-pressed:text-fg",
                 busy && "opacity-50"
               )}

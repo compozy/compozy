@@ -76,7 +76,7 @@ function DiffBody({ view }: DiffBodyProps) {
       ) : null}
       {view.liveSide ? (
         <p
-          className="flex flex-wrap items-center gap-2 text-form-hint text-muted"
+          className="flex flex-wrap items-center gap-2 text-form-hint text-muted-foreground"
           data-testid="loop-diff-live-side"
         >
           <Pill size="sm" tone="info">

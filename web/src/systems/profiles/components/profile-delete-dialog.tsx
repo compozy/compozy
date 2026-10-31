@@ -136,7 +136,7 @@ export function ProfileDeleteDialog({
       onOpenChange={onOpenChange}
       eyebrow="Profiles"
       icon={Trash2}
-      iconTone="danger"
+      iconTone="destructive"
       title={`Delete ${profile}`}
       description={
         blockers.length > 0
@@ -153,7 +153,7 @@ export function ProfileDeleteDialog({
         ) : null
       }
       note="This cannot be undone."
-      tone="danger"
+      tone="destructive"
       confirmLabel="Delete profile"
       cancelLabel={blockers.length > 0 ? "Close" : "Cancel"}
       isPending={isPending || planLoading}

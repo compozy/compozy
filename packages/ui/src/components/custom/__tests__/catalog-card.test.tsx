@@ -50,7 +50,7 @@ describe("CatalogCard", () => {
     expect(description.compareDocumentPosition(actions)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it.each(["accent", "neutral", "success", "warning", "danger", "info"] as const)(
+  it.each(["brand", "neutral", "success", "warning", "destructive", "info"] as const)(
     "Should expose %s logo tone through data attributes",
     tone => {
       render(
@@ -74,6 +74,6 @@ describe("CatalogCard", () => {
     const logo = screen.getByTestId("logo");
     expect(logo).toHaveAttribute("data-tone", "neutral");
     expect(logo).toHaveClass("text-neutral-ink");
-    expect(logo).not.toHaveClass("text-accent-strong");
+    expect(logo).not.toHaveClass("text-brand-strong");
   });
 });

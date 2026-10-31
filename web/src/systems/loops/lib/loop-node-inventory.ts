@@ -22,7 +22,7 @@ export const LOOP_NODE_INVENTORY_LABELS = {
 
 export const LOOP_NODE_INVENTORY_TONES = {
   waiting: "info",
-  quarantined: "danger",
+  quarantined: "destructive",
   attention: "warning",
   retrying: "neutral",
 } as const satisfies Record<LoopNodeInventoryState, PillTone>;

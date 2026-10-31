@@ -107,13 +107,13 @@ export function MCPServerEditor({
             isCreate ? (
               <>
                 An MCP server gives agents extra{" "}
-                <b className="font-medium text-muted">tools and resources</b> — a local process or a
-                remote endpoint. Environment secrets stay write-only.
+                <b className="font-medium text-muted-foreground">tools and resources</b> — a local
+                process or a remote endpoint. Environment secrets stay write-only.
               </>
             ) : (
               <>
                 Update the connection and rotate write-only environment secrets.{" "}
-                <b className="font-medium text-muted">The route identity stays fixed.</b>
+                <b className="font-medium text-muted-foreground">The route identity stays fixed.</b>
               </>
             )
           }
@@ -136,14 +136,14 @@ export function MCPServerEditor({
               {/* The write target is owned by the caller, so scope is reported,
                   not chosen — but it must stay visible in both modes. */}
               <span
-                className="font-mono text-form-label text-muted"
+                className="font-mono text-form-label text-muted-foreground"
                 data-testid="settings-mcp-servers-editor-scope"
               >
                 MCP server · {scope}
               </span>
               {statusLabel ? (
                 <span
-                  className="font-mono text-form-label text-muted"
+                  className="font-mono text-form-label text-muted-foreground"
                   data-testid="settings-mcp-servers-editor-status"
                 >
                   {statusLabel}
@@ -184,7 +184,7 @@ export function MCPServerEditor({
           {tier === "advanced" && isRemote ? <MCPEditorOAuthSection /> : null}
 
           {saveError ? (
-            <Alert data-testid="settings-mcp-servers-editor-error" variant="danger">
+            <Alert data-testid="settings-mcp-servers-editor-error" variant="destructive">
               <AlertDescription>{saveError}</AlertDescription>
             </Alert>
           ) : null}

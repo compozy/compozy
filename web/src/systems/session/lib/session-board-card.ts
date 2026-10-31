@@ -59,18 +59,18 @@ function needsYouReason(session: SessionBoardPayload): SessionBoardCardStatus | 
   // date leaves behind reads "Back from Later".
   switch (session.badge) {
     case "failed":
-      return { label: "Failed", tone: "danger" };
+      return { label: "Failed", tone: "destructive" };
     case "waiting-for-auth":
-      return { label: "Auth", tone: "accent" };
+      return { label: "Auth", tone: "brand" };
     case "waiting-for-input":
       return pendingPermissionCount(session) > 0
-        ? { label: "Approval", tone: "accent" }
-        : { label: "Input", tone: "accent" };
+        ? { label: "Approval", tone: "brand" }
+        : { label: "Input", tone: "brand" };
     case "needs-attention":
-      if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "accent" };
+      if (session.returned_from_later_at) return { label: BACK_FROM_LATER_REASON, tone: "brand" };
       if (session.attention === ENDED_EARLY_ATTENTION)
-        return { label: "Stopped early", tone: "accent" };
-      return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "accent" };
+        return { label: "Stopped early", tone: "brand" };
+      return { label: sessionBadgeSignal(session.badge).displayLabel, tone: "brand" };
     default:
       return null;
   }

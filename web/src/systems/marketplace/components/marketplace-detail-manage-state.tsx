@@ -35,10 +35,12 @@ function MarketplaceDetailManageFallbackBody({
   return (
     <div className="flex flex-col gap-2 px-3.5 py-1.5" data-testid={testId} role="alert">
       <div className="flex items-center gap-2 text-small-body font-medium text-fg">
-        <AlertCircle aria-hidden="true" className="size-3.5 text-danger" />
+        <AlertCircle aria-hidden="true" className="size-3.5 text-destructive" />
         {errorMessage}
       </div>
-      {error?.message ? <p className="text-form-hint text-muted">{error.message}</p> : null}
+      {error?.message ? (
+        <p className="text-form-hint text-muted-foreground">{error.message}</p>
+      ) : null}
       <div className="pb-1">
         <Button onClick={onRetry} size="sm" type="button" variant="secondary">
           Retry management

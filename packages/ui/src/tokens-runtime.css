@@ -47,7 +47,7 @@
   }
 
   ::selection {
-    background: var(--color-accent-tint);
+    background: var(--color-brand-tint);
     color: var(--color-fg-strong);
   }
 }

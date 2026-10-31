@@ -111,7 +111,7 @@ function slot(value: TopbarSlotValue): TopbarSlotStore {
 
 function runningStatus(label: string) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-small-body text-muted">
+    <span className="inline-flex items-center gap-1.5 text-small-body text-muted-foreground">
       <Pill.Dot pulse size="sm" tone="success" />
       {label}
     </span>
@@ -120,8 +120,8 @@ function runningStatus(label: string) {
 
 function attentionStatus(label: string) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-small-body text-accent-strong">
-      <Pill.Dot size="sm" tone="accent" />
+    <span className="inline-flex items-center gap-1.5 text-small-body text-brand-strong">
+      <Pill.Dot size="sm" tone="brand" />
       {label}
     </span>
   );
@@ -133,7 +133,7 @@ function sessionHeadGlyph(state: "running" | "needs-input") {
       aria-hidden="true"
       pulse={state === "running"}
       size="sm"
-      tone={state === "running" ? "success" : "accent"}
+      tone={state === "running" ? "success" : "brand"}
     />
   );
 }

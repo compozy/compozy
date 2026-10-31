@@ -99,7 +99,10 @@ describe("Provider usage components", () => {
         />
       );
       const button = screen.getByRole("button", { name: /Codex · Weekly limit reached/ });
-      expect(button.querySelector("[data-slot=progress]")).toHaveAttribute("data-tone", "danger");
+      expect(button.querySelector("[data-slot=progress]")).toHaveAttribute(
+        "data-tone",
+        "destructive"
+      );
       expect(button).not.toHaveAccessibleName(/112/);
     });
 

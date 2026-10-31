@@ -18,8 +18,8 @@ export function HooksSettingsPage() {
           key: "hooks",
           content: (
             <span>
-              <span className="font-medium text-muted">{page.hooksCounts.enabled}</span> of{" "}
-              {page.hooksCounts.total} hooks enabled
+              <span className="font-medium text-muted-foreground">{page.hooksCounts.enabled}</span>{" "}
+              of {page.hooksCounts.total} hooks enabled
             </span>
           ),
         },

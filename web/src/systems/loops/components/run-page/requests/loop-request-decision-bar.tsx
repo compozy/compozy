@@ -55,7 +55,7 @@ export function LoopRequestDecisionBar({
       {selected ? (
         <Field>
           <FieldLabel htmlFor={noteId}>
-            Note <span className="text-muted">optional</span>
+            Note <span className="text-muted-foreground">optional</span>
           </FieldLabel>
           <Textarea
             data-testid="loop-request-note"

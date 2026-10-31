@@ -70,7 +70,7 @@ export const Danger: Story = {
   args: {},
   render: () => (
     <ActionResultBanner
-      tone="danger"
+      tone="destructive"
       icon={OctagonXIcon}
       title="Extension handshake failed"
       description="The extension rejected the initialization request."

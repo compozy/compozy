@@ -130,12 +130,12 @@ function BashOutputLines({
       {output || null}
       {output && (stderr || errorText) ? "\n" : null}
       {stderr ? (
-        <span className="text-danger" data-testid="bash-stderr">
+        <span className="text-destructive" data-testid="bash-stderr">
           {stderr}
         </span>
       ) : null}
       {stderr && errorText ? "\n" : null}
-      {errorText ? <span className="text-danger">{errorText}</span> : null}
+      {errorText ? <span className="text-destructive">{errorText}</span> : null}
     </DetailPre>
   ) : null;
 }

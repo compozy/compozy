@@ -32,7 +32,7 @@ interface SettingsSkillSourceRowProps {
  */
 const STATE_LABEL_TONE = {
   absent: "text-subtle",
-  unreadable: "text-danger",
+  unreadable: "text-destructive",
   measured: "text-warning",
   unavailable: "text-subtle",
 } as const;
@@ -70,7 +70,7 @@ export function SettingsSkillSourceRow({
           <span className="truncate text-body text-fg">{source.label}</span>
           {source.isCustom ? <Pill size="xs">custom</Pill> : null}
           {source.hasUnreadableRoot ? (
-            <Pill size="xs" tone="danger" data-testid={`${testId}-unreadable`}>
+            <Pill size="xs" tone="destructive" data-testid={`${testId}-unreadable`}>
               can&rsquo;t read
             </Pill>
           ) : null}
@@ -132,7 +132,7 @@ function SkillSourceRootLine({ root, testId }: { root: SkillSourceRootView; test
     <div className="flex min-w-0 flex-col">
       <div className="flex min-w-0 items-baseline gap-2 py-0.5" data-testid={rootTestId}>
         <Folder aria-hidden="true" className="size-3 shrink-0 self-center text-faint" />
-        <span className="truncate font-mono text-eyebrow text-muted">{root.path}</span>
+        <span className="truncate font-mono text-eyebrow text-muted-foreground">{root.path}</span>
         <span aria-hidden="true" className="flex-1" />
         {root.stateLabel !== null ? (
           <span

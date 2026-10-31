@@ -26,7 +26,7 @@ export const AllStatuses: Story = {
     <CenteredSurface>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-3">
-          <span className="eyebrow text-muted">Live</span>
+          <span className="eyebrow text-muted-foreground">Live</span>
           <div className="flex flex-wrap items-center gap-2">
             {LIVE_STATUSES.map(status => (
               <LoopStatusMark key={status} status={status} />
@@ -34,7 +34,7 @@ export const AllStatuses: Story = {
           </div>
         </div>
         <div className="flex flex-col gap-3">
-          <span className="eyebrow text-muted">Terminal</span>
+          <span className="eyebrow text-muted-foreground">Terminal</span>
           <div className="flex flex-wrap items-center gap-2">
             {TERMINAL_STATUSES.map(status => (
               <LoopStatusMark key={status} status={status} />

@@ -108,7 +108,7 @@ function ContextMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/context-menu-item relative flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-[variant=destructive]:text-danger data-[variant=destructive]:focus:bg-danger-tint data-[variant=destructive]:focus:text-danger data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-danger",
+        "group/context-menu-item relative flex cursor-default items-center min-h-8 gap-2 rounded-md px-2.5 py-1.5 text-small-body text-fg outline-hidden select-none focus:bg-surface-2 focus:text-fg data-inset:pl-8.5 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive-tint data-[variant=destructive]:focus:text-destructive data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 data-[variant=destructive]:*:[svg]:text-destructive",
         className
       )}
       {...props}

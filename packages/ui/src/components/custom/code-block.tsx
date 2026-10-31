@@ -213,7 +213,7 @@ function CodeBlock({
           copiedLabel={copiedLabel}
           copyFailedLabel={copyFailedLabel}
           className={cn(
-            "absolute text-subtle hover:text-fg data-[copied=true]:text-success data-[copy-state=failed]:text-danger data-[copy-state=failed]:hover:text-danger",
+            "absolute text-subtle hover:text-fg data-[copied=true]:text-success data-[copy-state=failed]:text-destructive data-[copy-state=failed]:hover:text-destructive",
             density === "compact" ? "top-1.5 right-1.5" : "top-2 right-2"
           )}
         />

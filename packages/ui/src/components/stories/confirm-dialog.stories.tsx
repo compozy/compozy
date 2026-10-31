@@ -33,10 +33,10 @@ export const Danger: Story = {
       }
       eyebrow="Notes"
       icon={Trash2}
-      iconTone="danger"
+      iconTone="destructive"
       onConfirm={() => undefined}
       title="Delete note?"
-      tone="danger"
+      tone="destructive"
     />
   ),
 };
@@ -91,7 +91,7 @@ export const WithNote: Story = {
       note="The builtin provider remains available after the override is removed."
       onConfirm={() => undefined}
       title="Remove provider override?"
-      tone="danger"
+      tone="destructive"
     />
   ),
 };
@@ -108,7 +108,7 @@ export const TypingRequired: Story = {
       description="Confirm the filename before removing this entry."
       onConfirm={() => undefined}
       title="Delete note?"
-      tone="danger"
+      tone="destructive"
     />
   ),
 };
@@ -153,12 +153,12 @@ export const WithBody: Story = {
         </>
       }
       icon={Pause}
-      iconTone="accent"
+      iconTone="brand"
       note="task_03 is running · attempt 2"
       noteTone="info"
       onConfirm={() => undefined}
       title="Pause task_03?"
-      tone="accent"
+      tone="brand"
     />
   ),
 };
@@ -182,10 +182,10 @@ export const DestructiveSolidConfirm: Story = {
         </>
       }
       icon={Zap}
-      iconTone="danger"
+      iconTone="destructive"
       onConfirm={() => undefined}
       title="Kill this run?"
-      tone="danger"
+      tone="destructive"
     />
   ),
 };

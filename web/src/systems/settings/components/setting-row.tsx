@@ -89,14 +89,14 @@ export function SettingRow({
         </div>
         {description ? (
           <div
-            className="mt-0.5 max-w-setting-description text-small-body text-muted"
+            className="mt-0.5 max-w-setting-description text-small-body text-muted-foreground"
             id={descriptionId}
           >
             {description}
           </div>
         ) : null}
         {error ? (
-          <p className="mt-1 text-form-hint text-danger" id={errorId} role="alert">
+          <p className="mt-1 text-form-hint text-destructive" id={errorId} role="alert">
             {error}
           </p>
         ) : null}
@@ -205,7 +205,7 @@ export function SettingLinkRow({
                 {label}
               </span>
               {description ? (
-                <span className="mt-0.5 block max-w-setting-description text-small-body text-muted">
+                <span className="mt-0.5 block max-w-setting-description text-small-body text-muted-foreground">
                   {description}
                 </span>
               ) : null}
@@ -252,7 +252,7 @@ export function SettingActionRow({
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-body font-medium text-fg">{label}</span>
         {description ? (
-          <span className="mt-0.5 block max-w-setting-description text-small-body text-muted">
+          <span className="mt-0.5 block max-w-setting-description text-small-body text-muted-foreground">
             {description}
           </span>
         ) : null}
@@ -271,7 +271,7 @@ export function SettingValue({ mono = false, children }: { mono?: boolean; child
     <span
       className={cn(
         "text-small-body font-medium text-fg",
-        mono && "font-mono text-eyebrow font-normal text-muted"
+        mono && "font-mono text-eyebrow font-normal text-muted-foreground"
       )}
     >
       {children}

@@ -51,7 +51,7 @@ const DAG_GUTTER_CLASS =
   "relative flex w-7 shrink-0 flex-col justify-center gap-1 self-stretch py-6";
 
 const EDGE_CLASS: Record<LoopDagEdgeState, string> = {
-  live: "bg-accent",
+  live: "bg-brand",
   taken: "bg-success/60",
   idle: "bg-line",
   // Route evidence: the run went elsewhere. Dimmed, never dashed into invisibility.
@@ -84,7 +84,7 @@ function LoopDagGutter({ column, reduced }: { column: LoopDagColumn; reduced: bo
         // is the exact misreading this page exists to prevent. The accent fill
         // above still carries liveness when motion is off.
         <span className="absolute inset-0 flex items-center justify-center">
-          <PillDot data-testid="loop-dag-edge-pulse" pulse tone="accent" />
+          <PillDot data-testid="loop-dag-edge-pulse" pulse tone="brand" />
         </span>
       ) : null}
     </span>
@@ -141,7 +141,7 @@ function LoopDagCard({
           ? createElement(node.kindIcon, {
               "aria-hidden": true,
               // The kind glyph stays neutral: a failed agent is still an agent.
-              className: "size-3 shrink-0 text-muted",
+              className: "size-3 shrink-0 text-muted-foreground",
             })
           : null}
         <span className="min-w-0 truncate text-small-body font-medium text-fg-strong">

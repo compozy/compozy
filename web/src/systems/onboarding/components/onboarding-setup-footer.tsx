@@ -29,7 +29,7 @@ export function OnboardingSetupFooter({
   onBack,
   onContinue,
 }: OnboardingSetupFooterProps) {
-  const danger = summary.tone === "danger";
+  const danger = summary.tone === "destructive";
 
   return (
     <footer
@@ -41,11 +41,14 @@ export function OnboardingSetupFooter({
         data-tone={summary.tone}
         {...(danger ? { role: "alert", "data-testid": "onboarding-commit-error" } : {})}
       >
-        <Eyebrow className={danger ? "text-danger" : "text-subtle"}>{summary.label}</Eyebrow>
+        <Eyebrow className={danger ? "text-destructive" : "text-subtle"}>{summary.label}</Eyebrow>
         <span
           id={ONBOARDING_SUMMARY_ID}
           data-testid="onboarding-summary-value"
-          className={cn("truncate text-small-body", danger ? "text-danger" : "text-muted")}
+          className={cn(
+            "truncate text-small-body",
+            danger ? "text-destructive" : "text-muted-foreground"
+          )}
         >
           {summary.value}
         </span>

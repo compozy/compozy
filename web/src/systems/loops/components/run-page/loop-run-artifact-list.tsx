@@ -13,7 +13,10 @@ const PREVIEW_COUNT = 3;
 export function LoopRunArtifactList({ outcome }: LoopRunArtifactListProps) {
   if (outcome.producedNothing) {
     return (
-      <p className="mt-2 text-small-body text-muted" data-testid="loop-run-artifacts-none">
+      <p
+        className="mt-2 text-small-body text-muted-foreground"
+        data-testid="loop-run-artifacts-none"
+      >
         This run produced no outputs.
       </p>
     );
@@ -29,7 +32,7 @@ export function LoopRunArtifactList({ outcome }: LoopRunArtifactListProps) {
   ).length;
   return (
     <div className="mt-3 space-y-2" data-testid="loop-run-artifacts">
-      <div className="flex flex-wrap items-center gap-2 text-small-body text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-small-body text-muted-foreground">
         <span>
           {outcome.artifacts.length} {outcome.artifacts.length === 1 ? "output" : "outputs"}
         </span>
@@ -72,7 +75,7 @@ function ArtifactRows({ artifacts }: { artifacts: LoopArtifactRow[] }) {
         >
           <Collapsible>
             <div className="flex flex-wrap items-center gap-2">
-              <FileText aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
+              <FileText aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 break-words text-small-body font-medium text-fg-strong">
                 {artifact.name}
               </span>
@@ -106,11 +109,13 @@ function ArtifactRows({ artifacts }: { artifacts: LoopArtifactRow[] }) {
             </div>
             <CollapsibleContent>
               {artifact.output ? (
-                <p className="mt-2 text-small-body text-muted">Output: {artifact.output}</p>
+                <p className="mt-2 text-small-body text-muted-foreground">
+                  Output: {artifact.output}
+                </p>
               ) : null}
               {artifact.ref ? (
                 <pre
-                  className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sunken p-3 font-mono text-mono-id text-muted"
+                  className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-sunken p-3 font-mono text-mono-id text-muted-foreground"
                   data-testid={`loop-run-artifact-ref-${artifact.name}`}
                 >
                   {artifact.ref}

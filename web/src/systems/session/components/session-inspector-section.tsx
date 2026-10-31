@@ -56,7 +56,7 @@ export function SessionInspectorDisclosureHead({
       />
       <span className="text-form-label font-medium">{children}</span>
       {meta ? (
-        <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-muted">
+        <span className="ml-auto truncate font-mono text-mono-id tabular-nums text-muted-foreground">
           {meta}
         </span>
       ) : null}

@@ -24,22 +24,22 @@ export function FeatureCard({
   return (
     <article
       className={cn(
-        "flex flex-col gap-3 rounded-diagram border border-line bg-canvas-soft p-6 transition-colors hover:border-accent/40",
+        "flex flex-col gap-3 rounded-diagram border border-line bg-canvas-soft p-6 transition-colors hover:border-brand/40",
         className
       )}
     >
       {icon ? (
-        <div className="flex size-10 items-center justify-center rounded-icon-well bg-elevated text-accent">
+        <div className="flex size-10 items-center justify-center rounded-icon-well bg-elevated text-brand">
           {icon}
         </div>
       ) : null}
-      {eyebrow ? <Eyebrow className="text-accent">{eyebrow}</Eyebrow> : null}
+      {eyebrow ? <Eyebrow className="text-brand">{eyebrow}</Eyebrow> : null}
       <h3 className="text-base font-medium leading-snug text-fg">{title}</h3>
-      <p className="text-sm leading-relaxed text-muted">{description}</p>
+      <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
       {cite ? (
         <Link
           href={cite.href}
-          className="eyebrow mt-auto inline-flex items-center gap-1 pt-2 text-subtle transition-colors hover:text-accent"
+          className="eyebrow mt-auto inline-flex items-center gap-1 pt-2 text-subtle transition-colors hover:text-brand"
         >
           {cite.label ?? "source"}
           <ArrowUpRight aria-hidden className="size-3" />

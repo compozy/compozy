@@ -4,7 +4,7 @@ export const COLORS = {
   canvas: "#141312",
   surface: "#1E1C1B",
   border: "#3C3A39",
-  accent: "#E8572A",
+  brand: "#E8572A",
   textPrimary: "#E5E5E7",
   textSecondary: "#8E8E93",
   textTertiary: "#636366",

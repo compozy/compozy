@@ -16,7 +16,7 @@ export function GroupRow({ name, children }: { name: string; children: ReactNode
       <Eyebrow className="pt-0.5 text-subtle">{name}</Eyebrow>
       {/* Links inside inherit `.site-doc-body :is(p, …) a` from docs.css — the same underline
           treatment every other doc paragraph uses. */}
-      <div className="text-card-title leading-prose text-muted">{children}</div>
+      <div className="text-card-title leading-prose text-muted-foreground">{children}</div>
     </div>
   );
 }

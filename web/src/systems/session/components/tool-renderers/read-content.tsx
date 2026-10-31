@@ -13,7 +13,7 @@ export function ReadContent({ message }: { message: UIMessage }) {
         data-testid="read-content"
       >
         <span className="truncate">{filePath}</span>
-        <span className="shrink-0 text-muted">{lineCount} lines</span>
+        <span className="shrink-0 text-muted-foreground">{lineCount} lines</span>
       </div>
     );
   }
@@ -26,7 +26,7 @@ export function ReadContent({ message }: { message: UIMessage }) {
         data-testid="read-content"
       >
         <span className="truncate">{filePath}</span>
-        <span className="shrink-0 text-muted">{lineCount} lines</span>
+        <span className="shrink-0 text-muted-foreground">{lineCount} lines</span>
       </div>
     );
   }

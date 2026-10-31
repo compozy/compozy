@@ -12,10 +12,10 @@ import type { SessionWaitingOn } from "./session-pull-request";
 
 export const SESSION_TONE_WORD_CLASS: Record<SessionBadgeSignal["tone"], string> = {
   neutral: "text-subtle",
-  accent: "text-accent",
+  brand: "text-brand",
   success: "text-success",
   warning: "text-warning",
-  danger: "text-danger",
+  destructive: "text-destructive",
   info: "text-info",
 };
 

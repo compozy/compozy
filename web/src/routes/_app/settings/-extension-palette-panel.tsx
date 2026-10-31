@@ -28,7 +28,10 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
   return (
     <section
       aria-label={`${extension.name} palette contributions`}
-      className={cn("overflow-hidden rounded-lg bg-card shadow-card", unavailable && "text-muted")}
+      className={cn(
+        "overflow-hidden rounded-lg bg-card shadow-card",
+        unavailable && "text-muted-foreground"
+      )}
       data-testid={`extension-palette-${extension.name}`}
     >
       <header className="flex items-start justify-between gap-3 border-b border-line-soft px-4 py-3">
@@ -68,7 +71,7 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
                   <TriangleAlert aria-hidden="true" className="size-3" />
                   dormant
                 </span>
-                <span className="text-form-hint text-muted">
+                <span className="text-form-hint text-muted-foreground">
                   default unavailable — conflicts with {command.conflict_with}
                 </span>
               </div>
@@ -83,7 +86,7 @@ export function ExtensionPalettePanel({ extension }: ExtensionPalettePanelProps)
 
       {palette.views.length > 0 ? (
         <>
-          <div className="eyebrow border-y border-line-soft bg-sunken px-4 py-2 text-muted">
+          <div className="eyebrow border-y border-line-soft bg-sunken px-4 py-2 text-muted-foreground">
             Views
           </div>
           <div className={cn(unavailable && "opacity-55")}>

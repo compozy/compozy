@@ -28,7 +28,7 @@ function JsonRowLine({ row }: { row: JsonRow }) {
         {row.label ? (
           <>
             <span className="text-info">{JSON.stringify(row.label)}</span>
-            <span className="text-muted">: </span>
+            <span className="text-muted-foreground">: </span>
           </>
         ) : null}
         {"{"}
@@ -51,12 +51,12 @@ function JsonRowLine({ row }: { row: JsonRow }) {
       {indentOf(row.indent)}
       <span
         className={cn(
-          row.highlighted && "rounded-[3px] bg-accent-tint px-0.5 ring-1 ring-accent-dim ring-inset"
+          row.highlighted && "rounded-[3px] bg-brand-tint px-0.5 ring-1 ring-brand-dim ring-inset"
         )}
       >
         <span className="text-info">{JSON.stringify(row.keyName)}</span>
-        <span className="text-muted">: </span>
-        <span className={row.highlighted ? "text-accent-strong" : "text-success"}>
+        <span className="text-muted-foreground">: </span>
+        <span className={row.highlighted ? "text-brand-strong" : "text-success"}>
           {JSON.stringify(row.value)}
         </span>
       </span>
@@ -81,7 +81,7 @@ export function SampleEventCard({ json, matchState, matchLabel, children }: Samp
       label="Sample event"
       right={<MatchBadge label={matchLabel} state={matchState} />}
     >
-      <pre className="overflow-x-auto rounded border border-line-soft bg-rail p-3 font-mono text-form-hint leading-relaxed whitespace-pre text-fg">
+      <pre className="overflow-x-auto rounded-md border border-line-soft bg-rail p-3 font-mono text-form-hint leading-relaxed whitespace-pre text-fg">
         {json.map(row => (
           <JsonRowLine key={row.id} row={row} />
         ))}

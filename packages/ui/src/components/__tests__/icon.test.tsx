@@ -11,8 +11,8 @@ describe("Icon", () => {
   });
 
   it("Should merge consumer className onto the rendered svg", () => {
-    const { container } = render(<Icon as={Sparkles} className="text-accent" />);
+    const { container } = render(<Icon as={Sparkles} className="text-brand" />);
     const svg = container.querySelector("svg");
-    expect(svg?.className.baseVal).toContain("text-accent");
+    expect(svg?.className.baseVal).toContain("text-brand");
   });
 });

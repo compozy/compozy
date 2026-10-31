@@ -85,7 +85,7 @@ describe("mcp status tone mapping", () => {
   it("maps every auth status to the documented tone", () => {
     expect(authTone("authenticated", true)).toBe("success");
     expect(authTone("authenticated", false)).toBe("neutral"); // authenticated without a token is not green
-    expect(authTone("invalid", true)).toBe("danger");
+    expect(authTone("invalid", true)).toBe("destructive");
     expect(authTone("needs_login", false)).toBe("warning");
     expect(authTone("expired", true)).toBe("warning");
     expect(authTone("unconfigured", false)).toBe("neutral");
@@ -107,7 +107,7 @@ describe("mcp status tone mapping", () => {
       "runtime_unavailable",
       "dead",
     ]) {
-      expect(runtimeTone(state)).toBe("danger");
+      expect(runtimeTone(state)).toBe("destructive");
     }
   });
 
@@ -118,9 +118,9 @@ describe("mcp status tone mapping", () => {
 
   it("maps probe states and never renders skipped as a failure", () => {
     expect(probeTone("succeeded")).toBe("success");
-    expect(probeTone("failed")).toBe("danger");
+    expect(probeTone("failed")).toBe("destructive");
     expect(probeTone("skipped")).toBe("neutral");
-    expect(probeTone("skipped")).not.toBe("danger");
+    expect(probeTone("skipped")).not.toBe("destructive");
   });
 });
 
@@ -428,7 +428,7 @@ describe("composeMCPRowStatus", () => {
     );
     expect(status.runtime).toEqual({
       label: "Unavailable",
-      tone: "danger",
+      tone: "destructive",
       code: "process exited during initialize",
     });
     expect(status.probe).toEqual({
@@ -460,7 +460,7 @@ describe("composeMCPRowStatus", () => {
       tone: "neutral",
       code: "no OAuth configuration",
     });
-    expect(status.runtime.tone).toBe("danger");
+    expect(status.runtime.tone).toBe("destructive");
     expect(status.probe.code).toBe("no probe attempted");
     expect(status.probe.tone).toBe("neutral");
   });
@@ -484,17 +484,17 @@ describe("summarizeMCPStatus", () => {
         authStatus: { status: "authenticated", token_present: true },
         runtimeStatus: { state: "dead", probe: "skipped" },
       },
-      { label: "Unavailable", tone: "danger" },
+      { label: "Unavailable", tone: "destructive" },
     ],
     [
       "an invalid sign-in",
       { authStatus: { status: "invalid" }, runtimeStatus: { state: "ready", probe: "skipped" } },
-      { label: "Sign-in failed", tone: "danger" },
+      { label: "Sign-in failed", tone: "destructive" },
     ],
     [
       "a failed probe on a ready runtime",
       { runtimeStatus: { state: "ready", probe: "failed" } },
-      { label: "Couldn't connect", tone: "danger" },
+      { label: "Couldn't connect", tone: "destructive" },
     ],
     [
       "a server that needs sign-in",

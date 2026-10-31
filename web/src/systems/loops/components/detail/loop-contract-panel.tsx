@@ -104,7 +104,7 @@ function LoopContractRows({ contract, concurrency }: LoopContractPanelProps) {
               const TypeIcon = criterionTypeIcon(criterion.type);
               return (
                 <div key={criterion.id} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 text-small-body text-muted">
+                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-1.5 text-small-body text-muted-foreground">
                     {TypeIcon ? <TypeIcon aria-hidden="true" className="size-3.5" /> : null}
                     {criterionTypeLabel(criterion.type)}
                   </span>

@@ -71,7 +71,7 @@ interface RosterRowLabelProps {
 // Isolated rows grow a branch line (S5) under the title; settled titles dim in place.
 function RosterRowLabel({ subagent, branch, settled }: RosterRowLabelProps) {
   const title = (
-    <span className={cn("truncate text-transcript-meta", settled && "text-muted")}>
+    <span className={cn("truncate text-transcript-meta", settled && "text-muted-foreground")}>
       {subagent.title}
     </span>
   );
@@ -102,7 +102,7 @@ function RosterRowStop({ pending, onStop }: { pending: boolean; onStop: () => vo
       disabled={pending}
       onClick={onStop}
       className={cn(
-        "text-muted",
+        "text-muted-foreground",
         !pending &&
           "hidden group-hover/roster-row:inline-flex group-has-focus-visible/roster-row:inline-flex"
       )}
@@ -243,7 +243,7 @@ export function SubagentRoster({
               render={
                 <button
                   type="button"
-                  className="group/previous mt-1 flex w-full items-center gap-1.5 rounded-sm p-1.5 text-left text-transcript-caption text-muted outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring"
+                  className="group/previous mt-1 flex w-full items-center gap-1.5 rounded-sm p-1.5 text-left text-transcript-caption text-muted-foreground outline-none hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring"
                 />
               }
             >

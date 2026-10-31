@@ -51,12 +51,12 @@ function compozyTierItem(tiers: SessionContextTiersView): StatusBreakdownItem[] 
     {
       id: "compozy",
       label: <TierLabel approx>CompozyOS context</TierLabel>,
-      swatch: <TierSwatch className={tiers.stale ? "bg-accent-dim" : "bg-accent"} />,
+      swatch: <TierSwatch className={tiers.stale ? "bg-brand-dim" : "bg-brand"} />,
       value: compozy.value,
       formattedValue: formatContextTokens(compozy.value),
       detail: compozy.exceeds ? `of ≈ ${formatContextTokens(compozy.raw)}` : undefined,
       note: caveat ? <span className="text-warning">{caveat}</span> : undefined,
-      tone: "accent",
+      tone: "brand",
       showBar: false,
     },
   ];
@@ -69,7 +69,7 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
     {
       id: "agent",
       label: <TierLabel>Agent & conversation</TierLabel>,
-      swatch: <TierSwatch className="bg-muted" />,
+      swatch: <TierSwatch className="bg-muted-foreground" />,
       value: tiers.agent,
       formattedValue: formatContextTokens(tiers.agent),
       tone: "neutral",
@@ -88,11 +88,11 @@ function SessionContextTiers({ tiers }: { tiers: SessionContextTiersView }) {
   return (
     <>
       <StackedProgress
-        className={tiers.stale ? "[&_[data-tone=accent]]:bg-accent-dim" : undefined}
+        className={tiers.stale ? "[&_[data-tone=brand]]:bg-brand-dim" : undefined}
         ariaLabel={`Context window: ${formatContextTokens(tiers.used)} of ${formatContextTokens(tiers.total)} used`}
         total={tiers.total}
         segments={[
-          { value: tiers.compozy?.value ?? 0, tone: "accent", label: "CompozyOS context" },
+          { value: tiers.compozy?.value ?? 0, tone: "brand", label: "CompozyOS context" },
           { value: tiers.agent, tone: "neutral", label: "Agent & conversation" },
         ]}
       />
@@ -120,7 +120,7 @@ function SessionContextMeterBody({ view }: { view: SessionContextMeterView }) {
         <span className="text-kpi-compact leading-none font-semibold tracking-tight text-fg">
           {view.value}
         </span>
-        <span className="font-mono text-mono-id text-muted">{view.amount}</span>
+        <span className="font-mono text-mono-id text-muted-foreground">{view.amount}</span>
         {view.chip ? (
           <span className="ml-auto self-center">
             <Pill size="xs" form={view.chip.form} tone={view.chip.tone}>

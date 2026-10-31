@@ -59,9 +59,9 @@ export function GlobalScopeToggle({
                 // pressed holds no plate and turns the globe accent, so the mode reads
                 // as a lit glyph rather than another selected chip beside the switcher.
                 "size-8.5 min-w-8.5 p-0 hover:bg-rail-hover",
-                "aria-pressed:bg-transparent aria-pressed:text-accent aria-pressed:hover:bg-rail-hover",
-                "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
-                "aria-disabled:aria-pressed:hover:bg-transparent aria-disabled:aria-pressed:hover:text-accent",
+                "aria-pressed:bg-transparent aria-pressed:text-brand aria-pressed:hover:bg-rail-hover",
+                "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted-foreground",
+                "aria-disabled:aria-pressed:hover:bg-transparent aria-disabled:aria-pressed:hover:text-brand",
                 locked && "opacity-50"
               )}
               data-testid="os-global-scope-toggle"

@@ -65,7 +65,7 @@ function WorkingTimer({
 }) {
   const now = useSecondClock(enabled);
   return (
-    <span data-testid="session-working-timer" className="font-medium text-muted">
+    <span data-testid="session-working-timer" className="font-medium text-muted-foreground">
       {enabled || fallback === null ? formatWorkingElapsed(startedAtMs, now) : fallback}
     </span>
   );

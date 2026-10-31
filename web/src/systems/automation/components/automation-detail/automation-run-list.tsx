@@ -126,7 +126,7 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
           <StateGlyph state={view.glyph} />
           <span className="truncate">{view.statusLabel}</span>
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+        <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted-foreground">
           {view.project ? (
             <WorkspaceBadge
               className="max-w-[40%] shrink"
@@ -166,7 +166,7 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
           <p
             className={cn(
               "text-small-body leading-relaxed",
-              line.tone === "danger" ? "text-danger" : "text-muted"
+              line.tone === "destructive" ? "text-destructive" : "text-muted-foreground"
             )}
             data-tone={line.tone}
             key={line.id}

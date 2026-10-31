@@ -67,7 +67,10 @@ function SessionQueueHeader({
       data-full={full ? "true" : undefined}
       className="flex h-8 items-center gap-2 pr-1.5 pl-3.5 text-eyebrow text-subtle"
     >
-      <span className="font-mono text-muted tabular-nums" data-testid="composer-queue-count">
+      <span
+        className="font-mono text-muted-foreground tabular-nums"
+        data-testid="composer-queue-count"
+      >
         {count}
       </span>
       queued
@@ -87,7 +90,7 @@ function SessionQueueHeader({
           size="xs"
           onClick={onClearRequested}
           data-testid="composer-queue-clear"
-          className="text-muted hover:text-fg"
+          className="text-muted-foreground hover:text-fg"
         >
           Clear all
         </Button>

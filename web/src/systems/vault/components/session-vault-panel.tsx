@@ -73,7 +73,7 @@ export function SessionVaultPanel({
               <ItemMedia>
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-6 items-center justify-center rounded-sm bg-surface-2 text-muted"
+                  className="inline-flex size-6 items-center justify-center rounded-sm bg-surface-2 text-muted-foreground"
                 >
                   <KeyRound className="size-3" />
                 </span>

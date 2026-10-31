@@ -37,7 +37,7 @@ export function HomeAgentsPanel({ rows, loading = false }: HomeAgentsPanelProps)
       className="flex min-h-full flex-col"
       data-slot="home-agents"
       label="Agents"
-      right={<span className="text-eyebrow text-muted">runtime · all time</span>}
+      right={<span className="text-eyebrow text-muted-foreground">runtime · all time</span>}
     >
       <Panel
         bodyClassName="flex flex-1 flex-col p-0"
@@ -77,7 +77,7 @@ export function HomeAgentsPanel({ rows, loading = false }: HomeAgentsPanelProps)
                   <AgentCount className="max-[760px]:hidden" value={row.sessions} />
                   <AgentCount
                     className="max-[760px]:hidden"
-                    tone={row.failed > 0 ? "danger" : undefined}
+                    tone={row.failed > 0 ? "destructive" : undefined}
                     value={row.failed}
                   />
                   <span className="flex min-w-0 items-center gap-2.5">
@@ -108,9 +108,14 @@ function AgentCount({
   ...props
 }: {
   value: number;
-  tone?: "danger";
+  tone?: "destructive";
 } & React.ComponentProps<"span">) {
-  const color = tone === "danger" ? "text-danger" : value === 0 ? "text-faint" : "text-muted";
+  const color =
+    tone === "destructive"
+      ? "text-destructive"
+      : value === 0
+        ? "text-faint"
+        : "text-muted-foreground";
   return (
     <span className={cn("text-right text-small-body tabular-nums", color, className)} {...props}>
       {value}

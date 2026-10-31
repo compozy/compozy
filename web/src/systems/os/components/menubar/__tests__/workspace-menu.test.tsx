@@ -132,7 +132,7 @@ function destinationOrder(): string[] {
 }
 
 function checked(testId: string): boolean {
-  return screen.getByTestId(testId).querySelector("svg.text-accent") !== null;
+  return screen.getByTestId(testId).querySelector("svg.text-brand") !== null;
 }
 
 /** Keyboard path into a submenu: highlight the trigger row, then ArrowRight. */

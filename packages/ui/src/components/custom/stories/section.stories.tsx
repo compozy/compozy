@@ -26,7 +26,7 @@ export const Basic: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section label="Routes">
-        <ul className="divide-y divide-line text-sm text-muted">
+        <ul className="divide-y divide-line text-sm text-muted-foreground">
           <li className="py-2">/runtime/sessions</li>
           <li className="py-2">/runtime/vault</li>
           <li className="py-2">/runtime/skills</li>
@@ -51,7 +51,7 @@ export const WithRightSlot: Story = {
           </>
         }
       >
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted-foreground">
           Dense operational rows go here: replay, inspect, or open detail.
         </p>
       </Section>
@@ -64,7 +64,7 @@ export const WithNote: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section label="Runtime" note="Read-only daemon state" divided>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted-foreground">
           Use note for compact section context without creating a local wrapper.
         </p>
       </Section>
@@ -77,7 +77,7 @@ export const BodyOnly: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted-foreground">
           Section with no eyebrow; the surrounding layout supplies the heading.
         </p>
       </Section>
@@ -90,7 +90,7 @@ export const Bordered: Story = {
   render: () => (
     <div className="w-[520px]">
       <Section label="Members" bordered>
-        <p className="text-sm text-muted">
+        <p className="text-sm text-muted-foreground">
           Opt-in `bordered` paints a single `--line` hairline under the head when separation is
           required. Default is borderless.
         </p>

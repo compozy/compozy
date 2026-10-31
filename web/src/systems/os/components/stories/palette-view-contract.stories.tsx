@@ -153,7 +153,9 @@ export const TasksZeroMatch: Story = {
         />
       ),
       empty: (
-        <p className="px-3 py-8 text-center text-small-body text-muted">No tasks are failed.</p>
+        <p className="px-3 py-8 text-center text-small-body text-muted-foreground">
+          No tasks are failed.
+        </p>
       ),
     }),
   },
@@ -346,7 +348,7 @@ export const Timeout: Story = {
     content: listContent({
       rows: [],
       empty: (
-        <div className="px-3 py-8 text-center text-small-body text-muted">
+        <div className="px-3 py-8 text-center text-small-body text-muted-foreground">
           <p>This view is taking longer than expected.</p>
           <button type="button" className="mt-2 text-fg underline underline-offset-2">
             Retry

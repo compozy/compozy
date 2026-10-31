@@ -160,7 +160,7 @@ export function TasksDashboardView({
       />
 
       <div className={TOTALS_CLASS} data-testid="tasks-dashboard-totals">
-        <Eyebrow className="text-muted">
+        <Eyebrow className="text-muted-foreground">
           {dashboard.totals.tasks_total} tasks · {dashboard.totals.runs_total} runs
         </Eyebrow>
       </div>

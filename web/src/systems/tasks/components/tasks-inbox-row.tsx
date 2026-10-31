@@ -83,7 +83,7 @@ function TasksInboxRow({
         </div>
         {detail !== undefined ? (
           <div
-            className="flex min-w-0 flex-col gap-1 text-small-body text-muted"
+            className="flex min-w-0 flex-col gap-1 text-small-body text-muted-foreground"
             data-slot="tasks-inbox-row-detail"
           >
             {detail}

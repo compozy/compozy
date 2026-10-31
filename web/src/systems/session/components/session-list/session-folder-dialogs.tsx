@@ -65,7 +65,7 @@ export function SessionFolderDialogs({
       <ConfirmDialog
         open
         onOpenChange={close}
-        tone="danger"
+        tone="destructive"
         icon={Trash2}
         title="Delete folder?"
         description={

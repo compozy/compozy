@@ -50,7 +50,7 @@ export function LayoutDesktopTabs({
             aria-selected={active}
             className={cn(
               "inline-flex h-control-compact items-center gap-1.5 rounded-pill px-2.5",
-              "text-small-body font-medium text-muted transition-colors duration-base ease-out",
+              "text-small-body font-medium text-muted-foreground transition-colors duration-base ease-out",
               "hover:bg-surface-2 hover:text-fg",
               "focus-visible:outline-none focus-visible:shadow-focus-ring",
               active && "bg-surface-2 text-fg"

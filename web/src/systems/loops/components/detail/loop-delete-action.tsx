@@ -36,7 +36,7 @@ export function LoopDeleteAction({
       description="Delete this Loop from the project. If a built-in Loop has the same name, it will show again."
       confirmLabel="Delete loop"
       cancelLabel="Cancel"
-      tone="danger"
+      tone="destructive"
       confirmTyping={loopName}
       confirmIcon={Trash2}
       isPending={isPending}

@@ -10,7 +10,7 @@ function DockMeta({ children, className, ...props }: React.ComponentProps<"div">
       data-slot="dock-meta"
       className={cn(
         "mt-[5px] text-form-label text-subtle",
-        "[&_code]:font-mono [&_code]:text-badge [&_code]:text-muted",
+        "[&_code]:font-mono [&_code]:text-badge [&_code]:text-muted-foreground",
         className
       )}
       {...props}

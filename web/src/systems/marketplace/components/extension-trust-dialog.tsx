@@ -44,7 +44,7 @@ function ExtensionTrustDialog({
         warnings.length > 0 ? (
           <MarketplaceTrustWarningList items={warnings} />
         ) : (
-          <p className="text-small-body text-muted">
+          <p className="text-small-body text-muted-foreground">
             There are no specific warnings. Check where it comes from before you continue.
           </p>
         )

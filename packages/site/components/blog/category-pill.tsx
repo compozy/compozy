@@ -18,12 +18,14 @@ export function CategoryPill({ label, count, href, active = false }: CategoryPil
       aria-label={accessibleLabel}
       className={cn(
         "inline-flex h-8 items-center gap-2 rounded-full border px-3.5 font-sans text-small-body font-medium transition-colors",
-        active ? "border-accent bg-elevated text-fg" : "border-line text-muted hover:text-fg"
+        active
+          ? "border-brand bg-elevated text-fg"
+          : "border-line text-muted-foreground hover:text-fg"
       )}
     >
       <span>{label}</span>
       {count !== undefined && (
-        <span className="font-mono text-badge tracking-mono text-muted">
+        <span className="font-mono text-badge tracking-mono text-muted-foreground">
           {String(count).padStart(2, "0")}
         </span>
       )}

@@ -50,7 +50,7 @@ export function LoopLinterDock({
         <ChevronDown
           aria-hidden="true"
           className={cn(
-            "ml-auto size-4 text-muted transition-transform",
+            "ml-auto size-4 text-muted-foreground transition-transform",
             collapsed && "-rotate-90"
           )}
         />
@@ -73,12 +73,12 @@ function LinterDockCounterPills({ counters }: { counters: LoopLintDockCounters }
         </Pill>
       ) : null}
       {counters.state === "unavailable" ? (
-        <Pill size="xs" tone="danger" data-testid="loop-linter-count">
+        <Pill size="xs" tone="destructive" data-testid="loop-linter-count">
           Unavailable
         </Pill>
       ) : null}
       {counters.errors !== undefined ? (
-        <Pill size="xs" tone="danger" data-testid="loop-linter-error-count">
+        <Pill size="xs" tone="destructive" data-testid="loop-linter-error-count">
           {counters.errors} error{counters.errors === 1 ? "" : "s"}
         </Pill>
       ) : null}
@@ -103,7 +103,7 @@ function LinterDockBody({
   if (state === "unavailable") {
     return (
       <p
-        className="flex items-center gap-2 px-4 py-3 text-small-body text-danger"
+        className="flex items-center gap-2 px-4 py-3 text-small-body text-destructive"
         data-testid="loop-linter-unavailable"
       >
         <AlertCircle aria-hidden="true" className="size-4" />
@@ -149,7 +149,7 @@ function IssueRow({
       data-severity={blocking ? "error" : "warning"}
     >
       {blocking ? (
-        <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-danger" />
+        <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
       ) : (
         <AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
       )}

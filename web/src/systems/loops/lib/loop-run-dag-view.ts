@@ -203,7 +203,7 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
     if (rows.length === 0) return null;
     const rank = (state: string): number => {
       const tone = loopRosterStateChip(state).tone;
-      return tone === "danger" ? 0 : tone === "warning" ? 1 : 2;
+      return tone === "destructive" ? 0 : tone === "warning" ? 1 : 2;
     };
     return [...rows].sort(
       (left, right) => rank(left.state) - rank(right.state) || left.item_index - right.item_index

@@ -85,7 +85,7 @@ function ProcessHelpers({ tree, defaultOpen }: { tree: SessionProcessTree; defau
         {processHelperGroups(tree.helpers).map(group => (
           <li
             key={group.program}
-            className="flex min-w-0 items-baseline gap-1.5 font-mono text-mono-id text-muted"
+            className="flex min-w-0 items-baseline gap-1.5 font-mono text-mono-id text-muted-foreground"
             title={group.title}
           >
             <span className="truncate">{group.program}</span>
@@ -136,7 +136,7 @@ function ProcessRow({
         >
           {command}
         </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-x-1 text-transcript-caption text-muted">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1 text-transcript-caption text-muted-foreground">
           <span className="shrink-0">{processKindLabel(tree.kind)}</span>
           <span aria-hidden="true">·</span>
           <span className="shrink-0">
@@ -170,7 +170,7 @@ function ProcessRow({
           aria-label={stopLabel(tree, command)}
           disabled={stopping || locked}
           onClick={() => onStop(tree)}
-          className="text-muted"
+          className="text-muted-foreground"
         >
           {stopping ? (
             <StateGlyph size="sm" state="running" />
@@ -186,7 +186,7 @@ function ProcessRow({
 export function ProcessListNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2 px-0.5">
-      <p className="text-transcript-caption text-muted">{message}</p>
+      <p className="text-transcript-caption text-muted-foreground">{message}</p>
       {onRetry ? (
         <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
           Try again
@@ -268,5 +268,5 @@ export function SessionProcessList({
       />
     );
   }
-  return <p className="px-0.5 text-transcript-caption text-muted">{emptyLabel}</p>;
+  return <p className="px-0.5 text-transcript-caption text-muted-foreground">{emptyLabel}</p>;
 }

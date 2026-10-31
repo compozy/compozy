@@ -73,7 +73,7 @@ export const DiffStat: Story = {
     stat: (
       <>
         <span className="font-medium text-success">+28</span>
-        <span className="font-medium text-danger">−104</span>
+        <span className="font-medium text-destructive">−104</span>
       </>
     ),
   },

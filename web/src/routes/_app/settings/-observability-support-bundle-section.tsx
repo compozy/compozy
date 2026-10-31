@@ -142,7 +142,7 @@ function SupportBundleRow() {
           </div>
           {operation?.size_bytes ? (
             <span
-              className="text-form-hint text-muted"
+              className="text-form-hint text-muted-foreground"
               data-testid="settings-page-observability-support-size"
             >
               Size {formatBytes(operation.size_bytes)}
@@ -150,7 +150,7 @@ function SupportBundleRow() {
           ) : null}
           {errorMessage ? (
             <p
-              className="text-small-body text-danger"
+              className="text-small-body text-destructive"
               data-testid="settings-page-observability-support-bundle-error"
               role="alert"
             >

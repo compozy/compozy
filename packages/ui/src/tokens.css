@@ -30,7 +30,7 @@
   /* Chrome plates — hover and selected steps ON the rail (rail items, topbar
      tray, deck tabs). Dark shares the pane ramp's surface-2 / selected values;
      light steps darker than the grey chrome. Ink on a chrome plate is fg-2 /
-     fg: in light, `muted` measures 4.36:1 on rail-hover and 4.16:1 on
+     fg: in light, `muted-foreground` measures 4.36:1 on rail-hover and 4.16:1 on
      rail-selected, below AA. */
   --color-rail-hover: #232323;
   --color-rail-selected: #262626;
@@ -63,8 +63,8 @@
      light knob on its line-strong track, never a heavy dark disc. */
   --color-knob: #f5f5f5;
 
-  /* Text. fg-2 = mix(muted 60%, fg) and fg-3 = mix(fg 70%, muted), the
-     reference's own recipes, resolved to literals. muted / subtle / faint all
+  /* Text. fg-2 = mix(muted-foreground 60%, fg) and fg-3 = mix(fg 70%, muted-foreground), the
+     reference's own recipes, resolved to literals. muted-foreground / subtle / faint all
      carry text, so each clears WCAG AA 4.5:1 on canvas, canvas-soft,
      sunken, rail, surface-2, selected and elevated — a deliberate override
      of the reference's dimmer greys (brand-spec.md, "Rules observed" 6). */
@@ -72,27 +72,27 @@
   --color-fg-strong: #ffffff;
   --color-fg-2: #c4c4c4;
   --color-fg-3: #dcdcdc;
-  --color-muted: #a3a3a3;
+  --color-muted-foreground: #a3a3a3;
   --color-subtle: #8e8e8e;
   --color-faint: #8d8d8d;
 
   /* Primary — the single inverted action (near-white on dark, near-black on
-     light). Never the brand hue: highlights ride the accent below. */
+     light). Never the brand hue: highlights ride the brand below. */
   --color-primary: #f5f5f5;
   --color-primary-hover: #ffffff;
   --color-primary-foreground: #0a0a0a;
 
-  /* Accent — the brand orange: highlight and needs-you (`attn`). The only
+  /* Brand — the orange: highlight and needs-you (`attn`). The only
      non-neutral hue; amber (`warning`) is reserved for real warnings. */
-  --color-accent: #e8572a;
-  --color-accent-hover: #d14e25;
-  --color-accent-strong: #f6874f;
-  --color-accent-ink: #17110f;
-  --color-accent-tint: rgba(232, 87, 42, 0.1);
-  --color-accent-tint-strong: rgba(232, 87, 42, 0.16);
-  --color-accent-dim: rgba(232, 87, 42, 0.24);
-  --color-accent-glow: rgba(232, 87, 42, 0.05);
-  --color-attn: var(--color-accent);
+  --color-brand: #e8572a;
+  --color-brand-hover: #d14e25;
+  --color-brand-strong: #f6874f;
+  --color-brand-ink: #17110f;
+  --color-brand-tint: rgba(232, 87, 42, 0.1);
+  --color-brand-tint-strong: rgba(232, 87, 42, 0.16);
+  --color-brand-dim: rgba(232, 87, 42, 0.24);
+  --color-brand-glow: rgba(232, 87, 42, 0.05);
+  --color-attn: var(--color-brand);
 
   /* Signal palette — mint success marks in-progress/done glyphs and identity
      wells; tints at 8–12% alpha. `well` = mix(success 14%, canvas). */
@@ -100,8 +100,8 @@
   --color-success-tint: rgba(52, 211, 153, 0.1);
   --color-warning: #f5b14c;
   --color-warning-tint: rgba(245, 177, 76, 0.1);
-  --color-danger: #f87171;
-  --color-danger-tint: rgba(248, 113, 113, 0.1);
+  --color-destructive: #f87171;
+  --color-destructive-tint: rgba(248, 113, 113, 0.1);
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-well: #1e342c;
@@ -169,20 +169,17 @@
   --color-popover-foreground: var(--color-fg);
   --color-secondary: transparent;
   --color-secondary-foreground: var(--color-fg);
-  --color-muted-foreground: var(--color-muted);
-  --color-accent-foreground: var(--color-accent-ink);
-  --color-destructive: var(--color-danger);
   --color-destructive-foreground: var(--color-fg-strong);
   --color-border: var(--color-line);
   --color-input: var(--color-line);
   --color-ring: var(--color-line-strong);
-  --color-chart-1: var(--color-accent);
+  --color-chart-1: var(--color-brand);
   --color-chart-2: var(--color-success);
   --color-chart-3: var(--color-info);
   --color-chart-4: var(--color-warning);
-  --color-chart-5: var(--color-danger);
+  --color-chart-5: var(--color-destructive);
   --color-sidebar-foreground: var(--color-fg);
-  --color-sidebar-primary: var(--color-accent);
+  --color-sidebar-primary: var(--color-brand);
   --color-sidebar-primary-foreground: #ffffff;
   --color-sidebar-accent: var(--color-elevated);
   --color-sidebar-accent-foreground: var(--color-fg);
@@ -412,7 +409,8 @@
   --shadow-hairline: 0 0 0 1px var(--color-line-soft);
   --shadow-hairline-inset: inset 0 0 0 1px var(--color-line-soft);
   --shadow-inset-strong: inset 0 0 0 1px var(--color-line-strong);
-  --shadow-danger-inset: inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent);
+  --shadow-destructive-inset: inset 0 0 0 1px
+    color-mix(in oklab, var(--color-destructive) 30%, transparent);
 
   /* Z-index scale — the only sanctioned stacking values (never bare 999/9999).
      Window-body tiers: menu 40 · scrim 60 · sheet 61. Shell chrome tiers are
@@ -440,7 +438,7 @@
   --height-button-sm: 26px;
   --height-button-default: 30px;
   --height-button-lg: 34px;
-  /* CTA button heights — the larger accent primary action (dialogs, forms). */
+  /* CTA button heights — the larger brand primary action (dialogs, forms). */
   --height-button-cta: 36px;
   --height-button-cta-lg: 44px;
   --size-button-icon-xs: 22px;
@@ -742,7 +740,7 @@
   );
   --wallpaper-grid-size: 26px;
   --wallpaper-ember:
-    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(1100px 700px at 12% 110%, var(--color-brand-tint-strong), transparent 62%),
     radial-gradient(
       1000px 640px at 92% -12%,
       color-mix(in oklab, var(--wallpaper-teal) 38%, transparent),
@@ -769,7 +767,7 @@
      Gradient geometry is not a utility scale, so the family stays out of
      @theme like the desk stacks. */
   --wallpaper-thumb-ember:
-    radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%),
+    radial-gradient(80% 95% at 12% 110%, var(--color-brand-dim), transparent 62%),
     radial-gradient(
       75% 90% at 92% -12%,
       color-mix(in oklab, var(--wallpaper-teal) 55%, transparent),

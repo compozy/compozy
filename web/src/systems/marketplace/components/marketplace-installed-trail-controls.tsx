@@ -69,7 +69,7 @@ function MarketplaceInstalledTrailControls({
         leading
       ) : extension.missing_inputs.length > 0 ? (
         <span
-          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-muted"
+          className="inline-flex items-center gap-1.5 text-eyebrow font-medium whitespace-nowrap text-muted-foreground"
           data-testid={`marketplace-installed-needs-configuration-${extension.name}`}
         >
           <StatusDot aria-hidden="true" size="sm" tone="warning" />
@@ -111,7 +111,7 @@ function MarketplaceInstalledTrailControls({
           {menuItems}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-danger"
+            className="text-destructive"
             data-testid={`marketplace-installed-remove-${extension.name}`}
             onClick={() => setRemoving(true)}
           >

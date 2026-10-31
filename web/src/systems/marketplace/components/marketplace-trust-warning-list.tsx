@@ -15,7 +15,7 @@ interface MarketplaceTrustWarningListProps {
   className?: string;
 }
 
-const SEVERITY_ICON = { danger: CircleAlert, info: Info, warning: TriangleAlert } as const;
+const SEVERITY_ICON = { destructive: CircleAlert, info: Info, warning: TriangleAlert } as const;
 
 /**
  * Severity-toned findings (trust warnings, diagnostics) as a stack of `Alert`s. The icon carries
@@ -50,7 +50,7 @@ function MarketplaceTrustWarningList({ items, className }: MarketplaceTrustWarni
 }
 
 function severityTone(severity: string): keyof typeof SEVERITY_ICON {
-  if (severity === "error") return "danger";
+  if (severity === "error") return "destructive";
   if (severity === "info") return "info";
   return "warning";
 }

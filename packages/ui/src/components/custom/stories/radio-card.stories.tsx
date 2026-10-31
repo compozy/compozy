@@ -71,7 +71,7 @@ export const ProviderPicker: Story = {
             icon={provider.icon}
             selected={selected === provider.id}
             onSelect={() => setSelected(provider.id)}
-            badge={provider.badge ? <Pill tone="accent">{provider.badge}</Pill> : undefined}
+            badge={provider.badge ? <Pill tone="brand">{provider.badge}</Pill> : undefined}
           />
         ))}
       </div>
@@ -165,7 +165,7 @@ export const WrapFriendlyTitle: Story = {
         }
         titleClassName="overflow-visible whitespace-normal font-normal tracking-normal"
         badge={
-          <Pill mono size="xs" tone="danger">
+          <Pill mono size="xs" tone="destructive">
             missing
           </Pill>
         }

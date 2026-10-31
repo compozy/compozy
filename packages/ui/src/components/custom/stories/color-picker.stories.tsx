@@ -32,7 +32,7 @@ function Harness({ initial }: { initial: string }) {
   return (
     <div className="flex flex-col gap-2">
       <ColorPicker value={value} onChange={setValue} />
-      <span className="font-mono text-badge text-muted">{value}</span>
+      <span className="font-mono text-badge text-muted-foreground">{value}</span>
     </div>
   );
 }

@@ -82,7 +82,7 @@ export function LoopRuntimeValueControl({
       allowCustomProvider
       ariaLabelledby={labelledBy}
       catalogStatus={catalogs.runtimeError}
-      className={cn("w-full", invalid && "border-danger")}
+      className={cn("w-full", invalid && "border-destructive")}
       disabled={disabled}
       loading={catalogs.runtimeLoading}
       models={catalogs.runtimeModels}

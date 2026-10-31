@@ -120,7 +120,7 @@ function SectionHead({
       <div className="flex min-w-0 flex-col gap-2">
         {hasLabel ? <SectionLabel count={count} icon={icon} label={label} /> : null}
         {hasNote ? (
-          <div data-slot="section-note" className="max-w-152 text-small-body text-muted">
+          <div data-slot="section-note" className="max-w-152 text-small-body text-muted-foreground">
             {note}
           </div>
         ) : null}

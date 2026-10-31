@@ -55,7 +55,7 @@ export function GatewayProviderSection({
       ) : null}
       {actionError ? (
         <div className="px-4 py-3">
-          <Alert data-testid="gateway-provider-error" variant="danger">
+          <Alert data-testid="gateway-provider-error" variant="destructive">
             <AlertTitle>That provider change was not applied</AlertTitle>
             <AlertDescription>{actionError}</AlertDescription>
           </Alert>

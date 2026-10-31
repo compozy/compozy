@@ -73,8 +73,8 @@ export function LayoutCanvasGroupEdge({
         className={cn(
           "rounded-xxs bg-transparent transition-colors duration-base ease-out",
           EDGE_GRIP[edge],
-          "group-hover/edge:bg-accent group-focus-visible/edge:bg-accent",
-          model.dragging && "bg-accent"
+          "group-hover/edge:bg-brand group-focus-visible/edge:bg-brand",
+          model.dragging && "bg-brand"
         )}
       />
     </div>

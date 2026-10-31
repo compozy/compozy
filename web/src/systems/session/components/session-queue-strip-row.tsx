@@ -58,7 +58,7 @@ function SessionQueuedOwner({ owner }: { owner: QueuedPromptOwner }) {
     <span
       data-testid="composer-queued-owner"
       data-owner-kind={owner.kind}
-      className="inline-flex shrink-0 items-center gap-1.5 text-micro text-muted"
+      className="inline-flex shrink-0 items-center gap-1.5 text-micro text-muted-foreground"
     >
       <OwnerAvatar ownerKind={tier} ownerId={label} name={label} size="sm" />
       {label}
@@ -72,7 +72,10 @@ function SessionQueuedPreview({ text, className }: { text: string; className?: s
     <span
       data-testid="composer-queued-preview"
       data-preview-kind={preview.kind}
-      className={cn("min-w-0 flex-1 truncate text-transcript-body text-muted", className)}
+      className={cn(
+        "min-w-0 flex-1 truncate text-transcript-body text-muted-foreground",
+        className
+      )}
       title={text}
     >
       {preview.kind === "code" ? (
@@ -183,7 +186,7 @@ function SessionQueuedSteer({
       disabled={disabled}
       data-testid="composer-queued-steer"
       aria-label={label}
-      className="text-muted hover:text-fg"
+      className="text-muted-foreground hover:text-fg"
     >
       <CornerDownRight aria-hidden="true" className="size-3" />
       Steer
@@ -200,7 +203,7 @@ function SessionQueuedSender({ party, title }: { party: SessionLabel; title: str
       data-testid="composer-queued-sender"
       aria-busy={party.pending || undefined}
       title={party.pending ? undefined : `From ${title}`}
-      className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted"
+      className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted-foreground"
     >
       <SubagentAvatar provider={sessionPartyMark(party)} size="sm" className="size-4.5" />
       <span className="shrink-0">From</span>
@@ -210,7 +213,7 @@ function SessionQueuedSender({ party, title }: { party: SessionLabel; title: str
         <span
           className={cn(
             "min-w-0 truncate",
-            party.title === null ? "font-medium text-muted" : "font-medium text-fg-2"
+            party.title === null ? "font-medium text-muted-foreground" : "font-medium text-fg-2"
           )}
         >
           {title}

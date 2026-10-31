@@ -76,7 +76,7 @@ function ConnectionPickerPanel({ sourceNodeId, onOpenChange, onPick }: Connectio
       shouldFilter={false}
     >
       <div className="flex items-center gap-2 px-2.5 pt-2 pb-0.5">
-        <Eyebrow className="shrink-0 text-muted">Add and wire</Eyebrow>
+        <Eyebrow className="shrink-0 text-muted-foreground">Add and wire</Eyebrow>
         <span
           className="min-w-0 truncate font-mono text-badge tracking-mono text-faint"
           title={sourceNodeId}

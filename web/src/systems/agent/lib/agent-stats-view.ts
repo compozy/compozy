@@ -38,6 +38,6 @@ export function agentStatsView(input: AgentStatsInput): AgentStatsView {
     activeSubtext: typeof sessionsTotal === "number" ? `of ${sessionsTotal} sessions` : undefined,
     runtime: runtimeLabel ?? AGENT_STAT_DASH,
     failed: failed ?? AGENT_STAT_DASH,
-    failedTone: failed !== null && failed > 0 ? "danger" : "default",
+    failedTone: failed !== null && failed > 0 ? "destructive" : "default",
   };
 }

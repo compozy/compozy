@@ -91,7 +91,7 @@ function EntityDialogFooter({
       ) : null}
       {hint ? (
         <div
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-form-hint text-muted"
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-form-hint text-muted-foreground"
           data-slot="entity-dialog-footer-hint"
           data-testid={hintTestId}
         >

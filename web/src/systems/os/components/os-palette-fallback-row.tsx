@@ -25,7 +25,7 @@ export function OsPaletteFallbackRow({ fallback, pending, onSelect }: OsPaletteF
       value={fallback.value}
       onSelect={() => onSelect(fallback.query)}
     >
-      <Bot aria-hidden="true" className="size-3.5 text-muted" />
+      <Bot aria-hidden="true" className="size-3.5 text-muted-foreground" />
       <span className="min-w-0 truncate leading-none text-fg">
         Ask agent: <span className="text-fg-strong">&apos;{fallback.query}&apos;</span>
       </span>

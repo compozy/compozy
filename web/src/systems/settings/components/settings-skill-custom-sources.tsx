@@ -110,7 +110,7 @@ export function SettingsSkillCustomSources({
       </div>
       {error !== null ? (
         <p
-          className="flex flex-wrap items-center gap-1.5 px-3 pb-2.5 text-form-hint text-danger"
+          className="flex flex-wrap items-center gap-1.5 px-3 pb-2.5 text-form-hint text-destructive"
           data-testid={`${TEST_ID}-error`}
           id={ERROR_ID}
         >
@@ -141,7 +141,7 @@ function PendingCustomRow({
       data-testid={`${TEST_ID}-pending-${entry}`}
     >
       <FolderPlus aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
-      <span className="truncate font-mono text-eyebrow text-muted">{entry}</span>
+      <span className="truncate font-mono text-eyebrow text-muted-foreground">{entry}</span>
       <span aria-hidden="true" className="flex-1" />
       <span className="shrink-0 text-form-hint text-subtle">not scanned yet</span>
       <Button

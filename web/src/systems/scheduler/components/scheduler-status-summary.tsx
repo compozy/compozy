@@ -26,7 +26,7 @@ export function SchedulerStatusSummary({ status, isLoading }: SchedulerStatusSum
       )}
       {status?.paused_reason ? (
         <p
-          className="mt-2 max-w-3xl text-form-label text-muted"
+          className="mt-2 max-w-3xl text-form-label text-muted-foreground"
           data-testid="scheduler-controls-reason"
         >
           {status.paused_reason}
@@ -45,7 +45,7 @@ function SchedulerStateLabel({
 }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-form-label text-muted"
+      className="inline-flex items-center gap-1.5 text-form-label text-muted-foreground"
       data-testid="scheduler-controls-state"
     >
       {isInitialLoading ? (
@@ -78,7 +78,7 @@ function SchedulerStatusMeta({ status }: { status: SchedulerStatus | null }) {
 
   return (
     <div
-      className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted"
+      className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-form-label text-muted-foreground"
       data-testid="scheduler-controls-meta"
     >
       <span>{counts.running} running</span>
@@ -95,7 +95,7 @@ function SchedulerStatusMeta({ status }: { status: SchedulerStatus | null }) {
       </span>
       <MetaDot />
       <span
-        className={counts.needsAttention > 0 ? "text-accent" : undefined}
+        className={counts.needsAttention > 0 ? "text-brand" : undefined}
         data-testid="scheduler-controls-needs-attention-count"
       >
         {counts.needsAttention} need attention

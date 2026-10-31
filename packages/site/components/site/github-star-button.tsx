@@ -28,7 +28,7 @@ export function GitHubStarButton() {
           />
         }
         variant="outline"
-        className="gap-2 rounded-full border-line text-muted hover:bg-hover hover:text-fg"
+        className="gap-2 rounded-full border-line text-muted-foreground hover:bg-hover hover:text-fg"
       >
         <GithubLogo aria-hidden className="size-4" />
         <span>Star on GitHub</span>

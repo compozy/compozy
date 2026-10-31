@@ -166,7 +166,7 @@ function MarketplaceExtensionRuntimeRows({
         </PropertyRow>
         <PropertyRow label="Failures" mono>
           <span
-            className={extension.consecutive_failures > 0 ? "text-danger" : undefined}
+            className={extension.consecutive_failures > 0 ? "text-destructive" : undefined}
             data-testid="extension-consecutive-failures"
           >
             {String(extension.consecutive_failures)}
@@ -180,7 +180,7 @@ function MarketplaceExtensionRuntimeRows({
         {extension.failure_code ? (
           <PropertyRow
             editor={
-              <Pill data-testid="extension-failure-code" mono tone="danger">
+              <Pill data-testid="extension-failure-code" mono tone="destructive">
                 {extension.failure_code}
               </Pill>
             }

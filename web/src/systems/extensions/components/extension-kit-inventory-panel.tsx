@@ -55,7 +55,7 @@ function KitInventoryGroup({ group }: { group: ExtensionKitInventoryGroup }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1.5">
-        <span className="eyebrow text-muted">{group.kind}</span>
+        <span className="eyebrow text-muted-foreground">{group.kind}</span>
         <span className="font-mono text-eyebrow text-faint tabular-nums">{group.items.length}</span>
       </div>
       {group.items.map(item => (
@@ -97,8 +97,10 @@ function KitInventoryContent({
   if (error) {
     return (
       <div className="space-y-2 px-4 py-3">
-        <p className="text-small-body font-medium text-danger">Kit inventory could not be loaded</p>
-        <p className="text-eyebrow text-muted">{error.message}</p>
+        <p className="text-small-body font-medium text-destructive">
+          Kit inventory could not be loaded
+        </p>
+        <p className="text-eyebrow text-muted-foreground">{error.message}</p>
         <Button onClick={onRetry} size="sm" type="button" variant="secondary">
           Retry
         </Button>
@@ -107,7 +109,7 @@ function KitInventoryContent({
   }
   if (!items || items.length === 0) {
     return showEmptyState ? (
-      <p className="px-4 py-3 text-small-body text-muted">
+      <p className="px-4 py-3 text-small-body text-muted-foreground">
         This extension ships no static kit resources.
       </p>
     ) : null;

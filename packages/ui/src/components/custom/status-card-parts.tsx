@@ -64,7 +64,7 @@ export function StatusCardHeader({
 export function StatusCardBody({ className, ...props }: StatusCardBodyProps) {
   return (
     <div
-      className={cn("text-small-body leading-5 text-muted", className)}
+      className={cn("text-small-body leading-5 text-muted-foreground", className)}
       data-slot="status-card-body"
       {...props}
     />

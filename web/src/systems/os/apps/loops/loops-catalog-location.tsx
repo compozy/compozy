@@ -43,7 +43,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
       </ListingToolbar.Leading>
       <ListingToolbar.Trailing>
         {page.definitionsNote ? (
-          <span className="text-caption text-muted" data-testid="loops-definitions-note">
+          <span className="text-caption text-muted-foreground" data-testid="loops-definitions-note">
             {page.definitionsNote}
           </span>
         ) : null}

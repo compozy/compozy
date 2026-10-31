@@ -10,7 +10,7 @@ export interface HomeOutcomesChartProps {
 const OUTCOME_SERIES = [
   { key: "completed", fill: "var(--color-success)", label: "completed" },
   { key: "canceled", fill: "var(--color-viz-other)", label: "canceled" },
-  { key: "failed", fill: "var(--color-danger)", label: "failed" },
+  { key: "failed", fill: "var(--color-destructive)", label: "failed" },
 ] as const;
 
 /**
@@ -30,7 +30,7 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
       className="flex min-h-full flex-col"
       data-slot="home-outcomes"
       label="How work ended"
-      right={<span className="text-eyebrow text-muted">Last 14 days</span>}
+      right={<span className="text-eyebrow text-muted-foreground">Last 14 days</span>}
     >
       <Panel bodyClassName="flex flex-1 flex-col gap-3" className="flex-1">
         {hasData ? (
@@ -60,7 +60,11 @@ export function HomeOutcomesChart({ outcomes }: HomeOutcomesChartProps) {
                 count={outcomes.canceled}
                 label="Canceled"
               />
-              <LegendEntry color="var(--color-danger)" count={outcomes.failed} label="Failed" />
+              <LegendEntry
+                color="var(--color-destructive)"
+                count={outcomes.failed}
+                label="Failed"
+              />
             </div>
             <p className="text-micro leading-relaxed text-faint">
               Each bar counts task runs that ended that day.

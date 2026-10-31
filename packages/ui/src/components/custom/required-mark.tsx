@@ -22,7 +22,7 @@ function RequiredMark({ children = "required", className, ...props }: RequiredMa
   return (
     <Eyebrow
       data-slot="required-mark"
-      className={cn("ml-1.5 text-accent-strong", className)}
+      className={cn("ml-1.5 text-brand-strong", className)}
       {...props}
     >
       {children}

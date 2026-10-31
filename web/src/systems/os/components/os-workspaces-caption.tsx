@@ -35,7 +35,9 @@ export function OsWorkspacesCaption({ model, reducedMotion }: OsWorkspacesCaptio
         )}
       >
         <b className="text-item-title font-medium tracking-tight text-fg-strong">{model.title}</b>
-        {model.meta ? <span className="text-form-label text-muted">{model.meta}</span> : null}
+        {model.meta ? (
+          <span className="text-form-label text-muted-foreground">{model.meta}</span>
+        ) : null}
         {model.path ? (
           <span className="font-mono text-mono-id text-faint tabular-nums">{model.path}</span>
         ) : null}

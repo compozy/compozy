@@ -159,7 +159,7 @@ const preferBareTokenUtility = {
 // and the sub-2px width (`ring-1`) are therefore forbidden inside ANY focus
 // variant. Callers use the shared focus tokens `shadow-focus-ring` (outset) /
 // `shadow-focus-inset` (inset), which flip per theme (50% white on dark, 50% ink on
-// light); accent focus rings stay on `ring-2 ring-accent`. A white or black ring ink
+// light); brand focus rings stay on `ring-2 ring-brand`. A white or black ring ink
 // only reads on one theme, so it is banned inside focus variants too.
 const FOCUS_RING_COLOR_UTILITIES = new Set(["ring-line-strong", "ring-ring"]);
 
@@ -211,11 +211,11 @@ const noLowContrastFocusRing = {
     },
     messages: {
       focusRingColor:
-        "Low-contrast focus ring in className. :focus-visible indicators need ≥3:1 contrast (GhostFocus is a critical a11y failure). Use focus-visible:shadow-focus-ring (outset) or focus-visible:shadow-focus-inset (inset); for accent focus use focus-visible:ring-2 focus-visible:ring-accent. ring-line-strong / ring-ring are banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
+        "Low-contrast focus ring in className. :focus-visible indicators need ≥3:1 contrast (GhostFocus is a critical a11y failure). Use focus-visible:shadow-focus-ring (outset) or focus-visible:shadow-focus-inset (inset); for brand focus use focus-visible:ring-2 focus-visible:ring-brand. ring-line-strong / ring-ring are banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
       focusRingThemeInk:
-        "Theme-blind focus ring ink in className. A white or black ring only reads on one theme. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, which flip per theme (or focus-visible:ring-2 focus-visible:ring-accent). See BUG-20260714 and DESIGN.md §10.",
+        "Theme-blind focus ring ink in className. A white or black ring only reads on one theme. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, which flip per theme (or focus-visible:ring-2 focus-visible:ring-brand). See BUG-20260714 and DESIGN.md §10.",
       focusRingWidth:
-        "Sub-2px focus ring in className. :focus-visible indicators must be ≥2px thick. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, or focus-visible:ring-2 for accent rings. ring-1 is banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
+        "Sub-2px focus ring in className. :focus-visible indicators must be ≥2px thick. Use focus-visible:shadow-focus-ring / focus-visible:shadow-focus-inset, or focus-visible:ring-2 for brand rings. ring-1 is banned in :focus-visible. See BUG-20260714 and DESIGN.md §10.",
     },
     schema: [],
   },

@@ -16,7 +16,7 @@ export function SessionGoalCommandErrorNotice({ sessionId }: { sessionId: string
   }
 
   return (
-    <Alert variant="danger" data-testid="session-goal-command-error">
+    <Alert variant="destructive" data-testid="session-goal-command-error">
       <CircleAlert />
       <AlertDescription>{guidance}</AlertDescription>
     </Alert>

@@ -90,7 +90,7 @@ function ReactivationList({
               />
             </div>
             {rowError ? (
-              <p className="mt-1 text-eyebrow text-danger" role="alert">
+              <p className="mt-1 text-eyebrow text-destructive" role="alert">
                 {rowError}
               </p>
             ) : null}

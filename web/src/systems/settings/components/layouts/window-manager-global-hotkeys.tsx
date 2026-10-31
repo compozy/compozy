@@ -87,7 +87,7 @@ export function WindowManagerGlobalHotkeys({
       ) : null}
 
       {recorder.error ? (
-        <p className="px-4 py-2 text-form-hint text-danger" role="alert">
+        <p className="px-4 py-2 text-form-hint text-destructive" role="alert">
           {recorder.error}
         </p>
       ) : null}

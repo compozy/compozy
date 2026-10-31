@@ -5,8 +5,8 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 export interface DockStatusProps extends React.ComponentProps<"div"> {
-  /** `danger` for retryable errors; default is the quiet submitting line. */
-  tone?: "neutral" | "danger";
+  /** `destructive` for retryable errors; default is the quiet submitting line. */
+  tone?: "neutral" | "destructive";
 }
 
 /** Quiet status line under the actions — submitting / retryable error. */
@@ -17,7 +17,7 @@ function DockStatus({ tone = "neutral", children, className, ...props }: DockSta
       data-tone={tone}
       className={cn(
         "text-form-label",
-        tone === "danger" ? "text-danger" : "text-subtle",
+        tone === "destructive" ? "text-destructive" : "text-subtle",
         className
       )}
       {...props}

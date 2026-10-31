@@ -143,7 +143,7 @@ export function ToolApprovalGrantSetDialog({
 
           {error ? (
             <div
-              className="border-t border-line px-5 py-3 text-eyebrow text-danger"
+              className="border-t border-line px-5 py-3 text-eyebrow text-destructive"
               data-testid="tool-approval-grant-set-error"
             >
               {error}

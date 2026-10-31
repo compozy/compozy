@@ -19,7 +19,7 @@ const DISPOSITION_TONE: Record<string, PillTone> = {
   routed: "info",
   absorbed: "neutral",
   escalated: "warning",
-  quarantined: "danger",
+  quarantined: "destructive",
   canceled: "neutral",
 };
 

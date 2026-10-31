@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-export type StatusDotTone = "success" | "warning" | "danger" | "accent" | "info" | "faint";
+export type StatusDotTone = "success" | "warning" | "destructive" | "brand" | "info" | "faint";
 export type StatusDotVariant = "solid" | "ring";
 export type StatusDotSize = "default" | "sm";
 
@@ -26,8 +26,8 @@ export interface StatusDotProps extends Omit<React.ComponentProps<"span">, "chil
 const TONE_TEXT_COLOR: Record<StatusDotTone, string> = {
   success: "text-success",
   warning: "text-warning",
-  danger: "text-danger",
-  accent: "text-accent",
+  destructive: "text-destructive",
+  brand: "text-brand",
   info: "text-info",
   faint: "text-faint",
 };

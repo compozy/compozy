@@ -84,7 +84,7 @@ export function TodoContent({ message }: { message: UIMessage }) {
             "flex min-h-transcript-row items-start gap-2 text-small-body leading-normal",
             item.state === "done" ? "text-subtle line-through decoration-faint" : null,
             item.state === "active" ? "text-fg" : null,
-            item.state === "pending" ? "text-muted" : null
+            item.state === "pending" ? "text-muted-foreground" : null
           )}
         >
           <span className="mt-px grid size-4 shrink-0 place-items-center">

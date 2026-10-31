@@ -164,7 +164,7 @@ function BellNotices({
   return (
     <>
       {error ? (
-        <p role="alert" className="px-2 py-2 text-small-body text-danger">
+        <p role="alert" className="px-2 py-2 text-small-body text-destructive">
           {error}
         </p>
       ) : null}

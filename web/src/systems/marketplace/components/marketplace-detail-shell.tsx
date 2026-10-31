@@ -214,7 +214,7 @@ function MarketplaceRepositoryRow({ repository }: { repository: string | undefin
   return (
     <PropertyRow label="Repository" valueTitle={url}>
       <a
-        className="min-w-0 truncate font-mono text-eyebrow text-muted transition-colors duration-base hover:text-fg"
+        className="min-w-0 truncate font-mono text-eyebrow text-muted-foreground transition-colors duration-base hover:text-fg"
         href={url}
         rel="noreferrer"
         target="_blank"

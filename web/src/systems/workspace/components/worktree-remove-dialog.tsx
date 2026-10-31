@@ -106,7 +106,7 @@ export function WorktreeRemoveDialog({
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      tone={stage === "force" ? "danger" : isRefusal ? "warning" : "danger"}
+      tone={stage === "force" ? "destructive" : isRefusal ? "warning" : "destructive"}
       title={removeDialogTitle(stage, worktree.name)}
       description={removeDialogDescription(stage, worktree.branch, risk, deleteBranch)}
       note={
@@ -149,7 +149,7 @@ export function WorktreeRemoveDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="text-danger hover:bg-danger-tint"
+                className="text-destructive hover:bg-destructive-tint"
                 data-testid="worktree-remove-force-doorway"
                 onClick={onRequestForce}
               >

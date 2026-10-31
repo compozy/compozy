@@ -27,7 +27,7 @@ export function OsWorkspacesHints({
     <p
       data-slot="os-workspaces-hints"
       data-testid="os-workspaces-hints"
-      className="pointer-events-none absolute inset-x-4 bottom-6 hidden flex-wrap items-center justify-center gap-2 text-eyebrow text-muted shell-wide:flex"
+      className="pointer-events-none absolute inset-x-4 bottom-6 hidden flex-wrap items-center justify-center gap-2 text-eyebrow text-muted-foreground shell-wide:flex"
     >
       {layer === "menu" ? (
         <>

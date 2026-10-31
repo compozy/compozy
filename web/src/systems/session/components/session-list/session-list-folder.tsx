@@ -72,7 +72,7 @@ export function SessionListFolder({
       data-dragging={dragging || undefined}
       className={cn(
         "relative flex min-h-7 items-center rounded-md transition-colors",
-        dropEdge === "into" && "bg-accent-tint ring-1 ring-accent ring-inset",
+        dropEdge === "into" && "bg-brand-tint ring-1 ring-brand ring-inset",
         dragging && "opacity-50"
       )}
     >
@@ -80,7 +80,7 @@ export function SessionListFolder({
         <span
           aria-hidden="true"
           className={cn(
-            "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-accent",
+            "pointer-events-none absolute inset-x-1 z-10 h-0.5 rounded-full bg-brand",
             dropEdge === "before" ? "-top-px" : "-bottom-px"
           )}
         />
@@ -90,7 +90,7 @@ export function SessionListFolder({
         aria-expanded={expanded}
         data-testid={`${testId}-toggle`}
         onClick={onToggle}
-        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1 text-left text-small-body text-muted-foreground transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
       >
         <Icon
           as={ChevronRight}

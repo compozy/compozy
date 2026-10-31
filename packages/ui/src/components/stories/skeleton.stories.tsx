@@ -87,7 +87,7 @@ export const Text: Story = {
       <SkeletonText className="text-card-title" />
       <p className="text-card-title font-medium text-fg-strong">release-auditor</p>
       <SkeletonText className="text-small-body" lines={2} />
-      <p className="text-small-body text-muted">{SAMPLE}</p>
+      <p className="text-small-body text-muted-foreground">{SAMPLE}</p>
       <SkeletonText className="text-eyebrow" />
       <p className="text-eyebrow text-faint">updated 2h ago</p>
     </div>

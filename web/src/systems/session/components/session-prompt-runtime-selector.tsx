@@ -62,7 +62,7 @@ export function SessionPromptRuntimeSelector({ canPrompt }: SessionPromptRuntime
       ) : null}
       {runtime.availabilityError ? (
         <div className="flex min-w-0 items-center gap-1.5" role="status">
-          <p className="truncate text-form-hint text-danger">{runtime.availabilityError}</p>
+          <p className="truncate text-form-hint text-destructive">{runtime.availabilityError}</p>
           <Button
             type="button"
             variant="ghost"

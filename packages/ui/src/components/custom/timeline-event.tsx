@@ -22,20 +22,20 @@ export interface TimelineEventProps extends Omit<React.ComponentProps<"li">, "ti
 }
 
 const TONE_DOT: Record<PillTone, string> = {
-  neutral: "bg-muted",
-  accent: "bg-accent",
+  neutral: "bg-muted-foreground",
+  brand: "bg-brand",
   success: "bg-success",
   warning: "bg-warning",
-  danger: "bg-danger",
+  destructive: "bg-destructive",
   info: "bg-info",
 };
 
 const TONE_ICON: Record<PillTone, string> = {
-  neutral: "text-muted",
-  accent: "text-accent",
+  neutral: "text-muted-foreground",
+  brand: "text-brand",
   success: "text-success",
   warning: "text-warning",
-  danger: "text-danger",
+  destructive: "text-destructive",
   info: "text-info",
 };
 
@@ -96,7 +96,10 @@ function TimelineEvent({
           ) : null}
         </div>
         {description ? (
-          <p data-slot="timeline-event-description" className="text-form-label text-muted">
+          <p
+            data-slot="timeline-event-description"
+            className="text-form-label text-muted-foreground"
+          >
             {description}
           </p>
         ) : null}

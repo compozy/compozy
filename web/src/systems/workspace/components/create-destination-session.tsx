@@ -56,7 +56,7 @@ export function SessionDestinationRow({
       data-slot="session-destination-row"
       data-testid="session-destination-row"
       className={cn(
-        "inline-flex max-w-full flex-wrap items-center gap-x-1 text-form-hint text-muted",
+        "inline-flex max-w-full flex-wrap items-center gap-x-1 text-form-hint text-muted-foreground",
         className
       )}
       {...props}

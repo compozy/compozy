@@ -48,7 +48,7 @@ const SHAPE_ICON: Record<PullRequestShape, LucideIcon> = {
 
 /** Worktree-chip geometry (`SessionWorktreeBindingChip`): 24 px surface-2 pill, badge type. */
 const CHIP_CLASS =
-  "inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 py-0 pr-1.5 pl-2.5 text-badge font-medium text-muted outline-none transition-colors duration-fast ease-out hover:bg-selected hover:text-fg focus-visible:shadow-focus-ring data-popup-open:bg-selected data-popup-open:text-fg [&_svg]:size-3 [&_svg]:shrink-0";
+  "inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 py-0 pr-1.5 pl-2.5 text-badge font-medium text-muted-foreground outline-none transition-colors duration-fast ease-out hover:bg-selected hover:text-fg focus-visible:shadow-focus-ring data-popup-open:bg-selected data-popup-open:text-fg [&_svg]:size-3 [&_svg]:shrink-0";
 
 export interface SessionPullRequestChipProps {
   facts: SessionPullRequestFacts;
@@ -159,7 +159,7 @@ function ChipBody({ model, refreshing }: { model: PullRequestChipModel; refreshi
       >
         #{model.number}
       </span>
-      <span className="text-muted" data-slot="chip-word">
+      <span className="text-muted-foreground" data-slot="chip-word">
         {model.word}
       </span>
       {model.signals.map(signal => (
@@ -193,18 +193,23 @@ function BranchMarker({ marker }: { marker: "pending" | "unavailable" | "incompl
   );
 }
 
-const SIGNAL_TONE_CLASS = { danger: "text-danger", success: "text-success" } as const;
+const SIGNAL_TONE_CLASS = { destructive: "text-destructive", success: "text-success" } as const;
 
 function ChipSignal({ signal }: { signal: PullRequestSignalPart }) {
   const toneClass =
-    signal.tone === "danger" || signal.tone === "success" ? SIGNAL_TONE_CLASS[signal.tone] : "";
+    signal.tone === "destructive" || signal.tone === "success"
+      ? SIGNAL_TONE_CLASS[signal.tone]
+      : "";
   return (
     <>
       <span aria-hidden="true" className="text-faint">
         ·
       </span>
       <span
-        className={cn("inline-flex items-center gap-1 text-muted tabular-nums", toneClass)}
+        className={cn(
+          "inline-flex items-center gap-1 text-muted-foreground tabular-nums",
+          toneClass
+        )}
         data-signal={signal.id}
         data-slot="chip-signal"
         data-tone={signal.tone ?? undefined}

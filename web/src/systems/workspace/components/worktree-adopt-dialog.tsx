@@ -60,7 +60,7 @@ export function WorktreeAdoptDialog({
             </DialogTitle>
           </DialogHeader>
           <div className="flex min-w-0 flex-col gap-4 px-5 pt-4 pb-5">
-            <Alert variant="danger">
+            <Alert variant="destructive">
               <AlertDescription
                 data-testid="worktree-adopt-refusal-reason"
                 id="worktree-adopt-refusal-reason"

@@ -87,7 +87,7 @@ describe("SchedulerControlsPanel", () => {
     );
     // Needs-attention waits on a person: the needs-you accent, not the warning amber.
     expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveClass(
-      "text-accent"
+      "text-brand"
     );
   });
 

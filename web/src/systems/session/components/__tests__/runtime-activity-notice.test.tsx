@@ -51,7 +51,7 @@ describe("RuntimeActivityNotice", () => {
     render(
       <RuntimeActivityNotice event={{ type: "error", text: "peer disconnected before response" }} />
     );
-    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "destructive");
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
@@ -209,7 +209,7 @@ describe("RuntimeActivityNotice", () => {
       />
     );
 
-    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "destructive");
     const notice = screen.getByTestId("session-error-notice");
     expect(notice).toHaveTextContent("Session failed");
     // The failure kind is diagnostic: it rides on an attribute, never on screen.
@@ -225,7 +225,7 @@ describe("RuntimeActivityNotice", () => {
 
     const notice = screen.getByTestId("session-error-notice");
     expect(screen.getByRole("alert")).toBe(notice);
-    expect(notice).toHaveAttribute("data-tone", "danger");
+    expect(notice).toHaveAttribute("data-tone", "destructive");
     expect(notice).toHaveAttribute("data-provider-error", "provider_auth_required");
     expect(notice).toHaveAttribute("data-provider-next-action", "login");
     expect(screen.getByTestId("provider-error-subject")).toHaveTextContent(
@@ -378,7 +378,7 @@ describe("RuntimeActivityNotice", () => {
       />
     );
 
-    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "destructive");
     // The summary is the sentence; the raw kind string never reaches the screen —
     // it stays on `data-marker-kind` for diagnostics.
     expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(

@@ -16,16 +16,16 @@ const chipBaseStyle: CSSProperties = {
 
 interface ChipProps {
   children: string;
-  accent?: boolean;
+  brand?: boolean;
 }
 
-export function Chip({ children, accent = false }: ChipProps) {
+export function Chip({ children, brand = false }: ChipProps) {
   return (
     <div
       style={{
         ...chipBaseStyle,
-        border: `1px solid ${accent ? COLORS.accent : COLORS.border}`,
-        color: accent ? COLORS.accent : COLORS.textSecondary,
+        border: `1px solid ${brand ? COLORS.brand : COLORS.border}`,
+        color: brand ? COLORS.brand : COLORS.textSecondary,
       }}
     >
       {children}

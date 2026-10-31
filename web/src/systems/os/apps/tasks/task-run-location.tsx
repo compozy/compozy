@@ -177,7 +177,7 @@ function TaskRunReviews({ page }: { page: ReturnType<typeof useTaskRunLocation>[
           label="Reviews"
         >
           {page.reviewsError ? (
-            <p className="text-small-body text-danger" role="alert">
+            <p className="text-small-body text-destructive" role="alert">
               {page.reviewsError.message}
             </p>
           ) : (

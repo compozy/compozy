@@ -14,7 +14,7 @@ export interface SessionStopAttentionNoticeProps {
 /**
  * The daemon ran the whole stop ladder and still could not verify the agent
  * process is gone, so the session truthfully stays `stopping` and asks for
- * attention (US-009.AC-3, ADR-004 invariant 3). Warning, not danger: nothing
+ * attention (US-009.AC-3, ADR-004 invariant 3). Warning, not destructive: nothing
  * in the operator's work failed. The only action is the one that exists — the
  * same session stop, again — and the notice stays until the daemon itself
  * reads `stopped`, never on acceptance, escalation, or a timer.

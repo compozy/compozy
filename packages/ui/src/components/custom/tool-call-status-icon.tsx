@@ -22,7 +22,7 @@ type GlyphStatus = Extract<ToolCallStatus, "failed" | "absorbed">;
 // Completion is the resting state, not an event: success and empty carry no
 // glyph at all — the row's accessible name still states them.
 const TONE_CLASS: Record<GlyphStatus, string> = {
-  failed: "text-danger",
+  failed: "text-destructive",
   absorbed: "text-subtle",
 };
 

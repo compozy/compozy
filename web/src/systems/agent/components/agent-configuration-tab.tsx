@@ -43,11 +43,11 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
           <ConfigRow label="Defined in" testId="agent-config-defined-in">
             <span className="font-mono text-mono-id">{formatAgentLayer(agent)}</span>
             {shadows.length > 0 ? (
-              <span className="text-muted"> · overrides {shadows.join(", ")}</span>
+              <span className="text-muted-foreground"> · overrides {shadows.join(", ")}</span>
             ) : null}
           </ConfigRow>
           <ConfigRow label="Command">
-            <span className={command ? "font-mono" : "text-muted"}>
+            <span className={command ? "font-mono" : "text-muted-foreground"}>
               {formatAbsentOverride(command)}
             </span>
           </ConfigRow>
@@ -55,7 +55,7 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
           {agent.effective_runtime?.session_env_status?.map(binding => (
             <ConfigRow key={binding.name} label={binding.name}>
               <span className="font-mono">{binding.secret_ref}</span>
-              <span className="text-muted">
+              <span className="text-muted-foreground">
                 {" · "}
                 {binding.source}
                 {" · "}
@@ -148,7 +148,7 @@ function AccessTokenRow({
   return (
     <ConfigRow label={label} testId={testId}>
       {values.length === 0 ? (
-        <span className="text-muted">None</span>
+        <span className="text-muted-foreground">None</span>
       ) : (
         <span className="flex flex-wrap gap-1.5">
           {values.map(value => (

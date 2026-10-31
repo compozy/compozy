@@ -202,7 +202,7 @@ export function automationLastRunLabel(run: {
 }
 
 export interface AutomationLastRunMeta {
-  tone: "danger" | "neutral";
+  tone: "destructive" | "neutral";
   /** `fail` = alert glyph (danger); `skip` = skip glyph (subtle). */
   glyph: "fail" | "skip" | null;
   text: string;
@@ -248,7 +248,7 @@ export function automationLastRunMeta(
   }
   const at = automationLastRunAt(run);
   return {
-    tone: run.status === "failed" ? "danger" : "neutral",
+    tone: run.status === "failed" ? "destructive" : "neutral",
     glyph: run.status === "failed" ? "fail" : null,
     text: LAST_RUN_TEXT[run.status],
     ...(run.status !== "running" && at ? { at } : {}),

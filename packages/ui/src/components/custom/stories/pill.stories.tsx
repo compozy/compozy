@@ -20,7 +20,7 @@ const meta: Meta<typeof Pill> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const TONES: PillTone[] = ["neutral", "accent", "success", "warning", "danger", "info"];
+const TONES: PillTone[] = ["neutral", "brand", "success", "warning", "destructive", "info"];
 const SIZES: PillSize[] = ["xs", "sm", "md"];
 
 export const Default: Story = {
@@ -109,7 +109,7 @@ export const PlainStatus: Story = {
         <Pill.Dot />
         Running
       </Pill>
-      <Pill form="plain" tone="accent">
+      <Pill form="plain" tone="brand">
         <Pill.Dot />
         Needs you
       </Pill>
@@ -216,7 +216,7 @@ export const WithDot: Story = {
         <Pill.Dot pulse />
         Reconnecting
       </Pill>
-      <Pill mono tone="danger">
+      <Pill mono tone="destructive">
         <Pill.Dot />
         Disconnected
       </Pill>
@@ -273,7 +273,7 @@ export const ConnectionIndicator: Story = {
         <span className="eyebrow text-subtle">Reconnecting</span>
       </div>
       <div role="status" aria-live="polite" className="inline-flex items-center gap-2">
-        <Pill.Dot tone="danger" />
+        <Pill.Dot tone="destructive" />
         <span className="eyebrow text-subtle">Disconnected</span>
       </div>
     </div>
@@ -328,7 +328,7 @@ export const DotSizes: Story = {
 };
 
 export const PulseAnimation: Story = {
-  args: { tone: "accent", mono: true, children: "running" },
+  args: { tone: "brand", mono: true, children: "running" },
   render: args => (
     <Pill {...args}>
       <Pill.Dot pulse />

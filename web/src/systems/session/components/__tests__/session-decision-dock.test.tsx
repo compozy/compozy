@@ -211,7 +211,7 @@ describe("SessionDecisionDock", () => {
   it("Should offer no remembered decision for the fixed irreversible set", () => {
     renderDock({
       messages: [
-        permissionMessage("req-danger", {
+        permissionMessage("req-destructive", {
           title: "compozy__terminal_exec",
           raw: {
             tool_input: {

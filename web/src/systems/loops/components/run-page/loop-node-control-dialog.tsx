@@ -106,7 +106,7 @@ function LoopNodeControlDialogForm({
     <ConfirmDialog
       cancelLabel={copy.cancelLabel}
       confirmButtonProps={
-        copy.tone === "danger"
+        copy.tone === "destructive"
           ? { disabled: confirmDisabled, variant: "destructive-solid" }
           : { disabled: confirmDisabled }
       }
@@ -215,7 +215,11 @@ function WaitPayloadField({
         </p>
       ) : null}
       {check.error ? (
-        <p className="text-form-hint text-danger" data-testid="loop-node-wait-invalid" role="alert">
+        <p
+          className="text-form-hint text-destructive"
+          data-testid="loop-node-wait-invalid"
+          role="alert"
+        >
           {check.error}
         </p>
       ) : null}
@@ -227,7 +231,7 @@ function ReasonField({ value, onChange }: { value: string; onChange: (value: str
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor="loop-node-reason">
-        Reason <span className="text-muted">optional</span>
+        Reason <span className="text-muted-foreground">optional</span>
       </Label>
       <Textarea
         data-testid="loop-node-reason"

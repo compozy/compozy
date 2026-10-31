@@ -104,7 +104,7 @@ export function SelectorFooter({
   if (reasoning.mode === "supported-nolevels") {
     return (
       <FooterNote mode="supported-nolevels" speedSwitch={speedSwitch}>
-        <b className="font-medium text-muted">Reasoning is on.</b> The provider decides.
+        <b className="font-medium text-muted-foreground">Reasoning is on.</b> The provider decides.
       </FooterNote>
     );
   }

@@ -29,7 +29,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: () => (
     <Surface className="flex flex-col gap-2">
-      <span className="text-form-label text-muted">Active runs</span>
+      <span className="text-form-label text-muted-foreground">Active runs</span>
       <span className="text-kpi-value font-display text-fg-strong tabular-nums">18</span>
     </Surface>
   ),
@@ -39,7 +39,7 @@ export const Compact: Story = {
   render: () => (
     <Surface size="compact" className="flex items-center justify-between gap-2">
       <span className="text-small-body text-fg">Queue depth</span>
-      <span className="font-mono text-mono-id tabular-nums text-muted">142</span>
+      <span className="font-mono text-mono-id tabular-nums text-muted-foreground">142</span>
     </Surface>
   ),
 };
@@ -48,10 +48,10 @@ export const Compact: Story = {
 export const Sunken: Story = {
   render: () => (
     <Surface variant="sunken" size="compact" className="flex flex-col gap-1">
-      <span className="text-small-body text-muted">
+      <span className="text-small-body text-muted-foreground">
         <span className="font-medium text-fg">Read</span> web/src/checkout/order-summary.tsx
       </span>
-      <span className="text-small-body text-muted">
+      <span className="text-small-body text-muted-foreground">
         <span className="font-medium text-fg">Run</span> bun run test checkout
       </span>
     </Surface>

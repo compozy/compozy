@@ -18,8 +18,8 @@ import { GoalTurnTimeline } from "./goal-turn-timeline";
 export function LoopRunTurnsDisclosure({ read, isLive }: { read: GoalTurnsRead; isLive: boolean }) {
   return (
     <Collapsible className="border-t border-line-soft p-4">
-      <CollapsibleTrigger className="group inline-flex min-h-6 items-center gap-1.5 rounded-xs px-1 text-badge font-medium text-muted hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring">
-        <Eyebrow className="text-muted">Goal turns</Eyebrow>
+      <CollapsibleTrigger className="group inline-flex min-h-6 items-center gap-1.5 rounded-xs px-1 text-badge font-medium text-muted-foreground hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring">
+        <Eyebrow className="text-muted-foreground">Goal turns</Eyebrow>
         <span className="font-mono text-mono-id tabular-nums text-faint">
           {read.turns.length}
           {read.hasMore ? "+" : ""}
@@ -31,7 +31,7 @@ export function LoopRunTurnsDisclosure({ read, isLive }: { read: GoalTurnsRead; 
       </CollapsibleTrigger>
       <CollapsibleContent>
         {read.isError ? (
-          <div role="alert" className="mt-3 text-small-body text-danger">
+          <div role="alert" className="mt-3 text-small-body text-destructive">
             Could not load Goal turns.{" "}
             {read.turns.length > 0 ? "Showing the last available history." : ""}
             {read.onRetry ? (

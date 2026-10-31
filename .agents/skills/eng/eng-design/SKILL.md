@@ -21,7 +21,7 @@ Use the applicable canonical visual authorities for the design decision. The inv
 - Design for people running agent work, not an expert console — calm by
   default, deep on demand: the default read of a screen is plain-language and
   sparse; density, mono ids, and raw enums live on inspection surfaces.
-- Dark mode only; warm-dark surface ramp; one `--color-accent` target per viewport.
+- Dark mode only; warm-dark surface ramp; one `--color-brand` target per viewport.
 - Signal color marks live state only, never taxonomy — rows and cards stay
   neutral at rest.
 - Flat depth model; use `--shadow-overlay` for overlays and `--shadow-highlight` for active rims.

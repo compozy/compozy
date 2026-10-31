@@ -177,7 +177,7 @@ function EnvEditor({
               </Button>
             </div>
             {errors?.[index] ? (
-              <p className="mt-1 text-caption text-danger" role="alert">
+              <p className="mt-1 text-caption text-destructive" role="alert">
                 {errors[index]}
               </p>
             ) : null}
@@ -262,7 +262,7 @@ function SecretEnvSection({
               />
               {rowError ? (
                 <p
-                  className="text-caption text-danger"
+                  className="text-caption text-destructive"
                   data-testid={`settings-mcp-servers-editor-secret-error-${index}`}
                 >
                   {rowError}

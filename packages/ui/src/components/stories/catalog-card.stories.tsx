@@ -133,7 +133,7 @@ export const Error: Story = {
   render: () => (
     <CatalogCard className="max-w-sm" data-testid="catalog-card-error">
       <div className="flex items-start gap-3">
-        <CatalogCard.Logo tone="danger">
+        <CatalogCard.Logo tone="destructive">
           <AlertCircle className="size-4" />
         </CatalogCard.Logo>
         <div className="flex min-w-0 flex-1 flex-col gap-1">

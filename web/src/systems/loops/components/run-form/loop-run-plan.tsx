@@ -12,9 +12,9 @@ export function LoopRunPlan({ plan }: LoopRunPlanProps) {
   return (
     <div className="rounded-lg bg-card shadow-card p-4" data-testid="loop-run-plan">
       <div className="flex items-center gap-2">
-        <Eyebrow className="text-muted">Dry run · round {plan.generation} plan</Eyebrow>
+        <Eyebrow className="text-muted-foreground">Dry run · round {plan.generation} plan</Eyebrow>
       </div>
-      <p className="mt-1.5 text-form-label leading-relaxed text-muted">
+      <p className="mt-1.5 text-form-label leading-relaxed text-muted-foreground">
         Your inputs look good. This is what round {plan.generation} would run. Nothing was started.
       </p>
       {inputEntries.length > 0 ? (

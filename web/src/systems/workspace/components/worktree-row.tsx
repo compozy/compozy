@@ -88,10 +88,10 @@ export function WorktreeRow({
         aria-hidden="true"
         data-slot="worktree-row-icon"
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded",
+          "grid size-7 shrink-0 place-items-center rounded-md",
           DASHED_WELL_STATES.has(entry.displayState)
-            ? "border border-dashed border-line-strong text-muted"
-            : "bg-surface-2 text-muted"
+            ? "border border-dashed border-line-strong text-muted-foreground"
+            : "bg-surface-2 text-muted-foreground"
         )}
       >
         <Icon as={STATE_ICON[entry.displayState]} size="sm" />
@@ -103,7 +103,7 @@ export function WorktreeRow({
             data-slot="worktree-row-name"
             className={cn(
               "min-w-0 truncate text-small-body font-medium tracking-tight",
-              MUTED_NAME_STATES.has(entry.displayState) ? "text-muted" : "text-fg"
+              MUTED_NAME_STATES.has(entry.displayState) ? "text-muted-foreground" : "text-fg"
             )}
           >
             {entry.name}

@@ -76,7 +76,7 @@ function HomeAttentionRow({
         data-slot="home-attention-row"
       >
         <StateGlyph label="Resolved" state="done" />
-        <span className="truncate text-small-body text-muted">
+        <span className="truncate text-small-body text-muted-foreground">
           {resolved === "approved" ? "Approved — " : "Rejected — "}
           <span className="font-medium text-fg-strong">{item.title}</span>
           {resolved === "approved" ? " is starting" : " will not run"}
@@ -94,7 +94,7 @@ function HomeAttentionRow({
       data-slot="home-attention-row"
     >
       <StateGlyph label={attentionKindLabel(item.kind)} state={attentionGlyph(item.kind)} />
-      <span className="truncate text-small-body text-muted max-[760px]:whitespace-normal">
+      <span className="truncate text-small-body text-muted-foreground max-[760px]:whitespace-normal">
         <span className="font-medium text-fg-strong">{item.title}</span> {attentionSentence(item)}
       </span>
       <span className="text-eyebrow tabular-nums text-subtle max-[760px]:hidden">
@@ -207,7 +207,7 @@ export function HomeAttentionZone({
     <Section count={attention.total} data-slot="home-attention" label="Needs you" right={inbox}>
       <Panel bodyClassName="p-0" className="overflow-hidden">
         {acknowledgementError ? (
-          <p role="alert" className="px-4 py-2 text-small-body text-danger">
+          <p role="alert" className="px-4 py-2 text-small-body text-destructive">
             {acknowledgementError}
           </p>
         ) : null}

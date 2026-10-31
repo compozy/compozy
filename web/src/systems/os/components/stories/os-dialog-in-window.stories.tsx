@@ -50,7 +50,7 @@ function WindowWithDialog() {
     <div ref={bodyRef} className="contain-paint min-h-full">
       <OverlayContainerContext.Provider value={container}>
         <div className="flex flex-col gap-3 p-4">
-          <p className="text-small-body text-muted">
+          <p className="text-small-body text-muted-foreground">
             This confirm portals into the window's container — its scrim dims only this window.
           </p>
           <Dialog defaultOpen>

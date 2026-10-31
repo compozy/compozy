@@ -29,7 +29,7 @@ export function TaskExternalResult({
     <Collapsible onOpenChange={controller.onOpenChange} open={controller.open}>
       <div className="rounded-lg bg-card shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-          <span className="text-small-body text-muted tabular-nums">
+          <span className="text-small-body text-muted-foreground tabular-nums">
             {formatByteCount(resultBytes)}
           </span>
           <CollapsibleTrigger
@@ -71,7 +71,7 @@ function TaskExternalResultBody({
   if (controller.errorMessage) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3" role="alert">
-        <p className="text-small-body text-danger">{controller.errorMessage}</p>
+        <p className="text-small-body text-destructive">{controller.errorMessage}</p>
         <Button onClick={controller.onRetry} size="sm" type="button" variant="secondary">
           Retry
         </Button>
@@ -96,7 +96,7 @@ function TaskExternalResultPage({
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Eyebrow className="text-muted tabular-nums">{formatPageRange(page)}</Eyebrow>
+        <Eyebrow className="text-muted-foreground tabular-nums">{formatPageRange(page)}</Eyebrow>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             disabled={controller.copyState === "copying"}

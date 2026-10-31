@@ -67,7 +67,7 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
   return (
     <>
       <DialogHeader variant="ruled">
-        <Eyebrow className="flex items-center gap-2 text-muted">
+        <Eyebrow className="flex items-center gap-2 text-muted-foreground">
           <Plug className="size-3.5" />
           {name} · {scope} · OAuth
         </Eyebrow>
@@ -98,7 +98,7 @@ function ScopeEscalationReview({ authorize, scope, server }: MCPAuthorizeDialogP
       </div>
 
       <DialogFooter variant="ruled" className="grid items-center">
-        <span className="text-caption text-muted">
+        <span className="text-caption text-muted-foreground">
           CompozyOS sends these scopes only after this confirmation.
         </span>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -140,7 +140,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
   return (
     <>
       <DialogHeader variant="ruled">
-        <Eyebrow className="flex items-center gap-2 text-muted">
+        <Eyebrow className="flex items-center gap-2 text-muted-foreground">
           <Plug className="size-3.5" />
           {name} · {scope} · OAuth
         </Eyebrow>
@@ -164,7 +164,7 @@ function AuthorizeContent({ authorize, scope, server }: MCPAuthorizeDialogProps)
       </div>
 
       <DialogFooter variant="ruled" className="grid items-center">
-        <span className="text-caption text-muted">
+        <span className="text-caption text-muted-foreground">
           Existing credentials stay unchanged until a confirmed exchange.
         </span>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -215,7 +215,7 @@ function AuthorizePhaseAlert({
       );
     case "failed":
       return (
-        <Alert variant="danger" role="alert" data-testid="settings-page-mcp-authorize-failure">
+        <Alert variant="destructive" role="alert" data-testid="settings-page-mcp-authorize-failure">
           <CircleAlert />
           <AlertTitle>
             {authorize.begin !== null ? "Sign-in couldn't be finished" : "Sign-in couldn't start"}
@@ -260,7 +260,7 @@ function ManualRedirectField({
           Use this when the browser cannot reach this machine. Paste the complete redirected URL,
           including its query parameters. Authorization codes alone are not accepted.
         </HelpTip>
-        <Eyebrow className="ml-auto text-muted">required</Eyebrow>
+        <Eyebrow className="ml-auto text-muted-foreground">required</Eyebrow>
       </div>
       <Textarea
         id="mcp-authorize-manual-value"
@@ -368,7 +368,7 @@ function AuthorizationUrlBlock({ url }: { url: string }) {
   return (
     <div className="my-3.5 rounded-md bg-sunken p-3" data-testid="settings-page-mcp-authorize-url">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Eyebrow className="flex-1 text-muted">Live URL from auth/begin</Eyebrow>
+        <Eyebrow className="flex-1 text-muted-foreground">Live URL from auth/begin</Eyebrow>
         <Button
           type="button"
           variant="ghost"

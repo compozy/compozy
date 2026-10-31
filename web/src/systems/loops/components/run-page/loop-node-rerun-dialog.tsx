@@ -72,7 +72,7 @@ function LoopNodeRerunDialogForm({
       onOpenChange={onOpenChange}
       open={open}
       title="Rerun from here"
-      tone="accent"
+      tone="brand"
       body={
         <>
           {answer ? <LoopControlAnswerAlert answer={answer} /> : null}
@@ -91,7 +91,7 @@ function LoopNodeRerunDialogForm({
               tabIndex={0}
             >
               {rerunNodes.length === 0 ? (
-                <p className="py-2.5 text-form-hint text-muted">
+                <p className="py-2.5 text-form-hint text-muted-foreground">
                   This node has nothing to re-execute.
                 </p>
               ) : (
@@ -112,7 +112,7 @@ function LoopNodeRerunDialogForm({
                 ))
               )}
             </div>
-            <p className="text-form-hint text-muted" data-testid="loop-rerun-carried">
+            <p className="text-form-hint text-muted-foreground" data-testid="loop-rerun-carried">
               {carriedLabel(rerunSet.carriedNodes.length)}
             </p>
             <p className="text-form-hint text-subtle">
@@ -121,7 +121,7 @@ function LoopNodeRerunDialogForm({
           </section>
           <Field>
             <FieldLabel htmlFor="loop-rerun-reason">
-              Reason <span className="text-muted">optional</span>
+              Reason <span className="text-muted-foreground">optional</span>
             </FieldLabel>
             <Textarea
               data-testid="loop-rerun-reason"

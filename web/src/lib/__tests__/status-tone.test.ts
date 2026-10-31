@@ -48,8 +48,8 @@ describe("TASK_STATUS_TONE", () => {
   });
 
   it("Should map blocked + failed to danger and completed to success", () => {
-    expect(TASK_STATUS_TONE.blocked).toBe("danger");
-    expect(TASK_STATUS_TONE.failed).toBe("danger");
+    expect(TASK_STATUS_TONE.blocked).toBe("destructive");
+    expect(TASK_STATUS_TONE.failed).toBe("destructive");
     expect(TASK_STATUS_TONE.completed).toBe("success");
   });
 
@@ -64,7 +64,7 @@ describe("TASK_STATUS_TONE", () => {
     // Truthful UI: the unblock-loop breaker's escalation must not read as the
     // same signal as a plain block. blocked → danger, needs_attention → warning.
     expect(TASK_STATUS_TONE.needs_attention).not.toBe(TASK_STATUS_TONE.blocked);
-    expect(TASK_STATUS_TONE.blocked).toBe("danger");
+    expect(TASK_STATUS_TONE.blocked).toBe("destructive");
     expect(TASK_STATUS_TONE.needs_attention).toBe("warning");
   });
 });
@@ -81,7 +81,7 @@ describe("RUN_STATUS_TONE", () => {
   });
 
   it("Should map failed to danger and completed to success", () => {
-    expect(RUN_STATUS_TONE.failed).toBe("danger");
+    expect(RUN_STATUS_TONE.failed).toBe("destructive");
     expect(RUN_STATUS_TONE.completed).toBe("success");
     expect(RUN_STATUS_TONE.in_progress).toBe("info");
     expect(RUN_STATUS_TONE.pending).toBe("neutral");
@@ -102,12 +102,12 @@ describe("TASK_LANE_TONE", () => {
   });
 
   it("Should map mentions to accent", () => {
-    expect(TASK_LANE_TONE.mentions).toBe("accent");
+    expect(TASK_LANE_TONE.mentions).toBe("brand");
   });
 
   it("Should map blocked + failed_runs to danger", () => {
-    expect(TASK_LANE_TONE.blocked).toBe("danger");
-    expect(TASK_LANE_TONE.failed_runs).toBe("danger");
+    expect(TASK_LANE_TONE.blocked).toBe("destructive");
+    expect(TASK_LANE_TONE.failed_runs).toBe("destructive");
   });
 
   it("Should leave active/recent/my_work/updates as neutral", () => {

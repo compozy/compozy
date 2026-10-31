@@ -57,14 +57,14 @@ function TerminalExecApprovalDetail({
   return (
     <div className="flex items-start gap-2" data-testid="terminal-approval-detail">
       {danger ? (
-        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-danger" />
+        <TriangleAlert aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-destructive" />
       ) : (
         <SquareTerminal aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-warning" />
       )}
       <div className="flex min-w-0 flex-col gap-1.5">
         {danger ? (
           <span
-            className="font-semibold text-danger text-transcript-meta"
+            className="font-semibold text-destructive text-transcript-meta"
             data-testid="terminal-approval-irreversible"
           >
             This can&apos;t be undone
@@ -73,7 +73,7 @@ function TerminalExecApprovalDetail({
         <div
           className={cn(
             "rounded-xs px-2.5 py-2 font-mono leading-normal break-all whitespace-pre-wrap text-fg text-transcript-meta",
-            danger ? "bg-danger-tint shadow-danger-inset" : "bg-chat-fill-code"
+            danger ? "bg-destructive-tint shadow-destructive-inset" : "bg-chat-fill-code"
           )}
           data-testid="terminal-approval-command"
         >

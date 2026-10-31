@@ -242,7 +242,7 @@ export function LoopRequestCard({
 }
 
 function expiryClass(view: LoopRequestView): string {
-  if (view.expiry?.isPast) return "text-danger";
+  if (view.expiry?.isPast) return "text-destructive";
   return view.expiry?.isNearExpiry ? "text-warning" : "";
 }
 

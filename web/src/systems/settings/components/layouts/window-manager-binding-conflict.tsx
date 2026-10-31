@@ -32,7 +32,7 @@ export function WindowManagerBindingConflict({
   onCancel,
 }: WindowManagerBindingConflictProps) {
   return (
-    <Alert data-testid={testId} variant="danger">
+    <Alert data-testid={testId} variant="destructive">
       <OctagonX aria-hidden="true" />
       <AlertTitle>
         {claim} is already used by {ownerTitle}

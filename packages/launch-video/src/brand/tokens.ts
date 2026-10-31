@@ -18,14 +18,14 @@ export const color = {
   fg: "#eeedeb",
   /** --color-fg-strong */
   fgStrong: "#f7f6f4",
-  /** --color-muted */
-  muted: "#a4a29e",
-  /** --color-accent */
-  accent: "#e8572a",
-  /** --color-accent-ink */
-  accentInk: "#17110f",
-  /** --color-accent-tint-strong */
-  accentTintStrong: "rgba(232, 87, 42, 0.16)",
+  /** --color-muted-foreground */
+  mutedForeground: "#a4a29e",
+  /** --color-brand */
+  brand: "#e8572a",
+  /** --color-brand-ink */
+  brandInk: "#17110f",
+  /** --color-brand-tint-strong */
+  brandTintStrong: "rgba(232, 87, 42, 0.16)",
   /** --color-line */
   line: "rgba(255, 255, 255, 0.055)",
   /** --color-line-strong */

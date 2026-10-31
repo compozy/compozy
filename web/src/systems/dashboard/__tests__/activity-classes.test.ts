@@ -27,7 +27,7 @@ describe("isQuietActivityEvent", () => {
 
 describe("homeActivityTone", () => {
   it("Should remap failure to danger and default missing outcomes to neutral", () => {
-    expect(homeActivityTone({ outcome: "failure" })).toBe("danger");
+    expect(homeActivityTone({ outcome: "failure" })).toBe("destructive");
     expect(homeActivityTone({ outcome: "info" })).toBe("neutral");
     expect(homeActivityTone({})).toBe("neutral");
   });

@@ -23,7 +23,7 @@ function ExtensionEnvironmentState({
   const declaredValues = new Set(required);
   const stale = bound.filter(value => !declaredValues.has(value));
   if (!required.length && !stale.length)
-    return <p className="text-small-body text-muted">Nothing to set up.</p>;
+    return <p className="text-small-body text-muted-foreground">Nothing to set up.</p>;
   const missingValues = new Set(missing);
   return (
     <div className="space-y-2" data-testid="extension-environment-state">
@@ -31,14 +31,14 @@ function ExtensionEnvironmentState({
         <div className="flex items-center justify-between gap-3" key={value}>
           <code className="font-mono text-eyebrow text-fg">{value}</code>
           {boundValues.has(value) ? (
-            <span className="text-form-label text-muted">Set</span>
+            <span className="text-form-label text-muted-foreground">Set</span>
           ) : missingValues.has(value) ? (
             <Pill form="plain" tone="warning">
               <Pill.Dot />
               Missing
             </Pill>
           ) : (
-            <span className="text-form-label text-muted">From your system</span>
+            <span className="text-form-label text-muted-foreground">From your system</span>
           )}
         </div>
       ))}
@@ -66,7 +66,7 @@ function ExtensionDiagnostics({
   return (
     <div className="flex flex-col gap-2">
       {lastError ? (
-        <Alert data-testid="extension-last-error" role="note" variant="danger">
+        <Alert data-testid="extension-last-error" role="note" variant="destructive">
           <CircleAlert aria-hidden="true" />
           <AlertTitle>Last error</AlertTitle>
           <AlertDescription>{lastError}</AlertDescription>

@@ -155,7 +155,7 @@ export function SessionListSections({
         data-testid={`${testIdPrefix}-root`}
         className={cn(
           "flex min-h-6 flex-col gap-0.5 rounded-md transition-colors",
-          rootTarget && "bg-accent-tint ring-1 ring-accent ring-inset"
+          rootTarget && "bg-brand-tint ring-1 ring-brand ring-inset"
         )}
       >
         {renderThreads(sections.root, null)}

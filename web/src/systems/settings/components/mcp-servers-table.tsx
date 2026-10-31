@@ -76,7 +76,10 @@ function MCPServersTableHeader() {
       {HEADER_COLUMNS.map((column, index) => (
         <span
           key={column}
-          className={cn("eyebrow text-muted", index === HEADER_COLUMNS.length - 1 && "text-right")}
+          className={cn(
+            "eyebrow text-muted-foreground",
+            index === HEADER_COLUMNS.length - 1 && "text-right"
+          )}
         >
           {column}
         </span>
@@ -149,7 +152,7 @@ function MCPServerRow({
       <div className={SERVER_CELL_CLASS}>
         <span
           aria-hidden="true"
-          className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"
+          className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2 text-muted-foreground"
         >
           <Plug className="size-4" />
         </span>

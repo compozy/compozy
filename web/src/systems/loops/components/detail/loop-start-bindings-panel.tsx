@@ -125,7 +125,7 @@ function LoopBindingItem({ binding }: { binding: LoopBindingRow }) {
         />
         <span
           className={`min-w-0 truncate text-form-label ${
-            binding.enabled ? "text-fg-strong" : "text-muted"
+            binding.enabled ? "text-fg-strong" : "text-muted-foreground"
           }`}
         >
           {binding.name}
@@ -142,7 +142,7 @@ function LoopBindingItem({ binding }: { binding: LoopBindingRow }) {
 function LoopBindingsPageError({ pagination }: { pagination?: LoopBindingPagination }) {
   if (!pagination?.error) return null;
   return (
-    <p className="border-t border-line-soft px-4 py-2 text-caption text-danger" role="alert">
+    <p className="border-t border-line-soft px-4 py-2 text-caption text-destructive" role="alert">
       {pagination.error.message}
     </p>
   );

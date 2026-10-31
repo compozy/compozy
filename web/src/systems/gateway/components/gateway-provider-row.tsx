@@ -47,7 +47,7 @@ export function GatewayProviderRow({
         </ListingRow.Meta>
         {candidate.blockers.map(blocker => (
           <p
-            className="mt-1 text-form-label text-muted"
+            className="mt-1 text-form-label text-muted-foreground"
             data-testid={`gateway-provider-${candidate.name}-blocker-${blocker.id}`}
             key={blocker.id}
           >

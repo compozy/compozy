@@ -119,7 +119,7 @@ describe("AutomationRow", () => {
     renderRow(view("release-checklist"));
     const failed = screen.getByTestId("automation-last-run-nightly-delivery");
     expect(failed).toHaveTextContent(/Last run failed 7h ago/);
-    expect(failed).toHaveAttribute("data-tone", "danger");
+    expect(failed).toHaveAttribute("data-tone", "destructive");
     const skipped = screen.getByTestId("automation-last-run-release-checklist");
     expect(skipped).toHaveTextContent("Last run skipped — the one before was still going");
     expect(skipped).toHaveAttribute("data-tone", "neutral");

@@ -92,7 +92,7 @@ export function WorktreeMissingResolutionDialog({
           </MetadataList>
 
           {refusal || error ? (
-            <Alert variant="danger" data-testid="worktree-missing-refusal">
+            <Alert variant="destructive" data-testid="worktree-missing-refusal">
               <AlertDescription>{refusal?.message ?? error}</AlertDescription>
             </Alert>
           ) : null}

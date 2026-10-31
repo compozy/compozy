@@ -181,17 +181,17 @@ describe("ConfirmDialog", () => {
       contentProps: { "data-testid": "confirm-dialog" },
       eyebrow: "Run",
       icon: Zap,
-      iconTone: "danger",
+      iconTone: "destructive",
       title: "Kill this run?",
-      tone: "danger",
+      tone: "destructive",
     });
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     const well = screen
       .getByTestId("confirm-dialog")
       .querySelector('[data-slot="confirm-dialog-icon"]');
-    expect(well).toHaveAttribute("data-icon-tone", "danger");
-    expect(well?.className).toContain("bg-danger-tint");
+    expect(well).toHaveAttribute("data-icon-tone", "destructive");
+    expect(well?.className).toContain("bg-destructive-tint");
     expect(well?.className).toContain("rounded-icon-well");
     expect(well?.querySelector("svg")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Kill this run?" })).toBeInTheDocument();

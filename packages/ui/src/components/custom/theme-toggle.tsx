@@ -25,7 +25,7 @@ function ThemeToggle({ resolvedTheme, className, type = "button", ...props }: Th
       data-slot="theme-toggle"
       type={type}
       className={cn(
-        "grid size-rail-item shrink-0 cursor-pointer place-items-center rounded-lg text-muted",
+        "grid size-rail-item shrink-0 cursor-pointer place-items-center rounded-lg text-muted-foreground",
         "transition-colors duration-base ease-out hover:bg-rail-hover hover:text-fg",
         "focus-visible:shadow-focus-ring focus-visible:outline-none",
         "[&_svg]:pointer-events-none [&_svg]:size-4",

@@ -39,7 +39,7 @@ export function AutomationDetailSection({
         <Icon aria-hidden="true" className="size-3.5 shrink-0 text-subtle" />
         <Eyebrow className="shrink-0 text-subtle">{label}</Eyebrow>
         {count !== undefined && count > 0 ? (
-          <span className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted">
+          <span className="inline-flex h-count-chip min-w-count-chip items-center justify-center rounded-mono-badge bg-surface-2 px-1.5 font-mono text-mono-id font-medium tabular-nums text-muted-foreground">
             {count}
           </span>
         ) : null}

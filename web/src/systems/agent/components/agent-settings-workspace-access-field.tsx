@@ -61,7 +61,7 @@ export function AgentSettingsWorkspaceAccessField({
       </div>
       {!editable ? (
         <p
-          className="text-small-body text-muted"
+          className="text-small-body text-muted-foreground"
           data-testid="agent-settings-workspace-access-readonly"
         >
           {AGENT_WORKSPACE_ACCESS_COPY.readOnlyNote}

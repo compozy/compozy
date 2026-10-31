@@ -48,7 +48,7 @@ function SessionContextTurnRow({ turn }: { turn: Turn }) {
   const details = turnDetails(turn);
   return (
     <li
-      className="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.75 text-form-label text-muted"
+      className="grid grid-cols-[3.75rem_minmax(0,1fr)_auto] items-center gap-2 px-2.5 py-1.75 text-form-label text-muted-foreground"
       data-testid="session-context-turn-row"
     >
       <span className="truncate font-mono text-mono-id text-subtle" title={turn.turn_id}>
@@ -71,7 +71,7 @@ function SessionContextTurnRow({ turn }: { turn: Turn }) {
       </span>
       <dl className="text-right font-mono text-mono-id tabular-nums">
         <dt className="sr-only">Turn cost</dt>
-        <dd className={cost.hasCost ? "text-muted" : "text-faint"}>{cost.value}</dd>
+        <dd className={cost.hasCost ? "text-muted-foreground" : "text-faint"}>{cost.value}</dd>
       </dl>
     </li>
   );
@@ -99,13 +99,13 @@ function SessionContextCompactionMarker({ marker }: { marker: SessionCompactionM
       <Minimize2 aria-hidden="true" className="mt-0.75 size-2.75 shrink-0" />
       <span>
         {marker.label} ·{" "}
-        <span className={marker.status === "failed" ? "text-danger" : undefined}>
+        <span className={marker.status === "failed" ? "text-destructive" : undefined}>
           {marker.statusLabel}
         </span>
         {tokens ? (
           <>
             {" "}
-            · <b className="font-mono font-medium tabular-nums text-muted">{tokens}</b>
+            · <b className="font-mono font-medium tabular-nums text-muted-foreground">{tokens}</b>
           </>
         ) : null}
       </span>

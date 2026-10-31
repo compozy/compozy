@@ -120,12 +120,12 @@ function QuarantineSheetHeader({
       <div className="flex items-start gap-3">
         <span
           aria-hidden="true"
-          className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-danger-tint text-danger ring-1 ring-danger/24 ring-inset"
+          className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-destructive-tint text-destructive ring-1 ring-destructive/24 ring-inset"
         >
           <ShieldAlert className="size-4" />
         </span>
         <div className="min-w-0">
-          <Eyebrow className="text-danger">Set aside</Eyebrow>
+          <Eyebrow className="text-destructive">Set aside</Eyebrow>
           <SheetTitle className="mt-0.5 truncate" title={node.nodeId}>
             {node.label}
           </SheetTitle>
@@ -166,8 +166,8 @@ function QuarantineFacts({ entry }: { entry: LoopQuarantineEntry }) {
         ) : null}
       </div>
       {entry.inputRef ? (
-        <div className="mt-2 rounded bg-sunken px-3 py-2.5">
-          <Eyebrow className="text-muted">Input</Eyebrow>
+        <div className="mt-2 rounded-md bg-sunken px-3 py-2.5">
+          <Eyebrow className="text-muted-foreground">Input</Eyebrow>
           <p className="mt-1 truncate font-mono text-mono-id text-fg">{entry.inputRef}</p>
         </div>
       ) : null}
@@ -212,7 +212,7 @@ function QuarantineSheetFooter({
   const CancelIcon = LOOP_NODE_VERB_ICONS.cancel;
   return (
     <SheetFooter className="flex-row items-center justify-between gap-3 border-t border-line px-5 py-3">
-      <span className="text-small-body text-muted" data-testid="loop-quarantine-foot">
+      <span className="text-small-body text-muted-foreground" data-testid="loop-quarantine-foot">
         {runEnded
           ? "This run has ended. The entry is kept as a record."
           : "The run keeps working. Setting a step aside never stops it."}

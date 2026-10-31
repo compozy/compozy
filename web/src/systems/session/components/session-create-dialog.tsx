@@ -150,7 +150,7 @@ function SessionCreateDialog({
 
             {submitError ? (
               <FieldError
-                className="mt-4 text-form-hint text-danger"
+                className="mt-4 text-form-hint text-destructive"
                 data-testid="session-create-submit-error"
               >
                 {submitError}

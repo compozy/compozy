@@ -31,7 +31,7 @@ export function projectTaskExceptionPills(detail: TaskDetailView): TaskException
   const pills: TaskExceptionPill[] = [];
 
   if (taskHasApprovalPending(record)) {
-    pills.push({ key: "approval", label: "Approval pending", tone: "accent" });
+    pills.push({ key: "approval", label: "Approval pending", tone: "brand" });
   }
 
   const priority = record.priority ? PRIORITY_EXCEPTION[record.priority] : undefined;

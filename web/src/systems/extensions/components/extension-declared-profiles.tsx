@@ -51,7 +51,7 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
           key={`${placement.kind}:${placement.resource}:${placement.profile}`}
         >
           <CircleDot aria-hidden="true" className="size-3.5 shrink-0 text-info" />
-          <span className="min-w-0 flex-1 text-small-body text-muted">
+          <span className="min-w-0 flex-1 text-small-body text-muted-foreground">
             {placement.resource} · {placement.profile}
           </span>
           <Button
@@ -70,7 +70,7 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
       {placements.length > 0 ? (
         <Accordion className="px-4" defaultValue={[]}>
           <AccordionItem value="placements">
-            <AccordionTrigger className="text-eyebrow text-muted">
+            <AccordionTrigger className="text-eyebrow text-muted-foreground">
               Placement matrix
             </AccordionTrigger>
             <AccordionContent>
@@ -83,7 +83,7 @@ export function ExtensionDeclaredProfiles({ extension }: { extension: ExtensionE
                     <dt className="min-w-0 truncate text-fg">
                       {placement.kind} · {placement.resource}
                     </dt>
-                    <dd className="text-muted">{placement.profile || "Machine-wide"}</dd>
+                    <dd className="text-muted-foreground">{placement.profile || "Machine-wide"}</dd>
                   </div>
                 ))}
               </dl>

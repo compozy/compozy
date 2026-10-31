@@ -52,7 +52,7 @@ export const Default: Story = {
 export const Danger: Story = {
   args: {},
   render: () => (
-    <Alert variant="danger">
+    <Alert variant="destructive">
       <TriangleAlertIcon />
       <AlertTitle>Connection lost</AlertTitle>
       <AlertDescription>
@@ -101,7 +101,7 @@ export const Info: Story = {
 export const Accent: Story = {
   args: {},
   render: () => (
-    <Alert variant="accent" role="status">
+    <Alert variant="brand" role="status">
       <AlertTitle>New agent available</AlertTitle>
       <AlertDescription>claude-opus-4-7 is ready to install.</AlertDescription>
     </Alert>

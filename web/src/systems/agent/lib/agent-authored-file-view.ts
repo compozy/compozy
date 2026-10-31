@@ -15,7 +15,7 @@ export function authoredFileRevisionIdentity(revision: object): AuthoredFileRevi
 
 const STATUS_TONES = new Map<string, PillTone>([
   ["valid", "success"],
-  ["invalid", "danger"],
+  ["invalid", "destructive"],
 ]);
 
 export function authoredFileStatusTone(status: string): PillTone {

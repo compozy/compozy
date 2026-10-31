@@ -94,7 +94,7 @@ export function LoopNodePanel({ panel, actions }: LoopNodePanelProps) {
         <LoopRunChildRuns childRuns={childRuns} defaultOpen />
 
         {panel.neverMaterialized ? (
-          <p className="text-small-body text-muted" data-testid="loop-node-panel-never">
+          <p className="text-small-body text-muted-foreground" data-testid="loop-node-panel-never">
             This step never ran, so it has no session, record or timing to open.
           </p>
         ) : null}
@@ -140,7 +140,9 @@ export function LoopNodePanel({ panel, actions }: LoopNodePanelProps) {
                   </span>
                   <LoopNodeStateChip chip={attempt.chip} />
                   {attempt.failureLabel ? (
-                    <span className="text-form-hint text-muted">{attempt.failureLabel}</span>
+                    <span className="text-form-hint text-muted-foreground">
+                      {attempt.failureLabel}
+                    </span>
                   ) : null}
                   {attempt.endedAt ? (
                     <span className="ml-auto text-form-hint text-faint">

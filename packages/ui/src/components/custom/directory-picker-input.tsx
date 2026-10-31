@@ -134,7 +134,10 @@ function DirectoryPickerInput({
                     key={item.value}
                     value={item}
                   >
-                    <Folder aria-hidden="true" className="size-3.5 flex-none text-muted" />
+                    <Folder
+                      aria-hidden="true"
+                      className="size-3.5 flex-none text-muted-foreground"
+                    />
                     <span className="truncate font-mono text-mono-id text-fg">{item.label}</span>
                   </AutocompletePrimitive.Item>
                 )}

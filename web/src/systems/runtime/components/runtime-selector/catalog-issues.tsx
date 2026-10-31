@@ -70,7 +70,7 @@ export function RuntimeCatalogIssues({
         className="max-h-[min(280px,var(--available-height))] w-72 max-w-[calc(100vw-2rem)] gap-2 overflow-y-auto overscroll-contain"
         data-testid="runtime-selector-catalog-issues-popup"
       >
-        <Eyebrow id={titleId} className="px-0.5 text-muted">
+        <Eyebrow id={titleId} className="px-0.5 text-muted-foreground">
           {CATALOG_ISSUES_LABEL}
         </Eyebrow>
         <ul className="flex flex-col gap-2 px-0.5">
@@ -79,7 +79,9 @@ export function RuntimeCatalogIssues({
               {row.name ? (
                 <span className="text-small-body font-medium text-fg">{row.name}</span>
               ) : null}
-              <span className="text-form-hint text-pretty text-muted">{row.message}</span>
+              <span className="text-form-hint text-pretty text-muted-foreground">
+                {row.message}
+              </span>
             </li>
           ))}
         </ul>

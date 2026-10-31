@@ -155,7 +155,7 @@ function tabPlateClass(pinned: boolean, active: boolean): string {
     active
       ? // The plate's side and top hairlines are inset so the feet meet them flush.
         "z-1 bg-canvas text-fg shadow-[inset_1px_0_0_var(--color-line),inset_-1px_0_0_var(--color-line),inset_0_1px_0_var(--color-line)]"
-      : "text-muted hover:bg-rail-hover hover:text-fg"
+      : "text-muted-foreground hover:bg-rail-hover hover:text-fg"
   );
 }
 

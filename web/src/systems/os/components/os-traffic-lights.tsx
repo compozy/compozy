@@ -74,7 +74,7 @@ function Light({
         aria-hidden="true"
         data-action={action}
         className={cn(
-          "grid shrink-0 place-items-center rounded-pill text-muted",
+          "grid shrink-0 place-items-center rounded-pill text-muted-foreground",
           compact ? "size-11" : "size-button-icon-sm"
         )}
       >

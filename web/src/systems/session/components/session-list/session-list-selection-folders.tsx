@@ -39,7 +39,7 @@ export function SessionSelectionFolderMenu({
           // reader users land on the reason instead of an empty submenu.
           <Item
             closeOnClick={false}
-            className="text-muted focus:text-muted"
+            className="text-muted-foreground focus:text-muted-foreground"
             data-testid={`${testId}-blocked`}
           >
             {menu.blockedReason}
@@ -102,7 +102,7 @@ export function SessionListSelectionFolders({
         // so it stays rendered, off-screen, while a selection is open.
         <div aria-hidden="true" className="pointer-events-none fixed top-0 -left-full">
           <div ref={setPreview} className="inline-flex p-1">
-            <Pill tone="accent" solid size="md">
+            <Pill tone="brand" solid size="md">
               <FolderInput aria-hidden="true" className="size-3" />
               {sessionCountLabel(previewCount)}
             </Pill>

@@ -36,20 +36,20 @@ export const LOOP_RUN_VERB_ICONS: Record<Extract<LoopRunVerb, "cancel">, LucideI
 /** Head-well tone: escalation lives here, not on body copy. */
 export const LOOP_NODE_VERB_ICON_TONE: Record<LoopNodeVerb, ConfirmDialogIconTone> = {
   pause: "neutral",
-  resume: "accent",
-  "resume-reset-attempts": "accent",
-  "resume-immediate": "accent",
-  "resume-wait": "accent",
-  cancel: "danger",
-  requeue: "accent",
-  "open-quarantine": "danger",
-  amend: "accent",
-  rerun: "accent",
+  resume: "brand",
+  "resume-reset-attempts": "brand",
+  "resume-immediate": "brand",
+  "resume-wait": "brand",
+  cancel: "destructive",
+  requeue: "brand",
+  "open-quarantine": "destructive",
+  amend: "brand",
+  rerun: "brand",
 };
 
 export const LOOP_RUN_VERB_ICON_TONE: Record<
   Extract<LoopRunVerb, "cancel">,
   ConfirmDialogIconTone
 > = {
-  cancel: "danger",
+  cancel: "destructive",
 };

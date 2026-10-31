@@ -134,7 +134,7 @@ export function TasksInboxView({
             id="tasks-inbox-unread-only"
             onCheckedChange={onToggleUnread}
           />
-          <Eyebrow className="text-muted">Unread only</Eyebrow>
+          <Eyebrow className="text-muted-foreground">Unread only</Eyebrow>
         </label>
       </div>
 
@@ -151,7 +151,7 @@ export function TasksInboxView({
         />
         {errorMessage && inbox ? (
           <div
-            className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-danger"
+            className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-caption text-destructive"
             data-testid="tasks-inbox-pagination-error"
             role="alert"
           >

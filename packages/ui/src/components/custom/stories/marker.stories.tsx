@@ -44,7 +44,7 @@ export const Tones: Story = {
       <Marker tone="warning" icon={<AlertTriangleIcon />}>
         <b>Context 41% full</b> — no compaction needed yet.
       </Marker>
-      <Marker tone="danger" icon={<AlertTriangleIcon />}>
+      <Marker tone="destructive" icon={<AlertTriangleIcon />}>
         <b>Provider request failed</b> — the runtime is retrying.
       </Marker>
     </div>

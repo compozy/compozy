@@ -107,7 +107,7 @@ function CredentialSlotBlock({
   return (
     <section className="flex flex-col gap-3 rounded-md bg-sunken px-3 py-3" data-testid={testId}>
       <header className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate font-mono text-mono-id tracking-normal text-muted">
+        <span className="min-w-0 flex-1 truncate font-mono text-mono-id tracking-normal text-muted-foreground">
           {slot.name.trim() || `slot ${index + 1}`}
         </span>
         {onRemove ? (

@@ -76,7 +76,7 @@ export function ProviderErrorNotice({ view, count }: { view: ProviderErrorView; 
       data-testid="session-error-notice"
       data-provider-error={view.code}
       data-provider-next-action={view.nextAction}
-      tone="danger"
+      tone="destructive"
       icon={<AlertCircle />}
     >
       <b data-testid="provider-error-subject">{providerErrorSubject(view)}</b> —{" "}
@@ -93,7 +93,7 @@ export function ProviderErrorNotice({ view, count }: { view: ProviderErrorView; 
       {view.nextAction === "handoff" && requestContinue ? (
         <span className="mt-1 flex">
           <Button
-            className="text-muted hover:text-fg"
+            className="text-muted-foreground hover:text-fg"
             data-testid="provider-error-continue"
             onClick={() => requestContinue()}
             size="xs"

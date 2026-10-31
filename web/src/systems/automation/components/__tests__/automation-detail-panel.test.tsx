@@ -384,7 +384,7 @@ describe("AutomationDetailPanel", () => {
       const drawer = screen.getByTestId("automation-run-drawer-run_failed");
       expect(within(drawer).getByText("Agent summarizer was not available")).toHaveAttribute(
         "data-tone",
-        "danger"
+        "destructive"
       );
       expect(drawer).toHaveTextContent("Attempt 2.");
       fireEvent.click(within(drawer).getByRole("button", { name: "Set up retries" }));
@@ -605,7 +605,7 @@ describe("AutomationDetailPanel", () => {
           ingress: { ...deployWebhookTrigger.ingress!, reachability: "broken" },
         })
       );
-      expect(screen.getByText("Broken")).toHaveAttribute("data-tone", "danger");
+      expect(screen.getByText("Broken")).toHaveAttribute("data-tone", "destructive");
       expect(screen.getByTestId("automation-rail-security")).toHaveTextContent(
         "Signing secretNot set"
       );

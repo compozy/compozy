@@ -27,7 +27,7 @@ export function LoopInputControl({
           {name}
         </span>
         {field.required ? (
-          <span className="font-semibold text-muted" aria-label="required">
+          <span className="font-semibold text-muted-foreground" aria-label="required">
             *
           </span>
         ) : null}

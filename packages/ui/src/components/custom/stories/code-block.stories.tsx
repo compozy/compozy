@@ -235,7 +235,7 @@ export const StandaloneCopyButton: Story = {
   },
   render: args => (
     <div className="flex items-center gap-3 rounded-md border border-line bg-canvas-soft p-3">
-      <span className="font-mono text-small-body text-muted">{args.code}</span>
+      <span className="font-mono text-small-body text-muted-foreground">{args.code}</span>
       <CopyIconButton value={args.code} />
     </div>
   ),

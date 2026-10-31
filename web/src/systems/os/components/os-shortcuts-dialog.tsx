@@ -112,9 +112,13 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
                         >
                           <dt className="min-w-0 truncate text-small-body text-fg">
                             {row.label}
-                            {row.alias ? <span className="text-muted"> ({row.alias})</span> : null}
+                            {row.alias ? (
+                              <span className="text-muted-foreground"> ({row.alias})</span>
+                            ) : null}
                             {row.overridden ? (
-                              <span className="ml-1.5 text-eyebrow text-muted">override</span>
+                              <span className="ml-1.5 text-eyebrow text-muted-foreground">
+                                override
+                              </span>
                             ) : null}
                           </dt>
                           <dd className="shrink-0">
@@ -157,7 +161,9 @@ export function OsShortcutsDialog({ open, onOpenChange }: OsShortcutsDialogProps
           </div>
         </div>
         <DialogFooter className="justify-between" variant="ruled">
-          <span className="text-form-hint text-muted">Surface-local rows are read-only.</span>
+          <span className="text-form-hint text-muted-foreground">
+            Surface-local rows are read-only.
+          </span>
           <Button
             data-testid="os-shortcuts-edit"
             disabled={!canOpenApps}

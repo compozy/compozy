@@ -211,7 +211,7 @@ describe("OsWindowFrame", () => {
   it("Should publish document self-title with a state mark and no crumb trail (UT-093)", () => {
     function DocumentPublisher() {
       useTopbarSlot({
-        glyph: <span data-testid="state-dot" className="size-[7px] rounded-full bg-accent" />,
+        glyph: <span data-testid="state-dot" className="size-[7px] rounded-full bg-brand" />,
         glyphPresentation: "state",
         crumb: "nightly-audit",
       });

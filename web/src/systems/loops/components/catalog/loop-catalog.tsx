@@ -167,7 +167,11 @@ export function LoopCatalog({
       {projectErrors}
       {catalog}
       {errorMessage ? (
-        <p className="text-caption text-danger" data-testid="loop-catalog-page-error" role="alert">
+        <p
+          className="text-caption text-destructive"
+          data-testid="loop-catalog-page-error"
+          role="alert"
+        >
           {errorMessage}
         </p>
       ) : null}

@@ -29,7 +29,7 @@ function HeaderLink({ href, label, pathname }: { href: string; label: string; pa
       href={href}
       aria-current={current}
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg",
+        "inline-flex items-center rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-fg",
         active && "bg-elevated text-fg"
       )}
     >
@@ -78,7 +78,8 @@ export function HomeHeader(props: ComponentProps<"header">) {
                   buttonVariants({
                     variant: "ghost",
                     size: "icon-sm",
-                    className: "rounded-full text-muted hover:bg-hover hover:text-fg lg:hidden",
+                    className:
+                      "rounded-full text-muted-foreground hover:bg-hover hover:text-fg lg:hidden",
                   })
                 )}
               />
@@ -99,7 +100,8 @@ export function HomeHeader(props: ComponentProps<"header">) {
                 buttonVariants({
                   variant: "ghost",
                   size: "icon-sm",
-                  className: "rounded-full text-muted hover:bg-hover hover:text-fg md:hidden",
+                  className:
+                    "rounded-full text-muted-foreground hover:bg-hover hover:text-fg md:hidden",
                 })
               )}
             >

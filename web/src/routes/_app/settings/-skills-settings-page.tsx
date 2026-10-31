@@ -78,7 +78,9 @@ function SkillsSettingsContent({
                 key: "discovered",
                 content: (
                   <span>
-                    <span className="font-medium text-muted">{envelope.discovered_count}</span>{" "}
+                    <span className="font-medium text-muted-foreground">
+                      {envelope.discovered_count}
+                    </span>{" "}
                     discovered
                   </span>
                 ),
@@ -87,7 +89,9 @@ function SkillsSettingsContent({
                 key: "disabled",
                 content: (
                   <span>
-                    <span className="font-medium text-muted">{envelope.disabled_count}</span>{" "}
+                    <span className="font-medium text-muted-foreground">
+                      {envelope.disabled_count}
+                    </span>{" "}
                     disabled
                   </span>
                 ),

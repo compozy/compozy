@@ -14,14 +14,14 @@ interface LoopRunUsageRailProps extends ComponentProps<"div"> {
 const VALUE_TONE_CLASS: Record<LoopUsageTone, string> = {
   neutral: "",
   warn: "text-warning",
-  danger: "text-danger",
+  destructive: "text-destructive",
 };
 
 export function LoopRunUsageRail({ rows, note, className, ...props }: LoopRunUsageRailProps) {
   return (
     <div className={cn("px-4 py-4", className)} data-testid="loop-run-usage" {...props}>
       <div className="mb-2 flex items-center gap-1.5">
-        <Coins aria-hidden="true" className="size-3 text-muted" />
+        <Coins aria-hidden="true" className="size-3 text-muted-foreground" />
         <Eyebrow className="text-subtle">Usage</Eyebrow>
       </div>
       {rows.map(row => (

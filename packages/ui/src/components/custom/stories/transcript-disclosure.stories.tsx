@@ -45,7 +45,7 @@ function Controlled({
       />
       {expanded ? (
         <p
-          className="ml-transcript-detail-indent text-transcript-body text-muted"
+          className="ml-transcript-detail-indent text-transcript-body text-muted-foreground"
           id="story-transcript-body"
         >
           The revealed body belongs to the caller.

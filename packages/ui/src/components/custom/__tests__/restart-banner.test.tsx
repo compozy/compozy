@@ -51,10 +51,10 @@ describe("RestartBanner", () => {
   it("Should render the danger tone with role=alert and a dismiss button when onDismiss is provided", () => {
     const onDismiss = vi.fn();
     const { container } = render(
-      <RestartBanner tone="danger" message="Restart failed" onDismiss={onDismiss} />
+      <RestartBanner tone="destructive" message="Restart failed" onDismiss={onDismiss} />
     );
     const root = container.querySelector<HTMLElement>('[data-slot="restart-banner"]');
-    expect(root?.dataset.tone).toBe("danger");
+    expect(root?.dataset.tone).toBe("destructive");
     expect(root?.getAttribute("role")).toBe("alert");
     const dismiss = screen.getByRole("button", { name: "Dismiss" });
     fireEvent.click(dismiss);

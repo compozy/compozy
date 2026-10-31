@@ -94,7 +94,7 @@ export function ProviderModelCatalogStatus({
   return (
     <div className="flex flex-col gap-3" data-testid={testId}>
       {queryError ? (
-        <p className="text-form-hint text-danger" data-testid={`${testId}-error`}>
+        <p className="text-form-hint text-destructive" data-testid={`${testId}-error`}>
           {queryError}
         </p>
       ) : null}
@@ -142,7 +142,7 @@ export function ProviderModelCatalogStatus({
                   </Pill>
                 ) : null}
                 <span
-                  className="text-form-hint text-muted tabular-nums"
+                  className="text-form-hint text-muted-foreground tabular-nums"
                   data-testid={`${testId}-source-${source.source_id}-rows`}
                 >
                   {formatRowCount(source)}
@@ -153,7 +153,7 @@ export function ProviderModelCatalogStatus({
         </ItemGroup>
       )}
       {refreshError ? (
-        <p className="text-form-hint text-danger" data-testid={`${testId}-refresh-error`}>
+        <p className="text-form-hint text-destructive" data-testid={`${testId}-refresh-error`}>
           {refreshError}
         </p>
       ) : null}

@@ -18,7 +18,7 @@ const CELL_CLASS = {
   title: "max-w-0 pl-4",
   id: cn("max-w-0", TASKS_TABLE_COLUMN_CLASS.id),
   status: TASKS_TABLE_COLUMN_CLASS.status,
-  priority: cn("text-muted", TASKS_TABLE_COLUMN_CLASS.priority),
+  priority: cn("text-muted-foreground", TASKS_TABLE_COLUMN_CLASS.priority),
   owner: cn("relative z-1 pr-4 @5xl:pr-3", TASKS_TABLE_COLUMN_CLASS.owner),
   updated: cn(
     "pr-4 font-mono text-meta tabular-nums text-subtle",
@@ -101,7 +101,7 @@ function TasksListRow({
             : titleText}
           {metaItems.length > 0 ? (
             <span
-              className="flex min-w-0 shrink-[4] items-center gap-1.5 truncate text-meta text-muted"
+              className="flex min-w-0 shrink-[4] items-center gap-1.5 truncate text-meta text-muted-foreground"
               data-slot="tasks-list-row-meta"
             >
               {metaItems}

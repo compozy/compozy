@@ -56,7 +56,7 @@ function LiveToolLine({ part, still }: { part: SessionTimelineToolPart; still: b
           {label.verb}
         </span>
         {label.preview ? (
-          <span className="min-w-0 truncate rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted">
+          <span className="min-w-0 truncate rounded-xs bg-hover px-1.5 py-px font-mono text-transcript-body text-muted-foreground">
             {label.preview}
           </span>
         ) : null}

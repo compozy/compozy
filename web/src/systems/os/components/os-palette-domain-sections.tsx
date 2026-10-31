@@ -35,7 +35,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
       >
         {section.error === null ? null : (
           <CommandItem
-            className={`${paletteRowClass} text-eyebrow text-danger`}
+            className={`${paletteRowClass} text-eyebrow text-destructive`}
             data-testid={`os-palette-domain-error-${section.title.toLowerCase().replaceAll(" ", "-")}`}
             disabled
             forceMount
@@ -57,7 +57,7 @@ export function OsPaletteDomainSections({ sections, onOpen }: OsPaletteDomainSec
               value={row.key}
               onSelect={() => onOpen(row)}
             >
-              <Icon className="size-3.5 shrink-0 text-muted" />
+              <Icon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 truncate leading-none">{row.label}</span>
               {row.detail ? (
                 <span className="ml-auto max-w-48 shrink truncate text-eyebrow text-subtle">

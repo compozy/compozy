@@ -44,8 +44,8 @@ export interface SubagentCardProps {
 }
 
 const LINE_TWO_TONE: Record<SubagentLineTwoTone, string> = {
-  default: "text-muted",
-  danger: "text-danger",
+  default: "text-muted-foreground",
+  destructive: "text-destructive",
 };
 
 const CARD_FRAME = {
@@ -119,7 +119,7 @@ function SubagentCardMain({ subagent, settled }: { subagent: SubagentView; settl
         <span
           className={cn(
             "min-w-0 truncate text-transcript-meta font-medium",
-            settled ? "text-muted" : "text-fg-strong"
+            settled ? "text-muted-foreground" : "text-fg-strong"
           )}
         >
           {subagent.title}
@@ -273,7 +273,7 @@ export function SubagentCard({
               aria-hidden="true"
               data-slot="subagent-card-chevron"
               className={cn(
-                "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted motion-reduce:transition-none",
+                "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted-foreground motion-reduce:transition-none",
                 chevron === "open" && "rotate-90"
               )}
             />

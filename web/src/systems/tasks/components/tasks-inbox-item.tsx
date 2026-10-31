@@ -84,7 +84,10 @@ export function TasksInboxItem({
       >
         {task.title}
       </h3>
-      <span className="shrink-0 text-small-body text-muted" data-slot="tasks-inbox-row-status">
+      <span
+        className="shrink-0 text-small-body text-muted-foreground"
+        data-slot="tasks-inbox-row-status"
+      >
         {taskStatusLabel(task.status)}
       </span>
     </>
@@ -98,7 +101,7 @@ export function TasksInboxItem({
 
       {failedError ? (
         <p
-          className="flex items-start gap-1 text-danger"
+          className="flex items-start gap-1 text-destructive"
           data-testid={`tasks-inbox-item-error-${taskId}`}
         >
           <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
@@ -368,7 +371,7 @@ interface ActionButtonProps {
    * `secondary` -- the row's filled resolving action. A repeated row action is
    * never the inverted primary: a view carries at most one of those.
    * `ghost` -- neutral secondary action.
-   * `destructive-ghost` -- ghost with `text-danger`. Solid-filled destructive
+   * `destructive-ghost` -- ghost with `text-destructive`. Solid-filled destructive
    * buttons only belong inside a confirmation dialog, not inline on a row.
    */
   variant: "secondary" | "ghost" | "destructive-ghost";
@@ -387,7 +390,7 @@ function ActionButton({ label, icon, onClick, pending, testId, variant }: Action
       size="xs"
       type="button"
       variant={buttonVariant}
-      className={cn(variant === "destructive-ghost" && "text-danger hover:text-danger")}
+      className={cn(variant === "destructive-ghost" && "text-destructive hover:text-destructive")}
     >
       {icon}
       {label}

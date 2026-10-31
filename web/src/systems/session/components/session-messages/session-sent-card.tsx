@@ -42,7 +42,7 @@ const REPLY_WORD: Record<SessionReplyOutcome, string> = {
 
 const REPLY_TONE: Record<SessionReplyOutcome, StatusDotTone> = {
   completed: "success",
-  failed: "danger",
+  failed: "destructive",
   canceled: "faint",
   dropped: "faint",
   expired: "faint",
@@ -76,7 +76,11 @@ function SessionSentReply({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 text-transcript-caption whitespace-nowrap",
-        tone === "success" ? "text-muted" : tone === "danger" ? "text-danger" : "text-subtle"
+        tone === "success"
+          ? "text-muted-foreground"
+          : tone === "destructive"
+            ? "text-destructive"
+            : "text-subtle"
       )}
       data-testid="session-sent-reply-state"
       data-state={reply}
@@ -143,7 +147,9 @@ export function SessionSentCard({
         aria-hidden="true"
         className={cn(
           "grid size-6 place-items-center rounded-full border bg-surface-2",
-          failed ? "border-danger/40 text-danger" : "border-line-strong text-muted"
+          failed
+            ? "border-destructive/40 text-destructive"
+            : "border-line-strong text-muted-foreground"
         )}
       >
         <ArrowUpRight className="size-3" />
@@ -166,7 +172,7 @@ export function SessionSentCard({
           <span
             className={cn(
               "min-w-0 truncate text-transcript-caption",
-              failed ? "text-danger" : "text-muted"
+              failed ? "text-destructive" : "text-muted-foreground"
             )}
             data-testid="session-sent-line-two"
           >

@@ -44,7 +44,7 @@ function describeRecentWake(status: AgentHeartbeatStatusPayload | undefined): st
 function HeartbeatStatusErrorBanner({ stale, onRetry }: { stale: boolean; onRetry: () => void }) {
   return (
     <ActionResultBanner
-      tone="danger"
+      tone="destructive"
       title={stale ? "Couldn't refresh heartbeat status" : "Couldn't load heartbeat status"}
       description={
         stale
@@ -74,11 +74,15 @@ function HeartbeatPolicyList({
       </MetadataList.Row>
       <MetadataList.Row>
         <MetadataList.Term>Schedule</MetadataList.Term>
-        <MetadataList.Value className="text-muted">{describeSchedule(status)}</MetadataList.Value>
+        <MetadataList.Value className="text-muted-foreground">
+          {describeSchedule(status)}
+        </MetadataList.Value>
       </MetadataList.Row>
       <MetadataList.Row>
         <MetadataList.Term>Recent wake</MetadataList.Term>
-        <MetadataList.Value className="text-muted">{describeRecentWake(status)}</MetadataList.Value>
+        <MetadataList.Value className="text-muted-foreground">
+          {describeRecentWake(status)}
+        </MetadataList.Value>
       </MetadataList.Row>
     </MetadataList>
   );
@@ -96,7 +100,7 @@ function HeartbeatSessionPicker({
   if (activeSessions.length === 0) {
     return (
       <div className="flex flex-col gap-2" data-testid="agent-heartbeat-no-session">
-        <p className="text-small-body text-muted">
+        <p className="text-small-body text-muted-foreground">
           Wake now needs an active session for this agent.
         </p>
         <Button
@@ -141,7 +145,7 @@ function HeartbeatEligibilityNote({
 }) {
   if (statusLoading) {
     return (
-      <p className="text-small-body text-muted" role="status">
+      <p className="text-small-body text-muted-foreground" role="status">
         Checking session eligibility…
       </p>
     );
@@ -171,7 +175,7 @@ function HeartbeatWakeOutcome({
       ) : null}
       {wakeError ? (
         <ActionResultBanner
-          tone="danger"
+          tone="destructive"
           title="Couldn't wake session"
           description={wakeError}
           data-testid="agent-heartbeat-wake-error"
@@ -216,7 +220,7 @@ export function AgentHeartbeatOps(props: AgentHeartbeatOpsProps) {
       <HeartbeatPolicyList status={status} statusLoading={statusLoading} />
 
       <div className="flex flex-col gap-2">
-        <p className="eyebrow text-muted">Wake target</p>
+        <p className="eyebrow text-muted-foreground">Wake target</p>
         <HeartbeatSessionPicker {...props} />
         {selectedSessionId ? (
           <HeartbeatEligibilityNote statusLoading={statusLoading} health={health} />

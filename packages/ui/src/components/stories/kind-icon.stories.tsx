@@ -47,7 +47,7 @@ export const ProviderMatrix: Story = {
           className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-canvas-soft px-3 py-2"
         >
           <KindIcon kind={provider} tone="default" />
-          <span className="eyebrow truncate text-muted">{provider}</span>
+          <span className="eyebrow truncate text-muted-foreground">{provider}</span>
         </div>
       ))}
     </div>
@@ -63,7 +63,7 @@ export const SizesAndTones: Story = {
     <div className="flex items-center gap-4">
       <KindIcon kind="claude" size="xs" tone="muted" />
       <KindIcon kind="claude" size="sm" tone="default" />
-      <KindIcon kind="claude" size="md" tone="accent" />
+      <KindIcon kind="claude" size="md" tone="brand" />
     </div>
   ),
 };

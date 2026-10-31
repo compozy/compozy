@@ -87,7 +87,7 @@ function MarketplaceSourceDiagnostics({
       <ul className="flex min-w-0 flex-col gap-0.5">
         {diagnostics.map(diagnostic => (
           <li
-            className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-form-hint text-muted"
+            className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-form-hint text-muted-foreground"
             key={diagnostic.id || `${diagnostic.code}:${diagnostic.message}`}
           >
             <MonoId className="shrink-0 text-faint" preserveCase value={diagnostic.code} />
@@ -260,7 +260,7 @@ function MarketplaceSourceActions({
       ) : null}
       {onRemove ? (
         <Button
-          className="text-danger hover:text-danger"
+          className="text-destructive hover:text-destructive"
           data-testid={`${testId}-remove`}
           disabled={pending}
           onClick={onRemove}
@@ -295,7 +295,7 @@ function MarketplaceSourceRecoveryNotice({ source }: Pick<MarketplaceSourceRowPr
         </p>
       ) : null}
       {!source.enabled && !wasRead ? (
-        <p className="text-small-body text-muted" data-testid={`${testId}-sentence`}>
+        <p className="text-small-body text-muted-foreground" data-testid={`${testId}-sentence`}>
           Turn it on to read its plugin list. CompozyOS will not contact this{" "}
           {origin.kind === "feed" ? "feed" : origin.kind} until then.
         </p>

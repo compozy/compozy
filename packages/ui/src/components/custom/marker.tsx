@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-export type MarkerTone = "neutral" | "danger" | "warning" | "info";
+export type MarkerTone = "neutral" | "destructive" | "warning" | "info";
 
 export interface MarkerProps extends React.ComponentProps<"div"> {
   /** Signal tone carried by the glyph only — the sentence stays neutral. */
@@ -16,7 +16,7 @@ export interface MarkerProps extends React.ComponentProps<"div"> {
 
 const TONE_ICON: Record<MarkerTone, string> = {
   neutral: "text-faint",
-  danger: "text-danger",
+  destructive: "text-destructive",
   warning: "text-warning",
   info: "text-info",
 };
@@ -25,7 +25,7 @@ const TONE_ICON: Record<MarkerTone, string> = {
  * One-line system event in the transcript — replaces every in-transcript Alert
  * card: a 12px tone glyph plus one muted sentence. Tone lives in the glyph,
  * never in the text or a background; `<b>` inside the sentence carries the
- * subject at `--muted`. Compose `MarkerMeta` for raw kind strings or ×N counts.
+ * subject at `--color-muted-foreground`. Compose `MarkerMeta` for raw kind strings or ×N counts.
  */
 function Marker({ tone = "neutral", icon, children, className, ...props }: MarkerProps) {
   return (
@@ -50,7 +50,7 @@ function Marker({ tone = "neutral", icon, children, className, ...props }: Marke
       ) : null}
       <span
         data-slot="marker-body"
-        className="min-w-0 [&_b]:font-medium [&_b]:text-muted [&_strong]:font-medium [&_strong]:text-muted"
+        className="min-w-0 [&_b]:font-medium [&_b]:text-muted-foreground [&_strong]:font-medium [&_strong]:text-muted-foreground"
       >
         {children}
       </span>

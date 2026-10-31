@@ -147,7 +147,10 @@ function Empty({
         title
       )}
       {description ? (
-        <p data-slot="empty-description" className={cn("max-w-md text-muted", scale.description)}>
+        <p
+          data-slot="empty-description"
+          className={cn("max-w-md text-muted-foreground", scale.description)}
+        >
           {description}
         </p>
       ) : null}
@@ -160,7 +163,7 @@ function Empty({
         <details data-slot="empty-cause" className="group w-full max-w-md text-left">
           <summary
             data-slot="empty-cause-summary"
-            className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm text-small-body text-muted outline-none transition-colors duration-fast ease-out hover:text-fg focus-visible:shadow-focus-ring [&::-webkit-details-marker]:hidden"
+            className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm text-small-body text-muted-foreground outline-none transition-colors duration-fast ease-out hover:text-fg focus-visible:shadow-focus-ring [&::-webkit-details-marker]:hidden"
           >
             <ChevronRightIcon
               aria-hidden="true"
@@ -170,7 +173,7 @@ function Empty({
           </summary>
           <div
             data-slot="empty-cause-detail"
-            className="mt-2 max-h-48 overflow-auto rounded border border-line bg-code-bg px-3 py-2 font-mono text-badge leading-relaxed whitespace-pre-wrap break-words text-subtle"
+            className="mt-2 max-h-48 overflow-auto rounded-md border border-line bg-code-bg px-3 py-2 font-mono text-badge leading-relaxed whitespace-pre-wrap break-words text-subtle"
           >
             {cause}
           </div>

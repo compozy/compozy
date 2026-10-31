@@ -233,7 +233,7 @@ function ProviderDetailNotices({
 }) {
   if (error) {
     return (
-      <Alert data-testid="provider-detail-error" variant="danger">
+      <Alert data-testid="provider-detail-error" variant="destructive">
         <AlertDescription>{error}</AlertDescription>
       </Alert>
     );

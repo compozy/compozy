@@ -9,7 +9,7 @@ import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 // (success, empty, pending, stopped) carries no glyph at all.
 const GLYPH_STATUSES: Array<{ status: ToolCallStatus; label: string; tone: string }> = [
   { status: "running", label: "Running", tone: "text-subtle" },
-  { status: "failed", label: "Error", tone: "text-danger" },
+  { status: "failed", label: "Error", tone: "text-destructive" },
   { status: "absorbed", label: "Failed", tone: "text-subtle" },
 ];
 const RESTING_STATUSES: ToolCallStatus[] = ["pending", "stopped", "success", "empty"];

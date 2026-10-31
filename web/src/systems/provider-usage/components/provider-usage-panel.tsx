@@ -211,7 +211,7 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
         <PopoverHeader className={PROVIDER_USAGE_HEADING_FRAME}>
           {chrome === "popover" ? <PopoverTitle>{title}</PopoverTitle> : null}
           {freshness ? (
-            <p data-slot="provider-usage-freshness" className="text-meta text-muted">
+            <p data-slot="provider-usage-freshness" className="text-meta text-muted-foreground">
               {freshness}
             </p>
           ) : pendingFirstRead ? (

@@ -18,7 +18,7 @@ interface SessionWorktreeBindingChipProps {
 }
 
 const CHIP_CLASS =
-  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 px-2.5 text-badge font-medium text-muted [&_svg]:size-3 [&_svg]:text-subtle hover:bg-selected hover:text-fg";
+  "inline-flex h-6 items-center gap-1.5 whitespace-nowrap rounded-pill bg-surface-2 px-2.5 text-badge font-medium text-muted-foreground [&_svg]:size-3 [&_svg]:text-subtle hover:bg-selected hover:text-fg";
 
 /**
  * States which worktree a session is bound to, in the session header.

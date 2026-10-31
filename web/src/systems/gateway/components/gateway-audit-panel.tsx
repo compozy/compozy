@@ -28,7 +28,7 @@ function GatewayAuditFindingItem({ finding }: { finding: GatewayAuditFinding }) 
       </div>
       <p className="text-body text-fg">{finding.summary}</p>
       <p
-        className="text-small-body text-muted"
+        className="text-small-body text-muted-foreground"
         data-testid={`gateway-audit-remediation-${finding.id}`}
       >
         {finding.remediation}
@@ -73,7 +73,7 @@ function GatewayAuditBody({
   }
   if (error) {
     return (
-      <p className="px-4 py-4 text-form-label text-danger" role="alert">
+      <p className="px-4 py-4 text-form-label text-destructive" role="alert">
         {error}
       </p>
     );

@@ -140,7 +140,7 @@ export const AtPoint: Story = {
     return (
       <>
         <div
-          className="grid h-40 w-72 place-items-center rounded-lg border border-dashed border-line text-small-body text-muted"
+          className="grid h-40 w-72 place-items-center rounded-lg border border-dashed border-line text-small-body text-muted-foreground"
           onContextMenu={event => {
             event.preventDefault();
             setPoint({ x: event.clientX, y: event.clientY });

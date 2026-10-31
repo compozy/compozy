@@ -65,7 +65,7 @@ function Disclosure({
         data-slot="disclosure-trigger"
         type="button"
         className={cn(
-          "group/disclosure flex items-center text-left font-medium text-muted",
+          "group/disclosure flex items-center text-left font-medium text-muted-foreground",
           "transition-colors duration-base hover:text-fg",
           "focus-visible:shadow-focus-ring focus-visible:outline-none",
           size === "sm" ? "gap-1 text-meta" : "gap-2 text-small-body",

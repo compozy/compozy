@@ -327,12 +327,12 @@ function InventoryRows({
             </span>
           </span>
           <span
-            className="hidden min-w-0 flex-1 truncate text-small-body text-muted lg:block"
+            className="hidden min-w-0 flex-1 truncate text-small-body text-muted-foreground lg:block"
             title={row.runId}
           >
             {row.loopName}
           </span>
-          <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted md:block">
+          <span className="hidden min-w-0 flex-1 truncate text-small-body text-muted-foreground md:block">
             {row.reason}
           </span>
           <span className="w-24 shrink-0 text-right">

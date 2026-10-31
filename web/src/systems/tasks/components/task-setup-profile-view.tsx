@@ -135,7 +135,7 @@ export function TaskSetupProfileView({
         ) : null}
         {coordinator.guidance ? (
           <SetupRow label="Guidance">
-            <span className="text-small-body leading-relaxed text-muted">
+            <span className="text-small-body leading-relaxed text-muted-foreground">
               {coordinator.guidance}
             </span>
           </SetupRow>
@@ -152,14 +152,16 @@ export function TaskSetupProfileView({
             ) : null}
             {reviewRuntime ? (
               <SetupRow label="Runtime">
-                <span className="font-mono text-eyebrow text-muted">{reviewRuntime}</span>
+                <span className="font-mono text-eyebrow text-muted-foreground">
+                  {reviewRuntime}
+                </span>
               </SetupRow>
             ) : null}
             <RoutingRows policy={review} />
           </>
         ) : (
           <SetupRow label="Policy">
-            <span className="text-muted">Off</span>
+            <span className="text-muted-foreground">Off</span>
           </SetupRow>
         )}
       </SetupGroup>
@@ -169,14 +171,14 @@ export function TaskSetupProfileView({
           <TaskWorktreePolicyReadRow value={profile.worktree} worktrees={worktrees} />
         ) : null}
         <SetupRow label="Runtime evidence">
-          <span className="capitalize text-muted">{profile.runtime.mode}</span>
+          <span className="capitalize text-muted-foreground">{profile.runtime.mode}</span>
         </SetupRow>
 
         {participantsConfigured ? (
           <RoutingRows policy={participants} />
         ) : (
           <SetupRow label="Participants">
-            <span className="text-muted">No custom routing policy</span>
+            <span className="text-muted-foreground">No custom routing policy</span>
           </SetupRow>
         )}
       </SetupGroup>

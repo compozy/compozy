@@ -33,7 +33,7 @@ export function WorktreeDirtySignal({
       {hasCounts ? (
         <>
           <span className="text-success">+{insertions}</span>
-          <span className="text-danger">−{deletions}</span>
+          <span className="text-destructive">−{deletions}</span>
         </>
       ) : (
         // The list payload carries only a boolean; claiming a magnitude here

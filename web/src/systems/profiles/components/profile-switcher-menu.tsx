@@ -60,7 +60,7 @@ export function ProfileSwitcherMenu({
           </SkeletonRegion>
         ) : error ? (
           <div
-            className="flex flex-col items-center gap-2 px-2 py-4 text-center text-small-body text-danger"
+            className="flex flex-col items-center gap-2 px-2 py-4 text-center text-small-body text-destructive"
             role="alert"
           >
             <span>{error.message}</span>
@@ -178,7 +178,7 @@ export function ProfileSwitcherMenu({
             onClick={onOpenSettings}
             data-testid="profile-switcher-settings-link"
             className={cn(
-              "text-muted underline underline-offset-2 outline-none",
+              "text-muted-foreground underline underline-offset-2 outline-none",
               "hover:text-fg focus-visible:shadow-focus-ring"
             )}
           >

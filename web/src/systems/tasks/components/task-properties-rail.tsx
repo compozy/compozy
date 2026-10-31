@@ -108,7 +108,7 @@ export function TaskPropertiesRail({
               <span className="truncate">{ownerName}</span>
             </>
           ) : (
-            <span className="text-muted">Unassigned</span>
+            <span className="text-muted-foreground">Unassigned</span>
           )}
         </PropertyRow>
         {record.parent_task_id ? (

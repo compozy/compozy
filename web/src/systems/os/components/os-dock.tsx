@@ -60,7 +60,7 @@ function DockItemBody({ item }: { item: OsDockItemData }) {
           state === "closed" ? "opacity-0" : "opacity-100",
           state === "minimized"
             ? "size-1.25 border border-subtle bg-transparent"
-            : cn("size-1", item.active ? "bg-fg" : "bg-muted")
+            : cn("size-1", item.active ? "bg-fg" : "bg-muted-foreground")
         )}
       />
       {item.badge ? (
@@ -75,7 +75,7 @@ function DockItemBody({ item }: { item: OsDockItemData }) {
 }
 
 const ITEM_BASE =
-  "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted transition-[background-color,color,box-shadow] duration-base ease-spring";
+  "relative grid size-rail-item shrink-0 place-items-center rounded-lg text-muted-foreground transition-[background-color,color,box-shadow] duration-base ease-spring";
 const ITEM_INTERACTIVE =
   "hover:bg-rail-hover hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none";
 const ITEM_ACTIVE = "bg-rail-selected text-fg hover:bg-rail-selected";

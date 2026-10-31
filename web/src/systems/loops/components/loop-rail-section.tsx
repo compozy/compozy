@@ -32,7 +32,7 @@ export function LoopRailSection({
   return (
     <Collapsible className={cn("rounded-lg bg-card shadow-card", className)} {...props}>
       <CollapsibleTrigger className={cn("group/rail-trigger", RAIL_TRIGGER_CLASS)}>
-        {icon ? <span className="shrink-0 text-muted">{icon}</span> : null}
+        {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
         <span className={RAIL_TITLE_CLASS}>{title}</span>
         <span className={RAIL_GIST_CLASS}>{gist}</span>
         <ChevronRight
@@ -70,7 +70,7 @@ export function LoopRailSectionSkeleton({
   return (
     <div className={cn("rounded-lg bg-card shadow-card", className)} {...props}>
       <div className={RAIL_TRIGGER_CLASS}>
-        {icon ? <span className="shrink-0 text-muted">{icon}</span> : null}
+        {icon ? <span className="shrink-0 text-muted-foreground">{icon}</span> : null}
         <span className={RAIL_TITLE_CLASS}>{title}</span>
         <span className={RAIL_GIST_CLASS}>{gist}</span>
         <ChevronRight

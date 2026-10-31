@@ -99,7 +99,7 @@ export function GatewayPairingGate({ reload, tier }: GatewayPairingGateProps) {
             </Field>
             {redeem.error ? (
               <p
-                className="text-form-label text-danger"
+                className="text-form-label text-destructive"
                 data-testid="gateway-pairing-gate-error"
                 role="alert"
               >

@@ -179,7 +179,7 @@ describe("buildRunDag", () => {
     });
 
     const failed = model.nodes[0];
-    expect(failed.chip.tone).toBe("danger");
+    expect(failed.chip.tone).toBe("destructive");
     expect(failed.chip.label).toBe("failed");
     // A failed agent is still an agent: structure and status never share a channel.
     expect(failed.kindIcon).not.toBeNull();
@@ -306,7 +306,7 @@ describe("buildRunDag", () => {
     // Width and fate stay drawn: one lane per worker, not a bare fraction.
     expect(fan.fanOut?.segments).toHaveLength(10);
     // The failed worker still colours the fan — a fan never hides a failure.
-    expect(fan.chip.tone).toBe("danger");
+    expect(fan.chip.tone).toBe("destructive");
   });
 
   it("Should keep a partially completed fan-out live between worker handoffs", () => {

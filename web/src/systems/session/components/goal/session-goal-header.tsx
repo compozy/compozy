@@ -44,7 +44,7 @@ export function SessionGoalHeader({
           className="mx-1 mt-2 mb-1"
           data-testid="session-goal-header-error"
           role="alert"
-          variant="danger"
+          variant="destructive"
         >
           <TriangleAlert aria-hidden="true" className="size-3.5" />
           <AlertTitle>
@@ -65,7 +65,7 @@ export function SessionGoalHeader({
       ) : null}
       {actionError ? (
         <Alert
-          variant="danger"
+          variant="destructive"
           role="alert"
           className="mt-2"
           data-testid="session-goal-control-error"

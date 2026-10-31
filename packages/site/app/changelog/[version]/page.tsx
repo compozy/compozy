@@ -85,19 +85,21 @@ export default async function ChangelogReleasePage({ params }: PageProps) {
         <div className="mx-auto max-w-site-layout-width">
           <Link
             href="/changelog"
-            className="inline-flex items-center gap-2 text-sm text-muted hover:text-fg"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-fg"
           >
             <ArrowLeft className="size-3.5" aria-hidden /> All releases
           </Link>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Eyebrow className="text-accent">CHANGELOG</Eyebrow>
+            <Eyebrow className="text-brand">CHANGELOG</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
             <DateStamp date={release.publishedAt} tracking="wide" />
           </div>
           <h1 className="mt-5 font-mono text-site-page-title font-medium leading-none tracking-tight text-fg">
             {release.version}
           </h1>
-          <p className="mt-5 max-w-[68ch] text-lg leading-8 text-muted">{release.summary}</p>
+          <p className="mt-5 max-w-[68ch] text-lg leading-8 text-muted-foreground">
+            {release.summary}
+          </p>
           <div className="mt-6 flex flex-wrap gap-2">
             <MonoBadge>{release.channel.toUpperCase()}</MonoBadge>
             {release.categories.map(category => (

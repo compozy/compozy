@@ -86,7 +86,7 @@ export function TaskSetupSheet({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {hasActiveRun ? (
             <div
-              className="mb-4 flex items-start gap-2.5 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted"
+              className="mb-4 flex items-start gap-2.5 rounded-md bg-sunken px-3.5 py-3 text-small-body leading-relaxed text-muted-foreground"
               data-testid="tasks-setup-locked"
             >
               <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-subtle" />
@@ -145,7 +145,7 @@ export function TaskSetupSheet({
         onOpenChange={onClearOpenChange}
         open={clearOpen}
         title="Clear task setup?"
-        tone="danger"
+        tone="destructive"
       />
     </Sheet>
   );
@@ -167,7 +167,7 @@ function TaskSetupSummary({
           <TaskSetupProfileSkeleton />
         </SkeletonRegion>
       ) : profileErrorMessage && !profile ? (
-        <p className="text-small-body text-danger">{profileErrorMessage}</p>
+        <p className="text-small-body text-destructive">{profileErrorMessage}</p>
       ) : profile ? (
         <TaskSetupProfileView
           profile={profile}
@@ -175,7 +175,7 @@ function TaskSetupSummary({
           showWorktree={Boolean(worktreePolicy)}
         />
       ) : (
-        <p className="text-small-body text-muted" data-testid="tasks-setup-empty">
+        <p className="text-small-body text-muted-foreground" data-testid="tasks-setup-empty">
           No custom setup. Runs inherit the workspace defaults for worker and model.
         </p>
       )}

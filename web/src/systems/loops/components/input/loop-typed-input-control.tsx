@@ -255,7 +255,7 @@ function LoopScalarInput({
     <Input
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
-      className={cn("font-mono", invalid && "border-danger")}
+      className={cn("font-mono", invalid && "border-destructive")}
       data-testid={testId}
       disabled={disabled}
       id={controlId}

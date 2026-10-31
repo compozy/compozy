@@ -40,9 +40,9 @@ export const Comfortable: Story = {
   args: {},
   render: () => (
     <OptionCard size="comfortable" data-testid="option-card-comfortable">
-      <OptionCard.Header eyebrow="Folder" right={<Pill tone="accent">PATH</Pill>} />
+      <OptionCard.Header eyebrow="Folder" right={<Pill tone="brand">PATH</Pill>} />
       <OptionCard.Body>
-        <OptionCard.Icon tone="accent">
+        <OptionCard.Icon tone="brand">
           <FolderPlus className="size-4" />
         </OptionCard.Icon>
         <OptionCard.Content>

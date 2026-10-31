@@ -56,7 +56,7 @@ export function SessionProcessChoiceDialog({
       noteTone="neutral"
       confirmLabel={copy.confirmLabel}
       cancelLabel="Cancel"
-      tone={action === "delete" ? "danger" : "warning"}
+      tone={action === "delete" ? "destructive" : "warning"}
       icon={ACTION_ICONS[action]}
       isPending={pending}
       className="sm:max-w-lg"

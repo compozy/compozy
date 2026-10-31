@@ -36,7 +36,7 @@ const TEMPLATE_ICONS: Record<TaskTemplateId, LucideIcon> = {
  * Mode-aware template grid. Simple mode surfaces the three approachable
  * templates with their plain-language labels and no badge; Advanced mode lays
  * out every template with its precise label, description, and the first badge
- * rendered as a tone-matched Pill. Both lean on the shared accent-tint
+ * rendered as a tone-matched Pill. Both lean on the shared brand-tint
  * canonical `RadioCard` affordance.
  */
 export function TemplateCards({ mode, templateId, onSelect }: TemplateCardsProps) {

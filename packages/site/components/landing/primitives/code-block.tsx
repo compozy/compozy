@@ -84,8 +84,8 @@ export function LandingCodeBlock({
               }
               aria-live="polite"
               className={cn(
-                "text-subtle hover:text-accent",
-                copyState === "failed" && "text-danger hover:text-danger"
+                "text-subtle hover:text-brand",
+                copyState === "failed" && "text-destructive hover:text-destructive"
               )}
             >
               {copyState === "copied" ? (
@@ -104,7 +104,7 @@ export function LandingCodeBlock({
           {displayLines.map(({ id, line }) => (
             <div key={id} className={line === "" ? "h-[1.1em]" : undefined}>
               {shell && line !== "" && !line.startsWith("#") ? (
-                <span className="select-none text-accent">$ </span>
+                <span className="select-none text-brand">$ </span>
               ) : null}
               {line.startsWith("#") ? <span className="text-subtle">{line}</span> : line}
             </div>

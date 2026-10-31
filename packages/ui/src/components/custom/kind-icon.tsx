@@ -9,7 +9,7 @@ import {
 } from "./kind-icon-registry";
 
 /** `well` sets the glyph on the 26 px mint identity plate (brand-spec rule 3). */
-type KindIconTone = "default" | "muted" | "accent" | "well";
+type KindIconTone = "default" | "muted" | "brand" | "well";
 type KindIconSize = "xs" | "sm" | "md";
 type DataAttributes = {
   [key: `data-${string}`]: string | undefined;
@@ -38,7 +38,7 @@ interface KindIconProps<K extends string = string>
 const KIND_ICON_TONE: Record<KindIconTone, string> = {
   default: "text-fg",
   muted: "text-subtle",
-  accent: "text-accent",
+  brand: "text-brand",
   well: "size-6.5 rounded-icon-well bg-well text-well-ink",
 };
 

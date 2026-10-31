@@ -85,7 +85,7 @@ export function formatStatusLabel(value: string): string {
 
 export function authTone(status: string, tokenPresent: boolean): PillTone {
   if (status === "authenticated" && tokenPresent) return "success";
-  if (status === "invalid") return "danger";
+  if (status === "invalid") return "destructive";
   if (status === "needs_login" || status === "expired") return "warning";
   return "neutral";
 }
@@ -93,13 +93,13 @@ export function authTone(status: string, tokenPresent: boolean): PillTone {
 export function runtimeTone(state: string): PillTone {
   if (state === "ready") return "success";
   if (state === "auth_required" || state === "auth_expired") return "warning";
-  if (DANGER_RUNTIME_STATES.has(state)) return "danger";
+  if (DANGER_RUNTIME_STATES.has(state)) return "destructive";
   return "neutral";
 }
 
 export function probeTone(probe: string): PillTone {
   if (probe === "succeeded") return "success";
-  if (probe === "failed") return "danger";
+  if (probe === "failed") return "destructive";
   return "neutral";
 }
 
@@ -227,9 +227,9 @@ export function summarizeMCPStatus(server: SettingsMCPServerEntry): MCPStatusCel
   const runtime = server.runtime_status;
   const auth = server.auth_status?.status;
   const dangerLabel = runtime ? SUMMARY_DANGER_LABEL[runtime.state] : undefined;
-  if (dangerLabel) return { label: dangerLabel, tone: "danger" };
-  if (auth === "invalid") return { label: "Sign-in failed", tone: "danger" };
-  if (runtime?.probe === "failed") return { label: "Couldn't connect", tone: "danger" };
+  if (dangerLabel) return { label: dangerLabel, tone: "destructive" };
+  if (auth === "invalid") return { label: "Sign-in failed", tone: "destructive" };
+  if (runtime?.probe === "failed") return { label: "Couldn't connect", tone: "destructive" };
   if (runtime?.state === "auth_required" || auth === "needs_login") {
     return { label: "Needs sign-in", tone: "warning" };
   }

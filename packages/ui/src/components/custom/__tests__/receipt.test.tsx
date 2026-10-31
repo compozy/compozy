@@ -33,7 +33,7 @@ describe("Receipt", () => {
       "rejected"
     );
     expect(container.querySelector<HTMLElement>('[data-slot="receipt-icon"]')?.className).toContain(
-      "text-danger"
+      "text-destructive"
     );
   });
 

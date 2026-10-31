@@ -13,7 +13,7 @@ function SearchMatchLines({ lines }: { lines: string[] }) {
         </span>
       ))}
       {lines.length > VISIBLE_RESULT_LINES ? (
-        <span className="text-muted">+{lines.length - VISIBLE_RESULT_LINES} more</span>
+        <span className="text-muted-foreground">+{lines.length - VISIBLE_RESULT_LINES} more</span>
       ) : null}
     </div>
   );
@@ -31,13 +31,13 @@ export function SearchContent({ message }: { message: UIMessage }) {
       {pattern ? (
         <div className="font-mono text-transcript-caption text-subtle">
           {pattern}
-          {scope ? <span className="ms-1.5 text-muted">in {scope}</span> : null}
+          {scope ? <span className="ms-1.5 text-muted-foreground">in {scope}</span> : null}
         </div>
       ) : null}
       {lines.length > 0 ? (
         <SearchMatchLines lines={lines} />
       ) : hasResult ? (
-        <span className="text-transcript-caption text-muted italic">No matches</span>
+        <span className="text-transcript-caption text-muted-foreground italic">No matches</span>
       ) : null}
     </div>
   );

@@ -31,7 +31,7 @@ export function ProfileDestinationChip({
       aria-label={destinationChipLabel(profile)}
       className={cn(
         "inline-flex h-pill-xs shrink-0 items-center gap-1.5 rounded-pill bg-surface-2 px-2",
-        "text-eyebrow font-medium tracking-eyebrow text-muted",
+        "text-eyebrow font-medium tracking-eyebrow text-muted-foreground",
         className
       )}
       {...props}

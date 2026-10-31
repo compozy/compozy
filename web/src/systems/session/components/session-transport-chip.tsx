@@ -48,7 +48,7 @@ const CHIP_PRESENTATION = {
   reconnecting: { tone: "info", label: "Reconnecting", Glyph: Spinner },
   "catching-up": { tone: "info", label: "Catching up", Glyph: Spinner },
   paused: { tone: "neutral", label: "Paused", Glyph: Pause },
-  disconnected: { tone: "danger", label: "Disconnected", Glyph: WifiOff },
+  disconnected: { tone: "destructive", label: "Disconnected", Glyph: WifiOff },
 } as const;
 
 function chipCount(model: SessionTransportChipModel, nowMs: number): string | null {

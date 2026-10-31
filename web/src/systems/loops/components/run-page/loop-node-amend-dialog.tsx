@@ -119,7 +119,7 @@ function LoopNodeAmendDialogForm({
       onOpenChange={onOpenChange}
       open={open}
       title="Amend output"
-      tone="accent"
+      tone="brand"
       body={
         <>
           {answer ? <LoopControlAnswerAlert answer={answer} /> : null}
@@ -185,7 +185,7 @@ function LoopNodeAmendDialogForm({
           </div>
           <Field>
             <FieldLabel htmlFor="loop-amend-reason">
-              Reason <span className="text-muted">optional</span>
+              Reason <span className="text-muted-foreground">optional</span>
             </FieldLabel>
             <Textarea
               data-testid="loop-amend-reason"

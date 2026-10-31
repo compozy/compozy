@@ -212,8 +212,8 @@ export function TaskEditorSurface({
           hint={
             draft.saveAsDraft ? (
               <>
-                Saved as a <b className="font-medium text-muted">draft</b>. Nothing runs until you
-                start it. {scopeStatement}
+                Saved as a <b className="font-medium text-muted-foreground">draft</b>. Nothing runs
+                until you start it. {scopeStatement}
               </>
             ) : (
               scopeStatement

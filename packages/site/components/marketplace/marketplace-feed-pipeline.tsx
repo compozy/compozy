@@ -54,11 +54,11 @@ function Output({
 }) {
   return (
     <div className="relative flex min-h-6.5 items-center gap-2 ps-6 before:absolute before:start-0 before:top-1/2 before:h-px before:w-4 before:bg-line-strong">
-      <Icon aria-hidden className="size-3.5 shrink-0 text-muted" />
+      <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="font-mono text-small-body whitespace-nowrap text-fg">{label}</span>
       {here ? (
-        <span className="inline-flex h-4.5 items-center rounded-full bg-accent-tint px-1.5">
-          <Eyebrow className="text-accent">You are here</Eyebrow>
+        <span className="inline-flex h-4.5 items-center rounded-full bg-brand-tint px-1.5">
+          <Eyebrow className="text-brand">You are here</Eyebrow>
         </span>
       ) : null}
       {note ? <span className="text-small-body text-subtle">{note}</span> : null}

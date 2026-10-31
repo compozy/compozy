@@ -110,7 +110,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
                 {wizard.meta.title}
               </h3>
               <p
-                className="mt-1 text-small-body text-muted"
+                className="mt-1 text-small-body text-muted-foreground"
                 data-testid={wizard.step === 2 ? "onboarding-workspace-help" : undefined}
               >
                 {wizard.meta.help}

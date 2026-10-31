@@ -138,7 +138,9 @@ function ProviderNativeAuthFields({ draft, entry, onChange }: ProviderNativeAuth
         <Alert data-testid="settings-providers-editor-auth-status" variant="info">
           <AlertDescription className="flex flex-col gap-1 text-form-hint">
             <span>Sign-in status: {providerAuthStateLabel(authStatus.state)}</span>
-            {authStatus.message ? <span className="text-muted">{authStatus.message}</span> : null}
+            {authStatus.message ? (
+              <span className="text-muted-foreground">{authStatus.message}</span>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}

@@ -144,8 +144,12 @@ describe("SubagentCard", () => {
       "done"
     );
     expect(status(done)).toHaveTextContent("Done1m 05s");
-    expect(within(done as HTMLElement).getByText("Finished one")).toHaveClass("text-muted");
-    expect(within(running as HTMLElement).getByText("Running one")).not.toHaveClass("text-muted");
+    expect(within(done as HTMLElement).getByText("Finished one")).toHaveClass(
+      "text-muted-foreground"
+    );
+    expect(within(running as HTMLElement).getByText("Running one")).not.toHaveClass(
+      "text-muted-foreground"
+    );
     // The provider avatar no longer carries a status dot on subagent rows.
     expect(
       document.querySelector('[data-slot="subagent-avatar"] [data-slot="status-dot"]')
@@ -369,10 +373,7 @@ describe("SubagentComposerControl (issue #766)", () => {
     expect(trigger).toHaveTextContent("3");
     // The live count widens it into the padded tool pill at the same height (#826).
     expect(trigger).toHaveAttribute("data-size", "tool");
-    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
-      "data-tone",
-      "accent"
-    );
+    expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute("data-tone", "brand");
     rerender(
       <TestUI>
         <SubagentComposerControl subagents={rows} counts={counts(2, 6)} />

@@ -88,7 +88,7 @@ export function LoopRunInputField({
       ) : null}
       {error ? (
         <p
-          className="flex items-center gap-1.5 text-form-hint text-danger"
+          className="flex items-center gap-1.5 text-form-hint text-destructive"
           data-testid={`loop-run-field-error-${name}`}
           id={errorId}
         >

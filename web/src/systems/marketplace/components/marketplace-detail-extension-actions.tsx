@@ -70,7 +70,7 @@ export function MarketplaceDetailExtensionActions({
                 <DropdownMenuSeparator />
               </>
             ) : null}
-            <DropdownMenuItem className="text-danger" onClick={onRequestRemoval}>
+            <DropdownMenuItem className="text-destructive" onClick={onRequestRemoval}>
               {facts.dev ? "Unlink local copy…" : "Remove…"}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -82,7 +82,10 @@ export function MarketplaceDetailExtensionActions({
         </p>
       ) : null}
       {facts.dev ? (
-        <p className="text-form-label text-muted" data-testid="extension-dev-overlay-note">
+        <p
+          className="text-form-label text-muted-foreground"
+          data-testid="extension-dev-overlay-note"
+        >
           This project runs a local development copy. Turning it on or off and updating apply to the
           published extension; open the version installed for all projects to manage them.
         </p>

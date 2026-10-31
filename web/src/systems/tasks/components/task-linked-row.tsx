@@ -64,10 +64,14 @@ export function TaskLinkedRow({
         state={STATE_GLYPH[state]}
       />
       <span className="truncate text-item-title font-medium text-fg-strong">
-        {state === "done" ? <s className="text-muted decoration-faint">{title}</s> : title}
+        {state === "done" ? (
+          <s className="text-muted-foreground decoration-faint">{title}</s>
+        ) : (
+          title
+        )}
       </span>
       {ownerName && owner ? (
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-form-label text-muted">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-form-label text-muted-foreground">
           <OwnerAvatar
             name={ownerName}
             ownerId={owner.ref ?? ownerName}

@@ -66,7 +66,7 @@ export function AutomationDetailHead({
           </h1>
           {view.enabled ? null : (
             <p
-              className="mt-1.5 flex max-w-[54ch] items-center gap-1.5 text-small-body text-muted"
+              className="mt-1.5 flex max-w-[54ch] items-center gap-1.5 text-small-body text-muted-foreground"
               data-testid="automation-pause-line"
             >
               <Pause aria-hidden="true" className="size-3 shrink-0 text-subtle" />
@@ -87,7 +87,7 @@ export function AutomationDetailHead({
         className="mt-3 flex flex-wrap items-center gap-y-1 text-eyebrow text-subtle"
         data-testid="automation-detail-subhead"
       >
-        <span className="inline-flex items-center gap-1.5 text-muted">
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
           <StartIcon aria-hidden="true" className="size-3.5 text-subtle" />
           {automationStartWord(view.start)}
         </span>

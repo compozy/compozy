@@ -70,7 +70,7 @@ export function LoopGenerationHistory({
             {row.isBest ? <Pill tone="success">Best</Pill> : null}
             {progressLabel ? (
               <span
-                className="text-form-hint text-muted"
+                className="text-form-hint text-muted-foreground"
                 data-testid={`loop-generation-progress-${row.generation}`}
               >
                 {progressLabel}

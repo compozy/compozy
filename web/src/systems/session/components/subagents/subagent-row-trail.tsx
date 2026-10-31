@@ -72,7 +72,7 @@ export function SubagentPullRequestLink({
 const WORD_TONE: Record<SubagentDisplayTone, string> = {
   live: "text-fg-2",
   attention: "text-fg",
-  danger: "text-danger",
+  destructive: "text-destructive",
   settled: "text-subtle",
 };
 

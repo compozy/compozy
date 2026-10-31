@@ -60,7 +60,7 @@ export function TerminalJournalHead({
           <ArrowLeft aria-hidden="true" />
         </Button>
       ) : null}
-      <ScrollText aria-hidden="true" className="size-3.5 text-muted" />
+      <ScrollText aria-hidden="true" className="size-3.5 text-muted-foreground" />
       <span className="truncate font-medium text-fg text-heading tracking-tight">Journal</span>
       {projectLabel ? (
         <span className="truncate text-eyebrow text-subtle">{projectLabel}</span>

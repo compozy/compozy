@@ -75,7 +75,7 @@ export function AutomationDeleteAction({
       }}
       open={open}
       title="Delete automation?"
-      tone="danger"
+      tone="destructive"
     >
       {hideTrigger ? null : (
         <DialogTrigger

@@ -53,7 +53,7 @@ export function HomeSystemPanel({
           <span className="shrink-0 text-small-body font-medium text-fg-strong">
             {system.allNormal ? "All systems normal" : "Needs a look"}
           </span>
-          <span className="min-w-0 flex-1 truncate text-small-body text-muted">
+          <span className="min-w-0 flex-1 truncate text-small-body text-muted-foreground">
             {system.summary}
           </span>
           <ChevronDown

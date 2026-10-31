@@ -54,7 +54,7 @@ export function BlogCodeBlock({ className, children, ...props }: BlogCodeBlockPr
         aria-live="polite"
         className={cn(
           "absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md text-subtle opacity-0 transition-opacity hover:text-fg focus-visible:opacity-100 group-hover:opacity-100",
-          copyState === "failed" && "text-danger hover:text-danger"
+          copyState === "failed" && "text-destructive hover:text-destructive"
         )}
       >
         {copyState === "copied" ? (

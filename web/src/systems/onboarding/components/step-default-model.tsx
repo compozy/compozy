@@ -35,7 +35,7 @@ function ModelFacts({ facts }: { facts: OnboardingModelFact[] }) {
   return (
     <p
       data-testid="onboarding-model-facts"
-      className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-form-hint text-muted"
+      className="mt-2.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-form-hint text-muted-foreground"
     >
       {facts.map((fact, index) => (
         <Fragment key={fact.id}>
@@ -70,7 +70,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
             <Skeleton className="h-button-lg w-64 rounded-pill" />
           </SkeletonRegion>
         ) : model.providersError ? (
-          <p className="text-small-body text-danger" role="alert">
+          <p className="text-small-body text-destructive" role="alert">
             {model.providersError}
           </p>
         ) : (
@@ -92,7 +92,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
         )}
         <ModelFacts facts={model.facts} />
         {model.catalogError ? (
-          <p className="mt-2 text-form-hint text-danger" role="alert">
+          <p className="mt-2 text-form-hint text-destructive" role="alert">
             {model.catalogError}
           </p>
         ) : null}

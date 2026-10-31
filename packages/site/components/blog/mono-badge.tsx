@@ -1,13 +1,13 @@
 import { cn } from "@compozy/ui";
 import type { ComponentProps } from "react";
 
-export type MonoBadgeTone = "neutral" | "accent" | "success" | "danger" | "warning" | "info";
+export type MonoBadgeTone = "neutral" | "brand" | "success" | "destructive" | "warning" | "info";
 
 const toneClass: Record<MonoBadgeTone, string> = {
-  neutral: "border-line text-muted",
-  accent: "border-transparent bg-accent-tint text-accent",
+  neutral: "border-line text-muted-foreground",
+  brand: "border-transparent bg-brand-tint text-brand",
   success: "border-transparent bg-success-tint text-success",
-  danger: "border-transparent bg-danger-tint text-danger",
+  destructive: "border-transparent bg-destructive-tint text-destructive",
   warning: "border-transparent bg-warning-tint text-warning",
   info: "border-transparent bg-info-tint text-info",
 };

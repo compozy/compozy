@@ -49,7 +49,7 @@ describe("DayStackedBars", () => {
         height={90}
         series={[
           { key: "completed", fill: "var(--color-success)" },
-          { key: "failed", fill: "var(--color-danger)" },
+          { key: "failed", fill: "var(--color-destructive)" },
         ]}
       />
     );
@@ -64,7 +64,7 @@ describe("DayStackedBars", () => {
         node.getAttribute("fill")
       );
       expect(fills).toContain("var(--color-success)");
-      expect(fills).toContain("var(--color-danger)");
+      expect(fills).toContain("var(--color-destructive)");
     });
   });
 });

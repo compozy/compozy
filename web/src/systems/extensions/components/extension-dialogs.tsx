@@ -49,11 +49,13 @@ export function ExtensionProvenanceDialog({
           {query.isLoading ? (
             <ProvenanceSkeleton />
           ) : query.error ? (
-            <p className="text-small-body text-danger">{query.error.message}</p>
+            <p className="text-small-body text-destructive">{query.error.message}</p>
           ) : query.data ? (
             <ProvenanceFields provenance={query.data} />
           ) : (
-            <p className="text-small-body text-muted">No provenance data is available.</p>
+            <p className="text-small-body text-muted-foreground">
+              No provenance data is available.
+            </p>
           )}
         </div>
         <DialogFooter variant="ruled">
@@ -98,7 +100,7 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
         <span className="text-small-body text-fg" data-testid="extension-provenance-source-kind">
           {extensionSourceKindLabel(provenance.installed_from)}
         </span>
-        <code className="break-all font-mono text-mono-id text-muted">
+        <code className="break-all font-mono text-mono-id text-muted-foreground">
           {provenance.installed_from || "—"}
         </code>
       </ProvenanceRow>
@@ -124,7 +126,9 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
       <ProvenanceRow term={PROVENANCE_TERM.trust}>
         <ExtensionTrustBadges facts={extensionTrustFacts(provenance)} showRegistryTier={false} />
         {!provenance.digest_matched && !provenance.checksum_verified ? (
-          <span className="text-eyebrow text-muted">No integrity evidence was recorded.</span>
+          <span className="text-eyebrow text-muted-foreground">
+            No integrity evidence was recorded.
+          </span>
         ) : null}
       </ProvenanceRow>
       <ProvenanceRow term={PROVENANCE_TERM.registryTier}>
@@ -140,7 +144,7 @@ function ProvenanceFields({ provenance }: { provenance: ExtensionProvenance }) {
 function ProvenanceRow({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="grid gap-1 py-3 first:pt-0 last:pb-0">
-      <dt className="eyebrow text-muted">{term}</dt>
+      <dt className="eyebrow text-muted-foreground">{term}</dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-1.5">{children}</dd>
     </div>
   );
@@ -194,7 +198,7 @@ export function RemoveExtensionDialog({
       onOpenChange={onOpenChange}
       open={open}
       title={`${isDevOverlay ? "Unlink" : "Remove"} ${extension?.name ?? "extension"}`}
-      tone="danger"
+      tone="destructive"
       confirmIcon={PackageX}
       contentProps={{ "data-testid": "remove-extension-dialog" }}
     />

@@ -30,7 +30,7 @@ export const HOME_RUN_ROW_CLASS =
   "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3";
 export const HOME_RUN_TITLE_CLASS = "flex items-center gap-2 text-body font-medium text-fg-strong";
 export const HOME_RUN_SUBTITLE_CLASS =
-  "mt-1 flex min-w-0 items-center gap-1.5 text-small-body text-muted";
+  "mt-1 flex min-w-0 items-center gap-1.5 text-small-body text-muted-foreground";
 
 /** The pulse heatmap: weekday rows over 24 hour cells, plus its insights line. */
 export const HOME_PULSE_WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -42,12 +42,12 @@ export const HOME_PULSE_GRID_COLUMNS =
 export const HOME_PULSE_GRID_CLASS =
   "grid min-w-[var(--size-home-pulse-min-w)] gap-[var(--space-home-pulse-gap)]";
 export const HOME_PULSE_INSIGHTS_CLASS =
-  "flex flex-wrap items-center gap-2.5 border-t border-line-soft px-4 py-2.5 text-small-body text-muted";
+  "flex flex-wrap items-center gap-2.5 border-t border-line-soft px-4 py-2.5 text-small-body text-muted-foreground";
 
 /** The outcomes and usage charts' headline rows and the outcomes legend. */
 export const HOME_OUTCOMES_HEADLINE_CLASS = "flex items-baseline gap-2.5";
 export const HOME_OUTCOMES_LEGEND_CLASS =
-  "flex flex-wrap items-center gap-4 text-small-body text-muted";
+  "flex flex-wrap items-center gap-4 text-small-body text-muted-foreground";
 export const HOME_USAGE_HEADLINE_CLASS = "flex items-baseline gap-2.5";
 
 /** The agents table: column grid (with its narrow form), row frame and name cell. */

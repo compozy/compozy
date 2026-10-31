@@ -19,7 +19,7 @@ export interface EntityDialogHeaderProps extends Omit<
   icon: LucideIcon;
   /**
    * Well and eyebrow tone, the same model `ConfirmDialog` uses. `neutral` (the
-   * default) is the mint identity well with a muted eyebrow; keep `danger` /
+   * default) is the mint identity well with a muted eyebrow; keep `destructive` /
    * `warning` for dialogs whose subject is destructive or a real warning.
    */
   tone?: DialogTone;

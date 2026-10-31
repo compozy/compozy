@@ -122,7 +122,9 @@ function SubagentBranchRow({
         <StateGlyph size="sm" state={display.glyph} />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className={cn("truncate", display.settled && "text-muted")}>{subagent.title}</span>
+        <span className={cn("truncate", display.settled && "text-muted-foreground")}>
+          {subagent.title}
+        </span>
         <SubagentRuntimeMeta subagent={subagent} />
       </span>
       <SubagentRowTrail subagent={subagent} />

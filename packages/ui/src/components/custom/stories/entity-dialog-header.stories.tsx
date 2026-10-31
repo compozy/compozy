@@ -15,7 +15,7 @@ const meta: Meta<typeof EntityDialogHeader> = {
     docs: {
       description: {
         component:
-          "Canonical entity-editor modal header: the mint identity well beside a muted eyebrow, the dialog title, an optional description, and a quiet close control. `tone` follows the shared dialog tone model (`neutral` default; `danger` / `warning` keep semantic wells), so an entity editor never reads as needing attention.",
+          "Canonical entity-editor modal header: the mint identity well beside a muted eyebrow, the dialog title, an optional description, and a quiet close control. `tone` follows the shared dialog tone model (`neutral` default; `destructive` / `warning` keep semantic wells), so an entity editor never reads as needing attention.",
       },
     },
   },
@@ -34,7 +34,7 @@ function HeaderHost({ children }: { children: React.ReactNode }) {
         unframed
       >
         {children}
-        <div className="px-6 py-5 text-small-body text-muted">Body region.</div>
+        <div className="px-6 py-5 text-small-body text-muted-foreground">Body region.</div>
       </DialogContent>
     </Dialog>
   );
@@ -143,7 +143,9 @@ export const WithClose: Story = {
         description={
           <>
             A job runs an agent, materializes a task, or starts a Loop on a schedule.{" "}
-            <b className="font-medium text-muted">Choose the target and when it should run.</b>
+            <b className="font-medium text-muted-foreground">
+              Choose the target and when it should run.
+            </b>
           </>
         }
         eyebrow="Automation · Job"
@@ -157,7 +159,12 @@ export const WithClose: Story = {
 
 /** A destructive subject keeps its semantic well and eyebrow through `tone`. */
 export const DangerTone: Story = {
-  args: { eyebrow: "System · Vault", icon: Trash2, title: "Remove vault secret", tone: "danger" },
+  args: {
+    eyebrow: "System · Vault",
+    icon: Trash2,
+    title: "Remove vault secret",
+    tone: "destructive",
+  },
   render: () => (
     <HeaderHost>
       <EntityDialogHeader
@@ -166,7 +173,7 @@ export const DangerTone: Story = {
         icon={Trash2}
         onClose={() => {}}
         title="Remove vault secret"
-        tone="danger"
+        tone="destructive"
       />
     </HeaderHost>
   ),

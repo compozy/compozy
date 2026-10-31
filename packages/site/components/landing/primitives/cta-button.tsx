@@ -18,7 +18,7 @@ const HERO_SIZE_OVERRIDE = "px-5";
 
 // Keep the hover language consistent with the landing's accent-forward system.
 const GHOST_HOVER_OVERRIDE =
-  "hover:border-accent hover:bg-transparent hover:text-accent dark:hover:bg-transparent";
+  "hover:border-brand hover:bg-transparent hover:text-brand dark:hover:bg-transparent";
 
 interface CtaButtonProps {
   href: string;

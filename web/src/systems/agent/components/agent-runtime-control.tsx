@@ -30,10 +30,14 @@ export function AgentRuntimeControl({ agent, workspaceId, labelledBy }: AgentRun
           text: runtime.conflictMessage,
         }
       : runtime.error
-        ? { tone: "danger" as const, testId: "agent-detail-runtime-error", text: runtime.error }
+        ? {
+            tone: "destructive" as const,
+            testId: "agent-detail-runtime-error",
+            text: runtime.error,
+          }
         : runtime.providerSourceError
           ? {
-              tone: "danger" as const,
+              tone: "destructive" as const,
               testId: "agent-detail-runtime-providers-error",
               text: runtime.providerSourceError,
             }
@@ -52,14 +56,14 @@ export function AgentRuntimeControl({ agent, workspaceId, labelledBy }: AgentRun
           {statusMessage ? (
             <span
               className={
-                statusMessage.tone === "danger"
-                  ? "text-small-body text-danger"
+                statusMessage.tone === "destructive"
+                  ? "text-small-body text-destructive"
                   : statusMessage.tone === "warning"
                     ? "text-small-body text-warning"
-                    : "text-small-body text-muted"
+                    : "text-small-body text-muted-foreground"
               }
               data-testid={statusMessage.testId}
-              role={statusMessage.tone === "danger" ? "alert" : "status"}
+              role={statusMessage.tone === "destructive" ? "alert" : "status"}
             >
               {statusMessage.text}
             </span>

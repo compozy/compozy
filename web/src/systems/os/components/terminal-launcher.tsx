@@ -140,7 +140,7 @@ export function TerminalLauncher({
           </CommandGroup>
         ) : null}
         {runningError ? (
-          <p className="px-3 py-2 text-small-body text-muted" role="alert">
+          <p className="px-3 py-2 text-small-body text-muted-foreground" role="alert">
             {runningError}
           </p>
         ) : null}

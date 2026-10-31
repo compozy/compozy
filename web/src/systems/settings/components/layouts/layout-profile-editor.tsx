@@ -124,7 +124,7 @@ export function LayoutProfileEditor({ editor, document, onClose }: LayoutProfile
           {slots} window{slots === 1 ? "" : "s"} captured from the layout in the editor.
         </span>
         {editor.error ? (
-          <span className="text-form-hint text-danger" role="alert">
+          <span className="text-form-hint text-destructive" role="alert">
             {editor.error.message}
           </span>
         ) : null}

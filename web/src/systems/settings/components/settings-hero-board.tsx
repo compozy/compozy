@@ -67,7 +67,7 @@ export function SettingsHeroBoard({
               <span className="truncate text-metric-value font-semibold tabular-nums text-fg">
                 {stat.value}
               </span>
-              <span className="truncate text-form-label text-muted">{stat.label}</span>
+              <span className="truncate text-form-label text-muted-foreground">{stat.label}</span>
               {stat.sub ? (
                 <span className="truncate text-form-hint text-subtle">{stat.sub}</span>
               ) : null}

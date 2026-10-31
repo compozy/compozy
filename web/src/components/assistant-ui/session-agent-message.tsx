@@ -160,7 +160,7 @@ export function SessionMonitorWakeMessage({ wake }: { wake: SessionMonitorWakeMe
         className="pt-2 pb-3.5"
         data-testid="session-monitor-wake"
         label={
-          <span className="inline-flex min-w-0 items-center gap-1.5 text-muted">
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground">
             <AlarmClock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
             <span className="shrink-0">Monitor fired</span>
             <span className="max-w-[36ch] truncate text-fg-2" title={description}>

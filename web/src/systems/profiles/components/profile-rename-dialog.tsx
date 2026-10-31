@@ -69,7 +69,10 @@ export function ProfileRenameDialog({
         <EntityDialogHeader eyebrow="Profiles" icon={TextCursorInput} title={`Rename ${profile}`} />
         <EntityDialogBody>
           {permanent ? (
-            <p className="text-small-body text-muted" data-testid="profile-rename-permanent">
+            <p
+              className="text-small-body text-muted-foreground"
+              data-testid="profile-rename-permanent"
+            >
               {PROFILE_PERMANENT_LINE}
             </p>
           ) : (

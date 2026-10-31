@@ -71,7 +71,7 @@ export function AutomationInspectSheet({
             <SheetTitle className="text-item-title font-medium tracking-tight text-fg-strong">
               Inspect
             </SheetTitle>
-            <SheetDescription className="text-small-body text-muted">
+            <SheetDescription className="text-small-body text-muted-foreground">
               {automationInspectDescription(entity)}
             </SheetDescription>
           </div>
@@ -109,7 +109,7 @@ export function AutomationInspectSheet({
                 />
               ))}
             </div>
-            <p className="mt-3.5 text-form-label leading-relaxed text-muted">
+            <p className="mt-3.5 text-form-label leading-relaxed text-muted-foreground">
               {buildAutomationDiagnosticsNote(entity)}
             </p>
           </TabsContent>

@@ -79,7 +79,7 @@ export const Danger: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-settings-danger")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-settings-destructive")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-settings-delete")).resolves.toBeDefined();
   },
 };

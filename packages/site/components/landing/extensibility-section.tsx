@@ -64,20 +64,20 @@ export function ExtensibilitySection() {
             cite={feature.cite}
           />
         ))}
-        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-diagram border border-dashed border-line bg-transparent p-6 transition-colors hover:border-accent/55 hover:bg-accent/4">
-          <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-line text-muted transition-colors group-hover:border-accent group-hover:text-accent">
+        <article className="group relative flex min-h-55 flex-col items-start justify-center gap-4 rounded-diagram border border-dashed border-line bg-transparent p-6 transition-colors hover:border-brand/55 hover:bg-brand/4">
+          <span className="flex size-12 items-center justify-center rounded-diagram border border-dashed border-line text-muted-foreground transition-colors group-hover:border-brand group-hover:text-brand">
             <BookOpen aria-hidden className="size-5" />
           </span>
           <Eyebrow className="text-subtle">Reference</Eyebrow>
           <h3 className="text-base font-medium leading-snug text-fg">
             Every extensibility surface, in one reference.
           </h3>
-          <p className="text-sm leading-relaxed text-muted">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             Hooks, skills, automation, extensions: schemas, CLI verbs, examples.
           </p>
           <Link
             href={EXTENSIONS_DOCS_HREF}
-            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-accent before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="eyebrow font-semibold! mt-1 inline-flex items-center gap-1.5 text-brand before:absolute before:inset-0 before:rounded-diagram before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             Read extensions docs
             <ArrowUpRight
@@ -89,7 +89,7 @@ export function ExtensibilitySection() {
       </div>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-center lg:gap-10">
-        <div className="max-w-[56ch] text-sm leading-relaxed text-muted">
+        <div className="max-w-[56ch] text-sm leading-relaxed text-muted-foreground">
           <h3 className="font-display text-2xl mb-2 mt-8 text-fg-strong">
             A skill is a Markdown file with frontmatter.
           </h3>

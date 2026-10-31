@@ -36,7 +36,7 @@ export const RunStatus: Story = {
     <StatusBreakdown
       items={[
         { label: "Succeeded", value: 124, tone: "success" },
-        { label: "Failed", value: 3, tone: "danger" },
+        { label: "Failed", value: 3, tone: "destructive" },
         { label: "Skipped", value: 7, tone: "neutral" },
         { label: "Pending", value: 14, tone: "warning" },
       ]}
@@ -49,13 +49,13 @@ export const RunStatus: Story = {
  */
 export const SingleBucket: Story = {
   args: {},
-  render: () => <StatusBreakdown items={[{ label: "Completed", value: 12, tone: "accent" }]} />,
+  render: () => <StatusBreakdown items={[{ label: "Completed", value: 12, tone: "brand" }]} />,
 };
 
 export const FormattedCount: Story = {
   args: {
     total: 256_000,
-    items: [{ label: "Context", value: 12_400, formattedValue: "≈ 12.4K", tone: "accent" }],
+    items: [{ label: "Context", value: 12_400, formattedValue: "≈ 12.4K", tone: "brand" }],
   },
 };
 
@@ -69,7 +69,7 @@ export const DetailAndNote: Story = {
       {
         id: "compozy",
         label: <span className="font-medium text-fg">Compozy context</span>,
-        swatch: <PillDot tone="accent" />,
+        swatch: <PillDot tone="brand" />,
         value: 225_000,
         formattedValue: "225K",
         detail: "of ≈ 231K",

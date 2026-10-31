@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "../alert";
 import { Button } from "../button";
 import { Spinner } from "../spinner";
 
-export type RestartBannerTone = "warning" | "info" | "success" | "danger";
+export type RestartBannerTone = "warning" | "info" | "success" | "destructive";
 
 type RestartBannerButtonProps = Omit<
   React.ComponentProps<typeof Button>,
@@ -49,18 +49,18 @@ export interface RestartBannerProps extends Omit<React.ComponentProps<"div">, "t
   dismissProps?: RestartBannerButtonProps;
 }
 
-const ALERT_VARIANT: Record<RestartBannerTone, "warning" | "info" | "success" | "danger"> = {
+const ALERT_VARIANT: Record<RestartBannerTone, "warning" | "info" | "success" | "destructive"> = {
   warning: "warning",
   info: "info",
   success: "success",
-  danger: "danger",
+  destructive: "destructive",
 };
 
 const ALERT_ROLE: Record<RestartBannerTone, "alert" | "status"> = {
   warning: "status",
   info: "status",
   success: "status",
-  danger: "alert",
+  destructive: "alert",
 };
 
 function RestartBanner({

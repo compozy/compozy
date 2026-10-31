@@ -30,7 +30,7 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
   const readOnly = useSessionThreadReadOnly();
   return (
     <div className={STATE_PANE_FRAME}>
-      <p className="max-w-md text-center text-small-body text-muted">
+      <p className="max-w-md text-center text-small-body text-muted-foreground">
         {readOnly ? (
           "No messages in this history."
         ) : (

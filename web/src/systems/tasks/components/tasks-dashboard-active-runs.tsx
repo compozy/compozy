@@ -39,7 +39,7 @@ export function TasksDashboardActiveRuns({
       data-testid="tasks-dashboard-active-runs"
       meta={total}
       right={
-        <Eyebrow className="text-muted">
+        <Eyebrow className="text-muted-foreground">
           {running} running · {queued} queued · {claimed} claimed
         </Eyebrow>
       }
@@ -93,11 +93,11 @@ export function TasksDashboardActiveRuns({
                       />
                     ) : null}
                   </div>
-                  <span className="hidden shrink-0 text-form-label tabular-nums text-muted @xl:inline">
+                  <span className="hidden shrink-0 text-form-label tabular-nums text-muted-foreground @xl:inline">
                     for {formatDurationMs(run.age_ms)}
                   </span>
                   {attemptLabel ? (
-                    <span className="hidden shrink-0 text-form-label tabular-nums text-muted @3xl:inline">
+                    <span className="hidden shrink-0 text-form-label tabular-nums text-muted-foreground @3xl:inline">
                       {attemptLabel}
                     </span>
                   ) : null}
@@ -108,19 +108,19 @@ export function TasksDashboardActiveRuns({
                     <Pill
                       data-testid={`tasks-dashboard-active-run-stuck-${run.run_id}`}
                       size="sm"
-                      tone="danger"
+                      tone="destructive"
                     >
                       Stuck
                     </Pill>
                   ) : null}
                   <ChevronRight
                     aria-hidden="true"
-                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted"
+                    className="size-3.5 shrink-0 text-faint transition-colors group-hover:text-muted-foreground"
                   />
                 </Link>
                 {run.error ? (
                   <p
-                    className="flex items-start gap-1.5 pl-6 text-form-hint text-danger"
+                    className="flex items-start gap-1.5 pl-6 text-form-hint text-destructive"
                     data-testid={`tasks-dashboard-active-run-error-${run.run_id}`}
                   >
                     <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
@@ -135,7 +135,7 @@ export function TasksDashboardActiveRuns({
 
       {hidden > 0 ? (
         <p
-          className="border-t border-line-soft px-5 py-3 text-form-label text-muted"
+          className="border-t border-line-soft px-5 py-3 text-form-label text-muted-foreground"
           data-testid="tasks-dashboard-active-runs-more"
         >
           +{hidden} more active runs

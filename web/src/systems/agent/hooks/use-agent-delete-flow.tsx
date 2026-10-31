@@ -87,7 +87,7 @@ export function useAgentDeleteFlow({
   const confirmDialog = (
     <ConfirmDialog
       open={open && Boolean(agent)}
-      tone="danger"
+      tone="destructive"
       title="Delete agent"
       description={description}
       error={error}

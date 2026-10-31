@@ -96,7 +96,7 @@ function TerminalHeaderStatus({
     <>
       {recording ? (
         <Pill data-testid="terminal-recording-chip" form="plain" size="sm" tone="neutral">
-          <Pill.Dot pulse tone="danger" />
+          <Pill.Dot pulse tone="destructive" />
           Recording {recording.elapsed}
         </Pill>
       ) : null}
@@ -125,7 +125,7 @@ function TerminalHeaderStatus({
 
 function TerminalIdentityIcon({ isPipe }: { isPipe: boolean }) {
   const Icon = isPipe ? FileText : TerminalSquare;
-  return <Icon aria-hidden="true" className="size-3.5 text-muted" />;
+  return <Icon aria-hidden="true" className="size-3.5 text-muted-foreground" />;
 }
 
 /**

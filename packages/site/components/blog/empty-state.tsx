@@ -23,11 +23,11 @@ export function BlogEmptyState({
 }: BlogEmptyStateProps) {
   return (
     <section className="rounded-xl border border-line bg-canvas-soft p-6">
-      <Eyebrow className="text-accent">{eyebrow}</Eyebrow>
+      <Eyebrow className="text-brand">{eyebrow}</Eyebrow>
       <h2 className="mt-4 max-w-[26ch] font-sans text-site-card-title font-semibold leading-tight tracking-tight text-fg">
         {title}
       </h2>
-      <p className="mt-4 max-w-[58ch] text-sm leading-7 text-muted">{description}</p>
+      <p className="mt-4 max-w-[58ch] text-sm leading-7 text-muted-foreground">{description}</p>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
           href={primaryAction.href}

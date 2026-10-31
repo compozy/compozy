@@ -325,7 +325,7 @@ function MarketplaceUpdatesLine({
 
   return (
     <div
-      className="-mx-1 flex min-h-8 items-center gap-2 px-1 text-eyebrow text-muted"
+      className="-mx-1 flex min-h-8 items-center gap-2 px-1 text-eyebrow text-muted-foreground"
       data-testid="marketplace-updates-line"
     >
       <StatusDot aria-hidden="true" size="sm" tone="faint" />

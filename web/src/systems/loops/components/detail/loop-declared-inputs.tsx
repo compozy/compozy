@@ -44,7 +44,7 @@ export function LoopDeclaredInputs({ inputs }: LoopDeclaredInputsProps) {
                     {loopInputLabel(name, field)}
                   </span>
                   {field?.required ? (
-                    <span className="font-semibold text-muted" aria-label="required">
+                    <span className="font-semibold text-muted-foreground" aria-label="required">
                       *
                     </span>
                   ) : null}

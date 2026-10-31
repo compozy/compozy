@@ -6,8 +6,8 @@ import { ConnectionIndicator, type ConnectionStatus } from "../connection-indica
 const EXPECTED: Record<ConnectionStatus, { label: string; tone: string; pulse: string }> = {
   connected: { label: "Connected", tone: "success", pulse: "false" },
   connecting: { label: "Connecting", tone: "warning", pulse: "true" },
-  disconnected: { label: "Disconnected", tone: "danger", pulse: "false" },
-  error: { label: "Connection error", tone: "danger", pulse: "false" },
+  disconnected: { label: "Disconnected", tone: "destructive", pulse: "false" },
+  error: { label: "Connection error", tone: "destructive", pulse: "false" },
 };
 
 describe("ConnectionIndicator", () => {

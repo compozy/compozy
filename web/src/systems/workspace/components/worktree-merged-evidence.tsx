@@ -14,8 +14,8 @@ type EvidenceTone = "success" | "info" | "warning" | "neutral";
 
 const ROW_TONE_CLASS: Record<EvidenceTone, string | undefined> = {
   success: "text-fg",
-  info: "text-muted",
-  warning: "text-muted",
+  info: "text-muted-foreground",
+  warning: "text-muted-foreground",
   neutral: undefined,
 };
 

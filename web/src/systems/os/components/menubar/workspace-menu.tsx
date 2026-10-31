@@ -109,7 +109,7 @@ function WorkspaceRowLabel({
 }
 
 function ActiveCheck({ active }: { active: boolean }) {
-  return active ? <Check className="ml-auto size-3.5 text-accent" /> : null;
+  return active ? <Check className="ml-auto size-3.5 text-brand" /> : null;
 }
 
 /** The All projects and User rows: destinations, never projects, with no worktree submenu. */
@@ -252,7 +252,7 @@ export function WorkspaceMenu({
                           >
                             {rowLabel}
                             <span className="ml-auto flex shrink-0 items-center gap-1">
-                              {isActive ? <Check className="size-3.5 text-accent" /> : null}
+                              {isActive ? <Check className="size-3.5 text-brand" /> : null}
                               <ChevronRight aria-hidden="true" className="size-3.5 text-faint" />
                             </span>
                           </MenubarSubTrigger>
@@ -295,7 +295,7 @@ export function WorkspaceMenu({
                               <>
                                 <MenubarSeparator />
                                 <MenubarItem
-                                  className="min-h-control-compact text-muted"
+                                  className="min-h-control-compact text-muted-foreground"
                                   data-testid={`os-workspace-archive-${workspace.id}`}
                                   onClick={() => onArchiveProject(workspace)}
                                 >

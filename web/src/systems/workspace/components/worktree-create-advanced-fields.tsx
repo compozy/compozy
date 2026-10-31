@@ -136,7 +136,7 @@ function BranchGroup({
         >
           <span className="min-w-0 flex-1 truncate font-mono text-mono-id">{candidate.branch}</span>
           {candidate.heldBy ? (
-            <span className="shrink-0 text-badge text-muted">{candidate.heldBy}</span>
+            <span className="shrink-0 text-badge text-muted-foreground">{candidate.heldBy}</span>
           ) : null}
         </CommandItem>
       ))}

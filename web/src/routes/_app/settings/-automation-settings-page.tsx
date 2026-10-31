@@ -170,7 +170,7 @@ function ManageSection({ runtime }: { runtime: AutomationRuntime }) {
         description={automationsSummary(runtime)}
         label={
           <>
-            <Zap aria-hidden="true" className="size-3.5 text-muted" />
+            <Zap aria-hidden="true" className="size-3.5 text-muted-foreground" />
             Automations
           </>
         }
@@ -306,7 +306,7 @@ function LimitsSection({
                 })
               }
             />
-            <Eyebrow className="text-muted">fires</Eyebrow>
+            <Eyebrow className="text-muted-foreground">fires</Eyebrow>
             <span className="text-form-hint text-subtle">per</span>
             <Input
               className="w-24 font-mono"

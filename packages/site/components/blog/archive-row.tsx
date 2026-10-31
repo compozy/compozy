@@ -17,10 +17,10 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
     >
       <DateStamp date={post.date} format="compact" className="sm:pt-1" />
       <div className="min-w-0">
-        <p className="font-sans text-site-lead font-medium leading-snug tracking-tight text-fg group-hover:text-accent">
+        <p className="font-sans text-site-lead font-medium leading-snug tracking-tight text-fg group-hover:text-brand">
           {post.title}
         </p>
-        <p className="mt-1.5 text-sm leading-6 text-muted">{post.description}</p>
+        <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{post.description}</p>
         {post.tags.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             <Eyebrow className="rounded-chip bg-elevated px-1.5 py-0.5 text-subtle">
@@ -37,7 +37,7 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
           </div>
         )}
       </div>
-      <Eyebrow className="min-w-0 truncate text-muted sm:col-start-2 lg:col-start-auto lg:pt-1">
+      <Eyebrow className="min-w-0 truncate text-muted-foreground sm:col-start-2 lg:col-start-auto lg:pt-1">
         {post.author}
       </Eyebrow>
       <span className="font-mono text-eyebrow tracking-mono text-subtle sm:col-start-2 lg:col-start-auto lg:pt-1">
@@ -46,7 +46,7 @@ export function ArchiveRow({ post }: ArchiveRowProps) {
       <ArrowUpRight
         size={16}
         aria-hidden
-        className="hidden self-center text-subtle group-hover:text-accent lg:block"
+        className="hidden self-center text-subtle group-hover:text-brand lg:block"
       />
     </Link>
   );

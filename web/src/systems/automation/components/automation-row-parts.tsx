@@ -93,7 +93,7 @@ export function AutomationLastRunText({ view }: { view: AutomationView }) {
     <span
       className={cn(
         "inline-flex min-w-0 items-center gap-1",
-        meta.tone === "danger" ? "text-danger" : "text-subtle"
+        meta.tone === "destructive" ? "text-destructive" : "text-subtle"
       )}
       data-testid={`automation-last-run-${view.id}`}
       data-tone={meta.tone}
@@ -185,7 +185,7 @@ export function AutomationOverflowMenu({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-danger"
+              className="text-destructive"
               data-testid={`automation-delete-${view.id}`}
               onClick={() => onDelete(view)}
             >

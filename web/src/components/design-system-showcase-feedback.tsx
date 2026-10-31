@@ -79,7 +79,7 @@ export function FeedbackSection() {
             Runtime will reload at 04:00 UTC to pick up skill index updates.
           </AlertDescription>
         </Alert>
-        <Alert variant="danger">
+        <Alert variant="destructive">
           <InfoIcon />
           <AlertTitle>Connection lost</AlertTitle>
           <AlertDescription>
@@ -224,17 +224,17 @@ export function OverlaysSection() {
             <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
           </TabsList>
           <TabsContent value="overview">
-            <p className="text-small-body text-muted">
+            <p className="text-small-body text-muted-foreground">
               Tabs host section switches: Base UI driven, motion-free.
             </p>
           </TabsContent>
           <TabsContent value="events">
-            <p className="text-small-body text-muted">
+            <p className="text-small-body text-muted-foreground">
               Replayable event timeline lives under this tab in production.
             </p>
           </TabsContent>
           <TabsContent value="artifacts">
-            <p className="text-small-body text-muted">
+            <p className="text-small-body text-muted-foreground">
               Generated files with their provenance chain.
             </p>
           </TabsContent>
@@ -258,7 +258,7 @@ export function OverlaysSection() {
             Toggle diagnostics
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <p className="text-small-body text-muted">
+            <p className="text-small-body text-muted-foreground">
               Collapsed content reveals with a CSS animation.
             </p>
           </CollapsibleContent>

@@ -41,7 +41,7 @@ export const ToneDot: Story = {
       title="Workspace bootstrapped"
       description="Created `personal` workspace with 3 connected providers."
       time="2m"
-      tone="accent"
+      tone="brand"
     />
   ),
 };
@@ -90,7 +90,7 @@ export const Composed: Story = {
   args: {},
   render: () => (
     <>
-      <TimelineEvent title="Session opened" time="04:00" tone="accent" icon={GitCommitIcon} />
+      <TimelineEvent title="Session opened" time="04:00" tone="brand" icon={GitCommitIcon} />
       <TimelineEvent
         title="First message"
         description="User: refactor task scheduling"

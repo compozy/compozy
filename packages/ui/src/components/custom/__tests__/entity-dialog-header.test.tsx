@@ -46,21 +46,21 @@ describe("EntityDialogHeader", () => {
     const well = header?.querySelector('[data-slot="entity-dialog-header-icon"]');
     expect(well).toHaveAttribute("data-tone", "well");
     expect(well).toHaveAttribute("data-icon-tone", "neutral");
-    expect(well?.className).not.toContain("accent");
+    expect(well?.className).not.toContain("brand");
     expect(well?.querySelector("svg")).not.toBeNull();
-    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-muted");
+    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-muted-foreground");
   });
 
   it("Should keep semantic wells for danger and warning dialogs", async () => {
-    renderHeader({ tone: "danger" });
+    renderHeader({ tone: "destructive" });
 
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     const well = screen
       .getByTestId("host")
       .querySelector('[data-slot="entity-dialog-header-icon"]');
-    expect(well).toHaveAttribute("data-icon-tone", "danger");
-    expect(well).toHaveClass("bg-danger-tint", "text-danger");
-    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-danger");
+    expect(well).toHaveAttribute("data-icon-tone", "destructive");
+    expect(well).toHaveClass("bg-destructive-tint", "text-destructive");
+    expect(screen.getByText("Autonomy · Task")).toHaveClass("text-destructive");
   });
 
   it("Should omit the description and close button unless supplied", async () => {

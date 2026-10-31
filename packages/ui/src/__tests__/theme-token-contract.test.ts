@@ -7,7 +7,15 @@ import {
   parseHexColor,
   type Rgb,
 } from "../lib/contrast";
-import { THEMES, TOKENS_CSS, TOKENS_LIGHT_CSS, readToken, type Theme } from "./token-source";
+import {
+  TERMINAL_TOKENS_CSS,
+  THEMES,
+  TOKENS_CSS,
+  TOKENS_LIGHT_CSS,
+  TOKENS_RUNTIME_CSS,
+  readToken,
+  type Theme,
+} from "./token-source";
 
 /**
  * Theme-switch reach contract.
@@ -64,7 +72,12 @@ describe("theme-switch reach contract", () => {
  * popovers. The reference palette's dimmer greys (#a1a1a1 on white) fail this; the
  * production override does not.
  */
-const TEXT_TOKENS = ["color-fg-2", "color-muted", "color-subtle", "color-faint"] as const;
+const TEXT_TOKENS = [
+  "color-fg-2",
+  "color-muted-foreground",
+  "color-subtle",
+  "color-faint",
+] as const;
 const TEXT_SURFACES = [
   "color-canvas",
   "color-canvas-soft",
@@ -120,7 +133,7 @@ describe.each(THEMES)("text ladder contrast floor (%s theme)", theme => {
  * Non-text indicator floor, per theme (DESIGN.md accessibility floor). A resting
  * dot, ring or mark that alone carries state rides `--color-indicator`, so it must
  * clear 3:1 on every surface it can rest on; hairlines stay decorative and are not
- * held to it. The identity well's glyph and the accent count pill are paired inks:
+ * held to it. The identity well's glyph and the brand count pill are paired inks:
  * the glyph clears 3:1 on its well, and the count's text clears AA on its fill.
  */
 const INDICATOR_SURFACES = [
@@ -151,11 +164,37 @@ describe.each(THEMES)("non-text indicator contrast floor (%s theme)", theme => {
     ).toBeGreaterThanOrEqual(AA_NON_TEXT_CONTRAST);
   });
 
-  it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for count ink on the accent fill`, () => {
-    const ratio = contrastRatio(readHex("color-accent-ink", theme), readHex("color-accent", theme));
+  it(`Should hold ≥${AA_TEXT_CONTRAST}:1 for count ink on the brand fill`, () => {
+    const ratio = contrastRatio(readHex("color-brand-ink", theme), readHex("color-brand", theme));
     expect(
       ratio,
-      `--color-accent-ink on --color-accent = ${ratio.toFixed(2)}:1`
+      `--color-brand-ink on --color-brand = ${ratio.toFixed(2)}:1`
     ).toBeGreaterThanOrEqual(AA_TEXT_CONTRAST);
+  });
+});
+
+describe("brand, destructive and muted token names", () => {
+  const LEGACY_NAME = /^color-(?:accent(?:-.+)?|danger(?:-.+)?|muted)$/;
+
+  it("Should declare no legacy color token in any token file", () => {
+    const declared = [
+      TOKENS_CSS,
+      TOKENS_LIGHT_CSS,
+      TOKENS_RUNTIME_CSS,
+      TERMINAL_TOKENS_CSS,
+    ].flatMap(declaredNames);
+    expect(declared.filter(name => LEGACY_NAME.test(name))).toEqual([]);
+  });
+
+  it("Should alias attention to the brand color", () => {
+    expect(themeBlock(TOKENS_CSS)).toMatch(/--color-attn:\s*var\(--color-brand\);/);
+    expect(parseHexColor(readToken("color-brand", "dark"))).toEqual(parseHexColor("#e8572a"));
+  });
+
+  it.each<[Theme, string]>([
+    ["dark", "#a3a3a3"],
+    ["light", "#6b6b6b"],
+  ])("Should keep the secondary-text gray in %s", (theme, gray) => {
+    expect(parseHexColor(readToken("color-muted-foreground", theme))).toEqual(parseHexColor(gray));
   });
 });

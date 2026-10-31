@@ -30,11 +30,11 @@ export function LoopEditorPublishRejectedStrip({
 }: LoopEditorPublishRejectedStripProps) {
   return (
     <div
-      className="flex flex-none flex-col gap-1.5 border-t border-danger/40 bg-danger-tint px-3.5 py-2"
+      className="flex flex-none flex-col gap-1.5 border-t border-destructive/40 bg-destructive-tint px-3.5 py-2"
       data-testid="loop-editor-publish-error"
       role="alert"
     >
-      <p className="flex items-center gap-2 text-form-label text-danger">
+      <p className="flex items-center gap-2 text-form-label text-destructive">
         <AlertCircle aria-hidden="true" className="size-3.5 shrink-0" />
         {message}
         {failureKind === "rejected" ? (

@@ -83,7 +83,7 @@ export function LoopRunAboutRail({
       ) : null}
       <Collapsible className={hasStatusRows ? "mt-2" : undefined}>
         <CollapsibleTrigger className="group/about flex w-full items-center gap-1.5 text-left">
-          <Info aria-hidden="true" className="size-3 text-muted" />
+          <Info aria-hidden="true" className="size-3 text-muted-foreground" />
           <Eyebrow className="text-subtle">About this run</Eyebrow>
           <ChevronDown
             aria-hidden="true"
@@ -116,7 +116,7 @@ export function LoopRunAboutRail({
               >
                 <span
                   aria-hidden="true"
-                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 font-mono text-pill-group-badge font-semibold text-muted"
+                  className="grid size-4 shrink-0 place-items-center rounded-xs bg-surface-2 font-mono text-pill-group-badge font-semibold text-muted-foreground"
                 >
                   {avatarSeed(row.value)}
                 </span>
@@ -141,7 +141,7 @@ export function LoopRunAboutRail({
           </PropertyRow>
           <PropertyRow label="Run id" mono>
             <MonoId
-              className="text-muted"
+              className="text-muted-foreground"
               copy
               copyLabel="Copy run id"
               data-testid="loop-run-about-id"

@@ -43,7 +43,7 @@ describe("QrCode", () => {
     const plate = container.querySelector('[data-slot="qr-code"] rect');
     const path = container.querySelector('[data-slot="qr-code"] path');
     expect(plate).toHaveClass("fill-viz-cell");
-    expect(path).toHaveClass("fill-accent-ink");
+    expect(path).toHaveClass("fill-brand-ink");
   });
 
   it("Should keep accessibility and matrix geometry invariant when SVG props conflict", () => {

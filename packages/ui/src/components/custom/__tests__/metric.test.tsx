@@ -18,9 +18,9 @@ describe("Metric", () => {
 
   it.each<{ tone: MetricTone; className: string }>([
     { tone: "success", className: "text-success" },
-    { tone: "danger", className: "text-danger" },
+    { tone: "destructive", className: "text-destructive" },
     { tone: "warning", className: "text-warning" },
-    { tone: "accent", className: "text-accent" },
+    { tone: "brand", className: "text-brand" },
   ])("Should apply the $tone semantic color utility to the value", ({ tone, className }) => {
     const { container } = render(<Metric label="Signal" value="08" tone={tone} />);
     const value = container.querySelector<HTMLElement>('[data-slot="metric-value"]');

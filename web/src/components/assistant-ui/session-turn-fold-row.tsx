@@ -53,7 +53,7 @@ export function SessionTurnFoldRowView({
           data-testid="turn-fold-open-label"
           className={cn(
             "flex w-fit items-center gap-1.5 px-1 text-transcript-body tabular-nums",
-            failed ? "text-danger" : "text-warning"
+            failed ? "text-destructive" : "text-warning"
           )}
         >
           <Glyph className="size-3 shrink-0" aria-hidden="true" />

@@ -181,7 +181,7 @@ function WindowManagerConfigCard({
       <div className="flex flex-1 flex-col gap-3 p-3.5">
         {children}
         {problem ? (
-          <p className="text-form-hint text-danger" role="alert">
+          <p className="text-form-hint text-destructive" role="alert">
             {problem}
           </p>
         ) : null}

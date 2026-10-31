@@ -53,7 +53,7 @@ export const LeadingContext: Story = {
   render: () => (
     <TopbarSlotProvider>
       <Topbar
-        leading={<span className="text-body text-muted">checkout-api</span>}
+        leading={<span className="text-body text-muted-foreground">checkout-api</span>}
         glyph={<LayoutDashboard />}
         title="Dashboard"
       />

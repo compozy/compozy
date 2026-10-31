@@ -74,7 +74,7 @@ export function TaskDeleteAction({
       onOpenChange={setOpen}
       open={open}
       title="Delete task?"
-      tone="danger"
+      tone="destructive"
     >
       {hideTrigger ? null : (
         <DialogTrigger

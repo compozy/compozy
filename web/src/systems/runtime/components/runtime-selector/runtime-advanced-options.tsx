@@ -254,7 +254,7 @@ export function RuntimeAdvancedOptions({
             />
           ))}
           {providerManaged ? (
-            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-muted">
+            <p className="border-t border-line-soft px-3 py-1.5 text-form-hint text-muted-foreground">
               This provider controls these settings.
             </p>
           ) : null}

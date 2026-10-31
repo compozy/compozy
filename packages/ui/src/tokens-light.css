@@ -6,7 +6,7 @@
    `:root` qualifier outranks tokens.css's own unlayered `:root` block, which
    the CSS @import order places after this file.
    Values: brand-spec.md light column (aicss.dev "Approval Card" light set);
-   The accent orange steps one shade deeper for light contrast. */
+   The brand orange steps one shade deeper for light contrast. */
 
 [data-theme="light"]:root {
   color-scheme: light;
@@ -36,14 +36,14 @@
   --color-indicator: #888888;
   --color-knob: #ffffff;
 
-  /* Text — muted clears AA 4.5:1 on every text surface, the selected row
+  /* Text — muted-foreground clears AA 4.5:1 on every text surface, the selected row
      included (the reference's #a1a1a1 reads 2.6:1); fg-2 / fg-3 re-derive
      from it. */
   --color-fg: #1a1a1a;
   --color-fg-strong: #0b0d12;
   --color-fg-2: #4c4c4c;
   --color-fg-3: #333333;
-  --color-muted: #6b6b6b;
+  --color-muted-foreground: #6b6b6b;
   --color-subtle: #6b6b6b;
   --color-faint: #6b6b6b;
 
@@ -52,24 +52,24 @@
   --color-primary-hover: #2a2f3a;
   --color-primary-foreground: #ffffff;
 
-  /* Accent — the brand orange, one step deeper. */
+  /* Brand — the orange, one step deeper. */
   /* Deep enough that white count ink clears 4.5:1 on the fill. */
-  --color-accent: #c94b24;
-  --color-accent-hover: #b9441f;
-  --color-accent-strong: #b9441f;
-  --color-accent-ink: #ffffff;
-  --color-accent-tint: rgba(201, 75, 36, 0.08);
-  --color-accent-tint-strong: rgba(201, 75, 36, 0.14);
-  --color-accent-dim: rgba(201, 75, 36, 0.22);
-  --color-accent-glow: rgba(201, 75, 36, 0.05);
+  --color-brand: #c94b24;
+  --color-brand-hover: #b9441f;
+  --color-brand-strong: #b9441f;
+  --color-brand-ink: #ffffff;
+  --color-brand-tint: rgba(201, 75, 36, 0.08);
+  --color-brand-tint-strong: rgba(201, 75, 36, 0.14);
+  --color-brand-dim: rgba(201, 75, 36, 0.22);
+  --color-brand-glow: rgba(201, 75, 36, 0.05);
 
   /* Signal palette. */
   --color-success: #15a06a;
   --color-success-tint: rgba(21, 160, 106, 0.08);
   --color-warning: #d98404;
   --color-warning-tint: rgba(217, 132, 4, 0.08);
-  --color-danger: #dc2626;
-  --color-danger-tint: rgba(220, 38, 38, 0.07);
+  --color-destructive: #dc2626;
+  --color-destructive-tint: rgba(220, 38, 38, 0.07);
   --color-info: #5f5f94;
   --color-info-tint: rgba(95, 95, 148, 0.1);
   --color-well: #def2ea;
@@ -135,7 +135,7 @@
      depth wash drops to a light tint (the dark strengths paint a heavy cast
      on white). Flat needs no override: it is the `desk` role. */
   --wallpaper-ember:
-    radial-gradient(1100px 700px at 12% 110%, var(--color-accent-tint-strong), transparent 62%),
+    radial-gradient(1100px 700px at 12% 110%, var(--color-brand-tint-strong), transparent 62%),
     radial-gradient(
       1000px 640px at 92% -12%,
       color-mix(in oklab, var(--wallpaper-teal) 12%, transparent),
@@ -151,7 +151,7 @@
     ),
     linear-gradient(180deg, var(--color-canvas), var(--color-rail) 60%);
   --wallpaper-thumb-ember:
-    radial-gradient(80% 95% at 12% 110%, var(--color-accent-dim), transparent 62%),
+    radial-gradient(80% 95% at 12% 110%, var(--color-brand-dim), transparent 62%),
     radial-gradient(
       75% 90% at 92% -12%,
       color-mix(in oklab, var(--wallpaper-teal) 20%, transparent),

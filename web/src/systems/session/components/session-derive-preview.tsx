@@ -34,7 +34,7 @@ export function SessionDerivePreviewLine({
   if (refusal !== null || view.state === "error") {
     return (
       <FieldError
-        className="flex items-start gap-2 text-form-hint text-danger"
+        className="flex items-start gap-2 text-form-hint text-destructive"
         data-state="error"
         data-testid="session-derive-preview"
       >
@@ -68,7 +68,7 @@ export function SessionDerivePreviewLine({
       <Glyph aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-faint" />
       <span className="flex flex-col gap-0.5">
         <span>
-          <b className="font-medium text-muted">{view.headline}</b> · {view.size}
+          <b className="font-medium text-muted-foreground">{view.headline}</b> · {view.size}
         </span>
         {view.omitted ? (
           <span data-testid="session-derive-preview-omitted">{view.omitted}</span>

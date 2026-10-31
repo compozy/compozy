@@ -28,7 +28,7 @@ export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
     <div
       aria-hidden="true"
       data-slot="window-manager-command-preview"
-      className="pointer-events-none absolute z-50 border border-accent bg-accent-tint"
+      className="pointer-events-none absolute z-50 border border-brand bg-brand-tint"
       style={{
         left: preview.rect.x,
         top: preview.rect.y,
@@ -36,7 +36,7 @@ export function OsSnapOverlay({ preview }: { preview: SnapTarget | null }) {
         height: preview.rect.h,
       }}
     >
-      <Pill tone="accent" solid size="sm" className="absolute top-2 left-2">
+      <Pill tone="brand" solid size="sm" className="absolute top-2 left-2">
         {previewLabel(preview.kind)}
       </Pill>
     </div>

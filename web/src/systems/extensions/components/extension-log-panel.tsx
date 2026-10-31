@@ -58,10 +58,12 @@ export function ExtensionLogPanel({
           role="status"
         >
           {logs.status === "connecting" ? <Spinner aria-hidden="true" className="size-3" /> : null}
-          <span className="truncate text-eyebrow text-muted">{STATUS_TEXT[logs.status]}</span>
+          <span className="truncate text-eyebrow text-muted-foreground">
+            {STATUS_TEXT[logs.status]}
+          </span>
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          <Eyebrow className="text-muted" id={followLabelId}>
+          <Eyebrow className="text-muted-foreground" id={followLabelId}>
             Follow
           </Eyebrow>
           <Switch
@@ -108,8 +110,8 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
   if (logs.error && logs.entries.length === 0) {
     return (
       <div className="space-y-2 px-4 py-3">
-        <p className="text-small-body font-medium text-danger">Logs could not be loaded</p>
-        <p className="text-eyebrow text-muted">{logs.error.message}</p>
+        <p className="text-small-body font-medium text-destructive">Logs could not be loaded</p>
+        <p className="text-eyebrow text-muted-foreground">{logs.error.message}</p>
         <Button onClick={logs.refetch} size="sm" type="button" variant="secondary">
           Retry logs
         </Button>
@@ -118,7 +120,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
   }
   if (logs.entries.length === 0) {
     return (
-      <p className="px-4 py-3 text-small-body text-muted">
+      <p className="px-4 py-3 text-small-body text-muted-foreground">
         No log lines have been recorded for this instance.
       </p>
     );
@@ -131,7 +133,7 @@ function ExtensionLogBody({ logs }: { logs: ExtensionLogsModel }) {
     >
       {logs.entries.map(entry => (
         <li className="grid gap-1 px-4 py-2" key={`${entry.stream_epoch}:${entry.sequence}`}>
-          <span className="flex items-center gap-2 font-mono text-mono-id text-muted tabular-nums">
+          <span className="flex items-center gap-2 font-mono text-mono-id text-muted-foreground tabular-nums">
             <span>{formatLogClock(entry.timestamp)}</span>
             <span aria-hidden="true">·</span>
             <span>{entry.sequence}</span>

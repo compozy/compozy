@@ -37,7 +37,7 @@ export function AutomationPreview({ draft, mode, now, sentence }: AutomationPrev
   return (
     <div className="flex flex-col gap-3" data-testid="automation-preview">
       <PreviewCard icon={Text} label="Summary">
-        <p className="text-small-body leading-relaxed text-muted">
+        <p className="text-small-body leading-relaxed text-muted-foreground">
           <AutomationSentenceText sentence={sentence} />
         </p>
       </PreviewCard>

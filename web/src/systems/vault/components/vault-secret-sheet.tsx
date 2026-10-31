@@ -67,9 +67,9 @@ export function VaultSecretSheet({
             </div>
             <footer
               className="flex items-center justify-between gap-3 border-t border-line-soft px-5 py-3"
-              data-testid="vault-secret-sheet-danger"
+              data-testid="vault-secret-sheet-destructive"
             >
-              <p className="min-w-0 text-form-hint leading-snug text-muted">
+              <p className="min-w-0 text-form-hint leading-snug text-muted-foreground">
                 Anything that uses this secret stops working.
               </p>
               <Button
@@ -95,7 +95,7 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
     <header className="flex items-start gap-3 border-b border-line px-5 py-4.5">
       <span
         aria-hidden="true"
-        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-2 text-muted"
+        className="grid size-9 shrink-0 place-items-center rounded-md bg-surface-2 text-muted-foreground"
       >
         <KeyRound className="size-4" />
       </span>
@@ -107,7 +107,7 @@ function SheetHead({ secret, onClose }: { secret: VaultSecret; onClose: () => vo
         >
           {vaultSecretTitle(secret.ref)}
         </h2>
-        <div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-mono-id text-muted">
+        <div className="mt-1 flex min-w-0 items-center gap-1 font-mono text-mono-id text-muted-foreground">
           <span className="min-w-0 truncate" data-testid="vault-secret-sheet-ref">
             {secret.ref}
           </span>
@@ -163,7 +163,7 @@ function SheetValueSection({ present }: { present: boolean }) {
           • • • • • • • •
         </span>
         {present ? (
-          <span className="text-small-body text-muted">Saved</span>
+          <span className="text-small-body text-muted-foreground">Saved</span>
         ) : (
           <Pill size="sm" tone="warning">
             Missing
@@ -216,7 +216,7 @@ function SheetReplaceSection({
       </div>
       {error ? (
         <p
-          className="mt-1.5 text-form-hint text-danger"
+          className="mt-1.5 text-form-hint text-destructive"
           data-testid="vault-secret-sheet-replace-error"
         >
           {error}

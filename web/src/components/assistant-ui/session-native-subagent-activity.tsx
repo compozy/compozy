@@ -95,10 +95,10 @@ function NativeOutcome({ subagent }: { subagent: SubagentView }) {
     <>
       {subagent.result ? <SessionMessageText text={subagent.result} /> : null}
       {subagent.result_truncated ? (
-        <p className="text-small-body text-muted">Result was truncated.</p>
+        <p className="text-small-body text-muted-foreground">Result was truncated.</p>
       ) : null}
       {subagent.error ? (
-        <p role="alert" className="text-small-body text-danger">
+        <p role="alert" className="text-small-body text-destructive">
           {subagent.error}
         </p>
       ) : null}
@@ -127,7 +127,7 @@ function NativeActivityRows({
   if (rows.length) return <SessionTimelineRows rows={rows} />;
   if (hasResult) return null;
   return (
-    <p role="status" className="text-small-body text-muted">
+    <p role="status" className="text-small-body text-muted-foreground">
       {transcript.isPending || transcript.isFetchingOlder
         ? "Loading activity…"
         : "No activity has been reported yet."}

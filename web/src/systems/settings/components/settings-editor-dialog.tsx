@@ -117,7 +117,7 @@ function SettingsEditorDialog({
             data-testid={`settings-${testSlug}-editor-feedback`}
           >
             {error ? (
-              <Alert variant="danger" data-testid={`settings-${testSlug}-editor-error`}>
+              <Alert variant="destructive" data-testid={`settings-${testSlug}-editor-error`}>
                 <AlertCircle className="mt-0.5 size-3 shrink-0" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>

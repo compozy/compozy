@@ -14,7 +14,7 @@ export function SessionsBoardColumnGlyph({ id }: { id: SessionBoardColumnId }) {
     return <GitPullRequest aria-hidden="true" className="size-3.5 shrink-0 text-info" />;
   }
   if (id === "waiting") {
-    return <Hourglass aria-hidden="true" className="size-3.5 shrink-0 text-muted" />;
+    return <Hourglass aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />;
   }
   const state = id === "needs_you" ? "attention" : id === "working" ? "running" : "done";
   return <StateGlyph state={state} />;

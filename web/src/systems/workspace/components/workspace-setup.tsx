@@ -42,7 +42,7 @@ function WorkspaceSetupDialog({ open, onOpenChange, model }: WorkspaceSetupDialo
     <>
       {location}
       {setup.createError ? (
-        <Alert className="mt-4" data-testid="workspace-setup-error" variant="danger">
+        <Alert className="mt-4" data-testid="workspace-setup-error" variant="destructive">
           <AlertDescription>{setup.createError}</AlertDescription>
         </Alert>
       ) : null}

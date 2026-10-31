@@ -128,7 +128,8 @@ function generalSettingsMeta(runtime: GeneralRuntime) {
       key: "sessions",
       content: (
         <span>
-          <span className="font-medium text-muted">{runtime.active_sessions}</span> active sessions
+          <span className="font-medium text-muted-foreground">{runtime.active_sessions}</span>{" "}
+          active sessions
         </span>
       ),
     },
@@ -136,7 +137,8 @@ function generalSettingsMeta(runtime: GeneralRuntime) {
       key: "agents",
       content: (
         <span>
-          <span className="font-medium text-muted">{runtime.active_agents}</span> agents working
+          <span className="font-medium text-muted-foreground">{runtime.active_agents}</span> agents
+          working
         </span>
       ),
     },

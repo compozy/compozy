@@ -402,7 +402,7 @@ export const ScrollToBottomAffordance: Story = {
   args: baseArgs,
   render: () => (
     <div className="relative flex min-h-0 flex-1 flex-col bg-background">
-      <div className="flex-1 space-y-4 overflow-hidden px-4 py-6 text-sm leading-7 text-muted">
+      <div className="flex-1 space-y-4 overflow-hidden px-4 py-6 text-sm leading-7 text-muted-foreground">
         {Array.from({ length: 8 }, (_, index) => (
           <p key={index}>
             Streamed transcript line {index + 1} — the reader has scrolled up while the assistant

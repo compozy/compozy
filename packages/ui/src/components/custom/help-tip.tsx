@@ -79,7 +79,7 @@ function HelpTip({
               // 24px target (WCAG 2.2 SC 2.5.8) around a 14px glyph; the
               // negative block margin keeps it from inflating the label line.
               "inline-flex size-6 -my-1 shrink-0 items-center justify-center rounded-full text-faint",
-              "transition-colors duration-base ease-out hover:text-muted",
+              "transition-colors duration-base ease-out hover:text-muted-foreground",
               "focus-visible:outline-none focus-visible:shadow-focus-ring",
               DIALOG_TOUCH_TARGET_SQUARE_CLASS,
               className

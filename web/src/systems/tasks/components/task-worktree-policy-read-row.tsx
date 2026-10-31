@@ -44,7 +44,10 @@ export function TaskWorktreePolicyReadRow({ value, worktrees }: TaskWorktreePoli
           {invalid ? <WorktreeStateChip state={invalidState} /> : null}
         </span>
       ) : (
-        <span className="text-small-body text-muted" data-slot="task-worktree-policy-read-value">
+        <span
+          className="text-small-body text-muted-foreground"
+          data-slot="task-worktree-policy-read-value"
+        >
           {TASK_WORKTREE_POLICY_MODE_LABELS[value.mode]}
         </span>
       )}

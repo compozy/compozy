@@ -82,14 +82,14 @@ function RequestPin({
         <span
           className={cn(
             "ml-auto flex-none font-mono font-normal text-eyebrow",
-            expired ? "text-muted" : "text-faint"
+            expired ? "text-muted-foreground" : "text-faint"
           )}
           data-testid={`terminal-input-request-expiry-${request.id}`}
         >
           {expiryLabel}
         </span>
       </div>
-      <p className="text-small-body text-muted">{request.reason}</p>
+      <p className="text-small-body text-muted-foreground">{request.reason}</p>
       <div className="rounded-lg bg-sunken px-3 py-2 font-mono text-eyebrow leading-normal break-all whitespace-pre-wrap text-fg-3">
         {request.prompt_excerpt}
       </div>
@@ -218,7 +218,7 @@ export function TerminalInputResolvedRow({ request }: TerminalInputResolvedRowPr
       <span className="grid size-6.5 flex-none place-items-center">
         <StateGlyph state={RESOLVED_STATES[request.outcome]} />
       </span>
-      <span className="text-muted text-transcript-meta">
+      <span className="text-muted-foreground text-transcript-meta">
         <b className="font-semibold text-fg">
           {terminalInputOutcomeCopy(request.outcome, request.resolved_by)}
         </b>

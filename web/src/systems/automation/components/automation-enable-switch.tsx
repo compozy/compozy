@@ -44,7 +44,7 @@ export function AutomationEnableSwitch({
       <span
         className={cn(
           "text-form-label font-medium transition-colors duration-fast ease-out",
-          enabled ? "text-fg" : "text-muted"
+          enabled ? "text-fg" : "text-muted-foreground"
         )}
         data-testid={labelTestId}
         id={labelId}

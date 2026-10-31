@@ -99,7 +99,7 @@ export function VaultEditor({
               used.
             </AlertDescription>
             <AlertActions>
-              <label className="flex items-center gap-2 text-form-label text-muted">
+              <label className="flex items-center gap-2 text-form-label text-muted-foreground">
                 <Switch
                   checked={draft.overwriteConfirmed}
                   data-testid="settings-vault-editor-overwrite-confirm"

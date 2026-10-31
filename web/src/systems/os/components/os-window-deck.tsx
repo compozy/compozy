@@ -28,7 +28,7 @@ function InsertionCaret() {
       role="presentation"
       aria-hidden="true"
       data-slot="os-window-deck-insertion"
-      className="pointer-events-none h-deck-tab w-0.5 shrink-0 self-end rounded-full bg-accent"
+      className="pointer-events-none h-deck-tab w-0.5 shrink-0 self-end rounded-full bg-brand"
     />
   );
 }

@@ -24,7 +24,7 @@ export const Default: Story = {
   render: args => (
     <CenteredSurface className="gap-3">
       <AgentIcon {...args} className="size-5" />
-      <span className="text-sm text-muted">{args.provider}</span>
+      <span className="text-sm text-muted-foreground">{args.provider}</span>
     </CenteredSurface>
   ),
 };

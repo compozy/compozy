@@ -142,7 +142,7 @@ describe("buildStepsProgress", () => {
     expect(notTaken?.chip.label).toBe("not taken");
     expect(notTaken?.chip.tone).toBe("neutral");
     expect(notTaken?.chip.form).toBe("absent");
-    expect(notTaken?.chip.tone).not.toBe("danger");
+    expect(notTaken?.chip.tone).not.toBe("destructive");
   });
 
   // UT-038

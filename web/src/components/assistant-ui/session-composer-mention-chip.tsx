@@ -51,7 +51,7 @@ export function SessionMentionChip({
   const content = (
     <>
       <Icon
-        className="mr-1 inline-block size-[1em] -translate-y-px align-middle text-muted"
+        className="mr-1 inline-block size-[1em] -translate-y-px align-middle text-muted-foreground"
         aria-hidden="true"
       />
       <span aria-hidden="true">{label}</span>

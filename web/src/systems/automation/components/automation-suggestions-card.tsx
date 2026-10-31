@@ -120,7 +120,7 @@ function AutomationSuggestionsError({
         data-testid="automation-suggestions-error"
         role="alert"
       >
-        <div className="flex min-w-0 items-start gap-2 text-small-body text-danger">
+        <div className="flex min-w-0 items-start gap-2 text-small-body text-destructive">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{errorMessage}</span>
         </div>
@@ -248,7 +248,7 @@ export function AutomationSuggestionsCard({
               }
               error={
                 actionError ? (
-                  <p className="text-form-label text-danger" role="alert">
+                  <p className="text-form-label text-destructive" role="alert">
                     {actionError}
                   </p>
                 ) : null

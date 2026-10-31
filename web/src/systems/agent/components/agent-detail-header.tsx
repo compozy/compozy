@@ -30,7 +30,7 @@ export function AgentDetailHeader({ agent }: AgentDetailHeaderProps) {
       ) : null}
       {category ? (
         <span
-          className="truncate text-small-body text-muted"
+          className="truncate text-small-body text-muted-foreground"
           data-testid="agent-detail-header-meta"
         >
           {category}

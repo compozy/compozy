@@ -109,10 +109,15 @@ export function MCPEditorConnectionSection({
               placeholder="https://mcp.linear.app/mcp"
               value={draft.url}
             />
-            {errors.url ? <p className="mt-1.5 text-caption text-danger">{errors.url}</p> : null}
+            {errors.url ? (
+              <p className="mt-1.5 text-caption text-destructive">{errors.url}</p>
+            ) : null}
           </div>
           {errors.remoteFields ? (
-            <p className="text-caption text-danger" data-testid="settings-mcp-editor-remote-error">
+            <p
+              className="text-caption text-destructive"
+              data-testid="settings-mcp-editor-remote-error"
+            >
               {errors.remoteFields}
             </p>
           ) : null}
@@ -132,7 +137,7 @@ export function MCPEditorConnectionSection({
             value={draft.command}
           />
           {errors.command ? (
-            <p className="mt-1.5 text-caption text-danger">{errors.command}</p>
+            <p className="mt-1.5 text-caption text-destructive">{errors.command}</p>
           ) : null}
         </div>
       )}

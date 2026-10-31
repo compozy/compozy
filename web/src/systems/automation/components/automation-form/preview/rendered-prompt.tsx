@@ -25,7 +25,7 @@ function RenderedTokens({ tokens }: { tokens: RenderToken[] }) {
         return (
           <span
             key={token.id}
-            className="rounded-[3px] bg-danger-tint px-0.5 font-mono text-form-hint text-danger"
+            className="rounded-[3px] bg-destructive-tint px-0.5 font-mono text-form-hint text-destructive"
           >
             {`‹${token.name}?›`}
           </span>
@@ -52,7 +52,7 @@ export function RenderedPrompt({ rendered, templateTokens }: RenderedPromptProps
         <p className="mt-1.5 font-mono text-mono-id leading-relaxed whitespace-pre-wrap text-subtle">
           {templateTokens.map(token =>
             token.type === "var" ? (
-              <span key={token.id} className="text-accent-strong">
+              <span key={token.id} className="text-brand-strong">
                 {token.value}
               </span>
             ) : (

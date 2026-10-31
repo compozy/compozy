@@ -50,7 +50,7 @@ export function VersionChip({ version, fontSize }: { version: string; fontSize: 
           width: fontSize * 0.34,
           height: fontSize * 0.34,
           borderRadius: "50%",
-          backgroundColor: color.accent,
+          backgroundColor: color.brand,
         }}
       />
       <span

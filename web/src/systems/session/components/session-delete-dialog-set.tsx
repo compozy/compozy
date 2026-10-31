@@ -114,7 +114,7 @@ export function SessionDeleteDialogSet({
         <DialogFooter className="shrink-0 flex-wrap gap-2">
           {note ? (
             <span
-              className="mr-auto flex items-center gap-1.5 text-micro text-muted"
+              className="mr-auto flex items-center gap-1.5 text-micro text-muted-foreground"
               data-testid="delete-dialog-note"
             >
               {!isDeleting ? <Info className="size-3 shrink-0" /> : null}
@@ -174,7 +174,7 @@ function SessionDeleteResultRow({
         ) : null}
       </span>
       {result?.status === "failed" ? (
-        <span className="col-start-2 col-end-5 text-micro wrap-anywhere text-danger">
+        <span className="col-start-2 col-end-5 text-micro wrap-anywhere text-destructive">
           Couldn't delete: {result.error}
         </span>
       ) : null}
@@ -201,7 +201,7 @@ function SessionDeleteOverflowErrors({
     const result = resultsById.get(session.id);
     if (result?.status !== "failed") return null;
     return (
-      <p key={session.id} role="alert" className="text-small-body wrap-anywhere text-danger">
+      <p key={session.id} role="alert" className="text-small-body wrap-anywhere text-destructive">
         {getSessionDisplayTitle(session)}: Couldn't delete: {result.error}
       </p>
     );

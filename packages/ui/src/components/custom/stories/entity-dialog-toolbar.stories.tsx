@@ -27,7 +27,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /** Stand-in for compact trailing status (source badge, usage count). */
-const statusLabel = <span className="font-mono text-form-label text-muted">overlay draft</span>;
+const statusLabel = (
+  <span className="font-mono text-form-label text-muted-foreground">overlay draft</span>
+);
 
 /**
  * Trailing only — compact status with no disclosure tier.

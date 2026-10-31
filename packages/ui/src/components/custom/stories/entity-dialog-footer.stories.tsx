@@ -34,7 +34,7 @@ function FooterHost({ children }: { children: React.ReactNode }) {
         unframed
       >
         <EntityDialogHeader eyebrow="Autonomy · Task" icon={ClipboardCheck} title="Create task" />
-        <div className="px-6 py-5 text-small-body text-muted">Body region.</div>
+        <div className="px-6 py-5 text-small-body text-muted-foreground">Body region.</div>
         {children}
       </DialogContent>
     </Dialog>

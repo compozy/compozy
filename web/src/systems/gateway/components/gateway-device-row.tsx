@@ -116,7 +116,7 @@ export function GatewayDeviceRow({ device, isBusy, onRename, onRevoke }: Gateway
               onOpenChange={setConfirmingRevoke}
               open={confirmingRevoke}
               title={`Revoke ${device.name}?`}
-              tone="danger"
+              tone="destructive"
             />
           </>
         ) : (

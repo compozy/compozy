@@ -4,7 +4,7 @@ import type { RuntimeModelOption, RuntimeProviderOption, RuntimeSelectorValue } 
 export type RailFilter = "all" | "fav" | (string & {});
 
 export interface GroupAvailability {
-  tone: "success" | "warning" | "danger";
+  tone: "success" | "warning" | "destructive";
   label: string;
 }
 
@@ -71,12 +71,12 @@ function groupAvailability(
   provider: RuntimeProviderOption | undefined,
   models: RuntimeModelOption[]
 ): GroupAvailability {
-  if (provider?.needs_auth) return { tone: "danger", label: "Sign in" };
+  if (provider?.needs_auth) return { tone: "destructive", label: "Sign in" };
   if (models.some(model => model.availability === "stale")) {
     return { tone: "warning", label: "Stale" };
   }
   if (models.length > 0 && models.every(model => model.availability === "unavailable")) {
-    return { tone: "danger", label: "Unavailable" };
+    return { tone: "destructive", label: "Unavailable" };
   }
   return { tone: "success", label: "Live" };
 }

@@ -79,7 +79,7 @@ describe("buildGenerationHistory", () => {
 
     expect(row.outcomeLabel).toBe("the output did not match its schema");
     expect(row.outcomeLabel).not.toContain("invalid_output");
-    expect(row.tone).toBe("danger");
+    expect(row.tone).toBe("destructive");
   });
 
   it("Should read a fully approved round as accepted and a mixed one as partly", () => {

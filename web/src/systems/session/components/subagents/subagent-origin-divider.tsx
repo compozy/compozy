@@ -32,7 +32,7 @@ export function SubagentOriginDivider({ parent, onOpenParent }: SubagentOriginDi
       data-link={parent && onOpenParent ? "true" : "false"}
       data-testid="session-origin-divider"
       label={
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-muted">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground">
           <Bot aria-hidden="true" className="size-3 shrink-0 text-subtle" />
           {parent && title ? (
             <>

@@ -18,10 +18,10 @@ const colorGroups = {
   "surface-ramp":
     "rail rail-hover rail-selected desk canvas canvas-soft sunken surface-2 selected code-bg sidebar elevated well hover disabled",
   hairlines: "line line-soft line-strong line-focus",
-  "text-ladder": "fg fg-strong fg-2 fg-3 muted subtle faint",
+  "text-ladder": "fg fg-strong fg-2 fg-3 muted-foreground subtle faint",
   primary: "primary primary-hover primary-foreground",
-  accent:
-    "accent accent-hover accent-strong accent-ink accent-tint accent-tint-strong accent-dim accent-glow attn",
+  brand:
+    "brand brand-hover brand-strong brand-ink brand-tint brand-tint-strong brand-dim brand-glow attn",
   "glaze-ladder": "bar-fill",
 };
 const componentSizeTokenPattern =
@@ -169,7 +169,7 @@ function prefixRows(decls, prefix, includeBase = false) {
 }
 
 function signalTable() {
-  const rows = "success warning danger info neutral"
+  const rows = "success warning destructive info neutral"
     .split(" ")
     .map(stem => [
       stem.charAt(0).toUpperCase() + stem.slice(1),
@@ -367,7 +367,7 @@ function auditSite() {
     "#2e2c2b": "var(--color-elevated) / #2a2927",
     "#3c3a39": "var(--color-line) / rgba(255, 255, 255, 0.055)",
     "#e5e5e7": "var(--color-fg) / #eeedeb",
-    "#8e8e93": "var(--color-muted) / #a4a29e",
+    "#8e8e93": "var(--color-muted-foreground) / #a4a29e",
   };
   for (const [hex, expected] of Object.entries(stale)) {
     if (darkBlock.toLowerCase().includes(hex)) {

@@ -36,7 +36,7 @@ export function MarkdownBlockquote({ className, node: _node, ...props }: MdProps
   return (
     <blockquote
       className={cn(
-        "border-l-2 border-line-focus pl-4 text-muted group-data-[compact=true]/md:pl-3",
+        "border-l-2 border-line-focus pl-4 text-muted-foreground group-data-[compact=true]/md:pl-3",
         className
       )}
       {...props}
@@ -110,7 +110,7 @@ export function MarkdownH4({ className, node: _node, ...props }: MdProps<"h4">) 
 
 const LABEL_HEADING_CLASS = cn(
   PROSE_TYPE.label,
-  "font-semibold text-muted group-data-[compact=true]/md:font-medium"
+  "font-semibold text-muted-foreground group-data-[compact=true]/md:font-medium"
 );
 
 export function MarkdownH5({ className, node: _node, ...props }: MdProps<"h5">) {
@@ -125,7 +125,7 @@ export function MarkdownUl({ className, node: _node, ...props }: MdProps<"ul">) 
   return (
     <ul
       className={cn(
-        "list-disc pl-6 marker:text-muted group-data-[compact=true]/md:pl-5 [&_ul]:list-[circle] [&_ul_ul]:list-[square]",
+        "list-disc pl-6 marker:text-muted-foreground group-data-[compact=true]/md:pl-5 [&_ul]:list-[circle] [&_ul_ul]:list-[square]",
         className
       )}
       {...props}
@@ -137,7 +137,7 @@ export function MarkdownOl({ className, node: _node, ...props }: MdProps<"ol">) 
   return (
     <ol
       className={cn(
-        "list-decimal pl-6 marker:text-muted marker:tabular-nums group-data-[compact=true]/md:pl-5",
+        "list-decimal pl-6 marker:text-muted-foreground marker:tabular-nums group-data-[compact=true]/md:pl-5",
         className
       )}
       {...props}
@@ -172,7 +172,7 @@ export function MarkdownTh({ className, node: _node, ...props }: MdProps<"th">) 
   return (
     <th
       className={cn(
-        "border-b border-line px-3 py-2 text-left text-form-label font-medium whitespace-nowrap text-muted",
+        "border-b border-line px-3 py-2 text-left text-form-label font-medium whitespace-nowrap text-muted-foreground",
         "group-data-[compact=true]/md:px-2 group-data-[compact=true]/md:py-1.5",
         className
       )}
