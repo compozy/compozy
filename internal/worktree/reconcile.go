@@ -156,8 +156,12 @@ func (s *Service) recoverInterruptedCreate(
 		return err
 	}
 	defer release()
-	if _, statErr := os.Lstat(item.Path); checkoutGone && !errors.Is(statErr, os.ErrNotExist) {
-		return nil
+	if checkoutGone {
+		if _, statErr := os.Lstat(item.Path); statErr == nil {
+			return nil
+		} else if !errors.Is(statErr, os.ErrNotExist) {
+			return fmt.Errorf("worktree: recheck interrupted checkout: %w", statErr)
+		}
 	}
 	rollbackErr := s.rollbackCreate(ctx, workspace, commonDir, item)
 	recordErr := s.recordCreateFailure(ctx, item, errCreationInterrupted, rollbackErr)
