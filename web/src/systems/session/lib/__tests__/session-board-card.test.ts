@@ -219,4 +219,19 @@ describe("sessionBoardCardLineage", () => {
     ).toEqual({ kind: "continue", verb: "Continued from", title: "Coordinator" });
     expect(sessionBoardCardLineage(session({ parent_title: "  " }))).toBeNull();
   });
+
+  it("Should still name a fork's or continuation's source when its title is unreadable", () => {
+    const source = { ...lineage, parent_session_id: "sess-source" };
+    expect(
+      sessionBoardCardLineage(session({ parent_title: "", lineage: { ...source, kind: "fork" } }))
+    ).toEqual({ kind: "fork", verb: "Forked from", title: "sess-source" });
+    expect(
+      sessionBoardCardLineage(
+        session({
+          parent_title: "",
+          lineage: { ...source, kind: "continue", origin_agent_name: "codex" },
+        })
+      )
+    ).toEqual({ kind: "continue", verb: "Continued from", title: "codex" });
+  });
 });

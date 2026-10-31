@@ -2602,46 +2602,72 @@ func TestSessionCatalogBoard(t *testing.T) {
 			want         []string
 		}{
 			{
-				name: "children included",
+				name: "Should list every child when children are included",
 				want: []string{"continue", "fork", "parent", "provenance", "recovery", "spawn", "subagent"},
 			},
-			{name: "children hidden", hideChildren: true, want: []string{"continue", "fork", "parent"}},
+			{
+				name:         "Should keep forks and continuations when children are hidden",
+				hideChildren: true,
+				want:         []string{"continue", "fork", "parent"},
+			},
 		} {
-			pageQuery := store.SessionCatalogPageQuery{
-				ReadScope:    scope,
-				WorkspaceID:  workspace,
-				HideChildren: tc.hideChildren,
-				Sort:         sessionCatalogSortRecent,
-				Limit:        10,
-			}
-			page, err := db.PageSessions(ctx, pageQuery)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := make([]string, 0, len(page.Sessions))
-			for _, info := range page.Sessions {
-				got = append(got, info.ID)
-			}
-			slices.Sort(got)
-			if page.Total != len(tc.want) || !slices.Equal(got, tc.want) {
-				t.Fatalf("%s: page total %d ids %v, want %v", tc.name, page.Total, got, tc.want)
-			}
-			pageQuery.Limit = 1
-			bounded, err := db.PageSessions(ctx, pageQuery)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if bounded.Total != len(tc.want) || len(bounded.Sessions) != 1 ||
-				!slices.Contains(tc.want, bounded.Sessions[0].ID) {
-				t.Fatalf("%s: bounded page = total %d sessions %d", tc.name, bounded.Total, len(bounded.Sessions))
-			}
-			facets, err := db.SessionCatalogFacets(ctx, pageQuery)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if facets.Facets.All != len(tc.want) || facets.Facets.Board.Done != len(tc.want) {
-				t.Fatalf("%s: facets = %#v", tc.name, facets.Facets)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				pageQuery := store.SessionCatalogPageQuery{
+					ReadScope:    scope,
+					WorkspaceID:  workspace,
+					HideChildren: tc.hideChildren,
+					Sort:         sessionCatalogSortRecent,
+					Limit:        10,
+				}
+				page, err := db.PageSessions(ctx, pageQuery)
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := make([]string, 0, len(page.Sessions))
+				for _, info := range page.Sessions {
+					got = append(got, info.ID)
+				}
+				slices.Sort(got)
+				if page.Total != len(tc.want) || !slices.Equal(got, tc.want) {
+					t.Fatalf("page total %d ids %v, want %v", page.Total, got, tc.want)
+				}
+				// Walk one row per page: every page counts the filtered total and the
+				// keyset walk visits each filtered session exactly once.
+				pageQuery.Limit = 1
+				walked := make([]string, 0, len(tc.want))
+				for range len(tc.want) + 1 {
+					bounded, err := db.PageSessions(ctx, pageQuery)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if bounded.Total != len(tc.want) {
+						t.Fatalf("bounded page total = %d, want %d", bounded.Total, len(tc.want))
+					}
+					if len(bounded.Sessions) == 0 {
+						break
+					}
+					anchor := bounded.Sessions[0]
+					walked = append(walked, anchor.ID)
+					pageQuery.After = &store.SessionCatalogPosition{
+						PrimaryAt:   anchor.UpdatedAt,
+						SecondaryAt: anchor.CreatedAt,
+						CreatedAt:   anchor.CreatedAt,
+						ID:          anchor.ID,
+					}
+				}
+				slices.Sort(walked)
+				if !slices.Equal(walked, tc.want) {
+					t.Fatalf("keyset walk = %v, want %v", walked, tc.want)
+				}
+				pageQuery.After = nil
+				facets, err := db.SessionCatalogFacets(ctx, pageQuery)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if facets.Facets.All != len(tc.want) || facets.Facets.Board.Done != len(tc.want) {
+					t.Fatalf("facets = %#v", facets.Facets)
+				}
+			})
 		}
 		relations, err := db.SessionCatalogRelations(ctx, store.SessionCatalogRelationsQuery{
 			ReadScope:  scope,

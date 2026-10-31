@@ -83,7 +83,11 @@ func sessionCatalogRelationsSQL(query store.SessionCatalogRelationsQuery, now st
 	if err != nil {
 		return "", nil, err
 	}
-	where = append(where, sessionCatalogHierarchyChildExpression, "parent_session_id IN (SELECT value FROM json_each(?))")
+	where = append(
+		where,
+		sessionCatalogHierarchyChildExpression,
+		"parent_session_id IN (SELECT value FROM json_each(?))",
+	)
 	args = append(sourceArgs, args...)
 	args = append(args, string(children))
 	statement := store.AppendWhere(

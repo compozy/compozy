@@ -90,7 +90,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, name, last_activity, attention, navigator, or manual")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
 	cmd.Flags().StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|in_review|done)")
-	cmd.Flags().BoolVar(&flags.hideChildren, "hide-children", false, "Exclude child sessions; forked and continued sessions stay listed")
+	cmd.Flags().
+		BoolVar(&flags.hideChildren, "hide-children", false, "Exclude child sessions; forked and continued sessions stay listed")
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

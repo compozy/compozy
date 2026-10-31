@@ -9,7 +9,7 @@ import type { PillTone, StateGlyphState } from "@compozy/ui";
 import { pullRequestPill, pullRequestShape, type PullRequestShape } from "./pull-request-signal";
 import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-contract";
 import { sessionBadgeSignal } from "./session-badge";
-import { SESSION_ORIGIN_VERB, sessionOriginKind, type SessionOriginKind } from "./session-origin";
+import { type SessionOriginKind, sessionOriginView } from "./session-origin";
 import { pendingPermissionCount } from "./session-pending-interactions";
 
 export interface SessionBoardCardStatus {
@@ -115,11 +115,14 @@ export function sessionBoardCardRollup(
 export function sessionBoardCardLineage(
   session: SessionBoardPayload
 ): SessionBoardCardLineage | null {
-  const title = session.parent_title?.trim();
-  if (!title) return null;
-  const origin = sessionOriginKind(session);
-  if (origin === null) return { kind: "child", verb: "Child of", title };
-  return { kind: origin, verb: SESSION_ORIGIN_VERB[origin], title };
+  const title = session.parent_title?.trim() ?? "";
+  // An unreadable source has no title, but the origin still names it, as the
+  // transcript divider does (its agent for a continuation, else its id).
+  const origin = sessionOriginView(session, title ? { title } : null);
+  if (origin !== null) {
+    return { kind: origin.kind, verb: origin.verb, title: origin.dividerSubject };
+  }
+  return title ? { kind: "child", verb: "Child of", title } : null;
 }
 
 /** A parked card would read as running; its footer names why it waits. */
