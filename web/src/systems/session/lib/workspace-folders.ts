@@ -5,6 +5,7 @@ import {
 } from "@/systems/workspace";
 
 import type { WorkspaceFolderPayload, WorkspacePlacementPayload } from "../types";
+import { shiftId } from "./session-folders";
 import { projectSessionGroup, type SessionListGroupSpec } from "./session-list-groups";
 
 /** One project folder and the project groups it holds, in its manual order. */
@@ -124,17 +125,69 @@ export function buildProjectGroupTree(
 }
 
 /**
- * A full folder order from a reorder of the folders on screen: hidden folders
- * keep their slots and the shown ones fill the rest in their new order, since
- * the daemon takes only a complete folder order.
+ * A full order from a reorder of what is on screen: hidden ids keep their
+ * slots and the shown ones fill the rest in their new order. A shown id the
+ * full order lacks (one just moved in) takes a slot at the end.
  */
-export function mergeShownFolderOrder(
+export function mergeShownOrder(
   allIds: readonly string[],
   shownOrder: readonly string[]
 ): string[] {
   const shown = new Set(shownOrder);
+  const known = new Set(allIds);
+  const slots = [...allIds, ...shownOrder.filter(id => !known.has(id))];
   let next = 0;
-  return allIds.map(id => (shown.has(id) ? (shownOrder[next++] ?? id) : id));
+  return slots.map(id => (shown.has(id) ? (shownOrder[next++] ?? id) : id));
+}
+
+/** The order verbs a project folder layout exposes. */
+interface ProjectOrderVerbs {
+  folders: readonly WorkspaceFolderPayload[];
+  placements: readonly WorkspacePlacementPayload[];
+  moveFolder: (folderId: string, delta: -1 | 1) => void;
+  reorderFolders: (folderIds: readonly string[]) => void;
+  reorderWorkspaces: (folderId: string | null, workspaceIds: readonly string[]) => void;
+}
+
+/**
+ * Order verbs that act on what is on screen while empty projects hide
+ * (#1085): a folder or project reorder writes the hidden members back into
+ * their slots, so hiding never moves them. The daemon takes only a complete
+ * folder order, and would move unlisted projects after the listed ones.
+ */
+export function withShownOrder<L extends ProjectOrderVerbs>(
+  layout: L,
+  tree: ProjectGroupTree,
+  registered: ReadonlySet<string>
+): L {
+  const allFolderIds = [...layout.folders]
+    .sort((left, right) => left.position - right.position)
+    .map(folder => folder.id);
+  const reorderFolders = (shownOrder: readonly string[]) =>
+    layout.reorderFolders(mergeShownOrder(allFolderIds, shownOrder));
+  const containerIds = (folderId: string | null) =>
+    layout.placements
+      .filter(
+        row =>
+          (row.folder_id || null) === folderId &&
+          (registered.has(row.workspace_id) || row.workspace_id === USER_SCOPE_SELECTOR)
+      )
+      .sort((left, right) => left.position - right.position)
+      .map(row => row.workspace_id);
+  return {
+    ...layout,
+    reorderFolders,
+    moveFolder: (folderId, delta) => {
+      const next = shiftId(
+        tree.folders.map(node => node.folder.id),
+        folderId,
+        delta
+      );
+      if (next) reorderFolders(next);
+    },
+    reorderWorkspaces: (folderId, shownOrder) =>
+      layout.reorderWorkspaces(folderId, mergeShownOrder(containerIds(folderId), shownOrder)),
+  };
 }
 
 /** Every project group of the tree in on-screen order, folders first. */

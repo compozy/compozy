@@ -10,7 +10,7 @@
 // Projects with no sessions in view — and folders holding only those — show only
 // while the operator shows empty projects (#1085).
 // Owning layer: unit (systems/session/lib)
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionFolderPayload, SessionPayload } from "../../types";
@@ -32,9 +32,9 @@ import { buildSessionListThreads } from "../session-list-threads";
 import { projectSessionGroups } from "../session-list-groups";
 import {
   buildProjectGroupTree,
-  mergeShownFolderOrder,
   projectGroupContainerIds,
   projectGroupsForView,
+  withShownOrder,
 } from "../workspace-folders";
 import {
   applyWorkspaceFolderRemoval,
@@ -450,13 +450,43 @@ describe("project folders", () => {
     ).toEqual(served);
   });
 
-  it("Should keep hidden folders in their slots when the shown folders reorder", () => {
-    expect(mergeShownFolderOrder(["f1", "f2", "f3", "f4"], ["f4", "f1", "f3"])).toEqual([
-      "f4",
-      "f2",
-      "f1",
-      "f3",
-    ]);
+  it("Should keep hidden folders and projects in their slots when what shows is reordered", () => {
+    const verbs = {
+      folders: [folder("f1", 0), folder("f2", 1), folder("f3", 2)],
+      placements: [
+        { workspace_id: "ws-x", position: 0 },
+        { workspace_id: "ws-a", position: 1 },
+        { workspace_id: "ws-b", position: 2 },
+        // An unregistered placement is never written back.
+        { workspace_id: "ws-gone", position: 3 },
+        { workspace_id: "ws-c", folder_id: "f2", position: 0 },
+      ],
+      moveFolder: vi.fn(),
+      reorderFolders: vi.fn(),
+      reorderWorkspaces: vi.fn(),
+    };
+    // f1 hides (its projects are empty); f2 and f3 show.
+    const tree = {
+      folders: [
+        { folder: verbs.folders[1]!, groups: [] },
+        { folder: verbs.folders[2]!, groups: [] },
+      ],
+      root: [],
+    };
+    const shown = withShownOrder(verbs, tree, new Set(["ws-x", "ws-a", "ws-b", "ws-c", "ws-new"]));
+
+    shown.reorderFolders(["f3", "f2"]);
+    expect(verbs.reorderFolders).toHaveBeenLastCalledWith(["f1", "f3", "f2"]);
+    shown.moveFolder("f3", -1);
+    expect(verbs.reorderFolders).toHaveBeenLastCalledWith(["f1", "f3", "f2"]);
+    expect(verbs.moveFolder).not.toHaveBeenCalled();
+
+    // Hidden ws-x keeps the root's first slot when the shown A and B swap.
+    shown.reorderWorkspaces(null, ["ws-b", "ws-a"]);
+    expect(verbs.reorderWorkspaces).toHaveBeenLastCalledWith(null, ["ws-x", "ws-b", "ws-a"]);
+    // A project just moved into a folder takes a slot after its members.
+    shown.reorderWorkspaces("f2", ["ws-new", "ws-c"]);
+    expect(verbs.reorderWorkspaces).toHaveBeenLastCalledWith("f2", ["ws-new", "ws-c"]);
   });
 
   it("Should move, order, and unfile projects optimistically without touching others", () => {

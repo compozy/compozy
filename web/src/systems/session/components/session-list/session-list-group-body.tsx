@@ -97,6 +97,15 @@ export function SessionListGroupBody(
     renderSubgroup: SessionListSubgroupRenderer;
   }
 ) {
+  // A project with no sessions in view reads nothing: Show empty projects can list
+  // every registered project, and each open group would otherwise fetch its own page (#1085).
+  if (props.group.total === 0) {
+    return (
+      <div className="pl-2.5">
+        <GroupNote>{sessionListGroupEmptyMessage(props.group, props.view.shelf)}</GroupNote>
+      </div>
+    );
+  }
   return props.group.pair ? (
     <SessionListPairGroupBody {...props} />
   ) : (

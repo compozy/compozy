@@ -18,9 +18,9 @@ import type { SessionListGroupSpec } from "../lib/session-list-groups";
 import type { SessionListGroupBy } from "../lib/session-list-preferences";
 import {
   buildProjectGroupTree,
-  mergeShownFolderOrder,
   projectGroupsForView,
   projectGroupTreeGroups,
+  withShownOrder,
   type ProjectGroupTree,
 } from "../lib/workspace-folders";
 import {
@@ -201,32 +201,12 @@ export function useProjectFolderGroups(options: {
   });
   return {
     groups: projectGroupTreeGroups(tree),
-    projectFolders: { layout: withShownFolderOrder(layout, tree), tree },
-    loadError,
-  };
-}
-
-/**
- * Folder reorders act on the folders on screen; while some hide, each write
- * keeps the hidden ones in their slots so the daemon still gets every folder.
- */
-function withShownFolderOrder(layout: WorkspaceLayout, tree: ProjectGroupTree): WorkspaceLayout {
-  if (tree.folders.length === layout.folders.length) return layout;
-  const allIds = [...layout.folders]
-    .sort((left, right) => left.position - right.position)
-    .map(folder => folder.id);
-  const reorderFolders = (shownOrder: readonly string[]) =>
-    layout.reorderFolders(mergeShownFolderOrder(allIds, shownOrder));
-  return {
-    ...layout,
-    reorderFolders,
-    moveFolder: (folderId, delta) => {
-      const next = shiftId(
-        tree.folders.map(node => node.folder.id),
-        folderId,
-        delta
-      );
-      if (next) reorderFolders(next);
+    projectFolders: {
+      layout: showEmpty
+        ? layout
+        : withShownOrder(layout, tree, new Set(options.workspaces.map(row => row.id))),
+      tree,
     },
+    loadError,
   };
 }
