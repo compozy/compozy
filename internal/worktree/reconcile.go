@@ -25,28 +25,7 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 		if statErr != nil || !workspaceInfo.IsDir() {
 			continue
 		}
-		switch item.State {
-		case StatePending:
-			if capabilityErr != nil && item.PendingPhase != PhaseCopy && item.PendingPhase != PhaseSetup {
-				continue
-			}
-			recoverErr = errors.Join(recoverErr, s.recoverPending(ctx, workspace, item))
-		case StateRemoving:
-			if capabilityErr == nil {
-				recoverErr = errors.Join(recoverErr, s.recoverRemoval(ctx, item))
-			}
-		case StateMissing:
-			if capabilityErr == nil {
-				recoverErr = errors.Join(recoverErr, s.restoreMissing(ctx, workspace, item))
-			}
-		case StateFailed:
-			if capabilityErr == nil {
-				if err := s.retryFailedCreateRollback(ctx, workspace, item); err != nil {
-					s.logger.WarnContext(ctx, "worktree creation rollback is still incomplete",
-						"worktree_id", item.ID, logErrorKey, diagnostics.RedactAndBound(err.Error(), 2048))
-				}
-			}
-		}
+		recoverErr = errors.Join(recoverErr, s.recoverRow(ctx, workspace, item, capabilityErr))
 	}
 	running, err := s.store.ListRunningExitOperations(ctx)
 	if err != nil {
@@ -100,6 +79,29 @@ func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
 		return nil
 	}
 	s.logger.ErrorContext(ctx, "interrupted worktree removal could not finish", attrs...)
+	return nil
+}
+
+// recoverRow settles one recoverable row. Without Git only copy/setup rows,
+// which need no Git command, can recover.
+func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Worktree, capabilityErr error) error {
+	if capabilityErr != nil && (item.State != StatePending ||
+		(item.PendingPhase != PhaseCopy && item.PendingPhase != PhaseSetup)) {
+		return nil
+	}
+	switch item.State {
+	case StatePending:
+		return s.recoverPending(ctx, workspace, item)
+	case StateRemoving:
+		return s.recoverRemoval(ctx, item)
+	case StateMissing:
+		return s.restoreMissing(ctx, workspace, item)
+	case StateFailed:
+		if err := s.retryFailedCreateRollback(ctx, workspace, item); err != nil {
+			s.logger.WarnContext(ctx, "worktree creation rollback is still incomplete",
+				"worktree_id", item.ID, logErrorKey, diagnostics.RedactAndBound(err.Error(), 2048))
+		}
+	}
 	return nil
 }
 
