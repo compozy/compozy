@@ -3508,6 +3508,15 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved Later disposition: no historical prompt dispositions found")
 	}
 	addSessionCatalogLaterParameter(t, baseline)
+	for _, code := range []tools.ErrorCode{
+		tools.ErrorCodeSessionInLater,
+		tools.ErrorCodeSubagentLaterFollowsParent,
+		tools.ErrorCodeSessionLaterStopFailed,
+	} {
+		if addToolErrorCode(baseline, string(code)) == 0 {
+			t.Fatal("approved Later tool errors: no historical tool error enums found")
+		}
+	}
 	// #1015: optional Goal control/telemetry state and an additive Stop command.
 	if addGoalControlSchemas(baseline) == 0 {
 		t.Fatal("approved Goal control additions: no historical Goal schemas found")

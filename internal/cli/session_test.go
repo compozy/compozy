@@ -1180,8 +1180,9 @@ func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 		if got := requests[1].ReturnAt; got == nil || !got.Equal(fixedTestNow.Add(72*time.Hour)) {
 			t.Fatalf("duration return time = %v, want now+72h", got)
 		}
-		if _, _, err := executeRootCommand(t, deps, "session", "later", "sess-1", "--return-at", "soon"); err == nil {
-			t.Fatal("executeRootCommand(session later --return-at soon) error = nil, want invalid input")
+		_, _, err = executeRootCommand(t, deps, "session", "later", "sess-1", "--return-at", "soon")
+		if err == nil || !strings.Contains(err.Error(), "invalid --return-at") {
+			t.Fatalf("executeRootCommand(session later --return-at soon) error = %v, want invalid --return-at", err)
 		}
 		if _, _, err := executeRootCommand(
 			t, deps, "session", "resume-later", "sess-1", "--with-children", "-o", "json",

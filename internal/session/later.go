@@ -117,27 +117,11 @@ func (m *Manager) MoveToLater(
 	if root.ArchivedAt != nil {
 		return nil, fmt.Errorf("%w: %s", ErrSessionArchived, sessionID)
 	}
-	members, err := m.laterFamily(ctx, workspaceID, sessionID, false)
+	members, err := m.releaseSettledLaterFamily(ctx, workspaceID, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.releaseLaterFamily(ctx, members); err != nil {
-		return nil, err
-	}
-	// Descendants park first so a parked root always implies a parked tree.
-	for i := len(members) - 1; i >= 1; i-- {
-		if members[i].Later != nil {
-			continue
-		}
-		if _, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
-			WorkspaceID: workspaceID, SessionID: members[i].ID,
-		}); err != nil {
-			return nil, err
-		}
-	}
-	info, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
-		WorkspaceID: workspaceID, SessionID: sessionID, Reason: req.Reason, ReturnAt: req.ReturnAt,
-	})
+	info, err := m.parkLaterFamily(ctx, laterStore, workspaceID, members, req)
 	if err != nil {
 		return nil, err
 	}
@@ -148,6 +132,90 @@ func (m *Manager) MoveToLater(
 		return m.Status(ctx, sessionID)
 	}
 	return info, nil
+}
+
+// parkLaterFamily parks descendants first, so a parked root always implies a
+// parked tree. A failure unparks the members this call parked, leaving the tree
+// stopped but out of Later as a whole.
+func (m *Manager) parkLaterFamily(
+	ctx context.Context,
+	laterStore store.SessionLaterStore,
+	workspaceID string,
+	members []*Info,
+	req LaterRequest,
+) (*Info, error) {
+	parked := make([]string, 0, len(members))
+	fail := func(err error) (*Info, error) {
+		for _, id := range parked {
+			if _, unparkErr := laterStore.UnparkSession(context.WithoutCancel(ctx), workspaceID, id); unparkErr != nil {
+				m.logger.Warn("session: undo partial later park", "session_id", id, "error", unparkErr)
+				continue
+			}
+			if _, publishErr := m.publishLaterCatalogUpsert(context.WithoutCancel(ctx), id); publishErr != nil {
+				m.logger.Warn("session: publish undone later park", "session_id", id, "error", publishErr)
+			}
+		}
+		return nil, err
+	}
+	for i := len(members) - 1; i >= 1; i-- {
+		if members[i].Later != nil {
+			continue
+		}
+		if _, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: members[i].ID,
+		}); err != nil {
+			return fail(err)
+		}
+		parked = append(parked, members[i].ID)
+	}
+	info, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
+		WorkspaceID: workspaceID, SessionID: members[0].ID, Reason: req.Reason, ReturnAt: req.ReturnAt,
+	})
+	if err != nil {
+		return fail(err)
+	}
+	return info, nil
+}
+
+// maxLaterFamilyPasses bounds the re-walks that catch children created while
+// the tree was being stopped.
+const maxLaterFamilyPasses = 4
+
+// releaseSettledLaterFamily stops the tree, then waits for spawns already in
+// flight and walks it again, so a child created during the stop is released
+// too. Stopped parents accept no new children, so the walk settles.
+func (m *Manager) releaseSettledLaterFamily(
+	ctx context.Context,
+	workspaceID string,
+	rootID string,
+) ([]*Info, error) {
+	released := make(map[string]struct{})
+	for range maxLaterFamilyPasses {
+		members, err := m.laterFamily(ctx, workspaceID, rootID, false)
+		if err != nil {
+			return nil, err
+		}
+		pending := make([]*Info, 0, len(members))
+		for _, member := range members {
+			if _, done := released[member.ID]; !done {
+				pending = append(pending, member)
+			}
+		}
+		if len(pending) == 0 {
+			return members, nil
+		}
+		if err := m.releaseLaterFamily(ctx, pending); err != nil {
+			return nil, err
+		}
+		for _, member := range pending {
+			released[member.ID] = struct{}{}
+		}
+		// Spawn holds spawnMu from admission to child creation; taking it waits
+		// for every spawn admitted before the stop.
+		m.spawnMu.Lock()
+		m.spawnMu.Unlock() //nolint:staticcheck // Empty critical section waits for in-flight spawns.
+	}
+	return nil, fmt.Errorf("%w: %s: the session tree kept growing", ErrSessionLaterStopFailed, rootID)
 }
 
 // releaseLaterFamily stops each live member and releases the resources that

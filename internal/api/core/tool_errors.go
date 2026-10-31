@@ -86,6 +86,9 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeSessionWorktreeConflict,
 		toolspkg.ErrorCodeCompactionUnsupported,
 		toolspkg.ErrorCodeSessionArchiveStopFailed,
+		toolspkg.ErrorCodeSessionInLater,
+		toolspkg.ErrorCodeSubagentLaterFollowsParent,
+		toolspkg.ErrorCodeSessionLaterStopFailed,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeSessionMessageRateLimited:
@@ -314,6 +317,12 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "session compaction is unsupported"
 	case toolspkg.ErrorCodeSessionArchiveStopFailed:
 		return "session could not be stopped before archiving"
+	case toolspkg.ErrorCodeSessionInLater:
+		return "session is in Later; bring it back first"
+	case toolspkg.ErrorCodeSubagentLaterFollowsParent:
+		return "subagent sessions move to Later with their parent"
+	case toolspkg.ErrorCodeSessionLaterStopFailed:
+		return "session could not be stopped before moving to Later"
 	}
 	return ""
 }

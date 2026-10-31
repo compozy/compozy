@@ -174,3 +174,16 @@ func (m *Manager) unparkForOperator(ctx context.Context, sessionID string) error
 	}
 	return nil
 }
+
+// requireAdoptParentNotInLater keeps a live child out of a parked tree: a parent
+// in Later has stopped everything under it.
+func (m *Manager) requireAdoptParentNotInLater(ctx context.Context, parent *reparentNode) error {
+	parked, err := m.sessionInLater(ctx, parent.workspaceID, parent.id)
+	if err != nil {
+		return err
+	}
+	if parked {
+		return reparentRefusal(ReparentRefusalParentIneligible, parent.id, "sessions in Later cannot adopt children")
+	}
+	return nil
+}

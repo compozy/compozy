@@ -98,7 +98,7 @@ func (n *daemonNativeTools) changeSessionLater(
 		info, err = manager.ResumeFromLater(ctx, workspaceID, input.SessionID, input.WithChildren)
 	}
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeLaterToolError(req.ToolID, err)
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
@@ -136,4 +136,22 @@ func (n *daemonNativeTools) nativeCallerWithinLaterTree(
 		current = strings.TrimSpace(store.HierarchyParentSessionID(info.Lineage))
 	}
 	return false, nil
+}
+
+// nativeLaterToolError keeps the Later refusal codes agents branch on.
+func nativeLaterToolError(id toolspkg.ToolID, err error) error {
+	var code toolspkg.ErrorCode
+	switch {
+	case errors.Is(err, session.ErrSessionLaterInvalid):
+		return toolspkg.NewToolError(toolspkg.ErrorCodeInvalidInput, id, err.Error(), err)
+	case errors.Is(err, session.ErrSessionLaterStopFailed), errors.Is(err, store.ErrSessionLaterRequiresStopped):
+		code = toolspkg.ErrorCodeSessionLaterStopFailed
+	case errors.Is(err, session.ErrSubagentLaterFollowsParent):
+		code = toolspkg.ErrorCodeSubagentLaterFollowsParent
+	case errors.Is(err, session.ErrSessionInLater), errors.Is(err, store.ErrSessionInLater):
+		code = toolspkg.ErrorCodeSessionInLater
+	default:
+		return err
+	}
+	return toolspkg.NewToolError(code, id, err.Error(), err)
 }

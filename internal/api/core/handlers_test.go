@@ -955,7 +955,8 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	t.Run("Should move a session to Later and bring it back with its request fields", func(t *testing.T) {
 		previous := fixture.Handlers.Sessions
-		fixture.Handlers.Sessions = &laterHandlerSessionManager{StubSessionManager: manager, now: now}
+		later := &laterHandlerSessionManager{StubSessionManager: manager, now: now}
+		fixture.Handlers.Sessions = later
 		defer func() { fixture.Handlers.Sessions = previous }()
 		resp := performRequest(
 			t,
@@ -984,17 +985,27 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t.Fatalf("later(invalid) = %d %s, want 400 session_later_invalid", invalid.Code, invalid.Body.String())
 		}
 		refused := performRequest(
-			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later", nil,
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"subagent"}`),
 		)
-		if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), "session_in_later") {
-			t.Fatalf("resume-later(refused) = %d %s, want 409 session_in_later", refused.Code, refused.Body.String())
+		if refused.Code != http.StatusConflict ||
+			!strings.Contains(refused.Body.String(), "subagent_later_follows_parent") {
+			t.Fatalf(
+				"later(subagent) = %d %s, want 409 subagent_later_follows_parent",
+				refused.Code,
+				refused.Body.String(),
+			)
 		}
-		back := performRequest(
-			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later",
-			[]byte(`{"with_children":true}`),
-		)
-		if back.Code != http.StatusOK || strings.Contains(back.Body.String(), `"later"`) {
-			t.Fatalf("resume-later = %d %s, want 200 without Later", back.Code, back.Body.String())
+		for _, body := range [][]byte{nil, []byte(`{"with_children":true}`)} {
+			back := performRequest(
+				t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later", body,
+			)
+			if back.Code != http.StatusOK || strings.Contains(back.Body.String(), `"later"`) {
+				t.Fatalf("resume-later(%s) = %d %s, want 200 without Later", body, back.Code, back.Body.String())
+			}
+		}
+		if got := later.withChildren; len(got) != 2 || got[0] || !got[1] {
+			t.Fatalf("resume-later with_children = %v, want [false true]", got)
 		}
 	})
 
@@ -6164,7 +6175,8 @@ func (s sessionProfileServiceStub) ListIdentities(ctx context.Context) ([]profil
 // laterHandlerSessionManager adds the Later operations to the shared session stub.
 type laterHandlerSessionManager struct {
 	testutil.StubSessionManager
-	now time.Time
+	now          time.Time
+	withChildren []bool
 }
 
 func (s *laterHandlerSessionManager) MoveToLater(
@@ -6176,6 +6188,9 @@ func (s *laterHandlerSessionManager) MoveToLater(
 	if req.Reason == "invalid" {
 		return nil, fmt.Errorf("%w: reason must be one line", session.ErrSessionLaterInvalid)
 	}
+	if req.Reason == "subagent" {
+		return nil, session.ErrSubagentLaterFollowsParent
+	}
 	info := testutil.NewSessionInfo(id)
 	info.ProfileID = store.DefaultProfileID
 	info.State = session.StateStopped
@@ -6186,9 +6201,7 @@ func (s *laterHandlerSessionManager) MoveToLater(
 func (s *laterHandlerSessionManager) ResumeFromLater(
 	_ context.Context, _ string, id string, withChildren bool,
 ) (*session.Info, error) {
-	if !withChildren {
-		return nil, fmt.Errorf("%w: %s", session.ErrSessionInLater, id)
-	}
+	s.withChildren = append(s.withChildren, withChildren)
 	info := testutil.NewSessionInfo(id)
 	info.ProfileID = store.DefaultProfileID
 	info.State = session.StateStopped

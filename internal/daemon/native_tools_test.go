@@ -1883,6 +1883,24 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("session_later of the source from %s = %v, want allowed", caller, err)
 			}
 		}
+		later.err = fmt.Errorf(
+			"%w: sess-parent: %w",
+			session.ErrSessionLaterStopFailed,
+			session.ErrStopVerificationFailed,
+		)
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-other"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionLater,
+				Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+			},
+		)
+		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+			toolErr.Code != toolspkg.ErrorCodeSessionLaterStopFailed {
+			t.Fatalf("session_later stop failure = %#v, want session_later_stop_failed", err)
+		}
+		later.err = nil
 		want := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
 		if len(later.parked) != 2 || later.parked[0].Reason != "after billing" || later.parked[0].ReturnAt == nil ||
 			!later.parked[0].ReturnAt.Equal(want) {
@@ -15852,11 +15870,15 @@ func (s *nativeProcessPolicyService) Terminate(
 type nativeLaterSessionManager struct {
 	apitest.StubSessionManager
 	parked []session.LaterRequest
+	err    error
 }
 
 func (m *nativeLaterSessionManager) MoveToLater(
 	_ context.Context, _ string, id string, req session.LaterRequest,
 ) (*session.Info, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	m.parked = append(m.parked, req)
 	return &session.Info{ID: id, State: session.StateStopped}, nil
 }

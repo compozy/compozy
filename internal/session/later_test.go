@@ -78,6 +78,13 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		if _, err := h.manager.Resume(ctx, parent.ID); !errors.Is(err, ErrSessionInLater) {
 			t.Fatalf("Resume(parked) error = %v, want ErrSessionInLater", err)
 		}
+		orphan := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, orphan.ID) })
+		if _, err := h.manager.AdoptSession(ctx, h.workspaceID, orphan.ID, parent.ID); !errors.Is(
+			err, ErrSessionReparentRefused,
+		) {
+			t.Fatalf("AdoptSession(parked parent) error = %v, want a reparent refusal", err)
+		}
 
 		clockMu.Lock()
 		now = returnAt
