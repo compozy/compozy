@@ -757,11 +757,15 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 	})
 
 	for _, testCase := range []struct {
-		name string
-		path func(t *testing.T) string
+		name        string
+		path        func(t *testing.T) string
+		leftInPlace bool
 	}{
 		{name: "is gone", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "gone") }},
-		{name: "is no longer its linked checkout", path: func(t *testing.T) string { return t.TempDir() }},
+		{
+			name: "is no longer its linked checkout", path: func(t *testing.T) string { return t.TempDir() },
+			leftInPlace: true,
+		},
 	} {
 		t.Run("Should fail an interrupted copy phase whose checkout "+testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -780,6 +784,21 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 			if err != nil || stored.State != StateFailed ||
 				!strings.Contains(stored.CreateError, "daemon restart") {
 				t.Fatalf("interrupted copy = %#v, %v, want failed record instead of a ready one", stored, err)
+			}
+			if testCase.leftInPlace {
+				if _, statErr := os.Stat(gone.Path); statErr != nil ||
+					!strings.Contains(stored.CreateRollbackError, "left in place") {
+					t.Fatalf(
+						"replacement = %v, %q, want it left in place and reported",
+						statErr,
+						stored.CreateRollbackError,
+					)
+				}
+				for _, command := range invocationCommands(fixture.runner.invocations()) {
+					if strings.Contains(command, "worktree remove") {
+						t.Fatalf("recovery ran %q against a checkout it does not own", command)
+					}
+				}
 			}
 			if got := fixture.events.count(EventSetupFailed); got != 0 {
 				t.Fatalf("setup failed events = %d, want none for an unusable checkout", got)

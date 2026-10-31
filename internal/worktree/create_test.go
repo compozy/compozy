@@ -126,11 +126,6 @@ func newCreateTestFixture(t *testing.T, worktreesConfig config.WorktreesConfig) 
 			return gitResponse{stdout: []byte(".env\x00")}
 		case strings.HasPrefix(command, "for-each-ref --format=%(objectname) refs/heads/"):
 			return gitResponse{stdout: []byte("created-head\n")}
-		case strings.Contains(command, "worktree remove ") && !strings.Contains(command, "--force"):
-			return gitResponse{
-				stderr: []byte("fatal: '" + call.args[len(call.args)-1] + "' contains modified or untracked files"),
-				err:    errors.New("exit 128"),
-			}
 		case strings.Contains(command, "worktree remove --force"):
 			if fixture.failCheckoutRemoval.Load() {
 				return gitResponse{stderr: []byte("permission denied"), err: errors.New("exit 128")}
@@ -397,19 +392,38 @@ func TestServiceCreate(t *testing.T) {
 	})
 
 	for _, testCase := range []struct {
-		name  string
-		entry string
+		name          string
+		entry         string
+		leftoverGone  bool
+		wantLeftPath  bool
+		wantRecovered string
 	}{
-		{name: "on another branch", entry: "\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00"},
-		{name: "without the add lock", entry: "\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00"},
+		{
+			name: "a replacement checkout on another branch", entry: "\x00HEAD other-head\x00branch refs/heads/someone-else\x00\x00",
+			wantLeftPath: true, wantRecovered: "checked out on another branch",
+		},
+		{
+			name: "a replacement checkout without the add lock", entry: "\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00",
+			wantLeftPath: true, wantRecovered: "not attributable",
+		},
+		{
+			name: "a minted branch another checkout holds", leftoverGone: true,
+			entry:         "-elsewhere\x00HEAD created-head\x00branch refs/heads/replaced\x00\x00",
+			wantRecovered: "checked out elsewhere",
+		},
 	} {
-		t.Run("Should never force-remove a replacement checkout "+testCase.name+" on recovery", func(t *testing.T) {
+		t.Run("Should leave "+testCase.name+" alone on recovery", func(t *testing.T) {
 			t.Parallel()
 			fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
 			fixture.interruptWorktreeAdd.Store(true)
 			fixture.failCheckoutRemoval.Store(true)
 			item := createAcceptedAndWait(t, fixture, "Replaced")
 			fixture.failCheckoutRemoval.Store(false)
+			if testCase.leftoverGone {
+				if err := os.RemoveAll(item.Path); err != nil {
+					t.Fatalf("remove leftover: %v", err)
+				}
+			}
 			fixture.listOutput = append(worktreeListFixture(fixture.workspace.Root, "main"),
 				[]byte("worktree "+item.Path+testCase.entry)...)
 			before := len(fixture.runner.invocations())
@@ -418,19 +432,20 @@ func TestServiceCreate(t *testing.T) {
 				t.Fatalf("RecoverCreations() error = %v", err)
 			}
 			for _, command := range invocationCommands(fixture.runner.invocations()[before:]) {
-				if strings.Contains(command, "--force") || strings.HasPrefix(command, "update-ref -d ") {
-					t.Fatalf("recovery ran %q against a checkout it cannot attribute", command)
+				if strings.Contains(command, "worktree remove") || strings.HasPrefix(command, "update-ref -d ") {
+					t.Fatalf("recovery ran %q against state it cannot attribute", command)
 				}
 			}
-			if _, err := os.Lstat(item.Path); err != nil {
+			if _, err := os.Lstat(item.Path); testCase.wantLeftPath && err != nil {
 				t.Fatalf("Lstat(replacement) error = %v, want untouched", err)
 			}
 			stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, item.ID)
 			if err != nil || stored.CreateRollbackError == "" {
 				t.Fatalf("stored = %#v, %v, want rollback still marked incomplete", stored, err)
 			}
-			if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is still incomplete") {
-				t.Fatalf("logs = %s, want recovery warning", logs)
+			if logs := fixture.logs.String(); !strings.Contains(logs, "rollback is still incomplete") ||
+				!strings.Contains(logs, testCase.wantRecovered) {
+				t.Fatalf("logs = %s, want recovery warning %q", logs, testCase.wantRecovered)
 			}
 		})
 	}

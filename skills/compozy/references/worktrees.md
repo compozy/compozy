@@ -43,9 +43,10 @@ It emits `worktree.creation_failed` plus a WARN log, or an ERROR log when rollba
 record keeps its name until `compozy worktree dismiss <ref>`; binding a session to it returns
 `worktree_not_ready` with the cause. Only `cancel` with a complete rollback deletes the pending row.
 An incomplete rollback is recorded separately from the cause, and the next boot retries it only for
-what Git still attributes to the record: its checkout on its branch, force-removed only while it
-still holds the interrupted `git worktree add` lock (otherwise a plain remove that Git refuses for
-changes), and its minted branch while it still points at the recorded head. On success,
+what Git still attributes to the record: its checkout on its branch, removed only while it still
+holds the interrupted `git worktree add` lock, and its minted branch while it still points at the
+recorded head and no checkout holds it. Anything else (a replacement checkout, a held or moved
+branch) is left in place with a WARN each boot until the operator cleans it up. On success,
 `create_error` keeps only the original failure.
 Boot reconciliation settles an interrupted record the same way. `git worktree add` runs under
 `worktrees.checkout_timeout` (default `15m`); raise it for very large repositories. A setup-command

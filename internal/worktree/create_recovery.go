@@ -18,12 +18,11 @@ const gitAddLockReason = "initializing"
 // retryFailedCreateRollback finishes a rollback a failed row records as
 // incomplete. The failed row no longer reserves its path or branch, so it
 // touches only what Git still attributes to it and never discards work:
-//   - a checkout at the recorded path on the recorded branch is force-removed
-//     only while it still holds the add lock of the interrupted creation;
-//     otherwise a plain `git worktree remove` runs, which Git refuses for
-//     modified or untracked files and for any other lock;
+//   - a checkout at the recorded path on the recorded branch is removed only
+//     while it still holds the add lock of the interrupted creation, which a
+//     half-written checkout keeps and a replacement does not;
 //   - the branch this creation minted is deleted only while it still points
-//     at the recorded head and no checkout holds it.
+//     at the recorded head (no unique commits) and no checkout holds it.
 //
 // Anything it cannot attribute is reported, and the row stays marked.
 func (s *Service) retryFailedCreateRollback(ctx context.Context, workspace Workspace, item Worktree) error {
@@ -52,11 +51,13 @@ func (s *Service) retryFailedCreateRollback(ctx context.Context, workspace Works
 		if entry.Branch != item.Branch {
 			return fmt.Errorf("worktree: retry creation rollback: %s is checked out on another branch", item.Path)
 		}
-		forces := 0
-		if entry.Locked && entry.LockReason == gitAddLockReason {
-			forces = 2
+		if !entry.Locked || entry.LockReason != gitAddLockReason {
+			return fmt.Errorf(
+				"worktree: retry creation rollback: %s is not attributable to the failed creation",
+				item.Path,
+			)
 		}
-		if err := s.removeCreatedCheckout(ctx, workspace.Root, commonDir, item.Path, forces); err != nil {
+		if err := s.removeCreatedCheckout(ctx, workspace.Root, commonDir, item.Path, 2); err != nil {
 			return err
 		}
 	}
@@ -65,7 +66,10 @@ func (s *Service) retryFailedCreateRollback(ctx context.Context, workspace Works
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return fmt.Errorf("worktree: inspect creation rollback path: %w", statErr)
 	}
-	if item.CreatedBranch && item.CreatedHead != "" && !branchHeld {
+	if item.CreatedBranch && item.CreatedHead != "" {
+		if branchHeld {
+			return fmt.Errorf("worktree: retry creation rollback: branch %s is checked out elsewhere", item.Branch)
+		}
 		if err := s.retryCreatedBranchRollback(ctx, workspace.Root, item); err != nil {
 			return err
 		}
@@ -108,16 +112,43 @@ func (s *Service) retryCreatedBranchRollback(ctx context.Context, root string, i
 	return nil
 }
 
-// usableInterruptedCheckout reports whether an interrupted copy/setup row's
-// checkout is still the linked worktree this creation registered.
-func (s *Service) usableInterruptedCheckout(ctx context.Context, workspace Workspace, item Worktree) bool {
-	if info, err := os.Stat(item.Path); err != nil || !info.IsDir() {
-		return false
+type interruptedCheckout int
+
+const (
+	interruptedCheckoutUsable interruptedCheckout = iota
+	interruptedCheckoutGone
+	interruptedCheckoutForeign
+)
+
+// errCheckoutReplaced names a recorded checkout path that now holds something
+// other than this creation's linked worktree; recovery leaves it in place.
+var errCheckoutReplaced = errors.New("the checkout path no longer holds this creation's linked worktree; left in place")
+
+// inspectInterruptedCheckout classifies an interrupted copy/setup row's
+// checkout. Errors that do not prove a replacement are returned so the row
+// stays pending for the next boot instead of being rolled back.
+func (s *Service) inspectInterruptedCheckout(
+	ctx context.Context,
+	workspace Workspace,
+	item Worktree,
+) (interruptedCheckout, error) {
+	info, err := os.Lstat(item.Path)
+	if errors.Is(err, os.ErrNotExist) {
+		return interruptedCheckoutGone, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("worktree: inspect interrupted checkout: %w", err)
+	}
+	if !info.IsDir() {
+		return interruptedCheckoutForeign, nil
 	}
 	commonDir, err := s.commonDir(ctx, workspace.Root)
 	if err != nil {
-		return false
+		return 0, err
 	}
 	identity, err := s.validateAdoptionIdentity(ctx, item.Path, commonDir)
-	return err == nil && identity.adminGitDir == item.GitDir
+	if err != nil || identity.adminGitDir != item.GitDir {
+		return interruptedCheckoutForeign, nil
+	}
+	return interruptedCheckoutUsable, nil
 }

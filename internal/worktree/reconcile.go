@@ -91,7 +91,7 @@ func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Work
 	}
 	switch item.State {
 	case StatePending:
-		return s.recoverPending(ctx, workspace, item)
+		return s.recoverPending(ctx, workspace, item, capabilityErr == nil)
 	case StateRemoving:
 		return s.recoverRemoval(ctx, item)
 	case StateMissing:
@@ -105,13 +105,26 @@ func (s *Service) recoverRow(ctx context.Context, workspace Workspace, item Work
 	return nil
 }
 
-func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {
+func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree, gitAvailable bool) error {
 	switch item.PendingPhase {
 	case PhaseCopy, PhaseSetup:
-		// A checkout that is gone or no longer this creation's linked worktree
-		// (a rollback ran but its failure was never recorded) is not usable.
-		if !s.usableInterruptedCheckout(ctx, workspace, item) {
+		// A rollback may have run without its failure being recorded, so the
+		// checkout must still be this creation's linked worktree to be usable.
+		// Without Git only its presence can be checked.
+		checkout := interruptedCheckoutUsable
+		if gitAvailable {
+			var err error
+			if checkout, err = s.inspectInterruptedCheckout(ctx, workspace, item); err != nil {
+				return err
+			}
+		} else if info, err := os.Stat(item.Path); err != nil || !info.IsDir() {
+			return nil
+		}
+		switch checkout {
+		case interruptedCheckoutGone:
 			return s.recoverInterruptedCreate(ctx, workspace, item)
+		case interruptedCheckoutForeign:
+			return s.recordCreateFailure(ctx, item, errCreationInterrupted, errCheckoutReplaced)
 		}
 		message := "setup interrupted by daemon restart"
 		if err := s.store.CompleteCreate(
