@@ -115,7 +115,7 @@ func sessionCatalogListOperation() OperationSpec {
 				Name:        "board_column",
 				In:          specParameterInQuery,
 				Kind:        specArrayKind,
-				Description: "Repeatable board column filter: needs_you, working, in_review, done",
+				Description: "Repeatable board column filter: needs_you, working, waiting, in_review, done",
 			},
 			queryParam("badge", "Filter by comma-separated exact session badges", false),
 			enumQueryParam(

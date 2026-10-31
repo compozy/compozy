@@ -49,8 +49,14 @@ type SessionCatalogFacetReader interface {
 type SessionBoardCounts struct {
 	NeedsYou int
 	Working  int
+	Waiting  int
 	InReview int
 	Done     int
+}
+
+// Total counts the sessions across every column.
+func (counts SessionBoardCounts) Total() int {
+	return counts.NeedsYou + counts.Working + counts.Waiting + counts.InReview + counts.Done
 }
 
 func (counts *SessionBoardCounts) Add(column string, count int) {
@@ -59,6 +65,8 @@ func (counts *SessionBoardCounts) Add(column string, count int) {
 		counts.NeedsYou += count
 	case SessionBoardWorking:
 		counts.Working += count
+	case SessionBoardWaiting:
+		counts.Waiting += count
 	case SessionBoardInReview:
 		counts.InReview += count
 	case SessionBoardDone:
@@ -69,6 +77,7 @@ func (counts *SessionBoardCounts) Add(column string, count int) {
 const (
 	SessionBoardNeedsYou = "needs_you"
 	SessionBoardWorking  = "working"
+	SessionBoardWaiting  = "waiting"
 	SessionBoardInReview = "in_review"
 	SessionBoardDone     = "done"
 )

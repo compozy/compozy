@@ -109,6 +109,7 @@ export function sessionBoardCardRollup(
     breakdown: [
       { label: "Needs you", count: children.needs_you },
       { label: "Working", count: children.working },
+      { label: "Waiting", count: children.waiting },
       { label: "In review", count: children.in_review },
       { label: "Done", count: children.done },
     ],
@@ -128,7 +129,7 @@ export function sessionBoardCardLineage(
   return title ? { kind: "child", verb: "Child of", title } : null;
 }
 
-/** A parked card would read as running; its footer names why it waits. */
+/** A parked card's footer names the wake source it waits on (Waiting column, #1075). */
 export function sessionBoardCardWaiting(
   session: SessionBoardPayload
 ): SessionBoardCardWaiting | null {

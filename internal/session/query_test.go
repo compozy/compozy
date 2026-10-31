@@ -4242,7 +4242,8 @@ func TestManagerBoardCatalog(t *testing.T) {
 			t.Fatalf("active projection calls = %d, want one batch", reader.calls)
 		}
 		counts := page.Sessions[0].Children
-		if counts == nil || counts.Working != 1 || counts.InReview != 1 || counts.Done != 0 {
+		// The monitoring child stays in Waiting despite its open pull request.
+		if counts == nil || counts.Waiting != 1 || counts.Working != 0 || counts.InReview != 1 || counts.Done != 0 {
 			t.Fatalf("children = %#v", counts)
 		}
 		facets, err := h.manager.CatalogFacets(ctx, query)
@@ -4257,15 +4258,17 @@ func TestManagerBoardCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Working != 1 || facets.Facets.All != 3 {
+		if facets.Facets.Board.InReview != 2 || facets.Facets.Board.Waiting != 1 ||
+			facets.Facets.Board.Working != 0 || facets.Facets.All != 3 {
 			t.Fatalf("all facets = %#v", facets)
 		}
-		query.Columns = []string{"working"}
+		query.Columns = []string{"waiting"}
 		page, err = h.manager.ListPage(ctx, query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].ParentTitle != "Parent" {
+		if page.Total != 1 || page.Sessions[0].ID != child.ID || page.Sessions[0].BoardColumn != BoardWaiting ||
+			page.Sessions[0].ParentTitle != "Parent" {
 			t.Fatalf("child board = %#v", page)
 		}
 		// Detail projects only direct children; the parent remains a title lookup.

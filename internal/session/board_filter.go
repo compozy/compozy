@@ -16,10 +16,10 @@ func ParseBoardColumns(values []string) ([]string, error) {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		switch BoardColumn(value) {
-		case BoardNeedsYou, BoardWorking, BoardInReview, BoardDone:
+		case BoardNeedsYou, BoardWorking, BoardWaiting, BoardInReview, BoardDone:
 		default:
 			return nil, fmt.Errorf(
-				"%w: board_column %q is not one of needs_you, working, in_review, done",
+				"%w: board_column %q is not one of needs_you, working, waiting, in_review, done",
 				ErrBoardFilterInvalid,
 				value,
 			)

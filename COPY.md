@@ -843,3 +843,11 @@ Do not use `COPY.md` as a dumping ground for campaign-specific copy. Put dated c
 The card name retains its title, status, waiting signal and relative time. Add "Child of {parent title}"
 when a parent title is present, "{N} child sessions" ("1 child session") for a nonempty direct-child
 rollup, and "A child needs you" when any direct child needs attention. Omit absent family facts.
+
+### Session board columns
+
+Columns read **Needs you · Working · Waiting · In review · Done**. _Waiting_ holds idle sessions
+parked on a wake source; its cards keep the chip that names the source ("Monitoring", "Waiting"),
+and its empty state reads "Nothing waiting on a wake". A column's fold control is named
+"Collapse {column}"; its folded rail is named "Expand {column}" and shows the column mark,
+vertical name and count without extra words.

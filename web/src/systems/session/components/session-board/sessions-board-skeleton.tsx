@@ -53,6 +53,7 @@ const COLUMN_CARDS: Record<SessionBoardColumnId, readonly CardShape[]> = {
     { id: "b", titleLines: 2, meta: true },
     { id: "c", titleLines: 1, meta: true },
   ],
+  waiting: [{ id: "a", titleLines: 1, meta: true }],
   in_review: [
     { id: "a", titleLines: 2, meta: true },
     { id: "b", titleLines: 1, meta: true },

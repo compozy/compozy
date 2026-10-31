@@ -22,7 +22,7 @@ function laneName(lane: SessionsBoardLane): string {
 
 /**
  * One Group-by swimlane (GitHub Projects style): the group's identity and
- * count, then the same four derived columns read through the group's own scope
+ * count, then the same derived columns read through the group's own scope
  * and profile lens, so every column count is the group's server total.
  * Cards in a project lane omit the project name its header already shows.
  */
@@ -37,9 +37,9 @@ export function SessionsBoardSwimlane({
   const testId = `sessions-board-lane-${lane.group.key}`;
   // A project lane's header is a project surface: it takes focus so Shift+F10 reaches its menu.
   const projectLane = lane.group.kind === "project" && lane.group.scope.kind === "project";
-  // The lane's select-all covers the cards its columns show; a folded Done shows none.
+  // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = columns.flatMap(column =>
-    column.id === "done" && props.doneCollapsed ? [] : column.sessions.map(session => session.id)
+    props.collapsedColumns[column.id] === true ? [] : column.sessions.map(session => session.id)
   );
   return (
     <section aria-label={name} className={SESSIONS_BOARD_LANE} data-testid={testId}>

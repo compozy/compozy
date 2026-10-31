@@ -49,7 +49,7 @@ function counts(all: number, working = 0, needsYou = 0) {
     working,
     finished: 0,
     idle: all - working - needsYou,
-    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+    board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
   };
 }
 
@@ -519,7 +519,7 @@ describe("useWorkspaceWorkingSessions", () => {
     working,
     finished: 0,
     idle: 1,
-    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+    board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
   });
 
   it("Should key working counts by workspace from one cross-workspace facets read", async () => {

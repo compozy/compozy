@@ -6224,6 +6224,7 @@ export type SessionBoardCountsPayload = {
   done: number;
   in_review: number;
   needs_you: number;
+  waiting: number;
   working: number;
 };
 
@@ -6260,6 +6261,7 @@ export type SessionChildrenPayload = {
   in_review: number;
   needs_you: number;
   total: number;
+  waiting: number;
   working: number;
 };
 
@@ -6772,7 +6774,7 @@ export type SessionPayload = {
     | "unknown"
     | "needs-attention"
     | "waiting";
-  board_column: "needs_you" | "working" | "in_review" | "done";
+  board_column: "needs_you" | "working" | "waiting" | "in_review" | "done";
   branch?: string;
   busy_input?: BusyInputState | null;
   children?: SessionChildrenPayload | null;
@@ -21799,7 +21801,7 @@ export type ListSessionsData = {
      */
     attention?: boolean;
     /**
-     * Repeatable board column filter: needs_you, working, in_review, done
+     * Repeatable board column filter: needs_you, working, waiting, in_review, done
      */
     board_column?: Array<string>;
     /**
@@ -32850,7 +32852,7 @@ export type ListWorkspaceSessionsData = {
      */
     attention?: boolean;
     /**
-     * Repeatable board column filter: needs_you, working, in_review, done
+     * Repeatable board column filter: needs_you, working, waiting, in_review, done
      */
     board_column?: Array<string>;
     /**

@@ -30,7 +30,7 @@ var enumValuesRegistry = map[reflect.Type][]string{
 		"needs-attention",
 		"waiting",
 	},
-	reflect.TypeFor[session.BoardColumn]():      {"needs_you", "working", "in_review", "done"},
+	reflect.TypeFor[session.BoardColumn]():      {"needs_you", "working", "waiting", "in_review", "done"},
 	reflect.TypeFor[session.WaitingOn]():        {"sessions", "monitor"},
 	reflect.TypeFor[session.PullRequestState](): {"open", "closed", "merged"},
 	reflect.TypeFor[session.ChecksState]():      {"passing", "failing", "pending", "none", enumUnknownValue},

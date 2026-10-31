@@ -11,8 +11,8 @@ import (
 // argument explicit lets the owning equivalence suite exercise every badge.
 func sessionCatalogBoardColumnSQL(badge, prState string) string {
 	return `(CASE WHEN ` + badge + ` IN ('needs-attention','waiting-for-auth','waiting-for-input','failed')
- THEN 'needs_you' WHEN ` + badge + ` IN ('running','hung','unhealthy','waiting')
- THEN 'working' WHEN ` + prState + ` = 'open' THEN 'in_review' ELSE 'done' END)`
+ THEN 'needs_you' WHEN ` + badge + ` IN ('running','hung','unhealthy')
+ THEN 'working' WHEN ` + badge + ` = 'waiting' THEN 'waiting' WHEN ` + prState + ` = 'open' THEN 'in_review' ELSE 'done' END)`
 }
 
 var sessionCatalogBoardColumnExpression = sessionCatalogBoardColumnSQL(sessionCatalogBadgeExpression, "board_pr_state")

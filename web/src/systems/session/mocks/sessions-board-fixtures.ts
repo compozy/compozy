@@ -70,20 +70,6 @@ export const SESSIONS_BOARD_SESSIONS: Record<SessionBoardColumnId, SessionPayloa
     }),
   ],
   working: [
-    boardSession("s1", "working", {
-      name: COORDINATOR,
-      badge: "waiting",
-      waiting_on: "sessions",
-      agent_name: "orchestrator",
-      children: { total: 4, needs_you: 1, working: 2, in_review: 1, done: 0 },
-      minutes: 4,
-    }),
-    boardSession("s19", "working", {
-      name: "Merge train: #919–#923",
-      badge: "waiting",
-      waiting_on: "monitor",
-      minutes: 7,
-    }),
     boardSession("s4", "working", {
       name: "Topbar PR chip — web slice",
       badge: "running",
@@ -91,6 +77,32 @@ export const SESSIONS_BOARD_SESSIONS: Record<SessionBoardColumnId, SessionPayloa
       pull_request: pr(944, { draft: true }),
       parent_title: COORDINATOR,
       minutes: 0,
+    }),
+  ],
+  waiting: [
+    boardSession("s1", "waiting", {
+      name: COORDINATOR,
+      badge: "waiting",
+      waiting_on: "sessions",
+      agent_name: "orchestrator",
+      children: { total: 4, needs_you: 1, working: 1, waiting: 0, in_review: 1, done: 1 },
+      minutes: 4,
+    }),
+    boardSession("s19", "waiting", {
+      name: "Merge train: #919–#923",
+      badge: "waiting",
+      waiting_on: "monitor",
+      minutes: 7,
+    }),
+    boardSession("s20", "waiting", {
+      name: "Watch CI on the board column PR",
+      badge: "waiting",
+      waiting_on: "monitor",
+      branch: "feat/board-waiting-column",
+      pull_request: pr(951, {
+        checks: { state: "pending", passed: 8, failed: 0, pending: 4, failed_names: [] },
+      }),
+      minutes: 2,
     }),
   ],
   in_review: [

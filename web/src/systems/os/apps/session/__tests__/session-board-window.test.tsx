@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTopbarSlotStore, TopbarSlotProvider, useTopbarSlot } from "@compozy/ui";
 
-import { primarySessionFixture } from "@/systems/session/testing";
+import { primarySessionFixture, resetSessionBoardColumnFolds } from "@/systems/session/testing";
 import type { SessionPayload } from "@/systems/session";
 import { sessionStore } from "@/systems/session/stores/session-store";
 import { sessionsBoardViewFixture } from "@/systems/session/mocks/sessions-board-view-fixtures";
@@ -206,6 +206,7 @@ beforeEach(() => {
     {
       needs_you: empty,
       working: { sessions: [card("w1", "working"), card("w2", "working"), card("w3", "working")] },
+      waiting: empty,
       in_review: empty,
       done: { sessions: [card("d1", "done")], count: 1, hasMore: false },
     },
@@ -223,6 +224,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  resetSessionBoardColumnFolds();
   sessionStore.trigger.composerDraftChanged({ sessionId: "w2", text: "" });
 });
 
@@ -507,6 +509,7 @@ describe("SessionBoardWindow drawer", () => {
       {
         needs_you: empty,
         working: { sessions: [card("w2", "working"), card("w3", "working")] },
+        waiting: empty,
         in_review: empty,
         done: empty,
       },

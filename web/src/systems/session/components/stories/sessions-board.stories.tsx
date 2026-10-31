@@ -12,6 +12,7 @@ import type { SessionBoardColumnId } from "../../lib/session-board-contract";
 import { SessionsBoard } from "../session-board/sessions-board";
 import { SessionsBoardSkeleton } from "../session-board/sessions-board-skeleton";
 import { SESSIONS_BOARD_SESSIONS } from "../../mocks/sessions-board-fixtures";
+import { resetSessionBoardColumnFolds } from "../../testing";
 import { sessionsBoardView } from "./sessions-board-fixtures";
 
 const meta: Meta<typeof SessionsBoard> = {
@@ -22,11 +23,13 @@ const meta: Meta<typeof SessionsBoard> = {
     docs: {
       description: {
         component:
-          "The session window's Kanban view: four daemon-derived columns (Needs you, Working, In review, Done) with facet counts, three-row cards, a collapsible Done column and the Archive bar.",
+          "The session window's Kanban view: five daemon-derived columns (Needs you, Working, Waiting, In review, Done) with facet counts, three-row cards, columns that fold into rails, and the Archive bar.",
       },
     },
   },
   args: { onOpen: fn(), currentSessionId: "s4" },
+  // Folds persist with the window: every story starts with the columns expanded.
+  beforeEach: () => resetSessionBoardColumnFolds(),
   decorators: [
     Story => (
       <div className="flex h-170 w-full bg-canvas text-fg">
@@ -152,6 +155,24 @@ export const ArchiveOpenDoneCollapsed: Story = {
   },
 };
 
+/** Any column folds into a rail with its mark, vertical name and count; the rail expands it. */
+export const ColumnsFolded: Story = {
+  tags: ["play-fn"],
+  args: { board: sessionsBoardView() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Collapse Needs you" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Collapse Done" }));
+    const rail = canvas.getByRole("button", { name: "Expand Done" });
+    await expect(rail).toHaveAttribute("aria-expanded", "false");
+    await expect(rail).toHaveFocus();
+    await expect(canvas.getByTestId("sessions-board-column-done")).toHaveAttribute(
+      "data-collapsed",
+      "true"
+    );
+  },
+};
+
 const CARD_ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
   pendingSessionId: null,
@@ -228,10 +249,11 @@ const laneHandlers = [
     const board = {
       needs_you: count("needs_you"),
       working: count("working"),
+      waiting: count("waiting"),
       in_review: count("in_review"),
       done: count("done"),
     };
-    const all = board.needs_you + board.working + board.in_review + board.done;
+    const all = Object.values(board).reduce((sum, value) => sum + value, 0);
     return HttpResponse.json({
       facets: {
         terminal_approvals: 0,
@@ -255,7 +277,7 @@ const laneHandlers = [
 ];
 
 /**
- * Group by Project: one swimlane per project, each holding the same four
+ * Group by Project: one swimlane per project, each holding the same five
  * columns read through that project's own scope (GitHub Projects style).
  */
 export const GroupedByProject: Story = {

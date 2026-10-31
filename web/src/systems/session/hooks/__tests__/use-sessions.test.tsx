@@ -694,7 +694,7 @@ describe("bounded session catalog", () => {
         working: 0,
         finished: 0,
         idle: 200,
-        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+        board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
       },
       by_workspace: [],
       by_profile: [],
@@ -761,7 +761,7 @@ describe("bounded session catalog", () => {
         working: 0,
         finished: 0,
         idle: 201,
-        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+        board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
       },
       by_workspace: [],
       by_profile: [],
@@ -858,7 +858,7 @@ describe("sessions board read failures", () => {
       working: 0,
       finished: 0,
       idle: 300,
-      board: { needs_you: 0, working: 0, in_review: 0, done: 300 },
+      board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 300 },
     },
     by_workspace: [],
     by_profile: [],
@@ -959,7 +959,7 @@ describe("sessions board order and swimlanes", () => {
     working: all,
     finished: 0,
     idle: 0,
-    board: { needs_you: 0, working: all, in_review: 0, done: 0 },
+    board: { needs_you: 0, working: all, waiting: 0, in_review: 0, done: 0 },
   });
 
   beforeEach(() => {
@@ -994,7 +994,7 @@ describe("sessions board order and swimlanes", () => {
       sort: "manual",
       groupBy: "none",
     });
-    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(6));
     const sorts = vi.mocked(fetchSessionCatalogPage).mock.calls.map(([query]) => query?.sort);
     expect(new Set(sorts)).toEqual(new Set(["last_activity"]));
     client.clear();
@@ -1034,10 +1034,10 @@ describe("sessions board order and swimlanes", () => {
       sort: "created",
       groupBy: "project",
     });
-    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(5));
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(6));
     expect(result.current.groupBy).toBe("none");
     expect(result.current.lanes).toBeNull();
-    expect(result.current.columns).toHaveLength(4);
+    expect(result.current.columns).toHaveLength(5);
     client.clear();
   });
 });

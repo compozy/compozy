@@ -89,7 +89,8 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&flags.sortKey, "sort", "", "Sort by recent, created, name, last_activity, attention, navigator, or manual")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Continue from an opaque next_cursor")
-	cmd.Flags().StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|in_review|done)")
+	cmd.Flags().
+		StringSliceVar(&flags.columns, "column", nil, "Filter board columns (needs_you|working|waiting|in_review|done)")
 	cmd.Flags().
 		BoolVar(&flags.hideChildren, "hide-children", false, "Exclude child sessions; forks and continuations stay")
 	configureProfileReadCommand(cmd, deps)
@@ -204,7 +205,7 @@ func validateSessionListFlags(cmd *cobra.Command, flags sessionListFlags) ([]ses
 		if _, err := session.ParseBoardColumns([]string{column}); err != nil {
 			return nil, withCommandExitCode(
 				2,
-				fmt.Errorf("invalid --column %q (allowed: needs_you, working, in_review, done)", column),
+				fmt.Errorf("invalid --column %q (allowed: needs_you, working, waiting, in_review, done)", column),
 			)
 		}
 	}

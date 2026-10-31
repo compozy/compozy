@@ -168,7 +168,7 @@ describe("sessionBoardCardMeta (UT-069)", () => {
 describe("sessionBoardCardRollup (UT-070)", () => {
   it("Should count children per column and flag one that needs you", () => {
     const parent = session({
-      children: { total: 3, needs_you: 1, working: 2, in_review: 0, done: 0 },
+      children: { total: 3, needs_you: 1, working: 2, waiting: 0, in_review: 0, done: 0 },
     });
     expect(sessionBoardCardRollup(parent)).toEqual({
       total: 3,
@@ -176,13 +176,16 @@ describe("sessionBoardCardRollup (UT-070)", () => {
       breakdown: [
         { label: "Needs you", count: 1 },
         { label: "Working", count: 2 },
+        { label: "Waiting", count: 0 },
         { label: "In review", count: 0 },
         { label: "Done", count: 0 },
       ],
     });
     expect(
       sessionBoardCardRollup(
-        session({ children: { total: 2, needs_you: 0, working: 2, in_review: 0, done: 0 } })
+        session({
+          children: { total: 2, needs_you: 0, working: 2, waiting: 0, in_review: 0, done: 0 },
+        })
       )?.needsYou
     ).toBe(false);
     expect(sessionBoardCardRollup(session({ children: null }))).toBeNull();

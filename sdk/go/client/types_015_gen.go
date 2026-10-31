@@ -342,6 +342,7 @@ type SessionAttentionSummaryPayload struct {
 type SessionBoardCountsPayload struct {
 	NeedsYou int `json:"needs_you"`
 	Working  int `json:"working"`
+	Waiting  int `json:"waiting"`
 	InReview int `json:"in_review"`
 	Done     int `json:"done"`
 }
@@ -393,6 +394,7 @@ type SessionChildrenPayload struct {
 	Total    int `json:"total"`
 	NeedsYou int `json:"needs_you"`
 	Working  int `json:"working"`
+	Waiting  int `json:"waiting"`
 	InReview int `json:"in_review"`
 	Done     int `json:"done"`
 }

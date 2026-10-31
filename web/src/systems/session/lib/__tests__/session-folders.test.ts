@@ -362,7 +362,7 @@ describe("project folders", () => {
     idle: all,
     finished: 0,
     terminal_approvals: 0,
-    board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+    board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 0 },
   });
   const groups = projectSessionGroups(
     {

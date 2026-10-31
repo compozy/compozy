@@ -22625,6 +22625,9 @@
           "needs_you": {
             "type": "integer"
           },
+          "waiting": {
+            "type": "integer"
+          },
           "working": {
             "type": "integer"
           }
@@ -22633,6 +22636,7 @@
           "done",
           "in_review",
           "needs_you",
+          "waiting",
           "working"
         ],
         "type": "object"
@@ -22781,6 +22785,9 @@
           "total": {
             "type": "integer"
           },
+          "waiting": {
+            "type": "integer"
+          },
           "working": {
             "type": "integer"
           }
@@ -22790,6 +22797,7 @@
           "in_review",
           "needs_you",
           "total",
+          "waiting",
           "working"
         ],
         "type": "object"
@@ -24740,6 +24748,7 @@
             "enum": [
               "needs_you",
               "working",
+              "waiting",
               "in_review",
               "done"
             ],
@@ -63963,7 +63972,7 @@
             }
           },
           {
-            "description": "Repeatable board column filter: needs_you, working, in_review, done",
+            "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
             "in": "query",
             "name": "board_column",
             "schema": {
@@ -85437,7 +85446,7 @@
             }
           },
           {
-            "description": "Repeatable board column filter: needs_you, working, in_review, done",
+            "description": "Repeatable board column filter: needs_you, working, waiting, in_review, done",
             "in": "query",
             "name": "board_column",
             "schema": {

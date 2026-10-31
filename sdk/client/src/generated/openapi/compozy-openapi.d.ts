@@ -13486,6 +13486,7 @@ export interface components {
       done: number;
       in_review: number;
       needs_you: number;
+      waiting: number;
       working: number;
     };
     SessionCatalogEventPayload: {
@@ -13525,6 +13526,7 @@ export interface components {
       in_review: number;
       needs_you: number;
       total: number;
+      waiting: number;
       working: number;
     };
     SessionCommandPayload: {
@@ -14057,7 +14059,7 @@ export interface components {
         | "needs-attention"
         | "waiting";
       /** @enum {string} */
-      board_column: "needs_you" | "working" | "in_review" | "done";
+      board_column: "needs_you" | "working" | "waiting" | "in_review" | "done";
       branch?: string;
       busy_input?: components["schemas"]["BusyInputState"] | null;
       children?: components["schemas"]["SessionChildrenPayload"] | null;
@@ -32641,7 +32643,7 @@ export interface operations {
         resumable?: boolean;
         /** @description Only list sessions in the needs-you attention class */
         attention?: boolean;
-        /** @description Repeatable board column filter: needs_you, working, in_review, done */
+        /** @description Repeatable board column filter: needs_you, working, waiting, in_review, done */
         board_column?: string[];
         /** @description Filter by comma-separated exact session badges */
         badge?: string;
@@ -47087,7 +47089,7 @@ export interface operations {
         resumable?: boolean;
         /** @description Only list sessions in the needs-you attention class */
         attention?: boolean;
-        /** @description Repeatable board column filter: needs_you, working, in_review, done */
+        /** @description Repeatable board column filter: needs_you, working, waiting, in_review, done */
         board_column?: string[];
         /** @description Filter by comma-separated exact session badges */
         badge?: string;

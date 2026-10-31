@@ -425,7 +425,7 @@ Clarification: `compozy__clarify` asks one active-session question with at most 
 zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session clarify pending|answer`
 (choice presentation is one-based).
 
-`compozy__session_list` accepts `board_column: ["needs_you", "working", "in_review", "done"]`
+`compozy__session_list` accepts `board_column: ["needs_you", "working", "waiting", "in_review", "done"]`
 and `children: "exclude"` (default `include`). Columns filter before pagination/counting;
 unknown values return `tool_invalid_input`. Excluding children removes every session with a parent,
 independent of its spawn role. Page payloads include the derived `board_column`, direct-child

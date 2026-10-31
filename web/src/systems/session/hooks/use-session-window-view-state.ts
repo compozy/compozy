@@ -43,3 +43,31 @@ export function useSessionWindowViewState(): SessionWindowViewState {
     setDrawerWidth: width => sessionSidebarStore.trigger.drawerWidthChanged({ scopeId, width }),
   };
 }
+
+export interface SessionBoardColumnFolds {
+  /** Folded board columns by id; a column absent from it is expanded. */
+  collapsed: Readonly<Record<string, boolean>>;
+  setCollapsed: (columnId: string, collapsed: boolean) => void;
+}
+
+/**
+ * Which board columns this window folds (#1075). One fold per column covers every swimlane,
+ * so the lanes' columns stay aligned, and it survives a reload with the rest of the window's
+ * sessions presentation.
+ */
+export function useSessionBoardColumnFolds(): SessionBoardColumnFolds {
+  const scopeId = useWorktreeScopeId();
+  const collapsed = useSelector(
+    sessionSidebarStore,
+    snapshot => resolveSessionSidebarScope(snapshot.context.byScope, scopeId).collapsedBoardColumns
+  );
+  return {
+    collapsed,
+    setCollapsed: (columnId, next) =>
+      sessionSidebarStore.trigger.boardColumnCollapsedChanged({
+        scopeId,
+        columnId,
+        collapsed: next,
+      }),
+  };
+}
