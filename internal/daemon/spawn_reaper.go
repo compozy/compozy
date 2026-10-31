@@ -260,8 +260,7 @@ func (r *spawnReaper) reapSpawnedCandidate(
 		return spawnReapCandidate{child: info, reason: spawnReapReasonOrphaned}, true
 	}
 	if lineage.AutoStopOnParent && !spawnReaperLiveState(parent.State) {
-		if lineage.SpawnRole == store.SubagentSpawnRole &&
-			(parent.StopReason == store.StopShutdown || parent.StopReason == store.StopAgentCrashed) {
+		if subagentSurvivesParentStop(lineage, parent) {
 			return spawnReapCandidate{}, false
 		}
 		return spawnReapCandidate{
@@ -286,8 +285,25 @@ func (r *spawnReaper) reap(
 	if reason == "" {
 		reason = spawnReapReasonOrphaned
 	}
-	if stale, err := r.candidateStale(ctx, child, reason); err != nil || stale {
+	freshness, err := r.candidateFreshness(ctx, child, reason)
+	if err != nil {
 		return err
+	}
+	switch freshness {
+	case spawnCandidateEnded:
+		// The child stopped on its own since the snapshot: it needs no stop, but its
+		// task-run leases still go back now rather than at lease expiry.
+		released, releaseErr := r.releaseChildLeases(ctx, child, reason)
+		if report != nil {
+			report.ReleasedLeases += released
+		}
+		if releaseErr != nil {
+			return fmt.Errorf("daemon: release child leases for %q: %w", child.ID, releaseErr)
+		}
+		return nil
+	case spawnCandidateChanged:
+		return nil
+	case spawnCandidateCurrent:
 	}
 
 	r.dispatchReasonHook(ctx, candidate)
@@ -318,48 +334,6 @@ func (r *spawnReaper) reap(
 		errs = append(errs, fmt.Errorf("daemon: stop spawned child %q: %w", child.ID, stopErr))
 	}
 	return errors.Join(errs...)
-}
-
-// candidateStale rereads the child, and for a parent stop its parent, before any
-// reap effect. A sweep snapshot can outlive what it saw: the child may have been
-// taken over, or resumed after its parent stopped (which releases
-// auto_stop_on_parent), and the parent may have been resumed. Reaping on the old
-// snapshot would end a run nobody asked to stop. The reread narrows the window to
-// the reap itself; it does not make the stop conditional.
-func (r *spawnReaper) candidateStale(ctx context.Context, child *session.Info, reason string) (bool, error) {
-	current, err := r.sessions.Status(ctx, child.ID)
-	if errors.Is(err, session.ErrSessionNotFound) {
-		return true, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("daemon: reread spawned child %q: %w", child.ID, err)
-	}
-	if current == nil || !spawnReaperLiveState(current.State) || current.Type != child.Type {
-		return true, nil
-	}
-	lineage := store.NormalizeSessionLineage(current.ID, current.Lineage)
-	switch reason {
-	case spawnReapReasonTTLExpired:
-		return lineage.TTLExpiresAt == nil || lineage.TTLExpiresAt.After(r.now().UTC()), nil
-	case spawnReapReasonParentStopped:
-		if !lineage.AutoStopOnParent {
-			return true, nil
-		}
-		return r.parentLive(ctx, lineage.ParentSessionID)
-	default:
-		return false, nil
-	}
-}
-
-func (r *spawnReaper) parentLive(ctx context.Context, parentID string) (bool, error) {
-	parent, err := r.sessions.Status(ctx, parentID)
-	if errors.Is(err, session.ErrSessionNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("daemon: reread spawn parent %q: %w", parentID, err)
-	}
-	return parent != nil && spawnReaperLiveState(parent.State), nil
 }
 
 func (r *spawnReaper) releaseChildLeases(ctx context.Context, child *session.Info, reason string) (int, error) {

@@ -537,43 +537,79 @@ func TestSpawnReaperLiveInventory(t *testing.T) {
 		}
 	})
 	for _, tc := range []struct {
-		name    string
-		current func(child *session.Info) *session.Info
-		parent  session.State
+		name         string
+		role         string
+		current      func(child *session.Info) *session.Info
+		parent       *session.Info
+		parentErr    error
+		wantReleases int
+		wantErr      bool
 	}{
-		{name: "Should skip a child taken over since the sweep snapshot", parent: session.StateStopped,
+		{name: "Should skip a child taken over since the sweep snapshot",
+			parent: rootReaperInfo("parent", session.StateStopped),
 			current: func(child *session.Info) *session.Info {
 				taken := *child
 				taken.Type = session.SessionTypeUser
 				taken.Lineage = &store.SessionLineage{RootSessionID: child.ID}
 				return &taken
 			}},
-		{name: "Should skip a child whose parent resumed since the sweep snapshot", parent: session.StateActive,
-			current: func(child *session.Info) *session.Info { return child }},
+		{name: "Should skip a child whose parent resumed since the sweep snapshot",
+			parent: rootReaperInfo("parent", session.StateActive)},
+		{name: "Should skip a subagent whose parent stopped again for shutdown since the sweep snapshot",
+			role: store.SubagentSpawnRole,
+			parent: func() *session.Info {
+				parent := rootReaperInfo("parent", session.StateStopped)
+				parent.StopReason = store.StopShutdown
+				return parent
+			}()},
+		{name: "Should release only the leases of a child that stopped since the sweep snapshot",
+			parent: rootReaperInfo("parent", session.StateStopped), wantReleases: 1,
+			current: func(child *session.Info) *session.Info {
+				stopped := *child
+				stopped.State = session.StateStopped
+				return &stopped
+			}},
+		{name: "Should keep the child when the parent reread fails",
+			parentErr: errors.New("parent catalog unavailable"), wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 			snapshotParent := rootReaperInfo("parent", session.StateStopped)
-			snapshot := spawnedReaperInfo("child", snapshotParent.ID, now.Add(time.Hour), true)
-			currentChild := tc.current(spawnedReaperInfo("child", snapshotParent.ID, now.Add(time.Hour), true))
-			sessions := &swappingReaperManager{
-				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{snapshotParent, snapshot}},
-				current: map[string]*session.Info{
-					"parent": rootReaperInfo("parent", tc.parent),
-					"child":  currentChild,
-				},
+			child := func() *session.Info {
+				info := spawnedReaperInfo("child", snapshotParent.ID, now.Add(time.Hour), true)
+				if tc.role != "" {
+					info.Lineage.SpawnRole = tc.role
+				}
+				return info
 			}
+			currentChild := child()
+			if tc.current != nil {
+				currentChild = tc.current(currentChild)
+			}
+			sessions := &swappingReaperManager{
+				fakeSessionManager: &fakeSessionManager{infos: []*session.Info{snapshotParent, child()}},
+				current:            map[string]*session.Info{"child": currentChild},
+				parentErr:          tc.parentErr,
+			}
+			if tc.parent != nil {
+				sessions.current["parent"] = tc.parent
+			}
+			leases := &fakeSpawnLeaseReleaser{resultCountBySession: map[string]int{"child": 1}}
+			hooks := &recordingSpawnHooks{}
 			reaper, err := newSpawnReaper(
-				t.Context(), sessions, &fakeSpawnLeaseReleaser{}, nil, discardLogger(),
+				t.Context(), sessions, leases, hooks, discardLogger(),
 				func() time.Time { return now }, time.Hour,
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			report, err := reaper.Sweep(t.Context())
-			if err != nil || report.Reaped != 0 || len(sessions.stopWithCauseCalls) != 0 {
-				t.Fatalf("report=%#v stops=%#v error=%v", report, sessions.stopWithCauseCalls, err)
+			if (err != nil) != tc.wantErr || report.Reaped != 0 || len(sessions.stopWithCauseCalls) != 0 ||
+				len(leases.releases) != tc.wantReleases || len(hooks.parentStopped) != 0 || len(hooks.reaped) != 0 {
+				t.Fatalf("report=%#v stops=%#v releases=%#v hooks=%d/%d error=%v",
+					report, sessions.stopWithCauseCalls, leases.releases,
+					len(hooks.parentStopped), len(hooks.reaped), err)
 			}
 		})
 	}
@@ -630,12 +666,16 @@ func (m *liveInventoryReaperManager) Status(ctx context.Context, id string) (*se
 // sessions' current state, as if they changed between the sweep and the reap.
 type swappingReaperManager struct {
 	*fakeSessionManager
-	current map[string]*session.Info
-	swapped bool
+	current   map[string]*session.Info
+	parentErr error
+	swapped   bool
 }
 
 func (m *swappingReaperManager) Status(ctx context.Context, id string) (*session.Info, error) {
 	if m.swapped {
+		if id == "parent" && m.parentErr != nil {
+			return nil, m.parentErr
+		}
 		if info, ok := m.current[id]; ok {
 			return info, nil
 		}
