@@ -641,7 +641,8 @@ describe("useSessionLabel", () => {
         { wrapper }
       );
       await waitFor(() => expect(result.current.title).toBe("Live peer"));
-      expect(result.current.workspaceId).toBe(destination);
+      // Navigation consumes the stored owner ID, while API reads use the @user selector.
+      expect(result.current.workspaceId).toBe(destination === "@user" ? "" : destination);
       await waitFor(() =>
         expect(result.current.workspaceName).toBe(destination === "@user" ? "User" : "compozy-site")
       );

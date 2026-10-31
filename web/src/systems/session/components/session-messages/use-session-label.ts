@@ -9,7 +9,7 @@ import type { SessionMessageParty } from "./session-message-party";
 
 export interface SessionLabelInput {
   sessionId: string;
-  /** The other session's workspace; empty = this transcript's. */
+  /** The other session's workspace; empty resolves its canonical owner. */
   workspaceId: string;
   /** The transcript's own workspace: a different one is named beside the link (Gap 5). */
   currentWorkspaceId: string;
@@ -36,9 +36,8 @@ export function useSessionLabel({
   const owner = useQuery({
     ...sessionOwnerOptions(sessionId),
     enabled: workspaceId === "" && sessionId !== "",
-    retry: false,
   });
-  const resolvedWorkspaceId = workspaceId || (owner.data ? owner.data.workspace_id || "@user" : "");
+  const resolvedWorkspaceId = workspaceId || ownerWorkspaceSelector(owner.data);
   const detail = useQuery({
     ...sessionDetailOptions(resolvedWorkspaceId, sessionId),
     enabled: resolvedWorkspaceId !== "" && sessionId !== "",
@@ -58,16 +57,16 @@ export function useSessionLabel({
   );
   return {
     sessionId,
-    workspaceId: resolvedWorkspaceId,
+    workspaceId: userDestination ? "" : resolvedWorkspaceId,
     title,
     ...(pending ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
-    workspaceName: crossWorkspace
-      ? userDestination
-        ? "User"
-        : (workspace.data?.workspace.name ?? null)
-      : null,
+    workspaceName: sessionLabelWorkspaceName(
+      crossWorkspace,
+      userDestination,
+      workspace.data?.workspace.name
+    ),
   };
 }
 
@@ -97,4 +96,17 @@ function sessionLabelTitle(
   if (detail.data) return { title: getSessionDisplayTitle(detail.data), pending: false };
   if (detail.isError) return { title: recorded ?? sessionId, pending: false };
   return { title: recorded, pending: recorded === null };
+}
+
+function ownerWorkspaceSelector(owner: { workspace_id?: string } | undefined): string {
+  return owner ? owner.workspace_id || "@user" : "";
+}
+
+function sessionLabelWorkspaceName(
+  crossWorkspace: boolean,
+  user: boolean,
+  name: string | undefined
+): string | null {
+  if (!crossWorkspace) return null;
+  return user ? "User" : (name ?? null);
 }

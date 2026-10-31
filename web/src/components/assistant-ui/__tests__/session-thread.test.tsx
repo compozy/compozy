@@ -7980,6 +7980,48 @@ describe("SessionThread session messages", () => {
     expect(within(card).getByText("PR opened and ready for review.")).toBeVisible();
   });
 
+  it("Should show the structured denial reason on a failed Sent card", async () => {
+    renderThreadState(
+      {
+        status: "success",
+        messages: toReadonlyThreadMessages([
+          {
+            id: "msg-denied-send",
+            role: "assistant",
+            metadata: { turn_id: "turn-send" },
+            parts: [
+              {
+                type: "tool-compozy__session_prompt",
+                toolCallId: "denied-send",
+                state: "output-error",
+                turnId: "turn-send",
+                input: { session_id: targetId, message: "ping" },
+                output: {
+                  error: { code: "workspace_access_denied", message: "Workspace access denied" },
+                },
+              },
+              {
+                type: "data-compozy-session-message",
+                turnId: "turn-send",
+                data: {
+                  tool_call_id: "denied-send",
+                  target_session_id: targetId,
+                  target_workspace_id: fixtureWorkspaceId(),
+                  message_id: "msg-denied",
+                  mode: "queue",
+                  state: "done",
+                },
+              },
+            ],
+          } as unknown as SessionMessage,
+        ]),
+      },
+      clientWithPeers()
+    );
+    const card = await screen.findByRole("article", { name: "Could not send to Billing reviewer" });
+    expect(within(card).getByText("Workspace access denied")).toBeVisible();
+  });
+
   it("Should draw one Sent to card for a call a queued prompt split across two messages (#742)", async () => {
     // A prompt queued while the call streamed its arguments ends the first message; the call's
     // later events and result land in the continuation, so both messages hold its part.
