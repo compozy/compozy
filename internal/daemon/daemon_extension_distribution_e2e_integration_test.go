@@ -339,8 +339,8 @@ func testDaemonCatalogPublication(t *testing.T, catalogBinary func() (string, er
 	if err := json.Unmarshal(raw, &feed); err != nil {
 		t.Fatal(err)
 	}
-	if len(feed.Entries) != 19 {
-		t.Fatalf("published entries = %d, want 2 listed existing extensions and 17 packaged servers", len(feed.Entries))
+	if len(feed.Entries) != 20 {
+		t.Fatalf("published entries = %d, want 2 listed existing extensions and 18 packaged servers", len(feed.Entries))
 	}
 	presetRaw, err := os.ReadFile(filepath.Join(published, "v3", "marketplaces.json"))
 	if err != nil {

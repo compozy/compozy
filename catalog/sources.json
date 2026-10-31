@@ -210,6 +210,17 @@
             "author": "CompozyOS",
             "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/cloudflare",
             "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/cloudflare.png"
+        },
+        {
+            "entry_id": "keenable",
+            "name": "Keenable",
+            "description": "Search the web and read pages as markdown through Keenable's hosted MCP server, no API key required.",
+            "install_slug": "compozy/keenable",
+            "tier": "official",
+            "format": "compozy",
+            "author": "CompozyOS",
+            "repository": "https://github.com/compozy/compozy/tree/main/catalog/packages/keenable",
+            "icon": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/icons/keenable.png"
         }
     ]
 }
