@@ -46,3 +46,8 @@ SELECT parked_at, park_reason, park_until, later_returned_at,
       AND later_input.origin_class = 'agent') END) AS INTEGER) AS pending_messages
 FROM sessions
 WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.id = sqlc.arg(id);
+
+-- name: UnparkSessionParkedAt :execrows
+UPDATE sessions
+SET parked_at = NULL, park_reason = '', park_until = NULL, updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id) AND parked_at = sqlc.arg(parked_at);

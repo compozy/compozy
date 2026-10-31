@@ -71,6 +71,13 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		if got := result.Outcome().Disposition; got != DispositionLater {
 			t.Fatalf("SendPrompt(agent) disposition = %q, want %q", got, DispositionLater)
 		}
+		retry, err := h.manager.SendPrompt(ctx, parent.ID, SendPromptOpts{
+			Message: "status?", MessageID: "msg-later", IdempotencyKey: "idem-later",
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: child.ID, WorkspaceID: h.workspaceID, Hop: 1},
+		})
+		if err != nil || !retry.Replayed || retry.Outcome().Disposition != DispositionLater {
+			t.Fatalf("SendPrompt(agent retry) = %+v, %v, want the replayed Later result", retry, err)
+		}
 		info, err := h.manager.Status(ctx, parent.ID)
 		if err != nil || info.State != StateStopped || info.Later == nil || info.Later.PendingMessages != 1 {
 			t.Fatalf("Status(after agent message) = %#v, %v, want parked with one pending message", info, err)

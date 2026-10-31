@@ -195,3 +195,29 @@ func (q *Queries) UnparkSession(ctx context.Context, arg UnparkSessionParams) (i
 	}
 	return result.RowsAffected()
 }
+
+const unparkSessionParkedAt = `-- name: UnparkSessionParkedAt :execrows
+UPDATE sessions
+SET parked_at = NULL, park_reason = '', park_until = NULL, updated_at = ?1
+WHERE workspace_id = ?2 AND id = ?3 AND parked_at = ?4
+`
+
+type UnparkSessionParkedAtParams struct {
+	UpdatedAt   string         `json:"updated_at"`
+	WorkspaceID string         `json:"workspace_id"`
+	ID          string         `json:"id"`
+	ParkedAt    sql.NullString `json:"parked_at"`
+}
+
+func (q *Queries) UnparkSessionParkedAt(ctx context.Context, arg UnparkSessionParkedAtParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unparkSessionParkedAt,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.ParkedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

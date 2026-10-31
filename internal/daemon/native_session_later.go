@@ -95,7 +95,9 @@ func (n *daemonNativeTools) changeSessionLater(
 			Reason: input.Reason, ReturnAt: input.ReturnAt,
 		})
 	} else {
-		info, err = manager.ResumeFromLater(ctx, workspaceID, input.SessionID, input.WithChildren)
+		resumeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), nativeLaterOperationTimeout)
+		defer cancel()
+		info, err = manager.ResumeFromLater(resumeCtx, workspaceID, input.SessionID, input.WithChildren)
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLaterToolError(req.ToolID, err)

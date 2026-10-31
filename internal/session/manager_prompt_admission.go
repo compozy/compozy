@@ -111,9 +111,6 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if parked {
-		preparation.mode = BusyInputModeQueue
-	}
 	admissionReq, err := m.newPromptAdmissionRequest(
 		target.workspaceID,
 		preparation.request,
@@ -122,6 +119,11 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	if parked {
+		// The fingerprint keeps the requested mode so a retry matches across a
+		// park or a return; only delivery becomes a queued input.
+		admissionReq.Mode = string(BusyInputModeQueue)
 	}
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()

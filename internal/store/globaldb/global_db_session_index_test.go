@@ -588,10 +588,19 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("ClearLaterReturn() = %v, %v, want cleared", cleared, err)
 		}
 
-		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
-			WorkspaceID: workspaceID, SessionID: parked.ID,
-		}); err != nil {
+		first, err := globalDB.ParkSession(ctx, store.SessionLaterPark{WorkspaceID: workspaceID, SessionID: parked.ID})
+		if err != nil {
 			t.Fatalf("ParkSession(again) error = %v", err)
+		}
+		globalDB.now = func() time.Time { return baseAt.Add(3 * time.Hour) }
+		if _, err := globalDB.ParkSession(ctx, store.SessionLaterPark{
+			WorkspaceID: workspaceID, SessionID: parked.ID, Reason: "newer park",
+		}); err != nil {
+			t.Fatalf("ParkSession(newer) error = %v", err)
+		}
+		undone, err := globalDB.UnparkSessionParkedAt(ctx, workspaceID, parked.ID, first.LaterState().ParkedAt)
+		if err != nil || undone {
+			t.Fatalf("UnparkSessionParkedAt(stale park) = %v, %v, want the newer park kept", undone, err)
 		}
 		archived, err := globalDB.SetSessionArchived(ctx, workspaceID, parked.ID, true)
 		if err != nil || archived.ArchivedAt == nil || archived.LaterState() != nil {

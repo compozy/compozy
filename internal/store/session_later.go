@@ -84,6 +84,8 @@ type SessionLaterStore interface {
 	ParkSession(ctx context.Context, park SessionLaterPark) (SessionInfo, error)
 	// UnparkSession clears Later state; it reports false when the session was not parked.
 	UnparkSession(ctx context.Context, workspaceID string, sessionID string) (bool, error)
+	// UnparkSessionParkedAt clears Later state only when it is still the park made at parkedAt.
+	UnparkSessionParkedAt(ctx context.Context, workspaceID string, sessionID string, parkedAt time.Time) (bool, error)
 	// ReturnDueLaterSessions brings back at most limit parked sessions whose
 	// return time is at or before now, marking each as back from Later.
 	ReturnDueLaterSessions(ctx context.Context, now time.Time, limit int) ([]SessionLaterReturn, error)

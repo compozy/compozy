@@ -109,6 +109,30 @@ func (g *SessionRepo) UnparkSession(ctx context.Context, workspaceID string, ses
 	return affected > 0, nil
 }
 
+// UnparkSessionParkedAt clears Later state only when the session still carries
+// the park made at parkedAt, so undoing a failed move never clears a newer park.
+func (g *SessionRepo) UnparkSessionParkedAt(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	parkedAt time.Time,
+) (bool, error) {
+	if err := g.checkReady(ctx, "unpark owned session"); err != nil {
+		return false, err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	affected, err := g.queries.UnparkSessionParkedAt(ctx, sqlcgen.UnparkSessionParkedAtParams{
+		UpdatedAt:   store.FormatTimestamp(g.now()),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		ID:          sessionID,
+		ParkedAt:    sql.NullString{String: store.FormatTimestamp(parkedAt), Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf("store: unpark owned session %q: %w", sessionID, err)
+	}
+	return affected > 0, nil
+}
+
 // ReturnDueLaterSessions brings back parked sessions whose return time passed.
 // Each return is a conditional update, so concurrent sweeps never return a
 // session twice.

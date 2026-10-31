@@ -107,6 +107,8 @@ func (m *Manager) MoveToLater(
 	if err != nil {
 		return nil, err
 	}
+	m.laterOpMu.Lock()
+	defer m.laterOpMu.Unlock()
 	root, err := m.Status(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -117,11 +119,7 @@ func (m *Manager) MoveToLater(
 	if root.ArchivedAt != nil {
 		return nil, fmt.Errorf("%w: %s", ErrSessionArchived, sessionID)
 	}
-	members, err := m.releaseSettledLaterFamily(ctx, workspaceID, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	info, err := m.parkLaterFamily(ctx, laterStore, workspaceID, members, req)
+	info, err := m.stopAndParkLaterFamily(ctx, laterStore, workspaceID, sessionID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -132,94 +130,6 @@ func (m *Manager) MoveToLater(
 		return m.Status(ctx, sessionID)
 	}
 	return info, nil
-}
-
-// parkLaterFamily parks descendants first, so a parked root always implies a
-// parked tree. A failure unparks the members this call parked, leaving the tree
-// stopped but out of Later as a whole.
-func (m *Manager) parkLaterFamily(
-	ctx context.Context,
-	laterStore store.SessionLaterStore,
-	workspaceID string,
-	members []*Info,
-	req LaterRequest,
-) (*Info, error) {
-	parked := make([]string, 0, len(members))
-	fail := func(err error) (*Info, error) {
-		for _, id := range parked {
-			if _, unparkErr := laterStore.UnparkSession(context.WithoutCancel(ctx), workspaceID, id); unparkErr != nil {
-				m.logger.Warn("session: undo partial later park", "session_id", id, "error", unparkErr)
-				continue
-			}
-			if _, publishErr := m.publishLaterCatalogUpsert(context.WithoutCancel(ctx), id); publishErr != nil {
-				m.logger.Warn("session: publish undone later park", "session_id", id, "error", publishErr)
-			}
-		}
-		return nil, err
-	}
-	for i := len(members) - 1; i >= 1; i-- {
-		if members[i].Later != nil {
-			continue
-		}
-		if _, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
-			WorkspaceID: workspaceID, SessionID: members[i].ID,
-		}); err != nil {
-			return fail(err)
-		}
-		parked = append(parked, members[i].ID)
-	}
-	info, err := m.parkLaterMember(ctx, laterStore, store.SessionLaterPark{
-		WorkspaceID: workspaceID, SessionID: members[0].ID, Reason: req.Reason, ReturnAt: req.ReturnAt,
-	})
-	if err != nil {
-		return fail(err)
-	}
-	return info, nil
-}
-
-// maxLaterFamilyPasses bounds the re-walks that catch children created while
-// the tree was being stopped.
-const maxLaterFamilyPasses = 4
-
-// releaseSettledLaterFamily stops the tree, then waits for spawns already in
-// flight and walks it again, so a child created during the stop is released
-// too. Stopped parents accept no new children, so the walk settles.
-func (m *Manager) releaseSettledLaterFamily(
-	ctx context.Context,
-	workspaceID string,
-	rootID string,
-) ([]*Info, error) {
-	released := make(map[string]struct{})
-	for range maxLaterFamilyPasses {
-		members, err := m.laterFamily(ctx, workspaceID, rootID, false)
-		if err != nil {
-			return nil, err
-		}
-		pending := make([]*Info, 0, len(members))
-		for _, member := range members {
-			if _, done := released[member.ID]; !done {
-				pending = append(pending, member)
-			}
-		}
-		if len(pending) == 0 {
-			return members, nil
-		}
-		if err := m.releaseLaterFamily(ctx, pending); err != nil {
-			return nil, err
-		}
-		for _, member := range pending {
-			released[member.ID] = struct{}{}
-		}
-		m.waitForAdmittedSpawns()
-	}
-	return nil, fmt.Errorf("%w: %s: the session tree kept growing", ErrSessionLaterStopFailed, rootID)
-}
-
-// waitForAdmittedSpawns returns once every spawn admitted so far has created its
-// child: Spawn holds spawnMu from admission to child creation.
-func (m *Manager) waitForAdmittedSpawns() {
-	m.spawnMu.Lock()
-	defer m.spawnMu.Unlock()
 }
 
 // releaseLaterFamily stops each live member and releases the resources that
@@ -260,30 +170,24 @@ func (m *Manager) stopLaterMember(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// parkLaterMember persists one parked row under the resume guard. A member
-// resumed after its stop is stopped once more before the park is retried.
+// parkLaterMember persists one parked row under the resume guard. It runs under
+// lifecycleMu, so it never stops a session itself: a member that came back to
+// life fails the move, which then undoes its own parks.
 func (m *Manager) parkLaterMember(
 	ctx context.Context,
 	laterStore store.SessionLaterStore,
 	park store.SessionLaterPark,
 ) (*Info, error) {
-	for attempt := 0; ; attempt++ {
-		stored, err := m.parkSessionWithResumeGuard(ctx, laterStore, park)
-		if err == nil {
-			info := sessionInfoFromCatalog(&stored)
-			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
-			return info, nil
-		}
-		if errors.Is(err, store.ErrSessionArchived) {
-			return nil, fmt.Errorf("%w: %s", ErrSessionArchived, park.SessionID)
-		}
-		if !errors.Is(err, store.ErrSessionLaterRequiresStopped) || attempt > 0 {
-			return nil, fmt.Errorf("%w: %s: %w", ErrSessionLaterStopFailed, park.SessionID, err)
-		}
-		if err := m.stopLaterMember(ctx, park.SessionID); err != nil {
-			return nil, err
-		}
+	stored, err := m.parkSessionWithResumeGuard(ctx, laterStore, park)
+	if errors.Is(err, store.ErrSessionArchived) {
+		return nil, fmt.Errorf("%w: %s", ErrSessionArchived, park.SessionID)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %w", ErrSessionLaterStopFailed, park.SessionID, err)
+	}
+	info := sessionInfoFromCatalog(&stored)
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	return info, nil
 }
 
 func (m *Manager) parkSessionWithResumeGuard(
@@ -319,6 +223,8 @@ func (m *Manager) ResumeFromLater(
 	if err != nil {
 		return nil, err
 	}
+	m.laterOpMu.Lock()
+	defer m.laterOpMu.Unlock()
 	members := []*Info{{ID: sessionID}}
 	if withChildren {
 		members, err = m.laterFamily(ctx, workspaceID, sessionID, true)
@@ -347,69 +253,4 @@ func (m *Manager) publishLaterCatalogUpsert(ctx context.Context, sessionID strin
 	}
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil
-}
-
-// laterFamily returns root followed by its hierarchy descendants in breadth
-// order. Forks and continues are siblings, not children, and daemon-internal
-// children stay out. parkedOnly keeps only parked descendants.
-func (m *Manager) laterFamily(
-	ctx context.Context,
-	workspaceID string,
-	rootID string,
-	parkedOnly bool,
-) ([]*Info, error) {
-	root, err := m.Status(ctx, rootID)
-	if err != nil {
-		return nil, err
-	}
-	members := []*Info{root}
-	visited := map[string]struct{}{rootID: {}}
-	queue := []string{rootID}
-	for len(queue) > 0 {
-		parentID := queue[0]
-		queue = queue[1:]
-		rows, err := m.sessionCatalog.ListSessions(ctx, store.SessionListQuery{
-			ReadScope:       store.ReadScope{AllProfiles: true},
-			WorkspaceID:     workspaceID,
-			ParentSessionID: parentID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("session: list children of %q: %w", parentID, err)
-		}
-		for i := range rows {
-			child := &rows[i]
-			id := strings.TrimSpace(child.ID)
-			if _, seen := visited[id]; seen || !laterFamilyChild(child, parentID) {
-				continue
-			}
-			visited[id] = struct{}{}
-			queue = append(queue, id)
-			if parkedOnly && child.LaterState() == nil {
-				continue
-			}
-			members = append(members, m.laterMemberInfo(ctx, child))
-		}
-	}
-	return members, nil
-}
-
-func laterFamilyChild(child *store.SessionInfo, parentID string) bool {
-	if child.ArchivedAt != nil || child.Lineage == nil {
-		return false
-	}
-	if store.HierarchyParentSessionID(child.Lineage) != parentID {
-		return false
-	}
-	return !IsInternalSpawnRole(child.Lineage.SpawnRole)
-}
-
-func (m *Manager) laterMemberInfo(ctx context.Context, row *store.SessionInfo) *Info {
-	if session, ok := m.Get(row.ID); ok {
-		return m.sessionInfoForRead(session)
-	}
-	info := sessionInfoFromCatalog(row)
-	if status, err := m.Status(ctx, row.ID); err == nil {
-		info = status
-	}
-	return info
 }
