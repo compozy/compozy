@@ -74,9 +74,7 @@ function GateFrame({ children, testId }: { children: ReactNode; testId: string }
     <main
       id="app-content"
       data-testid={testId}
-      // Focusable by script only, so the skip link lands focus here.
-      tabIndex={-1}
-      className="flex min-h-0 flex-1 items-center justify-center bg-canvas outline-none"
+      className="flex min-h-0 flex-1 items-center justify-center bg-canvas"
     >
       {children}
     </main>

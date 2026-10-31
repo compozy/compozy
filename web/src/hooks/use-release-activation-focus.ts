@@ -1,51 +1,60 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect } from "react";
+
+/** The native hand-off lands within a few milliseconds of the window's focus event. */
+const ACTIVATION_HANDOFF_MS = 100;
 
 /**
  * When the desktop window is shown again (⌘H and back, reopened from the Dock),
- * Chromium hands the page's first tabbable element initial focus as if it were
- * reached by keyboard — that is the skip link, which then pops up during plain
- * mouse use. Focus that lands on the link as the first move after the window
- * activates, before any key or pointer input, is that native hand-off: release
- * it back to the document. A link the user had focused before the window lost
- * focus is a restoration and stays.
+ * Chromium may hand initial focus to the page's first tabbable control as if it
+ * were reached by keyboard, so it paints a focus ring during plain mouse use.
+ * Focus that lands right after the window activates, before any key or pointer
+ * input, on a control other than the one focused when the window lost focus is
+ * that hand-off: release it back to the document. Restoring the control that
+ * held focus before the window deactivated is left alone.
  */
-export function useReleaseActivationFocus(linkRef: RefObject<HTMLAnchorElement | null>) {
+export function useReleaseActivationFocus(): void {
   useEffect(() => {
-    const link = linkRef.current;
-    if (!link) return;
     let activating = false;
-    let heldBeforeDeactivation = false;
+    let activationTimer: ReturnType<typeof setTimeout> | undefined;
+    let heldBeforeDeactivation: Element | null = null;
+    const settle = () => {
+      activating = false;
+      clearTimeout(activationTimer);
+    };
     // Focus events do not bubble, so these bubble-phase window listeners hear
     // only the window itself losing and regaining focus.
     const onWindowBlur = () => {
-      heldBeforeDeactivation = document.activeElement === link;
+      settle();
+      heldBeforeDeactivation = document.activeElement;
     };
     const onWindowFocus = () => {
       activating = true;
-    };
-    const onInput = () => {
-      activating = false;
+      clearTimeout(activationTimer);
+      activationTimer = setTimeout(settle, ACTIVATION_HANDOFF_MS);
     };
     const onFocusIn = (event: FocusEvent) => {
-      const handOff = activating && event.target === link && !heldBeforeDeactivation;
-      activating = false;
+      const target = event.target;
+      const handOff =
+        activating && target instanceof HTMLElement && target !== heldBeforeDeactivation;
+      settle();
       if (!handOff) return;
       // Settle the focus change first; blurring mid-dispatch can be dropped.
       queueMicrotask(() => {
-        if (document.activeElement === link) link.blur();
+        if (document.activeElement === target) target.blur();
       });
     };
     window.addEventListener("blur", onWindowBlur);
     window.addEventListener("focus", onWindowFocus);
-    document.addEventListener("keydown", onInput, true);
-    document.addEventListener("pointerdown", onInput, true);
+    document.addEventListener("keydown", settle, true);
+    document.addEventListener("pointerdown", settle, true);
     document.addEventListener("focusin", onFocusIn, true);
     return () => {
+      settle();
       window.removeEventListener("blur", onWindowBlur);
       window.removeEventListener("focus", onWindowFocus);
-      document.removeEventListener("keydown", onInput, true);
-      document.removeEventListener("pointerdown", onInput, true);
+      document.removeEventListener("keydown", settle, true);
+      document.removeEventListener("pointerdown", settle, true);
       document.removeEventListener("focusin", onFocusIn, true);
     };
-  }, [linkRef]);
+  }, []);
 }

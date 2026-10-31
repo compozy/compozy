@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   Link,
   Outlet,
@@ -15,6 +15,7 @@ import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync } from "@/systems/theme";
 
 export function RootComponent() {
+  useReleaseActivationFocus();
   return (
     <GatewayAccessBoundary>
       <div
@@ -22,30 +23,9 @@ export function RootComponent() {
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       >
         <FontAppearanceSync />
-        <SkipToContentLink />
         <Outlet />
       </div>
     </GatewayAccessBoundary>
-  );
-}
-
-/**
- * Keyboard bypass to the app's main region. It stays visually hidden until a
- * keyboard user reaches it, and then sits below the menubar so it never lands
- * under the macOS traffic lights or the menubar controls.
- */
-function SkipToContentLink() {
-  const linkRef = useRef<HTMLAnchorElement>(null);
-  useReleaseActivationFocus(linkRef);
-  return (
-    <a
-      ref={linkRef}
-      data-testid="skip-to-content"
-      href="#app-content"
-      className="sr-only fixed top-[calc(var(--height-menubar)+--spacing(2))] left-2 z-50 rounded-pill bg-primary text-form-label font-medium text-primary-foreground focus-visible:not-sr-only focus-visible:fixed focus-visible:px-3 focus-visible:py-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
-    >
-      Skip to content
-    </a>
   );
 }
 

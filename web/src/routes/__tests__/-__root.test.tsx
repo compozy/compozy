@@ -73,46 +73,44 @@ describe("RootComponent", () => {
     expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
   });
 
-  it("renders a skip-to-content link that targets the app-content main", () => {
+  it("releases the focus a reactivated window hands to a control before any input", async () => {
     renderRoot(<RootComponent />);
-    const link = screen.getByTestId("skip-to-content");
-    expect(link).toHaveAttribute("href", "#app-content");
-  });
-
-  it("keeps the skip link when the keyboard reaches it after the window activates", async () => {
-    renderRoot(<RootComponent />);
-    const link = screen.getByTestId("skip-to-content");
+    const control = document.createElement("button");
+    document.body.append(control);
 
     fireEvent.focus(window);
-    fireEvent.keyDown(document, { key: "Tab" });
-    await act(async () => link.focus());
+    await act(async () => control.focus());
 
-    expect(link).toHaveFocus();
-  });
-
-  it("releases the initial focus a reactivated window hands to the skip link", async () => {
-    renderRoot(<RootComponent />);
-    const link = screen.getByTestId("skip-to-content");
-
-    fireEvent.focus(window);
-    await act(async () => link.focus());
-
-    expect(link).not.toHaveFocus();
     expect(document.body).toHaveFocus();
+    control.remove();
   });
 
-  it("restores the skip link the user held before the window lost focus", async () => {
+  it("keeps focus the user moves after the window activates", async () => {
     renderRoot(<RootComponent />);
-    const link = screen.getByTestId("skip-to-content");
+    const control = document.createElement("button");
+    document.body.append(control);
+
+    fireEvent.focus(window);
     fireEvent.keyDown(document, { key: "Tab" });
-    act(() => link.focus());
+    await act(async () => control.focus());
+
+    expect(control).toHaveFocus();
+    control.remove();
+  });
+
+  it("keeps the control that held focus before the window deactivated", async () => {
+    renderRoot(<RootComponent />);
+    const control = document.createElement("button");
+    document.body.append(control);
+    await act(async () => control.focus());
 
     fireEvent.blur(window);
-    act(() => link.blur());
+    act(() => control.blur());
     fireEvent.focus(window);
-    await act(async () => link.focus());
+    await act(async () => control.focus());
 
-    expect(link).toHaveFocus();
+    expect(control).toHaveFocus();
+    control.remove();
   });
 
   it("renders a root-level not-found fallback with a clear path home", () => {
