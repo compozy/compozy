@@ -22,6 +22,10 @@ export interface MenubarUpdateIndicatorProps {
 
 const OFFER_CLASS = "rounded-pill bg-accent-tint px-3 text-accent hover:bg-accent-tint-strong";
 const FAILED_CLASS = "rounded-pill bg-danger-tint px-3 text-danger hover:opacity-90";
+// The running update is disabled so it cannot be clicked twice, but it is still
+// the offer pill mid-flight: keep the accent ink instead of Button's
+// `disabled:text-subtle`, which reads as grey on the accent tint.
+const UPDATING_CLASS = `${OFFER_CLASS} disabled:text-accent`;
 
 /**
  * The menubar's one-click update.
@@ -42,7 +46,7 @@ export function MenubarUpdateIndicator({
   if (state === "updating") {
     return (
       <Button
-        className={OFFER_CLASS}
+        className={UPDATING_CLASS}
         data-slot="os-menubar-update"
         data-state={state}
         data-testid="os-menubar-update"
