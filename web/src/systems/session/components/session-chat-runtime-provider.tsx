@@ -8,7 +8,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react";
 import { useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { SessionPromptDispatchPendingProvider } from "@/components/assistant-ui/session-prompt-dispatch-context";
 import {

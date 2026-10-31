@@ -1,12 +1,9 @@
 import { Profiler } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@compozy/ui";
-
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+import { toast, UIProvider } from "@compozy/ui";
 
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
@@ -14,6 +11,11 @@ import { SubagentComposerControl } from "../subagent-composer-control";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 // Suite: subagent presentational components.
 // Invariant: rendered copy, roles and controls of the card, hover card, divider, banner, chip,

@@ -1,6 +1,6 @@
 import { use, useEffect, useRef } from "react";
 import { useSelector } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 

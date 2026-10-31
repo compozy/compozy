@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { SessionWorkspaceSwitchRouteDecision } from "./-session-workspace-switch";
 import { createOsRouteSync } from "@/systems/os";

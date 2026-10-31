@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   Button,
@@ -9,6 +8,7 @@ import {
   ListingPage,
   Spinner,
   StatusDot,
+  toast,
   Tooltip,
   TooltipContent,
   TooltipTrigger,

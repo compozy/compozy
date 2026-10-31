@@ -97,7 +97,7 @@ export function FeedbackSection() {
               <Button
                 size="sm"
                 onClick={() =>
-                  toast("Toast fired", { description: "Sonner works out of the box." })
+                  toast.message("Toast fired", { description: "Sonner works out of the box." })
                 }
               >
                 Fire toast

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
 import { resolveAgentRuntimeValue } from "../lib/agent-effective-runtime";

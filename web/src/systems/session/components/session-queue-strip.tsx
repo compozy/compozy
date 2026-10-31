@@ -1,10 +1,9 @@
 import { Trash2 } from "lucide-react";
 import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { Button, Spinner } from "@compozy/ui";
+import { Button, Spinner, toast } from "@compozy/ui";
 
 import type { QueuedPrompt, QueuedPromptEditOutcome } from "../lib/queued-prompt";
 import { splitQuotedPrompt } from "../lib/session-terminal-quote-prompt";

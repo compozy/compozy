@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { automationEditIntentLogic } from "./automation-edit-intent-store";
 import {

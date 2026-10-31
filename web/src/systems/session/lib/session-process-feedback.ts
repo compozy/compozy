@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import type { SessionProcessResult } from "../adapters/session-processes-api";
 import {

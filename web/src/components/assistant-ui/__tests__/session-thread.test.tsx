@@ -29,8 +29,7 @@ import {
   type ElementNode,
 } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { toast } from "sonner";
-import { OverlayContainerContext } from "@compozy/ui";
+import { OverlayContainerContext, toast } from "@compozy/ui";
 
 import { useThinkingGuardElapsed } from "../hooks/use-thinking-guard-elapsed";
 import { useSessionComposerState } from "../hooks/use-session-composer-state";
@@ -93,13 +92,11 @@ import {
 } from "@/systems/terminal/parts";
 import { discardComposerDraftAttachments, resetSessionPromptRecovery } from "@/systems/session";
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-  },
-}));
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+  vi.spyOn(toast, "warning").mockReturnValue("toast");
+});
 
 // Spied so the composer suites can count document walks per editor update.
 vi.mock("../session-composer-cursor-snapshot", async importOriginal => {

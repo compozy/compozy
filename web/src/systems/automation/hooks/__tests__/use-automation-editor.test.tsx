@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AutomationApiError } from "../../adapters/automation-api";
@@ -22,9 +22,12 @@ vi.mock("../use-automation-actions", () => ({
   useUpdateAutomationTrigger: () => ({ mutateAsync: updateAutomationTriggerMock }),
 }));
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-
 import { useAutomationEditor } from "../use-automation-editor";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 function deferred<T>() {
   let resolve: (value: T) => void;

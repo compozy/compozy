@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 import type { SessionPayload } from "../types";
 import { sessionBatchFailureMessage, type SessionBatchResult } from "./session-batch";
 import { sessionIsInLater } from "./session-later";

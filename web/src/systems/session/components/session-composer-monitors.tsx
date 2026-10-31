@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { SessionApiError } from "../adapters/session-api-errors";
 import { useSessionMonitors } from "../hooks/use-session-monitors";

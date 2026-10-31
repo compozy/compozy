@@ -14,10 +14,10 @@ import {
   Pill,
   Spinner,
   Textarea,
+  toast,
 } from "@compozy/ui";
 import { Check, CircleAlert, CircleCheck, Copy, ExternalLink, Plug } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
 
 import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";
 

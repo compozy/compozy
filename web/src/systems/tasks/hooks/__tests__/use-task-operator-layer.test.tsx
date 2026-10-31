@@ -8,21 +8,19 @@ const hooks = vi.hoisted(() => ({
   setProfile: { isPending: false, mutateAsync: vi.fn() },
 }));
 
-vi.mock("sonner", () => ({
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-  },
-}));
-
 vi.mock("../use-task-profile", () => ({
   useDeleteTaskExecutionProfile: () => hooks.deleteProfile,
   useSetTaskExecutionProfile: () => hooks.setProfile,
 }));
 
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useTaskOperatorLayer } from "../use-task-operator-layer";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

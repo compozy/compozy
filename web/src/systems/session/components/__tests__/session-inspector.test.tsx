@@ -1,8 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TooltipProvider } from "@compozy/ui";
-import { toast } from "sonner";
+import { toast, TooltipProvider } from "@compozy/ui";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import { userEvent } from "@testing-library/user-event";
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -21,7 +20,10 @@ import {
   forkedSessionFixture,
 } from "../../mocks/derive-fixtures";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 

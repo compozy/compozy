@@ -2,7 +2,7 @@
 
 import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
-import { toast } from "sonner";
+import { toast } from "../sonner-toast";
 
 import type { CodeBlockThemeMode } from "../../lib/code-theme";
 import type { HighlightedCodeToken } from "../../lib/shiki-highlighter";

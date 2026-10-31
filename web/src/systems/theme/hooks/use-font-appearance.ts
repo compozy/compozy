@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useSettingsShell, useUpdateSettingsShell } from "@/systems/settings";
 

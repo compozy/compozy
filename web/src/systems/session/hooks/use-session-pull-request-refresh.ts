@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { refreshSessionPullRequest } from "../adapters/session-pull-request-api";
 import { pullRequestCauseText } from "../lib/pull-request-signal";

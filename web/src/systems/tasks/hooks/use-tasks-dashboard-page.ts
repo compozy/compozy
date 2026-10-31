@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { useTaskDashboard } from "./use-task-dashboard";
 import { schedulerBacklogScope, type ActiveTaskScopeFilter } from "../lib/workspace-scope";

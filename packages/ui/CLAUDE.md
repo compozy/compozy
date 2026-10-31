@@ -3,6 +3,7 @@
 `@compozy/ui` owns generic primitives for the web app and site. `src/index.ts` is the public inventory; colocated stories show supported use. Root `CLAUDE.md` owns delivery; `DESIGN.md` owns visual grammar.
 
 - Keep primitives free of domain imports, queries, SSE, product stores, and Compozy-specific prop defaults. Domain composites live in `web/src/systems/<domain>/components/` and compose these primitives.
+- Toasts come from `toast` in `@compozy/ui`; only `src/components/sonner.tsx` and `src/components/sonner-toast.ts` import `sonner`.
 - Consumers import from `@compozy/ui`, never package internals. Internal renames update all consumers together without compatibility re-exports.
 - Consumers do not keep a prefixed or restyled copy of a primitive that exists here; a near-miss extends the primitive with a variant, slot, or tone. Promoting a composite into this package migrates or domain-renames every existing callsite in the same change; dormant promoted code beside live local copies fails `compozy-ui-reuse/no-shadow-ui-primitive`.
 - A new exported behavior ships a colocated story and coverage in the nearest suitable `__tests__/` suite. Reuse existing coverage for re-exports or editorial changes; do not add file-existence tests.

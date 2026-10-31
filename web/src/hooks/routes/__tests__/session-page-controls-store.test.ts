@@ -1,9 +1,7 @@
 import { waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
-
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { SessionApiError, type SessionSendEnvelope } from "@/systems/session";
 import {
@@ -12,6 +10,11 @@ import {
   STOP_COMPLETION_NOTE_MS,
   stopVerdictFromResult,
 } from "../session-page-controls-store";
+
+beforeEach(() => {
+  vi.spyOn(toast, "error").mockReturnValue("toast");
+  vi.spyOn(toast, "success").mockReturnValue("toast");
+});
 
 const envelope: SessionSendEnvelope = {
   action: "queue",

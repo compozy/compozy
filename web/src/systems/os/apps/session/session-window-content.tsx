@@ -10,7 +10,7 @@ import {
   type SessionInspectorProps,
 } from "@/systems/session";
 import { lazy, Suspense, use, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import { ThreadContentRail } from "@/components/assistant-ui/session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/session-thread-content-rail-constants";

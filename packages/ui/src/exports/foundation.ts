@@ -128,7 +128,13 @@ export { createFilter } from "../components/reui/hooks/filter-helpers";
 export type { Filter, FilterFieldConfig, FilterFieldsConfig } from "../components/reui/filters";
 export { Textarea, type TextareaProps, type TextareaVariant } from "../components/textarea";
 export { Toaster, type ToasterProps } from "../components/sonner";
-export { toast } from "../components/sonner-toast";
+export {
+  toast,
+  type Toast,
+  type ToastAction,
+  type ToastId,
+  type ToastOptions,
+} from "../components/sonner-toast";
 export { DirectionProvider, useDirection } from "../components/direction";
 export { SymbolPicker, type SymbolPickerProps } from "../components/custom/symbol-picker";
 export { SpriteIcon, type SpriteIconProps } from "../components/custom/sprite-icon";

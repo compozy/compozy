@@ -1,6 +1,6 @@
 import { use } from "react";
 import { useSelector } from "@xstate/store-react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 import type { TerminalQuote } from "@/systems/terminal/parts";
 import { parseTerminalQuote } from "@/systems/terminal/parts";

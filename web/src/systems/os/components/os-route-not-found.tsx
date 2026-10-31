@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@compozy/ui";
 
 /**
  * Not-found posture on the desktop: the shell stays up (windows untouched);
@@ -7,7 +7,7 @@ import { toast } from "sonner";
  */
 export function OsRouteNotFound() {
   useEffect(() => {
-    toast("Page not found", {
+    toast.message("Page not found", {
       description: "That link doesn't open anything.",
     });
   }, []);
