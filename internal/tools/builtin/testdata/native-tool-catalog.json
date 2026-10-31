@@ -2844,7 +2844,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": true,
-    "input_schema_digest": "3ffb64034cc02d21a8e8de70c0844e904911a156156dcacab5e66a5b038069a5",
+    "input_schema_digest": "c476f8ce6b31988d9129f3451e1e729adb11069fd21a6354cc8b372a10f1c495",
     "output_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
     "required_capabilities": [
       "terminal.exec"

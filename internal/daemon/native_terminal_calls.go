@@ -54,8 +54,8 @@ func (n *daemonNativeTools) terminalOpen(
 		return toolspkg.ToolResult{}, err
 	}
 	handle, err := manager.Open(ctx, terminalpkg.OpenRequest{
-		WS: workspaceID, Cwd: input.Cwd, Shell: input.Shell, Title: input.Title,
-		Cols: input.Cols, Rows: input.Rows, Actor: actor,
+		WS: workspaceID, Worktree: strings.TrimSpace(input.Worktree), Cwd: input.Cwd,
+		Shell: input.Shell, Title: input.Title, Cols: input.Cols, Rows: input.Rows, Actor: actor,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)

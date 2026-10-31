@@ -18,8 +18,8 @@ func TestTerminalOpenAPISchemaContract(t *testing.T) {
 		t.Parallel()
 
 		want := frozenTerminalErrorCodes()
-		if len(want) != 28 {
-			t.Fatalf("frozen terminal error code count = %d, want 28", len(want))
+		if len(want) != 31 {
+			t.Fatalf("frozen terminal error code count = %d, want 31", len(want))
 		}
 		if got := contract.TerminalErrorCodeValues(); !slices.Equal(got, want) {
 			t.Fatalf("TerminalErrorCodeValues() = %v, want %v", got, want)
@@ -300,5 +300,8 @@ func frozenTerminalErrorCodes() []string {
 		"recording_unavailable",
 		"slow_consumer",
 		"journal_unavailable",
+		"worktree_not_found",
+		"worktree_not_ready",
+		"worktree_missing",
 	}
 }

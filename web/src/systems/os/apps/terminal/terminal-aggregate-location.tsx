@@ -16,7 +16,10 @@ import type { RoutingCoordinator } from "../../lib/routing-coordinator";
 import {
   defaultTerminalLauncherDestination,
   runningTerminals,
+  terminalLauncherCreateInput,
   terminalLauncherDestinations,
+  type TerminalLauncherDestination,
+  type TerminalLauncherWorktree,
 } from "../../lib/terminal-launcher-model";
 
 export interface TerminalAggregateLocationProps {
@@ -31,6 +34,8 @@ export interface TerminalAggregateLocationProps {
   /** The terminal this window was asked to show before it knew the terminal's project. */
   requestedId: string | null;
   workspaces: readonly { id: string; name: string; root_missing?: boolean }[];
+  /** Every project's managed worktrees; ready ones owned by `profile` become destinations. */
+  worktrees?: readonly TerminalLauncherWorktree[];
   /** The project a new terminal starts in unless the operator picks another. */
   rememberedWorkspaceId?: string | null;
   /** The profile a new terminal opens in. */
@@ -52,6 +57,7 @@ export function TerminalAggregateLocation({
   coordinator,
   requestedId,
   workspaces,
+  worktrees,
   rememberedWorkspaceId,
   profile,
   readOnly,
@@ -59,7 +65,7 @@ export function TerminalAggregateLocation({
 }: TerminalAggregateLocationProps) {
   const [creating, setCreating] = useState(false);
   const terminals = catalog.data ?? [];
-  const destinations = terminalLauncherDestinations(workspaces);
+  const destinations = terminalLauncherDestinations(workspaces, worktrees, profile);
   const defaultDestination = defaultTerminalLauncherDestination(
     destinations,
     rememberedWorkspaceId
@@ -82,10 +88,15 @@ export function TerminalAggregateLocation({
     if (requested) openBound(requested.id, requested.workspace_id);
   });
 
-  const startNew = (destination: string) => {
+  const startNew = (destination: TerminalLauncherDestination) => {
     if (!viewer || creating) return;
     setCreating(true);
-    void createTerminal(destination, {}, { profile }, viewer)
+    void createTerminal(
+      destination.workspaceId,
+      terminalLauncherCreateInput(destination),
+      { profile },
+      viewer
+    )
       .then(
         terminal => openBound(terminal.id, terminal.workspace_id),
         (error: unknown) =>

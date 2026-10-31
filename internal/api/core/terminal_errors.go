@@ -195,7 +195,8 @@ func terminalNonDomainStatus(err error) int {
 // TerminalDomainStatus returns the public status for every frozen terminal domain code.
 func TerminalDomainStatus(code terminalpkg.ErrorCode) (int, bool) {
 	switch code {
-	case terminalpkg.ErrorCodeNotFound, terminalpkg.ErrorCodeInputRequestNotFound:
+	case terminalpkg.ErrorCodeNotFound, terminalpkg.ErrorCodeInputRequestNotFound,
+		terminalpkg.ErrorCodeWorktreeNotFound:
 		return http.StatusNotFound, true
 	case terminalpkg.ErrorCodeProfileSelectionConflict:
 		return http.StatusBadRequest, true
@@ -217,7 +218,8 @@ func TerminalDomainStatus(code terminalpkg.ErrorCode) (int, bool) {
 		terminalpkg.ErrorCodeInputRequestSuperseded, terminalpkg.ErrorCodeInputRequestLimitReached,
 		terminalpkg.ErrorCodeInputRequestRequiresHidden,
 		terminalpkg.ErrorCodeRecordingAlreadyStarted, terminalpkg.ErrorCodeRecordingNotActive,
-		terminalpkg.ErrorCodeSlowConsumer:
+		terminalpkg.ErrorCodeSlowConsumer, terminalpkg.ErrorCodeWorktreeNotReady,
+		terminalpkg.ErrorCodeWorktreeMissing:
 		return http.StatusConflict, true
 	default:
 		return http.StatusInternalServerError, false

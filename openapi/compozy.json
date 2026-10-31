@@ -19604,7 +19604,10 @@
               "tool_unknown",
               "toolset_cycle",
               "toolset_unknown",
-              "visibility_denied"
+              "visibility_denied",
+              "worktree_missing",
+              "worktree_not_found",
+              "worktree_not_ready"
             ],
             "type": "string"
           }
@@ -37124,6 +37127,9 @@
           },
           "title": {
             "type": "string"
+          },
+          "worktree": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -38549,7 +38555,10 @@
                 "tool_unknown",
                 "toolset_cycle",
                 "toolset_unknown",
-                "visibility_denied"
+                "visibility_denied",
+                "worktree_missing",
+                "worktree_not_found",
+                "worktree_not_ready"
               ],
               "type": "string"
             },
@@ -38792,7 +38801,10 @@
                 "tool_unknown",
                 "toolset_cycle",
                 "toolset_unknown",
-                "visibility_denied"
+                "visibility_denied",
+                "worktree_missing",
+                "worktree_not_found",
+                "worktree_not_ready"
               ],
               "type": "string"
             },
@@ -39155,7 +39167,10 @@
                 "tool_unknown",
                 "toolset_cycle",
                 "toolset_unknown",
-                "visibility_denied"
+                "visibility_denied",
+                "worktree_missing",
+                "worktree_not_found",
+                "worktree_not_ready"
               ],
               "type": "string"
             },
@@ -39372,7 +39387,10 @@
                 "tool_unknown",
                 "toolset_cycle",
                 "toolset_unknown",
-                "visibility_denied"
+                "visibility_denied",
+                "worktree_missing",
+                "worktree_not_found",
+                "worktree_not_ready"
               ],
               "type": "string"
             },
@@ -39636,7 +39654,10 @@
                 "tool_unknown",
                 "toolset_cycle",
                 "toolset_unknown",
-                "visibility_denied"
+                "visibility_denied",
+                "worktree_missing",
+                "worktree_not_found",
+                "worktree_not_ready"
               ],
               "type": "string"
             },
@@ -92485,6 +92506,16 @@
             },
             "description": "Terminal operation forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Worktree not found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -92493,7 +92524,7 @@
                 }
               }
             },
-            "description": "Terminal limit reached"
+            "description": "Terminal limit reached or worktree unavailable"
           },
           "422": {
             "content": {

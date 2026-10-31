@@ -328,6 +328,7 @@ type TerminalCommandRowPayload struct {
 
 // TerminalCreateRequest is a daemon API value.
 type TerminalCreateRequest struct {
+	Worktree string `json:"worktree,omitempty"`
 	Cwd      string `json:"cwd,omitempty"`
 	Shell    string `json:"shell,omitempty"`
 	Cols     uint16 `json:"cols,omitzero"`

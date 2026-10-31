@@ -80,6 +80,7 @@ function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
         viewer={viewer}
         windowId={windowId}
         workspaces={workspace.workspaces}
+        worktrees={aggregate.worktrees}
       />
     );
   }

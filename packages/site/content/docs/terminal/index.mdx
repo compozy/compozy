@@ -14,8 +14,30 @@ agent runs inside its own provider session remain session activity and do not cr
 terminal journal rows.
 
 In the desktop, the dock's Terminal item opens a terminal for the project you are in. Under All
-projects it opens a short launcher instead: pick a project or User for a new terminal (the last
-project you used is already selected, so Enter opens it), or go back to a running terminal.
+projects it opens a short launcher instead: pick a project, one of its managed worktrees, or User
+for a new terminal (the last project you used is already selected, so Enter opens it), or go back
+to a running terminal. The launcher lists each project's ready worktrees owned by your profile
+under that project; a terminal opened from one starts in the worktree's checkout.
+
+## Open a terminal in a managed worktree
+
+A terminal can start in a ready managed worktree of its project instead of the project folder.
+Name the worktree by ID or name; the daemon resolves it, so callers never pass a worktree path:
+
+- CLI: `compozy terminal open --workspace my-project --worktree feature-login`
+- HTTP/UDS: `POST /api/workspaces/{workspace_id}/terminals` with `{"worktree": "wt-..."}`
+- Agents: `compozy__terminal_open` with `worktree`
+
+A relative `cwd` then resolves inside the worktree, and an absolute `cwd` must stay inside it. The
+worktree must belong to the same project and to the acting profile. A worktree from another
+project or profile fails with `worktree_not_found` (404), one still being created or removed fails
+with `worktree_not_ready` (409), and one that was removed or whose folder is gone fails with
+`worktree_missing` (409). Requests without `worktree` keep the project directory rules. User-scope
+terminals have no worktrees.
+
+While a terminal runs in a worktree, removing that worktree is refused with
+`worktree_operation_in_progress`. Close the terminal first; once it exits the worktree can be
+removed.
 
 ## Choose a path
 

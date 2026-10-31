@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -15,7 +13,6 @@ import (
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/toolruntime"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 const processCleanupTimeout = 5 * time.Second
@@ -24,20 +21,35 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if ctx == nil {
 		return nil, errors.New("terminal: open context is required")
 	}
-	cwd, workspaceID, err := m.resolveActorWorkspace(ctx, request.WS, request.Cwd, request.Actor)
+	cwd, workspaceID, releaseWorktree, err := m.resolveOpenWorkspace(
+		ctx, request.WS, strings.TrimSpace(request.Worktree), request.Cwd, request.Actor.ProfileID, &request.Actor,
+	)
 	if err != nil {
 		return nil, err
 	}
 	request.WS, request.Cwd = workspaceID, cwd
 	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
+		releaseWorktreeNow(releaseWorktree)
 		return nil, err
 	}
 	defer producer.Release()
-	return m.open(ctx, request, cwd, workspaceID)
+	return m.open(ctx, request, cwd, workspaceID, releaseWorktree)
 }
 
-func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceID string) (Handle, error) {
+func (m *Service) open(
+	ctx context.Context,
+	request OpenRequest,
+	cwd, workspaceID string,
+	releaseWorktree func(),
+) (Handle, error) {
+	// The launch owns the worktree lease once it starts; earlier failures release it here.
+	launched := false
+	defer func() {
+		if !launched {
+			releaseWorktreeNow(releaseWorktree)
+		}
+	}()
 	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
 		return nil, err
 	}
@@ -90,9 +102,10 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	titlePinned := strings.TrimSpace(request.Title) != ""
+	launched = true
 	item, key, err := m.launchTerminal(ctx, &terminalLaunch{
 		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: titlePinned,
-		startLabel: fmt.Sprintf("shell %q", shell),
+		startLabel: fmt.Sprintf("shell %q", shell), worktreeRelease: releaseWorktree,
 	})
 	if err != nil {
 		return nil, err
@@ -100,7 +113,9 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 	if err := m.startOpenedSession(ctx, item, request.Actor, settings.Recording); err != nil {
 		m.removeInserted(key, item)
 		item.cancel()
-		return nil, cleanupRegisteredProcess(ctx, item.proc, item.processRecord, err)
+		cleanupErr := cleanupRegisteredProcess(ctx, item.proc, item.processRecord, err)
+		m.releaseWorktreeAfterExit(item.proc, item.worktreeRelease)
+		return nil, cleanupErr
 	}
 	return item, nil
 }
@@ -258,144 +273,6 @@ func limitError(current, maximum int, ids []string) error {
 		Max:     maximum,
 		Err:     ErrLimitReached,
 	}
-}
-
-func (m *Service) resolveActorWorkspace(ctx context.Context, ws, cwd string, actor Actor) (string, string, error) {
-	return m.resolveOpenWorkspace(ctx, ws, cwd, actor.ProfileID, &actor)
-}
-
-func (m *Service) resolveOpenWorkspace(
-	ctx context.Context,
-	workspaceID string,
-	cwd string,
-	profileID string,
-	actor *Actor,
-	additionalRoots ...string,
-) (string, string, error) {
-	if strings.TrimSpace(workspaceID) == "" {
-		return "", "", &Error{
-			Code: ErrorCodeRequiresWorkspace, Message: "terminal operations require a workspace",
-			Err: ErrRequiresWorkspace,
-		}
-	}
-	if m.workspaces == nil {
-		if strings.TrimSpace(cwd) == "" {
-			cwd = "."
-		}
-		resolved, err := filepath.Abs(cwd)
-		return resolved, workspaceID, err
-	}
-	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
-	if errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) {
-		return "", "", &Error{
-			Code: ErrorCodeInvalidCwd,
-			Message: "this project's folder no longer exists; restore the folder or update the project location " +
-				"before opening a terminal",
-			Err: errors.Join(ErrInvalidCwd, err),
-		}
-	}
-	if err != nil {
-		return "", "", fmt.Errorf(
-			"terminal: resolve workspace %q: %w",
-			workspaceID,
-			err,
-		)
-	}
-	canonicalID := strings.TrimSpace(resolved.ID)
-	if canonicalID == "" && resolved.Scope != workspacepkg.ScopeUser {
-		return "", "", errors.New(
-			"terminal: resolved workspace registration is required",
-		)
-	}
-	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
-	if actor != nil && actor.Kind == ActorKindAgent && m.executionRoot != nil {
-		root, resolveErr := m.executionRoot(ctx, canonicalID, *actor)
-		if resolveErr != nil {
-			return "", "", resolveErr
-		}
-		if strings.TrimSpace(root) != "" {
-			resolved.RootDir = root
-			resolved.AdditionalDirs = nil
-		}
-	}
-	validCwd, err := resolveWorkspaceCwd(&resolved, cwd)
-	if err != nil {
-		return "", "", err
-	}
-	return validCwd, canonicalID, nil
-}
-
-func (m *Service) resolveWorkspace(
-	ctx context.Context,
-	workspaceID string,
-	profileID string,
-) (workspacepkg.ResolvedWorkspace, error) {
-	if workspacepkg.ParseRef(workspaceID).Kind == workspacepkg.RefUser || workspaceID == "" {
-		resolver, ok := m.workspaces.(workspacepkg.UserRuntimeResolver)
-		if !ok {
-			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrUserScopeUnsupported
-		}
-		return resolver.ResolveUser(ctx, profileID)
-	}
-	profileResolver, supportsProfiles := m.workspaces.(ProfileWorkspaceResolver)
-	if !supportsProfiles || m.profileNames == nil {
-		return m.workspaces.Resolve(ctx, workspaceID)
-	}
-	profileName, err := m.profileNames.ProfileName(ctx, profileID)
-	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("terminal: resolve profile name: %w", err)
-	}
-	if profileName == "" || profileName == "default" {
-		return m.workspaces.Resolve(ctx, workspaceID)
-	}
-	return profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
-}
-
-func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested string) (string, error) {
-	if workspace == nil {
-		return "", errors.New("terminal: resolved workspace is unavailable")
-	}
-	root := filepath.Clean(workspace.RootDir)
-	displayPath := requested
-	if requested == "" {
-		requested = root
-		displayPath = root
-	} else if !filepath.IsAbs(requested) {
-		requested = filepath.Join(root, requested)
-	}
-	resolved, err := filepath.EvalSymlinks(filepath.Clean(requested))
-	if err != nil {
-		return "", &Error{
-			Code:    ErrorCodeInvalidCwd,
-			Message: fmt.Sprintf("invalid terminal cwd %q: %v", displayPath, err),
-			Path:    displayPath,
-			Err:     ErrInvalidCwd,
-		}
-	}
-	allowed := append([]string{root}, workspace.AdditionalDirs...)
-	for _, candidate := range allowed {
-		candidateResolved, resolveErr := filepath.EvalSymlinks(filepath.Clean(candidate))
-		if resolveErr != nil {
-			continue
-		}
-		if pathWithin(candidateResolved, resolved) {
-			info, statErr := os.Stat(resolved)
-			if statErr == nil && info.IsDir() {
-				return resolved, nil
-			}
-		}
-	}
-	return "", &Error{
-		Code:    ErrorCodeInvalidCwd,
-		Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath),
-		Path:    displayPath,
-		Err:     ErrInvalidCwd,
-	}
-}
-
-func pathWithin(root, path string) bool {
-	relative, err := filepath.Rel(root, path)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func normalizedDimensions(cols, rows uint16) (uint16, uint16) {

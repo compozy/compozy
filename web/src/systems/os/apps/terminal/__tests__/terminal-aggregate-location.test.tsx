@@ -2,15 +2,31 @@
 // Invariant: the All projects Terminal window is the launcher — new-terminal destinations stay live
 // while the catalog loads, the remembered project is preselected so one Enter opens it, a project
 // whose folder is gone stays listed but unavailable, an all-profiles read offers no destination,
-// and only running terminals are listed.
+// only running terminals are listed, and only ready worktrees of the acting profile are offered,
+// each opening its terminal in that worktree.
 // Boundary IN: TerminalAggregateLocation's launcher states.
 // Boundary OUT: catalog streaming and window retargeting (use-terminal-window-controller-state.test.ts).
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { createTerminal } from "@/systems/terminal";
 import { TERMINAL_FIXTURES } from "@/systems/terminal/mocks/terminal-fixtures";
 
 import { TerminalAggregateLocation } from "../terminal-aggregate-location";
+
+vi.mock("@/systems/terminal", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/terminal")>()),
+  createTerminal: vi.fn(),
+}));
+
+const WORKTREE = {
+  id: "wt-feature",
+  workspace_id: "ws-atlas",
+  name: "feature-login",
+  branch: "feat/login",
+  state: "ready",
+  profile_name: "default",
+};
 
 const WORKSPACES = [
   { id: "ws-atlas", name: "atlas" },
@@ -137,5 +153,57 @@ describe("TerminalAggregateLocation", () => {
       if (terminal.state === "running") expect(row).toBeInTheDocument();
       else expect(row).not.toBeInTheDocument();
     }
+  });
+
+  it("Should offer only the acting profile's ready worktrees, each under its project", () => {
+    renderLocation({
+      worktrees: [
+        WORKTREE,
+        { ...WORKTREE, id: "wt-pending", name: "pending", state: "pending" },
+        { ...WORKTREE, id: "wt-other", name: "other-profile", profile_name: "work" },
+        { ...WORKTREE, id: "wt-gone", workspace_id: "ws-beacon", state: "removed" },
+      ],
+    });
+
+    const row = screen.getByTestId("terminal-launcher-new-ws-atlas/wt-feature");
+    expect(row).toHaveTextContent("feature-login");
+    expect(row).toHaveTextContent("atlas");
+    const rows = screen.getAllByTestId(/^terminal-launcher-new-/).map(item => item.dataset.testid);
+    expect(rows).toEqual([
+      "terminal-launcher-new-ws-atlas",
+      "terminal-launcher-new-ws-atlas/wt-feature",
+      "terminal-launcher-new-ws-beacon",
+      "terminal-launcher-new-@user",
+    ]);
+  });
+
+  it("Should leave out the worktrees of a project whose folder is gone", () => {
+    renderLocation({
+      workspaces: [{ ...WORKSPACES[0], root_missing: true }, WORKSPACES[1]],
+      worktrees: [WORKTREE],
+    });
+
+    expect(screen.queryByTestId("terminal-launcher-new-ws-atlas/wt-feature")).toBeNull();
+  });
+
+  it("Should open a worktree row's terminal in that worktree and bind the window to its project", async () => {
+    const terminal = { ...TERMINAL_FIXTURES[0], id: "term-wt", workspace_id: "ws-atlas" };
+    vi.mocked(createTerminal).mockResolvedValueOnce(terminal);
+    const { props } = renderLocation({ worktrees: [WORKTREE] });
+
+    fireEvent.click(screen.getByTestId("terminal-launcher-new-ws-atlas/wt-feature"));
+
+    expect(createTerminal).toHaveBeenCalledWith(
+      "ws-atlas",
+      { worktree: "wt-feature" },
+      { profile: "default" },
+      props.viewer
+    );
+    await waitFor(() =>
+      expect(props.coordinator.userRetarget).toHaveBeenCalledWith(
+        "win-1",
+        expect.objectContaining({ instanceKey: "term-wt" })
+      )
+    );
   });
 });

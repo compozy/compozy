@@ -108,6 +108,7 @@ func (s *session) finalize(exit Exit) {
 				At: s.manager.now(),
 			})
 		}
+		s.releaseWorktree()
 		close(s.done)
 		s.cancel()
 	})

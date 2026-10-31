@@ -61,6 +61,9 @@ const (
 	)
 	TerminalErrorSlowConsumer       TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeSlowConsumer)
 	TerminalErrorJournalUnavailable TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeJournalUnavailable)
+	TerminalErrorWorktreeNotFound   TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeWorktreeNotFound)
+	TerminalErrorWorktreeNotReady   TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeWorktreeNotReady)
+	TerminalErrorWorktreeMissing    TerminalErrorCode = TerminalErrorCode(terminalpkg.ErrorCodeWorktreeMissing)
 )
 
 // TerminalErrorCodeValues returns the frozen terminal error vocabulary in contract order.

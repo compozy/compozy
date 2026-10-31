@@ -13,12 +13,19 @@ import {
   type TerminalInfo,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
-import { ownerDataScope, useActiveWorkspace, useDataScope } from "@/systems/workspace";
+import {
+  ownerDataScope,
+  useActiveWorkspace,
+  useDataScope,
+  useWorktreeAggregate,
+} from "@/systems/workspace";
 
 import {
   defaultTerminalLauncherDestination,
   runningTerminals,
+  terminalLauncherCreateInput,
   terminalLauncherDestinations,
+  type TerminalLauncherDestination,
 } from "../lib/terminal-launcher-model";
 import { useDesktop } from "./use-desktop";
 import { useOpenTarget } from "./use-open-target";
@@ -61,15 +68,27 @@ export function useTerminalLauncher({
   const scope = terminalAggregateScope([], profile.destination, profile.aggregate);
   const catalog = useQuery({ ...terminalAggregateQuery(scope), enabled });
   useTerminalAggregateStream({ scope, enabled });
-  const destinations = terminalLauncherDestinations(workspace.workspaces);
+  // Every project's worktrees in one store read; the catalog stream keeps it fresh.
+  const worktrees = useWorktreeAggregate([], { enabled });
+  const destinations = terminalLauncherDestinations(
+    workspace.workspaces,
+    worktrees.data?.worktrees,
+    profile.destination
+  );
   const create = useMutation({
     mutationFn: ({
       destination,
       identity,
     }: {
-      destination: string;
+      destination: TerminalLauncherDestination;
       identity: TerminalViewerIdentity;
-    }) => createTerminal(destination, {}, { profile: profile.destination }, identity),
+    }) =>
+      createTerminal(
+        destination.workspaceId,
+        terminalLauncherCreateInput(destination),
+        { profile: profile.destination },
+        identity
+      ),
     onSuccess: async (terminal, { destination }) => {
       // The window that opens next reads its project's catalog; neither read may miss the new row.
       await Promise.all([
@@ -79,7 +98,7 @@ export function useTerminalLauncher({
         }),
         queryClient.invalidateQueries({
           queryKey: terminalKeys.catalog(
-            terminalScope(destination, profile.destination, profile.aggregate).key
+            terminalScope(destination.workspaceId, profile.destination, profile.aggregate).key
           ),
           exact: true,
         }),
@@ -101,7 +120,7 @@ export function useTerminalLauncher({
     readOnly: profile.aggregate,
     busy: create.isPending || viewer === null,
     runningError: catalog.error ? "Couldn't load running terminals." : null,
-    onOpenNew: (destination: string) => {
+    onOpenNew: (destination: TerminalLauncherDestination) => {
       if (viewer === null || create.isPending) return;
       create.mutate({ destination, identity: viewer });
     },

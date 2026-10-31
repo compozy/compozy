@@ -66,7 +66,7 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 		expected := map[string][]int{
 			"streamTerminalCatalog":      append([]int{200, 422}, common...),
 			"listTerminals":              append([]int{200, 422}, common...),
-			"createTerminal":             append([]int{201, 422}, common...),
+			"createTerminal":             append([]int{201, 404, 422}, common...),
 			"getTerminal":                append([]int{200, 404, 410}, common...),
 			"deleteTerminal":             append([]int{200, 404, 410}, common...),
 			"mintTerminalAttachTicket":   append([]int{201, 404, 422}, common...),

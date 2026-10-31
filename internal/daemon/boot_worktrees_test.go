@@ -1037,3 +1037,130 @@ func TestSessionPullRequestAdapters(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonTerminalWorktreeRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	cases := []struct {
+		name       string
+		workspace  string
+		profile    string
+		state      worktree.State
+		path       string
+		usageErr   error
+		wantCode   terminalpkg.ErrorCode
+		wantErr    error
+		wantStatus int
+	}{
+		{name: "ready", workspace: "ws-a", profile: "profile-a", state: worktree.StateReady, path: root},
+		{
+			name:       "foreign workspace",
+			workspace:  "ws-b",
+			profile:    "profile-a",
+			state:      worktree.StateReady,
+			path:       root,
+			wantCode:   terminalpkg.ErrorCodeWorktreeNotFound,
+			wantErr:    terminalpkg.ErrWorktreeNotFound,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "foreign profile",
+			workspace:  "ws-a",
+			profile:    "profile-b",
+			state:      worktree.StateReady,
+			path:       root,
+			wantCode:   terminalpkg.ErrorCodeWorktreeNotFound,
+			wantErr:    terminalpkg.ErrWorktreeNotFound,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "pending",
+			workspace:  "ws-a",
+			profile:    "profile-a",
+			state:      worktree.StatePending,
+			path:       root,
+			wantCode:   terminalpkg.ErrorCodeWorktreeNotReady,
+			wantErr:    terminalpkg.ErrWorktreeNotReady,
+			wantStatus: http.StatusConflict,
+		},
+		{
+			name:       "removed",
+			workspace:  "ws-a",
+			profile:    "profile-a",
+			state:      worktree.StateRemoved,
+			path:       root,
+			wantCode:   terminalpkg.ErrorCodeWorktreeMissing,
+			wantErr:    terminalpkg.ErrWorktreeMissing,
+			wantStatus: http.StatusConflict,
+		},
+		{name: "vanished folder", workspace: "ws-a", profile: "profile-a", state: worktree.StateReady,
+			path: filepath.Join(root, "gone"), wantCode: terminalpkg.ErrorCodeWorktreeMissing,
+			wantErr: terminalpkg.ErrWorktreeMissing, wantStatus: http.StatusConflict},
+		{name: "concurrently removed", workspace: "ws-a", profile: "profile-a", state: worktree.StateReady,
+			path: root, usageErr: worktree.ErrNotReady, wantCode: terminalpkg.ErrorCodeWorktreeNotReady,
+			wantErr: terminalpkg.ErrWorktreeNotReady, wantStatus: http.StatusConflict},
+	}
+	for _, tc := range cases {
+		t.Run("Should resolve or reject a "+tc.name+" worktree", func(t *testing.T) {
+			t.Parallel()
+			resolver := daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup {
+				return sessionWorktreeLookupFunc(func(_ context.Context, ws, ref string) (*worktree.Worktree, error) {
+					if ws != "ws-a" || ref != "wt-a" {
+						return nil, worktree.ErrNotFound
+					}
+					return &worktree.Worktree{
+						ID: ref, WorkspaceID: ws, ProfileID: "profile-a", Path: tc.path, State: tc.state,
+					}, nil
+				})
+			}}
+			usage := &fakeTerminalWorktreeUsage{err: tc.usageErr, item: &worktree.Worktree{
+				ID: "wt-a", WorkspaceID: "ws-a", ProfileID: "profile-a", Path: tc.path, State: tc.state,
+			}}
+			got, release, err := resolveTerminalWorktreeRoot(
+				t.Context(), resolver, usage, tc.workspace, tc.profile, "wt-a",
+			)
+			if tc.wantCode == "" {
+				if err != nil || got != root || release == nil {
+					t.Fatalf("ready root = %q, %v", got, err)
+				}
+				if usage.held != 1 {
+					t.Fatalf("usage leases held = %d, want 1 while the terminal runs", usage.held)
+				}
+				release()
+				if usage.held != 0 {
+					t.Fatalf("usage leases held after release = %d, want 0", usage.held)
+				}
+				return
+			}
+			if release != nil || usage.held != 0 {
+				t.Fatalf("refused worktree kept a usage lease (held=%d)", usage.held)
+			}
+			typed, ok := errors.AsType[*terminalpkg.Error](err)
+			if got != "" || !ok || typed.Code != tc.wantCode || !errors.Is(err, tc.wantErr) {
+				t.Fatalf("root=%q error=%#v, want %s", got, err, tc.wantCode)
+			}
+			if status, _, _ := core.TerminalErrorStatus(err); status != tc.wantStatus {
+				t.Fatalf("HTTP status = %d, want %d", status, tc.wantStatus)
+			}
+			nativeErr := terminalToolError(toolspkg.ToolIDTerminalOpen, err)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](nativeErr); !ok ||
+				toolErr.Code != toolspkg.ErrorCode(tc.wantCode) {
+				t.Fatalf("native error = %v, want %s", nativeErr, tc.wantCode)
+			}
+		})
+	}
+}
+
+type fakeTerminalWorktreeUsage struct {
+	item *worktree.Worktree
+	err  error
+	held int
+}
+
+func (f *fakeTerminalWorktreeUsage) AcquireUsage(context.Context, string, string) (*worktree.Worktree, func(), error) {
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	f.held++
+	return f.item, func() { f.held-- }, nil
+}

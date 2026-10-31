@@ -62,7 +62,8 @@ func terminalCreateOperation(transports []Transport, workspace ParameterSpec) Op
 		contract.TerminalCreateRequest{},
 		[]ResponseSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.TerminalResponse{}},
-			terminalErrorResponse(409, "Terminal limit reached"),
+			terminalErrorResponse(404, "Worktree not found"),
+			terminalErrorResponse(409, "Terminal limit reached or worktree unavailable"),
 			terminalErrorResponse(422, "Invalid terminal request"),
 			terminalErrorResponse(503, "Terminal service unavailable"),
 		},

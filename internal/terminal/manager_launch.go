@@ -16,6 +16,8 @@ type terminalLaunch struct {
 	nonce       string
 	titlePinned bool
 	startLabel  string
+	// worktreeRelease ends the worktree usage lease; the launch owns it once called.
+	worktreeRelease func()
 }
 
 // launchTerminal starts an owned terminal with workspace settings and actor-bound process identity.
@@ -25,6 +27,7 @@ func (m *Service) launchTerminal(
 ) (*session, terminalKey, error) {
 	release, err := m.prepareEnvironment(ctx, launch.info.WS, launch.origin, &launch.spec)
 	if err != nil {
+		releaseWorktreeNow(launch.worktreeRelease)
 		return nil, terminalKey{}, err
 	}
 	transferred := false
@@ -35,6 +38,7 @@ func (m *Service) launchTerminal(
 	}()
 	proc, err := m.pty.Start(ctx, launch.spec)
 	if err != nil {
+		releaseWorktreeNow(launch.worktreeRelease)
 		return nil, terminalKey{}, fmt.Errorf("terminal: start %s: %w", launch.startLabel, err)
 	}
 	if launch.origin.Kind == ActorKindAgent {
@@ -56,17 +60,22 @@ func (m *Service) launchTerminal(
 	)
 	processRecord, err := m.processRegistration(ctx, item, launch.spec)
 	if err != nil {
-		return nil, terminalKey{}, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
+		cleanupErr := cleanupUnregisteredProcess(ctx, proc)
+		m.releaseWorktreeAfterExit(proc, launch.worktreeRelease)
+		return nil, terminalKey{}, errors.Join(err, cleanupErr)
 	}
 	item.processRecord = processRecord
 	item.environmentRelease = release
+	item.worktreeRelease = launch.worktreeRelease
 	key := terminalKey{
 		workspaceID: launch.info.WS,
 		profileID:   launch.info.ProfileID,
 		id:          launch.info.ID,
 	}
 	if err := m.insert(key, item); err != nil {
-		return nil, terminalKey{}, cleanupRegisteredProcess(ctx, proc, processRecord, err)
+		cleanupErr := cleanupRegisteredProcess(ctx, proc, processRecord, err)
+		m.releaseWorktreeAfterExit(proc, launch.worktreeRelease)
+		return nil, terminalKey{}, cleanupErr
 	}
 	transferred = true
 	return item, key, nil

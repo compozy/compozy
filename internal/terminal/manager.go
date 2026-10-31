@@ -44,6 +44,7 @@ type Service struct {
 	pty             terminalpty.PTY
 	workspaces      WorkspaceResolver
 	executionRoot   ExecutionRootResolver
+	worktreeRoot    WorktreeRootResolver
 	profileNames    ProfileNameResolver
 	settings        SettingsProvider
 	environment     EnvironmentProvider

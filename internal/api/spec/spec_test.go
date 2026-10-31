@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
 )
@@ -3532,6 +3533,19 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			t.Fatal("approved session binding error: no historical tool error enums found")
 		}
 	}
+	// #1026: worktree terminal refusals extend the terminal vocabulary without changing existing codes.
+	for _, code := range []terminalpkg.ErrorCode{
+		terminalpkg.ErrorCodeWorktreeNotFound,
+		terminalpkg.ErrorCodeWorktreeNotReady,
+		terminalpkg.ErrorCodeWorktreeMissing,
+	} {
+		if addTerminalErrorCode(baseline, string(code)) == 0 {
+			t.Fatal("approved worktree terminal error: no historical terminal error enums found")
+		}
+	}
+	if addTerminalCreateWorktree(baseline) == 0 {
+		t.Fatal("approved worktree terminal create: no historical terminal create schemas found")
+	}
 	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
 	automationProperties := baseline
 	for _, key := range []string{
@@ -3972,6 +3986,53 @@ func addToolErrorCode(value any, code string) int {
 				continue
 			}
 			count += addToolErrorCode(child, code)
+		}
+	}
+	return count
+}
+
+// addTerminalErrorCode inserts code into every enum carrying the terminal
+// vocabulary, identified by its journal_unavailable member.
+func addTerminalErrorCode(value any, code string) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addTerminalErrorCode(child, code)
+		}
+	case map[string]any:
+		for key, child := range node {
+			if values, ok := child.([]any); ok &&
+				slices.Contains(values, any(string(terminalpkg.ErrorCodeJournalUnavailable))) {
+				if !slices.Contains(values, any(code)) {
+					node[key] = insertReasonCode(values, code)
+				}
+				count++
+				continue
+			}
+			count += addTerminalErrorCode(child, code)
+		}
+	}
+	return count
+}
+
+// addTerminalCreateWorktree adds the optional worktree reference to every
+// terminal create body, identified by its client_id and shell fields.
+func addTerminalCreateWorktree(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addTerminalCreateWorktree(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addTerminalCreateWorktree(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["client_id"] != nil && properties["shell"] != nil && properties["command"] == nil {
+			properties["worktree"] = map[string]any{"type": "string"}
+			count++
 		}
 	}
 	return count
