@@ -62,7 +62,8 @@ daemon stop returns to `ready` on boot without failing startup.
 Rollback removes the linked checkout and its Git admin entry first — including the locked,
 half-written checkout a killed `git worktree add` leaves — and deletes the branch only when the
 creation minted it and the checkout is gone; an incomplete rollback keeps the branch and says
-`rollback incomplete`. Isolated-lab walk on 2026-10-31 (30,000-file repo,
+`rollback incomplete`, and the next daemon start retries that rollback for the checkout and branch Git
+still attributes to the record, then keeps only the original cause. Isolated-lab walk on 2026-10-31 (30,000-file repo,
 `worktrees.checkout_timeout = "150ms"`): `create` returned `pending`; `inspect` showed `failed`,
 `pending_phase: checkout` and the `checkout exceeded worktrees.checkout_timeout` cause, with a
 "Creation Failure" section in text output; `git worktree list` listed only the main checkout, with
