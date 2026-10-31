@@ -1729,7 +1729,8 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 		}
 		markers := transcriptMarkersOfKind(t, h.manager, active.ID, transcript.MarkerRuntimeChanged)
 		if len(markers) != 1 || markers[0].Evidence["reasoning_effort"] != "medium" ||
-			markers[0].Evidence["previous_reasoning_effort"] != "xhigh" || markers[0].Evidence["during_turn"] != false ||
+			markers[0].Evidence["previous_reasoning_effort"] != "xhigh" ||
+			markers[0].Evidence["during_turn"] != false ||
 			markers[0].Evidence["live_apply"] != string(acp.RuntimeLiveApplyNextStep) {
 			t.Fatalf("runtime changed markers = %#v, want one idle xhigh->medium marker", markers)
 		}
@@ -1817,7 +1818,8 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			return nil
 		}
 		h, driver, active := newLiveRuntimeHarness(t, runtimeProviderClaude, hook)
-		if _, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "max"), 0); err != nil {
+		maxSelection := liveEffortSelection(active, "max")
+		if _, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, maxSelection, 0); err != nil {
 			t.Fatalf("SetRuntimeSelection(max) error = %v", err)
 		}
 		if !active.runtimeBindingSnapshot().configUnverified {
