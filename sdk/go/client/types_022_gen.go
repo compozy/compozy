@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// StrategyThreshold is a daemon API value.
+// StrategyThreshold preserves its custom JSON wire representation.
+type StrategyThreshold = json.RawMessage
+
 // StuckTaskRunPayload is a daemon API value.
 type StuckTaskRunPayload struct {
 	TaskID     string `json:"task_id"`
@@ -438,11 +442,4 @@ type TaskDashboardQueuePayload struct {
 // TaskDashboardResponse is a daemon API value.
 type TaskDashboardResponse struct {
 	Dashboard TaskDashboardPayload `json:"dashboard"`
-}
-
-// TaskDashboardStatusBreakdownPayload is a daemon API value.
-type TaskDashboardStatusBreakdownPayload struct {
-	Status       TaskStatus `json:"status"`
-	Count        int        `json:"count"`
-	SharePercent int        `json:"share_percent"`
 }

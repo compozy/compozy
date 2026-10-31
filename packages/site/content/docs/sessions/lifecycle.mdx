@@ -291,11 +291,11 @@ marker carry the new effective runtime.
 Workspace provider options report when an applied change reaches the agent as
 `runtime_live_apply`:
 
-| Value       | Meaning                                                                                       |
-| ----------- | --------------------------------------------------------------------------------------------- |
-| `next_step` | A running turn uses the change from the agent's next model step (Claude Agent Bridge).        |
-| `next_turn` | The agent stores the change and honors it from its next turn, which is the next message.     |
-| _absent_    | The provider applies runtime controls at launch (`launch_arg`, `provider_managed`).           |
+| Value       | Meaning                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| `next_step` | A running turn uses the change from the agent's next model step (Claude Agent Bridge).   |
+| `next_turn` | The agent stores the change and honors it from its next turn, which is the next message. |
+| _absent_    | The provider applies runtime controls at launch (`launch_arg`, `provider_managed`).      |
 
 A provider change, a launch-argument provider, or a session that is binding, recovering, or released
 keeps the selection for the next prompt, which binds or replaces the process before dispatch. If the

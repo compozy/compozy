@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerCommandPayload is a daemon API value.
+type SettingsWindowManagerCommandPayload struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Section string `json:"section"`
+	Source  string `json:"source"`
+}
+
 // SettingsWindowManagerConfigPayload is a daemon API value.
 type SettingsWindowManagerConfigPayload struct {
 	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
@@ -439,7 +447,3 @@ type StrategyKind string
 // StrategySpec is a daemon API value.
 // StrategySpec preserves its custom JSON wire representation.
 type StrategySpec = json.RawMessage
-
-// StrategyThreshold is a daemon API value.
-// StrategyThreshold preserves its custom JSON wire representation.
-type StrategyThreshold = json.RawMessage

@@ -4,6 +4,16 @@ package client
 
 import "time"
 
+// SettingsHooksResponse is a daemon API value.
+type SettingsHooksResponse struct {
+	Collection      SettingsCollectionName     `json:"collection"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Hooks           []SettingsHookItemPayload  `json:"hooks"`
+}
+
 // SettingsInstalledExtensionPaletteCommandPayload is a daemon API value.
 type SettingsInstalledExtensionPaletteCommandPayload struct {
 	ID             string   `json:"id"`
@@ -436,9 +446,4 @@ type SettingsProviderUsageResponse struct {
 	Scope             SettingsUserScopeKind        `json:"scope"`
 	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
 	Config            SettingsProviderUsagePayload `json:"config"`
-}
-
-// SettingsProviderUsageUpdateRequest is a daemon API value.
-type SettingsProviderUsageUpdateRequest struct {
-	Config SettingsProviderUsagePayload `json:"config"`
 }
