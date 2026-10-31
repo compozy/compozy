@@ -1302,7 +1302,8 @@ func TestSessionListAttentionFiltersAndSummary(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		if seen.State != "" || !seen.HideChildren || !slices.Equal(seen.Columns, []string{"waiting", "in_review", "done"}) {
+		if seen.State != "" || !seen.HideChildren ||
+			!slices.Equal(seen.Columns, []string{"waiting", "in_review", "done"}) {
 			t.Fatalf("query = %#v", seen)
 		}
 		values := sessionListValues(seen)
