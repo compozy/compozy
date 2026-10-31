@@ -17,7 +17,7 @@ React SPA using Vite, TanStack Router/Query, Tailwind, shadcn/ui, XState Store, 
 - `tokens.css` and `DESIGN.md` own visual grammar: flat content surfaces; tokenized glass/blur/window shadows only for OS-shell chrome. Fonts, signal colors, and spacing come from tokens.
 - Structural micro-labels use `Eyebrow` or the `eyebrow` utility; uppercase is opt-in through `variant="caps"`. Preserve the canonical token contract instead of reconstructing it with utility tuples.
 - `COPY.md` owns labels and public wording; runtime truth owns available controls, metrics, and states. Named prototypes constrain visual language; actual content, primitives, and host chrome keep their production owners.
-- Prototype new UI in the gallery (`bun run proto dev`): `<slug>.proto.tsx` beside its view renders components only; free markup goes in `src/drafts/<slug>/`. Fixtures live in the system's `mocks/`, shared with stories. A view that reaches the network layer gets a pure view split from its container. Contract: `docs/design/prototyping.md`.
+- Prototype new UI in the `@compozy/proto` gallery (`bun run proto dev`, config `proto.config.ts`, providers `proto.canvas.tsx`): `<slug>.proto.tsx` beside its view renders components only; free markup goes in `src/drafts/<slug>/`. Fixtures live in the system's `mocks/`, shared with stories. A view that reaches the network layer gets a pure view split from its container; `bun run proto check` must report 0 problems. Contract: `docs/design/prototyping.md`.
 
 ## Focused References
 

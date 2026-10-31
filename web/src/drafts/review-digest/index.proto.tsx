@@ -7,7 +7,7 @@ import { CheckIcon, GitPullRequestIcon, XIcon } from "lucide-react";
 
 import { Button, Card, CardContent, Eyebrow, Pill } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "#gallery/contract";
+import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 export const meta = definePrototype({
   title: "Review digest",

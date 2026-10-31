@@ -194,8 +194,8 @@ describe("compozy-ui-reuse lint plugin", () => {
       expect(reports[0].data).toEqual({ name: "ActionResultBanner" });
     });
 
-    it("Should treat the prototype gallery harness as a consumer surface", () => {
-      const reports = runRule("/repo/web/gallery/shell/toolbar.tsx", visitor => {
+    it("Should treat the prototype canvas as a consumer surface", () => {
+      const reports = runRule("/repo/web/proto.canvas.tsx", visitor => {
         visitor.FunctionDeclaration(functionDeclaration("Pill"));
       });
       expect(reports).toHaveLength(1);

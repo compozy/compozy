@@ -13,7 +13,7 @@
     "ignorePatterns": [
         "**/node_modules/**",
         "**/dist/**",
-        "web/dist-gallery/**",
+        "web/dist-proto/**",
         "**/bin/**",
         "**/.turbo/**",
         "**/.tmp/**",

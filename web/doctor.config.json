@@ -5,10 +5,6 @@
             {
                 "files": ["src/**/*.proto.tsx"],
                 "rules": ["react-doctor/only-export-components"]
-            },
-            {
-                "files": ["gallery/shell/frame.tsx"],
-                "rules": ["react-doctor/iframe-missing-sandbox"]
             }
         ]
     }

@@ -1,6 +1,6 @@
 import { PageContent } from "@compozy/ui";
 
-import { definePrototype, type PrototypeProps } from "#gallery/contract";
+import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
 import {
   SESSIONS_BOARD_ARCHIVED,
