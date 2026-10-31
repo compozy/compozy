@@ -83,8 +83,10 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Desktop pager, the first control of the trailing tray (shell wiring). */
   pager?: React.ReactNode;
   /**
-   * Provider usage control, right after All desktops (shell wiring). Absent —
-   * not disabled — while the feature is off or the profile has no target.
+   * Provider usage control, right before the bell (shell wiring). Absent — not
+   * disabled — while the feature is off or the profile has no target; while the
+   * first usage read is pending the shell passes it in its loading shape so the
+   * slot is held and the answer moves nothing.
    * Receives the tray icon-button footprint so the control matches its
    * neighbours without restating it.
    */
@@ -309,14 +311,6 @@ export function OsMenuBar({
           data-slot="os-menubar-tray"
           className={cn("flex min-w-0 items-center gap-0.5", WINDOW_NO_DRAG)}
         >
-          {/* The usage tray leads the cluster: it is known only once the usage read answers, and
-              the cluster is right-aligned, so arriving (or leaving) at its leading edge takes the
-              spacer's room instead of moving the controls already on screen. */}
-          {usageControl ? (
-            <div data-slot="os-menubar-usage" className="contents">
-              {usageControl(cn(INTERACTIVE, ICON_BUTTON))}
-            </div>
-          ) : null}
           {pager}
           <ControlTooltip label="All desktops">
             <Control
@@ -335,6 +329,11 @@ export function OsMenuBar({
           {scopeNotice}
           {status}
           {updateIndicator}
+          {usageControl ? (
+            <div data-slot="os-menubar-usage" className="contents">
+              {usageControl(cn(INTERACTIVE, ICON_BUTTON))}
+            </div>
+          ) : null}
           <Control
             data-slot="os-menubar-bell"
             aria-label={notifications ? `Attention, ${notifications} waiting` : "Attention"}

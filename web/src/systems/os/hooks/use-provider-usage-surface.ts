@@ -17,9 +17,11 @@ export interface ProviderUsageSurfaceModel extends ProviderUsageHost {
   profile: string;
   usage: ProviderUsageState;
   /**
-   * The tray control is mounted only while the profile has a target. The app route reads the
-   * usage envelope before the shell renders (`preloadAppRoute`), so the control lands with the
-   * shell instead of appearing or vanishing beside the menubar controls next to it.
+   * The tray control is mounted while the profile has a target, and while the profile's first
+   * usage read is still unanswered: the control then holds its slot with the meter's unmeasured
+   * shape, so the answer lands without moving the tray controls beside it. The app route warms
+   * the read before the shell renders (`preloadAppRoute`), so a cold slot is rare; only a first
+   * answer with no target releases it.
    */
   trayVisible: boolean;
   actions: ProviderUsageActions;
@@ -52,7 +54,8 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
     ...host,
     profile,
     usage,
-    trayVisible: hasProviderUsageTargets(usage.viewModel),
+    trayVisible:
+      hasProviderUsageTargets(usage.viewModel) || (profile.trim() !== "" && usage.loading),
     actions,
     openRefresh,
     openUsage: launcher.openUsage,
