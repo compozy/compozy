@@ -543,7 +543,7 @@ turn cancellation. Check `runtime.effective` and the `transcript_marker.runtime_
 workspace provider option's `runtime_live_apply` says whether a running turn honors it at the agent's
 `next_step` or from the `next_turn`. Provider changes and launch-argument providers apply at the next
 prompt. A refused live change sets `runtime.failure`, keeps the stored selection, and the next prompt
-retries it. `session runtime clear` returns resolution to the effective/agent default.
+retries it; if the provider rollback also failed, the next prompt reconfigures before dispatch. `session runtime clear` returns resolution to the effective/agent default.
 Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
 `--expected-revision` to let the CLI read the current value, or pass it for an explicitly fenced write.
 

@@ -56,10 +56,10 @@ func ackPromptPumpRuntimeEvent(loop *promptPumpLoopState, normalized acp.AgentEv
 func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.AgentEvent) acp.AgentEvent {
 	normalized := event
 	normalized = normalized.WithGoalPromptMeta(event.GoalPromptMeta())
-	normalized = promptRuntimeFallbackForEvent(session, normalized)
 	if strings.TrimSpace(normalized.TurnID) == "" {
 		normalized.TurnID = turnID
 	}
+	normalized = promptRuntimeFallbackForEvent(session, normalized)
 	if normalized.Timestamp.IsZero() {
 		normalized.Timestamp = m.now()
 	}
@@ -80,7 +80,7 @@ func promptRuntimeFallbackForEvent(session *Session, event acp.AgentEvent) acp.A
 	if session == nil || event.PromptRuntimeSnapshot() != nil {
 		return event
 	}
-	return event.WithPromptRuntime(promptRuntimeFromSelection(session.Info().EffectiveRuntime()))
+	return event.WithPromptRuntime(promptRuntimeFromSelection(session.promptRuntimeForEventTurn(event.TurnID)))
 }
 
 func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.AgentEvent) error {

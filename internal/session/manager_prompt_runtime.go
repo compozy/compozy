@@ -109,6 +109,10 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 	if snapshot.process == nil || snapshot.runtimeStrategy != acp.RuntimeApplicationSessionConfig {
 		return false
 	}
+	// A failed live rollback left the provider config unconfirmed, including the model.
+	if snapshot.configUnverified {
+		return true
+	}
 	caps, selection := snapshot.process.CapsSnapshot(), snapshot.selection
 	if selection.ReasoningEffort != "" {
 		if option, ok := acp.ReasoningConfigOption(caps.ConfigOptions); !ok ||

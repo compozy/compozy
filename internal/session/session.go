@@ -177,55 +177,61 @@ type Session struct {
 	// runtimeFailureFromLiveApply marks RuntimeFailure as a refused live selection apply,
 	// which a newer saved selection supersedes. Protected by mu.
 	runtimeFailureFromLiveApply bool
-	RuntimeGeneration           int64
-	RuntimeRecovery             *store.SessionRuntimeRecovery
-	SelectedRuntime             *RuntimeSelection
-	RuntimeSelectionRevision    int64
-	EffectiveWorkspaceAccess    string
-	EffectivePermissions        string
-	effectiveProviderAuthMode   compozyconfig.ProviderAuthMode
-	providerHomePolicy          compozyconfig.ProviderHomePolicy
-	WorkspaceID                 string
-	Workspace                   string
-	WorktreeID                  string
-	CWD                         string
-	Type                        Type
-	Lineage                     *store.SessionLineage
-	State                       State
-	stopCause                   StopCause
-	stopEscalated               bool
-	stopVerificationFailed      bool
-	stopReason                  store.StopReason
-	stopDetail                  string
-	failure                     *store.SessionFailure
-	ACPSessionID                string
-	ACPCaps                     acp.Caps
-	ACPCapsKnown                bool
-	AdvertisedCommands          []store.SessionAdvertisedCommand
-	Liveness                    *store.SessionLivenessMeta
-	SoulSnapshotID              string
-	SoulDigest                  string
-	ParentSoulDigest            string
-	AttachedTo                  string
-	AttachExpiresAt             *time.Time
-	TranscriptEpoch             int64
-	PendingPermissionCount      int
-	PendingClarifyCount         int
-	AttentionRevision           int64
-	LastSettledRevision         int64
-	LastSeenRevision            int64
-	LastSeenAt                  *time.Time
-	AttentionChangedAt          *time.Time
-	EndedEarlyTurnID            string
-	PendingInteractions         []store.PendingInteraction
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
-	creationProfile             *store.SessionCreationProfile
-	creationOptions             *store.SessionCreationOptions
-	creationIdentity            *store.SessionCreationIdentity
-	providerRoute               compozyconfig.ResolvedAgent
-	acceptedRoute               *store.SessionAcceptedRoute
-	restartBoundary             *store.SessionRestartCheckpoint
+	// runtimeConfigUnverified marks a failed live rollback: the provider config may differ
+	// from the effective selection until a configure or replacement succeeds. Protected by mu.
+	runtimeConfigUnverified bool
+	// liveTurnRuntime holds the runtime a running turn still uses after a live change its
+	// provider honors only from the next turn. Protected by mu.
+	liveTurnRuntime           *liveTurnRuntime
+	RuntimeGeneration         int64
+	RuntimeRecovery           *store.SessionRuntimeRecovery
+	SelectedRuntime           *RuntimeSelection
+	RuntimeSelectionRevision  int64
+	EffectiveWorkspaceAccess  string
+	EffectivePermissions      string
+	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
+	providerHomePolicy        compozyconfig.ProviderHomePolicy
+	WorkspaceID               string
+	Workspace                 string
+	WorktreeID                string
+	CWD                       string
+	Type                      Type
+	Lineage                   *store.SessionLineage
+	State                     State
+	stopCause                 StopCause
+	stopEscalated             bool
+	stopVerificationFailed    bool
+	stopReason                store.StopReason
+	stopDetail                string
+	failure                   *store.SessionFailure
+	ACPSessionID              string
+	ACPCaps                   acp.Caps
+	ACPCapsKnown              bool
+	AdvertisedCommands        []store.SessionAdvertisedCommand
+	Liveness                  *store.SessionLivenessMeta
+	SoulSnapshotID            string
+	SoulDigest                string
+	ParentSoulDigest          string
+	AttachedTo                string
+	AttachExpiresAt           *time.Time
+	TranscriptEpoch           int64
+	PendingPermissionCount    int
+	PendingClarifyCount       int
+	AttentionRevision         int64
+	LastSettledRevision       int64
+	LastSeenRevision          int64
+	LastSeenAt                *time.Time
+	AttentionChangedAt        *time.Time
+	EndedEarlyTurnID          string
+	PendingInteractions       []store.PendingInteraction
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+	creationProfile           *store.SessionCreationProfile
+	creationOptions           *store.SessionCreationOptions
+	creationIdentity          *store.SessionCreationIdentity
+	providerRoute             compozyconfig.ResolvedAgent
+	acceptedRoute             *store.SessionAcceptedRoute
+	restartBoundary           *store.SessionRestartCheckpoint
 	// derivation and importedContext exist only on continued or forked children.
 	derivation          *store.SessionDerivation
 	importedContext     *store.SessionImportedContext

@@ -8,6 +8,7 @@ import {
 } from "../stores/session-prompt-runtime-store";
 import {
   SessionPromptRuntimeContext,
+  SessionPromptRuntimeActivityContext,
   SessionPromptRuntimeCapabilitiesContext,
 } from "./session-prompt-runtime-context-value";
 
@@ -152,7 +153,9 @@ export function SessionPromptRuntimeProvider({
   return (
     <SessionPromptRuntimeContext value={store}>
       <SessionPromptRuntimeCapabilitiesContext value={session.runtime}>
-        {children}
+        <SessionPromptRuntimeActivityContext value={session.badge}>
+          {children}
+        </SessionPromptRuntimeActivityContext>
       </SessionPromptRuntimeCapabilitiesContext>
     </SessionPromptRuntimeContext>
   );

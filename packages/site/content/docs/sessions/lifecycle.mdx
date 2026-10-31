@@ -285,8 +285,9 @@ options) is sent to the live process immediately with ACP `session/set_config_op
 while a turn is running. The running turn is never replaced or canceled and `runtime.status` stays
 `ready`; `runtime.effective` and `runtime.transition: "live_configuration"` report the applied
 values, and a durable `transcript_marker.runtime_changed` event records the previous and new values,
-whether a turn was running, and the provider's live-apply semantics. Events recorded after the
-marker carry the new effective runtime.
+whether a turn was running, and the provider's live-apply semantics. With a `next_step` provider,
+events recorded after the marker carry the new runtime; with a `next_turn` provider, the rest of the
+running turn keeps the runtime it started with, and the next turn uses the new one.
 
 Workspace provider options report when an applied change reaches the agent as
 `runtime_live_apply`:
@@ -301,7 +302,8 @@ A provider change, a launch-argument provider, or a session that is binding, rec
 keeps the selection for the next prompt, which binds or replaces the process before dispatch. If the
 provider refuses a live change, CompozyOS rolls the process back, records the reason in
 `runtime.failure`, keeps the stored selection, and leaves the turn running; the next prompt retries
-the selection.
+the selection. A newer saved selection replaces that failure. If the rollback also fails, the next
+prompt reconfigures the provider before it dispatches, even when the selection already matches.
 
 Runtime fields resolve from provider/project and agent defaults, then durable
 `selected`, then the prompt snapshot. Each higher layer replaces only the fields or option IDs it sets.

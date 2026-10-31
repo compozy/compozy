@@ -1,0 +1,115 @@
+package session
+
+import (
+	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/acp"
+)
+
+// liveTurnRuntime is the runtime a running turn keeps for event attribution.
+type liveTurnRuntime struct {
+	turnID    string
+	selection RuntimeSelection
+}
+
+// commitLiveRuntimeSelection records a configured selection on the still-bound process.
+// It leaves runtime status, generation, and liveness untouched so a live turn's
+// supervision and health are not disturbed. A non-nil runningTurn keeps the running
+// turn's events attributed to that runtime when the provider honors the change only
+// from its next turn.
+func (s *Session) commitLiveRuntimeSelection(
+	proc *AgentProcess,
+	selection RuntimeSelection,
+	runningTurn *RuntimeSelection,
+	now time.Time,
+) bool {
+	if s == nil || proc == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != proc {
+		return false
+	}
+	turnID := strings.TrimSpace(s.currentTurnID)
+	if runningTurn != nil && turnID != "" && (s.liveTurnRuntime == nil || s.liveTurnRuntime.turnID != turnID) {
+		held := *runningTurn
+		held.ACPOptions = acp.CloneSessionConfigOptionSelections(runningTurn.ACPOptions)
+		s.liveTurnRuntime = &liveTurnRuntime{turnID: turnID, selection: held}
+	}
+	s.Provider = strings.TrimSpace(selection.Provider)
+	s.Model = strings.TrimSpace(selection.Model)
+	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)
+	s.Speed = selection.Speed
+	s.ACPOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
+	s.RuntimeTransition = RuntimeTransitionLiveConfiguration
+	s.RuntimeFailure = ""
+	s.runtimeFailureFromLiveApply = false
+	s.runtimeConfigUnverified = false
+	s.refreshLiveProcessCapsLocked(proc, s.Model == "", now)
+	return true
+}
+
+// recordLiveRuntimeFailure surfaces a refused live apply without unbinding the process.
+// A failure is recorded only while the selection revision it applied is still current:
+// a newer saved selection supersedes it. unverified marks a failed rollback, which
+// requires a successful configure or replacement before the next dispatch.
+func (s *Session) recordLiveRuntimeFailure(
+	proc *AgentProcess,
+	revision int64,
+	failure string,
+	unverified bool,
+	now time.Time,
+) bool {
+	if s == nil || proc == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.process != proc {
+		return false
+	}
+	if unverified {
+		s.runtimeConfigUnverified = true
+	}
+	if s.RuntimeSelectionRevision == revision {
+		s.RuntimeFailure = strings.TrimSpace(failure)
+		s.runtimeFailureFromLiveApply = true
+	}
+	s.refreshLiveProcessCapsLocked(proc, false, now)
+	return true
+}
+
+// selectedRuntimeWithRevision reads the stored selection and its revision together.
+func (s *Session) selectedRuntimeWithRevision() (*RuntimeSelection, int64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneRuntimeSelection(s.SelectedRuntime), s.RuntimeSelectionRevision
+}
+
+// promptRuntimeForEventTurn attributes an event to the runtime its turn actually used.
+func (s *Session) promptRuntimeForEventTurn(turnID string) RuntimeSelection {
+	s.mu.RLock()
+	held := s.liveTurnRuntime
+	s.mu.RUnlock()
+	if held != nil && strings.TrimSpace(turnID) != "" && held.turnID == strings.TrimSpace(turnID) {
+		selection := held.selection
+		selection.ACPOptions = acp.CloneSessionConfigOptionSelections(held.selection.ACPOptions)
+		return selection
+	}
+	return s.Info().EffectiveRuntime()
+}
+
+func (s *Session) refreshLiveProcessCapsLocked(proc *AgentProcess, adoptCurrentModel bool, now time.Time) {
+	caps := proc.CapsSnapshot()
+	s.ACPCaps = cloneCaps(caps)
+	s.ACPCapsKnown = true
+	s.SpeedResolution = s.speedResolutionForCapsLocked(caps)
+	if currentModel := currentACPModel(caps.ConfigOptions); adoptCurrentModel && currentModel != "" {
+		s.Model = currentModel
+	}
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
+}
