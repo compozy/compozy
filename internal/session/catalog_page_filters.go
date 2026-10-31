@@ -176,7 +176,7 @@ func isPublicSessionCatalogInfo(info *Info) bool {
 }
 
 func sessionMatchesLineageFilters(info *Info, query ListQuery) bool {
-	if query.HideChildren && info.Lineage != nil && strings.TrimSpace(info.Lineage.ParentSessionID) != "" {
+	if query.HideChildren && store.HierarchyParentSessionID(info.Lineage) != "" {
 		return false
 	}
 	isSubagent := info.Lineage != nil && info.Lineage.SpawnRole == store.SubagentSpawnRole

@@ -9,6 +9,7 @@ import type { PillTone, StateGlyphState } from "@compozy/ui";
 import { pullRequestPill, pullRequestShape, type PullRequestShape } from "./pull-request-signal";
 import type { SessionBoardColumnId, SessionBoardPayload } from "./session-board-contract";
 import { sessionBadgeSignal } from "./session-badge";
+import { SESSION_ORIGIN_VERB, sessionOriginKind, type SessionOriginKind } from "./session-origin";
 import { pendingPermissionCount } from "./session-pending-interactions";
 
 export interface SessionBoardCardStatus {
@@ -32,6 +33,17 @@ export interface SessionBoardCardRollup {
   needsYou: boolean;
   /** Per-column counts for the tooltip, in board order. */
   breakdown: { label: string; count: number }[];
+}
+
+/**
+ * The card's lineage line. A child names its parent; a fork or continuation is a
+ * top-level session, so it names its source as provenance instead.
+ */
+export interface SessionBoardCardLineage {
+  kind: "child" | SessionOriginKind;
+  /** `Child of` / `Forked from` / `Continued from`, ahead of the title in the card's name. */
+  verb: string;
+  title: string;
 }
 
 export interface SessionBoardCardWaiting {
@@ -98,6 +110,16 @@ export function sessionBoardCardRollup(
       { label: "Done", count: children.done },
     ],
   };
+}
+
+export function sessionBoardCardLineage(
+  session: SessionBoardPayload
+): SessionBoardCardLineage | null {
+  const title = session.parent_title?.trim();
+  if (!title) return null;
+  const origin = sessionOriginKind(session);
+  if (origin === null) return { kind: "child", verb: "Child of", title };
+  return { kind: origin, verb: SESSION_ORIGIN_VERB[origin], title };
 }
 
 /** A parked card would read as running; its footer names why it waits. */

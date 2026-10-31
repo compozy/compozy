@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -4296,6 +4297,93 @@ func TestManagerBoardCatalog(t *testing.T) {
 		page, err = h.manager.ListPage(ctx, query)
 		if err != nil || page.Total != 0 {
 			t.Fatalf("unconfigured reader = %#v, %v", page, err)
+		}
+	})
+	t.Run("Should keep active forks top-level and out of the parent rollup", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		h := newHarness(t)
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Fatal(err)
+		}
+		catalog := openManagerInputQueueStore(t)
+		registerManagerInputQueueWorkspace(t, catalog, h)
+		h.manager = newManagerWithHarness(t, h, WithSessionCatalog(catalog))
+		cleanupTestManager(t, h.manager)
+		parent, err := h.manager.Create(ctx, CreateOpts{AgentName: "coder", Name: "Parent", Workspace: h.workspaceID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "Child",
+			Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID,
+				RootSessionID:   parent.ID,
+				SpawnDepth:      1,
+				Kind:            store.LineageKindProvenance,
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		fork, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "Fork",
+			Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID,
+				RootSessionID:   parent.ID,
+				SpawnDepth:      1,
+				Kind:            store.LineageKindFork,
+				OriginAgentName: "coder",
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		query := ListQuery{
+			ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:  h.workspaceID,
+			HideChildren: true,
+		}
+		page, err := h.manager.ListPage(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]*Info, len(page.Sessions))
+		for _, info := range page.Sessions {
+			byID[info.ID] = info
+		}
+		if page.Total != 2 || len(byID) != 2 || byID[parent.ID] == nil || byID[fork.ID] == nil ||
+			byID[child.ID] != nil {
+			t.Fatalf(
+				"hidden-children page = total %d ids %v, want parent and fork",
+				page.Total,
+				slices.Collect(maps.Keys(byID)),
+			)
+		}
+		if counts := byID[parent.ID].Children; counts == nil ||
+			counts.NeedsYou+counts.Working+counts.InReview+counts.Done != 1 {
+			t.Fatalf("parent rollup = %#v, want only the provenance child", counts)
+		}
+		if byID[fork.ID].ParentTitle != "Parent" {
+			t.Fatalf("fork origin title = %q, want the source title as provenance", byID[fork.ID].ParentTitle)
+		}
+		facets, err := h.manager.CatalogFacets(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != 2 {
+			t.Fatalf("hidden-children facets = %#v", facets.Facets)
+		}
+		detail := parent.Info()
+		if err := h.manager.PopulateSessionRelations(ctx, detail); err != nil {
+			t.Fatal(err)
+		}
+		if counts := detail.Children; counts == nil || *counts != *byID[parent.ID].Children {
+			t.Fatalf("detail rollup = %#v, want the page rollup", counts)
 		}
 	})
 }

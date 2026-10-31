@@ -27,6 +27,15 @@ const sessionCatalogVerdictOnlyExpression = `(session_type = 'system' AND EXISTS
  WHERE policy.profile_ref = sessions.creation_profile_ref
  AND json_extract(policy.profile_json, '$.runtime_mode') = 'verdict-only'))`
 
+// sessionCatalogHierarchyChildExpression is store.HierarchyParentSessionID in SQL: a parented
+// session is a child of its parent unless it was continued or forked from it, which names the
+// source as provenance and makes the session a new top-level session.
+var sessionCatalogHierarchyChildExpression = fmt.Sprintf(
+	"(COALESCE(parent_session_id, '') <> '' AND lineage_kind NOT IN ('%s', '%s'))",
+	store.LineageKindContinue,
+	store.LineageKindFork,
+)
+
 const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model,
 	reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
@@ -216,7 +225,7 @@ func sessionCatalogPageFilters(
 		where = append(where, sessionCatalogBadgeExpression+" IN ("+strings.Join(placeholders, ",")+")")
 	}
 	if query.HideChildren {
-		where = append(where, "(parent_session_id IS NULL OR parent_session_id = '')")
+		where = append(where, "NOT "+sessionCatalogHierarchyChildExpression)
 	}
 	if len(query.Columns) > 0 {
 		placeholders := make([]string, len(query.Columns))

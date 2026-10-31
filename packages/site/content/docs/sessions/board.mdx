@@ -225,10 +225,15 @@ Sessions an orchestrator spawns are cards of their own, placed by their own stat
 `↳` and its parent's title; a parent shows how many direct children it has, with a dot when one of
 them needs you. Hover the count to see the children per column.
 
+A forked or continued session is not a child: it is a new top-level session that names its source
+as provenance. Its card shows the fork or continue glyph and the source's title instead of `↳`, and
+the source's child count does not include it.
+
 1. Select **Hide child sessions** in the board header.
 
-   **Expected:** every session that has a parent leaves the columns, and the column counts drop to
-   match. The choice is remembered for this window.
+   **Expected:** every child session (spawned workers, sessions created with a parent, subagents and
+   recovery sessions) leaves the columns, and the column counts drop to match. Forked and continued
+   sessions stay. The choice is remembered for this window.
 
 2. Select it again to bring them back.
 

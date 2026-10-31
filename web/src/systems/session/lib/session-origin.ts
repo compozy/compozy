@@ -3,6 +3,12 @@ import type { SessionPayload } from "../types";
 /** Lineage kinds that carry a visible origin; spawn/provenance/recovery stay silent. */
 export type SessionOriginKind = "continue" | "fork";
 
+/** The verb every origin surface reads: the pill, the divider and the board card. */
+export const SESSION_ORIGIN_VERB: Record<SessionOriginKind, string> = {
+  continue: "Continued from",
+  fork: "Forked from",
+};
+
 export interface SessionOriginParent {
   title: string;
 }
@@ -51,7 +57,7 @@ export function sessionOriginView(
   return {
     kind,
     parentSessionId,
-    verb: kind === "continue" ? "Continued from" : "Forked from",
+    verb: SESSION_ORIGIN_VERB[kind],
     pillSubject: kind === "continue" && originAgent !== "" ? originAgent : titleSubject,
     dividerSubject: titleSubject,
     linkable: parent != null,

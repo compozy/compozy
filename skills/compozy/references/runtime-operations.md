@@ -666,8 +666,10 @@ then remaining sessions with an open PR to `in_review`, and all others to `done`
 column is independent of its children. `children` aggregates its direct, non-archived, readable
 children across every page; `parent_title` can name an archived readable parent.
 
-HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child,
-whereas `subagents=exclude` excludes only the subagent role. Facets expose `board` counts for the
+HTTP/UDS use repeatable `board_column` and `children=exclude`; the latter excludes every child
+(lineage kinds `provenance`, `spawn` and `recovery`), whereas `subagents=exclude` excludes only the
+subagent role. Forked and continued sessions are top-level: `children=exclude` keeps them, they never
+count in their source's `children`, and their `parent_title` names the source as provenance. Facets expose `board` counts for the
 same scope and child visibility, independent of search, badge and selected board column. Changing
 columns or child visibility invalidates an existing cursor. Read paths use cached PR facts and
 never wait on forge calls.

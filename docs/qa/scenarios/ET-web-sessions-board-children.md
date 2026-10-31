@@ -4,7 +4,7 @@ area: ET
 title: Child sessions get their own cards, link to their parent, and can be hidden
 persona: Bruno
 journey:
-expected: Every managed child session has its own card in its own column with "↳ <parent title>" in row 3, also when the parent is archived. A parent card shows its direct, non-archived children count with an accent dot when any child needs you; its tooltip lists the children per column. "Hide child sessions" (pressed state, remembered per window) removes every session with a parent from the cards and from the column counts (`children=exclude` on rows and facets); the existing subagents filter keeps its meaning. Provider-native subagents never get cards.
+expected: Every managed child session has its own card in its own column with "↳ <parent title>" in row 3, also when the parent is archived. A parent card shows its direct, non-archived children count with an accent dot when any child needs you; its tooltip lists the children per column. A forked or continued session is top-level: its card shows the fork/continue glyph with the source title ("Forked from <title>" in its accessible name), it is not counted in the source's rollup, and "Hide child sessions" keeps it. "Hide child sessions" (pressed state, remembered per window) removes every child session (provenance, spawn, subagent and recovery lineage) from the cards and from the column counts (`children=exclude` on rows and facets); the existing subagents filter keeps its meaning. Provider-native subagents never get cards.
 entry_points: SessionBoardCard (session-board-card-children-<id>, session-board-card-parent-<id>); board head sessions-board-hide-children; GET /api/sessions?children=exclude; GET /api/sessions/facets?children=exclude
 qa_status: untested
 bug_ids:
@@ -39,3 +39,12 @@ the three-child rollup and Needs you indicator. Hiding children removed the chil
 cards and changed exact counts from Needs you 1 / Done 195 to Needs you 0 / Done 193,
 matching the public facets API. Current-head full E2E delivery remains owned by PR
 #983 CI; see the report for the isolated dataset and verification limits.
+
+QA impact 2026-10-30 (#1074, forks are not child sessions): fork the orchestrator from its row
+menu and continue another session. On the board the fork card shows the fork glyph and the
+orchestrator's title, its accessible name reads "Forked from <title>", and the orchestrator's child
+count excludes it. Press "Hide child sessions": the spawned children leave, the fork and the
+continuation stay, and the column counts and `GET /api/sessions/facets?children=exclude` agree.
+Owning automated coverage: `TestSessionCatalogBoard` (store SQL filter, totals and rollups),
+`TestManagerBoardCatalog` (active overlay), `session-board-card.test.ts` and
+`sessions-board.test.tsx` (card lineage).

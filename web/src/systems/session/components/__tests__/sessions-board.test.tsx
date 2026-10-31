@@ -184,6 +184,19 @@ describe("SessionsBoard", () => {
     expect(screen.getByTestId("session-board-card-status-child")).toHaveTextContent("Input");
   });
 
+  it("Should name a fork's source as provenance, not as its parent", () => {
+    const fork = card("fork", {
+      parent_title: "Coordinator",
+      lineage: { ...card("fork").lineage!, parent_session_id: "parent", kind: "fork" },
+    });
+    renderBoard(board({ working: { sessions: [fork], count: 1 } }));
+    const origin = screen.getByTestId("session-board-card-parent-fork");
+    expect(origin).toHaveTextContent("Coordinator");
+    expect(origin).toHaveAttribute("data-lineage", "fork");
+    const named = screen.getByRole("button", { name: /Session fork,.*Forked from Coordinator,/ });
+    expect(named.getAttribute("aria-label")).not.toContain("Child of");
+  });
+
   it("Should name one child without an attention signal and omit absent family facts", () => {
     renderBoard(
       board({

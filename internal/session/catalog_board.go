@@ -63,7 +63,7 @@ func (m *Manager) PopulateSessionRelations(ctx context.Context, info *Info) erro
 		if info.Lineage != nil && candidate.ID == info.Lineage.ParentSessionID {
 			active[candidate.ID] = candidate
 		}
-		if candidate.Lineage != nil && candidate.Lineage.ParentSessionID == info.ID {
+		if store.HierarchyParentSessionID(candidate.Lineage) == info.ID {
 			active[candidate.ID] = candidate
 			children = append(children, candidate)
 		}
