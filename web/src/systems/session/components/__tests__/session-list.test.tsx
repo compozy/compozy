@@ -1328,15 +1328,25 @@ describe("SessionList Later", () => {
   it("Should read a Markdown reason as one plain line", () => {
     const markdown = {
       ...parked,
-      later: { ...parked.later!, reason: "Waiting on **the vendor**\n\n- rerun `make gate`" },
+      later: {
+        ...parked.later!,
+        reason:
+          "Waiting on **the vendor**\n\n- rerun `make **gate**`\n- see [spec](https://x.dev/a_(v2)) \\*now\\*",
+      },
     };
     renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
 
     const reason = screen.getByTestId("session-later-reason-parked");
-    expect(reason).toHaveTextContent("Waiting on the vendor · rerun make gate");
-    expect(reason).toHaveAttribute("title", "Waiting on the vendor\nrerun make gate");
+    // Code spans and escapes stay literal; a link keeps its text.
+    expect(reason).toHaveTextContent(
+      "Waiting on the vendor · rerun make **gate** · see spec *now*"
+    );
+    expect(reason).toHaveAttribute(
+      "title",
+      "Waiting on the vendor\nrerun make **gate**\nsee spec *now*"
+    );
     expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
-      "In Later, Waiting on the vendor · rerun make gate"
+      "In Later, Waiting on the vendor · rerun make **gate** · see spec *now*"
     );
   });
 

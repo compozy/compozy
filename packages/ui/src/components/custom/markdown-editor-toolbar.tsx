@@ -78,6 +78,8 @@ function normalizeHref(raw: string): string | null {
 function LinkControl({ editor, active }: { editor: Editor | null; active: boolean }) {
   const [open, setOpen] = React.useState(false);
   const [href, setHref] = React.useState("");
+  // A typed address the editor refuses keeps the current link; only a blank one removes it.
+  const invalid = href.trim() !== "" && normalizeHref(href) === null;
 
   const openChange = (next: boolean) => {
     if (next) setHref(editor?.getAttributes("link").href ?? "");
@@ -87,7 +89,7 @@ function LinkControl({ editor, active }: { editor: Editor | null; active: boolea
   const apply = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!editor) return;
+    if (!editor || invalid) return;
     const target = normalizeHref(href);
     const chain = editor.chain().focus().extendMarkRange("link");
     if (target) chain.setLink({ href: target }).run();
@@ -107,6 +109,7 @@ function LinkControl({ editor, active }: { editor: Editor | null; active: boolea
       <PopoverContent align="start" className="w-72">
         <form className="flex items-center gap-1.5" onSubmit={apply}>
           <Input
+            aria-invalid={invalid}
             aria-label="Link address"
             autoFocus
             className="h-button-sm"
@@ -114,7 +117,7 @@ function LinkControl({ editor, active }: { editor: Editor | null; active: boolea
             placeholder="https://"
             value={href}
           />
-          <Button size="sm" type="submit">
+          <Button disabled={invalid} size="sm" type="submit">
             {href.trim() === "" && active ? "Remove" : "Apply"}
           </Button>
         </form>

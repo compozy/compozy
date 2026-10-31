@@ -5,16 +5,37 @@ import { markdownLineToPlainText } from "./markdown-plain-text";
 export const SESSION_LATER_REASON_MAX = 1000;
 
 const BACKSLASH_ESCAPE = /\\([\\`*_{}[\]()#+\-.!~|>])/g;
+const CODE_SPAN = /`([^`]*)`/g;
+// A link destination may hold one balanced pair of parentheses (`a_(v2)`).
+const BALANCED_LINK = /!?\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g;
+const LITERAL_SLOT = /\uE000(\d+)\uE001/g;
+
+/**
+ * One reason line as plain text. Code spans and escaped characters are parked
+ * behind private-use placeholders while the Markdown marks are stripped, so
+ * their characters stay literal.
+ */
+function laterReasonLineToPlainText(line: string): string {
+  const literals: string[] = [];
+  const park = (literal: string) => `\uE000${literals.push(literal) - 1}\uE001`;
+  const parked = line
+    .replace(CODE_SPAN, (_match, code: string) => park(code))
+    .replace(BACKSLASH_ESCAPE, (_match, char: string) => park(char))
+    .replace(BALANCED_LINK, "$1");
+  return markdownLineToPlainText(parked)
+    .replace(LITERAL_SLOT, (slot, index: string) => literals[Number(index)] ?? slot)
+    .trim();
+}
 
 /**
  * The lines of a Markdown Later reason as plain text: block markers and inline
- * delimiters drop, link text stays, empty lines go. A plain reason written
- * before reasons were Markdown reads unchanged.
+ * delimiters drop, link text stays, code spans and escapes stay literal, empty
+ * lines go. The stored reason is never rewritten.
  */
 export function laterReasonLines(reason: string): string[] {
   return reason
     .split(/\r?\n/)
-    .map(line => markdownLineToPlainText(line).replace(BACKSLASH_ESCAPE, "$1").trim())
+    .map(laterReasonLineToPlainText)
     .filter(line => line !== "");
 }
 

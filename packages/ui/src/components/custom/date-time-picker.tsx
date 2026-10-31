@@ -4,7 +4,7 @@ import { startOfDay } from "date-fns";
 import { CalendarClock, X } from "lucide-react";
 import * as React from "react";
 
-import { dateTimePickerSlots } from "../../lib/date-time-picker";
+import { dateTimePickerPresetValue, dateTimePickerSlots } from "../../lib/date-time-picker";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { Calendar } from "../calendar";
@@ -81,8 +81,8 @@ export function DateTimePicker({
   const generatedId = React.useId();
   const triggerId = id ?? generatedId;
   const { open, month, setMonth, selectedSlotRef, openChange, pickDay, pickTime, pickPreset } =
-    useDateTimePicker({ value, onValueChange, min, minuteStep, defaultTime });
-  const slots = value ? dateTimePickerSlots(value, minuteStep) : [];
+    useDateTimePicker({ value, onValueChange, min, minuteStep, defaultTime, disabled });
+  const slots = value ? dateTimePickerSlots(value, minuteStep, value) : [];
 
   return (
     <div
@@ -124,6 +124,8 @@ export function DateTimePicker({
                   <Button
                     className="w-full justify-start font-normal"
                     data-slot="date-time-picker-preset"
+                    // A preset that resolves before `min` stays visible but closed.
+                    disabled={dateTimePickerPresetValue(preset.value, min) === null}
                     key={preset.label}
                     onClick={() => pickPreset(preset)}
                     size="sm"

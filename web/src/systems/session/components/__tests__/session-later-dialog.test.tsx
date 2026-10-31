@@ -128,16 +128,34 @@ describe("SessionLaterDialog", () => {
     expect(screen.getByTestId("session-later-confirm")).toHaveTextContent("Moving to Later");
   });
 
-  it("Should keep the picked date when a partial failure narrows the sessions", async () => {
+  it("Should keep the reason and date when a partial failure narrows the sessions", async () => {
     const user = userEvent.setup();
     const other = { ...primarySessionFixture, id: "other" };
-    const props = { isMoving: false, onConfirm: vi.fn(), onOpenChange: vi.fn(), open: true };
+    const onConfirm = vi.fn();
+    const props = { isMoving: false, onConfirm, onOpenChange: vi.fn(), open: true };
     const { rerender } = render(
       <SessionLaterDialog {...props} sessions={[primarySessionFixture, other]} />
     );
+    const editor = await screen.findByRole("textbox", { name: "Reason" });
+    // Same entry path as the formatting test: a DOM edit, then a toolbar transaction
+    // that reports the whole note to the dialog.
+    editor.textContent = "After the release";
+    await waitFor(() => expect(editor).toHaveTextContent("After the release"));
+    await user.click(editor);
+    await user.keyboard("{Control>}a{/Control}");
+    await user.click(screen.getByRole("button", { name: "Bold" }));
     await pickPreset(user, "Tomorrow");
     rerender(<SessionLaterDialog {...props} sessions={[other]} />);
     expect(screen.getByRole("heading", { name: "Move to Later" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Clear date" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Reason" })).toHaveTextContent("After the release");
+    await user.click(screen.getByTestId("session-later-confirm"));
+    await waitFor(() =>
+      expect(onConfirm).toHaveBeenCalledExactlyOnceWith({
+        reason: "**After the release**",
+        return_at: tomorrowAtNine()
+          .toISOString()
+          .replace(/\.\d{3}Z$/, "Z"),
+      })
+    );
   });
 });

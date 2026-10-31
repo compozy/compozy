@@ -153,7 +153,12 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		if !errors.Is(err, ErrSessionLaterInvalid) {
 			t.Fatalf("MoveToLater(too long) error = %v, want ErrSessionLaterInvalid", err)
 		}
-		parked, err := h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{
+		atLimit := strings.Repeat("a", MaxLaterReasonLength)
+		parked, err := h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{Reason: atLimit})
+		if err != nil || parked.Later == nil || parked.Later.Reason != atLimit {
+			t.Fatalf("MoveToLater(at limit) = %#v, %v, want the reason kept", parked, err)
+		}
+		parked, err = h.manager.MoveToLater(t.Context(), h.workspaceID, sess.ID, LaterRequest{
 			Reason: " Waiting on **review**\r\n\r\n- rerun the gate\r\n- ping the owner ",
 		})
 		if err != nil {
@@ -193,6 +198,17 @@ func TestLaterReasonPlainText(t *testing.T) {
 			want:   "Blocked: · rerun the gate · ping the owner",
 		},
 		{name: "Should keep snake_case words", reason: "fix later_return_at", want: "fix later_return_at"},
+		{
+			name:   "Should keep Markdown characters inside code spans literal",
+			reason: "Run `echo **ready**` first",
+			want:   "Run echo **ready** first",
+		},
+		{name: "Should restore escaped characters literally", reason: `\*important\*`, want: "*important*"},
+		{
+			name:   "Should drop a link destination with balanced parentheses",
+			reason: "see [spec](https://example.com/a_(v2))",
+			want:   "see spec",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

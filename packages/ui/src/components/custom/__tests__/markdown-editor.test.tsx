@@ -42,14 +42,32 @@ describe("MarkdownEditor", () => {
     await waitFor(() => expect(onValueChange).toHaveBeenLastCalledWith("- **ship it**"));
   });
 
-  it("Should submit on Cmd/Ctrl+Enter", async () => {
+  it("Should submit on Mod+Enter", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(<Harness initial="note" onSubmit={onSubmit} />);
     await user.click(await screen.findByRole("textbox", { name: "Note" }));
+    // jsdom reports a non-Apple platform, so Mod is Control.
     await user.keyboard("{Control>}{Enter}{/Control}");
-    await user.keyboard("{Meta>}{Enter}{/Meta}");
     expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should keep the current link when the typed address is refused", async () => {
+    const user = userEvent.setup();
+    const onValueChange = vi.fn();
+    render(<Harness initial="[spec](https://compozy.com)" onValueChange={onValueChange} />);
+    const box = await screen.findByRole("textbox", { name: "Note" });
+    await user.click(box);
+    await user.keyboard("{Control>}a{/Control}");
+    await user.click(screen.getByRole("button", { name: "Link" }));
+    const address = await screen.findByRole("textbox", { name: "Link address" });
+    await user.clear(address);
+    await user.type(address, "ftp://example.com");
+    expect(address).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    await user.keyboard("{Enter}");
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect(box.querySelector("a")).toHaveAttribute("href", "https://compozy.com");
   });
 
   it("Should take an outside reset of the value", async () => {
