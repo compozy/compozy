@@ -14,6 +14,8 @@ type nativeSessionReplyReader interface {
 	CanReplyToSession(context.Context, string, string, string) (bool, error)
 }
 
+// nativeSessionReplyTarget proves a text-only reply to a persisted sender in the
+// caller's profile. A nil target leaves ordinary workspace authorization in force.
 func nativeSessionReplyTarget(
 	ctx context.Context,
 	sessions nativeToolPolicySessionReader,
@@ -43,7 +45,14 @@ func nativeSessionReplyTarget(
 	return info, nil
 }
 
-func (n *daemonNativeTools) nativeSessionPromptWorkspace(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID, input sessionPromptInput) (workspacepkg.ResolvedWorkspace, error) {
+// nativeSessionPromptWorkspace resolves a verified reply's destination without
+// granting the caller access to any other operation in that workspace.
+func (n *daemonNativeTools) nativeSessionPromptWorkspace(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	id toolspkg.ToolID,
+	input sessionPromptInput,
+) (workspacepkg.ResolvedWorkspace, error) {
 	target, err := nativeSessionReplyTarget(ctx, n.deps.Sessions, scope, input)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
@@ -54,6 +63,7 @@ func (n *daemonNativeTools) nativeSessionPromptWorkspace(ctx context.Context, sc
 	return n.nativeResolvedWorkspace(ctx, id, input.Workspace, scope)
 }
 
+// nativeReplyWorkspace translates stored User ownership into its API selector.
 func nativeReplyWorkspace(info *session.Info) string {
 	if info.WorkspaceID == "" {
 		return workspaceaccess.UserSelector

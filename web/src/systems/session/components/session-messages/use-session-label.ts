@@ -98,10 +98,12 @@ function sessionLabelTitle(
   return { title: recorded, pending: recorded === null };
 }
 
+/** An unresolved owner disables detail reads; a resolved owner without a project is User. */
 function ownerWorkspaceSelector(owner: { workspace_id?: string } | undefined): string {
   return owner ? owner.workspace_id || "@user" : "";
 }
 
+/** Name foreign destinations without querying project metadata for the User scope. */
 function sessionLabelWorkspaceName(
   crossWorkspace: boolean,
   user: boolean,
