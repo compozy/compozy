@@ -13,6 +13,7 @@ const sessionCatalogNavigatorBandExpression = `(CASE
  WHEN pending_permission_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(

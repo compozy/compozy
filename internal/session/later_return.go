@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	laterReturnBatchSize         = 100
-	laterReturnNotificationTitle = "Back from Later"
+	laterReturnBatchSize = 100
+	// LaterReturnReason names a session the daemon brought back from Later.
+	LaterReturnReason = "Back from Later"
 )
 
 // ReturnDueLaterSessions brings back every parked session whose return time
@@ -51,7 +52,7 @@ func (m *Manager) announceLaterReturn(ctx context.Context, returned store.Sessio
 		SessionID:   returned.SessionID,
 		ProfileID:   returned.ProfileID,
 		WorkspaceID: returned.WorkspaceID,
-		Title:       laterReturnNotificationTitle,
+		Title:       LaterReturnReason,
 		Body:        laterReturnNotificationBody(returned),
 	})
 	if err != nil {

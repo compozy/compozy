@@ -572,6 +572,16 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				err,
 			)
 		}
+		needsYou, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID:   workspaceID,
+			AttentionOnly: true,
+			Sort:          sessionCatalogSortAttention,
+			Limit:         10,
+		})
+		if err != nil || !slices.Equal(sessionIDsForWorkspaceStateIndexTest(needsYou.Sessions), []string{parked.ID}) {
+			t.Fatalf("PageSessions(attention) = %#v, %v, want the session back from Later", needsYou.Sessions, err)
+		}
 		cleared, err := globalDB.ClearLaterReturn(ctx, parked.ID)
 		if err != nil || !cleared {
 			t.Fatalf("ClearLaterReturn() = %v, %v, want cleared", cleared, err)

@@ -39,7 +39,9 @@ type BadgeInputs struct {
 	Stalled                bool
 	Waiting                bool
 	// EndedEarly marks a settled turn that stopped without delivering or open work.
-	EndedEarly          bool
+	EndedEarly bool
+	// ReturnedFromLater marks a stopped session the daemon brought back from Later.
+	ReturnedFromLater   bool
 	Unseen              bool
 	IneligibilityReason string
 }
@@ -61,6 +63,9 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	}
 	if input.PendingClarify {
 		return BadgeWaitingForInput
+	}
+	if terminal && input.ReturnedFromLater {
+		return BadgeNeedsAttention
 	}
 	if terminal {
 		return BadgeStopped
@@ -128,11 +133,12 @@ func BadgeForInfo(info *Info) Badge {
 		Failure:                info.Failure,
 		PendingAuth: info.PendingPermission || info.PendingPermissionCount > 0 ||
 			infoFailureNeedsAuth(info.Failure),
-		PendingClarify: info.PendingClarifyCount > 0,
-		Stalled:        infoHasDetectedStall(info),
-		Waiting:        waitingFromInfo(info),
-		EndedEarly:     strings.TrimSpace(info.EndedEarlyTurnID) != "",
-		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
+		PendingClarify:    info.PendingClarifyCount > 0,
+		Stalled:           infoHasDetectedStall(info),
+		Waiting:           waitingFromInfo(info),
+		EndedEarly:        strings.TrimSpace(info.EndedEarlyTurnID) != "",
+		ReturnedFromLater: info.LaterReturnedAt != nil,
+		Unseen:            info.LastSettledRevision > info.LastSeenRevision,
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
 			strings.TrimSpace(info.Liveness.Activity.TurnID) != "",
@@ -197,6 +203,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		Unseen:                 unseen,
 		Waiting:                waitingFromInfo(info),
 		EndedEarly:             info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
+		ReturnedFromLater:      info != nil && info.LaterReturnedAt != nil,
 		IneligibilityReason:    health.IneligibilityReason,
 	})
 }

@@ -304,6 +304,7 @@ CREATE INDEX idx_sessions_global_catalog_attention
  OR pending_permission_count > 0 OR pending_clarify_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure')
  OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation')
+ OR (state = 'stopped' AND later_returned_at IS NOT NULL)
  OR (state = 'active' AND ended_early_turn_id <> '' AND trim(COALESCE(stall_state, '')) <> 'stalled'
  AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = '') THEN 0
  WHEN state = 'active' AND trim(COALESCE(stall_state, '')) <> 'stalled'
@@ -335,6 +336,7 @@ CREATE INDEX idx_sessions_global_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -348,6 +350,7 @@ CREATE INDEX idx_sessions_profile_global_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -361,6 +364,7 @@ CREATE INDEX idx_sessions_workspace_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2
@@ -374,6 +378,7 @@ CREATE INDEX idx_sessions_profile_workspace_catalog_navigator
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
+ WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
  WHEN state = 'stopped' THEN 3
  WHEN trim(COALESCE(stall_state, '')) = 'stalled' THEN 3
  WHEN state IN ('starting', 'stopping') OR trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) <> '' THEN 2

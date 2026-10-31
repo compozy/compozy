@@ -90,6 +90,9 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		if err != nil || info.Later != nil || info.LaterReturnedAt == nil {
 			t.Fatalf("Status(returned) = %#v, %v, want back from Later", info, err)
 		}
+		if got := BadgeForInfo(info); got != BadgeNeedsAttention {
+			t.Fatalf("BadgeForInfo(returned) = %q, want %q so it lands in Needs you", got, BadgeNeedsAttention)
+		}
 		childInfo, err := h.manager.Status(ctx, child.ID)
 		if err != nil || childInfo.Later == nil {
 			t.Fatalf("Status(child after return) = %#v, %v, want child still parked", childInfo, err)
