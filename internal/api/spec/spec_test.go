@@ -3504,6 +3504,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addGoalControlSchemas(baseline) == 0 {
 		t.Fatal("approved Goal control additions: no historical Goal schemas found")
 	}
+	// #1078: optional worktree creation failure cause; existing fields stay unchanged.
+	if addWorktreeCreateErrorSchemas(baseline) == 0 {
+		t.Fatal("approved worktree create_error addition: no historical worktree schemas found")
+	}
 	// #1011: optional typed diagnostics; existing fields and required sets stay unchanged.
 	addMissingWorkspaceDiagnosticsSchemas(t, baseline)
 
@@ -4709,6 +4713,26 @@ func addSessionWorktreeBindingSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		count++
+	}
+	return count
+}
+
+func addWorktreeCreateErrorSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addWorktreeCreateErrorSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addWorktreeCreateErrorSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["setup_error"] != nil && properties["pending_phase"] != nil {
+			properties["create_error"] = map[string]any{"type": "string"}
+			count++
+		}
 	}
 	return count
 }
