@@ -270,15 +270,15 @@ func (scan *attributionScan) processes(terminals map[int]Terminal) []Process {
 			continue
 		}
 		_, attached := ancestorOwner(p, scan.byPID, scan.leaders)
-		kind, terminalID := "background", ""
+		kind, terminalID := kindBackground, ""
 		if attached {
-			kind = "tool"
+			kind = kindTool
 		}
 		if terminal, ok := terminals[p.PGID]; ok {
 			if p.PID != terminal.PID {
 				continue
 			}
-			kind, terminalID = "terminal", terminal.ID
+			kind, terminalID = kindTerminal, terminal.ID
 		}
 		// Marker fields are internal authority only; raw environments never reach callers.
 		p.SessionID = observation.Owner.SessionID

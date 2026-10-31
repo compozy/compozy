@@ -9,31 +9,44 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 )
 
-// Terminate resolves targets only inside the caller's authorized ownership set.
-// An empty session ID is reserved for the operator aggregate boundary.
+// Scope selects what a session-wide stop covers besides its explicit targets.
+type Scope int
+
+const (
+	// Targets stops only the trees of the given targets.
+	Targets Scope = iota
+	// AllLeftRunning adds every Background and Terminal tree; tool calls stay with their turn.
+	AllLeftRunning
+	// AllIncludingTools adds every tree, tool calls included (stop, archive, delete cleanup).
+	AllIncludingTools
+	// Captured stops exactly the given identities, never their trees' later members: delayed
+	// cleanup captured them before the session could resume and start new work.
+	Captured
+)
+
+// Terminate resolves targets only inside the caller's authorized ownership set and stops each
+// target's whole tree. An empty session ID is reserved for the operator aggregate boundary.
 func (s *Service) Terminate(
 	ctx context.Context,
 	sessionID string,
 	targets []Identity,
-	all bool,
+	scope Scope,
 	allowed func(Owner) bool,
 ) ([]Result, error) {
 	snap, err := s.Refresh(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if all && sessionID == "" {
+	if (scope == AllLeftRunning || scope == AllIncludingTools) && sessionID == "" {
 		return nil, errors.New("all requires a session")
 	}
 	indexed := make(map[Identity]Process)
 	for _, p := range snap.Processes {
 		if (sessionID == "" || p.Owner.SessionID == sessionID) && allowed(p.Owner) {
 			indexed[identity(p.ScannedProcess)] = p
-			if all {
-				targets = append(targets, identity(p.ScannedProcess))
-			}
 		}
 	}
+	targets = expandTrees(snap.Processes, indexed, targets, scope)
 	// Serialize signaling and the durable audit against periodic observation publication.
 	if err := s.lockScan(ctx); err != nil {
 		return nil, err
@@ -72,6 +85,46 @@ func (s *Service) terminateTargets(
 		}
 	}
 	return results, errors.Join(auditErrors...)
+}
+
+// expandTrees replaces each target with every authorized member of its tree, root first, and adds
+// the trees a session-wide scope covers. A target outside every tree stays, to report it.
+func expandTrees(rows []Process, indexed map[Identity]Process, targets []Identity, scope Scope) []Identity {
+	if scope == Captured {
+		return targets
+	}
+	trees := Trees(rows)
+	byMember := make(map[Identity]int)
+	for i, tree := range trees {
+		for _, member := range tree.Members {
+			byMember[member] = i
+		}
+	}
+	var out []Identity
+	add := func(tree Tree) {
+		for _, member := range tree.Members {
+			if _, ok := indexed[member]; ok {
+				out = append(out, member)
+			}
+		}
+	}
+	for _, target := range targets {
+		if i, ok := byMember[target]; ok {
+			if _, allowed := indexed[target]; allowed {
+				add(trees[i])
+				continue
+			}
+		}
+		out = append(out, target)
+	}
+	if scope == AllLeftRunning || scope == AllIncludingTools {
+		for _, tree := range trees {
+			if scope == AllIncludingTools || tree.Kind != kindTool {
+				add(tree)
+			}
+		}
+	}
+	return out
 }
 
 func unavailableTarget(id Identity) Result {
@@ -135,7 +188,7 @@ func (s *Service) AfterStop(sessionID string, await func(context.Context) error)
 			ctx,
 			sessionID,
 			targets,
-			false,
+			Captured,
 			func(o Owner) bool { return o.SessionID == sessionID },
 		)
 		if err != nil {

@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { SessionProcessPayload } from "../adapters/session-processes-api";
 import {
   useSessionProcesses,
   type SessionProcessStopRequest,
 } from "../hooks/use-session-processes";
 import { reportProcessStop } from "../lib/session-process-feedback";
-import { sessionRunningProcesses } from "../lib/session-processes";
+import {
+  processTreeTarget,
+  sessionRunningProcesses,
+  type SessionProcessTree,
+} from "../lib/session-processes";
 import type { SessionPayload } from "../types";
 import { SessionProcessesComposerControl } from "./session-processes-composer-control";
 
@@ -34,7 +37,7 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
   const stop = (request: SessionProcessStopRequest) => {
     // One stop at a time; the popover locks every Stop while one is in flight.
     if (model.stopping !== null) return;
-    const listed: readonly SessionProcessPayload[] = model.processes;
+    const listed: readonly SessionProcessTree[] = model.trees;
     model
       .stop(request)
       .then(response => reportProcessStop(response.results, listed))
@@ -48,14 +51,14 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
   return (
     <SessionProcessesComposerControl
       count={count}
-      processes={model.processes}
+      trees={model.trees}
       supported={model.supported}
       loading={model.loading}
       failed={model.failed}
       missing={model.missing}
       onRetry={model.retry}
       stopping={model.stopping}
-      onStop={process => stop({ targets: [process] })}
+      onStop={tree => stop({ targets: [processTreeTarget(tree)] })}
       onStopAll={() => stop({ all: true })}
       onOpenChange={setOpen}
     />

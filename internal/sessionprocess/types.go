@@ -10,6 +10,13 @@ import (
 
 const attributionLineage = "lineage"
 
+// Process kinds: tool calls run in the agent's turn; background and terminal work outlives it.
+const (
+	kindBackground = "background"
+	kindTool       = "tool"
+	kindTerminal   = "terminal"
+)
+
 type Identity struct {
 	PID       int
 	StartedAt time.Time
@@ -38,6 +45,9 @@ type Process struct {
 	procutil.ScannedProcess
 	Owner                         Owner
 	Attribution, Kind, TerminalID string
+	// Tree is the identity of the tree's root; TreeRole is lead, wrapper, or helper.
+	Tree     Identity
+	TreeRole string
 }
 
 type Snapshot struct {
@@ -50,7 +60,9 @@ type Snapshot struct {
 type Summary struct {
 	Supported             bool
 	Background, Terminals int
-	Ports                 []int
+	// Trees counts the Background and Terminal trees: what the session left running.
+	Trees int
+	Ports []int
 }
 
 type Terminal struct {

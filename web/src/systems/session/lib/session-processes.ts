@@ -2,19 +2,21 @@ import type {
   SessionProcessKind,
   SessionProcessPayload,
   SessionProcessResult,
+  SessionProcessTreePayload,
 } from "../adapters/session-processes-api";
 import type { SessionPayload } from "../types";
 
 type SessionProcessSummarySource = Pick<SessionPayload, "process_summary">;
 
 /**
- * Processes the session left running: detached background work plus live
- * Terminals. Foreground tool calls are not counted; they end with their turn.
+ * What the session left running: its Background and Terminal process trees, a browser and its
+ * helpers counting once. Foreground tool calls are not counted; they end with their turn. A
+ * daemon that predates trees reports per-process counts only.
  */
 export function sessionRunningProcesses(session: SessionProcessSummarySource): number {
   const summary = session.process_summary;
   if (!summary?.supported) return 0;
-  return Math.max(0, summary.background + summary.terminals);
+  return Math.max(0, summary.trees ?? summary.background + summary.terminals);
 }
 
 /** The listening ports the session's processes hold, in the daemon's order. */
@@ -98,6 +100,120 @@ export function processPortHref(port: number): string {
 /** Stable identity for a row: a pid alone is reused by the OS. */
 export function processIdentity(process: Pick<SessionProcessPayload, "pid" | "started_at">) {
   return `${process.pid}@${process.started_at}`;
+}
+
+/**
+ * One logical thing a session started: a dev server behind `bun run`, a headless browser with
+ * its helpers, a Terminal. The row names `lead`; a Stop signals every member.
+ */
+export interface SessionProcessTree {
+  /** Stable row identity: the identity of the tree's root process. */
+  id: string;
+  kind: SessionProcessKind;
+  /** The process the row names: the leaf of a wrapper chain, else the tree's root. */
+  lead: SessionProcessPayload;
+  /** Wrapper commands above `lead` (`bun run dev` → `node …`), outermost first. */
+  wrappers: readonly SessionProcessPayload[];
+  /** Every other member below or beside `lead`: browser helpers, detached crash handlers. */
+  helpers: readonly SessionProcessPayload[];
+  /** The union of every member's listening ports, in first-seen order. */
+  ports: readonly number[];
+}
+
+/**
+ * The process a stop names for its whole tree: its lead, the live process the row shows. A wrapper
+ * may already have exited; the daemon expands the lead to every verified member, wrappers
+ * included, so a tree of any size is one target.
+ */
+export function processTreeTarget(tree: SessionProcessTree): SessionProcessPayload {
+  return tree.lead;
+}
+
+/** Every process a tree Stop signals: wrappers, the lead, and the helpers. */
+export function processTreeMembers(tree: SessionProcessTree): SessionProcessPayload[] {
+  return [...tree.wrappers, tree.lead, ...tree.helpers];
+}
+
+/** One tree per process: the list as flat rows, before the daemon groups them. */
+export function singleProcessTrees(
+  processes: readonly SessionProcessPayload[]
+): SessionProcessTree[] {
+  return processes.map(process => ({
+    id: processIdentity(process),
+    kind: process.kind,
+    lead: process,
+    wrappers: [],
+    helpers: [],
+    ports: process.ports,
+  }));
+}
+
+/**
+ * The daemon's trees joined to their listed processes, in list order: Background and Terminal
+ * trees first, then tool calls, newest first. A process no tree names stays its own row, as does
+ * every process from a daemon that predates trees.
+ */
+export function buildProcessTrees(
+  processes: readonly SessionProcessPayload[],
+  trees: readonly SessionProcessTreePayload[] = []
+): SessionProcessTree[] {
+  const byIdentity = new Map(processes.map(process => [processIdentity(process), process]));
+  const grouped = new Set<string>();
+  const out: SessionProcessTree[] = [];
+  for (const tree of trees) {
+    const members = tree.members.flatMap(member => byIdentity.get(processIdentity(member)) ?? []);
+    const root = byIdentity.get(processIdentity(tree.root));
+    const lead = byIdentity.get(processIdentity(tree.lead)) ?? root;
+    if (!root || !lead) continue;
+    const wrapperIds = new Set(tree.wrappers.map(processIdentity));
+    const wrappers = members.filter(member => wrapperIds.has(processIdentity(member)));
+    const named = new Set([lead, ...wrappers]);
+    for (const member of members) grouped.add(processIdentity(member));
+    out.push({
+      id: processIdentity(root),
+      kind: tree.kind,
+      lead,
+      wrappers,
+      helpers: members.filter(member => !named.has(member)),
+      ports: tree.ports,
+    });
+  }
+  out.push(...singleProcessTrees(processes.filter(p => !grouped.has(processIdentity(p)))));
+  const rank = (kind: SessionProcessKind) => (kind === "tool" ? 1 : 0);
+  const started = (tree: SessionProcessTree) =>
+    Date.parse((tree.wrappers[0] ?? tree.lead).started_at);
+  return out.sort(
+    (left, right) => rank(left.kind) - rank(right.kind) || started(right) - started(left)
+  );
+}
+
+export function processHelperCountLabel(count: number): string {
+  return `+${count} ${count === 1 ? "helper" : "helpers"}`;
+}
+
+/** The program a helper runs, by name: `Google Chrome Helper (Renderer)`, not its bundle path. */
+function processProgramName(process: Pick<SessionProcessPayload, "argv0" | "command">): string {
+  const program = process.argv0.trim() || process.command.trim().split(/\s+/)[0] || "";
+  return program.slice(program.lastIndexOf("/") + 1) || program;
+}
+
+/** A tree's helpers folded by program: eight Chrome helpers read as three lines. */
+export function processHelperGroups(
+  helpers: readonly SessionProcessPayload[]
+): { program: string; count: number; title: string }[] {
+  const groups = new Map<string, { program: string; count: number; title: string }>();
+  for (const helper of helpers) {
+    const program = processProgramName(helper);
+    const group = groups.get(program);
+    const line = `pid ${helper.pid}: ${helper.command}`;
+    if (group) {
+      group.count += 1;
+      group.title = `${group.title}\n${line}`;
+    } else {
+      groups.set(program, { program, count: 1, title: line });
+    }
+  }
+  return [...groups.values()];
 }
 
 /** Background and Terminal rows first (they outlive the turn), then tool calls; newest first. */

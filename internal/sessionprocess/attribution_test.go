@@ -511,3 +511,200 @@ func TestProcessCaptureCancellation(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: a session's rows group into one tree per logical thing it started. A row joins its
+// nearest attributed ancestor, then its process-group leader; detached helpers of the same app
+// bundle fold into the earlier tree; wrapper chains name the tree by the process they start.
+// Owning layer/canonical suite: sessionprocess attribution, which labels trees for every surface.
+func TestProcessTrees(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	owner := Owner{SessionID: "sess-trees", ProfileID: "profile-test", WorkspaceID: "ws-test"}
+	const chrome = "/Applications/Google Chrome.app/Contents"
+	const helpers = chrome + "/Frameworks/Google Chrome Framework.framework/Helpers"
+	row := func(pid, ppid, pgid int, after time.Duration, kind, argv0, command string, ports ...int) Process {
+		return Process{
+			PID: pid, PPID: ppid, PGID: pgid, StartedAt: start.Add(after),
+			Argv0: argv0, Command: command, Ports: ports,
+			Owner: owner, Kind: kind,
+		}
+	}
+	browser := []Process{
+		row(100, 1, 100, 0, "background", "/opt/homebrew/bin/node", "node /Users/dev/.agent-browser/daemon.js"),
+		row(110, 100, 110, time.Second, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless", 9222),
+		row(111, 1, 111, 2*time.Second, "background", helpers+"/chrome_crashpad_handler", "chrome_crashpad_handler"),
+		row(113, 1, 113, 2*time.Second, "background", helpers+"/chrome_crashpad_handler", "chrome_crashpad_handler"),
+		row(120, 110, 110, 3*time.Second, "background", helpers+"/Google Chrome Helper (GPU)", "helper --type=gpu"),
+		row(121, 110, 110, 3*time.Second, "background", helpers+"/Google Chrome Helper (Renderer)", "renderer"),
+		row(122, 1, 110, 4*time.Second, "background", helpers+"/Google Chrome Helper (Renderer)", "renderer"),
+	}
+	wrapped := []Process{
+		row(200, 1, 200, 0, "background", "/opt/homebrew/bin/bun", "bun run proto dev"),
+		row(201, 200, 200, time.Second, "background", "/opt/homebrew/bin/bun", "bun run --cwd web proto dev"),
+		row(202, 201, 200, 2*time.Second, "background", "/opt/homebrew/bin/node", "node proto dev", 4400, 4401),
+	}
+	tool := []Process{
+		row(300, 50, 300, 0, "tool", "/usr/local/go/bin/go", "go test ./..."),
+		row(301, 300, 300, time.Second, "tool", "/usr/local/go/pkg/tool/compile", "compile"),
+	}
+	// A daemonized node beside the browser's node shares only a bin directory, never a bundle.
+	unrelated := row(400, 1, 400, 5*time.Second, "background", "/opt/homebrew/bin/node", "node server.js", 3000)
+	id := func(p Process) Identity { return identity(p.ScannedProcess) }
+	cases := []struct {
+		name     string
+		rows     []Process
+		root     Process
+		lead     Process
+		wrappers []Process
+		members  int
+		ports    []int
+	}{
+		{"Should fold a browser, its group, and its detached crash handlers into one tree",
+			browser, browser[0], browser[0], nil, len(browser), []int{9222}},
+		{"Should name a wrapper chain by the process it starts, outermost wrapper first",
+			wrapped, wrapped[0], wrapped[2], wrapped[:2], len(wrapped), []int{4400, 4401}},
+		{"Should keep a tool call and its children as one tool tree",
+			tool, tool[0], tool[0], nil, len(tool), []int{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rows := append(slices.Clone(tc.rows), unrelated)
+			assignTrees(rows)
+			trees := Trees(rows)
+			if len(trees) != 2 {
+				t.Fatalf("trees=%+v, want the case tree and the unrelated server", trees)
+			}
+			tree := trees[0]
+			if tree.Root != id(tc.root) || tree.Lead != id(tc.lead) || len(tree.Members) != tc.members ||
+				tree.Kind != tc.root.Kind || !slices.Equal(tree.Ports, tc.ports) {
+				t.Fatalf("tree=%+v", tree)
+			}
+			wrappers := make([]Identity, len(tc.wrappers))
+			for i, w := range tc.wrappers {
+				wrappers[i] = id(w)
+			}
+			if !slices.Equal(tree.Wrappers, wrappers) {
+				t.Fatalf("wrappers=%v, want %v", tree.Wrappers, wrappers)
+			}
+			if trees[1].Root != id(unrelated) || len(trees[1].Members) != 1 {
+				t.Fatalf("unrelated=%+v", trees[1])
+			}
+		})
+	}
+
+	// Lab regression: two daemonized browsers of one app are two trees, each with its own handler.
+	t.Run("Should keep each instance of an app apart with the crash handler it started", func(t *testing.T) {
+		t.Parallel()
+		rows := slices.Clone(browser[:3])
+		second := []Process{
+			row(500, 1, 500, 10*time.Second, "background", "/opt/homebrew/bin/node", "node daemon.js --session b"),
+			row(510, 500, 510, 11*time.Second, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless"),
+			row(
+				511,
+				1,
+				511,
+				12*time.Second,
+				"background",
+				helpers+"/chrome_crashpad_handler",
+				"chrome_crashpad_handler",
+			),
+		}
+		rows = append(rows, second...)
+		assignTrees(rows)
+		trees := Trees(rows)
+		if len(trees) != 2 ||
+			!slices.Equal(trees[0].Members, []Identity{id(browser[0]), id(browser[1]), id(browser[2])}) ||
+			!slices.Equal(trees[1].Members, []Identity{id(second[0]), id(second[1]), id(second[2])}) {
+			t.Fatalf("trees=%+v", trees)
+		}
+	})
+
+	// Review regression: one install's daemonized server started twice is two trees, not helpers.
+	t.Run("Should keep two daemonized copies of one program apart", func(t *testing.T) {
+		t.Parallel()
+		// Two daemonized browsers: the second never folds into the first through its crash handler.
+		browsers := []Process{
+			row(700, 1, 700, 0, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless"),
+			row(701, 1, 701, time.Second, "background", helpers+"/chrome_crashpad_handler", "chrome_crashpad_handler"),
+			row(710, 1, 710, 2*time.Second, "background", chrome+"/MacOS/Google Chrome", "Google Chrome --headless"),
+		}
+		assignTrees(browsers)
+		if trees := Trees(browsers); len(trees) != 2 || len(trees[1].Members) != 1 {
+			t.Fatalf("browser trees=%+v", trees)
+		}
+		rows := []Process{
+			row(600, 1, 600, 0, "background", "/opt/redis/redis-server", "redis-server --port 6379", 6379),
+			row(601, 1, 601, time.Second, "background", "/opt/redis/redis-server", "redis-server --port 6380", 6380),
+			// A different program of that install started much later is not a helper either.
+			row(602, 1, 602, time.Hour, "background", "/opt/redis/redis-sentinel", "redis-sentinel", 26379),
+		}
+		assignTrees(rows)
+		if trees := Trees(rows); len(trees) != 3 {
+			t.Fatalf("trees=%+v", trees)
+		}
+	})
+
+	// Review regression: background work re-parented out of a tool call stays left running.
+	t.Run("Should keep a re-parented background process out of a tool call's group", func(t *testing.T) {
+		t.Parallel()
+		orphan := row(302, 1, 300, 2*time.Second, "background", "/opt/homebrew/bin/node", "node watcher.js")
+		rows := append(slices.Clone(tool), orphan)
+		assignTrees(rows)
+		trees := Trees(rows)
+		if len(trees) != 2 || trees[1].Root != id(orphan) || trees[1].Kind != "background" {
+			t.Fatalf("trees=%+v", trees)
+		}
+		indexed := map[Identity]Process{}
+		for _, p := range rows {
+			indexed[id(p)] = p
+		}
+		if got := expandTrees(rows, indexed, nil, AllLeftRunning); !slices.Equal(got, []Identity{id(orphan)}) {
+			t.Fatalf("all left running=%v", got)
+		}
+	})
+
+	t.Run("Should count trees, not processes, and leave tool calls out of the badge", func(t *testing.T) {
+		t.Parallel()
+		rows := slices.Concat(browser, wrapped, tool)
+		assignTrees(rows)
+		summary := summarize(Snapshot{Supported: true, Processes: rows})[owner.SessionID]
+		if summary.Trees != 2 || summary.Background != len(browser)+len(wrapped) {
+			t.Fatalf("summary=%+v", summary)
+		}
+	})
+
+	t.Run("Should stop whole trees, and leave tool calls out of all unless included", func(t *testing.T) {
+		t.Parallel()
+		rows := slices.Concat(browser, wrapped, tool)
+		assignTrees(rows)
+		indexed := make(map[Identity]Process)
+		for _, p := range rows {
+			indexed[id(p)] = p
+		}
+		// Stopping a renderer stops its browser: the daemon first, then every helper.
+		got := expandTrees(rows, indexed, []Identity{id(browser[5])}, Targets)
+		if len(got) != len(browser) || got[0] != id(browser[0]) {
+			t.Fatalf("targets=%v", got)
+		}
+		if got := expandTrees(rows, indexed, nil, AllLeftRunning); len(got) != len(browser)+len(wrapped) {
+			t.Fatalf("all left running=%v", got)
+		}
+		if got := expandTrees(rows, indexed, nil, AllIncludingTools); len(got) != len(rows) {
+			t.Fatalf("all including tools=%v", got)
+		}
+		// Delayed cleanup stops what it captured, never members its trees gained since.
+		if got := expandTrees(rows, indexed, []Identity{id(browser[0])}, Captured); !slices.Equal(
+			got, []Identity{id(browser[0])},
+		) {
+			t.Fatalf("captured=%v", got)
+		}
+		// A member outside the caller's authority is never added; an unknown target stays to report.
+		delete(indexed, id(wrapped[2]))
+		unknown := Identity{PID: 999, StartedAt: start}
+		got = expandTrees(rows, indexed, []Identity{id(wrapped[0]), unknown}, Targets)
+		if !slices.Equal(got, []Identity{id(wrapped[0]), id(wrapped[1]), unknown}) {
+			t.Fatalf("targets=%v", got)
+		}
+	})
+}

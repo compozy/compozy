@@ -13,7 +13,12 @@ import type {
   SessionProcessGroupPayload,
   SessionProcessPayload,
 } from "../adapters/session-processes-api";
-import { processCountLabel, sortSessionProcesses } from "../lib/session-processes";
+import {
+  buildProcessTrees,
+  processCountLabel,
+  processTreeTarget,
+  sortSessionProcesses,
+} from "../lib/session-processes";
 import { ProcessListNote, SessionProcessList } from "./session-process-list";
 
 export interface ProcessesLeftRunningDialogProps {
@@ -42,7 +47,9 @@ function LeftRunningGroup({
   stopping: ReadonlySet<string> | null;
   onStop: (processes: readonly SessionProcessPayload[]) => void;
 }) {
-  const processes = sortSessionProcesses(group.items);
+  const trees = buildProcessTrees(sortSessionProcesses(group.items), group.trees);
+  // One target per tree, its lead: the daemon stops each whole tree.
+  const processes = trees.map(processTreeTarget);
   const name = group.session_name.trim();
   const locked = stopping !== null;
   return (
@@ -58,10 +65,10 @@ function LeftRunningGroup({
           </span>
           {name ? null : <MonoId value={group.session_id} />}
           <span className="shrink-0 text-transcript-caption text-faint">
-            {processCountLabel(processes.length)}
+            {processCountLabel(trees.length)}
           </span>
         </span>
-        {processes.length > 1 ? (
+        {trees.length > 1 ? (
           <Button
             type="button"
             variant="quiet"
@@ -75,9 +82,9 @@ function LeftRunningGroup({
         ) : null}
       </div>
       <SessionProcessList
-        processes={processes}
+        trees={trees}
         stopping={stopping}
-        onStop={process => onStop([process])}
+        onStop={tree => onStop([processTreeTarget(tree)])}
       />
     </section>
   );
@@ -99,7 +106,10 @@ export function ProcessesLeftRunningDialog({
   onStop,
   stopping = null,
 }: ProcessesLeftRunningDialogProps) {
-  const all = groups.flatMap(group => group.items);
+  const all = groups.flatMap(group =>
+    buildProcessTrees(group.items, group.trees).map(processTreeTarget)
+  );
+  const treeCount = all.length;
   const anyStopping = stopping !== null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -124,9 +134,9 @@ export function ProcessesLeftRunningDialog({
             stopping={stopping}
           />
         </div>
-        {all.length > 1 && groups.length > 1 ? (
+        {treeCount > 1 && groups.length > 1 ? (
           <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line pt-3">
-            <Eyebrow>{processCountLabel(all.length)} in total</Eyebrow>
+            <Eyebrow>{processCountLabel(treeCount)} in total</Eyebrow>
             <Button
               type="button"
               variant="destructive"
@@ -157,7 +167,7 @@ function LeftRunningBody({
     // The shared list owns the unsupported, loading, failed, and empty lines.
     return (
       <SessionProcessList
-        processes={[]}
+        trees={[]}
         supported={supported}
         loading={loading}
         failed={failed}

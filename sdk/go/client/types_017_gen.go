@@ -148,12 +148,13 @@ type SessionProcessAttribution string
 
 // SessionProcessGroupPayload is a daemon API value.
 type SessionProcessGroupPayload struct {
-	SessionID   string                  `json:"session_id"`
-	WorkspaceID string                  `json:"workspace_id"`
-	Profile     string                  `json:"profile"`
-	SessionName string                  `json:"session_name"`
-	Orphaned    bool                    `json:"orphaned"`
-	Items       []SessionProcessPayload `json:"items"`
+	SessionID   string                      `json:"session_id"`
+	WorkspaceID string                      `json:"workspace_id"`
+	Profile     string                      `json:"profile"`
+	SessionName string                      `json:"session_name"`
+	Orphaned    bool                        `json:"orphaned"`
+	Items       []SessionProcessPayload     `json:"items"`
+	Trees       []SessionProcessTreePayload `json:"trees,omitempty"`
 }
 
 // SessionProcessKind is a daemon API value.
@@ -178,6 +179,7 @@ type SessionProcessPayload struct {
 	RSSKB       *int64                    `json:"rss_kb,omitempty"`
 	ParentAlive bool                      `json:"parent_alive"`
 	TerminalID  string                    `json:"terminal_id,omitempty"`
+	TreeID      string                    `json:"tree_id,omitempty"`
 }
 
 // SessionProcessPolicy is a daemon API value.
@@ -198,6 +200,7 @@ type SessionProcessSummaryPayload struct {
 	Terminals  int   `json:"terminals"`
 	Total      int   `json:"total"`
 	Ports      []int `json:"ports"`
+	Trees      int   `json:"trees,omitempty"`
 }
 
 // SessionProcessTarget is a daemon API value.
@@ -206,11 +209,23 @@ type SessionProcessTarget struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
+// SessionProcessTreePayload is a daemon API value.
+type SessionProcessTreePayload struct {
+	ID       string                 `json:"id"`
+	Kind     SessionProcessKind     `json:"kind"`
+	Root     SessionProcessTarget   `json:"root"`
+	Lead     SessionProcessTarget   `json:"lead"`
+	Wrappers []SessionProcessTarget `json:"wrappers"`
+	Members  []SessionProcessTarget `json:"members"`
+	Ports    []int                  `json:"ports"`
+}
+
 // SessionProcessesResponse is a daemon API value.
 type SessionProcessesResponse struct {
-	Supported bool                    `json:"supported"`
-	ScannedAt time.Time               `json:"scanned_at"`
-	Items     []SessionProcessPayload `json:"items"`
+	Supported bool                        `json:"supported"`
+	ScannedAt time.Time                   `json:"scanned_at"`
+	Items     []SessionProcessPayload     `json:"items"`
+	Trees     []SessionProcessTreePayload `json:"trees,omitempty"`
 }
 
 // SessionProfileFacetsPayload is a daemon API value.
@@ -428,15 +443,4 @@ type SessionTranscriptFences struct {
 	Epoch       int64 `json:"epoch"`
 	Generation  int64 `json:"generation"`
 	MaxSequence int64 `json:"max_sequence"`
-}
-
-// SessionTranscriptResponse is a daemon API value.
-type SessionTranscriptResponse struct {
-	Entries            []Entry `json:"entries"`
-	Epoch              int64   `json:"epoch"`
-	Generation         int64   `json:"generation"`
-	MaxSequence        int64   `json:"max_sequence"`
-	HasOlder           bool    `json:"has_older"`
-	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
-	Limit              int     `json:"limit"`
 }

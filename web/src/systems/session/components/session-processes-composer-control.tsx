@@ -14,37 +14,43 @@ import { SessionProcessList, type SessionProcessListProps } from "./session-proc
 
 export interface SessionProcessesComposerControlProps extends Omit<
   SessionProcessListProps,
-  "placeholderCount"
+  "placeholderCount" | "stopAllExcludesTools"
 > {
-  /** Processes the session left running; the trigger shows only while it is positive. */
+  /** Process trees the session left running; the trigger shows only while it is positive. */
   count: number;
-  /** Stops every process the session started; offered while the list has rows. */
+  /**
+   * Stops every tree the session left running. Tool calls still running in the agent's turn
+   * are left to it; offered while a Background or Terminal tree is listed.
+   */
   onStopAll?: () => void;
   /** The popover opened or closed; the owner reads the list while it is open. */
   onOpenChange?: (open: boolean) => void;
+  /** Opens with the popover shown (prototypes and stories). */
+  defaultOpen?: boolean;
 }
 
 /**
  * The composer's processes control: shown only while the session has processes
  * still running, including after it stops or is archived, so a dev server an
- * agent left behind never runs unseen. Its popover lists each process with its
- * ports and a Stop, plus Stop all.
+ * agent left behind never runs unseen. Its popover lists each process tree with its
+ * ports and a Stop for its whole tree, plus Stop all.
  */
 export function SessionProcessesComposerControl({
   count,
   onStopAll,
   onOpenChange,
+  defaultOpen,
   ...list
 }: SessionProcessesComposerControlProps) {
   if (count <= 0) return null;
   const stoppingAll = list.stopping === "all";
   const canStopAll =
     onStopAll !== undefined &&
-    list.processes.length > 0 &&
+    list.trees.some(tree => tree.kind !== "tool") &&
     !list.missing &&
     list.supported !== false;
   return (
-    <Popover onOpenChange={open => onOpenChange?.(open)}>
+    <Popover defaultOpen={defaultOpen} onOpenChange={open => onOpenChange?.(open)}>
       <PopoverTrigger
         render={
           <InputGroupButton
@@ -84,7 +90,7 @@ export function SessionProcessesComposerControl({
             </Button>
           ) : null}
         </div>
-        <SessionProcessList {...list} placeholderCount={count} />
+        <SessionProcessList {...list} placeholderCount={count} stopAllExcludesTools={canStopAll} />
       </PopoverContent>
     </Popover>
   );

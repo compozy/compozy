@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SessionTranscriptResponse is a daemon API value.
+type SessionTranscriptResponse struct {
+	Entries            []Entry `json:"entries"`
+	Epoch              int64   `json:"epoch"`
+	Generation         int64   `json:"generation"`
+	MaxSequence        int64   `json:"max_sequence"`
+	HasOlder           bool    `json:"has_older"`
+	NextBeforeSequence int64   `json:"next_before_sequence,omitzero"`
+	Limit              int     `json:"limit"`
+}
+
 // SessionTurnInjectedPayload is a daemon API value.
 type SessionTurnInjectedPayload struct {
 	Estimate string                      `json:"estimate"`
@@ -426,22 +437,4 @@ type SettingsHooksResponse struct {
 	Profile         string                     `json:"profile,omitempty"`
 	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 	Hooks           []SettingsHookItemPayload  `json:"hooks"`
-}
-
-// SettingsInstalledExtensionPaletteCommandPayload is a daemon API value.
-type SettingsInstalledExtensionPaletteCommandPayload struct {
-	ID             string   `json:"id"`
-	Title          string   `json:"title"`
-	Bindings       []string `json:"bindings"`
-	DefaultBinding string   `json:"default_binding,omitempty"`
-	DefaultDormant bool     `json:"default_dormant"`
-	ConflictWith   string   `json:"conflict_with,omitempty"`
-	Available      bool     `json:"available"`
-	Reason         string   `json:"reason,omitempty"`
-}
-
-// SettingsInstalledExtensionPalettePayload is a daemon API value.
-type SettingsInstalledExtensionPalettePayload struct {
-	Commands []SettingsInstalledExtensionPaletteCommandPayload `json:"commands"`
-	Views    []SettingsInstalledExtensionPaletteViewPayload    `json:"views"`
 }

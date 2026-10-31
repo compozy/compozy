@@ -4,7 +4,7 @@ area: RT
 title: Inspect and control session processes across stop and restart
 persona: Théo
 journey: J-session-processes
-expected: Owned background processes and ports are visible; explicit terminate verifies exit; keep preserves detached descendants across restart and permits orphan cleanup
+expected: Owned background processes and ports are visible, one row per process tree; explicit terminate verifies exit; keep preserves detached descendants across restart and permits orphan cleanup
 entry_points: Session composer Processes control; command palette Processes left running; compozy session processes; /api/processes
 qa_status: blocked-verify
 bug_ids:
@@ -22,6 +22,15 @@ cannot serve requests. Start another session, stop with keep, restart only the i
 and terminate the retained orphan identities through the operator aggregate. Include a native
 terminal as the adjacent lifecycle canary: it closes on daemon shutdown, while detached children
 remain. Never signal the daemon or the agent leader.
+
+Process trees (#1100): start a dev server behind `bun run` (a wrapper chain) and a headless
+browser whose crash handlers detach to init. The composer badge counts trees, not PIDs. The popover
+shows one row per tree: the server row names the `node` leaf with `via bun run …` and the union of
+ports; the browser row folds Chrome and its helpers, crash handlers included, under **+N helpers**.
+Stopping a tree stops every member, root first, with one toast. Start a long tool command and press
+**Stop all**: the trees left running stop, and the tool call keeps running under **Running in this
+turn** until it is stopped from its own row or `include_tools: true` is sent. Stop, archive, and
+delete with terminate still stop tool calls; nothing is reaped at turn end.
 
 Exercise stop, archive, and delete policy choices in the Web dialogs. Verify independent API reads
 and cross-profile isolation. On macOS, observe the protected sleep while attached before releasing

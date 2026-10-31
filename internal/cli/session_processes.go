@@ -68,15 +68,23 @@ func newSessionProcessesCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, processListBundle(result, result.Items))
 		},
 	}
+	cmd.AddCommand(newSessionProcessesStopCommand(deps))
+	return cmd
+}
+
+func newSessionProcessesStopCommand(deps commandDeps) *cobra.Command {
 	var pid int
 	var started string
-	var all bool
+	var all, includeTools bool
 	stop := &cobra.Command{
 		Use:   "stop <id>",
-		Short: "Terminate verified session processes",
+		Short: "Terminate verified session process trees",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			request := contract.TerminateSessionProcessesRequest{All: all}
+			request := contract.TerminateSessionProcessesRequest{All: all, IncludeTools: includeTools}
+			if includeTools && !all {
+				return errors.New("cli: --include-tools requires --all")
+			}
 			if !all {
 				stamp, err := time.Parse(time.RFC3339Nano, started)
 				if err != nil || pid <= 1 {
@@ -124,9 +132,11 @@ func newSessionProcessesCommand(deps commandDeps) *cobra.Command {
 	}
 	stop.Flags().IntVar(&pid, "pid", 0, "PID returned by the process list")
 	stop.Flags().StringVar(&started, "started-at", "", "Exact RFC3339 process start timestamp returned by the list")
-	stop.Flags().BoolVar(&all, "all", false, "Terminate all attributed processes for this session")
-	cmd.AddCommand(stop)
-	return cmd
+	stop.Flags().BoolVar(&all, "all", false,
+		"Terminate every process tree this session left running; tool calls still running in its turn stay")
+	stop.Flags().BoolVar(&includeTools, "include-tools", false,
+		"With --all, also terminate tool calls still running in the agent's turn")
+	return stop
 }
 func newProcessCommand(deps commandDeps) *cobra.Command {
 	root := &cobra.Command{Use: "process", Short: "Inspect processes left running by sessions"}
@@ -193,15 +203,16 @@ func processListBundle(result contract.SessionProcessesResponse, items []contrac
 			p.Command,
 			strings.Join(ports, ","),
 			p.StartedAt.Format(time.RFC3339Nano),
+			p.TreeID,
 		}
 	}
 	return listBundle(
 		result,
 		items,
 		"Session processes",
-		[]string{"PID", "KIND", "COMMAND", "PORTS", "STARTED AT"},
+		[]string{"PID", "KIND", "COMMAND", "PORTS", "STARTED AT", "TREE"},
 		"items",
-		[]string{"pid", cliKindKey, "command", "ports", "started_at"},
+		[]string{"pid", cliKindKey, "command", "ports", "started_at", "tree_id"},
 		row,
 		row,
 	)

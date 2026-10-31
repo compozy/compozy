@@ -15880,7 +15880,7 @@ func (s *nativeProcessPolicyService) Terminate(
 	ctx context.Context,
 	id string,
 	targets []sessionprocess.Identity,
-	all bool,
+	scope sessionprocess.Scope,
 	allowed func(sessionprocess.Owner) bool,
 ) ([]sessionprocess.Result, error) {
 	if err := ctx.Err(); err != nil {
@@ -15889,7 +15889,8 @@ func (s *nativeProcessPolicyService) Terminate(
 	if _, bounded := ctx.Deadline(); !bounded {
 		return nil, errors.New("cleanup has no deadline")
 	}
-	if id != "sess-target" || !all || len(targets) != 0 ||
+	// Lifecycle cleanup stops tool calls too: the session is going away with them.
+	if id != "sess-target" || scope != sessionprocess.AllIncludingTools || len(targets) != 0 ||
 		!allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1"}) ||
 		allowed(sessionprocess.Owner{ProfileID: "foreign", WorkspaceID: "ws-1"}) ||
 		allowed(sessionprocess.Owner{ProfileID: store.DefaultProfileID, WorkspaceID: "foreign"}) {

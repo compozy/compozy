@@ -4,11 +4,16 @@ description: Inspect and stop background processes and terminals owned by a sess
 ---
 
 A session can start a development server, watcher, or background command that keeps running after
-the agent finishes. The composer’s **Processes** control shows the number of background processes
-and native terminals, their commands, age, and listening ports. Commands include readable arguments
-with the standard redaction rules applied, and fall back to the process name when unavailable. Foreground tool commands appear in
-the list but do not add to the badge count or its summary ports. Select a row to stop that process, or stop all listed
-processes for the session.
+the agent finishes. The composer’s **Processes** control lists what the session left running as
+process trees: one row for a development server behind `bun run`, one for a headless browser and its
+helpers, one per native terminal. Each row names the command that does the work, shows the wrapper
+that launched it (`via bun run dev`), the tree’s listening ports, and a **+N helpers** toggle that
+lists the other processes in the tree. The badge counts trees. Commands include readable arguments
+with the standard redaction rules applied, and fall back to the process name when unavailable.
+
+Stopping a row stops its whole tree. **Stop all** stops every tree the session left running. Tool
+commands still running in the agent’s turn appear under **Running in this turn**: they do not add to
+the badge, and Stop all leaves them to the agent. Stop one of them from its own row.
 
 When stopping, archiving, or deleting a session, choose whether to keep its processes or terminate
 them. Keeping is the default. Canceling a turn and releasing an idle agent do not request process
@@ -21,6 +26,7 @@ archived, deleted, or unknown sessions across projects and profiles.
 compozy session processes <session-id> -o json
 compozy session processes stop <session-id> --pid <pid> --started-at <timestamp> -o json
 compozy session processes stop <session-id> --all -o json
+compozy session processes stop <session-id> --all --include-tools -o json
 compozy session stop <session-id> --terminate-processes -o json
 compozy session archive <session-id> --stop --keep-processes -o json
 compozy session remove <session-id> --terminate-processes -o json
@@ -36,6 +42,14 @@ mutually exclusive. Omitting both keeps processes.
 The session routes are `GET /api/workspaces/{workspace_id}/sessions/{session_id}/processes` and
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/processes/terminate`. Termination takes
 exactly one selection: `{"all":true}` or `{"targets":[{"pid":123,"started_at":"<timestamp>"}]}`.
+The list returns `items` and `trees`. A tree has an `id`, a `kind`, its `root`, the `lead` process
+that names it, the `wrappers` that launched the lead, every `member`, and the union of `ports`; each
+item carries its `tree_id`. The session’s `process_summary.trees` counts Background and Terminal
+trees, while `background` and `terminals` keep counting processes.
+
+Each target stops every verified member of its tree, root first. `{"all":true}` stops the trees the
+session left running and leaves tool calls still running in the turn; `{"all":true,"include_tools":true}`
+stops those too. Stop, archive, and delete with `processes: "terminate"` include tool calls.
 The native tools `compozy__session_processes_list` and `compozy__session_processes_terminate`
 use the same session ownership checks. Termination is a destructive tool and follows the session’s
 approval policy.
@@ -48,7 +62,8 @@ Once a stop is accepted or an archive/delete transition succeeds, requested clea
 with a bounded execution lifetime even if the client disconnects.
 
 Operators can read `GET /api/processes?all_workspaces=true&all_profiles=true&orphaned=true` and
-terminate listed identities with `POST /api/processes/terminate` and a `targets` array. This route
+terminate listed identities, each with its tree, with `POST /api/processes/terminate` and a
+`targets` array. Each session group carries `trees` like the session list. This route
 also works when the original session no longer exists; it does not accept `all`. Profile and
 workspace ownership are retained with the observation. Raw process environments are never returned.
 

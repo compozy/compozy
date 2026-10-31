@@ -1713,11 +1713,19 @@ refused immediately with `session_busy`; it is never deferred.
 Use `compozy__session_processes_list` with `session_id` (omitted selects the caller) to inspect
 session-owned background commands, active tools, and native terminals. Rows carry exact `pid` and
 `started_at`, `kind`, `attribution` (`env` or `lineage`), command, CWD, age, and listening ports.
-Raw environments are never exposed. The session's `process_summary` counts background processes
-and native terminals, with ports from that same population; foreground tools remain in the detailed list. Catalog changes invalidate it.
+Raw environments are never exposed. `trees` groups the rows into logical process trees: each has
+`id`, `kind`, `root`, `lead` (the process that names it, the leaf of a `sh -c`/`bun run`/`npm run`
+wrapper chain), `wrappers`, `members`, and the union of `ports`; every row carries its `tree_id`. A
+browser and its helpers, including detached crash handlers of the same app bundle, are one tree.
+The session's `process_summary.trees` counts Background and Terminal trees; `background` and
+`terminals` still count processes, with ports from that same population; foreground tools remain in
+the detailed list. Catalog changes invalidate it.
 
 `compozy__session_processes_terminate` accepts either `all: true` or a nonempty `targets` array of
-`{pid, started_at}` copied from the list. Never terminate by PID alone. It is a destructive tool,
+`{pid, started_at}` copied from the list. Never terminate by PID alone. Each target stops every
+verified member of its tree, root first, and returns one result per member. `all: true` stops every
+Background and Terminal tree and leaves tool calls still running in the turn; add
+`include_tools: true` to stop those too. Stop, archive, and delete cleanup include tools. It is a destructive tool,
 subject to the current permission/approval policy and session workspace/profile boundaries. Agent
 leaders and the daemon remain protected. Verified group members are signaled individually to
 exclude later group joiners. Native terminals close through the terminal manager.
@@ -1731,8 +1739,8 @@ and remove accept mutually exclusive `--keep-processes` / `--terminate-processes
 ownership refresh does not block keep. Explicit termination rejects unsupported inspection before
 the lifecycle mutation, and accepted cleanup survives client disconnect with a bounded lifetime.
 CLI process termination reports an error on unsupported hosts. Read through
-`compozy session processes <id> -o json`; terminate with `processes stop <id> --all` or the paired
-`--pid` and `--started-at`. Canceling a turn and idle release do not request cleanup.
+`compozy session processes <id> -o json`; terminate with `processes stop <id> --all` (add
+`--include-tools` for in-turn tool calls) or the paired `--pid` and `--started-at`. Canceling a turn and idle release do not request cleanup.
 
 The operator's **Processes left running** palette view spans stopped/archived/deleted/unknown
 sessions. Its operator-only API is `GET /api/processes?all_workspaces=true&all_profiles=true&orphaned=true`;

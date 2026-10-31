@@ -61,7 +61,7 @@ func (h *BaseHandlers) finishProcessPolicy(
 		ctx,
 		info.ID,
 		nil,
-		true,
+		sessionprocess.AllIncludingTools,
 		func(o sessionprocess.Owner) bool {
 			return o.ProfileID == info.ProfileID && o.WorkspaceID == info.WorkspaceID
 		},
