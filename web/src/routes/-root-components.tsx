@@ -10,10 +10,12 @@ import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
 import { Button, Empty, buttonVariants } from "@compozy/ui";
 
+import { useReleaseActivationFocus } from "@/hooks/use-release-activation-focus";
 import { GatewayAccessBoundary } from "@/systems/gateway";
 import { FontAppearanceSync } from "@/systems/theme";
 
 export function RootComponent() {
+  useReleaseActivationFocus();
   return (
     <GatewayAccessBoundary>
       <div
@@ -21,22 +23,9 @@ export function RootComponent() {
         className="flex h-dvh flex-col overflow-hidden bg-background text-foreground"
       >
         <FontAppearanceSync />
-        <SkipToContentLink />
         <Outlet />
       </div>
     </GatewayAccessBoundary>
-  );
-}
-
-function SkipToContentLink() {
-  return (
-    <a
-      data-testid="skip-to-content"
-      href="#app-content"
-      className="sr-only fixed top-2 left-2 z-50 rounded-pill bg-primary px-3 py-2 text-form-label font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:px-3 focus:py-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
-    >
-      Skip to content
-    </a>
   );
 }
 

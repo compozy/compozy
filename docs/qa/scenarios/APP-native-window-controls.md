@@ -38,3 +38,12 @@ globe). Real OS clicks and drags were not exercised (the machine was in live use
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+qa-impact: 2026-10-31 (#1094) the Skip to content link popped up during mouse use under the macOS
+traffic lights: showing the window again (⌘H and back, Dock reopen) made Chromium hand initial focus to
+the page's first tabbable element as keyboard focus. By the user's decision the skip link is removed;
+the menubar and rail tab order is the keyboard path. With the link gone the same hand-off lands on the
+CompozyOS mark and paints its focus ring, so the shell now releases focus that arrives on window
+activation before any key or pointer input. Expected: after hiding and re-showing the window with the
+mouse, no control in the topbar shows a focus ring. Development evidence only; the packaged walk remains
+outstanding.

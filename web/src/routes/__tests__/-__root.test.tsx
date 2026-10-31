@@ -73,10 +73,96 @@ describe("RootComponent", () => {
     expect(within(screen.getByTestId("root-shell")).getByTestId("outlet")).toBeInTheDocument();
   });
 
-  it("renders a skip-to-content link that targets the app-content main", () => {
-    renderRoot(<RootComponent />);
-    const link = screen.getByTestId("skip-to-content");
-    expect(link).toHaveAttribute("href", "#app-content");
+  describe("window reactivation focus", () => {
+    let controls: HTMLButtonElement[] = [];
+    function renderWithControls(count = 1) {
+      renderRoot(<RootComponent />);
+      controls = Array.from({ length: count }, () => document.createElement("button"));
+      document.body.append(...controls);
+      return controls;
+    }
+    function reactivateWindow() {
+      fireEvent.blur(window);
+      fireEvent.focus(window);
+    }
+    afterEach(() => {
+      for (const control of controls) control.remove();
+      controls = [];
+    });
+
+    it("releases the focus a reactivated window hands to the first control before any input", async () => {
+      const [first] = renderWithControls();
+
+      reactivateWindow();
+      await act(async () => first.focus());
+
+      expect(document.body).toHaveFocus();
+    });
+
+    it("keeps focus the first control receives after the activation window expires", async () => {
+      vi.useFakeTimers();
+      try {
+        const [first] = renderWithControls();
+
+        reactivateWindow();
+        act(() => vi.advanceTimersByTime(100));
+        await act(async () => first.focus());
+
+        expect(first).toHaveFocus();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps focus a key press moves after the window activates", async () => {
+      const [first] = renderWithControls();
+
+      reactivateWindow();
+      fireEvent.keyDown(document, { key: "Tab" });
+      await act(async () => first.focus());
+
+      expect(first).toHaveFocus();
+    });
+
+    it("keeps focus a pointer press moves after the window activates", async () => {
+      const [first] = renderWithControls();
+
+      reactivateWindow();
+      fireEvent.pointerDown(document);
+      await act(async () => first.focus());
+
+      expect(first).toHaveFocus();
+    });
+
+    it("keeps the control that held focus before the window deactivated", async () => {
+      const [first] = renderWithControls();
+      await act(async () => first.focus());
+
+      fireEvent.blur(window);
+      act(() => first.blur());
+      fireEvent.focus(window);
+      await act(async () => first.focus());
+
+      expect(first).toHaveFocus();
+    });
+
+    it("keeps focus the app sets on a control other than the first one", async () => {
+      const [, second] = renderWithControls(2);
+
+      reactivateWindow();
+      await act(async () => second.focus());
+
+      expect(second).toHaveFocus();
+    });
+
+    it("keeps focus the app sets when the window is first shown", async () => {
+      const [first] = renderWithControls();
+
+      fireEvent.focus(window);
+      await act(async () => first.focus());
+
+      expect(first).toHaveFocus();
+    });
   });
 
   it("renders a root-level not-found fallback with a clear path home", () => {
