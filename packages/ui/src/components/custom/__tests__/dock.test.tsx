@@ -56,6 +56,19 @@ describe("Dock", () => {
     expect(deadline?.className).toContain("tabular-nums");
   });
 
+  it("Should keep line breaks only on a multiline title", () => {
+    const { rerender } = render(<Dock.Title>Run a command</Dock.Title>);
+    let title = screen.getByText("Run a command");
+    expect(title).not.toHaveAttribute("data-multiline");
+    expect(title.className).not.toContain("whitespace-pre-line");
+
+    rerender(<Dock.Title multiline>{"Create the repo?\n- Name: api"}</Dock.Title>);
+    title = screen.getByText(/Create the repo\?/);
+    expect(title).toHaveAttribute("data-multiline", "true");
+    expect(title.className).toContain("whitespace-pre-line");
+    expect(title.className).toContain("break-words");
+  });
+
   it("Should tone the status line danger only when asked", () => {
     const { container, rerender } = render(<Dock.Status>Sending answer…</Dock.Status>);
     let status = container.querySelector<HTMLElement>('[data-slot="dock-status"]');

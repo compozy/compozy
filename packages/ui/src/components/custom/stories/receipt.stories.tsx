@@ -55,3 +55,27 @@ export const ClarificationAnswer: Story = {
     ),
   },
 };
+
+export const Wrapped: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`wrap` lets a record that quotes agent-written prose wrap and keep its line breaks instead of truncating to one line.",
+      },
+    },
+  },
+  args: {
+    tone: "neutral",
+    icon: <MessageCircleQuestionIcon />,
+    wrap: true,
+    children: (
+      <>
+        Answered <b>&quot;Yes&quot;</b> —{" "}
+        {
+          "Create the repository with these settings?\n- Name: payments-api\n- Teams: platform, billing\nConfirm?"
+        }
+      </>
+    ),
+  },
+};
