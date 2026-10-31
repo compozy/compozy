@@ -95,6 +95,43 @@ Archived sessions are omitted by default. Use `--archived` to return only archiv
 `--include-archived` to return archived and unarchived sessions together. Archiving changes catalog
 visibility, not the runtime state, and preserves the complete session record.
 
+Sessions in Later are omitted by default too. Use `--later` to return only sessions in Later, or
+`--include-later` to include them.
+
+## Later
+
+Move a session to Later when you want to come back to it without archiving it. Later stops
+everything under the session: its active turn and runtime, its monitors, timers, and pending wakes,
+the processes and terminals it started, and its child sessions, which move to Later with it.
+History, transcript, attachments, and the worktree binding stay. Nothing is deleted.
+
+```bash
+compozy session later sess-123 --reason "revisit after the billing spec" --return-at 2026-11-03
+compozy session resume-later sess-123            # Back from Later, without starting it
+compozy session resume-later sess-123 --with-children
+compozy session list --later                     # what is in Later
+```
+
+- `--reason` is an optional one-line note shown on the Later card (up to 200 characters).
+- `--return-at` is optional. It takes an RFC 3339 time, a `YYYY-MM-DD` date (local midnight), or
+  a duration such as `72h`. At that time the session leaves Later, lands in **Needs you** as
+  "Back from Later", and you get a notification. The daemon checks return times when it starts, so
+  a return time that passes while it is down fires on the next start. A return time in the past
+  fires at once.
+- Sessions in Later leave the Kanban columns and the main list. In the web app they appear in the
+  Later view of the session list (the clock toggle next to Archive) and in the Later bar at the
+  bottom of the board, per project and in All projects.
+- Sending a prompt from the web app or the CLI to a session in Later brings it back and resumes it.
+  A message from another session is queued instead: the session stays in Later, its card shows the
+  pending messages, and the sender gets the `later` disposition. Queued messages are delivered
+  when you resume the session.
+- Back from Later returns the session to the normal flow, stopped. Its children stay in Later
+  unless you bring them back with `--with-children`.
+- Archiving a session in Later works and takes it out of Later.
+
+Agents use `compozy__session_later` and `compozy__session_resume_later`; HTTP clients use
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/later` and `.../resume-later`.
+
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.

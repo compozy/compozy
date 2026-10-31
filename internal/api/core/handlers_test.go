@@ -409,6 +409,30 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			info.ArchivedAt = &archivedAt
 			return info, nil
 		},
+		MoveToLaterFn: func(
+			_ context.Context, workspaceID string, id string, req session.LaterRequest,
+		) (*session.Info, error) {
+			if workspaceID != "ws-workspace" || id != "sess-a" {
+				t.Fatalf("MoveToLater target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+			}
+			if req.Reason == "invalid" {
+				return nil, fmt.Errorf("%w: reason must be one line", session.ErrSessionLaterInvalid)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
+			info.State = session.StateStopped
+			info.Later = &store.SessionLater{ParkedAt: now, Reason: req.Reason, ReturnAt: req.ReturnAt}
+			return info, nil
+		},
+		ResumeFromLaterFn: func(_ context.Context, _ string, id string, withChildren bool) (*session.Info, error) {
+			if !withChildren {
+				return nil, fmt.Errorf("%w: %s", session.ErrSessionInLater, id)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
+			info.State = session.StateStopped
+			return info, nil
+		},
 		UnarchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 			if workspaceID != "ws-workspace" || id != "sess-a" {
 				t.Fatalf("Unarchive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
@@ -950,6 +974,48 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 				archived.Session,
 				archiveWithStopCalls.Load(),
 			)
+		}
+	})
+
+	t.Run("Should move a session to Later and bring it back with its request fields", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"after billing","return_at":"2026-11-03T09:00:00Z"}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("later status = %d body=%s, want %d", resp.Code, resp.Body.String(), http.StatusOK)
+		}
+		var parked contract.SessionResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &parked); err != nil {
+			t.Fatalf("json.Unmarshal(later response) error = %v", err)
+		}
+		if parked.Session.Later == nil || parked.Session.Later.Reason != "after billing" ||
+			parked.Session.Later.ReturnAt == nil ||
+			!parked.Session.Later.ReturnAt.Equal(time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)) {
+			t.Fatalf("later response = %#v, want reason and return time", parked.Session.Later)
+		}
+		invalid := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/later",
+			[]byte(`{"reason":"invalid"}`),
+		)
+		if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), "session_later_invalid") {
+			t.Fatalf("later(invalid) = %d %s, want 400 session_later_invalid", invalid.Code, invalid.Body.String())
+		}
+		refused := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later", nil,
+		)
+		if refused.Code != http.StatusConflict || !strings.Contains(refused.Body.String(), "session_in_later") {
+			t.Fatalf("resume-later(refused) = %d %s, want 409 session_in_later", refused.Code, refused.Body.String())
+		}
+		back := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/resume-later",
+			[]byte(`{"with_children":true}`),
+		)
+		if back.Code != http.StatusOK || strings.Contains(back.Body.String(), `"later"`) {
+			t.Fatalf("resume-later = %d %s, want 200 without Later", back.Code, back.Body.String())
 		}
 	})
 

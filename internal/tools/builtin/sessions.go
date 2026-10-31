@@ -270,6 +270,7 @@ const sessionListInputSchema = `{
 		"q":{"type":"string"},
 		"resumable":{"type":"boolean"},
 		"archive":{"type":"string","enum":["exclude","only","include"]},
+		"later":{"type":"string","enum":["exclude","only","include"],"description":"Visibility of sessions parked in Later; excluded by default."},
 		"include_health":{"type":"boolean"},
 		"sort":{"type":"string","enum":["recent","created","name","last_activity","attention","navigator","manual"]},
 		"cursor":{"type":"string"},

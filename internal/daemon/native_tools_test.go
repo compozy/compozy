@@ -1844,6 +1844,56 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park through session_later and deny parking the caller's own tree", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// Any hierarchy child is parked with its parent; continue and fork only name a source.
+		lineages := map[string]*store.SessionLineage{
+			"sess-child":     {ParentSessionID: "sess-parent", Kind: store.LineageKindProvenance},
+			"sess-continued": {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+			"sess-forked":    {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		var parked []session.LaterRequest
+		manager.MoveToLaterFn = func(_ context.Context, _ string, id string, req session.LaterRequest) (*session.Info, error) {
+			parked = append(parked, req)
+			return &session.Info{ID: id, State: session.StateStopped}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		child := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-child", AgentName: "coder"}
+		_, err := registry.Call(t.Context(), child, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionLater,
+			Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		for _, caller := range []string{"sess-continued", "sess-forked"} {
+			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
+			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionLater,
+				Input: json.RawMessage(
+					`{"session_id":"sess-parent","reason":"after billing","return_at":"2026-11-03T09:00:00Z"}`,
+				),
+			}); err != nil {
+				t.Fatalf("session_later of the source from %s = %v, want allowed", caller, err)
+			}
+		}
+		want := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+		if len(parked) != 2 || parked[0].Reason != "after billing" || parked[0].ReturnAt == nil ||
+			!parked[0].ReturnAt.Equal(want) {
+			t.Fatalf("MoveToLater requests = %#v, want two parks with reason and return time", parked)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
