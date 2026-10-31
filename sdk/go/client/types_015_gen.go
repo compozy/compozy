@@ -379,7 +379,7 @@ type SessionCatalogFacetsResponse struct {
 	ByProfile   []SessionProfileFacetsPayload   `json:"by_profile"`
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
-	Later       int                             `json:"later"`
+	Later       int                             `json:"later,omitempty"`
 }
 
 // SessionCatalogPagePayload is a daemon API value.

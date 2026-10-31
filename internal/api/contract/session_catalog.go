@@ -71,6 +71,6 @@ type SessionCatalogFacetsResponse struct {
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
 	// Later counts the scope's sessions parked in Later regardless of the
-	// request's `later` filter.
-	Later int `json:"later"`
+	// request's `later` filter; omitted when none are parked.
+	Later int `json:"later,omitempty"`
 }

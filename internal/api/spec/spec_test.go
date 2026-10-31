@@ -3508,6 +3508,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved Later disposition: no historical prompt dispositions found")
 	}
 	addSessionCatalogLaterParameter(t, baseline)
+	// #1076: optional Later total on catalog facets; existing fields and required sets stay unchanged.
+	if addSessionCatalogFacetsLater(baseline) == 0 {
+		t.Fatal("approved facets Later total: no historical session catalog facets schemas found")
+	}
 	for _, code := range []tools.ErrorCode{
 		tools.ErrorCodeSessionInLater,
 		tools.ErrorCodeSubagentLaterFollowsParent,
@@ -4820,6 +4824,27 @@ func addWorktreeCreateErrorSchemas(value any) int {
 
 // addSessionCatalogLaterParameter inserts the optional Later visibility filter
 // right after the archive filter of each session catalog read.
+func addSessionCatalogFacetsLater(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionCatalogFacetsLater(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionCatalogFacetsLater(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["by_profile"] != nil && properties["by_workspace"] != nil &&
+			properties["facets"] != nil {
+			properties["later"] = map[string]any{"type": "integer"}
+			count++
+		}
+	}
+	return count
+}
+
 func addSessionCatalogLaterParameter(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	paths := baseline["paths"].(map[string]any)

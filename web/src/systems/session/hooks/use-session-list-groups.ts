@@ -190,8 +190,10 @@ export function useSessionListLaterCount({
   worktreeId?: string;
   enabled: boolean;
 }): number | undefined {
-  return useQuery({
+  const data = useQuery({
     ...sessionFacetsOptions(sessionListFacetFilters({ scope, lens, shelf: "active", worktreeId })),
     enabled: enabled && scope !== null,
-  }).data?.later;
+  }).data;
+  // The daemon omits the total when nothing is parked.
+  return data ? (data.later ?? 0) : undefined;
 }
