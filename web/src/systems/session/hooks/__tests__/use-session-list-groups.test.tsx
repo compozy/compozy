@@ -329,7 +329,16 @@ describe("useSessionListView", () => {
       }
       if (path === "/api/workspace-folders") return json(layout);
       if (path === "/api/workspace-order/workspaces" && request.method === "PUT") {
-        workspaceOrders.push(await request.json());
+        const body = (await request.json()) as { workspace_ids: string[] };
+        workspaceOrders.push(body);
+        // The daemon pins the listed order at the head of the root.
+        layout = {
+          ...layout,
+          placements: body.workspace_ids.map((workspace_id, position) => ({
+            workspace_id,
+            position,
+          })),
+        };
         return json(layout);
       }
       return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
@@ -456,6 +465,13 @@ describe("useSessionListView", () => {
     );
     await waitFor(() => expect(workspaceOrders).toHaveLength(1));
     expect(workspaceOrders[0]).toEqual({ workspace_ids: ["ws-gamma", "ws-beta", "ws-alpha"] });
+    // Once the layout rereads, the list shows the new order with the hidden project still out.
+    await waitFor(() =>
+      expect(result.current.groups.map(group => group.key)).toEqual([
+        "project:ws-beta",
+        "project:ws-alpha",
+      ])
+    );
   });
 
   // Issue #903: selecting a session retargets the window, which remounts its content and the

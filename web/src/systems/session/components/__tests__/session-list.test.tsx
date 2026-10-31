@@ -2564,6 +2564,23 @@ describe("SessionList breadth and Group by", () => {
     );
   });
 
+  // #1085: a project whose sessions all left the view drops its cached rows: its page read
+  // stops refreshing at a zero count, so those rows could be archived or deleted.
+  it("Should drop a project's cached rows once its count reaches zero", async () => {
+    const alpha = (total: number) =>
+      projectSessionGroup(
+        "ws-alpha",
+        { all: total, working: 0, needs_you: 0 },
+        { workspaces: WORKSPACES, lens: { profile: "default" } }
+      );
+    const list = renderList({ sessions: [], view: grouped({ groups: [alpha(1)] }) });
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+
+    list.update([], grouped({ groups: [alpha(0)], showEmptyProjects: true }));
+    expect(await screen.findByText("No sessions in Alpha yet.")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-a1")).not.toBeInTheDocument();
+  });
+
   it("Should name the project, never the profile, in an empty project group", async () => {
     const empty = projectSessionGroup(
       "ws-gamma",

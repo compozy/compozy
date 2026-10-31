@@ -182,8 +182,9 @@ function SessionListPairGroupBody({
   const { view } = props;
   const groupSelection = use(SessionListGroupSelectionContext);
   // A pair with no sessions in view skips its page but keeps its folders, so a folder
-  // created from its + shows at once (#1085).
-  const catalog = useSessionCatalog(
+  // created from its + shows at once (#1085). A disabled read still holds its last page
+  // or error, so the group reads as settled and empty instead.
+  const read = useSessionCatalog(
     group.scope,
     sessionListGroupFilters(view, group),
     group.total > 0,
@@ -192,6 +193,7 @@ function SessionListPairGroupBody({
       lens: group.lens,
     }
   );
+  const catalog = group.total > 0 ? read : settledEmptyCatalog(read);
   const folders = useSessionFolders({
     workspaceId: group.pair?.workspaceId ?? null,
     profile: group.pair?.profile ?? "",
@@ -324,6 +326,20 @@ function GroupThreads({
 }
 
 /** A failed refresh over loaded rows, and the group's own previous/next paging. */
+/** A group catalog with nothing in view: no rows, nothing loading, failed, or paging. */
+function settledEmptyCatalog(catalog: GroupCatalog): GroupCatalog {
+  return {
+    ...catalog,
+    sessions: [],
+    loading: false,
+    placeholder: false,
+    failed: false,
+    next: false,
+    previous: false,
+    paging: false,
+  };
+}
+
 function GroupPager({ catalog }: { catalog: GroupCatalog }) {
   return (
     <>
