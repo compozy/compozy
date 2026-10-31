@@ -156,17 +156,27 @@ function atNine(base: Date, daysAhead: number): Date {
   return date;
 }
 
+const HALF_HOUR_MS = 30 * 60_000;
+
+/**
+ * Three hours from `now`, moved forward to the next local half hour so the
+ * time list shows it selected. The move is added as elapsed time, never by
+ * setting clock fields, so a repeated hour (clocks going back) cannot pull the
+ * instant earlier than three hours out.
+ */
+export function laterInThreeHours(now: number): Date {
+  const base = new Date(now + 3 * 60 * 60_000);
+  const intoHalfHour =
+    (base.getMinutes() % 30) * 60_000 + base.getSeconds() * 1000 + base.getMilliseconds();
+  return new Date(base.getTime() + (intoHalfHour === 0 ? 0 : HALF_HOUR_MS - intoHalfHour));
+}
+
 /** One-click return dates beside the calendar, resolved when picked. */
 export function laterReturnPresets(): { label: string; value: () => Date }[] {
   return [
     {
       label: "In 3 hours",
-      value: () => {
-        const date = new Date(Date.now() + 3 * 60 * 60_000);
-        // Land on the next half hour so the time list shows it selected.
-        date.setMinutes(Math.ceil(date.getMinutes() / 30) * 30, 0, 0);
-        return date;
-      },
+      value: () => laterInThreeHours(Date.now()),
     },
     { label: "Tomorrow", value: () => atNine(new Date(), 1) },
     {

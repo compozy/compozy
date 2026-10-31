@@ -59,6 +59,7 @@ func (r *laterReasonReader) writeLines(node ast.Node) {
 	}
 }
 
+// visit routes block structure here and inline content to visitInline.
 func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus, error) {
 	switch typed := node.(type) {
 	case *ast.Paragraph, *ast.TextBlock, *ast.Heading, *extensionast.TableHeader, *extensionast.TableRow:
@@ -70,6 +71,25 @@ func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus,
 		if entering && typed.PreviousSibling() != nil {
 			r.current.WriteString(laterReasonLineSeparator)
 		}
+	case *ast.HTMLBlock:
+		if entering {
+			r.flush()
+		}
+		return ast.WalkSkipChildren, nil
+	case *ast.FencedCodeBlock, *ast.CodeBlock:
+		if entering {
+			r.writeLines(node)
+		}
+		return ast.WalkSkipChildren, nil
+	default:
+		return r.visitInline(node, entering), nil
+	}
+	return ast.WalkContinue, nil
+}
+
+// visitInline reads inline text literally and skips inline markup.
+func (r *laterReasonReader) visitInline(node ast.Node, entering bool) ast.WalkStatus {
+	switch typed := node.(type) {
 	case *ast.Text:
 		if entering {
 			// Prose keeps escaped characters without their backslash, as rendered.
@@ -90,25 +110,15 @@ func (r *laterReasonReader) visit(node ast.Node, entering bool) (ast.WalkStatus,
 				}
 			}
 		}
-		return ast.WalkSkipChildren, nil
+		return ast.WalkSkipChildren
 	case *ast.AutoLink:
 		if entering {
 			r.current.Write(typed.Label(r.source))
 		}
-		return ast.WalkSkipChildren, nil
+		return ast.WalkSkipChildren
 	case *ast.RawHTML:
 		// Inline tags are markup; the text between them is read as usual.
-		return ast.WalkSkipChildren, nil
-	case *ast.HTMLBlock:
-		if entering {
-			r.flush()
-		}
-		return ast.WalkSkipChildren, nil
-	case *ast.FencedCodeBlock, *ast.CodeBlock:
-		if entering {
-			r.writeLines(node)
-		}
-		return ast.WalkSkipChildren, nil
+		return ast.WalkSkipChildren
 	}
-	return ast.WalkContinue, nil
+	return ast.WalkContinue
 }

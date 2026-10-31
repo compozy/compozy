@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primarySessionFixture } from "../../testing";
-import { SESSION_LATER_REASON_MAX } from "../../lib/session-later";
+import { laterInThreeHours, SESSION_LATER_REASON_MAX } from "../../lib/session-later";
 import { SessionLaterDialog } from "../session-later-dialog";
 
 function renderDialog(overrides: Partial<Parameters<typeof SessionLaterDialog>[0]> = {}) {
@@ -110,6 +110,22 @@ describe("SessionLaterDialog", () => {
       "Choose a time in the future."
     );
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('Should never return "In 3 hours" earlier than three hours out', () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "America/New_York";
+    try {
+      // 23:10 EDT the night clocks go back: three hours later is 01:10 EST, and the
+      // next half hour is 01:30 EST, not the earlier 01:30 EDT.
+      const now = Date.parse("2026-11-01T03:10:00Z");
+      const at = laterInThreeHours(now);
+      expect(at.toISOString()).toBe("2026-11-01T06:30:00.000Z");
+      expect(at.getTime() - now).toBeGreaterThanOrEqual(3 * 60 * 60_000);
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
   });
 
   it("Should clear a picked return date", async () => {
