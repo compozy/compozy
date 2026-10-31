@@ -333,7 +333,7 @@ describe("OsWindowDeck", () => {
 
   // Invariant: a terminal tab names the terminal and never shows a live-state
   // mark — a running shell is not activity (#1071). Session tabs keep theirs.
-  it("Should title a terminal tab without a state glyph, whatever its head publishes", () => {
+  it("Should title a terminal tab without a state glyph, whatever its head publishes", async () => {
     windows = {
       "window:terminal": windowFixture("window:terminal", { app: "terminal" }),
       "window:tasks": windowFixture("window:tasks"),
@@ -359,6 +359,19 @@ describe("OsWindowDeck", () => {
     expect(within(terminalTab).getByRole("tab", { name: "dev server" })).toBeInTheDocument();
     expect(terminalTab.querySelector('[data-slot="os-window-tab-icon"]')).toBeInTheDocument();
     expect(terminalTab.querySelector('[data-slot="state-glyph"]')).toBeNull();
+
+    await act(async () => {
+      terminalSlot.publishSlot(
+        {},
+        {
+          crumb: "dev server",
+          glyph: <StateGlyph size="sm" state="running" />,
+          glyphPresentation: "state",
+        }
+      );
+    });
+    expect(terminalTab.querySelector('[data-slot="state-glyph"]')).toBeNull();
+    expect(terminalTab.querySelector('[data-slot="os-window-tab-icon"]')).toBeInTheDocument();
   });
 
   it("Should count a session's pending decisions on its tab and omit the count at zero", () => {
