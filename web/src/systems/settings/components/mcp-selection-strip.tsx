@@ -7,7 +7,7 @@ import {
   MetadataList,
   MetadataListRow,
 } from "@compozy/ui";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "@compozy/ui/icons";
 
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";
 import type { SettingsMCPServerEntry } from "../types";

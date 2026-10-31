@@ -1,4 +1,4 @@
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2 } from "@compozy/ui/icons";
 
 import { Button, FormSection } from "@compozy/ui";
 

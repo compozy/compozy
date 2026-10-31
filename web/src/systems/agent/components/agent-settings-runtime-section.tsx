@@ -1,4 +1,4 @@
-import { Settings2 } from "lucide-react";
+import { Settings2 } from "@compozy/ui/icons";
 
 import {
   Button,

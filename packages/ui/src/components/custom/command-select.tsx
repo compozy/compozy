@@ -1,7 +1,7 @@
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import * as React from "react";
-import { ChevronsUpDown, XIcon } from "lucide-react";
 
+import { ChevronsUpDown, XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Command, CommandGroup, CommandInput } from "../command";
 import { Popover, PopoverContent, PopoverTrigger } from "../popover";

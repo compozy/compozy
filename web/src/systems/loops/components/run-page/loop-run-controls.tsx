@@ -1,4 +1,4 @@
-import { Ban, Pause, Play } from "lucide-react";
+import { Ban, Pause, Play } from "@compozy/ui/icons";
 
 import { Button, cn } from "@compozy/ui";
 

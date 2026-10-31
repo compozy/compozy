@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

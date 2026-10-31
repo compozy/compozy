@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+
 import {
   AlignCenterIcon,
   AlignJustifyIcon,
@@ -7,8 +8,7 @@ import {
   BoldIcon,
   ItalicIcon,
   UnderlineIcon,
-} from "lucide-react";
-
+} from "../../icons";
 import { ToggleGroup, ToggleGroupItem } from "../toggle-group";
 
 const meta: Meta<typeof ToggleGroup> = {

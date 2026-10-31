@@ -1,4 +1,4 @@
-import { Coins, Gauge, History, Info, Search } from "lucide-react";
+import { Coins, Gauge, History, Info, Search } from "@compozy/ui/icons";
 
 import {
   Button,

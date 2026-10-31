@@ -1,4 +1,4 @@
-import { ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "@compozy/ui/icons";
 
 import { cn, CollapsibleTrigger, Skeleton, SkeletonText, Switch } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { CircleAlert, CircleStop, Clock3 } from "lucide-react";
+import { CircleAlert, CircleStop, Clock3 } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";

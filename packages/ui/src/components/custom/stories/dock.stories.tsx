@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ChevronUpIcon, Database, SquareTerminal } from "lucide-react";
 
+import { ChevronUpIcon, Database, SquareTerminal } from "../../../icons";
 import { Button } from "../../button";
 import { Dock } from "../dock";
 import { KindIcon } from "../kind-icon";

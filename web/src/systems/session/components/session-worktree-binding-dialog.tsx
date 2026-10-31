@@ -1,4 +1,4 @@
-import { FolderGit2Icon, PlusIcon } from "lucide-react";
+import { FolderGit2Icon, PlusIcon } from "@compozy/ui/icons";
 import {
   Button,
   CommandItem,

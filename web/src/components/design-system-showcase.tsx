@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Kbd, KbdGroup, PillGroup, SearchInput, Toaster, TooltipProvider } from "@compozy/ui";
-import { SparklesIcon } from "lucide-react";
+import { SparklesIcon } from "@compozy/ui/icons";
 import { DesignSystemShowcaseLink } from "./design-system-showcase-link";
 
 import {

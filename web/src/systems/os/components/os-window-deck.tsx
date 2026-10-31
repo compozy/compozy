@@ -9,7 +9,7 @@ import {
   type TopbarSlotStore,
 } from "@compozy/ui";
 import { shallowEqual } from "@xstate/store";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";

@@ -1,4 +1,4 @@
-import { MonitorUp, Plus, RefreshCw } from "lucide-react";
+import { MonitorUp, Plus, RefreshCw } from "@compozy/ui/icons";
 import { useRef } from "react";
 import type * as React from "react";
 

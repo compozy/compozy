@@ -1,4 +1,4 @@
-import { History, WifiOff } from "lucide-react";
+import { History, WifiOff } from "@compozy/ui/icons";
 
 import { Button, Marker } from "@compozy/ui";
 

@@ -3,7 +3,7 @@ import {
   GitBranchIcon,
   GitCommitHorizontalIcon,
   GitPullRequestIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentType } from "react";
 
 import {

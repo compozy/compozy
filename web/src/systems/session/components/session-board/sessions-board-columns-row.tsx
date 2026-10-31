@@ -1,4 +1,4 @@
-import { CircleSlash } from "lucide-react";
+import { CircleSlash } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 

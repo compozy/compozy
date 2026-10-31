@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Pill, SkeletonRegion, SkeletonText, Spinner } from "@compozy/ui";

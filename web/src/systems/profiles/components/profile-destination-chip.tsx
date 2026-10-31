@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CornerDownRight } from "lucide-react";
+import { CornerDownRight } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 

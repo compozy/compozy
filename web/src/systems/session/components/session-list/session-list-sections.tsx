@@ -1,7 +1,7 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
 
-import { MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "@compozy/ui/icons";
 
 import { Empty } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
+import { Bell, ChevronDown, Command, LayoutGrid } from "@compozy/ui/icons";
 
 import {
   Icon,

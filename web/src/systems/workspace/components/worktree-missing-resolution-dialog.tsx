@@ -1,4 +1,4 @@
-import { Archive, FolderX, History, RotateCcw } from "lucide-react";
+import { Archive, FolderX, History, RotateCcw } from "@compozy/ui/icons";
 
 import {
   Alert,

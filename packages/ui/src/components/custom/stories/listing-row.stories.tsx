@@ -1,6 +1,6 @@
-import { Repeat2 } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { Repeat2 } from "../../../icons";
 import { Avatar, AvatarFallback } from "../../avatar";
 import { Button } from "../../button";
 import { ListingRow } from "../listing-row";

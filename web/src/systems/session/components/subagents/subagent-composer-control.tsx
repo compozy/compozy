@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Bot } from "lucide-react";
+import { Bot } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 
 import {

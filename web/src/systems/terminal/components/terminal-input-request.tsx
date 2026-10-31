@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyRound, MessageCircleQuestionMark } from "lucide-react";
+import { KeyRound, MessageCircleQuestionMark } from "@compozy/ui/icons";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
 import {

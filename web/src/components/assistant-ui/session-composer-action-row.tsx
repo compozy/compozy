@@ -1,4 +1,4 @@
-import { CornerDownRight, ListPlus, Scissors, Square } from "lucide-react";
+import { CornerDownRight, ListPlus, Scissors, Square } from "@compozy/ui/icons";
 import type { MouseEvent, ReactNode } from "react";
 
 import { primaryShortcutModifier } from "@/systems/os";

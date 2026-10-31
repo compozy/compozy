@@ -55,7 +55,6 @@
         "boring-avatars": "2.0.4",
         "date-fns": "^4.4.0",
         "lexical": "0.52.0",
-        "lucide-react": "1.52.0",
         "marked": "17.0.6",
         "motion": "14.0.0",
         "openapi-fetch": "^0.17.0",

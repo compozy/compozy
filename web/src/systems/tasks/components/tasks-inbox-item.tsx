@@ -1,4 +1,4 @@
-import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "lucide-react";
+import { AlertCircle, Archive, ArchiveX, Check, Eye, RotateCcw, X } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 

@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

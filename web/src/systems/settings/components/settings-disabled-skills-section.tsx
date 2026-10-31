@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Wrench } from "lucide-react";
+import { Wrench } from "@compozy/ui/icons";
 import {
   Empty,
   Section,

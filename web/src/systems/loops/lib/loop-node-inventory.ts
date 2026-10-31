@@ -1,4 +1,4 @@
-import { Check, RotateCcw, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Check, RotateCcw, ShieldCheck, type LucideIcon } from "@compozy/ui/icons";
 
 import { formatRelativeTime, type PillTone, type StateGlyphState } from "@compozy/ui";
 

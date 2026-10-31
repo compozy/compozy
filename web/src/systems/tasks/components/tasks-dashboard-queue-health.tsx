@@ -1,4 +1,4 @@
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check } from "@compozy/ui/icons";
 
 import {
   MetadataList,

@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 
 import { cn, Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
 

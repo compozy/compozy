@@ -1,4 +1,4 @@
-import { KeyRound, ShieldOff, TerminalSquare } from "lucide-react";
+import { KeyRound, ShieldOff, TerminalSquare } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Eyebrow, FormSection, Input, Pill, RadioCard } from "@compozy/ui";
 

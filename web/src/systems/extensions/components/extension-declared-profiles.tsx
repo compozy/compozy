@@ -1,4 +1,4 @@
-import { CircleDot } from "lucide-react";
+import { CircleDot } from "@compozy/ui/icons";
 
 import {
   Accordion,

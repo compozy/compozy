@@ -1,5 +1,5 @@
 import { Button, cn, Pill, Skeleton, SkeletonText } from "@compozy/ui";
-import { Pencil, Plug } from "lucide-react";
+import { Pencil, Plug } from "@compozy/ui/icons";
 
 import { mcpDefinitionKey } from "../lib/mcp-management-target";
 import { composeMCPRowStatus } from "../lib/mcp-status-view-model";

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, CopyIcon, TrashIcon } from "lucide-react";
 
+import { AlignCenterIcon, AlignLeftIcon, AlignRightIcon, CopyIcon, TrashIcon } from "../../icons";
 import { Button } from "../button";
 import { ButtonGroup, ButtonGroupSeparator, ButtonGroupText } from "../button-group";
 import { Field, FieldDescription, FieldError, FieldLabel } from "../field";

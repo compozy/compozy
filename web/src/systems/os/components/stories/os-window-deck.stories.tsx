@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Plus } from "@compozy/ui/icons";
 import { HttpResponse } from "msw";
 import { fn } from "storybook/test";
 

@@ -12,7 +12,7 @@ import {
   Trash2,
   Workflow,
   Zap,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import {

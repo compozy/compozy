@@ -1,4 +1,4 @@
-import { ArrowDown } from "lucide-react";
+import { ArrowDown } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 

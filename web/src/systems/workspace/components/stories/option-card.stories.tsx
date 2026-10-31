@@ -1,4 +1,4 @@
-import { FolderPlus } from "lucide-react";
+import { FolderPlus } from "@compozy/ui/icons";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button, Pill } from "@compozy/ui";

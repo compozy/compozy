@@ -1,4 +1,4 @@
-import { Pencil, Save, Settings2, Trash2 } from "lucide-react";
+import { Pencil, Save, Settings2, Trash2 } from "@compozy/ui/icons";
 import { ViewTransition, type ReactNode } from "react";
 
 import {

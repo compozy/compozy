@@ -1,4 +1,4 @@
-import { File, Folder, MessagesSquare, type LucideIcon } from "lucide-react";
+import { File, Folder, MessagesSquare, type LucideIcon } from "@compozy/ui/icons";
 import type { MouseEvent } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";

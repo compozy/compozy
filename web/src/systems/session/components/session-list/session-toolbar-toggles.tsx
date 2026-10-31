@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Archive, Bookmark, type LucideIcon } from "lucide-react";
+import { Archive, Bookmark, type LucideIcon } from "@compozy/ui/icons";
 
 import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 

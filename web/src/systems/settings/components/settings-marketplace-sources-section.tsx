@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, Pill, SkeletonRegion } from "@compozy/ui";
 

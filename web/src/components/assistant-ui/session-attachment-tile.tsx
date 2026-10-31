@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 import { useEffect, useRef, useState, type ComponentProps, type RefObject } from "react";
 
 import { cn } from "@/lib/utils";

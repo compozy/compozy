@@ -1,4 +1,4 @@
-import { MessageSquare } from "lucide-react";
+import { MessageSquare } from "@compozy/ui/icons";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 

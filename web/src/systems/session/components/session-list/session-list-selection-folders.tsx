@@ -1,4 +1,4 @@
-import { Check, Folder, FolderInput, FolderOutput, FolderPlus } from "lucide-react";
+import { Check, Folder, FolderInput, FolderOutput, FolderPlus } from "@compozy/ui/icons";
 
 import { Pill } from "@compozy/ui";
 

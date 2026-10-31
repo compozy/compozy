@@ -12,7 +12,7 @@ import {
   Store,
   Zap,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { OS_WINDOW_MIN_HEIGHT, OS_WINDOW_MIN_WIDTH, type OsAppId } from "./os-types";
 import type { PixelSize } from "./window-manager-types";

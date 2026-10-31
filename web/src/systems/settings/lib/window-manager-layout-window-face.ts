@@ -1,4 +1,4 @@
-import { AppWindow } from "lucide-react";
+import { AppWindow } from "@compozy/ui/icons";
 
 import { getOsAppDescriptor, OS_APP_DESCRIPTORS, type OsAppId } from "@/systems/os";
 

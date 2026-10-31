@@ -1,4 +1,4 @@
-import { LockKeyhole } from "lucide-react";
+import { LockKeyhole } from "@compozy/ui/icons";
 import { Fragment } from "react";
 
 import {

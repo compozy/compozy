@@ -1,5 +1,5 @@
-import { AlertCircle } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

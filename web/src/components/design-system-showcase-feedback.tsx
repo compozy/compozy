@@ -50,7 +50,7 @@ import {
   TooltipTrigger,
   toast,
 } from "@compozy/ui";
-import { BellIcon, GitBranchIcon, InfoIcon, Layers3Icon, PlayIcon } from "lucide-react";
+import { BellIcon, GitBranchIcon, InfoIcon, Layers3Icon, PlayIcon } from "@compozy/ui/icons";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";

@@ -6,7 +6,7 @@ import {
   SkeletonRegion,
   SkeletonText,
 } from "@compozy/ui";
-import { GitCompare } from "lucide-react";
+import { GitCompare } from "@compozy/ui/icons";
 
 import { placeholderSlots } from "../../lib/placeholder-slots";
 import { DIFF_GROUP_CLASS, DIFF_ROW_CLASS, DIFF_VIEW_CLASS } from "./loop-run-diff-parts";

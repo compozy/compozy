@@ -1,4 +1,4 @@
-import { Check, CircleX, TriangleAlert } from "lucide-react";
+import { Check, CircleX, TriangleAlert } from "@compozy/ui/icons";
 
 import { Spinner, cn } from "@compozy/ui";
 

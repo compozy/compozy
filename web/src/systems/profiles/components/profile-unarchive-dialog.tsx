@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArchiveRestore, Clock } from "lucide-react";
+import { ArchiveRestore, Clock } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Switch } from "@compozy/ui";
 

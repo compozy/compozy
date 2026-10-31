@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type FormEvent } from "react";
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@compozy/ui/icons";
 
 import { Button, Empty, Field, FieldLabel, Input, Logo } from "@compozy/ui";
 

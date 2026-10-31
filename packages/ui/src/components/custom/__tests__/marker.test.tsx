@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
-import { AlertTriangleIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { AlertTriangleIcon } from "../../../icons";
 import { Marker, MarkerMeta } from "../marker";
 
 describe("Marker", () => {

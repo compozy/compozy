@@ -1,4 +1,4 @@
-import { Webhook } from "lucide-react";
+import { Webhook } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { SettingsGroup, type SettingsHookEntry } from "@/systems/settings";

@@ -1,4 +1,4 @@
-import { Folder } from "lucide-react";
+import { Folder } from "@compozy/ui/icons";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 
 import { Button, Pill, Skeleton, cn } from "@compozy/ui";

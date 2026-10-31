@@ -1,4 +1,4 @@
-import { FilesIcon } from "lucide-react";
+import { FilesIcon } from "@compozy/ui/icons";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger, Eyebrow, MonoId } from "@compozy/ui";
 

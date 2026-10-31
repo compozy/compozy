@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { FolderPlus, Pencil, Trash2 } from "lucide-react";
+import { FolderPlus, Pencil, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,

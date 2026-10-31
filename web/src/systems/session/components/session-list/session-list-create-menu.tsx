@@ -1,4 +1,4 @@
-import { FolderPlus, MessageSquarePlus, Plus } from "lucide-react";
+import { FolderPlus, MessageSquarePlus, Plus } from "@compozy/ui/icons";
 
 import {
   Button,

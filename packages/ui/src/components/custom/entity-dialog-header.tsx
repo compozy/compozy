@@ -1,9 +1,9 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
-import { XIcon } from "lucide-react";
 import * as React from "react";
 
+import type { LucideIcon } from "../../icons";
+import { XIcon } from "../../icons";
 import { DIALOG_CLOSE_BUTTON_CLASS } from "../../lib/dialog-shell";
 import { DIALOG_ICON_WELL_TONE, DIALOG_TONE_EYEBROW, type DialogTone } from "../../lib/dialog-tone";
 import { Button } from "../button";

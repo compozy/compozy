@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import { CollapsibleTrigger, Empty, Eyebrow, cn, type EmptyProps } from "@compozy/ui";
 
 /** One rail section: internal rhythm only; the rail body owns the gap between sections. */

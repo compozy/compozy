@@ -1,4 +1,4 @@
-import { Bot, ChevronRight, CornerDownRight } from "lucide-react";
+import { Bot, ChevronRight, CornerDownRight } from "@compozy/ui/icons";
 
 import {
   Icon,

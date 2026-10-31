@@ -1,4 +1,4 @@
-import { CircleAlertIcon, GitMergeIcon } from "lucide-react";
+import { CircleAlertIcon, GitMergeIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Eyebrow, MonoId, Pill, cn } from "@compozy/ui";

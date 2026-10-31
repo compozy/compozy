@@ -1,4 +1,4 @@
-import { TextCursorInput } from "lucide-react";
+import { TextCursorInput } from "@compozy/ui/icons";
 
 import type { LoopInputSchema } from "../../types";
 import { LoopRailSection } from "../loop-rail-section";

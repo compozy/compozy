@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
-import { Bot } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Bot } from "../../../icons";
 import { OwnerAvatar } from "../owner-avatar";
 
 describe("OwnerAvatar", () => {

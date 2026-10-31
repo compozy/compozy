@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Check, type LucideIcon, MessageSquare, Pencil, X } from "lucide-react";
+import { Check, type LucideIcon, MessageSquare, Pencil, X } from "@compozy/ui/icons";
 
 import { Field, FieldLabel, RadioCard, Textarea } from "@compozy/ui";
 

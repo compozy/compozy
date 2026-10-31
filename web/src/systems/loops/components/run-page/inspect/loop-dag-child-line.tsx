@@ -1,4 +1,4 @@
-import { CornerDownRight } from "lucide-react";
+import { CornerDownRight } from "@compozy/ui/icons";
 
 import { SkeletonText, StateGlyph } from "@compozy/ui";
 

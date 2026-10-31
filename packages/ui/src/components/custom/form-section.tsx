@@ -1,8 +1,8 @@
 "use client";
 
-import type { LucideIcon } from "lucide-react";
 import * as React from "react";
 
+import type { LucideIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Eyebrow } from "./eyebrow";
 import { HelpTip } from "./help-tip";

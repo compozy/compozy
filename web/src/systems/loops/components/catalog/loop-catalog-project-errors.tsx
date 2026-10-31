@@ -1,4 +1,4 @@
-import { RotateCcw, TriangleAlert } from "lucide-react";
+import { RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 

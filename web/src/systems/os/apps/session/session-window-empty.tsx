@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { MessagesSquare, Plus } from "lucide-react";
+import { MessagesSquare, Plus } from "@compozy/ui/icons";
 
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 

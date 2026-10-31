@@ -7,7 +7,7 @@ import {
   Maximize2,
   XIcon,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import {

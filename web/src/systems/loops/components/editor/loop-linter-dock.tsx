@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertCircle, AlertTriangle, Check, ChevronDown, Search } from "lucide-react";
+import { AlertCircle, AlertTriangle, Check, ChevronDown, Search } from "@compozy/ui/icons";
 
 import { Button, cn, Eyebrow, Pill, Spinner } from "@compozy/ui";
 

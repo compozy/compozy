@@ -1,8 +1,8 @@
 "use client";
 
-import { Plus } from "lucide-react";
 import * as React from "react";
 
+import { Plus } from "../../icons";
 import { DIALOG_TOUCH_TARGET_CLASS } from "../../lib/dialog-shell";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";

@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { GitBranch, PlugZap, RotateCcw, TriangleAlert } from "lucide-react";
+import { GitBranch, PlugZap, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import {
   Alert,

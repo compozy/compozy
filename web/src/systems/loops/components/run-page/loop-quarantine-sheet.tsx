@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { History, Info, Lightbulb, ShieldAlert } from "lucide-react";
+import { History, Info, Lightbulb, ShieldAlert } from "@compozy/ui/icons";
 
 import {
   Alert,

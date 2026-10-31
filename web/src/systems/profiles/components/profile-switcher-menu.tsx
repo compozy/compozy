@@ -1,5 +1,5 @@
 import type { Ref } from "react";
-import { Check, Palette, Plus } from "lucide-react";
+import { Check, Palette, Plus } from "@compozy/ui/icons";
 
 import {
   Button,

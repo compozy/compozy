@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { UserRound } from "lucide-react";
+import { UserRound } from "@compozy/ui/icons";
 
 import {
   cn,

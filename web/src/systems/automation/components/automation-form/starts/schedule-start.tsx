@@ -1,4 +1,4 @@
-import { CalendarCheck, Repeat, Timer } from "lucide-react";
+import { CalendarCheck, Repeat, Timer } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

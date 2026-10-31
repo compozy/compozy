@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Zap } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";

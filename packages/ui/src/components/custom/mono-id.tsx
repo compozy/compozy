@@ -1,8 +1,8 @@
 "use client";
 
-import { CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
 
+import { CheckIcon, CopyIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 
 export type MonoIdSize = "default" | "sm";

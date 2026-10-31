@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Zap } from "@compozy/ui/icons";
 
 import { Icon, KindIcon, PropertyRow, StateGlyph, Time, cn } from "@compozy/ui";
 

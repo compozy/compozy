@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "lucide-react";
+import { ExternalLinkIcon, GitPullRequestDraftIcon, GitPullRequestIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { DropdownMenuItem, Spinner, SplitButton } from "@compozy/ui";

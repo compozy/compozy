@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "lucide-react";
+import { AlertCircle, Puzzle, RefreshCw, SearchX, Store } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

@@ -2,9 +2,9 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
-import { XIcon } from "lucide-react";
 import * as React from "react";
 
+import { XIcon } from "../icons";
 import { defaultDialogInitialFocus } from "../lib/dialog-initial-focus";
 import { DIALOG_CLOSE_BUTTON_CLASS } from "../lib/dialog-shell";
 import { cn } from "../lib/utils";

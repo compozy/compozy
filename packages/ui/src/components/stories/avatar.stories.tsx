@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CircleCheckIcon } from "lucide-react";
 
+import { CircleCheckIcon } from "../../icons";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarImage } from "../avatar";
 
 const meta: Meta<typeof Avatar> = {

@@ -13,7 +13,8 @@
         "./components/*": "./src/components/*.tsx",
         "./lib/*": "./src/lib/*.ts",
         "./hooks/*": "./src/hooks/*.ts",
-        "./logos": "./src/logos/index.ts"
+        "./logos": "./src/logos/index.ts",
+        "./icons": "./src/icons.ts"
     },
     "scripts": {
         "build": "tsc --noEmit",

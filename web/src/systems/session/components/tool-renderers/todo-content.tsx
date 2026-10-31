@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import { Eyebrow, StateGlyph } from "@compozy/ui";

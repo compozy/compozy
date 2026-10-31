@@ -1,4 +1,4 @@
-import { AlertCircle, SlidersHorizontal } from "lucide-react";
+import { AlertCircle, SlidersHorizontal } from "@compozy/ui/icons";
 
 import { Button, PropertyRowSkeleton, SkeletonRegion } from "@compozy/ui";
 

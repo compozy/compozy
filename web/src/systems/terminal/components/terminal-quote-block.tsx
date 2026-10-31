@@ -1,4 +1,4 @@
-import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "lucide-react";
+import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "@compozy/ui/icons";
 
 import { Button, Eyebrow, cn } from "@compozy/ui";
 

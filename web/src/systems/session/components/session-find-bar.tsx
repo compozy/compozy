@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "@compozy/ui/icons";
 import { useEffect, useRef, type ComponentProps, type KeyboardEvent } from "react";
 
 import {

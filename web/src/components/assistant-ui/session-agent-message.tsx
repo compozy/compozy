@@ -1,5 +1,5 @@
 import { MessagePrimitive, useAuiState } from "@assistant-ui/react";
-import { AlarmClock } from "lucide-react";
+import { AlarmClock } from "@compozy/ui/icons";
 
 import { Separator } from "@compozy/ui";
 

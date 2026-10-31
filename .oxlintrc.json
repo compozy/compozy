@@ -210,6 +210,10 @@
                     {
                         "paths": [
                             {
+                                "name": "lucide-react",
+                                "message": "Import icons from @compozy/ui/icons; lucide-react is reached only through packages/ui/src/icons.ts."
+                            },
+                            {
                                 "name": "sonner",
                                 "message": "Use toast from @compozy/ui; sonner is an implementation detail of the facade."
                             }
@@ -238,6 +242,10 @@
                     {
                         "paths": [
                             {
+                                "name": "lucide-react",
+                                "message": "Import icons from @compozy/ui/icons; lucide-react is reached only through packages/ui/src/icons.ts."
+                            },
+                            {
                                 "name": "sonner",
                                 "message": "Use toast from @compozy/ui; sonner is an implementation detail of the facade."
                             }
@@ -254,6 +262,10 @@
                     {
                         "paths": [
                             {
+                                "name": "lucide-react",
+                                "message": "Import icons from @compozy/ui/icons; lucide-react is reached only through packages/ui/src/icons.ts."
+                            },
+                            {
                                 "name": "sonner",
                                 "message": "Use toast from @compozy/ui; sonner is an implementation detail of the facade."
                             }
@@ -268,7 +280,36 @@
                 "packages/ui/src/components/sonner-toast.ts"
             ],
             "rules": {
-                "no-restricted-imports": ["error", { "paths": [] }]
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "lucide-react",
+                                "message": "Import icons from @compozy/ui/icons; lucide-react is reached only through packages/ui/src/icons.ts."
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "files": [
+                "packages/ui/src/icons.ts",
+                "packages/ui/src/components/custom/ui-provider.tsx"
+            ],
+            "rules": {
+                "no-restricted-imports": [
+                    "error",
+                    {
+                        "paths": [
+                            {
+                                "name": "sonner",
+                                "message": "Use toast from @compozy/ui; sonner is an implementation detail of the facade."
+                            }
+                        ]
+                    }
+                ]
             }
         },
         {

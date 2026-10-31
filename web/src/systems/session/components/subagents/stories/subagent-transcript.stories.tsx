@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { FileText, Search } from "lucide-react";
+import { FileText, Search } from "@compozy/ui/icons";
 import { fn } from "storybook/test";
 
 import { StateGlyph, ToolCallRow } from "@compozy/ui";

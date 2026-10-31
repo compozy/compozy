@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Bot } from "lucide-react";
 
+import { Bot } from "../../../icons";
 import { OwnerAvatar } from "../owner-avatar";
 
 const meta: Meta<typeof OwnerAvatar> = {

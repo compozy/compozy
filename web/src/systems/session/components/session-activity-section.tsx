@@ -6,7 +6,7 @@ import {
   Users,
   Wrench,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { Eyebrow, StateGlyph, cn } from "@compozy/ui";
 import type { SessionActivityView } from "../lib/session-activity-view";
 import { SessionInspectorSection } from "./session-inspector-section";

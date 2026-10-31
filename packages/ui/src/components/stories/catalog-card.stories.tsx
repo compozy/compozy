@@ -1,6 +1,6 @@
-import { AlertCircle, Download, Wrench } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { AlertCircle, Download, Wrench } from "../../icons";
 import { Button } from "../button";
 import { CatalogCard } from "../custom/catalog-card";
 import { Pill } from "../custom/pill";

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlertTriangleIcon, InfoIcon, RefreshCwIcon, TargetIcon } from "lucide-react";
 
+import { AlertTriangleIcon, InfoIcon, RefreshCwIcon, TargetIcon } from "../../../icons";
 import { Marker, MarkerMeta } from "../marker";
 
 const meta: Meta<typeof Marker> = {

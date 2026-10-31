@@ -8,7 +8,7 @@ import {
   ListingRowSkeleton,
   SkeletonRegion,
 } from "@compozy/ui";
-import { Radio } from "lucide-react";
+import { Radio } from "@compozy/ui/icons";
 
 import { TIER_LABEL } from "../lib/gateway-copy";
 import type { GatewayProviderCandidate, GatewayProviderModel } from "../lib/gateway-provider-model";

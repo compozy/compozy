@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactElement, ReactNode } from "react";
-import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, MoreHorizontal, Trash2 } from "@compozy/ui/icons";
 import {
   Button,
   ConfirmDialog,

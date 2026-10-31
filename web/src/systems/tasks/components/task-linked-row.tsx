@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 
 import { cn, OwnerAvatar, StateGlyph, type StateGlyphState, Time } from "@compozy/ui";
 

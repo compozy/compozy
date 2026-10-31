@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@compozy/ui/icons";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
 

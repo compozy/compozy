@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 
 import { cn, DataSurface, PAGE_CONTENT_GUTTER } from "@compozy/ui";
 

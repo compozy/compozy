@@ -1,4 +1,4 @@
-import { ChevronLeft, CircleSlash } from "lucide-react";
+import { ChevronLeft, CircleSlash } from "@compozy/ui/icons";
 import { use, useId, useRef } from "react";
 
 import { Alert, AlertActions, AlertDescription, Button, Spinner } from "@compozy/ui";

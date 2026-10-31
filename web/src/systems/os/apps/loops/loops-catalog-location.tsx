@@ -1,4 +1,4 @@
-import { AlertCircle, Activity, Repeat2 } from "lucide-react";
+import { AlertCircle, Activity, Repeat2 } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {

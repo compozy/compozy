@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { Info } from "@compozy/ui/icons";
 
 import {
   ConfirmDialog,

@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronRight, Folder, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronRight, Folder, Pencil, Plus, Trash2 } from "@compozy/ui/icons";
 import type * as React from "react";
 
 import {

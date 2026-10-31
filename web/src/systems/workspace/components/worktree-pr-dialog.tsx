@@ -1,4 +1,4 @@
-import { GitBranchIcon, GitPullRequestIcon } from "lucide-react";
+import { GitBranchIcon, GitPullRequestIcon } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

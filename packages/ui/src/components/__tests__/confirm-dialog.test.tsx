@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Info, Trash2, Zap } from "lucide-react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Info, Trash2, Zap } from "../../icons";
 import { Button } from "../button";
 import { UIProvider } from "../custom/ui-provider";
 import { ConfirmDialog } from "../custom/confirm-dialog";

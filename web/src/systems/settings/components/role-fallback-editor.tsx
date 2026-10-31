@@ -1,6 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@compozy/ui/icons";
 
 import { Button, cn } from "@compozy/ui";
 

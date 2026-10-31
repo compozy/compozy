@@ -1,4 +1,4 @@
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft } from "@compozy/ui/icons";
 import type { FormEvent } from "react";
 
 import {

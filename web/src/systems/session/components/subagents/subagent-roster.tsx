@@ -1,7 +1,7 @@
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
 import { useState, type MouseEvent } from "react";
-import { ChevronRight, Square } from "lucide-react";
+import { ChevronRight, Square } from "@compozy/ui/icons";
 
 import {
   Button,

@@ -1,4 +1,4 @@
-import { ArrowDownUp, Rows3, type LucideIcon } from "lucide-react";
+import { ArrowDownUp, Rows3, type LucideIcon } from "@compozy/ui/icons";
 import type * as React from "react";
 
 import {

@@ -1,4 +1,4 @@
-import { CircleAlertIcon, GitMergeIcon, ShieldCheckIcon } from "lucide-react";
+import { CircleAlertIcon, GitMergeIcon, ShieldCheckIcon } from "@compozy/ui/icons";
 
 import { Button, cn } from "@compozy/ui";
 

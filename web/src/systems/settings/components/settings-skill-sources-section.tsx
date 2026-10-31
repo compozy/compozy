@@ -1,4 +1,4 @@
-import { FolderTree } from "lucide-react";
+import { FolderTree } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Button, Empty, MonoId, Pill, Section } from "@compozy/ui";

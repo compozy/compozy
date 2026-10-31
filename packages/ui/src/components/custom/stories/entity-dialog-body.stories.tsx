@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Layers } from "lucide-react";
 import type { ComponentProps } from "react";
 
+import { Layers } from "../../../icons";
 import { Dialog, DialogContent } from "../../dialog";
 import { dialogShellClass } from "../../../lib/dialog-shell";
 import { EntityDialogBody } from "../entity-dialog-body";

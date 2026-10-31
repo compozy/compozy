@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ListChecks, SquareTerminal } from "lucide-react";
 
+import { ListChecks, SquareTerminal } from "../../icons";
 import { KindIcon } from "../custom/kind-icon";
 import { providerKindIconRegistry } from "../custom/kind-icon-registry";
 

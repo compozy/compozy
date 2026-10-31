@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 import { expect, fireEvent, userEvent, within } from "storybook/test";

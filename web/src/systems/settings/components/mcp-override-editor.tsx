@@ -1,4 +1,4 @@
-import { Cable, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Cable, Plus, RotateCcw, Trash2 } from "@compozy/ui/icons";
 import { useId } from "react";
 
 import {

@@ -1,6 +1,6 @@
 import { Fragment } from "react";
-import { KeyRound, TimerOff, TriangleAlert, Unplug } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { KeyRound, TimerOff, TriangleAlert, Unplug } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import {
   formatAbsoluteTime,

@@ -1,5 +1,5 @@
 import { Button, FormSection, Input } from "@compozy/ui";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "@compozy/ui/icons";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 

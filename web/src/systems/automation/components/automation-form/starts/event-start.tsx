@@ -1,4 +1,4 @@
-import { Anchor, CirclePlay, CircleStop, Puzzle, type LucideIcon } from "lucide-react";
+import { Anchor, CirclePlay, CircleStop, Puzzle, type LucideIcon } from "@compozy/ui/icons";
 
 import { Field, FieldDescription, FieldLabel, Input, RadioCard } from "@compozy/ui";
 

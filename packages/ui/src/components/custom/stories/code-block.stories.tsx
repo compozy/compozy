@@ -158,7 +158,7 @@ export const CopyInteraction: Story = {
         const root = canvasElement.querySelector<HTMLElement>('[data-slot="code-block"]');
         await expect(root).not.toBeNull();
         const button = await canvas.findByRole("button", { name: "Copy to clipboard" });
-        await expect(button.querySelector("svg.lucide-copy")).not.toBeNull();
+        await expect(button.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
       });
       await step("Clicking copy invokes navigator.clipboard.writeText", async () => {
         const button = await canvas.findByRole("button", { name: "Copy to clipboard" });
@@ -168,14 +168,14 @@ export const CopyInteraction: Story = {
       await step("Button swaps to the check glyph", async () => {
         const success = await canvas.findByRole("button", { name: "Copied" });
         await expect(success.getAttribute("data-copied")).toBe("true");
-        await expect(success.querySelector("svg.lucide-check")).not.toBeNull();
+        await expect(success.querySelector('[data-slot="copy-success-icon"]')).not.toBeNull();
       });
       await step("Button reverts to copy glyph after ~1.5s", async () => {
         await waitFor(
           async () => {
             const reverted = await canvas.findByRole("button", { name: "Copy to clipboard" });
             await expect(reverted.getAttribute("data-copied")).toBeNull();
-            await expect(reverted.querySelector("svg.lucide-copy")).not.toBeNull();
+            await expect(reverted.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
           },
           { timeout: 2500 }
         );

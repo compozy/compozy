@@ -1,4 +1,4 @@
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "@compozy/ui/icons";
 
 import { EntityDialogToolbar, Pill } from "@compozy/ui";
 

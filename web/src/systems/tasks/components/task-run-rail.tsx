@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowUpRight, Search } from "@compozy/ui/icons";
 import type * as React from "react";
 
 import {

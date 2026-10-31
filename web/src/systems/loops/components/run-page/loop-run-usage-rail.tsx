@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Coins } from "lucide-react";
+import { Coins } from "@compozy/ui/icons";
 
 import { cn, Eyebrow, PropertyRow } from "@compozy/ui";
 

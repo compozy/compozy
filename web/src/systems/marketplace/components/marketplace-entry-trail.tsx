@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 
 import { Button, Pill, Spinner } from "@compozy/ui";
 

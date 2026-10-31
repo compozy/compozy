@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "lucide-react";
+import { Maximize2, Minimize2, Minus, X, type LucideIcon } from "@compozy/ui/icons";
 import { Fragment } from "react";
 
 import { Button } from "@compozy/ui";

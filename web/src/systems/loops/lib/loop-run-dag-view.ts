@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import type { LoopFanoutRollup, LoopRosterNode } from "../types";
 import { type LoopGraph, topoOrder } from "./loop-graph";

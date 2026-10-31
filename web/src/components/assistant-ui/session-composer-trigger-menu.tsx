@@ -3,7 +3,7 @@ import {
   type Unstable_TriggerItem,
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import { createElement, useEffect, useRef, type ComponentProps, type ReactNode } from "react";
 
 import { Skeleton, SkeletonText } from "@compozy/ui";

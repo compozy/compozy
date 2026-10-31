@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { BoxesIcon } from "lucide-react";
 import { startTransition, Suspense, use, useState, ViewTransition } from "react";
 
+import { BoxesIcon } from "../../icons";
 import {
   startTypedTransition,
   VIEW_TRANSITION_CLASS,

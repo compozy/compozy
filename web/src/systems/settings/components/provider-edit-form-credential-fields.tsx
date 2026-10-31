@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button, Eyebrow, Input, RequiredMark, SecretField, Switch } from "@compozy/ui";

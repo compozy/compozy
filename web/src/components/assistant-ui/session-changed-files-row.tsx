@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText } from "@compozy/ui/icons";
 
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
 import type { ChangedFileEntry, SessionChangedFilesRow } from "./session-timeline.logic";

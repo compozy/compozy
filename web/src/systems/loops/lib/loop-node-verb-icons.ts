@@ -8,8 +8,8 @@ import {
   ShieldAlert,
   SkipForward,
   TimerReset,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import type { ConfirmDialogIconTone } from "@compozy/ui";
 

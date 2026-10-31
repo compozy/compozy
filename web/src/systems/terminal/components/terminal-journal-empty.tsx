@@ -1,4 +1,4 @@
-import { ScrollText, SearchX } from "lucide-react";
+import { ScrollText, SearchX } from "@compozy/ui/icons";
 
 import { Button, Empty } from "@compozy/ui";
 

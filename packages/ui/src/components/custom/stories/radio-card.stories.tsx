@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Ban, CpuIcon, Hourglass, ServerIcon, ZapIcon } from "lucide-react";
 
 import { Pill } from "@compozy/ui";
+import { Ban, CpuIcon, Hourglass, ServerIcon, ZapIcon } from "../../../icons";
 import { RadioCard } from "../radio-card";
 
 const meta: Meta<typeof RadioCard> = {

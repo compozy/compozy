@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Bell, Check, PenLine, ShieldAlert, X } from "lucide-react";
+import { Bell, Check, PenLine, ShieldAlert, X } from "@compozy/ui/icons";
 
 import { Button, cn, Eyebrow, formatRelativeTime, StateGlyph } from "@compozy/ui";
 

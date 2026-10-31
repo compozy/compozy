@@ -1,5 +1,5 @@
-import { AppWindow, Blocks, Trash2, TriangleAlert, UserRound, Wrench } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { AppWindow, Blocks, Trash2, TriangleAlert, UserRound, Wrench } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import { ConfirmDialog } from "@compozy/ui";
 

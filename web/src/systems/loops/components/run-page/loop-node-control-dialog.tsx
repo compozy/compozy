@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ban, Hourglass, Info } from "lucide-react";
+import { Ban, Hourglass, Info } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 

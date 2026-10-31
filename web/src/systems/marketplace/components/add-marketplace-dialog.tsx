@@ -1,4 +1,4 @@
-import { AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check } from "@compozy/ui/icons";
 
 import {
   ActionResultBanner,

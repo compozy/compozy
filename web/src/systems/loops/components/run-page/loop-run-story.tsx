@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { ChevronDown, History, PlugZap, TriangleAlert } from "lucide-react";
+import { ChevronDown, History, PlugZap, TriangleAlert } from "@compozy/ui/icons";
 
 import { Link } from "@tanstack/react-router";
 

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { GitCommitIcon, ZapIcon } from "lucide-react";
 
 import { Pill } from "@compozy/ui";
+import { GitCommitIcon, ZapIcon } from "../../../icons";
 import { Timeline } from "../timeline";
 import { TimelineEvent } from "../timeline-event";
 

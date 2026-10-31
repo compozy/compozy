@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 import { useDeferredValue, ViewTransition } from "react";
 
 import { Empty, VIEW_TRANSITION_CLASS } from "@compozy/ui";

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { Info } from "lucide-react";
+import { Info } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Button, cn, Spinner } from "@compozy/ui";
 

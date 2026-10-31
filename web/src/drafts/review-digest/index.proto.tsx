@@ -3,7 +3,7 @@
  * on a human decision. Free markup is allowed here; once the direction is approved it becomes a
  * view in `systems/session` and this slug moves there as a spec prototype.
  */
-import { CheckIcon, GitPullRequestIcon, XIcon } from "lucide-react";
+import { CheckIcon, GitPullRequestIcon, XIcon } from "@compozy/ui/icons";
 
 import { Button, Card, CardContent, Eyebrow, Pill } from "@compozy/ui";
 

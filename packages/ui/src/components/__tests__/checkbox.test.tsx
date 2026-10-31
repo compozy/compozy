@@ -9,7 +9,7 @@ describe("Checkbox", () => {
     render(<Checkbox aria-label="Select all" indeterminate />);
     const box = screen.getByRole("checkbox", { name: "Select all" });
     expect(box).toHaveAttribute("aria-checked", "mixed");
-    expect(box.querySelector("svg.lucide-minus")).not.toBeNull();
+    expect(box.querySelector('[data-slot="checkbox-indeterminate-icon"]')).not.toBeNull();
   });
 
   it("Should toggle between unchecked and checked when clicked", async () => {

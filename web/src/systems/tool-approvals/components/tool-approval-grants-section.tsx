@@ -1,4 +1,4 @@
-import { Plus, Shield, Trash2 } from "lucide-react";
+import { Plus, Shield, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,

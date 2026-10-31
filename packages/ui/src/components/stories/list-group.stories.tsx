@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Plus } from "lucide-react";
 
+import { Plus } from "../../icons";
 import { Button } from "../button";
 import { Item, ItemContent, ItemDescription, ItemTitle } from "../item";
 import { ListGroup } from "../custom/list-group";

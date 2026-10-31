@@ -1,4 +1,4 @@
-import { AlertCircle, Clock3, RefreshCcw } from "lucide-react";
+import { AlertCircle, Clock3, RefreshCcw } from "@compozy/ui/icons";
 import type { ComponentProps, ReactNode } from "react";
 
 import { CatalogEmptyPanel } from "@/components/catalog-empty-state";

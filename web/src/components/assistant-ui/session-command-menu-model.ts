@@ -1,5 +1,5 @@
 import type { Unstable_TriggerItem } from "@assistant-ui/react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   Blocks,
   Bot,
@@ -16,7 +16,7 @@ import {
   SquareSlash,
   Target,
   Zap,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 export type SessionCommandLane = "builtin" | "agent" | "skill";
 

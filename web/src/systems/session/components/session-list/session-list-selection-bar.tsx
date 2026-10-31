@@ -1,4 +1,4 @@
-import { Trash2, X } from "lucide-react";
+import { Trash2, X } from "@compozy/ui/icons";
 
 import {
   Button,

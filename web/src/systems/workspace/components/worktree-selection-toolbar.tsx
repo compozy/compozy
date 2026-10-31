@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ListChecks, Trash2 } from "lucide-react";
+import { ListChecks, Trash2 } from "@compozy/ui/icons";
 import { Button, MenubarItem, cn } from "@compozy/ui";
 import type { WorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 

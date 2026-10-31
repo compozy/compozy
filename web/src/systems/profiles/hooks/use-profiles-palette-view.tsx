@@ -1,4 +1,4 @@
-import { Layers, Plus } from "lucide-react";
+import { Layers, Plus } from "@compozy/ui/icons";
 
 import { Button, ItemSkeleton, SkeletonRegion } from "@compozy/ui";
 

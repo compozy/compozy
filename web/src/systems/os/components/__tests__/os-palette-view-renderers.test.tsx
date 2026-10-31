@@ -7,7 +7,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Blocks } from "lucide-react";
+import { Blocks } from "@compozy/ui/icons";
 
 import { Command, CommandList, UIProvider } from "@compozy/ui";
 

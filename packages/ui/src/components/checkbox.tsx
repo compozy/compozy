@@ -1,6 +1,6 @@
 import { Checkbox as CheckboxPrimitive } from "@base-ui/react/checkbox";
-import { CheckIcon, MinusIcon } from "lucide-react";
 
+import { CheckIcon, MinusIcon } from "../icons";
 import { cn } from "../lib/utils";
 
 /** Render checked and mixed states through Base UI while preserving native checkbox props. */
@@ -20,7 +20,7 @@ function Checkbox({ className, indeterminate, ...props }: CheckboxPrimitive.Root
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
       >
-        {indeterminate ? <MinusIcon /> : <CheckIcon />}
+        {indeterminate ? <MinusIcon data-slot="checkbox-indeterminate-icon" /> : <CheckIcon />}
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

@@ -1,4 +1,4 @@
-import { CalendarClock, Globe, Hash, Info, KeyRound, Search, ShieldCheck } from "lucide-react";
+import { CalendarClock, Globe, Hash, Info, KeyRound, Search, ShieldCheck } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { Button, MonoId, PropertyRow, StatusDot, Time, cn } from "@compozy/ui";

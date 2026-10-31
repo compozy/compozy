@@ -1,4 +1,4 @@
-import { BadgeCheck, PackageX, Radio } from "lucide-react";
+import { BadgeCheck, PackageX, Radio } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

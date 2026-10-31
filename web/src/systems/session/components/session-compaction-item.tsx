@@ -1,4 +1,4 @@
-import { AlertCircle, Ban, CircleDashed, FoldVertical, LoaderCircle } from "lucide-react";
+import { AlertCircle, Ban, CircleDashed, FoldVertical, LoaderCircle } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Disclosure, Marker, type MarkerTone } from "@compozy/ui";

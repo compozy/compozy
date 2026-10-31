@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp } from "@compozy/ui/icons";
 import { fn } from "storybook/test";
 
 import { Toaster } from "@compozy/ui";

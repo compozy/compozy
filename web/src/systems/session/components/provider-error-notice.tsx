@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowRightLeft } from "lucide-react";
+import { AlertCircle, ArrowRightLeft } from "@compozy/ui/icons";
 import { type ReactNode, use } from "react";
 
 import { Button, HelpTip, Marker, MarkerMeta } from "@compozy/ui";

@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronRight, WrenchIcon } from "lucide-react";
 import * as React from "react";
 
+import { ChevronRight, WrenchIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import type { ToolCallIconComponent, ToolCallRowProps, ToolCallStatus } from "./tool-call-row";
 import { ToolCallStatusIcon } from "./tool-call-status-icon";

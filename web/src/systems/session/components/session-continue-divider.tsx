@@ -1,4 +1,4 @@
-import { ArrowRightLeft, GitFork } from "lucide-react";
+import { ArrowRightLeft, GitFork } from "@compozy/ui/icons";
 
 import { Button, Empty, Separator } from "@compozy/ui";
 

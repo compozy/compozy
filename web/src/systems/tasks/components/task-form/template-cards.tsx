@@ -1,4 +1,11 @@
-import { Calendar, Layers, ListChecks, Sparkles, UserCheck, type LucideIcon } from "lucide-react";
+import {
+  Calendar,
+  Layers,
+  ListChecks,
+  Sparkles,
+  UserCheck,
+  type LucideIcon,
+} from "@compozy/ui/icons";
 
 import { Pill, RadioCard } from "@compozy/ui";
 

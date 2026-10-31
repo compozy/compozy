@@ -1,8 +1,8 @@
 "use client";
 
-import { BoxIcon, ChevronRightIcon } from "lucide-react";
 import * as React from "react";
 
+import { BoxIcon, ChevronRightIcon } from "../icons";
 import { cn } from "../lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string; size?: number }>;

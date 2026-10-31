@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Check, KeyRound } from "lucide-react";
+import { Check, KeyRound } from "@compozy/ui/icons";
 
 import {
   Eyebrow,

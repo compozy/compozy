@@ -1,4 +1,4 @@
-import { CircleAlert, Copy, FileText } from "lucide-react";
+import { CircleAlert, Copy, FileText } from "@compozy/ui/icons";
 
 import { FieldError, Skeleton, SkeletonRegion, SkeletonText } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { Brain } from "lucide-react";
+import { Brain } from "@compozy/ui/icons";
 import { useId, type ReactNode } from "react";
 
 import { type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";

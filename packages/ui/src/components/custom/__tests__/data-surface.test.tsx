@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { KeyRound } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { KeyRound } from "../../../icons";
 import { DataSurface } from "../data-surface";
 import { resolveDataSurfaceState } from "../data-surface-state";
 

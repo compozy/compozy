@@ -1,5 +1,5 @@
 import { MessagePrimitive, useAuiState } from "@assistant-ui/react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import { Marker } from "@compozy/ui";

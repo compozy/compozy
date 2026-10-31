@@ -1,4 +1,4 @@
-import { AlertTriangle, Braces, Check } from "lucide-react";
+import { AlertTriangle, Braces, Check } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { cn, Pill } from "@compozy/ui";

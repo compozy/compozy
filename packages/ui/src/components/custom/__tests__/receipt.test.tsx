@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
-import { CheckIcon, XIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { CheckIcon, XIcon } from "../../../icons";
 import { Receipt } from "../receipt";
 
 describe("Receipt", () => {

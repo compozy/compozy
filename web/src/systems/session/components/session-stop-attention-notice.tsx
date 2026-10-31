@@ -1,4 +1,4 @@
-import { RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button, Spinner } from "@compozy/ui";
 

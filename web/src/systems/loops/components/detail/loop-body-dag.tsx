@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@compozy/ui/icons";
 import { createElement } from "react";
 
 import { fanOutSummary, nodeClassLabel, routeSummary } from "../../lib/loop-graph";

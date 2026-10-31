@@ -1,4 +1,4 @@
-import { ChevronDown, Folder, X } from "lucide-react";
+import { ChevronDown, Folder, X } from "@compozy/ui/icons";
 
 import {
   Button,

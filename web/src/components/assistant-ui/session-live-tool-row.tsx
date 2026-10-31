@@ -1,4 +1,4 @@
-import { Layers } from "lucide-react";
+import { Layers } from "@compozy/ui/icons";
 import { createElement } from "react";
 
 import {

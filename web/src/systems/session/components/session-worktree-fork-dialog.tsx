@@ -1,4 +1,4 @@
-import { CheckIcon, FileDiffIcon, GitBranchPlusIcon, PlusIcon } from "lucide-react";
+import { CheckIcon, FileDiffIcon, GitBranchPlusIcon, PlusIcon } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

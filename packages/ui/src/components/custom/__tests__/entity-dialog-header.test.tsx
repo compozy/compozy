@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ClipboardCheck } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ClipboardCheck } from "../../../icons";
 import { DIALOG_TOUCH_TARGET_SQUARE_CLASS } from "../../../lib/dialog-shell";
 import { ConfirmDialog } from "../confirm-dialog";
 import { Dialog, DialogContent } from "../../dialog";

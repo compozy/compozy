@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { Activity } from "@compozy/ui/icons";
 
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { Marker, MarkerMeta, type StreamMarkdownSlots } from "@compozy/ui";

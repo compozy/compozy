@@ -1,4 +1,4 @@
-import { Minus, Pencil } from "lucide-react";
+import { Minus, Pencil } from "@compozy/ui/icons";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@compozy/ui";
 

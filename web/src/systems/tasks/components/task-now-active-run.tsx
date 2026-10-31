@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 
 import { Button, StateGlyph, Time } from "@compozy/ui";
 import type { TaskDetailView } from "../types";

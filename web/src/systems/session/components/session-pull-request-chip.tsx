@@ -10,7 +10,7 @@ import {
   GitPullRequestDraftIcon,
   GitPullRequestIcon,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

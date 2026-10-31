@@ -8,7 +8,7 @@ import {
   Share2,
   ZoomIn,
   ZoomOut,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { useReactFlow, useViewport } from "@xyflow/react";
 import type { ReactNode } from "react";
 

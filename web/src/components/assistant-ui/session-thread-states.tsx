@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, WifiOff } from "lucide-react";
+import { AlertCircle, WifiOff } from "@compozy/ui/icons";
 
 import { Button, Empty, Spinner } from "@compozy/ui";
 

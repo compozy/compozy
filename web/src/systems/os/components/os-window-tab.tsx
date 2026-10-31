@@ -8,7 +8,7 @@ import {
   type TopbarSlotStore,
   type TopbarSlotValue,
 } from "@compozy/ui";
-import { X } from "lucide-react";
+import { X } from "@compozy/ui/icons";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";

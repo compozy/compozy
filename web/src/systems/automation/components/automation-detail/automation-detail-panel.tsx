@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import { Workflow } from "lucide-react";
+import { Workflow } from "@compozy/ui/icons";
 
 import { PAGE_CONTENT_GUTTER, cn, useTopbarSlot } from "@compozy/ui";
 

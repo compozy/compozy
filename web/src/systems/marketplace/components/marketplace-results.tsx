@@ -1,4 +1,4 @@
-import { AlertCircle, ClockAlert, Puzzle, SearchX, Store } from "lucide-react";
+import { AlertCircle, ClockAlert, Puzzle, SearchX, Store } from "@compozy/ui/icons";
 
 import { Button, Empty, Spinner, Time } from "@compozy/ui";
 import { GithubLogo } from "@compozy/ui/logos";

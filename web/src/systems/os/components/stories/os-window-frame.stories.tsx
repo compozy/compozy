@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { Bot, Home, ListChecks } from "lucide-react";
+import { Bot, Home, ListChecks } from "@compozy/ui/icons";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 

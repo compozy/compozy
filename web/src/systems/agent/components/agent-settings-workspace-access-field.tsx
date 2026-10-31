@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, Field, FieldLabel, RadioCard } from "@compozy/ui";
 

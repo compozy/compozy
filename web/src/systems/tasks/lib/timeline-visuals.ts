@@ -12,7 +12,7 @@ import {
   Sparkles,
   XCircle,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import type { PillTone } from "@compozy/ui";
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowUpRight, CircleSlash } from "lucide-react";
+import { ArrowUpRight, CircleSlash } from "@compozy/ui/icons";
 
 import { Panel, Pill, PropertyRow, Time } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";

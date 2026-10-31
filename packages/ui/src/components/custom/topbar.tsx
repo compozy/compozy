@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
+import { ChevronLeft, MoreHorizontal } from "../../icons";
 import { Popover, PopoverContent, PopoverTrigger } from "../popover";
 import { KindIcon } from "./kind-icon";
 

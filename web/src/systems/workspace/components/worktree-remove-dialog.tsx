@@ -1,4 +1,4 @@
-import { Trash2, TriangleAlert } from "lucide-react";
+import { Trash2, TriangleAlert } from "@compozy/ui/icons";
 
 import {
   Alert,

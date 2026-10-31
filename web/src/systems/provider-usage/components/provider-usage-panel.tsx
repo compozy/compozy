@@ -1,4 +1,4 @@
-import { RefreshCw, Unplug } from "lucide-react";
+import { RefreshCw, Unplug } from "@compozy/ui/icons";
 
 import {
   Alert,

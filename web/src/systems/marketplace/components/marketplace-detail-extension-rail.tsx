@@ -1,4 +1,4 @@
-import { SlidersHorizontal, Wrench } from "lucide-react";
+import { SlidersHorizontal, Wrench } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { Eyebrow, MonoId, Pill, PropertyRow } from "@compozy/ui";

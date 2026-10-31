@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { History } from "lucide-react";
+import { History } from "@compozy/ui/icons";
 import { describe, expect, it } from "vitest";
 
 import { LoopSection } from "../loop-section";

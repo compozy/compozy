@@ -1,6 +1,6 @@
-import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
 import type * as React from "react";
 
+import { AlertCircleIcon, CheckIcon, XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import {

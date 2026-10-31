@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 import { ReactFlowProvider } from "@xyflow/react";
 
 import { cn, Empty, useTopbarSlot, type TopbarSlotValue } from "@compozy/ui";

@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Copy, EllipsisVertical, Eraser, Trash2 } from "lucide-react";
+import { Copy, EllipsisVertical, Eraser, Trash2 } from "@compozy/ui/icons";
 
 import {
   DropdownMenu,

@@ -1,4 +1,4 @@
-import { Check, Eye } from "lucide-react";
+import { Check, Eye } from "@compozy/ui/icons";
 
 import {
   Alert,

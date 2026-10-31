@@ -16,7 +16,7 @@ import {
   Textarea,
   toast,
 } from "@compozy/ui";
-import { Check, CircleAlert, CircleCheck, Copy, ExternalLink, Plug } from "lucide-react";
+import { Check, CircleAlert, CircleCheck, Copy, ExternalLink, Plug } from "@compozy/ui/icons";
 import { type ReactNode, useState } from "react";
 
 import type { UseMCPAuthorizeReturn } from "../hooks/use-mcp-authorize";

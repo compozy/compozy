@@ -1,4 +1,4 @@
-import { CornerUpLeft } from "lucide-react";
+import { CornerUpLeft } from "@compozy/ui/icons";
 
 import { Icon } from "@compozy/ui";
 

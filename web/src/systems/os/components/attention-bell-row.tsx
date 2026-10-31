@@ -6,7 +6,7 @@ import {
   MessageCircleQuestionMark,
   TriangleAlert,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { Icon, Skeleton, SkeletonText, Time } from "@compozy/ui";
 

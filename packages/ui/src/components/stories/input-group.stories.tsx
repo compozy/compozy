@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+
 import {
   ArrowUp,
   Bot,
@@ -7,8 +8,7 @@ import {
   MailIcon,
   Paperclip,
   SearchIcon,
-} from "lucide-react";
-
+} from "../../icons";
 import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import {
   InputGroup,

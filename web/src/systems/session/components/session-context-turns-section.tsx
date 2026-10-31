@@ -1,7 +1,7 @@
 import { describeCost } from "@/lib/cost-provenance";
 import { Fragment, useState } from "react";
 import { Button, Collapsible, CollapsibleContent } from "@compozy/ui";
-import { History, Minimize2 } from "lucide-react";
+import { History, Minimize2 } from "@compozy/ui/icons";
 import type { SessionUsageTurnsResponse } from "../types";
 import { formatContextTokens, formatContextTurn } from "../lib/context-format";
 import {

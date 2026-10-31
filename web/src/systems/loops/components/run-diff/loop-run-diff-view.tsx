@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { CircleDot, GitCompare, Info } from "lucide-react";
+import { CircleDot, GitCompare, Info } from "@compozy/ui/icons";
 
 import {
   Alert,

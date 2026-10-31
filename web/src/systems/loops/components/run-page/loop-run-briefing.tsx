@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { useReducedMotionConfig } from "motion/react";
-import { ArrowDown, Search } from "lucide-react";
+import { ArrowDown, Search } from "@compozy/ui/icons";
 
 import { Button, cn, Pill, StateGlyph, Time } from "@compozy/ui";
 import type { PillTone } from "@compozy/ui";

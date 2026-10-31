@@ -1,4 +1,4 @@
-import { FolderGit2 } from "lucide-react";
+import { FolderGit2 } from "@compozy/ui/icons";
 
 import { Field, FieldError, FieldLabel, Input, PillGroup } from "@compozy/ui";
 

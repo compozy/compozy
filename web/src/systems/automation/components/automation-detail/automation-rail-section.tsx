@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 

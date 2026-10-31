@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Info, ListX, ScrollText } from "@compozy/ui/icons";
 
 import { formatDuration as formatCanonicalDuration, Marker, MarkerMeta } from "@compozy/ui";
 

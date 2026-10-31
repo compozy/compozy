@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { CalendarClock, ClipboardCheck, KeyRound, Trash2 } from "lucide-react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { CalendarClock, ClipboardCheck, KeyRound, Trash2 } from "../../../icons";
 import { Dialog, DialogContent } from "../../dialog";
 import { dialogShellClass } from "../../../lib/dialog-shell";
 import { UIProvider } from "../ui-provider";

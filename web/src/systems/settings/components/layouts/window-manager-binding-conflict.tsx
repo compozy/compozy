@@ -1,4 +1,4 @@
-import { OctagonX } from "lucide-react";
+import { OctagonX } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 

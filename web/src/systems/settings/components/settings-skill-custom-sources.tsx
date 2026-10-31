@@ -1,4 +1,4 @@
-import { FolderPlus } from "lucide-react";
+import { FolderPlus } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button, Input, MonoId } from "@compozy/ui";

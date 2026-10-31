@@ -1,4 +1,4 @@
-import { CalendarClock, MessageSquare } from "lucide-react";
+import { CalendarClock, MessageSquare } from "@compozy/ui/icons";
 
 import { formatAbsoluteTime, Pill, Time } from "@compozy/ui";
 

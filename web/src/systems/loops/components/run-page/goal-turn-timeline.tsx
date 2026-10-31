@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {

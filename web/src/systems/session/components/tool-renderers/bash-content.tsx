@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown } from "@compozy/ui/icons";
 
 import type { UIMessage } from "../../types";
 import { DetailPayload } from "./detail-payload";

@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@compozy/ui/icons";
 
 import { Button, Label, NativeSelect, NativeSelectOption, Pill } from "@compozy/ui";
 import { LOOP_WATCH_EVENT_KINDS } from "@/generated/loop-enums";

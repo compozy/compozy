@@ -1,4 +1,4 @@
-import { Check, Database, Plus, SearchX, Trash2, X } from "lucide-react";
+import { Check, Database, Plus, SearchX, Trash2, X } from "@compozy/ui/icons";
 
 import { Alert, AlertAction, AlertDescription, Button, ConfirmDialog, Empty } from "@compozy/ui";
 

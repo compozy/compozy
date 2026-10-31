@@ -1,4 +1,11 @@
-import { Bot, ChevronRight, ScrollText, Terminal, UserCheck, type LucideIcon } from "lucide-react";
+import {
+  Bot,
+  ChevronRight,
+  ScrollText,
+  Terminal,
+  UserCheck,
+  type LucideIcon,
+} from "@compozy/ui/icons";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { Brain, Check, Star } from "lucide-react";
+import { Brain, Check, Star } from "@compozy/ui/icons";
 
 import {
   cn,

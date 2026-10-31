@@ -7,7 +7,7 @@ import {
   ScrollText,
   Shield,
   Stethoscope,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { MonoId } from "@compozy/ui";
 

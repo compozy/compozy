@@ -1,4 +1,4 @@
-import { Check, Circle, CircleCheck } from "lucide-react";
+import { Check, Circle, CircleCheck } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 

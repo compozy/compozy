@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import * as React from "react";
 import { toast } from "../sonner-toast";
 
+import { AlertTriangleIcon, CheckIcon, CopyIcon } from "../../icons";
 import type { CodeBlockThemeMode } from "../../lib/code-theme";
 import type { HighlightedCodeToken } from "../../lib/shiki-highlighter";
 import { cn } from "../../lib/utils";
@@ -323,11 +323,11 @@ function CopyIconButton({
       className={className}
     >
       {copyState === "copied" ? (
-        <CheckIcon className="size-3" />
+        <CheckIcon className="size-3" data-slot="copy-success-icon" />
       ) : copyState === "failed" ? (
-        <AlertTriangleIcon className="size-3" />
+        <AlertTriangleIcon className="size-3" data-slot="copy-failed-icon" />
       ) : (
-        <CopyIcon className="size-3" />
+        <CopyIcon className="size-3" data-slot="copy-idle-icon" />
       )}
     </Button>
   );

@@ -1,4 +1,4 @@
-import { CornerDownRight, Folder, ListPlus, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { CornerDownRight, Folder, ListPlus, Pencil, RotateCcw, Trash2, X } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";

@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { ChevronRight, ScrollText } from "lucide-react";
+import { ChevronRight, ScrollText } from "@compozy/ui/icons";
 
 import {
   Button,

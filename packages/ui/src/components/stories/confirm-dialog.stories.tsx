@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { AlertTriangle, Ban, GitFork, Hourglass, Info, Pause, Trash2, Zap } from "lucide-react";
 
+import { AlertTriangle, Ban, GitFork, Hourglass, Info, Pause, Trash2, Zap } from "../../icons";
 import { Button } from "../button";
 import { ConfirmDialog } from "../custom/confirm-dialog";
 import { RadioCard } from "../custom/radio-card";

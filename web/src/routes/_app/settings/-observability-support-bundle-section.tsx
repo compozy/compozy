@@ -1,4 +1,4 @@
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button, Checkbox, Pill, Spinner } from "@compozy/ui";

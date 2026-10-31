@@ -1,4 +1,4 @@
-import { Info } from "lucide-react";
+import { Info } from "@compozy/ui/icons";
 
 import { ConfirmDialog } from "@compozy/ui";
 

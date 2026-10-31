@@ -13,8 +13,8 @@ import {
   Square,
   Trash2,
   Undo2,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 import { use } from "react";
 
 import { SessionClearContext } from "../contexts/session-clear-context-value";

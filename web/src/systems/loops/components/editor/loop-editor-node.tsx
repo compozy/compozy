@@ -1,5 +1,5 @@
 import { createContext, use, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@compozy/ui/icons";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
 import { cn, KindIcon, Pill, PropertyRow, type KindIconRegistry } from "@compozy/ui";

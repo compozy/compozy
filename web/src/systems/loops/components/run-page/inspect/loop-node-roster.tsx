@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
-import { ArrowUpRight, CornerDownRight } from "lucide-react";
+import { ArrowUpRight, CornerDownRight } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import {

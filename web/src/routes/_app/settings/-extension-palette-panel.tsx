@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 
 import { ShortcutBindingKeys } from "@/systems/os";
 import { SettingsGroup, type SettingsHooksExtensionsInstalled } from "@/systems/settings";

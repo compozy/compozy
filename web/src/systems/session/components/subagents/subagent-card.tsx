@@ -1,7 +1,7 @@
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SubagentRuntimeMeta } from "./subagent-runtime-meta";
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
-import { ChevronRight, GitBranch } from "lucide-react";
+import { ChevronRight, GitBranch } from "@compozy/ui/icons";
 
 import { HoverCard, HoverCardContent, HoverCardTrigger, Icon, cn } from "@compozy/ui";
 
@@ -271,6 +271,7 @@ export function SubagentCard({
             <Icon
               as={ChevronRight}
               aria-hidden="true"
+              data-slot="subagent-card-chevron"
               className={cn(
                 "text-faint transition-[color,rotate] duration-base ease-out group-hover/subagent-card:text-muted motion-reduce:transition-none",
                 chevron === "open" && "rotate-90"

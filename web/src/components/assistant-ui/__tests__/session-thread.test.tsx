@@ -4150,7 +4150,7 @@ describe("SessionThread transcript states", () => {
       renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
 
       const copy = await screen.findByTestId("assistant-message-actions-copy");
-      expect(copy.querySelector("svg.lucide-copy")).not.toBeNull();
+      expect(copy.querySelector('[data-slot="copy-idle-icon"]')).not.toBeNull();
 
       fireEvent.click(copy);
 
@@ -4162,8 +4162,8 @@ describe("SessionThread transcript states", () => {
         expect(copy).toHaveAttribute("data-copied", "true");
       });
       expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Message copied");
-      expect(copy.querySelector("svg.lucide-check")).not.toBeNull();
-      expect(copy.querySelector("svg.lucide-copy")).toBeNull();
+      expect(copy.querySelector('[data-slot="copy-success-icon"]')).not.toBeNull();
+      expect(copy.querySelector('[data-slot="copy-idle-icon"]')).toBeNull();
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, "clipboard", clipboardDescriptor);

@@ -1,4 +1,4 @@
-import { Boxes } from "lucide-react";
+import { Boxes } from "@compozy/ui/icons";
 
 import {
   Button,

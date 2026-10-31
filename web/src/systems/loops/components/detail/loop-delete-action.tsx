@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 
 import { Button, ConfirmDialog, DialogTrigger } from "@compozy/ui";
 

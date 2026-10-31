@@ -1,9 +1,9 @@
 "use client";
 
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
-import { Folder } from "lucide-react";
 import * as React from "react";
 
+import { Folder } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Button } from "../button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../input-group";

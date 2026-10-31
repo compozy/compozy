@@ -1,4 +1,4 @@
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@compozy/ui/icons";
 import { useId } from "react";
 
 import { Eyebrow, Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";

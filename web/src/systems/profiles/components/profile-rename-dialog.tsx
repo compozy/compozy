@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { TextCursorInput } from "lucide-react";
+import { TextCursorInput } from "@compozy/ui/icons";
 
 import {
   Dialog,

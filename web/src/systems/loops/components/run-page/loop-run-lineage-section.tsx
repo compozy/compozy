@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { GitFork } from "lucide-react";
+import { GitFork } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import type { LoopForkLink } from "../../types";

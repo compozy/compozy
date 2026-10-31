@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Lock } from "lucide-react";
+import { Lock } from "@compozy/ui/icons";
 
 import { Dialog, DialogContent, DialogTitle, Icon, Logo, Pill, cn } from "@compozy/ui";
 

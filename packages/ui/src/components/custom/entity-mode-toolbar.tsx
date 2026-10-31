@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 
+import { ArrowRight, SlidersHorizontal } from "../../icons";
 import { DIALOG_TOUCH_TARGET_SEGMENTS_CLASS } from "../../lib/dialog-shell";
 import { cn } from "../../lib/utils";
 import { EntityDialogToolbar } from "./entity-dialog-toolbar";

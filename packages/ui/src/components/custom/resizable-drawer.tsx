@@ -1,9 +1,9 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { XIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { XIcon } from "../../icons";
 import { defaultDialogInitialFocus } from "../../lib/dialog-initial-focus";
 import { Button } from "../button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../sheet";

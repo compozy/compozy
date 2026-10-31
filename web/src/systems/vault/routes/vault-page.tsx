@@ -1,4 +1,4 @@
-import { AlertCircle, KeyRound, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertCircle, KeyRound, Plus, RefreshCw, Trash2 } from "@compozy/ui/icons";
 
 import {
   Button,

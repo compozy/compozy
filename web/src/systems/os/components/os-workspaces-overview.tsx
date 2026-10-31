@@ -1,6 +1,6 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { useEffect, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, cn } from "@compozy/ui";
 

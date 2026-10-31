@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { LayoutDashboard, ListChecks } from "lucide-react";
 
+import { LayoutDashboard, ListChecks } from "../../../icons";
 import { Button } from "../../button";
 import { ListingToolbar } from "../listing-toolbar";
 import { RouteNav } from "../route-nav";

@@ -4,7 +4,7 @@ import {
   type WorktreeRemovalBatch,
 } from "@/systems/workspace";
 import { useState, type KeyboardEvent } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 

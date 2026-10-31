@@ -1,4 +1,4 @@
-import { Scissors } from "lucide-react";
+import { Scissors } from "@compozy/ui/icons";
 
 import type { SessionReplyOutcome } from "@/systems/session/lib/session-message-payload";
 import { Button, cn } from "@compozy/ui";

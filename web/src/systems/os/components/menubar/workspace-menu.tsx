@@ -1,5 +1,5 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
-import { Archive, Check, ChevronRight } from "lucide-react";
+import { Archive, Check, ChevronRight } from "@compozy/ui/icons";
 
 import {
   MenubarContent,

@@ -4,9 +4,9 @@
 // Boundary OUT: task-template and automation-suggestion actions owned by their web component suites.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Clock3 } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Clock3 } from "../../../icons";
 import { Button } from "../../button";
 import { CatalogEmptyDisclosureRow } from "../catalog-empty-disclosure-row";
 

@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@compozy/ui/icons";
 import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
 

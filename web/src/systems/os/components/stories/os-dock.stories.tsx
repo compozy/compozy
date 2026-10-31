@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { ChevronRight, Search } from "lucide-react";
+import { ChevronRight, Search } from "@compozy/ui/icons";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 

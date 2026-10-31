@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react";
+import { Lock } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { cn } from "@compozy/ui";

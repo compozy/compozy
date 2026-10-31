@@ -1,6 +1,6 @@
 import { useAui } from "@assistant-ui/react";
 import { InputGroupButton } from "@compozy/ui";
-import { Paperclip } from "lucide-react";
+import { Paperclip } from "@compozy/ui/icons";
 import { useRef, type ComponentProps } from "react";
 
 export type SessionAttachButtonViewProps = ComponentProps<typeof InputGroupButton>;

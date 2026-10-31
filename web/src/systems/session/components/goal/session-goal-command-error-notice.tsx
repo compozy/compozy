@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@compozy/ui";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 
 import { useSessionGoalFeedback } from "@/systems/session/hooks/use-session-store";
 import { describeGoalCommandFailure } from "@/systems/session/lib/session-goal-chat-transport";

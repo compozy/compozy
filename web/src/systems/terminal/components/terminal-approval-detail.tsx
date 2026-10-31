@@ -1,4 +1,4 @@
-import { Folder, SquareTerminal, TriangleAlert } from "lucide-react";
+import { Folder, SquareTerminal, TriangleAlert } from "@compozy/ui/icons";
 
 import { cn, MonoId } from "@compozy/ui";
 

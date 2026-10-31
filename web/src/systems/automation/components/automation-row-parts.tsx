@@ -7,7 +7,7 @@ import {
   Play,
   SkipForward,
   Trash2,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import {

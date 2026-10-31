@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, ViewTransition } from "react";
-import { Bot } from "lucide-react";
+import { Bot } from "@compozy/ui/icons";
 
 import {
   Button,

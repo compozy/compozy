@@ -18,8 +18,8 @@ import {
   SlidersHorizontal,
   Terminal,
   Wrench,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+} from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 describe("getToolIcon", () => {
   it("Should map builtin tool ids to their per-tool glyph — never the terminal fallback", () => {

@@ -1,4 +1,4 @@
-import { CircleOff, Plus, RotateCcw, TriangleAlert } from "lucide-react";
+import { CircleOff, Plus, RotateCcw, TriangleAlert } from "@compozy/ui/icons";
 
 import { Button, MonoId, Pill, TableCell, TableRow, cn } from "@compozy/ui";
 

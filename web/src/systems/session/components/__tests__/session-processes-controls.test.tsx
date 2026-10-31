@@ -97,9 +97,9 @@ describe("SessionProcessesComposerControl", () => {
     const inFlight = screen.getByRole("button", {
       name: "Stop process: tsc --watch --preserveWatchOutput",
     });
-    expect(inFlight.querySelector(".lucide-circle-stop")).toBeNull();
+    expect(inFlight.querySelector('[data-slot="process-stop-icon"]')).toBeNull();
     const waiting = screen.getByRole("button", { name: "Stop process: bun run dev --port 5173" });
-    expect(waiting.querySelector(".lucide-circle-stop")).not.toBeNull();
+    expect(waiting.querySelector('[data-slot="process-stop-icon"]')).not.toBeNull();
 
     view.rerender(
       <UIProvider reducedMotion="always">

@@ -1,4 +1,4 @@
-import { Radar, X } from "lucide-react";
+import { Radar, X } from "@compozy/ui/icons";
 
 import {
   Button,

@@ -1,7 +1,6 @@
 "use client";
 
-import { XIcon } from "lucide-react";
-
+import { XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Spinner } from "../spinner";
 import type { ToolCallStatus } from "./tool-call-row";

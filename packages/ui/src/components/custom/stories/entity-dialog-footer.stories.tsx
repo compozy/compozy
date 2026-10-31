@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Check, ClipboardCheck } from "lucide-react";
 import { expect, waitFor, within } from "storybook/test";
 
+import { Check, ClipboardCheck } from "../../../icons";
 import { Dialog, DialogContent } from "../../dialog";
 import { dialogShellClass } from "../../../lib/dialog-shell";
 import { EntityDialogFooter } from "../entity-dialog-footer";

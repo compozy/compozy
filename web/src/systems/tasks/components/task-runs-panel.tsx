@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ChevronRight, CornerUpLeft, Play } from "lucide-react";
+import { AlertCircle, ChevronRight, CornerUpLeft, Play } from "@compozy/ui/icons";
 
 import {
   Button,

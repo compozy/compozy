@@ -1,4 +1,4 @@
-import { AlertCircle, GitBranch, ListChecks, Search } from "lucide-react";
+import { AlertCircle, GitBranch, ListChecks, Search } from "@compozy/ui/icons";
 
 import { Button, Empty, ListingPage, Spinner } from "@compozy/ui";
 

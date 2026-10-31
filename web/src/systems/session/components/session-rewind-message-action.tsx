@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react";
+import { Pencil } from "@compozy/ui/icons";
 
 import { Button } from "@compozy/ui";
 import { useSessionRewindMessageAction } from "../hooks/use-session-rewind-message-action";

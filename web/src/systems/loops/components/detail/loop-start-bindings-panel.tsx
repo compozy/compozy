@@ -1,4 +1,4 @@
-import { ArrowRight, Plus, Zap } from "lucide-react";
+import { ArrowRight, Plus, Zap } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button, buttonVariants, Pill, SkeletonRegion, SkeletonText, StatusDot } from "@compozy/ui";

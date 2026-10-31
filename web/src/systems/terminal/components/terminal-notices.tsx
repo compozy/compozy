@@ -5,7 +5,7 @@ import {
   Unplug,
   Users,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import {
   Alert,

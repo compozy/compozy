@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Layers } from "lucide-react";
+import { Layers } from "@compozy/ui/icons";
 
 import { cn, identityColorsFor, identitySurfaceFor, SpriteIcon } from "@compozy/ui";
 

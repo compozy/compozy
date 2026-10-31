@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 import { useState } from "react";
 

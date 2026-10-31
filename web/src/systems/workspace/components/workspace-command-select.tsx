@@ -1,4 +1,4 @@
-import { ChevronRight, ChevronsUpDown, Plus } from "lucide-react";
+import { ChevronRight, ChevronsUpDown, Plus } from "@compozy/ui/icons";
 
 import {
   cn,

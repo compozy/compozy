@@ -8,7 +8,7 @@ import {
   Section,
   ToolCallRow,
 } from "@compozy/ui";
-import { BoxesIcon } from "lucide-react";
+import { BoxesIcon } from "@compozy/ui/icons";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";

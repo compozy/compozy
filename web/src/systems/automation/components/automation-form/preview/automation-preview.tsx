@@ -1,4 +1,4 @@
-import { Clock, Text } from "lucide-react";
+import { Clock, Text } from "@compozy/ui/icons";
 
 import { FieldDescription } from "@compozy/ui";
 

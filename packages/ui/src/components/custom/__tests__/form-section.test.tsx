@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { Sparkles } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Sparkles } from "../../../icons";
 import { FormSection } from "../form-section";
 
 describe("FormSection", () => {

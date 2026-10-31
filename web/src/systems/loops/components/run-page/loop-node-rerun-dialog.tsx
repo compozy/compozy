@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CornerDownRight, Info } from "lucide-react";
+import { CornerDownRight, Info } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Eyebrow, Field, FieldLabel, Textarea } from "@compozy/ui";
 

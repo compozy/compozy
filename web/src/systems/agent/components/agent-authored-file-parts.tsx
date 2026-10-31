@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FileText } from "lucide-react";
+import { FileText } from "@compozy/ui/icons";
 
 import { Button, Empty, Panel, Pill, Spinner } from "@compozy/ui";
 

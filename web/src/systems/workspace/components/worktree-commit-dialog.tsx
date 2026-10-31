@@ -1,4 +1,4 @@
-import { GitBranchIcon, GitCommitHorizontalIcon } from "lucide-react";
+import { GitBranchIcon, GitCommitHorizontalIcon } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

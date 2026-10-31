@@ -157,14 +157,16 @@ describe("SubagentCard", () => {
       <SubagentCard subagent={subagent({ origin: "provider_native", child_session_id: null })} />
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-    expect(container.querySelector(".lucide-chevron-right")).toBeNull();
+    expect(container.querySelector('[data-slot="subagent-card-chevron"]')).toBeNull();
   });
 
   it("Should render the bot glyph for an unknown provider (UT-W05)", () => {
     const { container } = renderUI(
       <SubagentCard subagent={subagent({ runtime: { ...NO_RUNTIME, provider: "mystery" } })} />
     );
-    expect(container.querySelector('[data-kind="mystery"] .lucide-bot')).not.toBeNull();
+    expect(
+      container.querySelector('[data-kind="mystery"] [data-slot="kind-icon-fallback"]')
+    ).not.toBeNull();
   });
 
   it("Should tick elapsed from started_at on the shared ticker without re-rendering React (UT-W06)", () => {

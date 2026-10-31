@@ -1,4 +1,4 @@
-import { Archive, Square, Trash2 } from "lucide-react";
+import { Archive, Square, Trash2 } from "@compozy/ui/icons";
 
 import { ConfirmDialog } from "@compozy/ui";
 

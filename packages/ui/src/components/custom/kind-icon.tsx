@@ -1,6 +1,6 @@
 import type * as React from "react";
-import { Bot, type LucideIcon } from "lucide-react";
 
+import { Bot, type LucideIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import {
   providerKindIconRegistry,
@@ -83,7 +83,7 @@ function KindIconGlyph({ className, entry, fallback }: KindIconGlyphPropsForEntr
   }
 
   const Icon = entry?.fallback ?? fallback;
-  return <Icon aria-hidden="true" className={className} />;
+  return <Icon aria-hidden="true" className={className} data-slot="kind-icon-fallback" />;
 }
 
 function KindIcon<K extends string = string>({

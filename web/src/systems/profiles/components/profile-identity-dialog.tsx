@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Palette } from "lucide-react";
+import { Palette } from "@compozy/ui/icons";
 
 import {
   Dialog,

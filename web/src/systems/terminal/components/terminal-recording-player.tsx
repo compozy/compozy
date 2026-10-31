@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
+import { Pause, Play } from "@compozy/ui/icons";
 import { useEffect } from "react";
 
 import {

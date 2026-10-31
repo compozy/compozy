@@ -1,4 +1,4 @@
-import { CornerUpLeft } from "lucide-react";
+import { CornerUpLeft } from "@compozy/ui/icons";
 import { use } from "react";
 
 import { SessionMessageJumpContext } from "../../contexts/session-message-jump-context-value";

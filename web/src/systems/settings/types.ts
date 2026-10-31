@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 

@@ -1,4 +1,4 @@
-import { GitMerge, TriangleAlert } from "lucide-react";
+import { GitMerge, TriangleAlert } from "@compozy/ui/icons";
 
 import { cn, Eyebrow, Icon, StateGlyph } from "@compozy/ui";
 

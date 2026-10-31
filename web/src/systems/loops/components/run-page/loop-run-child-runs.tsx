@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import type { ComponentProps } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button, SkeletonText, StateGlyph, cn } from "@compozy/ui";

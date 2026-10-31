@@ -1,5 +1,5 @@
 import { Button, ToolCallRow, formatDuration } from "@compozy/ui";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 import { Suspense, lazy, use, useState } from "react";
 
 import { OsShellContext, type OsShellHandle } from "@/systems/os";

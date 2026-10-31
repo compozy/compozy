@@ -1,4 +1,4 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound } from "@compozy/ui/icons";
 
 import {
   DataSurface,

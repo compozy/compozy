@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Activity, AlertTriangle, CircleAlert, Sparkles } from "lucide-react";
 
+import { Activity, AlertTriangle, CircleAlert, Sparkles } from "../../icons";
 import { Icon } from "../icon";
 
 const meta: Meta<typeof Icon> = {

@@ -1,4 +1,4 @@
-import { Lock, Settings2 } from "lucide-react";
+import { Lock, Settings2 } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import {

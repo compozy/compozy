@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { Check, RotateCcw, ShieldCheck } from "lucide-react";
+import { Check, RotateCcw, ShieldCheck } from "@compozy/ui/icons";
 
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
 import { buildInventoryRow, inventoryEmptyCopy } from "../loop-node-inventory";

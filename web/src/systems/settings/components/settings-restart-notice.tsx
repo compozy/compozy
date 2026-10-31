@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from "@compozy/ui/icons";
 
 import { RestartBanner } from "@compozy/ui";
 

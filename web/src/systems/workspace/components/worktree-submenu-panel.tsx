@@ -3,7 +3,7 @@ import {
   type WorktreeRemovalBatch,
 } from "../hooks/use-worktree-removal-selection";
 import { WorktreeSelectionToolbar } from "./worktree-selection-toolbar";
-import { Copy, Ellipsis, Eraser, FileSearch, Plus, Trash2 } from "lucide-react";
+import { Copy, Ellipsis, Eraser, FileSearch, Plus, Trash2 } from "@compozy/ui/icons";
 
 import {
   DropdownMenu,

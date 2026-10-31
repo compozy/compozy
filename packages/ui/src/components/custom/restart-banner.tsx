@@ -1,8 +1,8 @@
 "use client";
 
-import { RefreshCwIcon, ShieldAlertIcon, XIcon } from "lucide-react";
 import * as React from "react";
 
+import { RefreshCwIcon, ShieldAlertIcon, XIcon } from "../../icons";
 import { cn } from "../../lib/utils";
 import { Alert, AlertDescription } from "../alert";
 import { Button } from "../button";

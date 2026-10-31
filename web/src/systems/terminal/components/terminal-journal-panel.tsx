@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ScrollText } from "lucide-react";
+import { ArrowLeft, ScrollText } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

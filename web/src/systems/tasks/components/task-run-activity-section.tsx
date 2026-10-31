@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { Activity } from "@compozy/ui/icons";
 
 import { Empty, LiveBadge, Section, SkeletonRegion, Timeline } from "@compozy/ui";
 

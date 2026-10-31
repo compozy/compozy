@@ -1,4 +1,4 @@
-import { Repeat2 } from "lucide-react";
+import { Repeat2 } from "@compozy/ui/icons";
 
 import { Empty } from "@compozy/ui";
 

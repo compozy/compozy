@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { KeyRound, Settings2, Trash2 } from "lucide-react";
+import { KeyRound, Settings2, Trash2 } from "@compozy/ui/icons";
 import { fn } from "storybook/test";
 
 import {

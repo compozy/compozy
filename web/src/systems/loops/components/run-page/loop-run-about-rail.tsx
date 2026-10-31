@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, Info } from "@compozy/ui/icons";
 
 import {
   cn,

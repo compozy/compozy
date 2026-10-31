@@ -8,7 +8,7 @@ import {
   GitPullRequestClosed,
   GitPullRequestDraft,
   type LucideIcon,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 
 import { middleTruncate as truncateMiddle } from "../../lib/middle-truncate";
 import type {

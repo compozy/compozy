@@ -1,4 +1,4 @@
-import { RefreshCw, Store } from "lucide-react";
+import { RefreshCw, Store } from "@compozy/ui/icons";
 
 import {
   Button,

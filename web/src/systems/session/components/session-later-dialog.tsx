@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
-import { Bookmark } from "lucide-react";
+import { Bookmark } from "@compozy/ui/icons";
 
 import {
   Button,

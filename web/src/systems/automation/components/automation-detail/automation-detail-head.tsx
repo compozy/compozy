@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { Clock3, Pause, Radio, Webhook } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
+import { Clock3, Pause, Radio, Webhook } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { Time, cn } from "@compozy/ui";

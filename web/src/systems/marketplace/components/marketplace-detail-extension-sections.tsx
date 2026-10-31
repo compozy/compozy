@@ -1,4 +1,4 @@
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle, Pill } from "@compozy/ui";
 

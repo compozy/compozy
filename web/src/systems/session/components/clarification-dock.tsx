@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown, ChevronUp, MessageCircleQuestion } from "@compozy/ui/icons";
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {

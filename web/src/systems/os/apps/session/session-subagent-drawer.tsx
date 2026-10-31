@@ -2,7 +2,7 @@ import { AuiConfig, AuiProvider } from "@assistant-ui/react";
 import { SessionNativeSubagentActivity } from "@/components/assistant-ui/session-native-subagent-activity";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 import { Button, ResizableDrawer, Tooltip, TooltipTrigger, TooltipContent } from "@compozy/ui";
 import type { ReactNode } from "react";
 

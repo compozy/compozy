@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
 import { Button, Pill } from "@compozy/ui";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon } from "@compozy/ui/icons";
 
 import { statusTone } from "@/lib/status-tone";
 import { cn } from "@/lib/utils";

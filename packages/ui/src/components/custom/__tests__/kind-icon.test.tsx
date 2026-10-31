@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { Bot, Code } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Bot, Code } from "../../../icons";
 import { KindIcon } from "../kind-icon";
 import { providerKindIconRegistry } from "../kind-icon-registry";
 

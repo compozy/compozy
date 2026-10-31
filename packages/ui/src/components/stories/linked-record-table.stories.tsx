@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { ChevronRight } from "../../icons";
 import { LinkedRecordTable } from "../custom/linked-record-table";
 import { Pill } from "../custom/pill";
 

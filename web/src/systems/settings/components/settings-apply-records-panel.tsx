@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, RefreshCw, RotateCw } from "@compozy/ui/icons";
 
 import type { ConfigApplyRecord, SettingsApplyResponse } from "@/systems/settings/types";
 import {

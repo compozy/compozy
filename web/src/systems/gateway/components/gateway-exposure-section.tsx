@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle } from "@compozy/ui";
 

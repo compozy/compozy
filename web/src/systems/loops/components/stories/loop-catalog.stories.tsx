@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { ListingPage, ListingToolbar, type ListingViewMode } from "@compozy/ui";
-import { Repeat2 } from "lucide-react";
+import { Repeat2 } from "@compozy/ui/icons";
 
 import { LoopCatalog } from "../catalog/loop-catalog";
 import { LoopCatalogFilters } from "../catalog/loop-catalog-filters";

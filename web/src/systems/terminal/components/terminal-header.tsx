@@ -1,4 +1,4 @@
-import { Eye, FileText, TerminalSquare } from "lucide-react";
+import { Eye, FileText, TerminalSquare } from "@compozy/ui/icons";
 
 import { Pill, StateGlyph, type StateGlyphState, useTopbarSlot } from "@compozy/ui";
 

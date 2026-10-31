@@ -1,4 +1,4 @@
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "@compozy/ui/icons";
 
 import {
   Alert,

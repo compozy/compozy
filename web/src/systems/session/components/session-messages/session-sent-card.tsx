@@ -1,4 +1,4 @@
-import { ArrowUpRight, CornerDownRight, Scissors } from "lucide-react";
+import { ArrowUpRight, CornerDownRight, Scissors } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 

@@ -1,6 +1,6 @@
-import { ChevronRight } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
+import { ChevronRight } from "../../icons";
 import { cn } from "../../lib/utils";
 
 export interface TranscriptDisclosureProps extends Omit<

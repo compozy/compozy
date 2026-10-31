@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { Wrench } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
+import { Wrench } from "../../../icons";
 import { Button } from "../../button";
 import { CatalogCard } from "../catalog-card";
 

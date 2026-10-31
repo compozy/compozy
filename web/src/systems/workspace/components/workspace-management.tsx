@@ -1,4 +1,4 @@
-import { Folder, Archive } from "lucide-react";
+import { Folder, Archive } from "@compozy/ui/icons";
 import { Alert, AlertDescription, ListGroup, ListingRow, Spinner } from "@compozy/ui";
 import { useArchivedWorkspaces, useWorkspaces } from "@/systems/workspace/hooks/use-workspaces";
 import type { WorkspacePayload } from "@/systems/workspace/types";

@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play } from "@compozy/ui/icons";
 import type { ComponentProps } from "react";
 
 import { Button, cn } from "@compozy/ui";

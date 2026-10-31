@@ -1,4 +1,4 @@
-import { FileText, Package } from "lucide-react";
+import { FileText, Package } from "@compozy/ui/icons";
 
 import {
   cn,

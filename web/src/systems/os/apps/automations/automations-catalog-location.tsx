@@ -1,4 +1,4 @@
-import { Plus, Zap } from "lucide-react";
+import { Plus, Zap } from "@compozy/ui/icons";
 
 import { Button, ListingPage, useTopbarSlot } from "@compozy/ui";
 

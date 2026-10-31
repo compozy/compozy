@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cable } from "lucide-react";
+import { Cable } from "@compozy/ui/icons";
 
 import {
   Alert,

@@ -1,4 +1,4 @@
-import { KeyRound, X } from "lucide-react";
+import { KeyRound, X } from "@compozy/ui/icons";
 
 import {
   Button,

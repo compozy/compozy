@@ -1,4 +1,4 @@
-import { Target } from "lucide-react";
+import { Target } from "@compozy/ui/icons";
 import { createContext, memo, use } from "react";
 import type { ReactNode } from "react";
 import { useSelector } from "@xstate/store-react";

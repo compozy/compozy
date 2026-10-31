@@ -1,4 +1,4 @@
-import { CircleAlert, Info, TriangleAlert } from "lucide-react";
+import { CircleAlert, Info, TriangleAlert } from "@compozy/ui/icons";
 
 import { Alert, AlertDescription, AlertTitle, cn } from "@compozy/ui";
 

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
+import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "@compozy/ui/icons";
 
 import {
   cn,

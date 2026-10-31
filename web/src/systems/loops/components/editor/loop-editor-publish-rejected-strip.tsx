@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@compozy/ui/icons";
 
 import { withOccurrenceKeys } from "@/lib/occurrence-keys";
 

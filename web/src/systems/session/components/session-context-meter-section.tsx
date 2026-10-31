@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react";
-import { Gauge } from "lucide-react";
+import { Gauge } from "@compozy/ui/icons";
 import { Pill, StackedProgress, StatusBreakdown, cn } from "@compozy/ui";
 import type { SessionContextView } from "../lib/session-context";
 import { formatContextTokens } from "../lib/context-format";

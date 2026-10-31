@@ -6,7 +6,7 @@ import {
   Scissors,
   TriangleAlert,
   WifiOff,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentType } from "react";
 
 import { cn } from "@/lib/utils";

@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Clipboard, RotateCcw } from "lucide-react";
+import { AlertTriangle, Check, Clipboard, RotateCcw } from "@compozy/ui/icons";
 import { useState } from "react";
 
 import { Button, Pill } from "@compozy/ui";

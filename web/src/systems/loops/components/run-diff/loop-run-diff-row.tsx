@@ -1,4 +1,4 @@
-import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "lucide-react";
+import { ArrowRight, Gavel, Minus, Pencil, RotateCcw, type LucideIcon } from "@compozy/ui/icons";
 
 import type { LoopDiffChange } from "../../lib/loop-request-vocabulary";
 import { DIFF_ROW_CLASS } from "./loop-run-diff-parts";

@@ -1,4 +1,4 @@
-import { ArrowRight, CircleSlash, HardDrive, Moon } from "lucide-react";
+import { ArrowRight, CircleSlash, HardDrive, Moon } from "@compozy/ui/icons";
 
 import { Checkbox, cn, Skeleton, SkeletonText } from "@compozy/ui";
 

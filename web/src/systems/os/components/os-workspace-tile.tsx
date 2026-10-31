@@ -1,4 +1,4 @@
-import { Check, GitBranch, Plus } from "lucide-react";
+import { Check, GitBranch, Plus } from "@compozy/ui/icons";
 
 import { cn } from "@compozy/ui";
 

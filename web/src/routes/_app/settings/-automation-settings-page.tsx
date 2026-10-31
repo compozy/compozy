@@ -1,4 +1,4 @@
-import { AlertCircle, Zap } from "lucide-react";
+import { AlertCircle, Zap } from "@compozy/ui/icons";
 import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 

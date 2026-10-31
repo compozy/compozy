@@ -1,4 +1,4 @@
-import { FileText, Fingerprint } from "lucide-react";
+import { FileText, Fingerprint } from "@compozy/ui/icons";
 
 import { MonoId, PropertyRow, Time } from "@compozy/ui";
 

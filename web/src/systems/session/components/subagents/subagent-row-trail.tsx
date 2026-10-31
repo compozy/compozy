@@ -1,5 +1,5 @@
 import type { MouseEvent } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@compozy/ui/icons";
 
 import { Icon, StateGlyph, cn } from "@compozy/ui";
 

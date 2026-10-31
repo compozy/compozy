@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ComponentProps, ReactNode } from "react";
-import { Repeat2, SquareCheck } from "lucide-react";
+import { Repeat2, SquareCheck } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { cn } from "@compozy/ui";

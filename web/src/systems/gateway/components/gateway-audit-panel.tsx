@@ -1,4 +1,4 @@
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "@compozy/ui/icons";
 
 import { Button, Empty, MonoId, Spinner } from "@compozy/ui";
 

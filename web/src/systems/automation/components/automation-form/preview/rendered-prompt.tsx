@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText } from "@compozy/ui/icons";
 
 import { Eyebrow } from "@compozy/ui";
 

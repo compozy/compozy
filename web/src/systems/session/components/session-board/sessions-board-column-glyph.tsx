@@ -1,4 +1,4 @@
-import { GitPullRequest, Hourglass } from "lucide-react";
+import { GitPullRequest, Hourglass } from "@compozy/ui/icons";
 
 import { StateGlyph } from "@compozy/ui";
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitFork } from "lucide-react";
+import { GitFork } from "@compozy/ui/icons";
 
 import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 

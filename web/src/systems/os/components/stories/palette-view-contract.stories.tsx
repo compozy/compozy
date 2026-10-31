@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Blocks } from "lucide-react";
+import { Blocks } from "@compozy/ui/icons";
 import { fn, userEvent, within } from "storybook/test";
 
 import { statusTone } from "@/lib/status-tone";

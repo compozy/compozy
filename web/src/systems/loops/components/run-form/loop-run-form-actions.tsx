@@ -1,4 +1,4 @@
-import { CheckCircle2, FlaskConical, Info, Play } from "lucide-react";
+import { CheckCircle2, FlaskConical, Info, Play } from "@compozy/ui/icons";
 
 import { Button, Spinner } from "@compozy/ui";
 

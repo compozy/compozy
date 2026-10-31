@@ -1,4 +1,4 @@
-import { ChartBar } from "lucide-react";
+import { ChartBar } from "@compozy/ui/icons";
 
 import {
   cn,

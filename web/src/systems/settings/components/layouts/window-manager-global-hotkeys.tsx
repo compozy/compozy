@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink, Globe2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Globe2 } from "@compozy/ui/icons";
 
 import { Alert, AlertActions, AlertDescription, AlertTitle, Button } from "@compozy/ui";
 

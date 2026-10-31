@@ -1,4 +1,4 @@
-import { List, SquareKanban } from "lucide-react";
+import { List, SquareKanban } from "@compozy/ui/icons";
 
 import { ToggleGroup, ToggleGroupItem } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { CornerDownRight, Reply, Scissors } from "lucide-react";
+import { CornerDownRight, Reply, Scissors } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { SubagentAvatar } from "../subagents/subagent-avatar";

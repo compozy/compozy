@@ -1,4 +1,4 @@
-import { Ellipsis } from "lucide-react";
+import { Ellipsis } from "@compozy/ui/icons";
 import { useState } from "react";
 import type * as React from "react";
 

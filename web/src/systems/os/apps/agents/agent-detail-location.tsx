@@ -1,4 +1,4 @@
-import { AlertCircle, Compass } from "lucide-react";
+import { AlertCircle, Compass } from "@compozy/ui/icons";
 import { useDeferredValue, ViewTransition, type ReactNode } from "react";
 
 import {

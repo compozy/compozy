@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown, RefreshCw } from "@compozy/ui/icons";
 
 import {
   Button,

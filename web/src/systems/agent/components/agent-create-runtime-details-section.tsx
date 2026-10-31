@@ -1,4 +1,4 @@
-import { Terminal } from "lucide-react";
+import { Terminal } from "@compozy/ui/icons";
 
 import { Field, FieldHeader, FieldLabel, FormSection, HelpTip, Input } from "@compozy/ui";
 

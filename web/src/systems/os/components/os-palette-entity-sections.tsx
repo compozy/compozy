@@ -1,4 +1,4 @@
-import { ArrowRightLeft, FolderGit2 } from "lucide-react";
+import { ArrowRightLeft, FolderGit2 } from "@compozy/ui/icons";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 

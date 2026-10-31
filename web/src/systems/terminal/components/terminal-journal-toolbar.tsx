@@ -1,4 +1,4 @@
-import { ListFilter } from "lucide-react";
+import { ListFilter } from "@compozy/ui/icons";
 
 import { Button, Filters, ListingToolbar, type Filter } from "@compozy/ui";
 

@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import {

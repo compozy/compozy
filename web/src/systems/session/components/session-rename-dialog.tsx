@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil } from "@compozy/ui/icons";
 
 import {
   Button,

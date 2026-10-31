@@ -1,4 +1,4 @@
-import { Pause, WifiOff } from "lucide-react";
+import { Pause, WifiOff } from "@compozy/ui/icons";
 
 import { Pill, Spinner, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 

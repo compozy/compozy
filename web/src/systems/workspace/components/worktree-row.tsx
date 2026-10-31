@@ -1,5 +1,5 @@
-import { FolderGit2, FolderSearch, FolderX, Loader } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { FolderGit2, FolderSearch, FolderX, Loader } from "@compozy/ui/icons";
+import type { LucideIcon } from "@compozy/ui/icons";
 
 import { cn, Icon, MonoId, PillDot } from "@compozy/ui";
 

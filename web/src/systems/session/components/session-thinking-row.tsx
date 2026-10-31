@@ -1,4 +1,4 @@
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "@compozy/ui/icons";
 
 import { SessionSummaryDisclosure } from "./session-summary-disclosure";
 

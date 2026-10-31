@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

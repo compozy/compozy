@@ -1,4 +1,4 @@
-import { Globe, TerminalSquare } from "lucide-react";
+import { Globe, TerminalSquare } from "@compozy/ui/icons";
 
 import { FormSection, ImmutableIdentity, Input, RadioCard } from "@compozy/ui";
 

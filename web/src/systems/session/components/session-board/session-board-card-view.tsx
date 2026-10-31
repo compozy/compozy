@@ -10,7 +10,7 @@ import {
   ListTree,
   type LucideIcon,
   PencilLine,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import type { ComponentProps, MouseEvent } from "react";
 
 import {

@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, FolderGit2 } from "lucide-react";
+import { ArrowRight, ChevronDown, FolderGit2 } from "@compozy/ui/icons";
 import { useState, type ComponentProps } from "react";
 
 import {

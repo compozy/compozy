@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { InboxIcon, PlusIcon, SearchIcon } from "lucide-react";
 
+import { InboxIcon, PlusIcon, SearchIcon } from "../../icons";
 import { Button } from "../button";
 import { Empty } from "../empty";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
 import {

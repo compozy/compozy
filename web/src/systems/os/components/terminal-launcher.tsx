@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GitBranch, Plus, TerminalSquare } from "lucide-react";
+import { GitBranch, Plus, TerminalSquare } from "@compozy/ui/icons";
 
 import {
   cn,

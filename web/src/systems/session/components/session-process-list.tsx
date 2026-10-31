@@ -1,4 +1,4 @@
-import { CircleStop } from "lucide-react";
+import { CircleStop } from "@compozy/ui/icons";
 
 import { Button, Disclosure, StateGlyph, Time } from "@compozy/ui";
 
@@ -175,7 +175,7 @@ function ProcessRow({
           {stopping ? (
             <StateGlyph size="sm" state="running" />
           ) : (
-            <CircleStop aria-hidden="true" className="size-3.5" />
+            <CircleStop aria-hidden="true" className="size-3.5" data-slot="process-stop-icon" />
           )}
         </Button>
       ) : null}

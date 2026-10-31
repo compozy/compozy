@@ -41,7 +41,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@compozy/ui";
-import { PlusIcon, SearchIcon } from "lucide-react";
+import { PlusIcon, SearchIcon } from "@compozy/ui/icons";
 
 import { SectionLink } from "./design-system-showcase-section-link";
 import { sectionById } from "./design-system-showcase-sections";

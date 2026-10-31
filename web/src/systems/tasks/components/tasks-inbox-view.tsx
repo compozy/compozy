@@ -1,4 +1,4 @@
-import { AlertCircle, Inbox, ListFilter } from "lucide-react";
+import { AlertCircle, Inbox, ListFilter } from "@compozy/ui/icons";
 
 import {
   Button,

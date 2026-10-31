@@ -1,4 +1,4 @@
-import { Folder, X } from "lucide-react";
+import { Folder, X } from "@compozy/ui/icons";
 
 import {
   Alert,

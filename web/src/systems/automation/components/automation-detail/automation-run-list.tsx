@@ -1,5 +1,5 @@
 import { useState, type ComponentProps } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "@compozy/ui/icons";
 import {
   AlertCircle,
   ArrowRight,
@@ -13,7 +13,7 @@ import {
   RotateCcw,
   SkipForward,
   SquareCheck,
-} from "lucide-react";
+} from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button, Empty, SkeletonRegion, StateGlyph, Time, cn } from "@compozy/ui";

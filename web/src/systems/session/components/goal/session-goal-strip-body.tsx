@@ -1,4 +1,4 @@
-import { FilePenLine, RefreshCw } from "lucide-react";
+import { FilePenLine, RefreshCw } from "@compozy/ui/icons";
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@compozy/ui";
