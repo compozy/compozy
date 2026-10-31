@@ -4376,22 +4376,30 @@ func TestSessionProcessHandlers(t *testing.T) {
 		if !listed.Supported || len(listed.Items) != 1 || listed.Items[0].Attribution != "lineage" {
 			t.Fatalf("list=%+v", listed)
 		}
-		for _, body := range []string{`{}`, `{"all":true,"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`, `{"targets":[{"pid":1,"started_at":"2026-01-01T00:00:00Z"}]}`} {
+		for _, body := range []string{`{}`, `{"all":true,"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`, `{"targets":[{"pid":1,"started_at":"2026-01-01T00:00:00Z"}]}`, `{"include_tools":true,"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`} {
 			response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(body))
 			if response.Code != http.StatusBadRequest || processes.calls != 0 {
 				t.Fatalf("status=%d calls=%d body=%s", response.Code, processes.calls, response.Body.String())
 			}
 		}
 		response = performRequest(t, engine, http.MethodPost, base+"/processes/terminate", []byte(`{"all":true}`))
-		if response.Code != http.StatusOK || processes.calls != 1 || !processes.all || len(processes.targets) != 0 {
+		// Stop all leaves tool calls to the agent's turn unless the caller includes them.
+		if response.Code != http.StatusOK || processes.calls != 1 || processes.all != sessionprocess.AllLeftRunning ||
+			len(processes.targets) != 0 {
 			t.Fatalf(
-				"status=%d calls=%d all=%t targets=%v body=%s",
+				"status=%d calls=%d all=%v targets=%v body=%s",
 				response.Code,
 				processes.calls,
 				processes.all,
 				processes.targets,
 				response.Body.String(),
 			)
+		}
+		response = performRequest(
+			t, engine, http.MethodPost, base+"/processes/terminate", []byte(`{"all":true,"include_tools":true}`),
+		)
+		if response.Code != http.StatusOK || processes.calls != 2 || processes.all != sessionprocess.AllIncludingTools {
+			t.Fatalf("status=%d calls=%d all=%v", response.Code, processes.calls, processes.all)
 		}
 		stamp := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 		response = performRequest(
@@ -4401,11 +4409,12 @@ func TestSessionProcessHandlers(t *testing.T) {
 			base+"/processes/terminate",
 			[]byte(`{"targets":[{"pid":123,"started_at":"2026-01-01T00:00:00Z"}]}`),
 		)
-		if response.Code != http.StatusOK || processes.calls != 2 || processes.all || len(processes.targets) != 1 ||
+		if response.Code != http.StatusOK || processes.calls != 3 || processes.all != sessionprocess.Targets ||
+			len(processes.targets) != 1 ||
 			processes.targets[0].PID != 123 ||
 			!processes.targets[0].StartedAt.Equal(stamp) {
 			t.Fatalf(
-				"status=%d calls=%d all=%t targets=%v",
+				"status=%d calls=%d all=%v targets=%v",
 				response.Code,
 				processes.calls,
 				processes.all,
@@ -4433,7 +4442,7 @@ func TestSessionProcessHandlers(t *testing.T) {
 			base+"/processes/terminate",
 			[]byte(`{"all":true}`),
 		)
-		if response.Code != http.StatusNotFound || processes.calls != 2 {
+		if response.Code != http.StatusNotFound || processes.calls != 3 {
 			t.Fatalf("foreign status=%d calls=%d", response.Code, processes.calls)
 		}
 	})
@@ -4720,7 +4729,7 @@ type handlerProcessService struct {
 	refreshErr           error
 	unsupported          bool
 	targets              []sessionprocess.Identity
-	all                  bool
+	all                  sessionprocess.Scope
 	terminateContextErr  error
 	terminateHasDeadline bool
 	afterStop            func(context.Context) error
@@ -4759,7 +4768,7 @@ func (s *handlerProcessService) Terminate(
 	ctx context.Context,
 	id string,
 	targets []sessionprocess.Identity,
-	all bool,
+	all sessionprocess.Scope,
 	allowed func(sessionprocess.Owner) bool,
 ) ([]sessionprocess.Result, error) {
 	if id == "" {

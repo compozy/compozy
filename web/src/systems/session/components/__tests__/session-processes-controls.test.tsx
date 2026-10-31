@@ -5,10 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@compozy/ui";
 
 import {
+  issue1100GroupedTreesFixture,
+  mixedToolTreesFixture,
   processesLeftRunningFixture,
   sessionProcessFixture,
   sessionProcessesFixture,
   sessionProcessTreesFixture,
+  wrapperChainTreesFixture,
 } from "../../mocks/process-fixtures";
 import { processIdentity, singleProcessTrees } from "../../lib/session-processes";
 import { ProcessesLeftRunningDialog } from "../processes-left-running-dialog";
@@ -19,7 +22,8 @@ import { SessionProcessesComposerControl } from "../session-processes-composer-c
 // Invariant: the composer control appears only while the session has processes running; its
 // popover and "Processes left running" list each process with its kind and ports, stop one
 // process or all of them, and keep every read state; the lifecycle choice answers keep or
-// terminate, never both.
+// terminate, never both. Rows are process trees (#1100): a tree reads as its lead command with
+// its wrapper, port union and folded helpers, stops whole, and tool calls stay out of Stop all.
 // Owning layer: session presentational components (props in, callbacks out). Canonical suite: this file.
 
 function renderControl(props: Partial<Parameters<typeof SessionProcessesComposerControl>[0]> = {}) {
@@ -130,6 +134,56 @@ describe("SessionProcessesComposerControl", () => {
         "linked at launch"
       );
     }
+  });
+
+  it("Should show one row per tree with its helpers folded and stop the whole tree", async () => {
+    const user = userEvent.setup();
+    const onStop = vi.fn();
+    renderControl({ count: 2, trees: issue1100GroupedTreesFixture, onStop, onStopAll: vi.fn() });
+    await user.click(screen.getByRole("button", { name: "Processes, 2 running" }));
+    expect(screen.getAllByRole("listitem").filter(item => item.dataset.kind)).toHaveLength(2);
+    const browser = screen.getByTestId("session-process-81002");
+    expect(within(browser).getByRole("link", { name: "localhost:9222" })).toBeInTheDocument();
+    expect(browser).not.toHaveTextContent("Google Chrome Helper (Renderer)");
+    await user.click(within(browser).getByRole("button", { name: "+11 helpers" }));
+    expect(browser).toHaveTextContent("Google Chrome Helper (Renderer)×5");
+    expect(browser).toHaveTextContent("chrome_crashpad_handler×2");
+    await user.click(
+      within(browser).getByRole("button", {
+        name: /^Stop process: node .*daemon\.js --session default and 11 more in its tree$/,
+      })
+    );
+    expect(onStop).toHaveBeenCalledExactlyOnceWith(issue1100GroupedTreesFixture[1]);
+  });
+
+  it("Should name a wrapper chain by the server it starts, with the wrapper as context", async () => {
+    const user = userEvent.setup();
+    renderControl({ count: 2, trees: wrapperChainTreesFixture });
+    await user.click(screen.getByRole("button", { name: "Processes, 2 running" }));
+    const server = screen.getByTestId("session-process-82104");
+    expect(server).toHaveTextContent("node .output/server/index.mjs");
+    expect(within(server).getByTestId("process-wrapper")).toHaveTextContent(
+      "via bun run --cwd apps/web start"
+    );
+    expect(within(server).getByRole("link", { name: "localhost:3000" })).toBeInTheDocument();
+  });
+
+  it("Should set tool calls apart from Stop all", async () => {
+    const user = userEvent.setup();
+    renderControl({ count: 2, trees: mixedToolTreesFixture, onStop: vi.fn(), onStopAll: vi.fn() });
+    await user.click(screen.getByRole("button", { name: "Processes, 2 running" }));
+    const turn = screen.getByRole("region", { name: "Running in this turn" });
+    expect(turn).toHaveTextContent("Stop all leaves these to the agent");
+    expect(within(turn).getByTestId("session-process-83300")).toHaveTextContent("Tool call");
+    expect(screen.getByTestId("composer-processes-stop-all")).toBeEnabled();
+  });
+
+  it("Should offer no Stop all when only tool calls run", async () => {
+    const user = userEvent.setup();
+    renderControl({ count: 1, trees: mixedToolTreesFixture.slice(2), onStopAll: vi.fn() });
+    await user.click(screen.getByRole("button", { name: "Processes, 1 running" }));
+    expect(screen.queryByTestId("composer-processes-stop-all")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Running in this turn" })).not.toBeInTheDocument();
   });
 
   it("Should fold a multi-line command into one row", async () => {
@@ -284,6 +338,49 @@ describe("ProcessesLeftRunningDialog", () => {
       expect(button).toBeDisabled();
     }
     expect(screen.getByTestId("left-running-stop-all")).toBeDisabled();
+  });
+
+  it("Should count a session's trees and stop every member of one", async () => {
+    const user = userEvent.setup();
+    const onStop = vi.fn();
+    const [chain] = wrapperChainTreesFixture;
+    const members = [...chain!.wrappers, chain!.lead];
+    const target = ({ pid, started_at }: { pid: number; started_at: string }) => ({
+      pid,
+      started_at,
+    });
+    render(
+      <UIProvider reducedMotion="always">
+        <ProcessesLeftRunningDialog
+          open
+          onOpenChange={vi.fn()}
+          groups={[
+            {
+              ...processesLeftRunningFixture[0]!,
+              items: members,
+              trees: [
+                {
+                  id: chain!.id,
+                  kind: "background",
+                  root: target(chain!.wrappers[0]!),
+                  lead: target(chain!.lead),
+                  wrappers: chain!.wrappers.map(target),
+                  members: members.map(target),
+                  ports: [...chain!.ports],
+                },
+              ],
+            },
+          ]}
+          onStop={onStop}
+        />
+      </UIProvider>
+    );
+    const group = screen.getByRole("region", { name: "Landing page polish" });
+    expect(group).toHaveTextContent("1 process");
+    await user.click(
+      within(group).getByRole("button", { name: /^Stop process: node .*proto dev and 2 more/ })
+    );
+    expect(onStop).toHaveBeenLastCalledWith(members);
   });
 
   it("Should say so when nothing was left running", () => {

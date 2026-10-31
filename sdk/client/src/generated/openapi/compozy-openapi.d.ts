@@ -14191,6 +14191,7 @@ export interface components {
       profile: string;
       session_id: string;
       session_name: string;
+      trees?: components["schemas"]["SessionProcessTreePayload"][];
       workspace_id: string;
     };
     SessionProcessPayload: {
@@ -14214,6 +14215,7 @@ export interface components {
       /** Format: date-time */
       started_at: string;
       terminal_id?: string;
+      tree_id?: string;
     };
     SessionProcessResult: {
       error?: string;
@@ -14229,17 +14231,29 @@ export interface components {
       supported: boolean;
       terminals: number;
       total: number;
+      trees?: number;
     };
     SessionProcessTarget: {
       pid: number;
       /** Format: date-time */
       started_at: string;
     };
+    SessionProcessTreePayload: {
+      id: string;
+      /** @enum {string} */
+      kind: "background" | "tool" | "terminal";
+      lead: components["schemas"]["SessionProcessTarget"];
+      members: components["schemas"]["SessionProcessTarget"][];
+      ports: number[];
+      root: components["schemas"]["SessionProcessTarget"];
+      wrappers: components["schemas"]["SessionProcessTarget"][];
+    };
     SessionProcessesResponse: {
       items: components["schemas"]["SessionProcessPayload"][];
       /** Format: date-time */
       scanned_at: string;
       supported: boolean;
+      trees?: components["schemas"]["SessionProcessTreePayload"][];
     };
     SessionProfileFacetsPayload: {
       facets: components["schemas"]["SessionCatalogFacetsPayload"];
@@ -17908,6 +17922,7 @@ export interface components {
     };
     TerminateSessionProcessesRequest: {
       all?: boolean;
+      include_tools?: boolean;
       targets?: components["schemas"]["SessionProcessTarget"][];
     };
     TerminateSessionProcessesResponse: {

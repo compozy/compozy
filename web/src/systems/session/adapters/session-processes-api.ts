@@ -7,6 +7,7 @@ import { sessionWorkspacePath } from "./session-workspace-path";
 export type SessionProcessesResponse = OperationResponse<"listSessionProcesses", 200>;
 export type SessionProcessPayload = SessionProcessesResponse["items"][number];
 export type SessionProcessKind = SessionProcessPayload["kind"];
+export type SessionProcessTreePayload = NonNullable<SessionProcessesResponse["trees"]>[number];
 export type SessionProcessTarget = Pick<SessionProcessPayload, "pid" | "started_at">;
 export type TerminateSessionProcessesRequest = OperationRequestBody<"terminateSessionProcesses">;
 export type TerminateSessionProcessesResponse = OperationResponse<"terminateSessionProcesses", 200>;

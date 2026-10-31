@@ -6867,6 +6867,7 @@ export type SessionProcessGroupPayload = {
   profile: string;
   session_id: string;
   session_name: string;
+  trees?: Array<SessionProcessTreePayload>;
   workspace_id: string;
 };
 
@@ -6885,6 +6886,7 @@ export type SessionProcessPayload = {
   rss_kb?: number | null;
   started_at: string;
   terminal_id?: string;
+  tree_id?: string;
 };
 
 export type SessionProcessResult = {
@@ -6900,6 +6902,7 @@ export type SessionProcessSummaryPayload = {
   supported: boolean;
   terminals: number;
   total: number;
+  trees?: number;
 };
 
 export type SessionProcessTarget = {
@@ -6907,10 +6910,21 @@ export type SessionProcessTarget = {
   started_at: string;
 };
 
+export type SessionProcessTreePayload = {
+  id: string;
+  kind: "background" | "tool" | "terminal";
+  lead: SessionProcessTarget;
+  members: Array<SessionProcessTarget>;
+  ports: Array<number>;
+  root: SessionProcessTarget;
+  wrappers: Array<SessionProcessTarget>;
+};
+
 export type SessionProcessesResponse = {
   items: Array<SessionProcessPayload>;
   scanned_at: string;
   supported: boolean;
+  trees?: Array<SessionProcessTreePayload>;
 };
 
 export type SessionProfileFacetsPayload = {
@@ -10493,6 +10507,7 @@ export type TerminateProcessesRequest = {
 
 export type TerminateSessionProcessesRequest = {
   all?: boolean;
+  include_tools?: boolean;
   targets?: Array<SessionProcessTarget>;
 };
 

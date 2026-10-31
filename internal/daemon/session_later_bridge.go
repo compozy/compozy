@@ -40,9 +40,15 @@ func (r *sessionLaterProcessReleaser) TerminateSessionProcesses(ctx context.Cont
 	if info == nil || !r.supported.Load() {
 		return nil
 	}
-	results, err := r.processes.Terminate(ctx, info.ID, nil, true, func(owner sessionprocess.Owner) bool {
-		return owner.ProfileID == info.ProfileID && owner.WorkspaceID == info.WorkspaceID
-	})
+	results, err := r.processes.Terminate(
+		ctx,
+		info.ID,
+		nil,
+		sessionprocess.AllIncludingTools,
+		func(owner sessionprocess.Owner) bool {
+			return owner.ProfileID == info.ProfileID && owner.WorkspaceID == info.WorkspaceID
+		},
+	)
 	if err != nil {
 		return err
 	}

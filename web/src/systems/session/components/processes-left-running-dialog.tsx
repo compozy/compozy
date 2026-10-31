@@ -14,9 +14,9 @@ import type {
   SessionProcessPayload,
 } from "../adapters/session-processes-api";
 import {
+  buildProcessTrees,
   processCountLabel,
   processTreeMembers,
-  singleProcessTrees,
   sortSessionProcesses,
 } from "../lib/session-processes";
 import { ProcessListNote, SessionProcessList } from "./session-process-list";
@@ -47,7 +47,8 @@ function LeftRunningGroup({
   stopping: ReadonlySet<string> | null;
   onStop: (processes: readonly SessionProcessPayload[]) => void;
 }) {
-  const processes = sortSessionProcesses(group.items);
+  const trees = buildProcessTrees(sortSessionProcesses(group.items), group.trees);
+  const processes = trees.flatMap(processTreeMembers);
   const name = group.session_name.trim();
   const locked = stopping !== null;
   return (
@@ -63,10 +64,10 @@ function LeftRunningGroup({
           </span>
           {name ? null : <MonoId value={group.session_id} />}
           <span className="shrink-0 text-transcript-caption text-faint">
-            {processCountLabel(processes.length)}
+            {processCountLabel(trees.length)}
           </span>
         </span>
-        {processes.length > 1 ? (
+        {trees.length > 1 ? (
           <Button
             type="button"
             variant="quiet"
@@ -80,7 +81,7 @@ function LeftRunningGroup({
         ) : null}
       </div>
       <SessionProcessList
-        trees={singleProcessTrees(processes)}
+        trees={trees}
         stopping={stopping}
         onStop={tree => onStop(processTreeMembers(tree))}
       />
@@ -105,6 +106,10 @@ export function ProcessesLeftRunningDialog({
   stopping = null,
 }: ProcessesLeftRunningDialogProps) {
   const all = groups.flatMap(group => group.items);
+  const treeCount = groups.reduce(
+    (total, group) => total + buildProcessTrees(group.items, group.trees).length,
+    0
+  );
   const anyStopping = stopping !== null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,9 +134,9 @@ export function ProcessesLeftRunningDialog({
             stopping={stopping}
           />
         </div>
-        {all.length > 1 && groups.length > 1 ? (
+        {treeCount > 1 && groups.length > 1 ? (
           <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line pt-3">
-            <Eyebrow>{processCountLabel(all.length)} in total</Eyebrow>
+            <Eyebrow>{processCountLabel(treeCount)} in total</Eyebrow>
             <Button
               type="button"
               variant="destructive"

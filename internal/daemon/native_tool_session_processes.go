@@ -19,6 +19,8 @@ type nativeSessionProcessesInput struct {
 	SessionID string                          `json:"session_id"`
 	Targets   []contract.SessionProcessTarget `json:"targets"`
 	All       bool                            `json:"all"`
+	// IncludeTools adds tool calls still running in the agent's turn to all:true.
+	IncludeTools bool `json:"include_tools"`
 }
 
 func (n *daemonNativeTools) sessionProcesses() core.SessionProcessService {
@@ -57,13 +59,19 @@ func (n *daemonNativeTools) sessionProcessesList(
 		ScannedAt: snapshot.ScannedAt,
 		Items:     []contract.SessionProcessPayload{},
 	}
+	var owned []sessionprocess.Process
 	for _, p := range snapshot.Processes {
 		if p.Owner.SessionID == info.ID && p.Owner.ProfileID == info.ProfileID &&
 			p.Owner.WorkspaceID == info.WorkspaceID {
+			owned = append(owned, p)
 			response.Items = append(response.Items, core.SessionProcessPayload(p, snapshot.ScannedAt))
 		}
 	}
-	return structuredResult(response, fmt.Sprintf("%d process(es)", len(response.Items)))
+	response.Trees = core.SessionProcessTrees(owned)
+	return structuredResult(
+		response,
+		fmt.Sprintf("%d process tree(s), %d process(es)", len(response.Trees), len(response.Items)),
+	)
 }
 
 func (n *daemonNativeTools) sessionProcessesTerminate(
@@ -83,7 +91,11 @@ func (n *daemonNativeTools) sessionProcessesTerminate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	results, err := n.sessionProcesses().Terminate(ctx, info.ID, targets, input.All, func(o sessionprocess.Owner) bool {
+	stopScope, err := core.ProcessScope(input.All, input.IncludeTools)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
+	}
+	results, err := n.sessionProcesses().Terminate(ctx, info.ID, targets, stopScope, func(o sessionprocess.Owner) bool {
 		return o.ProfileID == info.ProfileID && o.WorkspaceID == info.WorkspaceID
 	})
 	if err != nil {
@@ -166,9 +178,10 @@ func (n *daemonNativeTools) finishSessionProcessPolicy(
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 	defer cancel()
-	results, err := n.sessionProcesses().Terminate(cleanupCtx, info.ID, nil, true, func(o sessionprocess.Owner) bool {
-		return o.ProfileID == info.ProfileID && o.WorkspaceID == info.WorkspaceID
-	})
+	results, err := n.sessionProcesses().
+		Terminate(cleanupCtx, info.ID, nil, sessionprocess.AllIncludingTools, func(o sessionprocess.Owner) bool {
+			return o.ProfileID == info.ProfileID && o.WorkspaceID == info.WorkspaceID
+		})
 	if err != nil {
 		return err
 	}

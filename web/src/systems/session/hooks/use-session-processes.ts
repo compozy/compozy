@@ -8,11 +8,19 @@ import {
   type TerminateSessionProcessesResponse,
 } from "../adapters/session-processes-api";
 import { sessionKeys } from "../lib/query-keys";
-import { processIdentity, sortSessionProcesses } from "../lib/session-processes";
+import {
+  buildProcessTrees,
+  processIdentity,
+  sortSessionProcesses,
+  type SessionProcessTree,
+} from "../lib/session-processes";
 import { sessionProcessesOptions } from "../lib/session-processes-query-options";
 import { invalidateSessionProcessesQueries } from "../lib/session-query-invalidation";
 
-/** `all` stops every process the session started; otherwise the listed identities. */
+/**
+ * `all` stops every tree the session left running (tool calls stay with their turn); otherwise
+ * the listed identities, each with its whole tree.
+ */
 export type SessionProcessStopRequest =
   | { all: true }
   | { targets: readonly SessionProcessTarget[] };
@@ -20,6 +28,8 @@ export type SessionProcessStopRequest =
 export interface SessionProcessesModel {
   /** Background and Terminal rows first, then foreground tool calls. */
   processes: readonly SessionProcessPayload[];
+  /** The same processes as rows: one per process tree, in the same order. */
+  trees: readonly SessionProcessTree[];
   /** False when the daemon cannot scan processes on this system. */
   supported: boolean;
   loading: boolean;
@@ -66,8 +76,10 @@ export function useSessionProcesses(
       ]),
   });
   const pending = mutation.isPending ? mutation.variables : undefined;
+  const processes = sortSessionProcesses(query.data?.items ?? []);
   return {
-    processes: sortSessionProcesses(query.data?.items ?? []),
+    processes,
+    trees: buildProcessTrees(processes, query.data?.trees),
     supported: query.data?.supported ?? true,
     loading: query.isPending && queryEnabled,
     failed: query.isError,

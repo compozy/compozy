@@ -2,19 +2,21 @@ import type {
   SessionProcessKind,
   SessionProcessPayload,
   SessionProcessResult,
+  SessionProcessTreePayload,
 } from "../adapters/session-processes-api";
 import type { SessionPayload } from "../types";
 
 type SessionProcessSummarySource = Pick<SessionPayload, "process_summary">;
 
 /**
- * Processes the session left running: detached background work plus live
- * Terminals. Foreground tool calls are not counted; they end with their turn.
+ * What the session left running: its Background and Terminal process trees, a browser and its
+ * helpers counting once. Foreground tool calls are not counted; they end with their turn. A
+ * daemon that predates trees reports per-process counts only.
  */
 export function sessionRunningProcesses(session: SessionProcessSummarySource): number {
   const summary = session.process_summary;
   if (!summary?.supported) return 0;
-  return Math.max(0, summary.background + summary.terminals);
+  return Math.max(0, summary.trees ?? summary.background + summary.terminals);
 }
 
 /** The listening ports the session's processes hold, in the daemon's order. */
@@ -135,6 +137,45 @@ export function singleProcessTrees(
     helpers: [],
     ports: process.ports,
   }));
+}
+
+/**
+ * The daemon's trees joined to their listed processes, in list order: Background and Terminal
+ * trees first, then tool calls, newest first. A process no tree names stays its own row, as does
+ * every process from a daemon that predates trees.
+ */
+export function buildProcessTrees(
+  processes: readonly SessionProcessPayload[],
+  trees: readonly SessionProcessTreePayload[] = []
+): SessionProcessTree[] {
+  const byIdentity = new Map(processes.map(process => [processIdentity(process), process]));
+  const grouped = new Set<string>();
+  const out: SessionProcessTree[] = [];
+  for (const tree of trees) {
+    const members = tree.members.flatMap(member => byIdentity.get(processIdentity(member)) ?? []);
+    const root = byIdentity.get(processIdentity(tree.root));
+    const lead = byIdentity.get(processIdentity(tree.lead)) ?? root;
+    if (!root || !lead) continue;
+    const wrapperIds = new Set(tree.wrappers.map(processIdentity));
+    const wrappers = members.filter(member => wrapperIds.has(processIdentity(member)));
+    const named = new Set([lead, ...wrappers]);
+    for (const member of members) grouped.add(processIdentity(member));
+    out.push({
+      id: processIdentity(root),
+      kind: tree.kind,
+      lead,
+      wrappers,
+      helpers: members.filter(member => !named.has(member)),
+      ports: tree.ports,
+    });
+  }
+  out.push(...singleProcessTrees(processes.filter(p => !grouped.has(processIdentity(p)))));
+  const rank = (kind: SessionProcessKind) => (kind === "tool" ? 1 : 0);
+  const started = (tree: SessionProcessTree) =>
+    Date.parse((tree.wrappers[0] ?? tree.lead).started_at);
+  return out.sort(
+    (left, right) => rank(left.kind) - rank(right.kind) || started(right) - started(left)
+  );
 }
 
 export function processHelperCountLabel(count: number): string {

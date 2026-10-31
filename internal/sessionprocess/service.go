@@ -197,6 +197,7 @@ func (s *Service) scan(ctx context.Context, owners []Owner, force bool) (Snapsho
 		return Snapshot{}, nil, err
 	}
 	s.enrich(ctx, rows, full)
+	assignTrees(rows)
 	updates, deletes := observationChanges(s.observations, next)
 	if len(updates)+len(deletes) > 0 {
 		if err := s.store.SaveProcessObservations(ctx, updates, deletes); err != nil {
@@ -255,9 +256,9 @@ func summarize(s Snapshot) map[string]Summary {
 		summary := out[p.Owner.SessionID]
 		summary.Supported = s.Supported
 		switch p.Kind {
-		case "background":
+		case kindBackground:
 			summary.Background++
-		case "terminal":
+		case kindTerminal:
 			summary.Terminals++
 		default:
 			continue
@@ -266,6 +267,12 @@ func summarize(s Snapshot) map[string]Summary {
 		slices.Sort(summary.Ports)
 		summary.Ports = slices.Compact(summary.Ports)
 		out[p.Owner.SessionID] = summary
+	}
+	for _, tree := range Trees(s.Processes) {
+		if summary, ok := out[tree.SessionID]; ok && tree.Kind != kindTool {
+			summary.Trees++
+			out[tree.SessionID] = summary
+		}
 	}
 	return out
 }
@@ -297,5 +304,6 @@ func changedProcessSessions(before, after []Process) []string {
 func sameProcessView(a, b Process) bool {
 	return a.Owner.SessionID == b.Owner.SessionID && a.Kind == b.Kind && a.Attribution == b.Attribution &&
 		a.TerminalID == b.TerminalID && a.PGID == b.PGID && a.Argv0 == b.Argv0 &&
-		a.Command == b.Command && a.CWD == b.CWD && slices.Equal(a.Ports, b.Ports)
+		a.Command == b.Command && a.CWD == b.CWD && slices.Equal(a.Ports, b.Ports) &&
+		a.Tree == b.Tree && a.TreeRole == b.TreeRole
 }

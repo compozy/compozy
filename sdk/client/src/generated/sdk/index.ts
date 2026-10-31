@@ -2888,6 +2888,7 @@ export type {
   SessionProcessResult,
   SessionProcessSummaryPayload,
   SessionProcessTarget,
+  SessionProcessTreePayload,
   SessionProfileFacetsPayload,
   SessionPromptCancelResponse,
   SessionProviderOptionPayload,

@@ -2147,7 +2147,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "2112db438274f73efa1f0953de21a7d76059c5455e042d003b77a065bff20cef",
-    "output_schema_digest": "de5f3932e670c19ff23a48ecfa3c76479b860a318e8a160445068d36eb6d3c16"
+    "output_schema_digest": "5e8a1edbee3b6310840a0d4b978cea4714449686a113e4bf4094b56095b59730"
   },
   {
     "tool_id": "compozy__session_processes_terminate",
@@ -2159,7 +2159,7 @@
     "read_only": false,
     "destructive": true,
     "open_world": false,
-    "input_schema_digest": "5a77f853b18dc46e0f73c76e120feb4d656f87b5be65fcfc06d5ef41cbf2cb91",
+    "input_schema_digest": "689fce3593c535acb52d469960dfd96a158515d632ffebd3d8377d7b9fa42b1f",
     "output_schema_digest": "dea23842d0060e7b6db380746004dc9f1adbedc23718b0d4b2d2cbb7ce6ed7e8"
   },
   {

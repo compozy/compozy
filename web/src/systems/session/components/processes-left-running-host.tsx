@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { terminateProcesses, type SessionProcessPayload } from "../adapters/session-processes-api";
 import { sessionKeys } from "../lib/query-keys";
 import { reportProcessStop } from "../lib/session-process-feedback";
-import { processIdentity } from "../lib/session-processes";
+import { buildProcessTrees, processIdentity } from "../lib/session-processes";
 import { processesLeftRunningOptions } from "../lib/session-processes-query-options";
 import { ProcessesLeftRunningDialog } from "./processes-left-running-dialog";
 
@@ -60,7 +60,14 @@ export function ProcessesLeftRunningHost({ open, onOpenChange }: ProcessesLeftRu
         if (mutation.isPending) return;
         mutation
           .mutateAsync(processes)
-          .then(response => reportProcessStop(response.results, processes))
+          .then(response =>
+            reportProcessStop(
+              response.results,
+              (query.data?.groups ?? []).flatMap(group =>
+                buildProcessTrees(group.items, group.trees)
+              )
+            )
+          )
           .catch(error => {
             console.error("Could not stop processes left running.", error);
             toast.error(

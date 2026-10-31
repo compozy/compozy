@@ -25208,6 +25208,12 @@
           "session_name": {
             "type": "string"
           },
+          "trees": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTreePayload"
+            },
+            "type": "array"
+          },
           "workspace_id": {
             "type": "string"
           }
@@ -25283,6 +25289,9 @@
           },
           "terminal_id": {
             "type": "string"
+          },
+          "tree_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -25349,6 +25358,9 @@
           },
           "total": {
             "type": "integer"
+          },
+          "trees": {
+            "type": "integer"
           }
         },
         "required": [
@@ -25376,6 +25388,55 @@
         ],
         "type": "object"
       },
+      "SessionProcessTreePayload": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "background",
+              "tool",
+              "terminal"
+            ],
+            "type": "string"
+          },
+          "lead": {
+            "$ref": "#/components/schemas/SessionProcessTarget"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTarget"
+            },
+            "type": "array"
+          },
+          "ports": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/SessionProcessTarget"
+          },
+          "wrappers": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTarget"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "lead",
+          "members",
+          "ports",
+          "root",
+          "wrappers"
+        ],
+        "type": "object"
+      },
       "SessionProcessesResponse": {
         "properties": {
           "items": {
@@ -25390,6 +25451,12 @@
           },
           "supported": {
             "type": "boolean"
+          },
+          "trees": {
+            "items": {
+              "$ref": "#/components/schemas/SessionProcessTreePayload"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -38019,6 +38086,9 @@
       "TerminateSessionProcessesRequest": {
         "properties": {
           "all": {
+            "type": "boolean"
+          },
+          "include_tools": {
             "type": "boolean"
           },
           "targets": {

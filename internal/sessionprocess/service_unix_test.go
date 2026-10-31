@@ -180,7 +180,7 @@ func TestDurableLineage(t *testing.T) {
 				ctx,
 				source.owner.SessionID,
 				[]sessionprocess.Identity{{PID: pid, StartedAt: child.StartedAt}},
-				false,
+				sessionprocess.Targets,
 				func(sessionprocess.Owner) bool { return true },
 			)
 			if err != nil {

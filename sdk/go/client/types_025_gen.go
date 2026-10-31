@@ -157,8 +157,9 @@ type TerminateProcessesRequest struct {
 
 // TerminateSessionProcessesRequest is a daemon API value.
 type TerminateSessionProcessesRequest struct {
-	Targets []SessionProcessTarget `json:"targets,omitempty"`
-	All     bool                   `json:"all,omitempty"`
+	Targets      []SessionProcessTarget `json:"targets,omitempty"`
+	All          bool                   `json:"all,omitempty"`
+	IncludeTools bool                   `json:"include_tools,omitempty"`
 }
 
 // TerminateSessionProcessesResponse is a daemon API value.

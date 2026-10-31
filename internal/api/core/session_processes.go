@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -26,7 +27,7 @@ type SessionProcessService interface {
 		context.Context,
 		string,
 		[]sessionprocess.Identity,
-		bool,
+		sessionprocess.Scope,
 		func(sessionprocess.Owner) bool,
 	) ([]sessionprocess.Result, error)
 	AfterStop(string, func(context.Context) error)
@@ -63,11 +64,14 @@ func (h *BaseHandlers) ListSessionProcesses(c *gin.Context) {
 		ScannedAt: snapshot.ScannedAt,
 		Items:     []contract.SessionProcessPayload{},
 	}
+	var owned []sessionprocess.Process
 	for _, p := range snapshot.Processes {
 		if p.Owner.SessionID == id && scope.Matches(p.Owner.ProfileID) {
+			owned = append(owned, p)
 			response.Items = append(response.Items, SessionProcessPayload(p, snapshot.ScannedAt))
 		}
 	}
+	response.Trees = SessionProcessTrees(owned)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -94,11 +98,16 @@ func (h *BaseHandlers) TerminateSessionProcesses(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	stopScope, err := ProcessScope(req.All, req.IncludeTools)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
 	results, err := h.SessionProcesses.Terminate(
 		c.Request.Context(),
 		id,
 		targets,
-		req.All,
+		stopScope,
 		func(o sessionprocess.Owner) bool {
 			return scope.Matches(o.ProfileID) && o.WorkspaceID == info.WorkspaceID
 		},
@@ -143,6 +152,7 @@ func (h *BaseHandlers) ListProcesses(c *gin.Context) {
 		Groups:    []contract.SessionProcessGroupPayload{},
 	}
 	groups := make(map[string]int)
+	grouped := make(map[string][]sessionprocess.Process)
 	for _, p := range snapshot.Processes {
 		if !scope.Matches(p.Owner.ProfileID) || (!allWorkspaces && p.Owner.WorkspaceID != workspaceID) ||
 			(orphaned && p.Owner.Live) {
@@ -166,10 +176,15 @@ func (h *BaseHandlers) ListProcesses(c *gin.Context) {
 					SessionName: p.Owner.Name,
 					Orphaned:    !p.Owner.Live,
 					Items:       []contract.SessionProcessPayload{},
+					Trees:       []contract.SessionProcessTreePayload{},
 				},
 			)
 		}
 		response.Groups[i].Items = append(response.Groups[i].Items, SessionProcessPayload(p, snapshot.ScannedAt))
+		grouped[key] = append(grouped[key], p)
+	}
+	for key, i := range groups {
+		response.Groups[i].Trees = SessionProcessTrees(grouped[key])
 	}
 	c.JSON(http.StatusOK, response)
 }
@@ -197,7 +212,7 @@ func (h *BaseHandlers) TerminateProcesses(c *gin.Context) {
 		c.Request.Context(),
 		"",
 		targets,
-		false,
+		sessionprocess.Targets,
 		func(o sessionprocess.Owner) bool { return !o.Live && scope.Matches(o.ProfileID) },
 	)
 	if err != nil {
@@ -246,7 +261,58 @@ func SessionProcessPayload(p sessionprocess.Process, at time.Time) contract.Sess
 		AgeSeconds:  max(0, at.Sub(p.StartedAt).Seconds()),
 		ParentAlive: p.Kind == "tool",
 		TerminalID:  p.TerminalID,
+		TreeID:      processTreeID(p.Tree),
 	}
+}
+
+func processTreeID(id sessionprocess.Identity) string {
+	if id.PID == 0 {
+		return ""
+	}
+	return strconv.Itoa(id.PID) + "@" + id.StartedAt.UTC().Format(time.RFC3339Nano)
+}
+
+func processTarget(id sessionprocess.Identity) contract.SessionProcessTarget {
+	return contract.SessionProcessTarget{PID: id.PID, StartedAt: id.StartedAt}
+}
+
+func processTargetList(ids []sessionprocess.Identity) []contract.SessionProcessTarget {
+	out := make([]contract.SessionProcessTarget, len(ids))
+	for i, id := range ids {
+		out[i] = processTarget(id)
+	}
+	return out
+}
+
+// SessionProcessTrees groups one session's processes into the trees a stop acts on.
+func SessionProcessTrees(processes []sessionprocess.Process) []contract.SessionProcessTreePayload {
+	trees := sessionprocess.Trees(processes)
+	out := make([]contract.SessionProcessTreePayload, 0, len(trees))
+	for _, tree := range trees {
+		out = append(out, contract.SessionProcessTreePayload{
+			ID:       processTreeID(tree.Root),
+			Kind:     contract.SessionProcessKind(tree.Kind),
+			Root:     processTarget(tree.Root),
+			Lead:     processTarget(tree.Lead),
+			Wrappers: processTargetList(tree.Wrappers),
+			Members:  processTargetList(tree.Members),
+			Ports:    tree.Ports,
+		})
+	}
+	return out
+}
+
+// ProcessScope maps a request's all and include_tools flags to the stop scope.
+func ProcessScope(all, includeTools bool) (sessionprocess.Scope, error) {
+	switch {
+	case includeTools && !all:
+		return sessionprocess.Targets, errors.New("include_tools requires all:true")
+	case includeTools:
+		return sessionprocess.AllIncludingTools, nil
+	case all:
+		return sessionprocess.AllLeftRunning, nil
+	}
+	return sessionprocess.Targets, nil
 }
 func ProcessTargets(targets []contract.SessionProcessTarget, all bool) ([]sessionprocess.Identity, error) {
 	if all == (len(targets) > 0) || len(targets) > 100 {
@@ -291,6 +357,7 @@ func (h *BaseHandlers) decorateProcessSummaries(payloads []contract.SessionPaylo
 			Terminals:  s.Terminals,
 			Total:      s.Background + s.Terminals,
 			Ports:      s.Ports,
+			Trees:      s.Trees,
 		}
 	}
 }

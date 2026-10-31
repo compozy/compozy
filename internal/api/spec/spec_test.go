@@ -3696,6 +3696,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// required/type/removal change.
 	addSessionMonitorSummary(t, baseline)
 	addSessionProcessSummary(t, baseline)
+	// #1100: the summary gains an optional count of process trees; per-process counts stay.
+	schemas := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	summary := schemas["SessionProcessSummaryPayload"].(map[string]any)["properties"].(map[string]any)
+	summary["trees"] = map[string]any{"type": "integer"}
 	addSessionProcessPolicyParameters(t, baseline)
 	addSessionsKanbanSchemas(t, baseline)
 	// #1075: the board gains a Waiting column; existing columns and counts keep their meaning.

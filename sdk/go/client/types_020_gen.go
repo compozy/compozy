@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// SettingsProviderWritePayload is a daemon API value.
+type SettingsProviderWritePayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
+	SteerCapability SteerCapability                         `json:"steer_capability,omitempty"`
+	Command         string                                  `json:"command,omitempty"`
+	DisplayName     string                                  `json:"display_name,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness         string                                  `json:"harness,omitempty"`
+	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
+	Transport       string                                  `json:"transport,omitempty"`
+	BaseURL         string                                  `json:"base_url,omitempty"`
+	AuthMode        string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	HomePolicy      string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
+	AuthACPMethod   *string                                 `json:"auth_acp_method,omitzero"`
+	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
 // SettingsProvidersResponse is a daemon API value.
 type SettingsProvidersResponse struct {
 	Collection      SettingsCollectionName        `json:"collection"`

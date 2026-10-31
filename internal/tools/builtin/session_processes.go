@@ -12,7 +12,9 @@ func sessionProcessDescriptors() []toolspkg.Descriptor {
 		"session_processes_list",
 		"Session Processes List",
 		"List processes attributed to a same-workspace session. Defaults to the caller. "+
-			"Includes background processes, active tools and native terminals; supported=false on unsupported hosts.",
+			"Includes background processes, active tools and native terminals; supported=false on unsupported hosts. "+
+			"trees groups the items into logical process trees (a browser and its helpers, a dev server behind "+
+			"`bun run`): each tree's lead names it and items carry tree_id.",
 		sessionProcessesListInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -28,8 +30,9 @@ func sessionProcessDescriptors() []toolspkg.Descriptor {
 		toolspkg.ToolIDSessionProcessesTerminate,
 		"session_processes_terminate",
 		"Session Processes Terminate",
-		"Terminate selected session-owned processes after exact PID/start-time verification. "+
-			"Provide targets returned by list or all:true. "+
+		"Terminate selected session-owned process trees after exact PID/start-time verification. "+
+			"Each target stops every verified member of its tree. Provide targets returned by list or all:true; "+
+			"all:true leaves tool calls still running in the turn unless include_tools:true. "+
 			"Uses TERM, a 3-second grace, then identity-checked KILL; native terminals use their manager. "+
 			"Never stops the agent leader or daemon. Subject to destructive-tool approval policy.",
 		sessionProcessesTerminateInputSchema,
@@ -57,6 +60,10 @@ const sessionProcessesTerminateInputSchema = `{
     },
     "all": {
       "type": "boolean"
+    },
+    "include_tools": {
+      "type": "boolean",
+      "description": "With all:true, also terminate tool calls still running in the agent's turn."
     },
     "targets": {
       "type": "array",
@@ -147,6 +154,9 @@ const sessionProcessItemSchema = `{
     "terminal_id": {
       "type": "string"
     },
+    "tree_id": {
+      "type": "string"
+    },
     "cpu_percent": {
       "type": "number"
     },
@@ -156,6 +166,14 @@ const sessionProcessItemSchema = `{
   }
 }`
 
-const sessionProcessesOutputSchema = `{"type":"object","required":["supported","scanned_at","items"],"properties":{"supported":{"type":"boolean"},"scanned_at":{"type":"string","format":"date-time"},"items":{"type":"array","items":` + sessionProcessItemSchema + `}}}`
+const sessionProcessTargetSchema = `{"type":"object","required":["pid","started_at"],"properties":{"pid":{"type":"integer"},"started_at":{"type":"string","format":"date-time"}}}`
+
+const sessionProcessTreeSchema = `{"type":"object","required":["id","kind","root","lead","wrappers","members","ports"],"properties":{"id":{"type":"string"},"kind":{"enum":["background","tool","terminal"]},"root":` +
+	sessionProcessTargetSchema + `,"lead":` + sessionProcessTargetSchema +
+	`,"wrappers":{"type":"array","items":` + sessionProcessTargetSchema +
+	`},"members":{"type":"array","items":` + sessionProcessTargetSchema +
+	`},"ports":{"type":"array","items":{"type":"integer"}}}}`
+
+const sessionProcessesOutputSchema = `{"type":"object","required":["supported","scanned_at","items"],"properties":{"supported":{"type":"boolean"},"scanned_at":{"type":"string","format":"date-time"},"items":{"type":"array","items":` + sessionProcessItemSchema + `},"trees":{"type":"array","items":` + sessionProcessTreeSchema + `}}}`
 
 const sessionProcessesTerminateOutputSchema = `{"type":"object","required":["supported","results"],"properties":{"supported":{"type":"boolean"},"results":{"type":"array","items":{"type":"object","required":["pid","started_at","outcome"],"properties":{"pid":{"type":"integer"},"started_at":{"type":"string","format":"date-time"},"outcome":{"enum":["terminated","already_exited","identity_mismatch","failed","unproven"]},"error":{"type":"string"}}}}}}`

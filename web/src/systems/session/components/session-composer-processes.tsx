@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import type { SessionProcessPayload } from "../adapters/session-processes-api";
 import {
   useSessionProcesses,
   type SessionProcessStopRequest,
@@ -10,7 +9,7 @@ import { reportProcessStop } from "../lib/session-process-feedback";
 import {
   processTreeMembers,
   sessionRunningProcesses,
-  singleProcessTrees,
+  type SessionProcessTree,
 } from "../lib/session-processes";
 import type { SessionPayload } from "../types";
 import { SessionProcessesComposerControl } from "./session-processes-composer-control";
@@ -38,7 +37,7 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
   const stop = (request: SessionProcessStopRequest) => {
     // One stop at a time; the popover locks every Stop while one is in flight.
     if (model.stopping !== null) return;
-    const listed: readonly SessionProcessPayload[] = model.processes;
+    const listed: readonly SessionProcessTree[] = model.trees;
     model
       .stop(request)
       .then(response => reportProcessStop(response.results, listed))
@@ -52,7 +51,7 @@ export function SessionComposerProcesses({ session }: SessionComposerProcessesPr
   return (
     <SessionProcessesComposerControl
       count={count}
-      trees={singleProcessTrees(model.processes)}
+      trees={model.trees}
       supported={model.supported}
       loading={model.loading}
       failed={model.failed}

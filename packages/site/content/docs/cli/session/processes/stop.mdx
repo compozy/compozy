@@ -1,11 +1,11 @@
 ---
 title: "compozy session processes stop"
-description: "Terminate verified session processes"
+description: "Terminate verified session process trees"
 ---
 
 ## compozy session processes stop
 
-Terminate verified session processes
+Terminate verified session process trees
 
 ```
 compozy session processes stop <id> [flags]
@@ -14,8 +14,9 @@ compozy session processes stop <id> [flags]
 ### Options
 
 ```
-      --all                 Terminate all attributed processes for this session
+      --all                 Terminate every process tree this session left running; tool calls still running in its turn stay
   -h, --help                help for stop
+      --include-tools       With --all, also terminate tool calls still running in the agent's turn
       --pid int             PID returned by the process list
       --started-at string   Exact RFC3339 process start timestamp returned by the list
 ```
