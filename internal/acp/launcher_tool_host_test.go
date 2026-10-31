@@ -1069,6 +1069,48 @@ func TestDriverLaunchAgentProcessWrapsLauncherErrors(t *testing.T) {
 func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should describe MCP wire shape without exposing launch secrets", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))))
+		servers := toSDKMCPServers(
+			[]compozyconfig.MCPServer{
+				{
+					Name:    "hosted",
+					Command: "/private-seat/compozy",
+					Args:    []string{"--bind-nonce", "private-nonce"},
+					Env:     map[string]string{"TOKEN": "private-token"},
+				},
+				{Name: "configured", Command: "TOKEN=private-command-token helper"},
+			},
+		)
+		driver.logMCPServerShape("session/new", servers)
+		for _, secret := range []string{"private-seat", "private-nonce", "private-token", "private-command-token"} {
+			if strings.Contains(logs.String(), secret) {
+				t.Fatalf("MCP diagnostic exposes %q", secret)
+			}
+		}
+		for _, server := range servers {
+			stdio := server.Stdio
+			fingerprint := "command_fingerprint=" + compozyconfig.CommandFingerprint(stdio.Command)
+			var record string
+			for line := range strings.SplitSeq(logs.String(), "\n") {
+				if strings.Contains(line, fingerprint) {
+					record = line
+					break
+				}
+			}
+			for _, field := range []string{
+				fingerprint, "method=session/new", "transport=stdio", "type_field_present=false",
+				fmt.Sprintf("arg_count=%d", len(stdio.Args)), fmt.Sprintf("env_count=%d", len(stdio.Env)),
+			} {
+				if !slices.Contains(strings.Fields(record), field) {
+					t.Fatalf("MCP diagnostic record for %s is missing %q", fingerprint, field)
+				}
+			}
+		}
+	})
+
 	t.Run("Should keep a route's private assignment and arguments out of errors and logs", func(t *testing.T) {
 		t.Parallel()
 
@@ -1103,6 +1145,7 @@ func TestDriverStartFailedResolutionHidesRouteCommand(t *testing.T) {
 }
 
 type recordingLauncher struct {
+	launched Handle
 	delegate Launcher
 	handle   Handle
 	err      error
@@ -1170,7 +1213,11 @@ func (l *recordingLauncher) Launch(
 	if l.err != nil {
 		return nil, l.err
 	}
-	return l.delegate.Launch(ctx, spec)
+	handle, err := l.delegate.Launch(ctx, spec)
+	l.mu.Lock()
+	l.launched = handle
+	l.mu.Unlock()
+	return handle, err
 }
 
 func (l *recordingLauncher) lastSpec() (LaunchSpec, bool) {

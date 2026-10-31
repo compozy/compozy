@@ -61,6 +61,7 @@ func (s *HostedService) StreamProjection(
 	if err != nil {
 		return HostedProjectionResponse{}, err
 	}
+	s.acknowledgeHostedBind(record)
 	// A fresh unversioned entry exists only after the generation was unknown; serving it first
 	// skips repeating that lookup inside the refresh window.
 	if cached, ok := s.projectionCache.loadUnversioned(

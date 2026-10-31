@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -2148,6 +2149,40 @@ func TestPromptRuntimePiStartupRecovery(t *testing.T) {
 		}
 		if active.NativeToolsUnavailable() {
 			t.Fatal("non-Pi runtime retained failed Pi availability")
+		}
+	})
+
+	t.Run("Should preserve Pi guidance after bridge materialization fails", func(t *testing.T) {
+		t.Parallel()
+		h := newHostedMCPHarness(t)
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active,
+			RuntimeSelection{Provider: "pi", Model: "test-model"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A custom command can resemble Claude while the provider still owns a Pi harness.
+		plan.runtime.agent.Command = "claude-agent-acp"
+		plan.runtime.mcpServers = []compozyconfig.MCPServer{{Command: "unused-test-command"}}
+		// Block materialization at its filesystem boundary.
+		if err := os.WriteFile(
+			filepath.Join(active.sessionDir, "provider-runtime"),
+			[]byte("blocked"),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		opts, err := h.manager.prepareSessionLaunch(t.Context(), &plan.spec, active, &plan.runtime, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompt, _, err := opts.FinalizeStartup(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !active.NativeToolsUnavailable() || active.AgentDefinition().Prompt != prompt {
+			t.Fatal("Pi finalizer did not commit unavailable-tool guidance")
 		}
 	})
 

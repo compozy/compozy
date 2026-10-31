@@ -137,3 +137,7 @@ func hostedMCPLauncher(service *mcppkg.HostedService) session.HostedMCPLauncher 
 	}
 	return hostedMCPLauncherAdapter{service: service}
 }
+
+func (l hostedMCPLauncherAdapter) WaitForBind(ctx context.Context, sessionID string) error {
+	return l.service.WaitForBind(ctx, sessionID)
+}

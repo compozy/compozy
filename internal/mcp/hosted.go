@@ -35,6 +35,7 @@ var (
 	ErrHostedNonceInvalid      = errors.New("mcp: hosted MCP bind nonce is invalid")
 	ErrHostedNonceExpired      = errors.New("mcp: hosted MCP bind nonce expired")
 	ErrHostedBindRequired      = errors.New("mcp: hosted MCP bind id is required")
+	ErrHostedBindTimeout       = errors.New("mcp: hosted MCP bind did not establish before the launch deadline")
 	ErrHostedBindNotFound      = errors.New("mcp: hosted MCP bind not found")
 	ErrHostedRunRequired       = errors.New("mcp: hosted MCP active run identity is required")
 	ErrHostedPeerInvalid       = errors.New("mcp: hosted MCP peer validation failed")
@@ -144,6 +145,8 @@ type HostedReleaseRequest struct {
 }
 
 type hostedLaunchRecord struct {
+	readiness     changeSignal
+	readyBindID   string
 	sessionID     string
 	profileID     string
 	workspaceID   string
@@ -259,6 +262,9 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 			releasedBindIDs = append(releasedBindIDs, bindID)
 		}
 	}
+	if previous := s.launches[sessionID]; previous != nil {
+		previous.readiness.notify(nil)
+	}
 	s.launches[sessionID] = record
 	s.mu.Unlock()
 	s.releaseProjectionCaches(releasedBindIDs)
@@ -327,6 +333,7 @@ func (s *HostedService) discardUnarmedLaunch(sessionID string, target *hostedLau
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if record := s.launches[sessionID]; record == target && !record.armed {
+		record.readiness.notify(nil)
 		delete(s.launches, sessionID)
 	}
 }
@@ -346,6 +353,9 @@ func (s *HostedService) ReleaseSession(sessionID string) {
 		return
 	}
 	s.mu.Lock()
+	if record := s.launches[sessionID]; record != nil {
+		record.readiness.notify(nil)
+	}
 	delete(s.launches, sessionID)
 	releasedBindIDs := make([]string, 0)
 	for bindID, record := range s.binds {

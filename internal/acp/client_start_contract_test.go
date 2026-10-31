@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -895,7 +896,8 @@ func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 	t.Run("Should retain acceptance when startup finalization fails", func(t *testing.T) {
 		t.Parallel()
 		cause := errors.New("startup assembly failed")
-		driver := New()
+		launcher := &recordingLauncher{delegate: NewLocalLauncher(testDiscardLogger(), time.Second)}
+		driver := New(WithLauncher(launcher))
 		proc, err := driver.Start(t.Context(), StartOpts{
 			AgentName:       "helper",
 			Command:         helperCommand(t),
@@ -906,6 +908,25 @@ func TestStartReportsAcceptanceInTheStartError(t *testing.T) { // UT-031
 		if proc != nil {
 			t.Fatal("failed startup retained a process")
 		}
+		launcher.mu.Lock()
+		handle := launcher.launched
+		launcher.mu.Unlock()
+		if handle == nil {
+			t.Fatal("helper subprocess was not launched")
+		}
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if err := handle.Stop(ctx); err != nil {
+				t.Errorf("helper cleanup: %v", err)
+			}
+		})
+		select {
+		case <-handle.Done():
+		default:
+			t.Fatal("accepted-start failure returned before its helper subprocess exited")
+		}
+
 		id, accepted := AcceptedSessionID(err)
 		if !accepted || id != "sess-new" || !errors.Is(err, cause) {
 			t.Fatalf("finalizer failure lost acceptance or cause: %v (%s)", err, id)
@@ -1539,50 +1560,81 @@ func TestStartIncludesAdditionalDirsInLoadSessionPayload(t *testing.T) {
 func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should skip remote transports when starting MCP servers", func(t *testing.T) {
-		t.Parallel()
+	for _, route := range []struct{ name, scenario, resumeID, method string }{
+		{"Should preserve stdio wire shape on new sessions", "stream_updates", "", acpsdk.AgentMethodSessionNew},
+		{"Should preserve stdio wire shape on loaded sessions", "load_session", "sess-existing", acpsdk.AgentMethodSessionLoad},
+	} {
+		t.Run(route.name, func(t *testing.T) {
+			t.Parallel()
 
-		driver := New()
-		captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
-		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
-			Cwd: t.TempDir(),
-			Env: helperEnvWithCapture("stream_updates", "", captureFile),
-			MCPServers: []compozyconfig.MCPServer{
-				{
-					Name:      "compozy-hosted-tools",
-					Transport: compozyconfig.MCPServerTransportStdio,
-					Command:   "/bin/compozy",
-					Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
-					Env:       map[string]string{"COMPOZY_HOME": "/tmp/compozy-home"},
+			var logs lockedBuffer
+			driver := New(
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
+			captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
+			proc := startHelperProcess(t, driver, route.scenario, "", StartOpts{
+				ResumeSessionID: route.resumeID,
+				Cwd:             t.TempDir(),
+				Env:             helperEnvWithCapture(route.scenario, "", captureFile),
+				MCPServers: []compozyconfig.MCPServer{
+					{
+						Name:      "compozy-hosted-tools",
+						Transport: compozyconfig.MCPServerTransportStdio,
+						Command:   "/bin/compozy",
+						Args:      []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"},
+						Env:       map[string]string{"COMPOZY_HOME": "/tmp/compozy-home"},
+					},
+					{
+						Name:      "remote-http",
+						Transport: compozyconfig.MCPServerTransportHTTP,
+						URL:       "https://example.test/mcp",
+					},
 				},
-				{
-					Name:      "remote-http",
-					Transport: compozyconfig.MCPServerTransportHTTP,
-					URL:       "https://example.test/mcp",
-				},
-			},
+			})
+			defer stopProcess(t, driver, proc)
+
+			var diagnostic string
+			for line := range strings.SplitSeq(logs.String(), "\n") {
+				if strings.Contains(line, "msg=acp.session.mcp_server method="+route.method) {
+					diagnostic = line
+					break
+				}
+			}
+			for _, field := range []string{"transport=stdio", "command_fingerprint=" + compozyconfig.CommandFingerprint("/bin/compozy")} {
+				if !strings.Contains(diagnostic, field) {
+					t.Fatalf("MCP diagnostic for %s missing %q: %s", route.method, field, diagnostic)
+				}
+			}
+			params := captureRequestParams(t, captureFile, route.method)
+			var wireServers []map[string]json.RawMessage
+			if err := json.Unmarshal(params["mcpServers"], &wireServers); err != nil {
+				t.Fatal(err)
+			}
+			if len(wireServers) != 1 {
+				t.Fatalf("wire servers = %d, want one stdio server", len(wireServers))
+			}
+			if _, present := wireServers[0]["type"]; present {
+				t.Fatal("stdio wire entry must omit the transport discriminator")
+			}
+			request := decodeCapturedNewSessionRequest(t, params)
+			if got, want := len(request.MCPServers), 1; got != want {
+				t.Fatalf("session/new mcpServers = %#v, want only hosted stdio entry", request.MCPServers)
+			}
+			stdio := request.MCPServers[0].Stdio
+			if stdio == nil {
+				t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
+			}
+			if stdio.Name != "compozy-hosted-tools" || stdio.Command != "/bin/compozy" {
+				t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
+			}
+			if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {
+				t.Fatalf("hosted stdio args = %#v, want tool mcp bind args", stdio.Args)
+			}
+			if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "COMPOZY_HOME" {
+				t.Fatalf("hosted stdio env = %#v, want COMPOZY_HOME only", stdio.Env)
+			}
 		})
-		defer stopProcess(t, driver, proc)
-
-		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
-		request := decodeCapturedNewSessionRequest(t, params)
-		if got, want := len(request.MCPServers), 1; got != want {
-			t.Fatalf("session/new mcpServers = %#v, want only hosted stdio entry", request.MCPServers)
-		}
-		stdio := request.MCPServers[0].Stdio
-		if stdio == nil {
-			t.Fatalf("session/new mcpServers[0] = %#v, want stdio variant", request.MCPServers[0])
-		}
-		if stdio.Name != "compozy-hosted-tools" || stdio.Command != "/bin/compozy" {
-			t.Fatalf("hosted stdio entry = %#v, want hosted command", stdio)
-		}
-		if !slices.Equal(stdio.Args, []string{"tool", "mcp", "--session", "sess-1", "--bind-nonce", "nonce"}) {
-			t.Fatalf("hosted stdio args = %#v, want tool mcp bind args", stdio.Args)
-		}
-		if got, want := len(stdio.Env), 1; got != want || stdio.Env[0].Name != "COMPOZY_HOME" {
-			t.Fatalf("hosted stdio env = %#v, want COMPOZY_HOME only", stdio.Env)
-		}
-	})
+	}
 }
 
 func TestStartResumeReturnsSentinelErrors(t *testing.T) {

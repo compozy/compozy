@@ -229,6 +229,8 @@ func (s *HostedService) ReleaseBind(bindID string) {
 		if launch := s.launches[record.sessionID]; launch != nil && launch.bindID == bindID {
 			// Providers may replace their stdio proxy while retaining the same ACP session.
 			launch.established = false
+			launch.readyBindID = ""
+			launch.readiness.notify(nil)
 			launch.bindID = ""
 			launch.expiresAt = s.now().UTC().Add(s.bindNonceTTL)
 		}

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/tools"
@@ -20,6 +21,188 @@ import (
 
 func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject an unbound launch after its deadline", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+		executable := hostedTestExecutable(t, "compozy")
+		registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+		if _, err := service.Launch(
+			t.Context(),
+			HostedLaunchRequest{SessionID: "sess-unbound", WorkspaceID: "ws-1", AgentName: "claude"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.ArmLaunch(t.Context(), "sess-unbound"); err != nil {
+			t.Fatal(err)
+		}
+		canceled, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := service.WaitForBind(canceled, "sess-unbound"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("WaitForBind() = %v, want cancellation", err)
+		}
+		now = now.Add(time.Hour)
+		if err := service.WaitForBind(t.Context(), "sess-unbound"); !errors.Is(err, ErrHostedBindTimeout) {
+			t.Fatalf("WaitForBind() = %v, want bind timeout", err)
+		}
+	})
+
+	for _, action := range []string{"replace", "release", "cancel"} {
+		t.Run("Should wake a live bind wait on launch "+action, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				executable := hostedTestExecutable(t, "compozy")
+				service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+				request := HostedLaunchRequest{SessionID: "sess-removed"}
+				if _, err := service.Launch(t.Context(), request); err != nil {
+					t.Fatal(err)
+				}
+				if err := service.ArmLaunch(t.Context(), request.SessionID); err != nil {
+					t.Fatal(err)
+				}
+				result := make(chan error, 1)
+				go func() { result <- service.WaitForBind(t.Context(), request.SessionID) }()
+				synctest.Wait()
+				switch action {
+				case "replace":
+					if _, err := service.Launch(t.Context(), request); err != nil {
+						t.Fatal(err)
+					}
+				case "release":
+					service.ReleaseSession(request.SessionID)
+				case "cancel":
+					service.CancelLaunch(request.SessionID)
+				}
+				synctest.Wait()
+				select {
+				case err := <-result:
+					if !errors.Is(err, ErrHostedBindNotFound) {
+						t.Fatalf("removed launch wait = %v", err)
+					}
+				default:
+					t.Fatal("removed launch kept waiting with a live context")
+				}
+			})
+		})
+	}
+
+	t.Run("Should reject a bind whose response was never acknowledged by the proxy", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+			hostedTestBind(t, service, "sess-undelivered", hostedTestPeer(executable))
+			if err := service.WaitForBind(t.Context(), "sess-undelivered"); !errors.Is(err, ErrHostedBindTimeout) {
+				t.Fatalf("unacknowledged bind readiness = %v, want timeout", err)
+			}
+		})
+	})
+
+	t.Run("Should wait until the current bind deadline expires", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			service := newHostedTestService(t, executable, &hostedRegistryStub{}, time.Now)
+			if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-timeout"}); err != nil {
+				t.Fatal(err)
+			}
+			started := time.Now()
+			if err := service.ArmLaunch(t.Context(), "sess-timeout"); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.WaitForBind(t.Context(), "sess-timeout"); !errors.Is(err, ErrHostedBindTimeout) {
+				t.Fatalf("WaitForBind() = %v, want timeout", err)
+			}
+			if elapsed := time.Since(started); elapsed < 2*time.Second {
+				t.Fatalf("bind wait elapsed = %v, want the full configured window", elapsed)
+			}
+		})
+	})
+
+	t.Run("Should honor a renewed deadline while awaiting the first projection", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			executable := hostedTestExecutable(t, "compozy")
+			release := make(chan struct{})
+			registry := &hostedRegistryStub{releaseList: release}
+			service := newHostedTestService(t, executable, registry, time.Now)
+			launch, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-renewed"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := service.ArmLaunch(t.Context(), "sess-renewed"); err != nil {
+				t.Fatal(err)
+			}
+			request := HostedBindRequest{SessionID: "sess-renewed", Nonce: hostedLaunchNonce(t, launch.Args)}
+			bindCtx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			bound := make(chan error, 1)
+			go func() { _, err := service.Bind(bindCtx, request, hostedTestPeer(executable)); bound <- err }()
+			synctest.Wait()
+			ready := make(chan error, 1)
+			go func() { ready <- service.WaitForBind(t.Context(), request.SessionID) }()
+			synctest.Wait()
+			time.Sleep(time.Second)
+			cancel()
+			if err := <-bound; !errors.Is(err, context.Canceled) {
+				t.Fatalf("initial bind = %v", err)
+			}
+			synctest.Wait()
+			time.Sleep(1500 * time.Millisecond)
+			select {
+			case err := <-ready:
+				t.Fatalf("wait ended before renewed deadline: %v", err)
+			default:
+			}
+			close(release)
+			second, err := service.Bind(t.Context(), request, hostedTestPeer(executable))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := service.StreamProjection(
+				t.Context(),
+				second.BindID,
+				hostedTestPeer(executable),
+				second.Digest,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-ready; err != nil {
+				t.Fatalf("replacement bind readiness = %v", err)
+			}
+		})
+	})
+
+	for _, late := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should require projection completion before the deadline late=%t", late),
+			func(t *testing.T) {
+				t.Parallel()
+				now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+				executable := hostedTestExecutable(t, "compozy")
+				registry := &hostedRegistryStub{views: []tools.ToolView{hostedToolView("compozy__hosted_echo")}}
+				if late {
+					registry.onListed = func() { now = now.Add(time.Hour) }
+				}
+				service := newHostedTestService(t, executable, registry, func() time.Time { return now })
+				peer := hostedTestPeer(executable)
+				bound := hostedTestBind(t, service, "sess-projection-deadline", peer)
+				if _, err := service.StreamProjection(t.Context(), bound.BindID, peer, bound.Digest); err != nil {
+					t.Fatal(err)
+				}
+				// Negotiation may return after the deadline even when projection was on time.
+				now = now.Add(time.Hour)
+				err := service.WaitForBind(t.Context(), "sess-projection-deadline")
+				if late && !errors.Is(err, ErrHostedBindTimeout) {
+					t.Fatalf("WaitForBind(late projection) = %v, want timeout", err)
+				}
+				if !late && err != nil {
+					t.Fatalf("WaitForBind(on-time projection) = %v", err)
+				}
+			},
+		)
+	}
 
 	t.Run("Should rearm a released proxy without replacing the provider session", func(t *testing.T) {
 		t.Parallel()
@@ -42,6 +225,12 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		first, err := service.Bind(t.Context(), request, peer)
 		if err != nil {
 			t.Fatalf("Bind(first proxy) error = %v", err)
+		}
+		if _, err := service.StreamProjection(t.Context(), first.BindID, peer, first.Digest); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
+			t.Fatalf("WaitForBind() = %v", err)
 		}
 		if err := service.BindRun(t.Context(), request.SessionID, "run-reconnect", 7); err != nil {
 			t.Fatalf("BindRun() error = %v", err)
@@ -69,6 +258,12 @@ func TestHostedServiceBindNonceLifecycle(t *testing.T) {
 		reconnected, err := service.Bind(t.Context(), request, peer)
 		if err != nil {
 			t.Fatalf("Bind(restarted proxy) error = %v", err)
+		}
+		if _, err := service.StreamProjection(t.Context(), reconnected.BindID, peer, reconnected.Digest); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.WaitForBind(t.Context(), request.SessionID); err != nil {
+			t.Fatalf("WaitForBind(reconnected) = %v", err)
 		}
 		if reconnected.BindID == first.BindID || reconnected.Scope.ProfileID != "profile-a" ||
 			reconnected.Scope.WorkspaceID != "ws-1" || reconnected.Scope.SessionID != request.SessionID ||
@@ -1851,6 +2046,9 @@ func TestHostedServiceReleaseAndFailureBranches(t *testing.T) {
 		service := newHostedTestService(t, executable, registry, func() time.Time { return now })
 		if _, err := service.Launch(t.Context(), HostedLaunchRequest{SessionID: "sess-arm-failed"}); err != nil {
 			t.Fatalf("Launch() error = %v", err)
+		}
+		if err := service.WaitForBind(t.Context(), "sess-arm-failed"); !errors.Is(err, ErrHostedNonceInvalid) {
+			t.Fatalf("WaitForBind(unarmed) = %v, want ErrHostedNonceInvalid", err)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
