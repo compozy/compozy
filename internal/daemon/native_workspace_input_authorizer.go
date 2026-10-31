@@ -73,6 +73,19 @@ func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
 	if targetWorkspaceID != workspaceaccess.UserSelector && targetWorkspaceID == actor.WorkspaceID {
 		return nil
 	}
+	if descriptor.ID == toolspkg.ToolIDSessionPrompt {
+		var input sessionPromptInput
+		if err := json.Unmarshal(call.Input, &input); err != nil {
+			return err
+		}
+		target, err := nativeSessionReplyTarget(ctx, b.sessions, scope, input)
+		if err != nil {
+			return err
+		}
+		if target != nil && nativeReplyWorkspace(target) == targetWorkspaceID {
+			return nil
+		}
+	}
 	if b == nil || b.workspaceAccess == nil {
 		return nativeWorkspaceAccessDeniedError(descriptor.ID)
 	}

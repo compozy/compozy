@@ -13,8 +13,12 @@ export function toolPartErrorText(part: Record<string, unknown>): string {
 
   const output = part.output;
   if (isRecord(output)) {
+    const nestedError = isRecord(output.error) ? nonEmptyString(output.error.message) : undefined;
     const fromOutput =
-      nonEmptyString(output.error) ?? nonEmptyString(output.text) ?? nonEmptyString(output.title);
+      nonEmptyString(output.error) ??
+      nestedError ??
+      nonEmptyString(output.text) ??
+      nonEmptyString(output.title);
     if (fromOutput) return fromOutput;
   }
   const outputText = nonEmptyString(output);

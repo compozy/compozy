@@ -209,7 +209,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	}
 	mode := session.BusyInputMode(strings.TrimSpace(input.Mode))
 	expectedTurnID := strings.TrimSpace(input.ExpectedTurnID)
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
+	resolved, err := n.nativeSessionPromptWorkspace(ctx, scope, req.ToolID, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

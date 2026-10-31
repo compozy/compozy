@@ -604,6 +604,58 @@ describe("useSessionLabel", () => {
     expect(result.current.agentName).toBe("claude");
   });
 
+  it.each([
+    { destination: "ws_site", workspaceAvailable: true, workspaceName: "Current project" },
+    { destination: "ws_site", workspaceAvailable: false, workspaceName: "compozy-site" },
+    { destination: "@user", workspaceAvailable: false, workspaceName: "User" },
+  ])(
+    "Should resolve $destination with workspaceAvailable=$workspaceAvailable before reading details",
+    async ({ destination, workspaceAvailable, workspaceName }) => {
+      const requestedPaths: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL) => {
+          const url = new URL(input instanceof Request ? input.url : String(input), "http://x");
+          requestedPaths.push(decodeURIComponent(url.pathname));
+          if (url.pathname.endsWith("/owner")) {
+            return Response.json({
+              session_id: SENDER_ID,
+              workspace_id: destination === "@user" ? "" : destination,
+              workspace_name: "compozy-site",
+            });
+          }
+          if (decodeURIComponent(url.pathname) === `/api/workspaces/${destination}`) {
+            return workspaceAvailable
+              ? Response.json({ workspace: { id: "ws_site", name: "Current project" } })
+              : Response.json({ error: "Workspace unavailable" }, { status: 403 });
+          }
+          if (
+            decodeURIComponent(url.pathname) ===
+            `/api/workspaces/${destination}/sessions/${SENDER_ID}`
+          ) {
+            return Response.json(sessionDetail(SENDER_ID, "Live peer"));
+          }
+          return Response.json({ error: "Wrong workspace" }, { status: 404 });
+        })
+      );
+      const { result } = renderHook(
+        () =>
+          useSessionLabel({
+            sessionId: SENDER_ID,
+            workspaceId: "",
+            currentWorkspaceId: WS,
+            agentName: null,
+          }),
+        { wrapper }
+      );
+      await waitFor(() => expect(result.current.title).toBe("Live peer"));
+      // Navigation consumes the stored owner ID, while API reads use the @user selector.
+      expect(result.current.workspaceId).toBe(destination === "@user" ? "" : destination);
+      await waitFor(() => expect(result.current.workspaceName).toBe(workspaceName));
+      expect(requestedPaths).not.toContain("/api/workspaces/@user");
+    }
+  );
+
   it("Should name a sender in another workspace and keep that workspace (UT-063)", async () => {
     const { result } = renderHook(
       () =>

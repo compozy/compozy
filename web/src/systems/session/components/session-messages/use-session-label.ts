@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { SessionNotFoundError } from "@/systems/session/adapters/session-api-errors";
-import { sessionDetailOptions } from "@/systems/session/lib/query-options";
+import { sessionDetailOptions, sessionOwnerOptions } from "@/systems/session/lib/query-options";
 import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-title";
 import { useWorkspace } from "@/systems/workspace";
 
@@ -9,7 +9,7 @@ import type { SessionMessageParty } from "./session-message-party";
 
 export interface SessionLabelInput {
   sessionId: string;
-  /** The other session's workspace; empty = this transcript's. */
+  /** The other session's workspace; empty resolves its canonical owner. */
   workspaceId: string;
   /** The transcript's own workspace: a different one is named beside the link (Gap 5). */
   currentWorkspaceId: string;
@@ -33,7 +33,11 @@ export function useSessionLabel({
   agentName,
   titleAtSend = null,
 }: SessionLabelInput): SessionMessageParty {
-  const resolvedWorkspaceId = workspaceId || currentWorkspaceId;
+  const owner = useQuery({
+    ...sessionOwnerOptions(sessionId),
+    enabled: workspaceId === "" && sessionId !== "",
+  });
+  const resolvedWorkspaceId = workspaceId || ownerWorkspaceSelector(owner.data);
   const detail = useQuery({
     ...sessionDetailOptions(resolvedWorkspaceId, sessionId),
     enabled: resolvedWorkspaceId !== "" && sessionId !== "",
@@ -41,16 +45,28 @@ export function useSessionLabel({
     retry: false,
   });
   const crossWorkspace = resolvedWorkspaceId !== "" && resolvedWorkspaceId !== currentWorkspaceId;
-  const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
-  const { title, pending } = sessionLabelTitle(detail, sessionId, titleAtSend || null);
+  const userDestination = resolvedWorkspaceId === "@user";
+  const workspace = useWorkspace(resolvedWorkspaceId, {
+    enabled: crossWorkspace && !userDestination,
+  });
+  const labelRead = workspaceId === "" && !owner.data ? owner : detail;
+  const { title, pending } = sessionLabelTitle(
+    { data: detail.data, error: labelRead.error, isError: labelRead.isError },
+    sessionId,
+    titleAtSend || null
+  );
   return {
     sessionId,
-    workspaceId: resolvedWorkspaceId,
+    workspaceId: userDestination ? "" : resolvedWorkspaceId,
     title,
     ...(pending ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
-    workspaceName: crossWorkspace ? (workspace.data?.workspace.name ?? null) : null,
+    workspaceName: sessionLabelWorkspaceName(
+      crossWorkspace,
+      userDestination,
+      workspace.data?.workspace.name ?? owner.data?.workspace_name
+    ),
   };
 }
 
@@ -80,4 +96,19 @@ function sessionLabelTitle(
   if (detail.data) return { title: getSessionDisplayTitle(detail.data), pending: false };
   if (detail.isError) return { title: recorded ?? sessionId, pending: false };
   return { title: recorded, pending: recorded === null };
+}
+
+/** An unresolved owner disables detail reads; a resolved owner without a project is User. */
+function ownerWorkspaceSelector(owner: { workspace_id?: string } | undefined): string {
+  return owner ? owner.workspace_id || "@user" : "";
+}
+
+/** Name foreign destinations without querying project metadata for the User scope. */
+function sessionLabelWorkspaceName(
+  crossWorkspace: boolean,
+  user: boolean,
+  name: string | undefined
+): string | null {
+  if (!crossWorkspace) return null;
+  return user ? "User" : (name ?? null);
 }
