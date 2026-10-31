@@ -1784,7 +1784,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 
 	t.Run("Should keep the running turn's runtime for a provider that honors changes next turn", func(t *testing.T) {
 		t.Parallel()
-		h, driver, active := newLiveRuntimeHarness(t, "codex", nil)
+		h, driver, active := newLiveRuntimeHarness(t, liveRuntimeNextTurnProvider, nil)
 		events, turnID, release := startBlockedLivePrompt(t, h, active)
 		updated, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
 		if err != nil {
@@ -1815,7 +1815,7 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 			}
 			return nil
 		}
-		h, _, active := newLiveRuntimeHarness(t, "codex", blockMedium)
+		h, _, active := newLiveRuntimeHarness(t, liveRuntimeNextTurnProvider, blockMedium)
 		applied := make(chan error, 1)
 		go func() {
 			_, err := h.manager.SetRuntimeSelection(t.Context(), active.ID, liveEffortSelection(active, "medium"), 0)
@@ -2142,6 +2142,10 @@ func TestRuntimeSelectionAppliesLive(t *testing.T) {
 	})
 }
 
+// liveRuntimeNextTurnProvider is a custom provider: it takes the default next_turn semantics
+// without depending on a native CLI being installed on the host.
+const liveRuntimeNextTurnProvider = "acme-next-turn"
+
 // newLiveRuntimeHarness binds a Claude session at xhigh whose provider reports applied efforts.
 func newLiveRuntimeHarness(
 	t *testing.T,
@@ -2157,7 +2161,7 @@ func newLiveRuntimeHarness(
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
 		}
-		resolved.Config.Providers[providerID] = compozyconfig.BuiltinProviders()[providerID]
+		resolved.Config.Providers[providerID] = compozyconfig.ProviderConfig{Command: providerID + " --acp"}
 		for index := range resolved.Agents {
 			if resolved.Agents[index].Name == "coder" {
 				resolved.Agents[index].Provider = providerID
