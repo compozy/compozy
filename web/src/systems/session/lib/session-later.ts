@@ -10,16 +10,23 @@ const REASON_LEXER_OPTIONS = { gfm: true } as const;
 
 const LINE_BREAK_TAG = /^<br\s*\/?>$/i;
 
+// A complete Markdown character reference: Markdown, unlike HTML, requires the
+// final semicolon, so `&copy handling` stays literal.
+const CHARACTER_REFERENCE = /&(?:#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]*);/g;
+
 /**
- * Decodes HTML character references (`&amp;`, `&#169;`) with the browser's
- * own table. A detached `<textarea>` parses its content as RCDATA, so tags are
+ * Decodes complete character references (`&amp;`, `&#169;`) with the
+ * browser's own table, one reference at a time so decoded text is never read
+ * again. A detached `<textarea>` parses its content as RCDATA, so tags are
  * never interpreted, only references.
  */
 function decodeCharacterReferences(text: string): string {
   if (!text.includes("&") || typeof document === "undefined") return text;
   const textarea = document.createElement("textarea");
-  textarea.innerHTML = text;
-  return textarea.value;
+  return text.replace(CHARACTER_REFERENCE, reference => {
+    textarea.innerHTML = reference;
+    return textarea.value;
+  });
 }
 
 /**

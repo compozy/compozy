@@ -224,6 +224,11 @@ func TestLaterReasonPlainText(t *testing.T) {
 			want:   "AT&T a&amp;b &amp; ©",
 		},
 		{
+			name:   "Should decode each character reference once",
+			reason: "&#38;copy; &amp;amp; &copy",
+			want:   "&copy; &amp; &copy",
+		},
+		{
 			name:   "Should drop raw HTML and keep the text between inline tags",
 			reason: "<b>urgent</b> first\n\n<div>\nhidden\n</div>\n\nthen ship",
 			want:   "urgent first · then ship",

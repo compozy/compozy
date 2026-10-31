@@ -1339,7 +1339,7 @@ describe("SessionList Later", () => {
           "\n\n> - check _docs_ at [d](https://x.dev/a_(b(c))) ``**go**``\n\n```\nrun fix_this\n```" +
           "\n\n| step | owner |\n| --- | --- |\n| gate | **<b>me</b>** |" +
           "\n\n<div>\nhidden\n</div>" +
-          "\n\nAT&amp;T `a&amp;b` \\&amp; first<br>second",
+          "\n\nAT&amp;T `a&amp;b` \\&amp; &#38;copy; &copy first<br>second",
       },
     };
     renderList({ sessions: [markdown], view: { ...view, shelf: "later" } });
@@ -1348,12 +1348,12 @@ describe("SessionList Later", () => {
     // Parsed as GFM: code spans, escapes, and code lines stay literal; links keep
     // their label; nested block markers and underscore emphasis drop.
     const plain =
-      "Waiting on the vendor · rerun make **gate** · see spec *now* · check docs at d **go** · run fix_this · step · owner · gate · me · AT&T a&amp;b &amp; first · second";
+      "Waiting on the vendor · rerun make **gate** · see spec *now* · check docs at d **go** · run fix_this · step · owner · gate · me · AT&T a&amp;b &amp; &copy; &copy first · second";
     expect(reason.textContent).toBe(plain);
     // Table rows keep their cells on one line of the title.
     expect(reason).toHaveAttribute(
       "title",
-      "Waiting on the vendor\nrerun make **gate**\nsee spec *now*\ncheck docs at d **go**\nrun fix_this\nstep · owner\ngate · me\nAT&T a&amp;b &amp; first\nsecond"
+      "Waiting on the vendor\nrerun make **gate**\nsee spec *now*\ncheck docs at d **go**\nrun fix_this\nstep · owner\ngate · me\nAT&T a&amp;b &amp; &copy; &copy first\nsecond"
     );
     expect(screen.getByTestId("session-sidebar-session-parked")).toHaveTextContent(
       `In Later, ${plain}`

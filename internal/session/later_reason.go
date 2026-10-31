@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 
@@ -134,19 +135,47 @@ func (r *laterReasonReader) visitInline(node ast.Node, entering bool) ast.WalkSt
 // becomes its literal character, and character references elsewhere (`&amp;`,
 // `&#38;`) decode. An escaped `\&amp;` therefore stays `&amp;`.
 func laterReasonProse(value []byte) []byte {
-	resolve := func(chunk []byte) []byte {
-		return util.ResolveEntityNames(util.ResolveNumericReferences(chunk))
-	}
 	out := make([]byte, 0, len(value))
 	start := 0
 	for index := 0; index < len(value); index++ {
 		if value[index] != '\\' || index+1 >= len(value) || !util.IsPunct(value[index+1]) {
 			continue
 		}
-		out = append(out, resolve(value[start:index])...)
+		out = append(out, resolveCharacterReferences(value[start:index])...)
 		out = append(out, value[index+1])
 		index++
 		start = index + 1
 	}
-	return append(out, resolve(value[start:])...)
+	return append(out, resolveCharacterReferences(value[start:])...)
+}
+
+// resolveCharacterReferences decodes complete character references in one
+// pass, so decoded text is never read again: `&#38;copy;` stays `&copy;`.
+func resolveCharacterReferences(chunk []byte) []byte {
+	out := make([]byte, 0, len(chunk))
+	for len(chunk) > 0 {
+		amp := bytes.IndexByte(chunk, '&')
+		if amp < 0 {
+			return append(out, chunk...)
+		}
+		out = append(out, chunk[:amp]...)
+		chunk = chunk[amp:]
+		// A reference ends at the first semicolon, so this candidate holds at
+		// most one reference.
+		if semi := bytes.IndexByte(chunk, ';'); semi > 0 {
+			candidate := chunk[:semi+1]
+			decoded := util.ResolveNumericReferences(candidate)
+			if bytes.Equal(decoded, candidate) {
+				decoded = util.ResolveEntityNames(candidate)
+			}
+			if !bytes.Equal(decoded, candidate) {
+				out = append(out, decoded...)
+				chunk = chunk[semi+1:]
+				continue
+			}
+		}
+		out = append(out, '&')
+		chunk = chunk[1:]
+	}
+	return out
 }
