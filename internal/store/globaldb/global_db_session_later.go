@@ -109,6 +109,26 @@ func (g *SessionRepo) UnparkSession(ctx context.Context, workspaceID string, ses
 	return affected > 0, nil
 }
 
+// UnparkSessions clears Later state for a family in one transaction, so a
+// failure leaves every member as it was.
+func (g *SessionRepo) UnparkSessions(ctx context.Context, workspaceID string, sessionIDs []string) error {
+	if err := g.checkReady(ctx, "unpark sessions"); err != nil {
+		return err
+	}
+	at := store.FormatTimestamp(g.now())
+	return g.withImmediateTransaction(ctx, "unpark sessions", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		for _, id := range sessionIDs {
+			if _, err := q.UnparkSession(ctx, sqlcgen.UnparkSessionParams{
+				UpdatedAt: at, WorkspaceID: strings.TrimSpace(workspaceID), ID: strings.TrimSpace(id),
+			}); err != nil {
+				return fmt.Errorf("store: unpark session %q: %w", id, err)
+			}
+		}
+		return nil
+	})
+}
+
 // UnparkSessionParkedAt clears Later state only when the session still carries
 // the park made at parkedAt, so undoing a failed move never clears a newer park.
 func (g *SessionRepo) UnparkSessionParkedAt(

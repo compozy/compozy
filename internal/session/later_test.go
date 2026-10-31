@@ -111,6 +111,12 @@ func TestManagerLaterLifecycle(t *testing.T) {
 		if err != nil || childInfo.Later == nil {
 			t.Fatalf("Status(child after return) = %#v, %v, want child still parked", childInfo, err)
 		}
+		if _, err := h.manager.ResumeFromLater(ctx, h.workspaceID, parent.ID, true); err != nil {
+			t.Fatalf("ResumeFromLater(with children) error = %v", err)
+		}
+		if childInfo, err = h.manager.Status(ctx, child.ID); err != nil || childInfo.Later != nil {
+			t.Fatalf("Status(child after Back from Later) = %#v, %v, want it out of Later", childInfo, err)
+		}
 	})
 
 	t.Run("Should resume a parked session for an operator prompt", func(t *testing.T) {

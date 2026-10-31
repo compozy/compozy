@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -117,8 +118,7 @@ func (m *Manager) parkLaterFamily(
 ) (*Info, error) {
 	owned := make(map[string]time.Time, len(members))
 	fail := func(err error) (*Info, error) {
-		m.undoLaterParks(context.WithoutCancel(ctx), laterStore, workspaceID, owned)
-		return nil, err
+		return nil, errors.Join(err, m.undoLaterParks(context.WithoutCancel(ctx), laterStore, workspaceID, owned))
 	}
 	for i := len(members) - 1; i >= 1; i-- {
 		if members[i].Later != nil {
@@ -148,11 +148,13 @@ func (m *Manager) undoLaterParks(
 	laterStore store.SessionLaterStore,
 	workspaceID string,
 	owned map[string]time.Time,
-) {
+) error {
+	var failures error
 	for id, parkedAt := range owned {
 		undone, err := laterStore.UnparkSessionParkedAt(ctx, workspaceID, id, parkedAt)
 		if err != nil {
-			m.logger.Warn("session: undo partial later park", "session_id", id, "error", err)
+			// The member stays parked without a return time; the caller reports it.
+			failures = errors.Join(failures, fmt.Errorf("session: undo later park of %q: %w", id, err))
 			continue
 		}
 		if !undone {
@@ -162,6 +164,7 @@ func (m *Manager) undoLaterParks(
 			m.logger.Warn("session: publish undone later park", "session_id", id, "error", err)
 		}
 	}
+	return failures
 }
 
 // laterFamily returns root followed by its hierarchy descendants in breadth

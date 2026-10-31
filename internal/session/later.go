@@ -232,10 +232,15 @@ func (m *Manager) ResumeFromLater(
 			return nil, err
 		}
 	}
+	ids := make([]string, 0, len(members))
 	for _, member := range members {
-		if _, err := laterStore.UnparkSession(ctx, workspaceID, member.ID); err != nil {
-			return nil, err
-		}
+		ids = append(ids, member.ID)
+	}
+	// One transaction brings the whole family back, or none of it.
+	if err := laterStore.UnparkSessions(ctx, workspaceID, ids); err != nil {
+		return nil, err
+	}
+	for _, member := range members {
 		if member.ID == sessionID {
 			continue
 		}
