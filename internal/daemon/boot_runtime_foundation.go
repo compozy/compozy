@@ -38,6 +38,9 @@ func (d *Daemon) bootRuntimeFoundation(ctx context.Context, state *bootState, cl
 	if err := d.bootLockAndSocket(state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootMCPStdioPool(state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootRegistryState(ctx, state, cleanup); err != nil {
 		return err
 	}

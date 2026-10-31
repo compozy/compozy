@@ -33,10 +33,12 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 			strings.Join(clean, "."),
 		)
 	}
-	// tools.clarify.timeout is consumed once at daemon boot from the home
-	// config; a workspace-layered write would validate yet never take
-	// effect, so reject it with the same global-only gate.
-	if scope == WriteScopeWorkspace && slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) {
+	// tools.clarify.timeout, mcp.status_probe_timeout, and mcp.stdio.* are consumed once at daemon boot
+	// from the home config; a workspace-layered write would validate yet never
+	// take effect, so reject it with the same global-only gate.
+	if scope == WriteScopeWorkspace && (slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
+		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
+		slices.Equal(clean[:min(len(clean), len(mcpStdioConfigSegments))], mcpStdioConfigSegments)) {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope; write this key with --scope user",
 			strings.Join(clean, "."),

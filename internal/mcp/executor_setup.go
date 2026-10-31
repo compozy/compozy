@@ -37,6 +37,7 @@ type CallExecutor struct {
 	authGeneration *mcpauth.MutationGeneration
 	timeout        time.Duration
 	toolCache      mcpToolListCache
+	stdioPool      *StdioSessionPool
 }
 
 var _ toolspkg.MCPCallExecutor = (*CallExecutor)(nil)
@@ -101,6 +102,13 @@ func WithTimeout(timeout time.Duration) CallExecutorOption {
 		if timeout > 0 {
 			executor.timeout = timeout
 		}
+	}
+}
+
+// WithStdioSessionPool reuses daemon-owned stdio MCP children instead of launching one per request.
+func WithStdioSessionPool(pool *StdioSessionPool) CallExecutorOption {
+	return func(executor *CallExecutor) {
+		executor.stdioPool = pool
 	}
 }
 

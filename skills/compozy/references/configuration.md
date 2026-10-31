@@ -16,6 +16,7 @@
 - Automation schedules
 - Session rebuild bounds
 - Host load management
+- Stdio MCP server processes
 - Session messaging
 - Retired memory and compaction settings
 - Session attachments
@@ -355,6 +356,24 @@ triggered automations, Loops, and scheduler wakes wait; `daemon.load.admission_m
 manual automation runs are never delayed. Read the live state from the `runtime.load` item of
 `compozy doctor -o json` (`pressured`, `normalized_load`, `waiting`, `deferred_total`). All three keys
 are restart-required.
+
+## Stdio MCP Server Processes
+
+The daemon keeps one stdio MCP server process per MCP target and launch definition, shared by tool
+discovery, `compozy__mcp_status` probes, and tool calls. `[mcp.stdio]` sets `idle_timeout = "10m"`
+(close an unused process), `connect_timeout = "60s"` (one launch plus MCP handshake; a slow first
+start keeps running after the caller's deadline), and `max_concurrent_calls = 8` (in-flight requests
+per process, `1` through `64`). `mcp.status_probe_timeout = "15s"` bounds one status probe of any MCP
+server. All four are restart-required, user-scope only, and rejected in workspace and profile
+layers; none is agent-mutable.
+
+A process that fails to start or exits unexpectedly is relaunched only after an exponential backoff
+(1 second doubling up to 60 seconds); requests inside the window fail fast with `mcp_unreachable`
+and a diagnostic naming the remaining wait. `compozy__mcp_status` diagnostics append the redacted
+stderr tail of the current or last process. Isolated homes live under
+`$COMPOZY_HOME/cache/mcp/homes/` and are removed when the process ends or at the next daemon start;
+`npx` and `uvx` package caches persist in `$COMPOZY_HOME/cache/mcp/npm` and
+`$COMPOZY_HOME/cache/mcp/uv`.
 
 ## Idle Session Settings
 

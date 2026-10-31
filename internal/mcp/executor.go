@@ -63,7 +63,12 @@ func (e *CallExecutor) ListToolsWithProtocol(
 	}
 	healthObservation := e.runtimeHealth.Begin(resolved.HealthKey)
 	var runtimeHealthErr error
+	servedFromCache := false
 	defer func() {
+		if servedFromCache {
+			// A cached answer never touched the server, so it proves nothing about its health.
+			return
+		}
 		if runtimeHealthErr != nil {
 			e.runtimeHealth.RecordFailure(healthObservation, runtimeHealthErr)
 			return
@@ -75,6 +80,10 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		return nil, "", err
 	}
 	authorizationHeader := e.authorizationHeader(ctx, resolved)
+	if cached, cachedProtocol, ok := e.cachedPooledStdioTools(ctx, resolved, authorizationHeader); ok {
+		servedFromCache = true
+		return cached, cachedProtocol, nil
+	}
 	client, err := e.openClient(ctx, resolved, authorizationHeader)
 	if err != nil {
 		runtimeHealthErr = err
@@ -84,29 +93,46 @@ func (e *CallExecutor) ListToolsWithProtocol(
 		err = joinMCPClientCleanup(err, client)
 	}()
 	protocolVersion = negotiatedProtocolVersion(client.session)
-	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
+	descriptors, runtimeHealthErr, err = e.listToolsFromClient(
+		ctx, client, source, resolved, protocolVersion, authorizationHeader,
+	)
 	if err != nil {
 		return nil, "", err
 	}
+	return descriptors, protocolVersion, nil
+}
+
+// listToolsFromClient answers discovery over an open client, preferring a cached projection. The
+// returned health error is the failure, if any, that the server itself caused.
+func (e *CallExecutor) listToolsFromClient(
+	ctx context.Context,
+	client *managedMCPClient,
+	source toolspkg.SourceRef,
+	resolved ResolvedServer,
+	protocolVersion string,
+	authorizationHeader string,
+) (descriptors []toolspkg.MCPToolDescriptor, healthErr error, err error) {
+	cacheKey, err := e.toolCacheKey(ctx, resolved, protocolVersion, authorizationHeader)
+	if err != nil {
+		return nil, nil, err
+	}
 	if descriptors, ok := e.cachedTools(cacheKey, time.Now()); ok {
-		return descriptors, protocolVersion, nil
+		return descriptors, nil, nil
 	}
 	tools, ttlMs, err := listMCPTools(ctx, client.session)
 	if err != nil {
-		runtimeHealthErr = err
-		return nil, "", normalizeMCPErrorWithContext(ctx, "", err, true)
+		return nil, err, normalizeMCPErrorWithContext(ctx, "", err, true)
 	}
 	descriptors, err = e.descriptorsFromTools(source, resolved.Server, tools)
 	if err != nil {
-		runtimeHealthErr = err
-		return nil, "", err
+		return nil, err, err
 	}
 	now := time.Now()
 	e.cacheTools(cacheKey, descriptors, ttlMs, now)
 	if err := e.recordToolProjection(source, authorizationHeader, descriptors, ttlMs, now); err != nil {
-		return nil, "", err
+		return nil, nil, err
 	}
-	return descriptors, protocolVersion, nil
+	return descriptors, nil, nil
 }
 
 // CallTool invokes one configured MCP tool.

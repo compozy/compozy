@@ -69,6 +69,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay.Vault != nil {
 		return fmt.Errorf("workspace config %q: vault key settings are global-only", path)
 	}
+	if overlay.MCP.StatusProbeTimeout != nil || overlay.MCP.Stdio != (mcpStdioOverlay{}) {
+		return fmt.Errorf("workspace config %q: mcp.status_probe_timeout and mcp.stdio settings are global-only", path)
+	}
 	return nil
 }
 

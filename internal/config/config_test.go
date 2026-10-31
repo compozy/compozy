@@ -1691,6 +1691,19 @@ sort = "attention"
 	if err == nil || !strings.Contains(err.Error(), "shell settings are global-only") {
 		t.Fatalf("Load(workspace shell config) error = %v, want global-only rejection", err)
 	}
+
+	for _, tc := range []struct{ name, contents string }{
+		{name: "Should reject a workspace mcp.stdio idle timeout", contents: "[mcp.stdio]\nidle_timeout = \"1m\"\n"},
+		{name: "Should reject a workspace mcp status probe timeout", contents: "[mcp]\nstatus_probe_timeout = \"1m\"\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), tc.contents)
+			_, err := Load(WithWorkspaceRoot(workspaceRoot))
+			if err == nil || !strings.Contains(err.Error(), "mcp.stdio settings are global-only") {
+				t.Fatalf("Load(workspace %q) error = %v, want global-only rejection", tc.contents, err)
+			}
+		})
+	}
 }
 
 func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {

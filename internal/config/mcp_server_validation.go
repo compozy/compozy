@@ -2,11 +2,13 @@ package config
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/mcppolicy"
 	"github.com/compozy/compozy/internal/vault"
@@ -196,7 +198,34 @@ func ValidateMCPClientMetadataURL(path string, raw string) error {
 
 // Validate ensures global MCP configuration is safe to use.
 func (c MCPConfig) Validate() error {
-	return c.OAuth.Validate("mcp.oauth")
+	if err := c.OAuth.Validate("mcp.oauth"); err != nil {
+		return err
+	}
+	if c.StatusProbeTimeout <= 0 {
+		return errors.New("mcp.status_probe_timeout must be a positive duration")
+	}
+	return c.Stdio.Validate("mcp.stdio")
+}
+
+// Validate ensures stdio MCP process reuse bounds are usable.
+func (c MCPStdioConfig) Validate(path string) error {
+	for _, field := range []struct {
+		name  string
+		value time.Duration
+	}{
+		{name: "idle_timeout", value: c.IdleTimeout},
+		{name: "connect_timeout", value: c.ConnectTimeout},
+	} {
+		if field.value <= 0 {
+			return fmt.Errorf("%s.%s must be a positive duration", path, field.name)
+		}
+	}
+	if c.MaxConcurrentCalls < 1 || c.MaxConcurrentCalls > MaxMCPStdioMaxConcurrentCalls {
+		return fmt.Errorf(
+			"%s.max_concurrent_calls must be between 1 and %d", path, MaxMCPStdioMaxConcurrentCalls,
+		)
+	}
+	return nil
 }
 
 func validateStdioMCPEnv(

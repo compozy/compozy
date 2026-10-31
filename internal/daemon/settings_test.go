@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/procutil"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -561,6 +562,42 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 		}
 	})
 
+	t.Run("Should surface the stdio server stderr tail when its probe fails", func(t *testing.T) {
+		t.Parallel()
+
+		pool, err := mcppkg.NewStdioSessionPool(mcppkg.StdioPoolConfig{Root: t.TempDir()})
+		if err != nil {
+			t.Fatalf("NewStdioSessionPool() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := pool.Close(context.WithoutCancel(t.Context())); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		surface := &settingsRuntimeSurface{mcpStdioPool: pool, mcpStatusTimeout: 5 * time.Second}
+		status, err := surface.MCPServerRuntimeStatus(
+			t.Context(),
+			globalMCPTestTarget("crashing"),
+			compozyconfig.MCPServer{
+				Name:      "crashing",
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   os.Args[0],
+				Args:      []string{"-test.run=^TestSettingsMCPStdioCrashHelperProcess$"},
+				Env:       map[string]string{settingsMCPStdioCrashHelperEnv: "1"},
+			},
+		)
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus(crashing) error = %v", err)
+		}
+		if got, want := status.State, settingspkg.MCPServerRuntimeStateRuntimeUnavailable; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(crashing).State = %q, want %q", got, want)
+		}
+		if !strings.Contains(status.Diagnostic, "stderr: ") ||
+			!strings.Contains(status.Diagnostic, "settings fixture failed to load its config") {
+			t.Fatalf("MCPServerRuntimeStatus(crashing).Diagnostic = %q, want the stderr tail", status.Diagnostic)
+		}
+	})
+
 	t.Run("Should skip probing when remote MCP auth needs login", func(t *testing.T) {
 		t.Parallel()
 
@@ -677,6 +714,18 @@ func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
 			t.Fatalf("ListDeadEntities() = %#v, want one dead-docs mark", listed)
 		}
 	})
+}
+
+const settingsMCPStdioCrashHelperEnv = "COMPOZY_SETTINGS_MCP_STDIO_CRASH_HELPER"
+
+func TestSettingsMCPStdioCrashHelperProcess(_ *testing.T) {
+	if os.Getenv(settingsMCPStdioCrashHelperEnv) != "1" {
+		return
+	}
+	if _, err := fmt.Fprintln(os.Stderr, "settings fixture failed to load its config"); err != nil {
+		os.Exit(3)
+	}
+	os.Exit(9)
 }
 
 func globalMCPTestTarget(serverName string) mcpauth.Target {

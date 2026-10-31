@@ -240,6 +240,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify stdio MCP process reuse bounds as restart required",
+			path:          "mcp.stdio.idle_timeout",
+			wantLifecycle: RestartRequired,
+			wantDiffClass: DiffClassRestartRequired,
+		},
+		{
 			name:    "Should reject unknown paths",
 			path:    "unknown.path",
 			wantErr: true,
