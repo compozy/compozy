@@ -611,10 +611,12 @@ describe("useSessionLabel", () => {
   ])(
     "Should resolve $destination with workspaceAvailable=$workspaceAvailable before reading details",
     async ({ destination, workspaceAvailable, workspaceName }) => {
+      const requestedPaths: string[] = [];
       vi.stubGlobal(
         "fetch",
         vi.fn(async (input: RequestInfo | URL) => {
           const url = new URL(input instanceof Request ? input.url : String(input), "http://x");
+          requestedPaths.push(decodeURIComponent(url.pathname));
           if (url.pathname.endsWith("/owner")) {
             return Response.json({
               session_id: SENDER_ID,
@@ -650,6 +652,7 @@ describe("useSessionLabel", () => {
       // Navigation consumes the stored owner ID, while API reads use the @user selector.
       expect(result.current.workspaceId).toBe(destination === "@user" ? "" : destination);
       await waitFor(() => expect(result.current.workspaceName).toBe(workspaceName));
+      expect(requestedPaths).not.toContain("/api/workspaces/@user");
     }
   );
 
