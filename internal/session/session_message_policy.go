@@ -106,6 +106,21 @@ func (m *Manager) SessionMessageOrigin(
 	return &origin, nil
 }
 
+// CanReplyToSession verifies a reply against durable incoming message provenance.
+func (m *Manager) CanReplyToSession(ctx context.Context, sender, target, messageID string) (bool, error) {
+	if sender == "" || target == "" || messageID == "" || sender == target {
+		return false, nil
+	}
+	if err := acp.ValidatePromptOriginInReplyTo(messageID); err != nil {
+		return false, err
+	}
+	info, err := m.Status(ctx, sender)
+	if err != nil {
+		return false, err
+	}
+	return m.repliesToTargetMessage(ctx, info.WorkspaceID, sender, target, messageID)
+}
+
 // repliesToTargetMessage reports whether messageID was admitted into the sender from the target session.
 func (m *Manager) repliesToTargetMessage(
 	ctx context.Context,

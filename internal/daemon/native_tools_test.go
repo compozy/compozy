@@ -15888,3 +15888,64 @@ func (m *nativeLaterSessionManager) ResumeFromLater(
 ) (*session.Info, error) {
 	return &session.Info{ID: id, State: session.StateStopped}, nil
 }
+
+// Invariant: native reply delivery crosses only the verified peer boundary; all other access stays denied.
+// Owner: native session_prompt registry suite; session policy owns durable provenance verification.
+type replyAccessNativeSessionManager struct{ originNativeSessionManager }
+
+func (m replyAccessNativeSessionManager) CanReplyToSession(_ context.Context, sender, target, message string) (bool, error) {
+	return sender == "sender" && target == "target" && message == "received", nil
+}
+func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, workspace, reply, profile string
+		allowed                         bool
+	}{
+		{"Should allow a verified reply with implicit workspace", "", "received", store.DefaultProfileID, true},
+		{"Should allow a verified reply with explicit workspace", "ws-target", "received", store.DefaultProfileID, true},
+		{"Should deny an unsolicited send", "ws-target", "", store.DefaultProfileID, false},
+		{"Should deny a forged reply", "ws-target", "forged", store.DefaultProfileID, false},
+		{"Should deny a foreign profile", "ws-target", "received", "other-profile", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sent := false
+			base := nativeTestSessionManager("ws-origin")
+			base.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+				ws, profile := "ws-origin", store.DefaultProfileID
+				if id == "target" {
+					ws, profile = "ws-target", tc.profile
+				}
+				return &session.Info{ID: id, WorkspaceID: ws, ProfileID: profile, State: session.StateActive}, nil
+			}
+			base.SendPromptFn = func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				sent = true
+				return session.SendPromptResult{Status: "accepted", MessageID: opts.MessageID}, nil
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Sessions:   replyAccessNativeSessionManager{originNativeSessionManager{SessionManager: base}},
+				Workspaces: nativeTestWorkspaceService(t),
+			}, nativeApproveAllPolicyInputs())
+			payload := map[string]any{"workspace": tc.workspace, "session_id": "target", "message": "pong", "message_id": "reply", "idempotency_key": "reply"}
+			if tc.reply != "" {
+				payload["in_reply_to"] = tc.reply
+			}
+			input, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = registry.Call(t.Context(), toolspkg.Scope{SessionID: "sender", WorkspaceID: "ws-origin", ProfileID: store.DefaultProfileID}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input})
+			if tc.allowed {
+				if err != nil || !sent {
+					t.Fatalf("reply sent=%v, error=%v", sent, err)
+				}
+			} else {
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+				if sent {
+					t.Fatal("denied send reached admission")
+				}
+			}
+		})
+	}
+}

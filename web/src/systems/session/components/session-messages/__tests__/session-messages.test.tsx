@@ -604,6 +604,42 @@ describe("useSessionLabel", () => {
     expect(result.current.agentName).toBe("claude");
   });
 
+  it("Should resolve a target's owner before reading a missing workspace", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), "http://x");
+        if (url.pathname.endsWith("/owner")) {
+          return Response.json({
+            session_id: SENDER_ID,
+            workspace_id: "ws_site",
+            workspace_name: "compozy-site",
+          });
+        }
+        if (url.pathname === "/api/workspaces/ws_site") {
+          return Response.json({ workspace: { id: "ws_site", name: "compozy-site" } });
+        }
+        if (url.pathname === `/api/workspaces/ws_site/sessions/${SENDER_ID}`) {
+          return Response.json(sessionDetail(SENDER_ID, "Live peer"));
+        }
+        return Response.json({ error: "Wrong workspace" }, { status: 404 });
+      })
+    );
+    const { result } = renderHook(
+      () =>
+        useSessionLabel({
+          sessionId: SENDER_ID,
+          workspaceId: "",
+          currentWorkspaceId: WS,
+          agentName: null,
+        }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.title).toBe("Live peer"));
+    expect(result.current.workspaceId).toBe("ws_site");
+    await waitFor(() => expect(result.current.workspaceName).toBe("compozy-site"));
+  });
+
   it("Should name a sender in another workspace and keep that workspace (UT-063)", async () => {
     const { result } = renderHook(
       () =>

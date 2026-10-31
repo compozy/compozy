@@ -39,7 +39,11 @@ function firstLine(text: string): string {
 function toolError(tool: SessionTimelineToolPart | null): string | null {
   if (!tool?.isError) return null;
   const result = tool.result;
-  if (isRecord(result)) return stringField(result, "error")?.trim() || null;
+  if (isRecord(result)) {
+    const error = result.error;
+    if (isRecord(error)) return stringField(error, "message")?.trim() || null;
+    return stringField(result, "error")?.trim() || null;
+  }
   return typeof result === "string" && result.trim() !== "" ? result.trim() : null;
 }
 

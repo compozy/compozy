@@ -187,8 +187,11 @@ governance) when the new session lands in the caller's workspace; the link is no
 Use the native `compozy__session_prompt` tool when one agent messages another session. The daemon
 stamps `origin` from the calling session, including its session/workspace IDs, agent, title at send,
 and hop. Neither the message body nor a tool input can set or replace this identity. CLI, HTTP,
-and operator tool prompts remain operator input without an origin. Cross-workspace reach is
-unchanged; the sender workspace in origin identifies the correct session link.
+and operator tool prompts remain operator input without an origin. Cross-workspace unsolicited sends remain governed by `workspace_access`; the sender workspace
+in origin identifies the correct session link. A text reply may cross workspaces within the same
+profile when `in_reply_to` names a persisted message that the target sent to the caller. This
+exception does not authorize attachments, runtime changes, status/history reads, or other workspace
+operations. Include the received message ID; knowing a session ID alone grants no reply authority.
 
 Origin survives queue, steer, interrupt and daemon restart. The receiving provider sees a sender
 header before the message. Stored text remains the authored message; queue and event JSON expose

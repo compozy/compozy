@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { SessionNotFoundError } from "@/systems/session/adapters/session-api-errors";
-import { sessionDetailOptions } from "@/systems/session/lib/query-options";
+import { sessionDetailOptions, sessionOwnerOptions } from "@/systems/session/lib/query-options";
 import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-title";
 import { useWorkspace } from "@/systems/workspace";
 
@@ -33,7 +33,12 @@ export function useSessionLabel({
   agentName,
   titleAtSend = null,
 }: SessionLabelInput): SessionMessageParty {
-  const resolvedWorkspaceId = workspaceId || currentWorkspaceId;
+  const owner = useQuery({
+    ...sessionOwnerOptions(sessionId),
+    enabled: workspaceId === "" && sessionId !== "",
+    retry: false,
+  });
+  const resolvedWorkspaceId = workspaceId || owner.data?.workspace_id || "";
   const detail = useQuery({
     ...sessionDetailOptions(resolvedWorkspaceId, sessionId),
     enabled: resolvedWorkspaceId !== "" && sessionId !== "",
@@ -42,7 +47,12 @@ export function useSessionLabel({
   });
   const crossWorkspace = resolvedWorkspaceId !== "" && resolvedWorkspaceId !== currentWorkspaceId;
   const workspace = useWorkspace(resolvedWorkspaceId, { enabled: crossWorkspace });
-  const { title, pending } = sessionLabelTitle(detail, sessionId, titleAtSend || null);
+  const labelRead = workspaceId === "" && !owner.data ? owner : detail;
+  const { title, pending } = sessionLabelTitle(
+    { ...detail, error: labelRead.error, isError: labelRead.isError },
+    sessionId,
+    titleAtSend || null
+  );
   return {
     sessionId,
     workspaceId: resolvedWorkspaceId,

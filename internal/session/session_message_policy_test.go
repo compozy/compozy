@@ -273,3 +273,28 @@ func TestSessionMessageOriginRateBudget(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: reply authority belongs only to the recipient and original sender of a durable admission.
+// Owning layer: session message policy; canonical suite: session_message_policy_test.go.
+func TestSessionMessageReplyAuthority(t *testing.T) {
+	t.Parallel()
+	f := newSessionMessageFixture(t)
+	f.admit(t, f.sender, "peer-question", f.origin(f.peer, 1), f.h.manager.now())
+	for _, tc := range []struct {
+		name, sender, target, message string
+		allowed                       bool
+	}{
+		{"Should authorize the admitted peer", f.sender.ID, f.peer.ID, "peer-question", true},
+		{"Should reject another target", f.sender.ID, f.cc.ID, "peer-question", false},
+		{"Should reject another recipient", f.cc.ID, f.peer.ID, "peer-question", false},
+		{"Should reject an unknown message", f.sender.ID, f.peer.ID, "unknown", false},
+		{"Should reject an unsolicited message", f.sender.ID, f.peer.ID, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			allowed, err := f.h.manager.CanReplyToSession(t.Context(), tc.sender, tc.target, tc.message)
+			if err != nil || allowed != tc.allowed {
+				t.Fatalf("reply authority = %v, %v; want %v", allowed, err, tc.allowed)
+			}
+		})
+	}
+}

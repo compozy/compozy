@@ -104,3 +104,16 @@ This changes recovery guidance only, not reply-watch admission or delivery seman
 native real-SQLite history suite verifies complete filtered answers and cursor direction;
 [focused verification](../reports/2026-10-23-harness-dogfood.md) distinguishes this from a new
 provider-backed recipient delivery walk.
+
+## Cross-workspace explicit reply
+
+With two isolated workspaces in one profile, let A send B `ping` through an authorized
+cross-workspace call. From B, send A `pong` with `in_reply_to` set to the received message ID.
+Verify delivery both with omitted workspace and with A's explicit workspace. Repeat with an
+unknown message ID, a message from a different peer, no reply ID, a different profile, an
+attachment, and a runtime override: none acquires access through the reply exception. Confirm
+B still cannot read A's status/history without ordinary workspace authorization.
+
+In B's transcript, verify the Sent card shows A's current title and workspace, including an
+older failed send without `target_workspace_id`. The failed card must preserve its actual
+permission error. Verification of this added scenario is pending.
